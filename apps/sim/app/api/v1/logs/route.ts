@@ -8,7 +8,7 @@ import { v1ListLogsContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
@@ -167,12 +167,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
           const result = buildBase(log)
           if (log.executionData) {
-            const execData = (await materializeExecutionData(
+            const execData = (await materializeExecutionDataForDisplay(
               log.executionData as Record<string, unknown> | null,
               {
                 workspaceId: log.workspaceId,
                 workflowId: log.workflowId,
                 executionId: log.executionId,
+                userId,
               }
             )) as any
             if (params.includeFinalOutput && execData.finalOutput) {

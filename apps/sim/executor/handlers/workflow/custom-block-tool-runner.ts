@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext } from '@/executor/types'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -49,7 +50,10 @@ interface CustomBlockToolParams {
  */
 export function buildCustomBlockExecutionContext(
   context: CustomBlockExecutorContext,
-  options: { abortSignal?: AbortSignal } = {}
+  options: {
+    abortSignal?: AbortSignal
+    resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  } = {}
 ): ExecutionContext {
   // Prefer the invoking agent run's ids so correlation and cancellation both
   // point at a real execution; fall back only when a caller could not supply them.
@@ -66,6 +70,7 @@ export function buildCustomBlockExecutionContext(
     // Without this the child's cancellation bridge has nothing to abort on:
     // the agent tool loop owns the only signal reaching this path.
     abortSignal: options.abortSignal,
+    resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry,
     environmentVariables: {},
     blockStates: new Map(),
     executedBlocks: new Set(),
@@ -102,7 +107,10 @@ export function buildCustomBlockExecutionContext(
  */
 export async function runCustomBlockTool(
   params: CustomBlockToolParams,
-  options: { abortSignal?: AbortSignal } = {}
+  options: {
+    abortSignal?: AbortSignal
+    resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  } = {}
 ): Promise<ToolResponse> {
   if (!params.blockType) {
     return { success: false, output: {}, error: 'Missing custom block type' }
@@ -110,6 +118,7 @@ export async function runCustomBlockTool(
 
   const ctx = buildCustomBlockExecutionContext(params._context ?? {}, {
     abortSignal: options.abortSignal,
+    resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry,
   })
   const block: SerializedBlock = {
     id: generateId(),

@@ -10,6 +10,7 @@ import { formatMessagesForProvider } from '@/providers/attachments'
 import { createReadableStreamFromLiteLLMStream } from '@/providers/litellm/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -32,7 +33,6 @@ import {
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('LiteLLMProvider')
 const LITELLM_VERSION = '1.0.0'
@@ -374,7 +374,7 @@ export const litellmProvider: ProviderConfig = {
             }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
+            const result = await executeProviderTool(toolName, executionParams, {
               signal: request.abortSignal,
             })
             const toolCallEndTime = Date.now()

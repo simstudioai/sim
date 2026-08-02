@@ -27,6 +27,7 @@ import {
   MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
 import {
+  addMothershipContexts,
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
@@ -329,19 +330,39 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   }, [sendMessage])
 
   /**
-   * Consumes a one-shot handoff left by another surface (e.g. "Troubleshoot in
-   * Chat" on an errored log viewed from a different route) and auto-sends it
-   * into this fresh chat, tagging the run so Sim can inspect the failure. Only
-   * the cross-route path lands here — when a chat is already mounted the event
-   * above delivers directly. Gated to the new-chat surface (`!chatId`): a
+   * Consumes a one-shot handoff left by another surface and applies it to this
+   * fresh chat. Two shapes arrive here: a message handoff (e.g. "Troubleshoot in
+   * Chat" on an errored log) is auto-sent with its contexts attached; a
+   * chip-only handoff (highlight-to-chat from the standalone Files/Tables pages)
+   * seeds reference chips and sends nothing.
+   *
+   * Only the cross-route path lands here — when a chat is already mounted the
+   * events deliver directly. Gated to the new-chat surface (`!chatId`): a
    * handoff always targets a fresh chat, so an existing `/chat/[chatId]` mount
    * must never claim it if navigation races. `consume` clears the entry
    * atomically, so it fires at most once even across a StrictMode remount.
+   *
+   * Chip-only handoffs open each resource directly rather than relying on the
+   * input's listener being mounted, then dispatch so the input inserts the chip.
+   * This effect is declared after `useChat`, so its chat-init `setResources([])`
+   * has already flushed and cannot wipe the just-opened resource.
    */
   useEffect(() => {
     if (chatId) return
     const handoff = MothershipHandoffStorage.consume(workspaceId)
-    if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
+    if (!handoff) return
+    if (handoff.message) {
+      sendMessage(handoff.message, undefined, handoff.contexts)
+      return
+    }
+    const contexts = handoff.contexts ?? []
+    for (const context of contexts) handleContextAdd(context)
+    addMothershipContexts(contexts)
+    // `handleContextAdd` is a body function, so it is a new value every render;
+    // listing it would re-run this drain on every render. Omitted deliberately to
+    // keep it one-shot — and harmless either way, since `consume` clears the entry
+    // atomically and any re-run would find nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [chatId, workspaceId, sendMessage])
 
   function resolveResourceFromContext(
@@ -355,24 +376,48 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         return context.knowledgeId ? { type: 'knowledgebase', id: context.knowledgeId } : null
       case 'table':
         return context.tableId ? { type: 'table', id: context.tableId } : null
+      case 'table_selection':
+        return context.tableId ? { type: 'table', id: context.tableId } : null
       case 'file':
+        return context.fileId ? { type: 'file', id: context.fileId } : null
+      case 'file_selection':
         return context.fileId ? { type: 'file', id: context.fileId } : null
       default:
         return null
     }
   }
 
+  /**
+   * Tab title for the resource a chip opens. A selection chip's label describes
+   * the selection (`notes.md:12-40`, `Sales (3 rows)`) but the tab shows the
+   * whole file/table, so title it from the resource name the context carries.
+   */
+  function resourceTitleForContext(context: ChatContext): string {
+    if (context.kind === 'file_selection') return context.fileName
+    if (context.kind === 'table_selection') return context.tableName
+    return context.label
+  }
+
   function handleContextAdd(context: ChatContext) {
     const resolved = resolveResourceFromContext(context)
     if (resolved) {
-      addResource({ ...resolved, title: context.label })
+      addResource({ ...resolved, title: resourceTitleForContext(context) })
       handleResourceEvent()
     }
   }
 
-  function handleInitialContextRemove(context: ChatContext) {
+  function handleInitialContextRemove(context: ChatContext, remaining: ChatContext[]) {
     const resolved = resolveResourceFromContext(context)
     if (!resolved) return
+    // A whole-file chip and one or more of its selection chips (or several
+    // selections of the same file/table) all resolve to the same resource tab.
+    // Only close the tab once no remaining chip still references it, so removing
+    // one of several chips doesn't yank a slideover the others still point at.
+    const stillReferenced = remaining.some((other) => {
+      const otherResolved = resolveResourceFromContext(other)
+      return otherResolved?.type === resolved.type && otherResolved.id === resolved.id
+    })
+    if (stillReferenced) return
     removeResource(resolved.type, resolved.id)
   }
 

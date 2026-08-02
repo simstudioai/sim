@@ -22,6 +22,7 @@ export async function completeLoggingSession(result: ExecutionResult): Promise<v
     finalOutput: result.output || {},
     traceSpans: traceSpans || [],
     workflowInput: result._streamingMetadata.processedInput,
+    executionState: result.executionState,
   })
 
   result._streamingMetadata = undefined

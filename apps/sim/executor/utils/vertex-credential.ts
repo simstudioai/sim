@@ -7,17 +7,27 @@ import { getServiceAccountToken, refreshTokenIfNeeded } from '@/app/api/auth/oau
 
 const logger = createLogger('VertexCredential')
 
+export interface ResolveVertexCredentialParams {
+  credentialId: string
+  actingUserId: string | undefined
+  /** Workspace of the executing workflow. The credential must belong to it. */
+  workspaceId: string | null | undefined
+  callerLabel?: string
+}
+
 /**
  * Resolves a Vertex AI OAuth credential to an access token.
- * Shared across agent, evaluator, and router handlers. Authorizes the executing
- * user against the credential first — workspace credentials are usable by their
- * members and by derived workspace admins, matching `authorizeCredentialUse`.
+ * Shared across agent, evaluator, and router handlers. Enforces the same two
+ * predicates as `authorizeCredentialUse`: the executing user must be a member
+ * (or derived workspace admin) of the credential, and the credential must belong
+ * to the workspace the workflow is executing in.
  */
-export async function resolveVertexCredential(
-  credentialId: string,
-  actingUserId: string | undefined,
-  callerLabel = 'vertex'
-): Promise<string> {
+export async function resolveVertexCredential({
+  credentialId,
+  actingUserId,
+  workspaceId,
+  callerLabel = 'vertex',
+}: ResolveVertexCredentialParams): Promise<string> {
   const requestId = `${callerLabel}-${Date.now()}`
 
   logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
@@ -30,6 +40,13 @@ export async function resolveVertexCredential(
   const cred = access.credential
   if (!cred) {
     throw new Error(`Vertex AI credential not found: ${credentialId}`)
+  }
+  if (workspaceId && cred.workspaceId !== workspaceId) {
+    logger.warn(`[${requestId}] Vertex AI credential belongs to a different workspace`, {
+      credentialId,
+      executingWorkspaceId: workspaceId,
+    })
+    throw new Error('Credential is not accessible from this workflow workspace')
   }
   if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
     throw new Error('Not authorized to use this Vertex AI credential')

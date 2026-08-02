@@ -58,10 +58,19 @@ export interface LogfireQueryApiResponse {
   data?: Record<string, unknown>[] | null
 }
 
-/** Shape of `GET /v1/read-token-info`. */
+/**
+ * Shape of `GET /v1/read-token-info`. The endpoint is not covered by the public
+ * API reference; these fields are taken from the official SDK's `ReadTokenInfo`
+ * and from Logfire's own recorded response fixtures. It returns further billing
+ * and ownership internals that are deliberately not surfaced.
+ */
 export interface LogfireReadTokenInfo {
   organization_name?: string | null
   project_name?: string | null
+  /** Null when the token never expires. */
+  expires_at?: string | null
+  /** Set once the organization's spending cap has been hit, which stops queries. */
+  spending_cap_reached_at?: string | null
 }
 
 /**
@@ -111,7 +120,7 @@ export const LOGFIRE_RECORD_OUTPUT_ITEM: NonNullable<ToolOutputProperty['items']
     spanName: { type: 'string', description: 'Template label for similar records', nullable: true },
     kind: {
       type: 'string',
-      description: 'Record kind: span, log, or span_event',
+      description: 'Record kind: span, log, span_event, or pending_span',
       nullable: true,
     },
     serviceName: { type: 'string', description: 'Service that emitted the record', nullable: true },
@@ -182,6 +191,8 @@ export interface LogfireGetTokenInfoResponse extends ToolResponse {
   output: {
     organizationName: string | null
     projectName: string | null
+    expiresAt: string | null
+    spendingCapReachedAt: string | null
   }
 }
 

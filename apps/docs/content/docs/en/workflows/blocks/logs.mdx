@@ -46,7 +46,10 @@ This pairs naturally with the [Sim trigger](/workflows/triggers/sim): the trigge
 
 <Callout type="info">
   The block always operates on the current workspace. Costs are denominated in credits, both for
-  the cost filter and the cost output.
+  the cost filter and the cost output. **Get Run Details** is a log-read path, so both `traceSpans`
+  and `finalOutput` come from the protected log-facing projection described under
+  [Execution log protection](/platform/credentials#execution-log-protection). The underlying runtime
+  result remains unchanged.
 </Callout>
 
 <FAQ items={[

@@ -55,7 +55,11 @@ export async function executeTool(
     (isSimExecuted(toolId) || (isClientExecuted(toolId) && hasHandler(toolId)))
   if (!canUseRegisteredHandler) {
     const appParams = buildAppToolParams(normalizedParams, context)
-    return executeAppTool(toolId, appParams)
+    return context.resolvedSecretTraceRegistry
+      ? executeAppTool(toolId, appParams, {
+          resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
+        })
+      : executeAppTool(toolId, appParams)
   }
 
   if (context.abortSignal?.aborted) {

@@ -59,11 +59,15 @@ export type {
 } from './types'
 export {
   buildHeaderGroups,
+  buildTableSelectionContext,
   type CellCoord,
+  canWriteRowsWithChip,
   checkboxColLayout,
+  chipRowCount,
   classifyExecStatusMix,
   collectRowSnapshots,
   computeNormalizedSelection,
+  drainTargetForChip,
   type ExecStatusMix,
   expandToDisplayColumns,
   type HeaderGroup,
@@ -79,6 +83,7 @@ export {
   rowSelectionIncludes,
   rowSelectionIsEmpty,
   rowSelectionMaterialize,
+  selectedColumnIds,
 } from './utils'
 export {
   cleanCellValue,

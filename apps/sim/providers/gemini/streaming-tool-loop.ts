@@ -33,6 +33,7 @@ import {
   convertUsageMetadata,
   ensureStructResponse,
 } from '@/providers/google/utils'
+import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
   isAbortError,
@@ -44,7 +45,6 @@ import { ensureToolCallId } from '@/providers/tool-call-id'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ModelPricing, ProviderRequest, TimeSegment } from '@/providers/types'
 import { isGemini3Model, prepareToolExecution, sumToolCosts } from '@/providers/utils'
-import { executeTool } from '@/tools'
 import type { GeminiUsage } from './types'
 import { priceGeminiTokens, splitGeminiUsage } from './usage'
 
@@ -465,7 +465,7 @@ export function createGeminiStreamingToolLoopStream(
                     toolArgs,
                     request
                   )
-                  const result = await executeTool(toolName, executionParams, {
+                  const result = await executeProviderTool(toolName, executionParams, {
                     signal: loopAbortController.signal,
                   })
                   const toolCallEndTime = Date.now()

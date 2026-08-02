@@ -7,7 +7,7 @@ import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { createSSECallbacks } from '@/lib/workflows/executor/execution-events'
 import { completeLoggingSession } from '@/lib/workflows/streaming/logging-session-completion'
-import type { ExecutionResult, StreamingExecution } from '@/executor/types'
+import type { ExecutionResult, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('ExecutionEventStream')
 
@@ -269,9 +269,19 @@ export function createExecutionEventStream(
               readBlockCompletion(completion)
             const identity = blockNames.get(blockId)
             const publishedPaths = publishedOutputs.get(blockId)
-            const visibleOutput = publishedPaths
-              ? pickPublishedPaths(output, publishedPaths)
-              : withheldBlockOutput(output)
+            /**
+             * Both redaction helpers are typed `unknown` because a block's raw
+             * output is; the consumer wants `NormalizedBlockOutput`. Asserted
+             * rather than narrowed so the redaction rules stay exactly as they
+             * are — in particular `pickPublishedPaths` deliberately passes a
+             * non-record output through untouched, and re-typing it would
+             * silently change what a published module renders.
+             */
+            const visibleOutput = (
+              publishedPaths
+                ? pickPublishedPaths(output, publishedPaths)
+                : withheldBlockOutput(output)
+            ) as NormalizedBlockOutput
             await callbacks.onBlockComplete(
               blockId,
               identity?.blockName ?? blockId,

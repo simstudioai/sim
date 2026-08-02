@@ -11,10 +11,17 @@ import {
   resolvePreviewType,
 } from '@/components/resources/file-view/components/preview-panel/preview-panel'
 import { PreviewLoadingFrame } from '@/components/resources/file-view/components/preview-shared/preview-shared'
+import { useSelectionCopyBridge } from '@/components/resources/file-view/components/use-selection-copy-bridge'
 import type { FileViewStreaming, PreviewMode } from '@/components/resources/file-view/file-view'
 import { useEditableFileContent } from '@/components/resources/file-view/hooks/use-editable-file-content'
+import {
+  buildFileSelectionLabel,
+  truncateSelectionText,
+} from '@/lib/copilot/chat/selection-context'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { FileViewRecord } from '@/resources/file-source'
+import type { ChatContext } from '@/stores/panel'
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
@@ -372,6 +379,38 @@ export const TextEditor = memo(function TextEditor({
 
   const monacoLanguage = resolveMonacoLanguage(file)
   const monacoTheme = useMonacoTheme()
+  const addToChat = useAddToChat()
+
+  const buildSelectionContext = useCallback((): ChatContext | null => {
+    const editor = monacoEditorRef.current
+    const sel = editor?.getSelection()
+    const model = editor?.getModel()
+    if (!editor || !sel || sel.isEmpty() || !model) return null
+    const text = model.getValueInRange(sel)
+    if (!text.trim()) return null
+    const startLine = sel.startLineNumber
+    // A full-line highlight ends at column 1 of the FOLLOWING line, so that line
+    // contributed no text — reporting it would claim a range one line longer
+    // than what was selected, in both the chip label and the agent's prompt.
+    const endLine =
+      sel.endColumn === 1 && sel.endLineNumber > startLine
+        ? sel.endLineNumber - 1
+        : sel.endLineNumber
+    return {
+      kind: 'file_selection',
+      fileId: file.id,
+      fileName: file.name,
+      label: buildFileSelectionLabel(file.name, startLine, endLine),
+      text: truncateSelectionText(text),
+      startLine,
+      endLine,
+    }
+  }, [file.id, file.name])
+
+  const handleAddSelectionToChat = () => {
+    const context = buildSelectionContext()
+    if (context) addToChat(context)
+  }
 
   const {
     content,
@@ -391,6 +430,10 @@ export const TextEditor = memo(function TextEditor({
     discardRef,
   })
   contentRef.current = content
+
+  // Enable once content has loaded — the container (and Monaco) only mount after
+  // the `isContentLoading` early return below, so the bridge must (re-)attach then.
+  useSelectionCopyBridge(containerRef, buildSelectionContext, !isContentLoading)
 
   useEffect(() => {
     const editor = monacoEditorRef.current
@@ -647,6 +690,10 @@ export const TextEditor = memo(function TextEditor({
           onClose={closeContextMenu}
           hasSelection={contextMenu.hasSelection}
           canEdit={!isEditorReadOnly}
+          onAddToChat={() => {
+            handleAddSelectionToChat()
+            closeContextMenu()
+          }}
           onCut={() => {
             monacoEditorRef.current?.focus()
             monacoEditorRef.current?.trigger(

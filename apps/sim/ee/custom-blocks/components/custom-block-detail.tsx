@@ -20,6 +20,7 @@ import {
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowLeft, ChevronDown, Image as ImageIcon, X } from 'lucide-react'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
@@ -28,7 +29,6 @@ import {
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'

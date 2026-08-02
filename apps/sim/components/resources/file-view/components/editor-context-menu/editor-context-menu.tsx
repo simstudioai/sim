@@ -1,7 +1,7 @@
 'use client'
 
 import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut } from '@sim/emcn'
-import { Clipboard, Duplicate, Search, SelectAll } from '@sim/emcn/icons'
+import { Blimp, Clipboard, Duplicate, Search, SelectAll } from '@sim/emcn/icons'
 import { Scissors } from 'lucide-react'
 import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 
@@ -17,6 +17,8 @@ interface EditorContextMenuProps {
   onPaste: () => void
   onSelectAll: () => void
   onFind: () => void
+  /** Adds the current selection to Chat as a reference. Omit to hide the item. */
+  onAddToChat?: () => void
 }
 
 export function EditorContextMenu({
@@ -31,9 +33,19 @@ export function EditorContextMenu({
   onPaste,
   onSelectAll,
   onFind,
+  onAddToChat,
 }: EditorContextMenuProps) {
   return (
     <AnchoredContextMenu isOpen={isOpen} position={position} onClose={onClose} sideOffset={2}>
+      {onAddToChat && (
+        <>
+          <DropdownMenuItem disabled={!hasSelection} onSelect={onAddToChat}>
+            <Blimp />
+            Add to Chat
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>
+      )}
       {canEdit && (
         <DropdownMenuItem disabled={!hasSelection} onSelect={onCut}>
           <Scissors />

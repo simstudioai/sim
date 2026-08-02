@@ -4,6 +4,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const { isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
   isKnownTool: vi.fn(),
@@ -109,6 +110,35 @@ describe('copilot tool executor fallback', () => {
 
     const appParams = executeAppTool.mock.calls[0][1] as Record<string, unknown>
     expect(appParams._context).not.toHaveProperty('billingAttribution')
+  })
+
+  it('passes trace provenance out-of-band without exposing it in app tool parameters', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: { result: 'unchanged' } })
+    const registry = {} as ResolvedSecretTraceRegistry
+
+    const result = await executeTool(
+      'gmail_read',
+      { query: 'hello' },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(executeAppTool).toHaveBeenCalledWith(
+      'gmail_read',
+      expect.objectContaining({
+        query: 'hello',
+        _context: expect.not.objectContaining({ resolvedSecretTraceRegistry: expect.anything() }),
+      }),
+      { resolvedSecretTraceRegistry: registry }
+    )
+    const appParams = executeAppTool.mock.calls[0]?.[1]
+    expect(JSON.stringify(appParams)).not.toContain('resolvedSecretTraceRegistry')
+    expect(result).toEqual({ success: true, output: { result: 'unchanged' } })
   })
 
   it('uses the registered handler for client-routed tools when running headless (Mothership block)', async () => {

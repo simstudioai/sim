@@ -32,6 +32,7 @@ import {
   type ChatFormData,
   useCreateChat,
   useDeleteChat,
+  useRevealChatPassword,
   useUpdateChat,
 } from '@/hooks/queries/chats'
 import type { ChatDetail } from '@/hooks/queries/deployments'
@@ -42,6 +43,8 @@ import {
   getPasswordPlaceholder,
   hasExistingPassword,
   isPasswordRequired,
+  isWhitespaceOnlyPassword,
+  shouldConfirmPasswordChange,
 } from './utils'
 
 const logger = createLogger('ChatDeploy')
@@ -58,6 +61,7 @@ interface ChatDeployProps {
   onRefetchChat: () => Promise<void>
   chatSubmitting: boolean
   setChatSubmitting: (submitting: boolean) => void
+  canRevealPassword: boolean
   onValidationChange?: (isValid: boolean) => void
   showDeleteConfirmation?: boolean
   setShowDeleteConfirmation?: (show: boolean) => void
@@ -98,6 +102,7 @@ export function ChatDeploy({
   onRefetchChat,
   chatSubmitting,
   setChatSubmitting,
+  canRevealPassword,
   onValidationChange,
   showDeleteConfirmation: externalShowDeleteConfirmation,
   setShowDeleteConfirmation: externalSetShowDeleteConfirmation,
@@ -107,6 +112,7 @@ export function ChatDeploy({
 }: ChatDeployProps) {
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [internalShowDeleteConfirmation, setInternalShowDeleteConfirmation] = useState(false)
+  const [showPasswordChangeConfirmation, setShowPasswordChangeConfirmation] = useState(false)
 
   const showDeleteConfirmation =
     externalShowDeleteConfirmation !== undefined
@@ -154,6 +160,8 @@ export function ChatDeploy({
 
     if (isPasswordRequired(formData.authType, formData.password, existingPassword)) {
       newErrors.password = 'Password is required when using password protection'
+    } else if (formData.authType === 'password' && isWhitespaceOnlyPassword(formData.password)) {
+      newErrors.password = 'Password cannot contain only whitespace'
     }
 
     if (
@@ -176,6 +184,7 @@ export function ChatDeploy({
     Boolean(formData.title.trim()) &&
     formData.selectedOutputBlocks.length > 0 &&
     !isPasswordRequired(formData.authType, formData.password, existingPassword) &&
+    (formData.authType !== 'password' || !isWhitespaceOnlyPassword(formData.password)) &&
     ((formData.authType !== 'email' && formData.authType !== 'sso') || formData.emails.length > 0)
 
   useEffect(() => {
@@ -214,9 +223,7 @@ export function ChatDeploy({
     }
   }, [existingChat, isLoadingChat])
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
-
+  const submitChat = async (passwordChangeConfirmed = false) => {
     if (chatSubmitting) return
 
     setChatSubmitting(true)
@@ -228,14 +235,20 @@ export function ChatDeploy({
     try {
       if (!validateForm()) {
         newTab?.close()
-        setChatSubmitting(false)
         return
       }
 
       if (!isIdentifierValid && formData.identifier !== existingChat?.identifier) {
         newTab?.close()
         setError('identifier', 'Please wait for identifier validation to complete')
-        setChatSubmitting(false)
+        return
+      }
+
+      if (
+        !passwordChangeConfirmed &&
+        shouldConfirmPasswordChange(existingPassword, formData.authType, formData.password)
+      ) {
+        setShowPasswordChangeConfirmation(true)
         return
       }
 
@@ -284,6 +297,11 @@ export function ChatDeploy({
     }
   }
 
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    await submitChat()
+  }
+
   const handleDelete = async () => {
     if (!existingChat || !existingChat.id) return
 
@@ -305,6 +323,11 @@ export function ChatDeploy({
     } finally {
       setShowDeleteConfirmation(false)
     }
+  }
+
+  const handleConfirmPasswordChange = async () => {
+    setShowPasswordChangeConfirmation(false)
+    await submitChat(true)
   }
 
   if (isLoadingChat) {
@@ -405,6 +428,8 @@ export function ChatDeploy({
 
           <AuthSelector
             key={`${existingChat?.id ?? 'new'}-${formInitCounter}`}
+            chatId={existingChat?.id ?? null}
+            canRevealPassword={canRevealPassword}
             authType={formData.authType}
             savedAuthType={existingChat?.authType as AuthType | undefined}
             password={formData.password}
@@ -445,6 +470,21 @@ export function ChatDeploy({
           />
         </div>
       </form>
+
+      <ChipConfirmModal
+        open={showPasswordChangeConfirmation}
+        onOpenChange={setShowPasswordChangeConfirmation}
+        srTitle='Change deployment password'
+        title='Change deployment password?'
+        text='Are you sure you want to change the password for this deployment?'
+        confirm={{
+          label: 'Change Password and Redeploy',
+          onClick: handleConfirmPasswordChange,
+          variant: 'primary',
+          pending: chatSubmitting,
+          pendingLabel: 'Updating...',
+        }}
+      />
 
       <ChipConfirmModal
         open={showDeleteConfirmation}
@@ -618,6 +658,8 @@ function IdentifierInput({
 }
 
 interface AuthSelectorProps {
+  chatId: string | null
+  canRevealPassword: boolean
   authType: AuthType
   /** The persisted mode of an existing chat, kept selectable even if newly disallowed. */
   savedAuthType?: AuthType
@@ -639,6 +681,8 @@ const AUTH_LABELS: Record<AuthType, string> = {
 }
 
 function AuthSelector({
+  chatId,
+  canRevealPassword,
   authType,
   savedAuthType,
   password,
@@ -652,9 +696,20 @@ function AuthSelector({
 }: AuthSelectorProps) {
   const [emailError, setEmailError] = useState('')
   const [invalidEmailItems, setInvalidEmailItems] = useState<TagItem[]>([])
+  const revealPasswordMutation = useRevealChatPassword()
 
   const emailsRef = useRef(emails)
   const invalidEmailItemsRef = useRef(invalidEmailItems)
+
+  /**
+   * Editing or regenerating the password clears a failed reveal. The mutation
+   * only drops its error on the next attempt, so it would otherwise keep
+   * reporting a stale failure over a field the admin has already moved on from.
+   */
+  const handlePasswordChange = (value: string) => {
+    if (revealPasswordMutation.isError) revealPasswordMutation.reset()
+    onPasswordChange(value)
+  }
 
   useEffect(() => {
     emailsRef.current = emails
@@ -755,12 +810,22 @@ function AuthSelector({
           </Label>
           <ChipPasswordInput
             value={password}
-            onChange={onPasswordChange}
+            onChange={handlePasswordChange}
             onGenerate={() => generatePassword(24)}
             disabled={disabled}
-            placeholder={getPasswordPlaceholder(hasExistingPassword)}
+            placeholder={hasExistingPassword ? '' : getPasswordPlaceholder(false)}
             required={!hasExistingPassword}
+            fetchCurrentPassword={
+              canRevealPassword && chatId && hasExistingPassword
+                ? () => revealPasswordMutation.mutateAsync({ chatId })
+                : undefined
+            }
           />
+          {canRevealPassword && revealPasswordMutation.isError && (
+            <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>
+              Failed to load the current password
+            </p>
+          )}
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             {getPasswordHelperText(hasExistingPassword)}
           </p>

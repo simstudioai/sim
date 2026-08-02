@@ -4,15 +4,26 @@
 
 import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  MAX_TABLE_SELECTION_CONTENT_LENGTH,
+  MAX_TABLE_SELECTION_ROWS,
+} from '@/lib/copilot/chat/selection-context'
 import type { ChatContext } from '@/stores/panel'
 
-const { discoverServerTools, getSkillById } = vi.hoisted(() => ({
-  discoverServerTools: vi.fn(),
-  getSkillById: vi.fn(),
-}))
+const { discoverServerTools, getSkillById, getWorkspaceFile, getTableById, getRowsByIds } =
+  vi.hoisted(() => ({
+    discoverServerTools: vi.fn(),
+    getSkillById: vi.fn(),
+    getWorkspaceFile: vi.fn(),
+    getTableById: vi.fn(),
+    getRowsByIds: vi.fn(),
+  }))
 
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
+vi.mock('@/lib/table/service', () => ({ getTableById }))
+vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
 
 /**
  * Overrides the global `@sim/db` mock: the logs-context tests below need
@@ -292,5 +303,335 @@ describe('processContextsServer - logs contexts', () => {
     )
 
     expect(result).toEqual([])
+  })
+})
+
+describe('processContextsServer - file_selection contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('inlines the selected passage with its line range and a path pointer', async () => {
+    getWorkspaceFile.mockResolvedValue({ name: 'notes.md', folderPath: null })
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'file_selection',
+          fileId: 'file-1',
+          label: 'notes.md:12-14',
+          text: 'the exact passage',
+          startLine: 12,
+          endLine: 14,
+        } as ChatContext,
+      ],
+      'user-1',
+      'explain this',
+      'ws-1'
+    )
+
+    expect(getWorkspaceFile).toHaveBeenCalledWith('ws-1', 'file-1')
+    expect(result).toHaveLength(1)
+    const [ctx] = result
+    expect(ctx.type).toBe('file_selection')
+    expect(ctx.tag).toBe('@notes.md:12-14')
+    expect(ctx.content).toContain('lines 12-14')
+    expect(ctx.content).toContain('the exact passage')
+    expect(ctx.path).toBeTruthy()
+  })
+
+  it('drops the selection when the file does not resolve', async () => {
+    getWorkspaceFile.mockResolvedValue(null)
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'file_selection',
+          fileId: 'missing',
+          label: 'x',
+          text: 'anything',
+        } as ChatContext,
+      ],
+      'user-1',
+      'hello',
+      'ws-1'
+    )
+
+    expect(result).toEqual([])
+  })
+
+  it('widens the code fence so an embedded ``` block cannot close it early', async () => {
+    getWorkspaceFile.mockResolvedValue({ name: 'readme.md', folderPath: null })
+
+    const snippet = 'before\n```ts\nconst x = 1\n```\nafter'
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'file_selection',
+          fileId: 'file-1',
+          label: 'readme.md:1-5',
+          text: snippet,
+          startLine: 1,
+          endLine: 5,
+        } as ChatContext,
+      ],
+      'user-1',
+      'explain',
+      'ws-1'
+    )
+
+    const [ctx] = result
+    // Outer fence must be longer than the embedded ``` run, and the full snippet
+    // (including its inner fence) must survive intact.
+    expect(ctx.content).toContain('````')
+    expect(ctx.content).toContain(snippet)
+    expect(ctx.content.startsWith('Selected passage')).toBe(true)
+    expect(ctx.content.endsWith('````')).toBe(true)
+  })
+})
+
+describe('processContextsServer - table_selection contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('re-fetches rows by id and renders a markdown table for the selected columns', async () => {
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'ws-1',
+      schema: {
+        columns: [
+          { id: 'c_name', name: 'Name' },
+          { id: 'c_amount', name: 'Amount' },
+          { id: 'c_notes', name: 'Notes' },
+        ],
+      },
+    })
+    getRowsByIds.mockResolvedValue([
+      { id: 'r1', data: { c_name: 'Acme', c_amount: 100, c_notes: 'ignored' } },
+      { id: 'r2', data: { c_name: 'Globex', c_amount: 250, c_notes: 'ignored' } },
+    ])
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          label: 'Sales (2 rows, 2 cols)',
+          rowIds: ['r1', 'r2'],
+          columnIds: ['c_name', 'c_amount'],
+        } as ChatContext,
+      ],
+      'user-1',
+      'summarize',
+      'ws-1'
+    )
+
+    expect(getRowsByIds).toHaveBeenCalledWith('tbl-1', ['r1', 'r2'], 'ws-1')
+    expect(result).toHaveLength(1)
+    const [ctx] = result
+    expect(ctx.type).toBe('table_selection')
+    expect(ctx.content).toContain('| Name | Amount |')
+    expect(ctx.content).toContain('| Acme | 100 |')
+    expect(ctx.content).toContain('| Globex | 250 |')
+    // Unselected column is excluded from the cell range.
+    expect(ctx.content).not.toContain('Notes')
+    expect(ctx.content).not.toContain('ignored')
+  })
+
+  it('drops the selection for a cross-workspace table', async () => {
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'other-ws',
+      schema: { columns: [] },
+    })
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          label: 'x',
+          rowIds: ['r1'],
+        } as ChatContext,
+      ],
+      'user-1',
+      'hello',
+      'ws-1'
+    )
+
+    expect(getRowsByIds).not.toHaveBeenCalled()
+    expect(result).toEqual([])
+  })
+
+  it('drops a cell range whose columns no longer resolve (never expands to full table)', async () => {
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'ws-1',
+      schema: { columns: [{ id: 'c_name', name: 'Name' }] },
+    })
+    getRowsByIds.mockResolvedValue([{ id: 'r1', data: { c_name: 'Acme' } }])
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          label: 'Sales (1 row, 1 col)',
+          rowIds: ['r1'],
+          // Column was renamed/deleted since the selection was captured.
+          columnIds: ['c_deleted'],
+        } as ChatContext,
+      ],
+      'user-1',
+      'summarize',
+      'ws-1'
+    )
+
+    expect(result).toEqual([])
+  })
+
+  it('keeps the whole rendered content within budget when rows pack tightly', async () => {
+    // Rows small enough to fill the budget almost exactly: the last accepted row
+    // leaves only a few characters of slack, so a budget that forgot to reserve
+    // the prose prefix and newlines overruns the cap here while passing on
+    // coarse fixtures that stop far short of the limit.
+    const cell = 'x'.repeat(100)
+    const rows = Array.from({ length: MAX_TABLE_SELECTION_ROWS }, (_, i) => ({
+      id: `r${i}`,
+      data: { c_notes: cell },
+    }))
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'ws-1',
+      schema: { columns: [{ id: 'c_notes', name: 'Notes' }] },
+    })
+    getRowsByIds.mockResolvedValue(rows)
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Sales (500 rows)',
+          rowIds: rows.map((r) => r.id),
+        } as ChatContext,
+      ],
+      'user-1',
+      'summarize',
+      'ws-1'
+    )
+
+    const [ctx] = result
+    expect(ctx.content.length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_CONTENT_LENGTH)
+    // Guard against passing by emitting almost nothing — it must still be a
+    // real table that genuinely approaches the cap.
+    expect(ctx.content.length).toBeGreaterThan(MAX_TABLE_SELECTION_CONTENT_LENGTH * 0.9)
+    expect(ctx.content).toContain('omitted for length')
+  })
+
+  it('holds the cap across cell widths, including ones that pack flush to it', async () => {
+    // A single width can leave slack that hides an under-reserved prefix by a
+    // few characters. Sweeping widths lands at least one run with almost no
+    // remainder, which is where an off-by-N in the reserve actually shows up.
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'ws-1',
+      schema: { columns: [{ id: 'c_notes', name: 'Notes' }] },
+    })
+
+    const overflows: Array<{ width: number; length: number }> = []
+    for (let width = 60; width <= 75; width++) {
+      const rows = Array.from({ length: MAX_TABLE_SELECTION_ROWS }, (_, i) => ({
+        id: `r${i}`,
+        data: { c_notes: 'x'.repeat(width) },
+      }))
+      getRowsByIds.mockResolvedValue(rows)
+
+      const result = await processContextsServer(
+        [
+          {
+            kind: 'table_selection',
+            tableId: 'tbl-1',
+            tableName: 'Sales',
+            label: 'Sales (500 rows)',
+            rowIds: rows.map((r) => r.id),
+          } as ChatContext,
+        ],
+        'user-1',
+        'summarize',
+        'ws-1'
+      )
+
+      const { length } = result[0].content
+      if (length > MAX_TABLE_SELECTION_CONTENT_LENGTH) overflows.push({ width, length })
+    }
+
+    // Collected rather than asserted per-iteration so a failure names the widths.
+    expect(overflows).toEqual([])
+  })
+
+  it('spends a character budget across rows and reports what it omitted', async () => {
+    // Row/column caps alone don't bound prompt cost: wide cells blow past the
+    // budget long before MAX_TABLE_SELECTION_ROWS.
+    const wide = 'x'.repeat(2_000)
+    const rows = Array.from({ length: MAX_TABLE_SELECTION_ROWS }, (_, i) => ({
+      id: `r${i}`,
+      data: { c_notes: wide },
+    }))
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'ws-1',
+      schema: { columns: [{ id: 'c_notes', name: 'Notes' }] },
+    })
+    getRowsByIds.mockResolvedValue(rows)
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Sales (500 rows)',
+          rowIds: rows.map((r) => r.id),
+        } as ChatContext,
+      ],
+      'user-1',
+      'summarize',
+      'ws-1'
+    )
+
+    const [ctx] = result
+    expect(ctx.content.length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_CONTENT_LENGTH)
+    expect(ctx.content).toContain('omitted for length')
+  })
+
+  it('emits at least one row even when that row alone exceeds the budget', async () => {
+    const huge = 'x'.repeat(MAX_TABLE_SELECTION_CONTENT_LENGTH * 2)
+    getTableById.mockResolvedValue({
+      name: 'Sales',
+      workspaceId: 'ws-1',
+      schema: { columns: [{ id: 'c_notes', name: 'Notes' }] },
+    })
+    getRowsByIds.mockResolvedValue([{ id: 'r1', data: { c_notes: huge } }])
+
+    const result = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Sales (1 row)',
+          rowIds: ['r1'],
+        } as ChatContext,
+      ],
+      'user-1',
+      'summarize',
+      'ws-1'
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0].content).toContain(huge)
   })
 })

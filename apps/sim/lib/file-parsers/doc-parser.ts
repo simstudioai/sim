@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
+import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('DocParser')
 
@@ -25,11 +26,19 @@ export class DocParser implements FileParser {
     }
   }
 
+  /**
+   * A `.doc` upload is only routed here by extension — `officeparser` and
+   * `mammoth` both accept an OOXML/ZIP container regardless of its name, so the
+   * zip-bomb guard must run here exactly as it does in the docx/pptx/xlsx
+   * parsers. It no-ops for genuine legacy OLE `.doc` buffers.
+   */
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
     try {
       if (!buffer || buffer.length === 0) {
         throw new Error('Empty buffer provided')
       }
+
+      assertOoxmlArchiveWithinLimits(buffer)
 
       try {
         const officeParser = await import('officeparser')

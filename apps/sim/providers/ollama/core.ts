@@ -11,6 +11,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -25,7 +26,6 @@ import {
   prepareToolExecution,
   sumToolCosts,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 /**
  * Ollama enforces JSON mode (`json_object`) but ignores `json_schema`, so
@@ -313,7 +313,7 @@ export async function executeOllamaProviderRequest(
           }
 
           const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-          const result = await executeTool(toolName, executionParams, {
+          const result = await executeProviderTool(toolName, executionParams, {
             signal: request.abortSignal,
           })
           const toolCallEndTime = Date.now()

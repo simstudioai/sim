@@ -375,12 +375,22 @@ export function useCancelExecution(workspaceId: string) {
 export function useRetryExecution() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ workflowId, input }: { workflowId: string; input?: unknown }) => {
+    mutationFn: async ({
+      workflowId,
+      executionId,
+    }: {
+      workflowId: string
+      executionId: string
+    }) => {
       // boundary-raw-fetch: stream response, body is a ReadableStream consumed one chunk at a time
       const res = await fetch(`/api/workflows/${workflowId}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input, triggerType: 'manual', stream: true }),
+        body: JSON.stringify({
+          inputFromExecutionId: executionId,
+          triggerType: 'manual',
+          stream: true,
+        }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))

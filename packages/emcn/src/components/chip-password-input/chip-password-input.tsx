@@ -20,7 +20,7 @@
  */
 import * as React from 'react'
 import { useCopyToClipboard } from '../../hooks/use-copy-to-clipboard'
-import { Check, Duplicate, Eye, EyeOff, RefreshCw } from '../../icons'
+import { Check, Duplicate, Eye, EyeOff, Loader, RefreshCw } from '../../icons'
 import { Button } from '../button/button'
 import { chipAdornmentButtonClass, chipAdornmentIconClass } from '../chip/chip-chrome'
 import { ChipInput, type ChipInputProps } from '../chip-input/chip-input'
@@ -37,7 +37,16 @@ export interface ChipPasswordInputProps
    * rendered; clicking it calls `onChange` with the result.
    */
   onGenerate?: () => string
+  /**
+   * Resolves the currently saved password when Show is clicked. When provided,
+   * an empty field reads as a masked placeholder rather than blank — the value
+   * exists, it just has not been disclosed yet.
+   */
+  fetchCurrentPassword?: () => Promise<string>
 }
+
+/** Stands in for a saved-but-undisclosed password. */
+const MASKED_PASSWORD = '••••••••'
 
 interface AdornmentButtonProps {
   label: string
@@ -84,16 +93,67 @@ function AdornmentButton({
 
 /** Forwards its ref to the inner `<input>`, exactly like {@link ChipInput}. */
 export const ChipPasswordInput = React.forwardRef<HTMLInputElement, ChipPasswordInputProps>(
-  ({ value, onChange, onGenerate, disabled, autoComplete = 'new-password', ...props }, ref) => {
+  (
+    {
+      value,
+      onChange,
+      onGenerate,
+      fetchCurrentPassword,
+      placeholder,
+      disabled,
+      autoComplete = 'new-password',
+      ...props
+    },
+    ref
+  ) => {
     const [revealed, setRevealed] = React.useState(false)
+    const [currentPassword, setCurrentPassword] = React.useState<string | null>(null)
+    const [isFetchingCurrent, setIsFetchingCurrent] = React.useState(false)
     const { copied, copy } = useCopyToClipboard()
+
+    const displayValue = currentPassword ?? value
+    const displayPlaceholder = fetchCurrentPassword && !displayValue ? MASKED_PASSWORD : placeholder
+
+    const handleChange = (nextValue: string) => {
+      setCurrentPassword(null)
+      onChange(nextValue)
+    }
+
+    const toggleRevealed = async () => {
+      if (revealed) {
+        setRevealed(false)
+        /**
+         * Discard the fetched password instead of masking it. Keeping it would
+         * leave the plaintext in the input's DOM value and keep Copy armed while
+         * the field reads as hidden. A later reveal re-fetches, which also keeps
+         * the audit log at one entry per disclosure. An edited value lives in
+         * `value` and is deliberately untouched.
+         */
+        setCurrentPassword(null)
+        return
+      }
+
+      if (!displayValue && fetchCurrentPassword) {
+        setIsFetchingCurrent(true)
+        try {
+          setCurrentPassword(await fetchCurrentPassword())
+        } catch {
+          return
+        } finally {
+          setIsFetchingCurrent(false)
+        }
+      }
+
+      setRevealed(true)
+    }
 
     return (
       <ChipInput
         ref={ref}
         type={revealed ? 'text' : 'password'}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        placeholder={displayPlaceholder}
+        value={displayValue}
+        onChange={(event) => handleChange(event.target.value)}
         disabled={disabled}
         autoComplete={autoComplete}
         endAdornment={
@@ -103,7 +163,7 @@ export const ChipPasswordInput = React.forwardRef<HTMLInputElement, ChipPassword
                 label='Generate'
                 ariaLabel='Generate password'
                 disabled={disabled}
-                onClick={() => onChange(onGenerate())}
+                onClick={() => handleChange(onGenerate())}
               >
                 <RefreshCw className={chipAdornmentIconClass} />
               </AdornmentButton>
@@ -113,8 +173,8 @@ export const ChipPasswordInput = React.forwardRef<HTMLInputElement, ChipPassword
               ariaLabel='Copy password'
               activeLabel='Copied!'
               active={copied}
-              disabled={disabled || !value}
-              onClick={() => copy(value)}
+              disabled={disabled || !displayValue}
+              onClick={() => copy(displayValue)}
             >
               {copied ? (
                 <Check className={chipAdornmentIconClass} />
@@ -125,10 +185,12 @@ export const ChipPasswordInput = React.forwardRef<HTMLInputElement, ChipPassword
             <AdornmentButton
               label={revealed ? 'Hide' : 'Show'}
               ariaLabel={revealed ? 'Hide password' : 'Show password'}
-              disabled={disabled}
-              onClick={() => setRevealed((previous) => !previous)}
+              disabled={disabled || isFetchingCurrent}
+              onClick={toggleRevealed}
             >
-              {revealed ? (
+              {isFetchingCurrent ? (
+                <Loader className={chipAdornmentIconClass} animate />
+              ) : revealed ? (
                 <EyeOff className={chipAdornmentIconClass} />
               ) : (
                 <Eye className={chipAdornmentIconClass} />

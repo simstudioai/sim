@@ -29,6 +29,7 @@ import {
   getBedrockStreamError,
   supportsToolResultStatus,
 } from '@/providers/bedrock/utils'
+import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
   isAbortError,
@@ -39,7 +40,6 @@ import {
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
 import { calculateCost, prepareToolExecution, sumToolCosts } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 export interface CreateBedrockStreamingToolLoopStreamOptions {
   client: BedrockRuntimeClient
@@ -417,7 +417,7 @@ export function createBedrockStreamingToolLoopStream(
                   toolArgs,
                   request
                 )
-                const result = await executeTool(toolName, executionParams, {
+                const result = await executeProviderTool(toolName, executionParams, {
                   signal: loopAbortController.signal,
                 })
                 const toolCallEndTime = Date.now()

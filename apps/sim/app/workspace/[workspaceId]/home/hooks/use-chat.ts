@@ -317,8 +317,21 @@ function isChatContext(value: unknown): value is ChatContext {
       return typeof value.tableId === 'string'
     case 'interface':
       return typeof value.interfaceId === 'string'
+    case 'table_selection':
+      return (
+        typeof value.tableId === 'string' &&
+        typeof value.tableName === 'string' &&
+        Array.isArray(value.rowIds) &&
+        value.rowIds.every((id) => typeof id === 'string')
+      )
     case 'file':
       return typeof value.fileId === 'string'
+    case 'file_selection':
+      return (
+        typeof value.fileId === 'string' &&
+        typeof value.fileName === 'string' &&
+        typeof value.text === 'string'
+      )
     case 'folder':
       return typeof value.folderId === 'string'
     case 'filefolder':
@@ -3223,6 +3236,21 @@ export function useChat(
         ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
         ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),
         ...(c.kind === 'mcp' && 'serverId' in c ? { serverId: c.serverId } : {}),
+        ...(c.kind === 'file_selection'
+          ? {
+              fileName: c.fileName,
+              text: c.text,
+              ...(c.startLine ? { startLine: c.startLine } : {}),
+              ...(c.endLine ? { endLine: c.endLine } : {}),
+            }
+          : {}),
+        ...(c.kind === 'table_selection'
+          ? {
+              tableName: c.tableName,
+              rowIds: c.rowIds,
+              ...(c.columnIds ? { columnIds: c.columnIds } : {}),
+            }
+          : {}),
       }))
       const cachedUserMsg: PersistedMessage = {
         id: userMessageId,

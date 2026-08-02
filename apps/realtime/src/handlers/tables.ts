@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
 import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import {
   type JoinTablePayload,
@@ -7,8 +8,10 @@ import {
   type TableCellSelection,
 } from '@sim/realtime-protocol/table-presence'
 import { resolveAvatarUrl } from '@/handlers/avatar'
+import { evictSocketFromRoom, requestEvictionCleanup } from '@/handlers/room-eviction'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
+import { peekRoomPermission, resolveCurrentRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager, UserPresence } from '@/rooms'
 import { filterVisiblePresence, sweepStalePresence } from '@/rooms/presence-visibility'
 
@@ -19,6 +22,41 @@ const MAX_CELL_ID_LENGTH = 200
 
 /** The table presence room ref for a table id. */
 const tableRoom = (tableId: string): RoomRef => ({ type: ROOM_TYPES.TABLE, id: tableId })
+
+/**
+ * The permission occupying a table room requires. Sourced from the shared map so
+ * the join check, the per-operation gate below, and the access re-validation sweep
+ * can never drift apart.
+ */
+const TABLE_ACTION = ROOM_MEMBERSHIP_ACTIONS[ROOM_TYPES.TABLE]
+
+/**
+ * Per-operation authorization for an already-joined socket, mirroring the file-doc
+ * gate: room membership is not a standing right, so a collaborator whose workspace
+ * access was revoked stops publishing presence into the room without waiting for
+ * the next re-validation sweep.
+ *
+ * Reads the shared role cache without awaiting (`undefined` = nothing fresh cached,
+ * which means "unknown", not "denied") and kicks off a background refresh in that
+ * case, so the exposure window is the cache TTL rather than the socket's lifetime.
+ * On a confirmed loss of access it evicts, which also clears the room mapping this
+ * handler resolves every operation through.
+ */
+function isTableAccessAllowed(
+  socket: AuthenticatedSocket,
+  room: RoomRef
+): { allowed: boolean; revoked: boolean } {
+  const userId = socket.userId
+  if (!userId) return { allowed: false, revoked: false }
+
+  const cached = peekRoomPermission(userId, room)
+  if (cached === undefined) {
+    void resolveCurrentRoomPermission(userId, room, TABLE_ACTION).catch(() => {})
+    return { allowed: true, revoked: false }
+  }
+  if (satisfiesRoomMembership(cached, ROOM_TYPES.TABLE)) return { allowed: true, revoked: false }
+  return { allowed: false, revoked: true }
+}
 
 function isCellRef(value: unknown): value is TableCellRef {
   if (typeof value !== 'object' || value === null) return false
@@ -47,6 +85,42 @@ function normalizeCellSelection(cell: unknown): TableCellSelection | undefined {
     anchor: { rowId: candidate.anchor.rowId, columnId: candidate.anchor.columnId },
     focus: { rowId: candidate.focus.rowId, columnId: candidate.focus.columnId },
     ...(candidate.editing === true ? { editing: true } : {}),
+  }
+}
+
+/**
+ * Evicts a socket from a table room after a confirmed loss of access, then drops
+ * its presence so peers stop seeing its selection.
+ *
+ * The eviction leaves the Socket.IO room immediately, which is also how the sweep
+ * discovers work — so a presence removal that fails here would be unretryable and
+ * strand a ghost collaborator until disconnect. The removal is therefore attempted
+ * inline (peers see the departure at once) and handed to the sweep's retrying
+ * cleanup lane if it fails or reports nothing removed, which is the same signal
+ * the sweep treats as a deferrable failure.
+ */
+async function evictFromTable(
+  socket: AuthenticatedSocket,
+  roomManager: IRoomManager,
+  room: RoomRef
+): Promise<void> {
+  evictSocketFromRoom(socket, room, 'Your access to this table has been revoked', roomManager.io)
+  try {
+    // `false` conflates "already gone" with a transport error the manager swallowed;
+    // deferring on it is harmless (the lane drops a cleanup it finds already clean)
+    // and is the only signal a swallowed failure gives us.
+    const removed = await roomManager.removeUserFromRoom(room, socket.id)
+    if (!removed) {
+      requestEvictionCleanup(socket.id, room)
+      return
+    }
+    await roomManager.broadcastPresenceUpdate(room, socket.id)
+  } catch (error) {
+    logger.warn(
+      `Presence cleanup failed for evicted table socket ${socket.id}; deferring to the sweep`,
+      error
+    )
+    requestEvictionCleanup(socket.id, room)
   }
 }
 
@@ -135,7 +209,7 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       const authorized = await resolveRoomJoinAuth({
         userId,
         room,
-        action: 'read',
+        action: TABLE_ACTION,
         logger,
         logLabel: `table room for ${userId}`,
         messages: {
@@ -150,16 +224,6 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
 
       // Server-authenticated avatar for the presence roster.
       const avatarUrl = await resolveAvatarUrl(socket, userId)
-
-      // Leave a previously-joined table room if switching tables. No generation guard is needed
-      // around this: serialization guarantees no concurrent op committed to a different room
-      // during the lookup, so `currentRoom` is the socket's genuine prior room, safe to leave.
-      const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
-      if (currentRoom && currentRoom.id !== tableId) {
-        socket.leave(roomName(currentRoom))
-        await roomManager.removeUserFromRoom(currentRoom, socket.id)
-        await roomManager.broadcastPresenceUpdate(currentRoom)
-      }
 
       // Reclaim presence orphaned by an ungraceful disconnect (no `disconnecting`
       // event fires on a pod crash; the room hashes have no TTL). Returns the roster it
@@ -182,9 +246,63 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
         }
       }
 
+      // Re-check access too: the access re-validation sweep records a revocation BEFORE
+      // it evicts, so a join that authorized just before the revocation must not
+      // complete afterwards and put the socket back in the room. RE-RESOLVES rather
+      // than peeking — a peek treats an expired entry as unknown and fails open, which
+      // a join stalled longer than the cache TTL would slip through. Normally a cache
+      // hit (this join's own authorize just warmed it).
+      const currentPermission = await resolveCurrentRoomPermission(userId, room, TABLE_ACTION)
+      if (!satisfiesRoomMembership(currentPermission, ROOM_TYPES.TABLE)) {
+        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+          tableId,
+          error: 'Access denied to table',
+          code: 'ACCESS_DENIED',
+          retryable: false,
+        })
+        return
+      }
+
+      // Only now that the join is certain to proceed, leave a previously-joined table room
+      // if switching. Deliberately AFTER the access re-check: a denial there aborts the
+      // join, and leaving first would silently drop the client from a prior table it may
+      // still be allowed to occupy. No generation guard is needed around this —
+      // serialization guarantees no concurrent op committed to a different room during the
+      // lookup, so `currentRoom` is the socket's genuine prior room, safe to leave.
+      const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
+      if (currentRoom && currentRoom.id !== tableId) {
+        socket.leave(roomName(currentRoom))
+        await roomManager.removeUserFromRoom(currentRoom, socket.id)
+        await roomManager.broadcastPresenceUpdate(currentRoom)
+      }
+
       // Final re-check before the membership commit: a LEAVE or a newer JOIN enqueued during the
-      // awaits above bumped the generation, or the socket disconnected. Abort before registering.
+      // awaits above — including the access re-resolve — bumped the generation, or the socket
+      // disconnected.
       if (superseded()) return
+
+      // The prior-room leave above is the one place this handler still awaits AFTER the
+      // authoritative access re-check (file-doc and the workspace-list rooms leave
+      // synchronously, so they have no such window). A sweep revocation landing in that
+      // window would otherwise let this join put a revoked socket back in the room, since
+      // `superseded()` only watches the join generation. A cache PEEK is the right
+      // instrument here and needs no await: the authoritative resolve moments ago wrote a
+      // fresh entry, so the only way this reads differently is a newer decision recorded
+      // since — exactly the revocation being guarded against. Synchronous, so nothing can
+      // interleave between it and the join below.
+      // `undefined` stays "unknown, not denied" here as everywhere else in this handler —
+      // only a definitively cached insufficient permission aborts a join the authoritative
+      // check just passed.
+      const finalCheck = peekRoomPermission(userId, room)
+      if (finalCheck !== undefined && !satisfiesRoomMembership(finalCheck, ROOM_TYPES.TABLE)) {
+        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+          tableId,
+          error: 'Access denied to table',
+          code: 'ACCESS_DENIED',
+          retryable: false,
+        })
+        return
+      }
 
       socket.join(roomName(room))
 
@@ -297,6 +415,14 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
 
       const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
       if (!room) return
+
+      // Membership was authorized at join; re-check it here so a revoked viewer
+      // stops publishing presence into the room mid-session.
+      const access = isTableAccessAllowed(socket, room)
+      if (!access.allowed) {
+        if (access.revoked) await evictFromTable(socket, roomManager, room)
+        return
+      }
 
       // Persist so a later joiner sees this viewer's current selection in the join ack.
       await roomManager.updateUserActivity(room, socket.id, { cell: selection })

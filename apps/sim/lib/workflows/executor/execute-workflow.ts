@@ -12,6 +12,7 @@ import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-pe
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowExecution')
 
@@ -51,6 +52,8 @@ export interface ExecuteWorkflowOptions {
     sourceSnapshot: SerializableExecutionState
     sourceExecutionId?: string
   }
+  /** Trusted encrypted provenance supplied by a server-only caller before execution starts. */
+  trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   executionMode?: 'sync' | 'stream' | 'async'
   /** Immutable actor/payer decision captured by preprocessing. */
   billingAttribution?: BillingAttributionSnapshot
@@ -163,6 +166,8 @@ export async function executeWorkflow(
       base64MaxBytes: streamConfig?.base64MaxBytes,
       abortSignal: streamConfig?.abortSignal,
       stopAfterBlockId: streamConfig?.stopAfterBlockId,
+      trustedInitialResolvedSecretTraceProvenance:
+        streamConfig?.trustedInitialResolvedSecretTraceProvenance,
       runFromBlock: streamConfig?.runFromBlock,
     })
 

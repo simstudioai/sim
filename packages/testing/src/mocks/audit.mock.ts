@@ -40,6 +40,7 @@ export const auditMock = {
     CHAT_DEPLOYED: 'chat.deployed',
     CHAT_UPDATED: 'chat.updated',
     CHAT_DELETED: 'chat.deleted',
+    CHAT_PASSWORD_VIEWED: 'chat.password_viewed',
     CREDENTIAL_CREATED: 'credential.created',
     CREDENTIAL_UPDATED: 'credential.updated',
     CREDENTIAL_RENAMED: 'credential.renamed',

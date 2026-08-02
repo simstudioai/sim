@@ -28,6 +28,12 @@ describe('workflow contracts', () => {
     })
   })
 
+  it('accepts a trusted prior-execution input reference', () => {
+    expect(
+      executeWorkflowBodySchema.parse({ inputFromExecutionId: 'execution-123' })
+    ).toMatchObject({ inputFromExecutionId: 'execution-123' })
+  })
+
   it('normalizes null React Flow edge handles in execution overrides', () => {
     const parsed = executeWorkflowBodySchema.parse({
       workflowStateOverride: {

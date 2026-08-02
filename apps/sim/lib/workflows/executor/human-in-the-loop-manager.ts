@@ -44,6 +44,7 @@ import {
 } from '@/lib/workflows/streaming/forward-agent-stream-events'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
+  BlockCompletionCallbackData,
   ChildWorkflowContext,
   ExecutionCallbacks,
   IterationContext,
@@ -1347,12 +1348,17 @@ export class PauseResumeManager {
         blockId: string,
         blockName: string,
         blockType: string,
-        callbackData: Record<string, unknown>,
+        callbackData: BlockCompletionCallbackData,
         iterationContext?: IterationContext,
         childWorkflowContext?: ChildWorkflowContext
       ) => {
         const output = callbackData.output as Record<string, unknown> | undefined
         const hasError = output?.error
+        const display = await loggingSession.projectDisplayContent({
+          input: callbackData.input,
+          output,
+          ...(typeof hasError === 'string' ? { error: hasError } : {}),
+        })
         const sharedData = {
           blockId,
           blockName,
@@ -1385,7 +1391,25 @@ export class PauseResumeManager {
           timestamp: new Date().toISOString(),
           executionId: resumeExecutionId,
           workflowId,
-          data: hasError ? { ...sharedData, error: output?.error } : { ...sharedData, output },
+          data: hasError
+            ? {
+                ...sharedData,
+                error: output?.error,
+                display: {
+                  ...(Object.hasOwn(display, 'input') ? { input: display.input } : {}),
+                  ...(display.error !== undefined ? { error: display.error } : {}),
+                  ...(display.clearLiveDisplay ? { clearLiveDisplay: true as const } : {}),
+                },
+              }
+            : {
+                ...sharedData,
+                output,
+                display: {
+                  ...(Object.hasOwn(display, 'input') ? { input: display.input } : {}),
+                  ...(Object.hasOwn(display, 'output') ? { output: display.output } : {}),
+                  ...(display.clearLiveDisplay ? { clearLiveDisplay: true as const } : {}),
+                },
+              },
         } as ExecutionEvent)
 
         if (externalOnBlockComplete) {
@@ -1435,6 +1459,7 @@ export class PauseResumeManager {
           workflowId,
           sendEvent: writeBufferedEvent,
           forwardAnswerText: answerTextFromSink,
+          projectDisplay: (field, value) => loggingSession.projectLiveDisplayText(field, value),
         })
 
         const reader = streamingExec.stream.getReader()
@@ -1445,12 +1470,13 @@ export class PauseResumeManager {
             if (done) break
             if (answerTextFromSink) continue
             const chunk = decoder.decode(value, { stream: true })
+            const display = await loggingSession.projectLiveDisplayText('chunk', chunk)
             await writeBufferedEvent({
               type: 'stream:chunk',
               timestamp: new Date().toISOString(),
               executionId: resumeExecutionId,
               workflowId,
-              data: { blockId, chunk },
+              data: { blockId, chunk, display },
             } as ExecutionEvent)
           }
           await writeBufferedEvent({
@@ -1500,7 +1526,8 @@ export class PauseResumeManager {
         }
       }
 
-      const compactResultLogs = await compactBlockLogs(result.logs, {
+      const displayResultLogs = await loggingSession.projectBlockLogsForDisplay(result.logs ?? [])
+      const compactResultLogs = await compactBlockLogs(displayResultLogs, {
         workspaceId: baseSnapshot.metadata.workspaceId,
         workflowId,
         executionId: resumeExecutionId,
@@ -1528,6 +1555,9 @@ export class PauseResumeManager {
           timeoutMs: timeoutController.timeoutMs,
         })
         await loggingSession.markAsFailed(timeoutErrorMessage)
+        const timeoutDisplay = await loggingSession.projectDisplayContent({
+          error: timeoutErrorMessage,
+        })
 
         finalMetaStatus = 'error'
         await writeBufferedEvent(
@@ -1538,6 +1568,9 @@ export class PauseResumeManager {
             workflowId,
             data: {
               error: timeoutErrorMessage,
+              display: {
+                ...(timeoutDisplay.error !== undefined ? { error: timeoutDisplay.error } : {}),
+              },
               duration: result.metadata?.duration || 0,
               finalBlockLogs: compactResultLogs,
             },
@@ -1603,13 +1636,16 @@ export class PauseResumeManager {
       let compactErrorLogs: BlockLog[] | undefined
       try {
         compactErrorLogs = execErrorResult?.logs
-          ? await compactBlockLogs(execErrorResult.logs, {
-              workspaceId: baseSnapshot.metadata.workspaceId,
-              workflowId,
-              executionId: resumeExecutionId,
-              userId: metadata.userId,
-              requireDurable: true,
-            })
+          ? await compactBlockLogs(
+              await loggingSession.projectBlockLogsForDisplay(execErrorResult.logs),
+              {
+                workspaceId: baseSnapshot.metadata.workspaceId,
+                workflowId,
+                executionId: resumeExecutionId,
+                userId: metadata.userId,
+                requireDurable: true,
+              }
+            )
           : undefined
       } catch (compactionError) {
         logger.warn('Failed to compact resume error logs, omitting oversized error details', {
@@ -1618,6 +1654,8 @@ export class PauseResumeManager {
         })
       }
       finalMetaStatus = 'error'
+      const terminalError = toError(execError).message
+      const terminalDisplay = await loggingSession.projectDisplayContent({ error: terminalError })
       await writeBufferedEvent(
         {
           type: 'execution:error',
@@ -1625,7 +1663,10 @@ export class PauseResumeManager {
           executionId: resumeExecutionId,
           workflowId,
           data: {
-            error: toError(execError).message,
+            error: terminalError,
+            display: {
+              ...(terminalDisplay.error !== undefined ? { error: terminalDisplay.error } : {}),
+            },
             duration: 0,
             finalBlockLogs: compactErrorLogs,
           },
