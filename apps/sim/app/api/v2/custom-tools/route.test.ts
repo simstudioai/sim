@@ -82,6 +82,13 @@ function buildTool(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** What the route forwards for a bare `?workspaceId=` list. */
+const DEFAULT_LIST_ARGS = {
+  search: undefined,
+  sortBy: 'createdAt',
+  sortOrder: 'desc',
+}
+
 const callList = (query: string) =>
   GET(new NextRequest(`http://localhost:3000/api/v2/custom-tools?${query}`))
 
@@ -162,7 +169,35 @@ describe('GET /api/v2/custom-tools', () => {
         updatedAt: '2024-01-02T00:00:00.000Z',
       },
     ])
-    expect(mockListWorkspaceCustomTools).toHaveBeenCalledWith({ workspaceId: 'workspace-1' })
+    expect(mockListWorkspaceCustomTools).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      ...DEFAULT_LIST_ARGS,
+    })
+  })
+  it('400s on a sort field outside the enum instead of letting it reach the query', async () => {
+    const res = await callList(`workspaceId=workspace-1&sortBy=name);--`)
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
+  })
+
+  it('400s on a sort direction outside the enum', async () => {
+    const res = await callList(`workspaceId=workspace-1&sortOrder=sideways`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('400s on an empty search rather than treating it as unsearched', async () => {
+    const res = await callList(`workspaceId=workspace-1&search=`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('forwards search and sort into the query and still terminates pagination', async () => {
+    const res = await callList(`workspaceId=workspace-1&search=report&sortBy=title&sortOrder=asc`)
+
+    expect(res.status).toBe(200)
+    expect((await res.json()).nextCursor).toBeNull()
   })
 })
 

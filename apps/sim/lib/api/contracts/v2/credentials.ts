@@ -6,7 +6,12 @@ import {
 } from '@/lib/api/contracts/credentials'
 import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2SearchSchema,
+  v2SortFields,
+} from '@/lib/api/contracts/v2/shared'
 import { getServiceAccountRequiredFields } from '@/lib/credentials/service-account-fields'
 
 /**
@@ -78,9 +83,16 @@ export const v2CredentialWorkspaceQuerySchema = z.object({
 })
 export type V2CredentialWorkspaceQuery = z.output<typeof v2CredentialWorkspaceQuerySchema>
 
+/** A credential's natural name field is `displayName`, so that is what `search` matches. */
+export const v2CredentialSortFields = ['displayName', 'createdAt', 'updatedAt'] as const
+
+export type V2CredentialSortBy = (typeof v2CredentialSortFields)[number]
+
 export const v2ListCredentialsQuerySchema = v2CredentialWorkspaceQuerySchema.extend({
   type: workspaceCredentialTypeSchema.optional(),
   providerId: z.string().min(1, 'providerId cannot be empty').optional(),
+  search: v2SearchSchema,
+  ...v2SortFields(v2CredentialSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
 })
 export type V2ListCredentialsQuery = z.output<typeof v2ListCredentialsQuerySchema>
 

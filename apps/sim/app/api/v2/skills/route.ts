@@ -47,12 +47,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId } = parsed.data.query
+    const { workspaceId, search, sortBy, sortOrder } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const skills = await listSkills({ workspaceId })
+    const skills = await listSkills({ workspaceId, search, sort: { sortBy, sortOrder } })
 
     // The per-workspace skill set is small and bounded → a single full page.
     return v2CursorList(skills.map(toV2SkillSummary), null, { rateLimit })

@@ -16,7 +16,12 @@ import {
   v1ListKnowledgeDocumentsQuerySchema,
   v1UpdateKnowledgeBaseBodySchema,
 } from '@/lib/api/contracts/v1/knowledge'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2SearchSchema,
+  v2SortFields,
+} from '@/lib/api/contracts/v2/shared'
 
 /**
  * v2 knowledge contracts.
@@ -146,16 +151,35 @@ export type V2KnowledgeSearchData = z.output<typeof v2KnowledgeSearchDataSchema>
 export const v2UploadKnowledgeDocumentQuerySchema = z.object({ workspaceId: workspaceIdSchema })
 export type V2UploadKnowledgeDocumentQuery = z.output<typeof v2UploadKnowledgeDocumentQuerySchema>
 
+export const v2KnowledgeBaseSortFields = ['name', 'createdAt', 'updatedAt'] as const
+
+export type V2KnowledgeBaseSortBy = (typeof v2KnowledgeBaseSortFields)[number]
+
+/**
+ * KB list query: v1's workspace scope plus the v2 search/sort convention and a
+ * folder filter. v1's own list query stays untouched — it does not implement
+ * these, and advertising a param a route ignores is worse than not having it.
+ */
+export const v2ListKnowledgeBasesQuerySchema = v1ListKnowledgeBasesQuerySchema.extend({
+  /** Restrict to one knowledge-base folder. */
+  folderId: z.string().min(1, 'folderId cannot be empty').optional(),
+  search: v2SearchSchema,
+  ...v2SortFields(v2KnowledgeBaseSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
+})
+
+export type V2ListKnowledgeBasesQuery = z.output<typeof v2ListKnowledgeBasesQuerySchema>
+
 /**
  * KB list. `getKnowledgeBases` returns the full workspace set (a small, bounded
  * per-workspace list), so today the cursor list is a single full page
  * (`nextCursor` always `null`). The canonical cursor envelope keeps the v2 list
  * surface uniform; real pagination can be added later behind the opaque cursor.
+ * Search, folder filter, and sort all run in that query, not over its result.
  */
 export const v2ListKnowledgeBasesContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge',
-  query: v1ListKnowledgeBasesQuerySchema,
+  query: v2ListKnowledgeBasesQuerySchema,
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2KnowledgeBaseSchema),

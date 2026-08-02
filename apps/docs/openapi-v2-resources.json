@@ -61,7 +61,34 @@
             "source": "curl \\\n  \"https://www.sim.ai/api/v2/mcp-servers?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
           }
         ],
-        "parameters": [{ "$ref": "#/components/parameters/WorkspaceIdQuery" }],
+        "parameters": [
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the MCP server `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field to sort by.",
+            "schema": {
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+          }
+        ],
         "responses": {
           "200": {
             "description": "MCP servers registered in the workspace.",
@@ -405,7 +432,34 @@
             "source": "curl \\\n  \"https://www.sim.ai/api/v2/skills?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
           }
         ],
-        "parameters": [{ "$ref": "#/components/parameters/WorkspaceIdQuery" }],
+        "parameters": [
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the skill `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field to sort by. Built-in skills have no stored timestamps and sort as if created at the Unix epoch.",
+            "schema": {
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Skills available in the workspace.",
@@ -706,7 +760,34 @@
             "source": "curl \\\n  \"https://www.sim.ai/api/v2/custom-tools?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
           }
         ],
-        "parameters": [{ "$ref": "#/components/parameters/WorkspaceIdQuery" }],
+        "parameters": [
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the custom tool `title`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field to sort by.",
+            "schema": {
+              "type": "string",
+              "enum": ["title", "createdAt", "updatedAt"],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Custom tools defined in the workspace.",
@@ -1057,6 +1138,31 @@
             "required": false,
             "description": "`active` (default) lists live folders; `archived` lists Recently Deleted.",
             "schema": { "type": "string", "enum": ["active", "archived"], "default": "active" }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the folder `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field to sort by. `position` is the tree's own manual arrangement, which is the default order.",
+            "schema": {
+              "type": "string",
+              "enum": ["position", "name", "createdAt", "updatedAt"],
+              "default": "position"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
           }
         ],
         "responses": {
@@ -1407,6 +1513,31 @@
             "required": false,
             "description": "Only return credentials for this integration.",
             "schema": { "type": "string", "minLength": 1, "example": "slack" }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the credential `displayName`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field to sort by.",
+            "schema": {
+              "type": "string",
+              "enum": ["displayName", "createdAt", "updatedAt"],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
           }
         ],
         "responses": {

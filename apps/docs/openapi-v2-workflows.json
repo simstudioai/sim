@@ -90,6 +90,31 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the workflow `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field to sort by. `position` is the workspace's own manual arrangement of its workflows, which is the default order. The cursor is a keyset over the active sort, so it carries the sort it was minted under. Replaying a cursor after changing `sortBy` or `sortOrder` returns `400`; restart pagination without a cursor instead.",
+            "schema": {
+              "type": "string",
+              "enum": ["position", "name", "createdAt", "updatedAt", "runCount"],
+              "default": "position"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction. The cursor is a keyset over the active sort, so it carries the sort it was minted under. Replaying a cursor after changing `sortBy` or `sortOrder` returns `400`; restart pagination without a cursor instead.",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
           }
         ],
         "responses": {

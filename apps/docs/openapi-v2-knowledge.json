@@ -48,6 +48,38 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "folderId",
+            "in": "query",
+            "required": false,
+            "description": "Restrict the list to one folder. Omit to list every knowledge base in the workspace.",
+            "schema": { "type": "string", "minLength": 1 }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the knowledge base `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field to sort by.",
+            "schema": {
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
           }
         ],
         "responses": {
