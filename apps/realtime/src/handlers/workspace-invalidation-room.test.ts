@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
 
@@ -185,7 +186,7 @@ describe.each([ROOM_TYPES.WORKSPACE_FILES, ROOM_TYPES.WORKSPACE_TABLES] as const
               'admin',
               beginRoomPermissionRead()
             )
-            await new Promise((resolve) => setTimeout(resolve, 31_000))
+            await sleep(31_000)
           } else {
             // Second call is the re-check's re-resolve: the client leaves during it.
             handlers[leaveEvent]({ workspaceId: 'ws-sup' })

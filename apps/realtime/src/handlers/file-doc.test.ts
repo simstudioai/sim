@@ -7,6 +7,7 @@ import {
   FILE_DOC_SEED,
 } from '@sim/realtime-protocol/file-doc'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { sleep } from '@sim/utils/helpers'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -293,7 +294,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
         // This join's own authorize saw the pre-revocation state, and the sweep records
         // the revocation (later read ticket) while it is still in flight.
         commitRoomPermission('user-stale', room, null, beginRoomPermissionRead())
-        await new Promise((resolve) => setTimeout(resolve, 31_000))
+        await sleep(31_000)
         return { allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'write' }
       })
 
