@@ -103,7 +103,8 @@
                         "insertLocked": false,
                         "updateLocked": false,
                         "deleteLocked": false
-                      }
+                      },
+                      "job": null
                     }
                   ],
                   "nextCursor": null
@@ -211,7 +212,8 @@
                         "insertLocked": false,
                         "updateLocked": false,
                         "deleteLocked": false
-                      }
+                      },
+                      "job": null
                     }
                   }
                 }
@@ -467,7 +469,8 @@
                         "deleteLocked": true
                       },
                       "createdAt": "2026-01-15T10:30:00.000Z",
-                      "updatedAt": "2026-01-16T09:12:00.000Z"
+                      "updatedAt": "2026-01-16T09:12:00.000Z",
+                      "job": null
                     }
                   }
                 }
@@ -1720,7 +1723,8 @@
                         "deleteLocked": true
                       },
                       "createdAt": "2026-01-15T10:30:00.000Z",
-                      "updatedAt": "2026-01-16T09:12:00.000Z"
+                      "updatedAt": "2026-01-16T09:12:00.000Z",
+                      "job": null
                     }
                   }
                 }
@@ -2916,7 +2920,7 @@
       "post": {
         "operationId": "importTableCsvAsync",
         "summary": "Import CSV (Background)",
-        "description": "Start a background import of a file already uploaded to workspace storage \u2014 the path for files too large for the synchronous import.\n\nReturns as soon as the job is queued. Track it with `GET /api/v2/tables/jobs` and stop it with `POST /job/cancel`. `fileKey` must sit under this workspace\u2019s storage prefix. The table\u2019s lock flags are checked before the job slot is claimed, so a locked table answers 423 here rather than failing inside the worker.",
+        "description": "Start a background import of a file already uploaded to workspace storage \u2014 the path for files too large for the synchronous import.\n\nReturns as soon as the job is queued. Track it on the table itself \u2014 `GET /api/v2/tables/{tableId}` returns a `job` object with `status`, `rowsProcessed` and `error` while the import runs \u2014 and stop it with `POST /job/cancel`. (`GET /api/v2/tables/jobs` lists exports only: those run concurrently and are not derived onto the table.) `fileKey` must sit under this workspace\u2019s storage prefix. The table\u2019s lock flags are checked before the job slot is claimed, so a locked table answers 423 here rather than failing inside the worker.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -3711,7 +3715,8 @@
           "folderId",
           "locks",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "job"
         ],
         "properties": {
           "id": {
@@ -3767,6 +3772,17 @@
           },
           "locks": {
             "$ref": "#/components/schemas/TableLocks"
+          },
+          "job": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TableJobState"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "In-flight background job, or null when the table is idle."
           }
         }
       },
@@ -5420,6 +5436,33 @@
                 "type": "integer"
               }
             }
+          }
+        }
+      },
+      "TableJobState": {
+        "type": "object",
+        "description": "The table's in-flight background job. Import and delete jobs are derived onto the table itself (one write job per table), so the table is their status endpoint \u2014 poll `GET /api/v2/tables/{tableId}` after starting one. Exports are read-only and run concurrently, so they are listed separately by `GET /api/v2/tables/jobs` instead.",
+        "required": ["id", "type", "status", "rowsProcessed", "error"],
+        "properties": {
+          "id": {
+            "type": ["string", "null"],
+            "description": "Job id \u2014 pass to `POST /job/cancel` to stop it."
+          },
+          "type": {
+            "enum": ["import", "delete", "export", "backfill", "update", null],
+            "description": "Which kind of job is running."
+          },
+          "status": {
+            "enum": ["running", "ready", "failed", "canceled"],
+            "description": "`running` is in-flight; the rest are terminal."
+          },
+          "rowsProcessed": {
+            "type": "integer",
+            "description": "Rows handled so far \u2014 progress for a running job."
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Failure reason for a `failed` job; null otherwise."
           }
         }
       }

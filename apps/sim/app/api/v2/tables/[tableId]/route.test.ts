@@ -192,6 +192,7 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
         maxRows: 1000,
         folderId: null,
         locks: UNLOCKED,
+        job: null,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-02T00:00:00.000Z',
       },
@@ -201,6 +202,31 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
     )
     expect(mockPerformMoveTableToFolder).not.toHaveBeenCalled()
     expect(mockPerformUpdateTableLocks).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a running import so an async job is observable, not just startable', async () => {
+    // `POST /import-async` and `POST /job/cancel` let a caller start and stop an
+    // import; without this the table never reports that it is running, so there
+    // is nothing to poll between the two.
+    mockGetTableById.mockResolvedValue({
+      ...UPDATED_TABLE,
+      jobStatus: 'running',
+      jobId: 'job-1',
+      jobType: 'import',
+      jobRowsProcessed: 250,
+      jobError: null,
+    })
+    mockPerformRenameTable.mockResolvedValue({ success: true })
+
+    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed' })
+
+    expect((await res.json()).data.table.job).toEqual({
+      id: 'job-1',
+      type: 'import',
+      status: 'running',
+      rowsProcessed: 250,
+      error: null,
+    })
   })
 
   it('moves the table only after confirming the folder belongs to the workspace', async () => {

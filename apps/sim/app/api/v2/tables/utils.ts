@@ -65,6 +65,18 @@ export function toApiTable(table: TableDefinition) {
     maxRows: table.maxRows,
     folderId: table.folderId ?? null,
     locks: table.locks,
+    // `jobStatus` is the presence signal — the service leaves the whole group
+    // null when the table is idle. Without this an async import could be
+    // started and cancelled but never observed to completion or failure.
+    job: table.jobStatus
+      ? {
+          id: table.jobId ?? null,
+          type: table.jobType ?? null,
+          status: table.jobStatus,
+          rowsProcessed: table.jobRowsProcessed ?? 0,
+          error: table.jobError ?? null,
+        }
+      : null,
     createdAt: toIso(table.createdAt),
     updatedAt: toIso(table.updatedAt),
   }

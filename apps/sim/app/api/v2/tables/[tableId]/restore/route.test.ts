@@ -109,6 +109,7 @@ describe('POST /api/v2/tables/[tableId]/restore', () => {
         maxRows: 1000,
         folderId: null,
         locks: UNLOCKED,
+        job: null,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-02T00:00:00.000Z',
       },

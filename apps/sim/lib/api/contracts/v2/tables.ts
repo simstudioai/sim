@@ -76,6 +76,24 @@ export const V2_MAX_ROW_LIMIT = 1000
  * Public table shape emitted by `toApiTable` (timestamps ISO-serialized).
  * Concrete so the v2 contract describes exactly what the wire carries.
  */
+/**
+ * The table's current background job, or `null` when idle.
+ *
+ * This is how an async import or delete is observed. Those jobs are derived
+ * onto the table itself (one write job per table at a time), so the table is
+ * their status endpoint — unlike exports, which are read-only, run concurrently,
+ * and therefore have the dedicated `GET /api/v2/tables/jobs` list instead.
+ */
+export const v2TableJobStateSchema = z.object({
+  id: z.string().nullable(),
+  type: z.enum(['import', 'delete', 'export', 'backfill', 'update']).nullable(),
+  status: z.enum(['running', 'ready', 'failed', 'canceled']),
+  rowsProcessed: z.number(),
+  /** Failure reason for a `failed` job; `null` otherwise. */
+  error: z.string().nullable(),
+})
+export type V2TableJobState = z.output<typeof v2TableJobStateSchema>
+
 export const v2ApiTableSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -87,6 +105,8 @@ export const v2ApiTableSchema = z.object({
   folderId: z.string().nullable(),
   /** Governance flags. Writable only by a workspace admin via `PATCH`. */
   locks: tableLocksSchema,
+  /** In-flight background job, or `null` when the table is idle. */
+  job: v2TableJobStateSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
