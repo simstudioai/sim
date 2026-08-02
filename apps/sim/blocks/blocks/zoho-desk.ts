@@ -29,7 +29,7 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/zoho_desk',
   category: 'tools',
   integrationType: IntegrationType.Support,
-  bgColor: '#E42527',
+  bgColor: '#FFFFFF',
   icon: ZohoDeskIcon,
   subBlocks: [
     {
