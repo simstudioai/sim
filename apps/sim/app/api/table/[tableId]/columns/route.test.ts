@@ -12,7 +12,7 @@ import { hybridAuthMockFns } from '@sim/testing'
 import { getErrorMessage } from '@sim/utils/errors'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { TableColumnError } from '@/lib/table/errors'
+import { TableRequestError } from '@/lib/table/errors'
 
 const {
   mockCheckAccess,
@@ -162,11 +162,11 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     })
     // Stands in for the race the guards cannot close: the column stopped being
     // a currency between the snapshot the guards read and this write. The
-    // service raises `TableColumnError` for a caller-fixable failure, which is
+    // service raises `TableRequestError` for a caller-fixable failure, which is
     // what earns the 400 — a plain `Error` now means the server genuinely broke
     // and correctly returns 500.
     mockUpdateColumnMetadata.mockRejectedValue(
-      new TableColumnError('Cannot set currency on column "amount" of type "string"')
+      new TableRequestError('Cannot set currency on column "amount" of type "string"')
     )
 
     const response = await patch({ name: 'renamed', currencyCode: 'USD' })

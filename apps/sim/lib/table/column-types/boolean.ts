@@ -7,7 +7,9 @@ export const booleanColumnType: ColumnTypeDefinition = {
   label: 'Boolean',
   icon: TypeBoolean,
   jsonbCast: null,
-  canonicalizesValues: false,
+  // `coerce` folds case and trims (' True ' -> true), so a filter operand has
+  // to go through it too.
+  canonicalizesValues: true,
   orderable: false,
   storesOpaqueIds: false,
   supportsUnique: true,

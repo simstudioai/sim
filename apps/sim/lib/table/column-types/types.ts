@@ -216,6 +216,20 @@ export interface ColumnTypeDefinition {
   readonly supportsUnique: boolean
 
   /**
+   * Normalizes a SEARCH FRAGMENT for a substring/prefix/suffix filter.
+   *
+   * Distinct from {@link coerce}, which validates a WHOLE value: a fragment
+   * like `+44 20 7123` is not a complete phone number and `coerce` rightly
+   * refuses it. But the stored value has had its punctuation stripped, so an
+   * ILIKE against the raw fragment matches nothing — the filter is accepted and
+   * silently returns no rows.
+   *
+   * Only types whose canonical form DROPS characters need this. `email` does
+   * not: it only case-folds, and ILIKE is already case-insensitive.
+   */
+  normalizeFilterFragment?(fragment: string): string
+
+  /**
    * Whether `coerce` CANONICALIZES a value rather than passing it through — an
    * email lower-cased, a phone stripped to digits, an amount parsed out of
    * `$1,234.56`, a date normalized.

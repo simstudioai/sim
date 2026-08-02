@@ -1407,8 +1407,12 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       // keys do that is declared by the type (`metadataRewritesCells`) rather
       // than listed here, so a future key that rewrites cells invalidates rows
       // without an edit at this call site.
+      // Case-insensitive on the NAME, matching `onMutate`'s lookup. A
+      // mismatched lookup here silently skips the row invalidation an
+      // `includeTime` truncation needs, leaving the grid on pre-migration values.
+      const settledLower = variables.columnName.toLowerCase()
       const updatedColumn = context?.previousDetail?.schema.columns.find(
-        (c) => getColumnId(c) === variables.columnName || c.name === variables.columnName
+        (c) => getColumnId(c) === variables.columnName || c.name.toLowerCase() === settledLower
       )
       const { generic, dedicated } = metadataKeysIn(variables.updates)
       const rewritesRows =

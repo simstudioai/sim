@@ -63,8 +63,13 @@ export const selectColumnType: ColumnTypeDefinition = {
   icon: TagIcon,
   // Cells hold opaque option ids; comparison is by id, never by cast.
   jsonbCast: null,
-  canonicalizesValues: false,
-  orderable: true,
+  // Resolves names to option ids, which is canonicalization — though the
+  // filter path short-circuits on `storesOpaqueIds` before reaching it.
+  canonicalizesValues: true,
+  // Comparing opaque option ids with `>`/`<` is meaningless. Unreachable today
+  // (both operator allowlists reject range ops first), but a future opaque-id
+  // type copying this file must not inherit a wrong answer.
+  orderable: false,
   storesOpaqueIds: true,
   supportsUnique: false,
   sampleValue: 'Option',

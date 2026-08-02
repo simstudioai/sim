@@ -172,12 +172,13 @@ function ColumnConfigBody({
   const wantsCurrency = typeOwnsMetadataKey(typeInput, 'currencyCode')
   const wantsPrecision = typeOwnsMetadataKey(typeInput, 'precision')
   // `undefined` means "no precision declared" — the field is legitimately
-  // clearable back to rendering values as stored. A non-empty value that is not
-  // a finite number is treated the same rather than clamping to 0, so garbage
-  // never silently saves as "zero decimal places".
+  // clearable back to rendering values as stored. Anything that is not a whole
+  // number is treated the same rather than clamped, because `clampPrecision`
+  // falls back to 0 for a non-integer: `2.5` is finite, so a `Number.isFinite`
+  // guard let it through and silently saved "zero decimal places".
   const precisionNumber = Number(precisionInput)
   const parsedPrecision =
-    precisionInput.trim() === '' || !Number.isFinite(precisionNumber)
+    precisionInput.trim() === '' || !Number.isInteger(precisionNumber)
       ? undefined
       : clampPrecision(precisionNumber)
   const wantsIncludeTime = typeOwnsMetadataKey(typeInput, 'includeTime')
@@ -392,13 +393,23 @@ function ColumnConfigBody({
         {wantsIncludeTime && (
           <>
             <FieldDivider />
-            <div className='flex items-center justify-between pl-0.5'>
-              <Label htmlFor='column-sidebar-include-time'>Include time</Label>
-              <Switch
-                id='column-sidebar-include-time'
-                checked={includeTimeInput}
-                onCheckedChange={(v) => setIncludeTimeInput(!!v)}
-              />
+            <div className='flex flex-col gap-[9px]'>
+              <div className='flex items-center justify-between pl-0.5'>
+                <Label htmlFor='column-sidebar-include-time'>Include time</Label>
+                <Switch
+                  id='column-sidebar-include-time'
+                  checked={includeTimeInput}
+                  onCheckedChange={(v) => setIncludeTimeInput(!!v)}
+                />
+              </div>
+              {/* Turning this off rewrites every cell and cannot be undone by
+                  turning it back on — the times are gone. Shown only when the
+                  save would actually perform that rewrite. */}
+              {baselineIncludeTime && !includeTimeInput && (
+                <p className='pl-0.5 text-[var(--text-error)] text-caption'>
+                  Saving will remove the time from every cell in this column. This can’t be undone.
+                </p>
+              )}
             </div>
           </>
         )}

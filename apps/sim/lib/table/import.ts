@@ -206,10 +206,7 @@ export type CsvColumnType = ColumnType
  * configuration inference cannot supply (`select`'s options, `currency`'s
  * code) or would swallow ordinary text (`json`).
  */
-type InferredCsvColumnType = Extract<
-  ColumnType,
-  'string' | 'number' | 'boolean' | 'date' | 'email' | 'phone'
->
+type InferredCsvColumnType = Extract<ColumnType, 'string' | 'number' | 'boolean' | 'date'>
 
 /** Number of CSV rows sampled when inferring column types for a new table. */
 export const CSV_SCHEMA_SAMPLE_SIZE = 100
@@ -317,31 +314,17 @@ export function inferColumnType(values: unknown[]): InferredCsvColumnType {
   })
   if (allDate) return 'date'
 
-  // Email is safe to infer: an `@` in every value is unambiguous, and the check
-  // is the type's own `coerce`, so inference and the write path cannot disagree
-  // about what counts as an address.
-  const emailColumn: ColumnDefinition = { name: '', type: 'email' }
-  if (nonEmpty.every((v) => columnTypeById('email').coerce(v as JsonValue, emailColumn).ok)) {
-    return 'email'
-  }
-
-  // Phone is inferred only on STRONG evidence — every value carrying a `+` or a
-  // parenthesised area code.
+  // `email` and `phone` are deliberately NOT inferred, though both parse
+  // unambiguously enough to make it tempting.
   //
-  // Deliberately not "everything that parses as a phone": ISBNs, SKUs and part
-  // numbers are dash-separated digit runs too, and a phone column stores only
-  // the digits, so a wrong guess silently drops their punctuation. A column of
-  // bare digits never reaches here anyway — it returned `number` above — which
-  // is the right answer for an ID column and the reason this check does not try
-  // to reclaim it.
-  const phoneColumn: ColumnDefinition = { name: '', type: 'phone' }
-  const allPhone = nonEmpty.every((v) => {
-    const raw = String(v).trim()
-    if (!raw.startsWith('+') && !/^\(\d{3}\)/.test(raw)) return false
-    return columnTypeById('phone').coerce(v as JsonValue, phoneColumn).ok
-  })
-  if (allPhone) return 'phone'
-
+  // Inference reads a 100-row SAMPLE, but the write path coerces every row and
+  // nulls what a column's type rejects (`coerceRowValues`). A contact export
+  // whose first 100 rows are clean and whose row 250 holds `n/a`, `unknown`, or
+  // `jane@x.com; bob@x.com` would therefore have that cell silently destroyed —
+  // where inferring `string`, as here, imports it verbatim. The same hazard
+  // exists for `number`/`boolean`/`date` above and is accepted for them; it is
+  // materially likelier on contact data, which is exactly where these two types
+  // are used. Importing INTO a column the user typed themselves is unaffected.
   return 'string'
 }
 

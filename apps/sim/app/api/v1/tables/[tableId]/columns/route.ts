@@ -21,7 +21,7 @@ import {
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { columnTypeById, metadataKeysIn, pickMetadata } from '@/lib/table/column-types'
 import { validateMetadataUpdate } from '@/lib/table/columns/metadata'
-import { TableColumnError } from '@/lib/table/errors'
+import { TableRequestError } from '@/lib/table/errors'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   accessError,
@@ -104,21 +104,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
-    if (error instanceof Error) {
-      // Same caller-error set the internal columns route maps — an invalid
-      // select option set is a bad request, not a server fault.
-      if (
-        error.message.includes('already exists') ||
-        error.message.includes('maximum column') ||
-        error.message.includes('Invalid column') ||
-        error.message.includes('exceeds maximum') ||
-        error.message.includes('option')
-      ) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-      if (error.message === 'Table not found') {
-        return NextResponse.json({ error: error.message }, { status: 404 })
-      }
+    // One typed check instead of a per-message substring list: the service
+    // says whether a failure is the caller's and what status it deserves.
+    if (error instanceof TableRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
     logger.error(`[${requestId}] Error adding column to table:`, error)
@@ -353,7 +342,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
 
     // One typed check instead of a per-message substring list: the service
     // says whether a failure is the caller's and what status it deserves.
-    if (error instanceof TableColumnError) {
+    if (error instanceof TableRequestError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
@@ -424,13 +413,10 @@ export const DELETE = withRouteHandler(
       const validationResponse = v1ValidationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
 
-      if (error instanceof Error) {
-        if (error.message.includes('not found') || error.message === 'Table not found') {
-          return NextResponse.json({ error: error.message }, { status: 404 })
-        }
-        if (error.message.includes('Cannot delete') || error.message.includes('last column')) {
-          return NextResponse.json({ error: error.message }, { status: 400 })
-        }
+      // One typed check instead of a per-message substring list: the service
+      // says whether a failure is the caller's and what status it deserves.
+      if (error instanceof TableRequestError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
       }
 
       logger.error(`[${requestId}] Error deleting column from table:`, error)

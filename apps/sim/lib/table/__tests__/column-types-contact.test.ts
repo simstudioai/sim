@@ -19,8 +19,9 @@ import {
   ownersOfMetadataKey,
   pickMetadata,
 } from '@/lib/table/column-types'
+import { metadataMigrationFor } from '@/lib/table/column-types/registry.server'
 import { buildConvertedColumn } from '@/lib/table/columns/service'
-import { coerceValue, inferColumnType } from '@/lib/table/import'
+import { coerceValue } from '@/lib/table/import'
 import { filterRulesToFilter, prunePredicateForColumns } from '@/lib/table/query-builder/converters'
 import type { ColumnDefinition } from '@/lib/table/types'
 
@@ -426,20 +427,86 @@ describe('follow-up fixes', () => {
       expect(neg.ok && neg.value).toBe(-2.5)
     }
   })
+})
 
-  it('infers an email column from a CSV, using the type’s own validation', () => {
-    expect(inferColumnType(['ada@example.com', 'bob@example.co.uk'])).toBe('email')
-    expect(inferColumnType(['ada@example.com', 'not an address'])).toBe('string')
+describe('final-audit regressions', () => {
+  it('never truncates a legacy date column when includeTime is CLEARED', async () => {
+    // Absent is the tri-state's "legacy column, holds instants". Gating the
+    // migration on `target.includeTime` being falsy also fired for a cleared
+    // key, destroying every stored time of day.
+    const migrate = metadataMigrationFor('date')
+    expect(migrate).toBeDefined()
+    if (!migrate) return
+    const ran: string[] = []
+    const trx = {
+      execute: async () => {
+        ran.push('rewrote')
+      },
+    } as never
+
+    const call = (previous: ColumnDefinition, target: ColumnDefinition) =>
+      migrate({ trx, tableId: 't', columnKey: 'c', previous, target, resolved: new Map() })
+
+    // Cleared (absent) on a legacy column: must NOT rewrite.
+    await call({ name: 'c', type: 'date' }, { name: 'c', type: 'date' })
+    expect(ran).toHaveLength(0)
+    // Cleared from an explicit true: must NOT rewrite either.
+    await call({ name: 'c', type: 'date', includeTime: true }, { name: 'c', type: 'date' })
+    expect(ran).toHaveLength(0)
+    // The real transition to date-only DOES rewrite.
+    await call(
+      { name: 'c', type: 'date', includeTime: true },
+      { name: 'c', type: 'date', includeTime: false }
+    )
+    expect(ran.length).toBeGreaterThan(0)
   })
 
-  it('infers phone only on strong evidence, never from bare digits or dashes', () => {
-    expect(inferColumnType(['+1 555 123 4567', '+44 20 7123 4567'])).toBe('phone')
-    expect(inferColumnType(['(555) 123-4567', '(555) 987-6543'])).toBe('phone')
-    // An ID column of bare digits is a Number, which is the right answer.
-    expect(inferColumnType(['5551234567', '5559876543'])).toBe('number')
-    // Dash-separated digit runs are ISBNs and SKUs as often as phone numbers,
-    // and a phone column keeps only the digits — so these stay text.
-    expect(inferColumnType(['978-0-13-235088-4', '978-0-32-135668-0'])).toBe('string')
+  it('keeps a select option clear through a retype, like every other key', () => {
+    const from: ColumnDefinition = {
+      name: 'c',
+      type: 'select',
+      options: [{ id: 'o1', name: 'One' }],
+    }
+    // Silence carries the old options across.
+    const carried = buildConvertedColumn(
+      from,
+      { tableId: 't', columnName: 'c', newType: 'select' },
+      { isSelectType: true, targetMultiple: false }
+    )
+    expect(carried.options).toEqual([{ id: 'o1', name: 'One' }])
+    // An explicit clear does not silently restore them.
+    const cleared = buildConvertedColumn(
+      from,
+      { tableId: 't', columnName: 'c', newType: 'select', options: null },
+      { isSelectType: true, targetMultiple: false }
+    )
+    expect(cleared.options).toBeUndefined()
+  })
+
+  it('shows a non-numeric percent cell rather than hiding it', () => {
+    // Returning '' made a drifted cell look empty, which reads as data loss.
+    expect(COLUMN_TYPE_REGISTRY.percent.formatForDisplay('n/a', column('percent'))).toBe('n/a')
+  })
+
+  it('declares canonicalization for boolean and select, which both transform', () => {
+    expect(COLUMN_TYPE_REGISTRY.boolean.canonicalizesValues).toBe(true)
+    expect(COLUMN_TYPE_REGISTRY.select.canonicalizesValues).toBe(true)
+    // Range comparison on opaque option ids is meaningless.
+    expect(COLUMN_TYPE_REGISTRY.select.orderable).toBe(false)
+  })
+
+  it('normalizes a phone SEARCH FRAGMENT so a substring filter can meet the stored value', () => {
+    const contains = (value: string) =>
+      filterRulesToFilter(
+        [{ id: 'r1', logicalOperator: 'and' as const, column: 'c', operator: 'contains', value }],
+        [{ id: 'c', name: 'c', type: 'phone' }]
+      )
+    // Stored as +442071234567; a formatted fragment must be stripped to meet it.
+    expect(contains('+44 20 7123')).toEqual({ c: { $contains: '+44207123' } })
+    expect(contains('(555) 123')).toEqual({ c: { $contains: '555123' } })
+    // A fragment with NO digits is left alone — reducing it to '' would make
+    // ILIKE '%%' match every row.
+    expect(contains('abc')).toEqual({ c: { $contains: 'abc' } })
   })
 })
 

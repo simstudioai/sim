@@ -145,6 +145,15 @@ export function predicateOperatorsFor(column: ColumnDefinition): ReadonlySet<str
   return columnTypeOf(column).predicateOperatorsFor?.(column) ?? null
 }
 
+/**
+ * A search fragment normalized for this column, so a substring filter compares
+ * against the same shape the cell was stored in. Identity for types whose
+ * canonical form drops nothing.
+ */
+export function normalizeFilterFragment(column: ColumnDefinition, fragment: string): string {
+  return columnTypeOf(column).normalizeFilterFragment?.(fragment) ?? fragment
+}
+
 /** Whether a column's cells hold several values (a JSON array). */
 export function storesMultipleValues(column: ColumnDefinition): boolean {
   return columnTypeOf(column).storesMultipleValues?.(column) ?? false

@@ -28,9 +28,13 @@ export class TableQueryValidationError extends Error {
 }
 
 /**
- * Error thrown when a column mutation fails for a reason the CALLER can fix —
- * a name collision, an unsupported conversion, metadata on a type that does not
- * own it, a column or table that does not exist.
+ * Error thrown when a table request fails for a reason the CALLER can fix — a
+ * name collision, an unsupported conversion, metadata on a type that does not
+ * own it, a table or column that does not exist.
+ *
+ * Named for the REQUEST, not for columns: `withLockedTable` and `restoreTable`
+ * raise it too, and those are table-level paths shared by the workflow-group
+ * service.
  *
  * Carries its own HTTP status so routes map it directly. This replaced a list
  * of `msg.includes('already exists') || msg.includes('option') || …` in every
@@ -39,18 +43,18 @@ export class TableQueryValidationError extends Error {
  * through to a 500, telling the caller the server broke when in fact their
  * request was invalid.
  */
-export class TableColumnError extends Error {
+export class TableRequestError extends Error {
   /** 400 for an invalid request, 404 for a missing table or column. */
   readonly status: 400 | 404
 
   constructor(message: string, status: 400 | 404 = 400) {
     super(message)
-    this.name = 'TableColumnError'
+    this.name = 'TableRequestError'
     this.status = status
   }
 }
 
 /** Shorthand for the 404 half, which is the only non-400 case. */
-export function tableColumnNotFound(message: string): TableColumnError {
-  return new TableColumnError(message, 404)
+export function tableNotFound(message: string): TableRequestError {
+  return new TableRequestError(message, 404)
 }

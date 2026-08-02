@@ -60,7 +60,9 @@ export const percentColumnType: ColumnTypeDefinition = {
   },
 
   formatForDisplay(value, column) {
-    if (typeof value !== 'number') return ''
+    // A non-number renders as itself, matching `number`. Returning '' hid the
+    // cell's actual contents, which reads as data loss rather than as drift.
+    if (typeof value !== 'number') return String(value ?? '')
     return `${formatWithPrecision(value, column.precision)}%`
   },
 

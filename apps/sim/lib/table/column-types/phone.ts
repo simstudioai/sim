@@ -55,6 +55,21 @@ function normalizePhone(raw: string): string | null {
   return `${hasPlus ? '+' : ''}${digits}`
 }
 
+/**
+ * Strips a search fragment the same way a stored number was stripped, so a
+ * substring filter can meet it.
+ *
+ * A fragment with NO digits is returned untouched. Reducing it to `''` would
+ * make the resulting `ILIKE '%%'` match every row in the table — turning a
+ * filter that should find nothing into one that finds everything.
+ */
+function normalizePhoneFragment(fragment: string): string {
+  const trimmed = fragment.trim()
+  const digits = trimmed.replace(/\D/g, '')
+  if (digits === '') return fragment
+  return `${trimmed.startsWith('+') ? '+' : ''}${digits}`
+}
+
 export const phoneColumnType: ColumnTypeDefinition = {
   id: 'phone',
   label: 'Phone',
@@ -73,6 +88,8 @@ export const phoneColumnType: ColumnTypeDefinition = {
   expandable: false,
   typeaheadPattern: /[\d+\s\-().]/,
   parseErrorMessage: 'Invalid phone number',
+
+  normalizeFilterFragment: normalizePhoneFragment,
 
   coerce(value) {
     // A number reaches here from a CSV whose phone column was read as numeric.

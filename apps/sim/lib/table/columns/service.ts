@@ -32,7 +32,7 @@ import {
   writeBackCoercedCells,
 } from '@/lib/table/column-types/registry.server'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
-import { TableColumnError, tableColumnNotFound } from '@/lib/table/errors'
+import { TableRequestError, tableNotFound } from '@/lib/table/errors'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
@@ -84,30 +84,30 @@ export async function addTableColumn(
   return withLockedTable(tableId, async (table, trx) => {
     assertSchemaMutable(table)
     if (!NAME_PATTERN.test(column.name)) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
       )
     }
 
     if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
       )
     }
 
     if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
       )
     }
 
     const schema = table.schema
     if (schema.columns.some((c) => c.name.toLowerCase() === column.name.toLowerCase())) {
-      throw new TableColumnError(`Column "${column.name}" already exists`)
+      throw new TableRequestError(`Column "${column.name}" already exists`)
     }
 
     if (schema.columns.length >= TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Table has reached maximum column limit (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE})`
       )
     }
@@ -132,7 +132,7 @@ export async function addTableColumn(
 
     const columnValidation = validateColumnDefinition(newColumn)
     if (!columnValidation.valid) {
-      throw new TableColumnError(`Invalid column: ${columnValidation.errors.join('; ')}`)
+      throw new TableRequestError(`Invalid column: ${columnValidation.errors.join('; ')}`)
     }
 
     const newColumnId = getColumnId(newColumn)
@@ -202,13 +202,13 @@ export async function renameColumn(
   return withLockedTable(data.tableId, async (table, trx) => {
     assertSchemaMutable(table)
     if (!NAME_PATTERN.test(data.newName)) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Invalid column name "${data.newName}". Column names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
       )
     }
 
     if (data.newName.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
       )
     }
@@ -216,7 +216,7 @@ export async function renameColumn(
     const schema = table.schema
     const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.oldName))
     if (columnIndex === -1) {
-      throw tableColumnNotFound(`Column "${data.oldName}" not found`)
+      throw tableNotFound(`Column "${data.oldName}" not found`)
     }
 
     if (
@@ -224,7 +224,7 @@ export async function renameColumn(
         (c, i) => i !== columnIndex && c.name.toLowerCase() === data.newName.toLowerCase()
       )
     ) {
-      throw new TableColumnError(`Column "${data.newName}" already exists`)
+      throw new TableRequestError(`Column "${data.newName}" already exists`)
     }
 
     const targetColumn = schema.columns[columnIndex]
@@ -339,11 +339,11 @@ export async function deleteColumn(
     const schema = table.schema
     const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
     if (columnIndex === -1) {
-      throw tableColumnNotFound(`Column "${data.columnName}" not found`)
+      throw tableNotFound(`Column "${data.columnName}" not found`)
     }
 
     if (schema.columns.length <= 1) {
-      throw new TableColumnError('Cannot delete the last column in a table')
+      throw new TableRequestError('Cannot delete the last column in a table')
     }
 
     const targetColumn = schema.columns[columnIndex]
@@ -431,12 +431,12 @@ export async function deleteColumns(
     }
 
     if (notFound.length > 0) {
-      throw tableColumnNotFound(`Columns not found: ${notFound.join(', ')}`)
+      throw tableNotFound(`Columns not found: ${notFound.join(', ')}`)
     }
 
     const remaining = schema.columns.filter((c) => !namesToDelete.has(c.name))
     if (remaining.length === 0) {
-      throw new TableColumnError('Cannot delete all columns from a table')
+      throw new TableRequestError('Cannot delete all columns from a table')
     }
 
     // For each group, drop outputs whose column (by id) is being deleted. Groups
@@ -514,26 +514,26 @@ async function applyConstraints(
   if (data.required === undefined && data.unique === undefined) return column
 
   if (column.workflowGroupId) {
-    throw new TableColumnError(
+    throw new TableRequestError(
       `Cannot change constraints on workflow-output column "${column.name}". Constraints aren't applicable to columns whose values come from workflow execution.`
     )
   }
   if (data.required === true && !column.required) {
     const emptyCount = await countEmptyCells(trx, tableId, columnKey)
     if (emptyCount > 0) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Cannot set column "${column.name}" as required: ${emptyCount} row(s) have null, missing, or empty values`
       )
     }
   }
   if (data.unique === true && !column.unique) {
     if (!columnTypeOf(column).supportsUnique) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Cannot set column "${column.name}" as unique: ${column.type} columns compare stored values that would allow only one row per value.`
       )
     }
     if (await hasDuplicateValues(trx, tableId, columnKey)) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Cannot set column "${column.name}" as unique: duplicate values exist`
       )
     }
@@ -602,17 +602,17 @@ export function applyPendingRename(
   if (newName === undefined || newName === column.name) return column
 
   if (!NAME_PATTERN.test(newName)) {
-    throw new TableColumnError(
+    throw new TableRequestError(
       `Invalid column name "${newName}". Column names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
     )
   }
   if (newName.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
-    throw new TableColumnError(
+    throw new TableRequestError(
       `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
     )
   }
   if (columns.some((c, i) => i !== columnIndex && c.name.toLowerCase() === newName.toLowerCase())) {
-    throw new TableColumnError(`Column "${newName}" already exists`)
+    throw new TableRequestError(`Column "${newName}" already exists`)
   }
   return { ...column, name: newName }
 }
@@ -645,7 +645,9 @@ export function buildConvertedColumn(
     return {
       ...withConstraints,
       type: data.newType,
-      options: data.options ?? column.options ?? undefined,
+      // Three-state like the generic loop below: `null` clears, `undefined`
+      // carries the old value forward.
+      options: (data.options === undefined ? column.options : data.options) ?? undefined,
       ...(targetMultiple ? { multiple: true } : {}),
       // Select columns carry no unique constraint: it would compare the stored
       // option id, capping each option at one row table-wide, and the UI hides
@@ -704,7 +706,7 @@ export async function updateColumnType(
     await setTableTxTimeouts(trx, { statementMs: timeoutMs, idleMs: timeoutMs })
 
     if (!(COLUMN_TYPES as readonly string[]).includes(data.newType)) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Invalid column type "${data.newType}". Valid types: ${COLUMN_TYPES.join(', ')}`
       )
     }
@@ -712,7 +714,7 @@ export async function updateColumnType(
     const schema = table.schema
     const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
     if (columnIndex === -1) {
-      throw tableColumnNotFound(`Column "${data.columnName}" not found`)
+      throw tableNotFound(`Column "${data.columnName}" not found`)
     }
 
     const column = schema.columns[columnIndex]
@@ -732,7 +734,7 @@ export async function updateColumnType(
         data.unique !== undefined ||
         TYPE_SPECIFIC_COLUMN_KEYS.some((key) => data[key] !== undefined)
       if (carriesOtherWork) {
-        throw new TableColumnError(
+        throw new TableRequestError(
           `Column "${column.name}" is already type "${data.newType}"; re-issue the request without a type change.`
         )
       }
@@ -762,7 +764,8 @@ export async function updateColumnType(
     // compatible if it resolves against this set.
     const isSelectType = data.newType === 'select'
     const targetOptions = data.options ?? column.options ?? []
-    const targetMultiple = data.multiple ?? column.multiple
+    const targetMultiple =
+      data.multiple === undefined ? column.multiple : (data.multiple ?? undefined)
     // Leaving `select` behind: stored cells hold option ids, which mean nothing
     // once the column is text/number/etc. Check compatibility against the option
     // NAME — that's what the cell will actually become (migrated below).
@@ -778,7 +781,7 @@ export async function updateColumnType(
     if (targetRequired) {
       const emptyCount = await countEmptyCells(trx, data.tableId, columnKey)
       if (emptyCount > 0) {
-        throw new TableColumnError(
+        throw new TableRequestError(
           `Cannot change column "${column.name}" to a required "${data.newType}": ${emptyCount} row(s) have null, missing, or empty values. Fill them first, or apply the type change without making the column required.`
         )
       }
@@ -846,13 +849,13 @@ export async function updateColumnType(
     }
 
     if (blankCount > 0) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Cannot change column "${column.name}" to a required "${data.newType}": ${blankCount} row(s) are empty. Fill them first, or apply the type change without making the column required.`
       )
     }
 
     if (incompatibleCount > 0) {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Cannot change column "${column.name}" to type "${data.newType}": ${incompatibleCount} row(s) have incompatible values. Fix or remove the incompatible values first.`
       )
     }
@@ -864,7 +867,7 @@ export async function updateColumnType(
 
     const columnValidation = validateColumnDefinition(updatedColumns[columnIndex])
     if (!columnValidation.valid) {
-      throw new TableColumnError(`Invalid column: ${columnValidation.errors.join('; ')}`)
+      throw new TableRequestError(`Invalid column: ${columnValidation.errors.join('; ')}`)
     }
 
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
@@ -897,7 +900,7 @@ export async function updateColumnType(
     // irrecoverably rewritten.
     if (data.unique === true && !column.unique) {
       if (await hasDuplicateValues(trx, data.tableId, columnKey)) {
-        throw new TableColumnError(
+        throw new TableRequestError(
           `Cannot change column "${column.name}" to type "${data.newType}" and set it as unique: the converted values contain duplicates.`
         )
       }
@@ -944,7 +947,7 @@ export async function updateColumnConstraints(
     const schema = table.schema
     const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
     if (columnIndex === -1) {
-      throw tableColumnNotFound(`Column "${data.columnName}" not found`)
+      throw tableNotFound(`Column "${data.columnName}" not found`)
     }
 
     const column = schema.columns[columnIndex]
@@ -984,12 +987,12 @@ export async function updateColumnOptions(
     const schema = table.schema
     const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
     if (columnIndex === -1) {
-      throw tableColumnNotFound(`Column "${data.columnName}" not found`)
+      throw tableNotFound(`Column "${data.columnName}" not found`)
     }
 
     const column = schema.columns[columnIndex]
     if (column.type !== 'select') {
-      throw new TableColumnError(
+      throw new TableRequestError(
         `Cannot set options on column "${column.name}" of type "${column.type}"`
       )
     }
@@ -1004,7 +1007,7 @@ export async function updateColumnOptions(
     }
     const columnValidation = validateColumnDefinition(updatedColumn)
     if (!columnValidation.valid) {
-      throw new TableColumnError(`Invalid column: ${columnValidation.errors.join('; ')}`)
+      throw new TableRequestError(`Invalid column: ${columnValidation.errors.join('; ')}`)
     }
 
     const nextMultiple = !!(data.multiple ?? column.multiple)
@@ -1053,7 +1056,7 @@ export async function updateColumnOptions(
           wasMultiple
         )
         if (strandedCount > 0) {
-          throw new TableColumnError(
+          throw new TableRequestError(
             `Cannot remove options from required column "${column.name}": ${strandedCount} row(s) would be left empty. Reassign those rows to a remaining option first.`
           )
         }
@@ -1080,7 +1083,7 @@ export async function updateColumnOptions(
       }
 
       if (multiValuedCount > 0) {
-        throw new TableColumnError(
+        throw new TableRequestError(
           `Cannot switch column "${column.name}" to single-select: ${multiValuedCount} row(s) have multiple options selected. Reduce them to one option first.`
         )
       }
@@ -1162,7 +1165,7 @@ export async function updateColumnMetadata(
     const schema = table.schema
     const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
     if (columnIndex === -1) {
-      throw tableColumnNotFound(`Column "${data.columnName}" not found`)
+      throw tableNotFound(`Column "${data.columnName}" not found`)
     }
 
     const column = schema.columns[columnIndex]
@@ -1170,7 +1173,7 @@ export async function updateColumnMetadata(
     const incoming = filterUndefined(data.metadata)
     for (const key of Object.keys(incoming) as TypeSpecificColumnKey[]) {
       if (!definition.ownedMetadata.includes(key)) {
-        throw new TableColumnError(
+        throw new TableRequestError(
           `Cannot set ${key} on column "${column.name}" of type "${column.type}"`
         )
       }
@@ -1208,7 +1211,7 @@ export async function updateColumnMetadata(
 
     const columnValidation = validateColumnDefinition(updatedColumn)
     if (!columnValidation.valid) {
-      throw new TableColumnError(`Invalid column: ${columnValidation.errors.join('; ')}`)
+      throw new TableRequestError(`Invalid column: ${columnValidation.errors.join('; ')}`)
     }
 
     const columnKey = getColumnId(column)

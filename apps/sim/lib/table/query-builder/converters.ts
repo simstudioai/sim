@@ -5,7 +5,12 @@
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { columnMatchesRef } from '@/lib/table/column-keys'
-import { columnTypeOf, predicateOperatorsFor, storesMultipleValues } from '@/lib/table/column-types'
+import {
+  columnTypeOf,
+  normalizeFilterFragment,
+  predicateOperatorsFor,
+  storesMultipleValues,
+} from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import {
   MULTI_SELECT_FILTER_OPERATORS,
@@ -262,10 +267,13 @@ function parseValue(value: string, operator: string, column?: ColumnDefinition):
 
   if (keepAsText) return value
 
-  // Substring/prefix/suffix matches are textual — keep the raw string so a value
-  // like "123" isn't coerced to a number the SQL builder's ILIKE path can't use.
+  // Substring/prefix/suffix matches stay TEXT — a value like "123" must not be
+  // coerced to a number the SQL builder's ILIKE path can't use. But a fragment
+  // still has to be shaped like the stored value: a Phone cell keeps only its
+  // digits, so `contains '+44 20 7123'` compared raw against a stored
+  // `+442071234567` matches nothing.
   if (TEXT_MATCH_OPERATORS.has(operator)) {
-    return value
+    return column ? normalizeFilterFragment(column, value) : value
   }
 
   return parseFilterScalar(value, column)

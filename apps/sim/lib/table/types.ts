@@ -105,9 +105,13 @@ export interface ColumnDefinition {
    */
   currencyCode?: string
   /**
-   * Decimal places a `number` or `percent` column renders to. Display metadata
-   * only — the cell keeps its full stored precision, so lowering this rounds
-   * what is shown and raising it back recovers the original digits.
+   * Decimal places a `number` or `percent` column renders to.
+   *
+   * Storage keeps the full value, so lowering this and raising it back recovers
+   * the original digits. It is NOT purely cosmetic at the boundary, though: CSV
+   * export renders through `formatForDisplay` (as it must, for select names and
+   * currency symbols), so a `precision: 1` column exports `12.6` for a stored
+   * `12.567`.
    *
    * Absent on a `number` column renders the value as stored, which is what
    * every column predating this key does; only an explicit value forces

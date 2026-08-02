@@ -217,7 +217,8 @@ async function migrateCellsToSelectIds(
  * A left-slice, not a cast: the stored form is a literal wall time with no
  * zone, and `::timestamptz` would resolve it against the server's zone and
  * shift the day. Switching `includeTime` back on is deliberately NOT reversible
- * — the time of day is gone once truncated, which is why the UI warns first.
+ * — the time of day is gone once truncated. The column sidebar warns before a
+ * save that would run this.
  *
  * The regex guard is what makes that irreversibility safe. `formatDateCellDisplay`
  * and `storedDateToEditable` both document that unparseable legacy strings pass
@@ -255,10 +256,14 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
     // Only the off direction rewrites: turning `includeTime` ON leaves existing
     // calendar days as they are (they simply have no time yet), while turning
     // it OFF must strip times the schema no longer admits.
-    migrateCellsForMetadata: ({ trx, tableId, columnKey, target }) =>
-      target.includeTime
-        ? Promise.resolve()
-        : truncateDateCellsToCalendarDay(trx, tableId, columnKey),
+    // Only an explicit transition TO date-only rewrites. Gating on
+    // `target.includeTime` being falsy also fired when the key was CLEARED
+    // (`null` → absent), and absent is the tri-state's "legacy column, holds
+    // instants" — the one state that must never be truncated.
+    migrateCellsForMetadata: ({ trx, tableId, columnKey, previous, target }) =>
+      previous.includeTime !== false && target.includeTime === false
+        ? truncateDateCellsToCalendarDay(trx, tableId, columnKey)
+        : Promise.resolve(),
   },
   json: COLUMN_TYPE_REGISTRY.json,
   select: {

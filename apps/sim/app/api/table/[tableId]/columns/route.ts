@@ -22,13 +22,12 @@ import {
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { columnTypeById, metadataKeysIn, pickMetadata } from '@/lib/table/column-types'
 import { validateMetadataUpdate } from '@/lib/table/columns/metadata'
-import { TableColumnError } from '@/lib/table/errors'
+import { TableRequestError } from '@/lib/table/errors'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   accessError,
   checkAccess,
   normalizeColumn,
-  rootErrorMessage,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 
@@ -81,7 +80,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
 
     // One typed check instead of a per-message substring list: the service
     // says whether a failure is the caller's and what status it deserves.
-    if (error instanceof TableColumnError) {
+    if (error instanceof TableRequestError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
@@ -300,7 +299,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
 
     // One typed check instead of a per-message substring list: the service
     // says whether a failure is the caller's and what status it deserves.
-    if (error instanceof TableColumnError) {
+    if (error instanceof TableRequestError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
@@ -354,12 +353,10 @@ export const DELETE = withRouteHandler(
         return validationErrorResponse(error, 'Invalid request data')
       }
 
-      const msg = rootErrorMessage(error)
-      if (msg.includes('not found') || msg === 'Table not found') {
-        return NextResponse.json({ error: msg }, { status: 404 })
-      }
-      if (msg.includes('Cannot delete') || msg.includes('last column')) {
-        return NextResponse.json({ error: msg }, { status: 400 })
+      // One typed check instead of a per-message substring list: the service
+      // says whether a failure is the caller's and what status it deserves.
+      if (error instanceof TableRequestError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
       }
 
       logger.error(`[${requestId}] Error deleting column from table ${tableId}:`, error)
