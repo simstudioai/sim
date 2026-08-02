@@ -1084,8 +1084,27 @@ describe('QuickBooks tool and block boundaries', () => {
       field: 'operation',
       value: [
         'quickbooks_read_master_data',
+        'quickbooks_read_sales_transactions',
         'quickbooks_list_purchase_orders',
         'quickbooks_list_bills',
+      ],
+    })
+    expect(
+      typeof subBlocks.transactionId.condition === 'function'
+        ? subBlocks.transactionId.condition()
+        : subBlocks.transactionId.condition
+    ).toEqual({
+      field: 'operation',
+      value: [
+        'quickbooks_read_sales_transactions',
+        'quickbooks_update_estimate',
+        'quickbooks_update_invoice',
+        'quickbooks_update_sales_receipt',
+        'quickbooks_update_credit_memo',
+        'quickbooks_update_refund_receipt',
+        'quickbooks_update_customer_payment',
+        'quickbooks_void_invoice',
+        'quickbooks_void_customer_payment',
       ],
     })
     expect(QuickBooksBlock.outputs.items.condition).toEqual({

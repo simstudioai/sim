@@ -79,6 +79,11 @@ const TRANSACTION_LIST_OPERATIONS = [
   'quickbooks_list_purchase_orders',
   'quickbooks_list_bills',
 ] as const
+const PAGINATED_OPERATIONS = [
+  MASTER_DATA_OPERATION,
+  SALES_READ_OPERATION,
+  ...TRANSACTION_LIST_OPERATIONS,
+] as const
 const LIST_OUTPUT_CONDITION: OutputCondition = {
   field: 'operation',
   value: [MASTER_DATA_OPERATION, SALES_READ_OPERATION],
@@ -144,6 +149,12 @@ function paginationCondition(values?: Record<string, unknown>) {
 }
 
 function salesTransactionIdCondition(values?: Record<string, unknown>) {
+  if (!values) {
+    return {
+      field: 'operation',
+      value: [SALES_READ_OPERATION, ...SALES_UPDATE_OPERATIONS, ...SALES_VOID_OPERATIONS],
+    }
+  }
   if (values?.operation === SALES_READ_OPERATION) {
     return { field: 'readMode', value: 'by_id' }
   }
@@ -1217,19 +1228,19 @@ export const QuickBooksBlockMeta = {
       name: 'prepare-quickbooks-estimates',
       description: 'Create and revise bounded QuickBooks estimates from approved quote details.',
       content:
-        '# Prepare QuickBooks Estimates\n\n## Steps\n1. Validate the customer, item IDs, amounts, and dates.\n2. Use Estimates: Create with bounded item or description lines.\n3. For a revision, use the estimate ID and latest `syncToken` with Estimates: Update.\n\n## Output\nReturn the native Estimate, ID, and latest sync token. Do not claim to email or accept the estimate.',
+        '# Prepare QuickBooks Estimates\n\n## Steps\n1. Validate the customer, item IDs, amounts, and dates.\n2. Use Create Estimate with bounded item or description lines.\n3. For a revision, use the estimate ID and latest `syncToken` with Update Estimate.\n\n## Output\nReturn the native Estimate, ID, and latest sync token. Do not claim to email or accept the estimate.',
     },
     {
       name: 'create-quickbooks-invoices',
       description: 'Create approved QuickBooks invoices and retain identifiers for later updates.',
       content:
-        '# Create QuickBooks Invoices\n\n## Steps\n1. Validate the approved customer, item IDs, positive amounts, and optional dates.\n2. Use Invoices: Create with at least one bounded line.\n3. Store the returned `recordId` and `syncToken`.\n\n## Output\nReturn the native Invoice and identifiers. Do not claim to email the invoice or collect payment automatically.',
+        '# Create QuickBooks Invoices\n\n## Steps\n1. Validate the approved customer, item IDs, positive amounts, and optional dates.\n2. Use Create Invoice with at least one bounded line.\n3. Store the returned `recordId` and `syncToken`.\n\n## Output\nReturn the native Invoice and identifiers. Do not claim to email the invoice or collect payment automatically.',
     },
     {
       name: 'apply-quickbooks-customer-payments',
       description: 'Record customer payments with bounded optional invoice allocations.',
       content:
-        '# Apply QuickBooks Customer Payments\n\n## Steps\n1. Validate the customer ID and positive payment total.\n2. Optionally allocate positive amounts to known invoice IDs without exceeding the payment total.\n3. Use Customer Payments: Create and store the returned ID and sync token.\n\n## Output\nReturn the native Payment and any unapplied remainder reported by QuickBooks.',
+        '# Apply QuickBooks Customer Payments\n\n## Steps\n1. Validate the customer ID and positive payment total.\n2. Optionally allocate positive amounts to known invoice IDs without exceeding the payment total.\n3. Use Create Customer Payment and store the returned ID and sync token.\n\n## Output\nReturn the native Payment and any unapplied remainder reported by QuickBooks.',
     },
     {
       name: 'manage-quickbooks-credits-and-refunds',
