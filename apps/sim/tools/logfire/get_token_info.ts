@@ -57,6 +57,8 @@ export const logfireGetTokenInfoTool: ToolConfig<
       output: {
         organizationName: info.organization_name ?? null,
         projectName: info.project_name ?? null,
+        expiresAt: info.expires_at ?? null,
+        spendingCapReachedAt: info.spending_cap_reached_at ?? null,
       },
     }
   },
@@ -70,6 +72,17 @@ export const logfireGetTokenInfoTool: ToolConfig<
     projectName: {
       type: 'string',
       description: 'Logfire project the read token belongs to',
+      nullable: true,
+    },
+    expiresAt: {
+      type: 'string',
+      description: 'When the read token expires. Null when it never expires.',
+      nullable: true,
+    },
+    spendingCapReachedAt: {
+      type: 'string',
+      description:
+        "When the organization's spending cap was reached, which stops queries. Null when it has not been reached.",
       nullable: true,
     },
   },
