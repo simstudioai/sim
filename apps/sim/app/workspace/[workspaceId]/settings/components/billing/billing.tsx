@@ -456,9 +456,10 @@ export function Billing({
   const subscriptionOwner = isOrganizationScope
     ? `${organizationBilling?.organizationName ?? 'The organization'}’s subscription`
     : 'Your personal subscription'
-  const settingsDescription = governingWorkspaceName
-    ? `${subscriptionOwner} governs ${governingWorkspaceName}.`
-    : undefined
+  const settingsDescription =
+    governingWorkspaceName && subscription.isPaid
+      ? `${subscriptionOwner} governs ${governingWorkspaceName}.`
+      : undefined
 
   return (
     <SettingsPanel description={settingsDescription}>

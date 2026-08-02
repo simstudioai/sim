@@ -319,6 +319,25 @@ describe('Billing payer scope', () => {
     )
   })
 
+  it('does not show a governing subscription description for a free personal workspace', async () => {
+    mockPersonalQuery.current = {
+      data: {
+        success: true,
+        context: 'user',
+        data: { ...PERSONAL_DATA, plan: 'free', status: 'active' },
+      },
+      isLoading: false,
+      refetch: vi.fn(),
+    }
+
+    await act(async () => {
+      root.render(<Billing scope='account' governingWorkspaceName='Free workspace' />)
+    })
+
+    expect(container.textContent).toContain('Personal Free plan')
+    expect(container.querySelector('main > p')).toBeNull()
+  })
+
   it('renders an explicit free organization state without subscription controls', async () => {
     mockOrganizationQuery.current = {
       data: organizationResponse({
@@ -336,7 +355,13 @@ describe('Billing payer scope', () => {
     }
 
     await act(async () => {
-      root.render(<Billing scope='organization' organizationId='org-target' />)
+      root.render(
+        <Billing
+          scope='organization'
+          organizationId='org-target'
+          governingWorkspaceName='Free organization workspace'
+        />
+      )
     })
 
     expect(container.textContent).toContain('Organization Free plan')
@@ -360,12 +385,19 @@ describe('Billing payer scope', () => {
     }
 
     await act(async () => {
-      root.render(<Billing scope='organization' organizationId='org-target' />)
+      root.render(
+        <Billing
+          scope='organization'
+          organizationId='org-target'
+          governingWorkspaceName='Lapsed organization workspace'
+        />
+      )
     })
 
     expect(container.textContent).toContain('Organization Max for Teams plan ended')
     expect(container.textContent).toContain('Choose a new plan for this organization')
     expect(container.textContent).not.toContain('Cancel subscription')
+    expect(container.querySelector('main > p')).toBeNull()
     expect(
       container.querySelector('a[href="/workspace/organization-workspace/upgrade"]')?.textContent
     ).toBe('Explore organization plans')
