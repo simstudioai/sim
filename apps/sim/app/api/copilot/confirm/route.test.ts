@@ -910,13 +910,18 @@ describe('Copilot Confirm API Route', () => {
     })
   })
 
-  it('derives workflow outcome from the terminal server execution', async () => {
+  it('derives workflow outcome from a content-unavailable trusted terminal execution', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
       toolName: 'run_workflow',
       args: { workflowId: 'workflow-1' },
     })
-    getTrustedWorkflowToolExecution.mockResolvedValueOnce({ status: 'failed' })
+    getTrustedWorkflowToolExecution.mockResolvedValueOnce({
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      status: 'failed',
+      contentAvailable: false,
+    })
 
     const response = await POST(
       createMockPostRequest({

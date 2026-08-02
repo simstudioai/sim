@@ -245,6 +245,15 @@ export async function waitForWorkflowToolCompletion({
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
     }
 
+    if (!trustedExecution.contentAvailable) {
+      registry?.markIncomplete()
+      return structuralWorkflowCompletion(
+        getWorkflowToolConfirmationStatus(trustedExecution.status),
+        workflowId,
+        executionId
+      )
+    }
+
     if (!registry || registry.isPermanentlyIncomplete() || !trustedExecution.provenance.complete) {
       if (!trustedExecution.provenance.complete) registry?.markIncomplete()
       return structuralWorkflowCompletion(

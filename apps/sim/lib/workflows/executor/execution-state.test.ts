@@ -104,6 +104,7 @@ describe('execution state lookup', () => {
       executionId: 'execution-1',
       workflowId: 'workflow-1',
       status: 'completed',
+      contentAvailable: true,
       finalOutput: { token: 'raw-secret' },
       blockLogs: [],
       provenance,
@@ -157,7 +158,68 @@ describe('execution state lookup', () => {
     })
   })
 
-  it('rejects mismatched bindings, malformed provenance, and nonterminal rows', async () => {
+  it('trusts compacted terminal status while withholding unavailable execution content', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status: 'completed',
+        executionData: {},
+      },
+    ])
+    mockMaterializeExecutionData.mockResolvedValueOnce({
+      correlation: { copilotToolCallId: 'tool-call-1' },
+      executionStateSummary: {
+        executedBlockCount: 1,
+        blockLogCount: 1,
+        completedLoopCount: 0,
+        activeExecutionPathLength: 0,
+        pendingQueueLength: 0,
+      },
+      finalOutput: { token: 'must-not-cross' },
+    })
+
+    await expect(
+      getTrustedWorkflowToolExecution('execution-1', 'workflow-1', 'tool-call-1')
+    ).resolves.toEqual({
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      status: 'completed',
+      contentAvailable: false,
+    })
+  })
+
+  it('withholds execution content when persisted provenance is malformed', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status: 'completed',
+        executionData: {},
+      },
+    ])
+    mockMaterializeExecutionData.mockResolvedValueOnce({
+      correlation: { copilotToolCallId: 'tool-call-1' },
+      finalOutput: { token: 'must-not-cross' },
+      executionState: {
+        ...EXECUTION_STATE,
+        resolvedSecretTraceProvenance: { version: 2, complete: true, entries: [] },
+      },
+    })
+
+    await expect(
+      getTrustedWorkflowToolExecution('execution-1', 'workflow-1', 'tool-call-1')
+    ).resolves.toEqual({
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      status: 'completed',
+      contentAvailable: false,
+    })
+  })
+
+  it('rejects mismatched bindings and nonterminal rows', async () => {
     queueTableRows(schemaMock.workflowExecutionLogs, [
       {
         executionId: 'execution-1',
@@ -184,34 +246,13 @@ describe('execution state lookup', () => {
         executionId: 'execution-2',
         workflowId: 'workflow-1',
         workspaceId: 'workspace-1',
-        status: 'completed',
-        executionData: {},
-      },
-    ])
-    mockMaterializeExecutionData.mockResolvedValueOnce({
-      correlation: { copilotToolCallId: 'tool-call-1' },
-      executionState: {
-        ...EXECUTION_STATE,
-        resolvedSecretTraceProvenance: { version: 2, complete: true, entries: [] },
-      },
-    })
-
-    await expect(
-      getTrustedWorkflowToolExecution('execution-2', 'workflow-1', 'tool-call-1')
-    ).resolves.toBeNull()
-
-    queueTableRows(schemaMock.workflowExecutionLogs, [
-      {
-        executionId: 'execution-3',
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
         status: 'running',
         executionData: {},
       },
     ])
 
     await expect(
-      getTrustedWorkflowToolExecution('execution-3', 'workflow-1', 'tool-call-1')
+      getTrustedWorkflowToolExecution('execution-2', 'workflow-1', 'tool-call-1')
     ).resolves.toBeNull()
   })
 

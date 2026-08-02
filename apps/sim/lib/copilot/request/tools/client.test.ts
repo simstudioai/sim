@@ -79,6 +79,7 @@ function trustedExecution(executionId: string) {
     executionId,
     workflowId: 'workflow-1',
     status: 'completed' as const,
+    contentAvailable: true as const,
     finalOutput: { value: `child read parent-secret-value from ${executionId}` },
     blockLogs: [],
     provenance: {
@@ -167,6 +168,39 @@ describe('workflow client tool completion', () => {
     expect(registry.isComplete()).toBe(false)
     expect(replaceTerminalAsyncToolCallResult).not.toHaveBeenCalled()
     expect(JSON.stringify(completion)).not.toContain('untrusted')
+  })
+
+  it('uses compacted terminal status without exposing unavailable execution content', async () => {
+    const registry = createParentRegistry()
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      status: 'failed',
+      contentAvailable: false,
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry,
+    })
+
+    expect(completion).toEqual({
+      status: 'error',
+      message: 'Workflow execution failed.',
+      data: {
+        success: false,
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      },
+    })
+    expect(registry.isComplete()).toBe(false)
+    expect(replaceTerminalAsyncToolCallResult).not.toHaveBeenCalled()
   })
 
   it('preserves cancellation when the bound terminal execution is not yet readable', async () => {
@@ -271,6 +305,7 @@ describe('workflow client tool completion', () => {
       executionId: 'execution-1',
       workflowId: 'workflow-1',
       status: 'completed',
+      contentAvailable: true,
       finalOutput: { value: 'child-secret-value' },
       blockLogs: [],
       provenance: {
@@ -309,6 +344,7 @@ describe('workflow client tool completion', () => {
       executionId: 'execution-1',
       workflowId: 'workflow-1',
       status: 'failed',
+      contentAvailable: true,
       error: 'trusted failure',
       blockLogs: [],
       provenance: { version: 1, complete: true, entries: [], scope: TRACE_SCOPE },

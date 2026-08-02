@@ -62,15 +62,28 @@ interface ExecutionStateRow {
   executionData: unknown
 }
 
-export interface TrustedWorkflowToolExecution {
+interface TrustedWorkflowToolExecutionBase {
   executionId: string
   workflowId: string
   status: 'completed' | 'failed' | 'cancelled'
+}
+
+export interface TrustedWorkflowToolExecutionWithoutContent
+  extends TrustedWorkflowToolExecutionBase {
+  contentAvailable: false
+}
+
+export interface TrustedWorkflowToolExecutionWithContent extends TrustedWorkflowToolExecutionBase {
+  contentAvailable: true
   finalOutput?: unknown
   error?: string
   blockLogs: SerializableExecutionState['blockLogs']
   provenance: ResolvedSecretTraceProvenanceV1
 }
+
+export type TrustedWorkflowToolExecution =
+  | TrustedWorkflowToolExecutionWithoutContent
+  | TrustedWorkflowToolExecutionWithContent
 
 async function getExecutionStateRow(
   executionId: string,
@@ -152,18 +165,26 @@ export async function getTrustedWorkflowToolExecution(
 
   if (
     !executionData ||
-    !state ||
-    !isResolvedSecretTraceProvenanceV1(provenance) ||
     !isRecordLike(correlation) ||
     correlation.copilotToolCallId !== copilotToolCallId
   ) {
     return null
   }
 
+  if (!state || !isResolvedSecretTraceProvenanceV1(provenance)) {
+    return {
+      executionId,
+      workflowId,
+      status: row.status,
+      contentAvailable: false,
+    }
+  }
+
   return {
     executionId,
     workflowId,
     status: row.status,
+    contentAvailable: true,
     ...(Object.hasOwn(executionData, 'finalOutput')
       ? { finalOutput: executionData.finalOutput }
       : {}),
