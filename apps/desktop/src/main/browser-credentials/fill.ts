@@ -53,8 +53,7 @@ export interface FillCoordinatorDeps {
 export interface FormStateReport {
   origin: string
   hasLoginForm: boolean
-  /** Absent from shells that predate identifier-first support; assumed true. */
-  hasPasswordField?: boolean
+  hasPasswordField: boolean
 }
 
 export class FillCoordinator {
@@ -89,7 +88,7 @@ export class FillCoordinator {
       this.states.set(contents, {
         origin,
         hasLoginForm: report.hasLoginForm,
-        hasPasswordField: report.hasPasswordField ?? true,
+        hasPasswordField: report.hasPasswordField,
         generation: this.generationFor(contents),
       })
     }

@@ -168,6 +168,10 @@ export function executeBrowserToolOnClient(
   scopeId = useBrowserSessionStore.getState().activeScopeId,
   eventTs?: string
 ): void {
+  if (!scopeId) {
+    logger.error('Cannot execute browser tool without a chat scope', { toolCallId, toolName })
+    return
+  }
   if (hasAlreadyExecuted(toolCallId)) {
     logger.info('Skipping already-executed browser tool (replay)', { toolCallId, toolName })
     return

@@ -84,7 +84,6 @@ const WAIT_FOR_TOOL_WATCHDOG_GRACE_MS = 5_000
 const MAX_CROSS_ORIGIN_SNAPSHOT_FRAMES = 8
 const MAX_CROSS_ORIGIN_SCAN_FRAMES = 32
 const COMBINED_SNAPSHOT_LINE_CAP = 900
-const BROWSER_AGENT_PROTOCOL_VERSION = 2
 const BROWSER_AGENT_ISOLATED_WORLD_ID = 1001
 
 type PageExecutionTarget = WebContents | WebFrameMain
@@ -94,9 +93,9 @@ export type BrowserSessionPersistence = session.BrowserSessionPersistence
 export interface DriverCallbacks {
   onPageState: (state: BrowserPageState) => void
   onTabsState: (state: BrowserTabsState) => void
-  onSessionStatus: (alive: boolean, scopeId?: string) => void
+  onSessionStatus: (alive: boolean, scopeId: string) => void
   /** Whether the active tab shows a login form Sim holds a credential for. */
-  onFillAvailability: (available: boolean, scopeId?: string) => void
+  onFillAvailability: (available: boolean, scopeId: string) => void
   /** Live native download state for one isolated browser scope. */
   onDownloadsChanged?: (state: BrowserDownloadsState) => void
 }
@@ -317,6 +316,7 @@ export function initDriver(
   initFillCoordinator({
     getActiveContents: (scopeId) => {
       const activeScopeId = session.getActiveBrowserScopeId()
+      if (!activeScopeId) return null
       const requestedScopeId = session.resolveBrowserScopeId(scopeId ?? activeScopeId)
       if (requestedScopeId !== activeScopeId) return null
       return session.withBrowserScope(
@@ -359,16 +359,6 @@ export function initDriver(
       onDownloadsChanged: (state) => callbacks.onDownloadsChanged?.(state),
     },
     getMainWindow,
-    config
-      ? {
-          load: () => config.get('browserPinnedTabUrls'),
-          save: (urls) => config.set('browserPinnedTabUrls', urls),
-          flush: () => {
-            config.flush()
-            return true
-          },
-        }
-      : undefined,
     persistence,
     downloadSettings
   )
@@ -1586,15 +1576,6 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
     ...omit(mainSnapshot, ['refIds', 'refLineIndexes', 'nextElementId']),
     outline: visibleOutlineLines.join('\n'),
     truncated,
-    browserProtocolVersion: BROWSER_AGENT_PROTOCOL_VERSION,
-    capabilities: {
-      internalScrollTargets: true,
-      monotonicSnapshotRefs: true,
-      crossOriginFrameSnapshots: true,
-      verifiedInputEffects: true,
-      trustedTopPageClicks: true,
-      trustedMappedFramePointers: true,
-    },
     capturedCrossOriginFrames,
     unreadableCrossOriginFrames,
     hiddenCrossOriginFrames,
@@ -2097,7 +2078,7 @@ async function executeToolInner(
                 executionDeadline
               )
             )
-            if (!isRecordLike(synthetic) || synthetic.clicked !== true) {
+            if (!isRecordLike(synthetic) || synthetic.dispatched !== true) {
               throw new ToolError('The frame did not confirm synthetic click dispatch.')
             }
           }
@@ -2162,7 +2143,6 @@ async function executeToolInner(
         )
       }
       return {
-        clicked: true,
         dispatched: true,
         trusted,
         activation,
@@ -2391,7 +2371,6 @@ async function executeToolInner(
           )
         }
         return {
-          typed: true,
           dispatched: true,
           trusted,
           replacedExisting: true,
@@ -2446,7 +2425,7 @@ async function executeToolInner(
             executionDeadline
           )
         )
-        if (!isRecordLike(fallback) || fallback.typed !== true) {
+        if (!isRecordLike(fallback) || fallback.dispatched !== true) {
           throw new ToolError('Synthetic typing did not report a completed field write.')
         }
         await sleep(50)
@@ -2949,37 +2928,23 @@ function withNotices(result: unknown): unknown {
   return { value: result, notices }
 }
 
-export function executeTool(
+export async function executeTool(
   scopeId: string,
   tool: BrowserToolName,
   params: Record<string, unknown>
-): Promise<{ ok: boolean; result?: unknown; error?: string }>
-export function executeTool(
-  tool: BrowserToolName,
-  params: Record<string, unknown>
-): Promise<{ ok: boolean; result?: unknown; error?: string }>
-export async function executeTool(
-  scopeOrTool: string,
-  toolOrParams: BrowserToolName | Record<string, unknown>,
-  maybeParams?: Record<string, unknown>
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
-  const scopeId =
-    maybeParams === undefined
-      ? session.getActiveBrowserScopeId()
-      : resolveDriverScopeId(scopeOrTool)
-  const tool = (maybeParams === undefined ? scopeOrTool : toolOrParams) as BrowserToolName
-  const params = (maybeParams === undefined ? toolOrParams : maybeParams) as Record<string, unknown>
-  if (session.isBrowserScopeSuspended(scopeId)) {
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  if (session.isBrowserScopeSuspended(resolvedScopeId)) {
     return {
       ok: false,
       error: 'This task browser is suspended until the task is reopened.',
     }
   }
-  const state = driverScopeState(scopeId)
+  const state = driverScopeState(resolvedScopeId)
   state.activationOnly = false
   const run = async () => {
-    return await session.withBrowserScope(scopeId, async () => {
-      logger.info('Executing browser tool', { tool, scopeId })
+    return await session.withBrowserScope(resolvedScopeId, async () => {
+      logger.info('Executing browser tool', { tool, scopeId: resolvedScopeId })
       const keepHiddenPageActive = tool !== 'browser_request_takeover'
       if (keepHiddenPageActive) {
         session.setAutomationActive(true)
@@ -3030,19 +2995,13 @@ export async function executeTool(
 }
 
 /** Browser-chrome commands from the panel header; fire-and-forget. */
-export function handlePanelAction(scopeId: string, action: BrowserPanelAction): Promise<void>
-export function handlePanelAction(action: BrowserPanelAction): Promise<void>
 export async function handlePanelAction(
-  scopeOrAction: string | BrowserPanelAction,
-  maybeAction?: BrowserPanelAction
+  scopeId: string,
+  action: BrowserPanelAction
 ): Promise<void> {
-  const scopeId =
-    maybeAction === undefined
-      ? session.getActiveBrowserScopeId()
-      : resolveDriverScopeId(scopeOrAction as string)
-  const action = (maybeAction ?? scopeOrAction) as BrowserPanelAction
-  if (session.isBrowserScopeSuspended(scopeId)) return
-  return await session.withBrowserScope(scopeId, async () => {
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  if (session.isBrowserScopeSuspended(resolvedScopeId)) return
+  return await session.withBrowserScope(resolvedScopeId, async () => {
     // The Done chip on the chat's takeover tool row: hands control back to the
     // agent. Meaningful only while a takeover is actually waiting.
     if (action.action === 'takeover-done') {

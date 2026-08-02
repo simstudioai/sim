@@ -110,22 +110,15 @@ function main(): void {
     ),
   })
   const scopeEvents = new ScopedEventRouter()
-  const terminal = new TerminalRegistry(
-    {
-      loadCwd: () => config.get('terminalCwd'),
-      saveCwd: (cwd) => config.set('terminalCwd', cwd),
+  const terminal = new TerminalRegistry({
+    load: (scopeId) => desktopChatSessions.getTerminal(appOrigin(), scopeId) ?? undefined,
+    save: (scopeId, snapshot) => desktopChatSessions.setTerminal(appOrigin(), scopeId, snapshot),
+    migrate: (fromScopeId, toScopeId) =>
+      desktopChatSessions.migrateTerminal(appOrigin(), fromScopeId, toScopeId),
+    disposeScope: (scopeId) => {
+      desktopChatSessions.deleteScope(appOrigin(), scopeId)
     },
-    undefined,
-    {
-      load: (scopeId) => desktopChatSessions.getTerminal(appOrigin(), scopeId) ?? undefined,
-      save: (scopeId, snapshot) => desktopChatSessions.setTerminal(appOrigin(), scopeId, snapshot),
-      migrate: (fromScopeId, toScopeId) =>
-        desktopChatSessions.migrateTerminal(appOrigin(), fromScopeId, toScopeId),
-      disposeScope: (scopeId) => {
-        desktopChatSessions.deleteScope(appOrigin(), scopeId)
-      },
-    }
-  )
+  })
   const preloadPath = join(__dirname, 'preload.cjs')
 
   const windows = new Set<BrowserWindow>()
@@ -545,29 +538,22 @@ function main(): void {
     initBrowserAgentDriver(
       {
         onPageState: (state) => {
-          if (state.scopeId)
-            scopeEvents.sendBrowser(state.scopeId, 'browser-agent:page-state', state)
+          scopeEvents.sendBrowser(state.scopeId, 'browser-agent:page-state', state)
         },
         onTabsState: (state) => {
-          if (state.scopeId)
-            scopeEvents.sendBrowser(state.scopeId, 'browser-agent:tabs-state', state)
+          scopeEvents.sendBrowser(state.scopeId, 'browser-agent:tabs-state', state)
         },
         onSessionStatus: (alive, scopeId) => {
-          if (scopeId)
-            scopeEvents.sendBrowser(scopeId, 'browser-agent:session-status', alive, scopeId)
+          scopeEvents.sendBrowser(scopeId, 'browser-agent:session-status', alive, scopeId)
         },
         onFillAvailability: (available, scopeId) => {
-          if (scopeId) {
-            scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', {
-              available,
-              scopeId,
-            })
-          }
+          scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', {
+            available,
+            scopeId,
+          })
         },
         onDownloadsChanged: (state) => {
-          if (state.scopeId) {
-            scopeEvents.sendBrowser(state.scopeId, 'browser-agent:downloads-state', state)
-          }
+          scopeEvents.sendBrowser(state.scopeId, 'browser-agent:downloads-state', state)
         },
       },
       getMainWindow,
@@ -577,14 +563,12 @@ function main(): void {
         save: (scopeId, snapshot) => desktopChatSessions.setBrowser(appOrigin(), scopeId, snapshot),
         migrateScope: (fromScopeId, toScopeId) =>
           desktopChatSessions.migrateBrowser(appOrigin(), fromScopeId, toScopeId),
-        flush: () => desktopChatSessions.flush(),
         disposeScope: (scopeId) => {
           desktopChatSessions.deleteScope(appOrigin(), scopeId)
         },
       },
       {
-        getDirectory: () =>
-          desktopSettings.getPreferences().browserDownloadDirectory ?? app.getPath('downloads'),
+        getDirectory: () => desktopSettings.getPreferences().browserDownloadDirectory,
       }
     )
     await localFilesystem.initialize()

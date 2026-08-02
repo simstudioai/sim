@@ -90,7 +90,7 @@ import {
 } from '@/main/terminal/registry'
 
 function registry(): TerminalRegistry {
-  return new TerminalRegistry({ loadCwd: () => '/tmp', saveCwd: () => {} })
+  return new TerminalRegistry()
 }
 
 function sink(): ScopedTerminalSink {
@@ -156,12 +156,12 @@ describe('TerminalRegistry', () => {
     const terminals = registry()
     const events = sink()
     terminals.setSink(events)
-    terminals.start('pending::new', { cols: 80, rows: 24 })
-    terminals.openTerminal('pending::new', '/tmp')
-    const before = terminals.getTabs('pending::new')
+    terminals.start('pending:new', { cols: 80, rows: 24 })
+    terminals.openTerminal('pending:new', '/tmp')
+    const before = terminals.getTabs('pending:new')
     const originalSessions = [...stubSessions]
 
-    expect(terminals.migrateScope('pending::new', 'chat-resolved')).toBe(true)
+    expect(terminals.migrateScope('pending:new', 'chat-resolved')).toBe(true)
 
     expect(terminals.getTabs('chat-resolved')).toEqual(before)
     expect(stubSessions).toEqual(originalSessions)
@@ -169,7 +169,7 @@ describe('TerminalRegistry', () => {
     stubSessions[0].emitData('after migration')
     expect(events.data).toHaveBeenLastCalledWith('chat-resolved', '1', 'after migration')
 
-    expect(terminals.peekTabs('pending::new')).toEqual({
+    expect(terminals.peekTabs('pending:new')).toEqual({
       tabs: [],
       activeTerminalId: null,
     })
@@ -181,10 +181,11 @@ describe('TerminalRegistry', () => {
   it('keeps the provisional service when persisted terminal migration collides', () => {
     const persistence: TerminalScopePersistence = {
       load: vi.fn(),
-      save: vi.fn(),
+      save: vi.fn(() => true),
       migrate: vi.fn(() => false),
+      disposeScope: vi.fn(),
     }
-    const terminals = new TerminalRegistry({}, undefined, persistence)
+    const terminals = new TerminalRegistry(persistence)
     terminals.start('pending:new', { cols: 80, rows: 24 })
 
     expect(terminals.migrateScope('pending:new', 'chat-existing')).toBe(false)
@@ -204,11 +205,11 @@ describe('TerminalRegistry', () => {
         tabs: persistedTabs,
         activeIndex: 11,
       })),
-      save: vi.fn(),
-      migrate: vi.fn(),
+      save: vi.fn(() => true),
+      migrate: vi.fn(() => true),
       disposeScope: vi.fn(),
     }
-    const terminals = new TerminalRegistry({}, undefined, persistence)
+    const terminals = new TerminalRegistry(persistence)
 
     expect(terminals.peekTabs('chat-A')).toEqual({
       tabs: [],
@@ -243,10 +244,11 @@ describe('TerminalRegistry', () => {
         tabs: [{ cwd: tmpdir() }, { cwd: missingCwd }, { cwd: process.cwd() }],
         activeIndex: 1,
       })),
-      save: vi.fn(),
-      migrate: vi.fn(),
+      save: vi.fn(() => true),
+      migrate: vi.fn(() => true),
+      disposeScope: vi.fn(),
     }
-    const terminals = new TerminalRegistry({}, undefined, persistence)
+    const terminals = new TerminalRegistry(persistence)
 
     const restored = terminals.start('chat-A', { cols: 120, rows: 40 })
 
@@ -265,11 +267,11 @@ describe('TerminalRegistry', () => {
   it('forgets an abandoned provisional scope instead of saving it', () => {
     const persistence: TerminalScopePersistence = {
       load: vi.fn(),
-      save: vi.fn(),
-      migrate: vi.fn(),
+      save: vi.fn(() => true),
+      migrate: vi.fn(() => true),
       disposeScope: vi.fn(),
     }
-    const terminals = new TerminalRegistry({}, undefined, persistence)
+    const terminals = new TerminalRegistry(persistence)
     terminals.start('pending:new', { cols: 80, rows: 24 })
     vi.mocked(persistence.save).mockClear()
 
@@ -294,10 +296,10 @@ describe('TerminalRegistry', () => {
         snapshot = structuredClone(nextSnapshot)
         return true
       }),
-      migrate: vi.fn(),
+      migrate: vi.fn(() => true),
       disposeScope: vi.fn(),
     }
-    const terminals = new TerminalRegistry({}, undefined, persistence)
+    const terminals = new TerminalRegistry(persistence)
     terminals.start('chat-deleted', { cols: 80, rows: 24 })
     terminals.openTerminal('chat-deleted', '/private/tmp')
     terminals.switchTerminal('chat-deleted', '1')
@@ -340,9 +342,10 @@ describe('TerminalRegistry', () => {
     const persistence: TerminalScopePersistence = {
       load: vi.fn(),
       save: vi.fn(() => false),
-      migrate: vi.fn(),
+      migrate: vi.fn(() => true),
+      disposeScope: vi.fn(),
     }
-    const terminals = new TerminalRegistry({}, undefined, persistence)
+    const terminals = new TerminalRegistry(persistence)
     terminals.start('chat-deleted', { cols: 80, rows: 24 })
 
     expect(terminals.suspendScope('chat-deleted')).toBe(false)

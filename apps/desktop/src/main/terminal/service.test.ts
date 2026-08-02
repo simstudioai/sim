@@ -1,6 +1,3 @@
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
 
@@ -95,7 +92,7 @@ vi.mock('@/main/terminal/session', async () => {
 })
 
 function service(): TerminalService {
-  return new TerminalService({ loadCwd: () => '/tmp', saveCwd: () => {} })
+  return new TerminalService({ loadCwd: () => '/tmp' })
 }
 
 describe('closing terminals', () => {
@@ -129,28 +126,6 @@ describe('closing terminals', () => {
     terminal.start({ cols: 80, rows: 24 })
 
     expect(() => terminal.closeTerminal('no-such-terminal')).toThrow()
-  })
-
-  it('persists the active terminal cwd on dispose', () => {
-    // The saved cwd is what the next launch reopens into. It is otherwise only
-    // written when a session REPORTS a cwd change, and switching tabs is not
-    // one — so without an explicit save at teardown, quitting after a switch
-    // reopens in the directory of whichever tab last moved.
-    // Real directories: a remembered cwd that no longer exists falls back to
-    // home, which would make this assert nothing.
-    const projectA = mkdtempSync(join(tmpdir(), 'sim-term-a-'))
-    const projectB = mkdtempSync(join(tmpdir(), 'sim-term-b-'))
-    const saveCwd = vi.fn()
-    const terminal = new TerminalService({ loadCwd: () => projectA, saveCwd })
-    terminal.start({ cols: 80, rows: 24 })
-    const first = terminal.getTabs().activeTerminalId as string
-    terminal.openTerminal(projectB)
-    terminal.switchTerminal(first)
-    saveCwd.mockClear()
-
-    terminal.dispose()
-
-    expect(saveCwd).toHaveBeenCalledWith(projectA)
   })
 })
 

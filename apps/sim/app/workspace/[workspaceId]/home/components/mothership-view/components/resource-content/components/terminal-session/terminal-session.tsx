@@ -15,12 +15,12 @@ import {
   type DesktopZoomAction,
   type DesktopZoomPercent,
   resolveDesktopZoom,
+  TERMINAL_DARK_THEME,
+  TERMINAL_LIGHT_THEME,
   type TerminalAppearanceTheme,
-  type TerminalSelectedProfile,
   type TerminalShortcutCommand,
   type TerminalThemePalette,
   type TerminalThemeProfile,
-  terminalProfileThemeId,
 } from '@sim/desktop-bridge'
 import { cn, TabStrip, type TabStripItem, toast } from '@sim/emcn'
 import { TerminalWindow } from '@sim/emcn/icons'
@@ -38,6 +38,7 @@ import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { getDesktopBridge, setDesktopPreferencesSnapshot } from '@/lib/desktop'
 import {
   loadDesktopTerminalAppearance,
+  loadDesktopTerminalThemeProfiles,
   resolveDesktopAppearanceTheme,
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
@@ -158,52 +159,6 @@ const RESIZE_SETTLE_MS = 120
  */
 const MAX_BANKED_CHARS = 256_000
 
-const LIGHT_THEME = {
-  background: '#fefefe',
-  foreground: '#1f2328',
-  cursor: '#1f2328',
-  selectionBackground: '#b4d5fe',
-  black: '#24292e',
-  red: '#d1242f',
-  green: '#1a7f37',
-  yellow: '#9a6700',
-  blue: '#0969da',
-  magenta: '#8250df',
-  cyan: '#1b7c83',
-  white: '#6e7781',
-  brightBlack: '#57606a',
-  brightRed: '#a40e26',
-  brightGreen: '#1a7f37',
-  brightYellow: '#633c01',
-  brightBlue: '#218bff',
-  brightMagenta: '#a475f9',
-  brightCyan: '#3192aa',
-  brightWhite: '#8c959f',
-}
-
-const DARK_THEME = {
-  background: '#1b1b1b',
-  foreground: '#e6edf3',
-  cursor: '#e6edf3',
-  selectionBackground: '#264f78',
-  black: '#484f58',
-  red: '#ff7b72',
-  green: '#3fb950',
-  yellow: '#d29922',
-  blue: '#58a6ff',
-  magenta: '#bc8cff',
-  cyan: '#39c5cf',
-  white: '#b1bac4',
-  brightBlack: '#6e7681',
-  brightRed: '#ffa198',
-  brightGreen: '#56d364',
-  brightYellow: '#e3b341',
-  brightBlue: '#79c0ff',
-  brightMagenta: '#d2a8ff',
-  brightCyan: '#56d4dd',
-  brightWhite: '#f0f6fc',
-}
-
 /**
  * Loads the WebGL renderer and drops it if its context dies.
  *
@@ -248,16 +203,8 @@ function attachWebglRenderer(terminal: Terminal): (() => void) | null {
  * visible, and only it is measured — `fit()` against a hidden element reads a
  * zero-sized box and would resize the PTY to nonsense.
  */
-/**
- * Renderer fallbacks for shortcuts that predate the shared application menu.
- * New desktop shells consume Cmd-T in the menu first; older shells still
- * deliver it here, so continuously deployed renderers do not lose New Tab.
- */
-function handleTerminalLocalShortcut(
-  event: KeyboardEvent,
-  clear: () => void,
-  open: () => void
-): boolean {
+/** Handles terminal-local shortcuts not owned by the application menu. */
+function handleTerminalLocalShortcut(event: KeyboardEvent, clear: () => void): boolean {
   const mac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
   const primary = event.metaKey || (!mac && event.ctrlKey && !event.altKey)
   if (
@@ -270,16 +217,9 @@ function handleTerminalLocalShortcut(
   ) {
     return true
   }
-  switch (event.key.toLowerCase()) {
-    case 'k':
-      clear()
-      return false
-    case 't':
-      open()
-      return false
-    default:
-      return true
-  }
+  if (event.key.toLowerCase() !== 'k') return true
+  clear()
+  return false
 }
 
 /** Scales xterm's 12px actual size without constraining shortcut-created rungs. */
@@ -336,7 +276,6 @@ const TerminalView = memo(function TerminalView({
   visible,
   scopeId,
   appearanceTheme,
-  selectedProfile,
   profiles,
   onAppearanceThemeChange,
   appearanceThemePending,
@@ -347,24 +286,21 @@ const TerminalView = memo(function TerminalView({
   visible: boolean
   scopeId: string
   appearanceTheme: TerminalAppearanceTheme
-  selectedProfile?: TerminalSelectedProfile
   profiles: TerminalThemeProfile[]
   onAppearanceThemeChange?: (theme: TerminalAppearanceTheme) => void
   appearanceThemePending?: boolean
   defaultZoom: DesktopZoomPercent
 }) {
   const { resolvedTheme } = useTheme()
-  const profileThemeId = terminalProfileThemeId(appearanceTheme)
-  const profileTheme = selectedProfile?.id === profileThemeId ? selectedProfile : undefined
-  const colorScheme = resolveDesktopAppearanceTheme(
-    (profileThemeId ? 'app' : appearanceTheme) as DesktopAppearanceTheme,
-    resolvedTheme
-  )
+  const profileTheme = typeof appearanceTheme === 'string' ? undefined : appearanceTheme
+  const builtInTheme: DesktopAppearanceTheme =
+    typeof appearanceTheme === 'string' ? appearanceTheme : 'app'
+  const colorScheme = resolveDesktopAppearanceTheme(builtInTheme, resolvedTheme)
   const terminalTheme: TerminalThemePalette = profileTheme
     ? profileTheme.palette
     : colorScheme === 'dark'
-      ? DARK_THEME
-      : LIGHT_THEME
+      ? TERMINAL_DARK_THEME
+      : TERMINAL_LIGHT_THEME
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -434,11 +370,7 @@ const TerminalView = memo(function TerminalView({
 
     terminalRef.current = terminal
     fitRef.current = fit
-    terminal.attachCustomKeyEventHandler((event) =>
-      handleTerminalLocalShortcut(event, clearScreen, () => {
-        void openTerminal(undefined, scopeId)
-      })
-    )
+    terminal.attachCustomKeyEventHandler((event) => handleTerminalLocalShortcut(event, clearScreen))
 
     const disposeData = terminal.onData((data) => writeToTerminal(terminalId, data, scopeId))
     const disposeResize = terminal.onResize(({ cols, rows }) =>
@@ -702,25 +634,11 @@ const TerminalView = memo(function TerminalView({
 
   const pasteClipboard = useCallback(() => {
     void (async () => {
-      // Main-side first: it reads the clipboard synchronously, so the paste
-      // cannot be refused for want of a recent gesture the way an awaited
-      // renderer read can.
       if (await pasteIntoTerminal(terminalId, scopeId)) {
         terminalRef.current?.focus()
         return
       }
-      try {
-        const text = await navigator.clipboard.readText()
-        if (!text) return
-        // Straight to the PTY: the shell echoes it, exactly like a real paste.
-        writeToTerminal(terminalId, text, scopeId)
-        terminalRef.current?.focus()
-      } catch {
-        // Reading the clipboard needs a permission the shell grants to its own
-        // origin; an older shell that predates that grant denies it. Keyboard
-        // paste is a native paste event and keeps working either way.
-        toast.error('Could not read the clipboard. Press ⌘V to paste.')
-      }
+      toast.error('Could not paste from the clipboard. Press ⌘V to paste.')
     })()
   }, [terminalId, scopeId])
 
@@ -797,7 +715,6 @@ export function shouldRemoveTerminalResource(
 export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [appearanceTheme, setAppearanceTheme] = useState<TerminalAppearanceTheme>('app')
-  const [selectedProfile, setSelectedProfile] = useState<TerminalSelectedProfile>()
   const [profiles, setProfiles] = useState<TerminalThemeProfile[]>([])
   const [appearanceThemePending, setAppearanceThemePending] = useState(false)
   const [defaultZoom, setDefaultZoom] = useState<DesktopZoomPercent>(100)
@@ -812,15 +729,30 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const settledCommands = useSettledCommands(tabs)
   const { removeResource } = useMothershipResources()
   const [startError, setStartError] = useState<string | null>(null)
+  const availableProfiles = useMemo(
+    () =>
+      typeof appearanceTheme !== 'string' && !profiles.some(({ id }) => id === appearanceTheme.id)
+        ? [...profiles, appearanceTheme]
+        : profiles,
+    [appearanceTheme, profiles]
+  )
 
   useEffect(() => {
     let active = true
     void loadDesktopTerminalAppearance().then((next) => {
       if (!active) return
       setAppearanceTheme(next.theme)
-      setSelectedProfile(next.selectedProfile)
-      setProfiles(next.profiles)
       setDefaultZoom(next.defaultZoom)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    void loadDesktopTerminalThemeProfiles().then((next) => {
+      if (active) setProfiles(next)
     })
     return () => {
       active = false
@@ -838,29 +770,24 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
     }
   }, [])
 
-  const setTerminalAppearanceTheme = useCallback(
-    async (theme: TerminalAppearanceTheme) => {
-      const bridge = getDesktopBridge()
-      const profileId = terminalProfileThemeId(theme)
-      const profile = profileId ? profiles.find(({ id }) => id === profileId) : undefined
-      const update = profile
-        ? () => bridge?.terminalThemes?.selectProfile(profile.id)
-        : () => bridge?.settings?.setTerminalTheme?.(theme)
-      setAppearanceThemePending(true)
-      try {
-        const preferences = await update()
-        if (!preferences) return
-        setAppearanceTheme(preferences.terminalTheme ?? theme)
-        setSelectedProfile(preferences.terminalProfile)
-        setDesktopPreferencesSnapshot(preferences)
-      } catch {
-        toast.error('Could not update terminal appearance')
-      } finally {
-        setAppearanceThemePending(false)
-      }
-    },
-    [profiles]
-  )
+  const setTerminalAppearanceTheme = useCallback(async (theme: TerminalAppearanceTheme) => {
+    const bridge = getDesktopBridge()
+    if (!bridge) return
+    setAppearanceThemePending(true)
+    try {
+      const preferences =
+        typeof theme === 'string'
+          ? await bridge.settings.setTerminalTheme(theme)
+          : await bridge.terminalThemes?.selectProfile(theme.id)
+      if (!preferences) return
+      setAppearanceTheme(preferences.terminalTheme)
+      setDesktopPreferencesSnapshot(preferences)
+    } catch {
+      toast.error('Could not update terminal appearance')
+    } finally {
+      setAppearanceThemePending(false)
+    }
+  }, [])
 
   // Interaction ownership is reported once for the whole panel, never per tab.
   // The shell holds a single focus flag, so a per-tab reporter would let one
@@ -1037,13 +964,9 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
             visible={visible}
             scopeId={scopeId}
             appearanceTheme={appearanceTheme}
-            selectedProfile={selectedProfile}
-            profiles={profiles}
+            profiles={availableProfiles}
             onAppearanceThemeChange={
-              getDesktopBridge()?.settings?.setTerminalTheme ||
-              getDesktopBridge()?.terminalThemes?.selectProfile
-                ? (theme) => void setTerminalAppearanceTheme(theme)
-                : undefined
+              getDesktopBridge() ? (theme) => void setTerminalAppearanceTheme(theme) : undefined
             }
             appearanceThemePending={appearanceThemePending}
             defaultZoom={defaultZoom}

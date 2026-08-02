@@ -1,7 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { isAbsolute, join } from 'node:path'
+import { join } from 'node:path'
 import type {
   BrowserDataKind,
   BrowserFindRequest,
@@ -20,6 +19,7 @@ import type {
 } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import type {
   BrowserWindow,
   CookiesSetDetails,
@@ -61,6 +61,7 @@ import {
   isBlockedSubresourceUrl,
   subresourceNeedsResolution,
 } from '@/main/browser-agent/url-guard'
+import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
 import { type FocusedResourceShortcut, zoomActionForShortcut } from '@/main/resource-shortcuts'
 
@@ -73,37 +74,17 @@ class SessionError extends Error {}
 
 export interface AgentTab {
   id: string
-  scopeId?: string
+  scopeId: string
   view: WebContentsView
   pinned: boolean
   pendingRestoreUrl?: string
 }
 
-export interface PinnedTabPersistence {
-  load: () => unknown
-  save: (urls: string[]) => void
-  /** Forces a migrated legacy value to disk before another chat can claim it. */
-  flush?: () => boolean | undefined
-}
-
-export interface BrowserSessionSnapshotV1 {
-  v: 1
-  tabs: Array<{
-    url: string
-    pinned: boolean
-  }>
-  activeIndex: number
-  /** Recent finished downloads; persisted only in the encrypted per-chat store. */
-  downloads?: BrowserFinishedDownload[]
-}
-
 export interface BrowserSessionPersistence {
-  load: (scopeId: string) => unknown
-  save: (scopeId: string, snapshot: BrowserSessionSnapshotV1) => boolean | undefined
-  migrateScope: (fromScopeId: string, toScopeId: string) => boolean | undefined
-  /** Synchronously confirms a durable write before retiring legacy fallback data. */
-  flush?: () => boolean | undefined
-  disposeScope?: (scopeId: string) => void
+  load: (scopeId: string) => BrowserSessionSnapshot | null
+  save: (scopeId: string, snapshot: BrowserSessionSnapshot) => boolean
+  migrateScope: (fromScopeId: string, toScopeId: string) => boolean
+  disposeScope: (scopeId: string) => void
 }
 
 export interface BrowserDownloadSettings {
@@ -185,8 +166,6 @@ export function browserShortcutForInput(
   }
 }
 
-export const LEGACY_BROWSER_SCOPE = 'legacy'
-
 interface BrowserScopeState {
   tabs: AgentTab[]
   recentlyClosedTabUrls: string[]
@@ -232,7 +211,7 @@ const browserScopeAliases = new Map<string, string>()
  * tombstone.
  */
 const suspendedBrowserScopes = new Set<string>()
-let activeBrowserScopeId = LEGACY_BROWSER_SCOPE
+let activeBrowserScopeId: string | null = null
 
 export function resolveBrowserScopeId(scopeId: string): string {
   let resolved = scopeId
@@ -245,11 +224,13 @@ export function resolveBrowserScopeId(scopeId: string): string {
 }
 
 export function getBrowserScopeId(): string {
-  return resolveBrowserScopeId(browserScopeStorage.getStore() ?? activeBrowserScopeId)
+  const scopeId = browserScopeStorage.getStore() ?? activeBrowserScopeId
+  if (!scopeId) throw new SessionError('No browser chat scope is active.')
+  return resolveBrowserScopeId(scopeId)
 }
 
-export function getActiveBrowserScopeId(): string {
-  return resolveBrowserScopeId(activeBrowserScopeId)
+export function getActiveBrowserScopeId(): string | null {
+  return activeBrowserScopeId ? resolveBrowserScopeId(activeBrowserScopeId) : null
 }
 
 function browserScopeState(scopeId = getBrowserScopeId()): BrowserScopeState {
@@ -313,9 +294,6 @@ let events: AgentSessionEvents | null = null
 let getMainWindow: () => BrowserWindow | null = () => null
 let browserSessionPersistence: BrowserSessionPersistence | null = null
 let browserDownloadSettings: BrowserDownloadSettings | null = null
-let legacyPinnedTabPersistence: PinnedTabPersistence | null = null
-let legacyPinnedFallbackClaimedBy: string | null = null
-let legacyPinnedFallbackPersistedFor: string | null = null
 /** Raw Sim preference; `system` remains dynamic as the OS theme changes. */
 let browserTheme: BrowserTheme = 'system'
 let browserAppTheme: BrowserTheme = 'system'
@@ -460,40 +438,40 @@ function resetSessionState(): void {
   browserScopeStates.clear()
   browserScopeAliases.clear()
   suspendedBrowserScopes.clear()
-  activeBrowserScopeId = LEGACY_BROWSER_SCOPE
+  activeBrowserScopeId = null
   browserSessionPersistence = null
   browserDownloadSettings = null
-  legacyPinnedTabPersistence = null
-  legacyPinnedFallbackClaimedBy = null
-  legacyPinnedFallbackPersistedFor = null
   browserTheme = 'system'
   browserAppTheme = 'system'
   browserAppearanceTheme = 'app'
   browserDefaultZoom = 100
   activeDownloadPaths.clear()
   browserDownloadsByScope.clear()
-  activatePanelScope(LEGACY_BROWSER_SCOPE)
+  activatePanelScope(null)
 }
 
 export function initSession(
   handlers: AgentSessionEvents,
   mainWindowProvider: () => BrowserWindow | null,
-  legacyPersistence?: PinnedTabPersistence,
   persistence?: BrowserSessionPersistence,
   downloadSettings?: BrowserDownloadSettings
 ): void {
   resetSessionState()
   events = handlers
   getMainWindow = mainWindowProvider
-  legacyPinnedTabPersistence = legacyPersistence ?? null
   browserSessionPersistence = persistence ?? null
   browserDownloadSettings = downloadSettings ?? null
   initPanel({
     getMainWindow: () => getMainWindow(),
-    activeTab: () => withBrowserScope(getActiveBrowserScopeId(), activeTab),
+    activeTab: () => {
+      const scopeId = getActiveBrowserScopeId()
+      return scopeId ? withBrowserScope(scopeId, activeTab) : null
+    },
     backgroundColor: browserBackgroundColor,
     ensureInitialTab: () => {
-      withBrowserScope(getActiveBrowserScopeId(), () => {
+      const scopeId = getActiveBrowserScopeId()
+      if (!scopeId) return
+      withBrowserScope(scopeId, () => {
         restoreBrowserSession()
         if (!hasSession()) {
           ensureTab()
@@ -517,25 +495,6 @@ export function browserScopeIdForContents(contents: WebContents): string | null 
     if (state.tabs.some((tab) => tab.view.webContents === contents)) return scopeId
   }
   return null
-}
-
-function isDurableBrowserScope(scopeId: string): boolean {
-  return scopeId !== LEGACY_BROWSER_SCOPE && !scopeId.startsWith('pending:')
-}
-
-function clearLegacyPinnedFallback(adoptedByScopeId: string): boolean {
-  if (!legacyPinnedTabPersistence || !isDurableBrowserScope(adoptedByScopeId)) return false
-  try {
-    legacyPinnedTabPersistence.save([])
-    if (legacyPinnedTabPersistence.flush?.() === false) return false
-    legacyPinnedFallbackClaimedBy = adoptedByScopeId
-    return true
-  } catch (error) {
-    logger.warn('Could not clear migrated legacy pinned browser tabs', {
-      error: getErrorMessage(error),
-    })
-    return false
-  }
 }
 
 function browserScopeIdForView(view: WebContentsView): string | null {
@@ -608,26 +567,15 @@ export function migrateBrowserScope(fromScopeId: string, toScopeId: string): boo
     }
   }
 
-  let persistedMigrationSucceeded = false
   try {
     if (browserSessionPersistence) {
-      const migrated = browserSessionPersistence.migrateScope(from, to)
-      if (migrated === false) return false
-      persistedMigrationSucceeded = true
+      if (!browserSessionPersistence.migrateScope(from, to)) return false
     }
   } catch (error) {
     logger.warn('Could not migrate persisted browser chat session', {
       error: getErrorMessage(error),
     })
-  }
-  if (
-    persistedMigrationSucceeded &&
-    legacyPinnedFallbackClaimedBy === from &&
-    legacyPinnedFallbackPersistedFor === from
-  ) {
-    legacyPinnedFallbackClaimedBy = to
-    legacyPinnedFallbackPersistedFor = to
-    if (flushBrowserSessionPersistence()) clearLegacyPinnedFallback(to)
+    return false
   }
   if (state) {
     browserScopeStates.delete(from)
@@ -646,7 +594,10 @@ export function migrateBrowserScope(fromScopeId: string, toScopeId: string): boo
     publishBrowserDownloads(to)
   }
   browserScopeAliases.set(from, to)
-  if (resolveBrowserScopeId(activeBrowserScopeId) === to || activeBrowserScopeId === from) {
+  if (
+    (activeBrowserScopeId && resolveBrowserScopeId(activeBrowserScopeId) === to) ||
+    activeBrowserScopeId === from
+  ) {
     activeBrowserScopeId = to
   }
   migratePanelScope(from, to)
@@ -663,7 +614,7 @@ export function disposeBrowserScope(scopeId: string): void {
     suspendedBrowserScopes.delete(scopeId)
     browserDownloadsByScope.delete(scopeId)
     try {
-      browserSessionPersistence?.disposeScope?.(scopeId)
+      browserSessionPersistence?.disposeScope(scopeId)
     } catch (error) {
       logger.warn('Could not dispose persisted browser chat session', {
         error: getErrorMessage(error),
@@ -689,20 +640,15 @@ export function disposeBrowserScope(scopeId: string): void {
     }
   }
   try {
-    browserSessionPersistence?.disposeScope?.(resolved)
+    browserSessionPersistence?.disposeScope(resolved)
   } catch (error) {
     logger.warn('Could not dispose persisted browser chat session', {
       error: getErrorMessage(error),
     })
   }
-  if (legacyPinnedFallbackClaimedBy === resolved) {
-    legacyPinnedFallbackClaimedBy = null
-    legacyPinnedFallbackPersistedFor = null
-  }
-
   if (getActiveBrowserScopeId() === resolved) {
-    activeBrowserScopeId = LEGACY_BROWSER_SCOPE
-    activatePanelScope(LEGACY_BROWSER_SCOPE)
+    activeBrowserScopeId = null
+    activatePanelScope(null)
   }
 }
 
@@ -732,17 +678,17 @@ export function suspendBrowserScope(scopeId: string): boolean {
   suspendedBrowserScopes.add(resolved)
   browserScopeStates.delete(resolved)
   if (getActiveBrowserScopeId() === resolved) {
-    activeBrowserScopeId = LEGACY_BROWSER_SCOPE
-    activatePanelScope(LEGACY_BROWSER_SCOPE)
+    activeBrowserScopeId = null
+    activatePanelScope(null)
   }
   return true
 }
 
 /**
  * Accepts only what is safe to navigate back to later: http(s), no embedded
- * credentials, bounded length. Shared by the pinned-tab list and the
- * closed-tab list, both of which outlive the tab they came from and so must
- * not be able to revive a `user:pass@host` URL.
+ * credentials, bounded length. Closed and duplicated tab locations outlive
+ * the navigation that produced them and must not revive a `user:pass@host`
+ * URL.
  */
 function sanitizeRestorableUrl(candidate: unknown): string | null {
   if (typeof candidate !== 'string' || candidate.length > 8_192) return null
@@ -756,98 +702,11 @@ function sanitizeRestorableUrl(candidate: unknown): string | null {
   return null
 }
 
-function sanitizePinnedTabUrls(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  const urls: string[] = []
-  for (const candidate of value) {
-    const url = sanitizeRestorableUrl(candidate)
-    if (url !== null) urls.push(url)
-  }
-  return urls
-}
-
 function tabUrl(tab: AgentTab): string {
   return tab.pendingRestoreUrl || tab.view.webContents.getURL() || 'about:blank'
 }
 
-function sanitizeBrowserSessionSnapshot(value: unknown): BrowserSessionSnapshotV1 | null {
-  if (typeof value !== 'object' || value === null) return null
-  const raw = value as {
-    v?: unknown
-    tabs?: unknown
-    activeIndex?: unknown
-    downloads?: unknown
-  }
-  if (raw.v !== 1 || !Array.isArray(raw.tabs)) return null
-
-  const restoredTabs: BrowserSessionSnapshotV1['tabs'] = []
-  for (const candidate of raw.tabs) {
-    if (typeof candidate !== 'object' || candidate === null) continue
-    const entry = candidate as { url?: unknown; pinned?: unknown }
-    const url = sanitizeRestorableUrl(entry.url)
-    if (url === null) continue
-    restoredTabs.push({ url, pinned: entry.pinned === true })
-  }
-
-  const requestedIndex =
-    typeof raw.activeIndex === 'number' && Number.isFinite(raw.activeIndex)
-      ? Math.trunc(raw.activeIndex)
-      : 0
-  const restoredDownloads: BrowserFinishedDownload[] = []
-  if (Array.isArray(raw.downloads)) {
-    for (const candidate of raw.downloads) {
-      if (typeof candidate !== 'object' || candidate === null) continue
-      const download = candidate as Partial<BrowserDownloadInfo> & { savePath?: unknown }
-      if (
-        typeof download.id !== 'string' ||
-        download.id.length === 0 ||
-        download.id.length > 128 ||
-        typeof download.filename !== 'string' ||
-        download.filename.length === 0 ||
-        download.filename.length > 200 ||
-        (download.state !== 'completed' &&
-          download.state !== 'interrupted' &&
-          download.state !== 'cancelled') ||
-        typeof download.receivedBytes !== 'number' ||
-        !Number.isSafeInteger(download.receivedBytes) ||
-        download.receivedBytes < 0 ||
-        typeof download.totalBytes !== 'number' ||
-        !Number.isSafeInteger(download.totalBytes) ||
-        download.totalBytes < 0 ||
-        typeof download.startedAt !== 'string' ||
-        !Number.isFinite(Date.parse(download.startedAt)) ||
-        typeof download.savePath !== 'string' ||
-        download.savePath.length === 0 ||
-        download.savePath.length > 4_096 ||
-        download.savePath.includes('\0') ||
-        !isAbsolute(download.savePath)
-      ) {
-        continue
-      }
-      restoredDownloads.push({
-        id: download.id,
-        filename: download.filename,
-        state: download.state,
-        receivedBytes: download.receivedBytes,
-        totalBytes: download.totalBytes,
-        startedAt: download.startedAt,
-        savePath: download.savePath,
-      })
-      if (restoredDownloads.length >= MAX_RECENT_FINISHED_DOWNLOADS) break
-    }
-  }
-  return {
-    v: 1,
-    tabs: restoredTabs,
-    activeIndex:
-      restoredTabs.length === 0
-        ? -1
-        : Math.max(0, Math.min(restoredTabs.length - 1, requestedIndex)),
-    ...(restoredDownloads.length > 0 ? { downloads: restoredDownloads } : {}),
-  }
-}
-
-function browserSessionSnapshot(): BrowserSessionSnapshotV1 {
+function browserSessionSnapshot(): BrowserSessionSnapshot {
   const liveTabs = tabs.filter((tab) => !tab.view.webContents.isDestroyed())
   const activeIndex = liveTabs.findIndex((tab) => tab.id === currentScope.activeTabId)
   const downloads = (browserDownloadsByScope.get(getBrowserScopeId()) ?? [])
@@ -858,7 +717,7 @@ function browserSessionSnapshot(): BrowserSessionSnapshotV1 {
     v: 1,
     tabs: liveTabs.map((tab) => ({ url: tabUrl(tab), pinned: tab.pinned })),
     activeIndex,
-    ...(downloads.length > 0 ? { downloads } : {}),
+    downloads,
   }
 }
 
@@ -874,34 +733,16 @@ function persistBrowserSession(): boolean {
   if (fingerprint === currentScope.lastPersistedSnapshot) return true
 
   try {
-    if (browserSessionPersistence) {
-      const saved = browserSessionPersistence.save(getBrowserScopeId(), snapshot)
-      if (saved === false) return false
-      if (legacyPinnedFallbackClaimedBy === getBrowserScopeId()) {
-        legacyPinnedFallbackPersistedFor = getBrowserScopeId()
-      }
-    } else {
-      // Compatibility for callers that have not installed the scoped store yet.
-      legacyPinnedTabPersistence?.save(
-        snapshot.tabs.filter((tab) => tab.pinned).map((tab) => tab.url)
-      )
+    if (
+      browserSessionPersistence &&
+      !browserSessionPersistence.save(getBrowserScopeId(), snapshot)
+    ) {
+      return false
     }
     currentScope.lastPersistedSnapshot = fingerprint
     return true
   } catch (error) {
     logger.warn('Could not persist browser chat session', {
-      error: getErrorMessage(error),
-    })
-    return false
-  }
-}
-
-function flushBrowserSessionPersistence(): boolean {
-  if (!browserSessionPersistence?.flush) return true
-  try {
-    return browserSessionPersistence.flush() !== false
-  } catch (error) {
-    logger.warn('Could not flush persisted browser chat sessions', {
       error: getErrorMessage(error),
     })
     return false
@@ -1015,6 +856,10 @@ function configureAgentPartition(ses: Session): void {
       return
     }
     const scopeId = browserScopeIdForContents(contents) ?? getActiveBrowserScopeId()
+    if (!scopeId) {
+      item.cancel()
+      return
+    }
     const filename = suggestedFilename(item.getFilename(), item.getMimeType())
     const savePath = uniqueDownloadPath(
       directory,
@@ -1024,7 +869,7 @@ function configureAgentPartition(ses: Session): void {
     activeDownloadPaths.add(savePath)
     item.setSavePath(savePath)
     const download: BrowserDownloadInfo & { savePath: string } = {
-      id: randomUUID(),
+      id: generateId(),
       filename,
       state: 'progressing',
       receivedBytes: Math.max(0, item.getReceivedBytes()),
@@ -1601,11 +1446,10 @@ export function restoreBrowserSession(): void {
   currentScope.restoring = true
 
   const scopeId = getBrowserScopeId()
-  let snapshot: BrowserSessionSnapshotV1 | null = null
-  let importedLegacyPinnedTabs = false
+  let snapshot: BrowserSessionSnapshot | null = null
   if (browserSessionPersistence) {
     try {
-      snapshot = sanitizeBrowserSessionSnapshot(browserSessionPersistence.load(scopeId))
+      snapshot = browserSessionPersistence.load(scopeId)
     } catch (error) {
       logger.warn('Could not restore browser chat session', {
         error: getErrorMessage(error),
@@ -1613,35 +1457,11 @@ export function restoreBrowserSession(): void {
     }
   }
 
-  const mayClaimLegacyFallback =
-    legacyPinnedFallbackClaimedBy === null ||
-    legacyPinnedFallbackClaimedBy === scopeId ||
-    (legacyPinnedFallbackClaimedBy === LEGACY_BROWSER_SCOPE && isDurableBrowserScope(scopeId))
-  if (!snapshot && legacyPinnedTabPersistence && mayClaimLegacyFallback) {
-    let urls: string[] = []
-    try {
-      urls = sanitizePinnedTabUrls(legacyPinnedTabPersistence.load())
-    } catch (error) {
-      logger.warn('Could not restore legacy pinned browser tabs', {
-        error: getErrorMessage(error),
-      })
-    }
-    if (urls.length > 0) {
-      legacyPinnedFallbackClaimedBy = scopeId
-      snapshot = {
-        v: 1,
-        tabs: urls.map((url) => ({ url, pinned: true })),
-        activeIndex: 0,
-      }
-      importedLegacyPinnedTabs = true
-    }
-  }
-
   const restoredTabs: AgentTab[] = []
   if (snapshot) {
     browserDownloadsByScope.set(
       scopeId,
-      snapshot.downloads?.map((download) => ({ ...download })) ?? []
+      snapshot.downloads.map((download) => ({ ...download }))
     )
     publishBrowserDownloads(scopeId)
     for (const entry of snapshot.tabs) {
@@ -1653,7 +1473,7 @@ export function restoreBrowserSession(): void {
       }
     }
     currentScope.activeTabId = restoredTabs[snapshot.activeIndex]?.id ?? restoredTabs[0]?.id ?? null
-    currentScope.lastPersistedSnapshot = importedLegacyPinnedTabs ? null : JSON.stringify(snapshot)
+    currentScope.lastPersistedSnapshot = JSON.stringify(snapshot)
   }
 
   currentScope.restoring = false
@@ -1663,18 +1483,6 @@ export function restoreBrowserSession(): void {
     layout()
     events?.onActiveTabChanged(active.view.webContents)
     events?.onTabsChanged()
-  }
-
-  if (importedLegacyPinnedTabs) {
-    const persisted = persistBrowserSession()
-    if (
-      persisted &&
-      browserSessionPersistence &&
-      isDurableBrowserScope(scopeId) &&
-      flushBrowserSessionPersistence()
-    ) {
-      clearLegacyPinnedFallback(scopeId)
-    }
   }
 }
 
@@ -2070,12 +1878,12 @@ export async function clearProfileStorage(): Promise<void> {
         v: 1,
         tabs: [],
         activeIndex: -1,
-      } satisfies BrowserSessionSnapshotV1)
-      browserSessionPersistence?.save(scopeId, { v: 1, tabs: [], activeIndex: -1 })
+        downloads: [],
+      } satisfies BrowserSessionSnapshot)
+      browserSessionPersistence?.save(scopeId, { v: 1, tabs: [], activeIndex: -1, downloads: [] })
       events?.onTabsChanged()
     })
   }
-  legacyPinnedTabPersistence?.save([])
   layout()
 
   const ses = electronSession.fromPartition(AGENT_PARTITION)

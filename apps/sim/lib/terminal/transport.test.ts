@@ -1,6 +1,8 @@
+import type { ScopedTerminalCommandEvent, ScopedTerminalTabsState } from '@sim/terminal-protocol'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  activateScope,
   applyCommandEvent,
   clearScrollback,
   discardScope,
@@ -19,11 +21,16 @@ const {
   nativeSuspendScope,
   write,
 } = vi.hoisted(() => ({
+  activateScope: vi.fn(async (scopeId: string) => ({
+    scopeId,
+    tabs: [],
+    activeTerminalId: null,
+  })),
   applyCommandEvent: vi.fn(),
   clearScrollback: vi.fn(async () => true),
   discardScope: vi.fn(),
   disposeScope: vi.fn(async () => true),
-  getTabs: vi.fn(async (scopeId?: string) => ({
+  getTabs: vi.fn(async (scopeId: string) => ({
     scopeId,
     tabs: [],
     activeTerminalId: null,
@@ -45,6 +52,7 @@ const {
 vi.mock('@/lib/desktop', () => ({
   getDesktopBridge: () => ({
     terminal: {
+      activateScope,
       closeTerminal: vi.fn(),
       clearScrollback,
       dispose: vi.fn(),
@@ -71,10 +79,9 @@ vi.mock('@/lib/desktop', () => ({
 }))
 
 vi.mock('@/stores/copilot-terminal/store', () => ({
-  LEGACY_TERMINAL_SCOPE: 'legacy',
   useCopilotTerminalStore: {
     getState: () => ({
-      activeScopeId: 'legacy',
+      activeScopeId: null,
       applyCommandEvent,
       discardScope,
       migrateScope: migrateStoreScope,
@@ -116,18 +123,10 @@ describe('terminal transport chat scopes', () => {
   })
 
   it('routes pushed tab and command state to the scope carried by each event', () => {
-    const tabsListener = onTabs.mock.calls[0][0] as (state: {
-      scopeId?: string
-      tabs: []
-      activeTerminalId: null
-    }) => void
-    const commandListener = onCommand.mock.calls[0][0] as (event: {
-      scopeId?: string
-      terminalId: string
-      phase: 'start'
-      command: string
-      toolCallId: string
-    }) => void
+    const tabsListener = onTabs.mock.calls[0][0] as (state: ScopedTerminalTabsState) => void
+    const commandListener = onCommand.mock.calls[0][0] as (
+      event: ScopedTerminalCommandEvent
+    ) => void
     const tabs = { scopeId: 'chat-a', tabs: [] as [], activeTerminalId: null }
     const command = {
       scopeId: 'chat-b',
@@ -140,8 +139,8 @@ describe('terminal transport chat scopes', () => {
     tabsListener(tabs)
     commandListener(command)
 
-    expect(setTabs).toHaveBeenCalledWith(tabs, 'chat-a')
-    expect(applyCommandEvent).toHaveBeenCalledWith(command, 'chat-b')
+    expect(setTabs).toHaveBeenCalledWith(tabs)
+    expect(applyCommandEvent).toHaveBeenCalledWith(command)
   })
 
   it('applies native suspension pushes to the matching renderer scope', () => {
@@ -160,7 +159,7 @@ describe('terminal transport chat scopes', () => {
     const dataListener = onData.mock.calls[0][0] as (
       terminalId: string,
       data: string,
-      scopeId?: string
+      scopeId: string
     ) => void
 
     dataListener('same-id', 'from A', 'chat-a')
@@ -191,7 +190,7 @@ describe('terminal transport chat scopes', () => {
     onTerminalShortcutCommand(callback, 'chat-a', 'terminal-a')
     const listener = onShortcutCommand.mock.calls.at(-1)?.[0] as (
       command: 'clear',
-      scopeId?: string,
+      scopeId: string,
       terminalId?: string
     ) => void
 
@@ -235,7 +234,11 @@ describe('terminal transport chat scopes', () => {
   })
 
   it('discards provisional terminals when the durable destination wins', async () => {
-    nativeMigrateScope.mockResolvedValue({ tabs: [], activeTerminalId: null })
+    nativeMigrateScope.mockResolvedValue({
+      scopeId: 'pending:new',
+      tabs: [],
+      activeTerminalId: null,
+    })
 
     await migrateTerminalScope('pending:new', 'chat-existing')
 
@@ -249,7 +252,7 @@ describe('terminal transport chat scopes', () => {
 
     expect(nativeSuspendScope).toHaveBeenCalledWith('chat-deleted')
     expect(markScopeSuspended).toHaveBeenCalledWith('chat-deleted')
-    await expect(suspendTerminalScope('legacy')).resolves.toBe(false)
+    await expect(suspendTerminalScope('pending:new')).resolves.toBe(false)
   })
 
   it('retains renderer terminal ids when native suspension fails', async () => {

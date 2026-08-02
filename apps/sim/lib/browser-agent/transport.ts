@@ -9,9 +9,8 @@
  * process glues the real page over that rect, so the panel is natively
  * interactive) and receives page-state pushes for the panel header.
  * Availability of this bridge, plus the device switch on the Browser settings
- * page, is what gates advertising `browserCapable` to the copilot — in a
- * regular web browser there is no bridge and the browser subagent is never
- * offered.
+ * page, is what gates browser resources in Sim. In a regular web browser there
+ * is no bridge, so the built-in browser is unavailable.
  */
 import type {
   BrowserFindRequest,
@@ -37,21 +36,26 @@ import type {
   SimDesktopBrowserAgentApi,
 } from '@sim/desktop-bridge'
 import { getDesktopBridge, isBrowserAgentEnabled } from '@/lib/desktop'
-import { LEGACY_BROWSER_SCOPE, useBrowserSessionStore } from '@/stores/browser-session/store'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 let initialized = false
-let activeScopeId = LEGACY_BROWSER_SCOPE
+let activeScopeId: string | null = null
 const latestPanelBoundsByScope = new Map<string, BrowserPanelBounds | null>()
 
 function bridge(): SimDesktopBrowserAgentApi | null {
   return getDesktopBridge()?.browserAgent ?? null
 }
 
+function currentBrowserScopeId(): string {
+  if (!activeScopeId) throw new Error('No browser chat scope is active.')
+  return activeScopeId
+}
+
 /** Applies the renderer half of a native suspension, regardless of its initiator. */
 function applyBrowserScopeSuspended(scopeId: string): void {
   useBrowserSessionStore.getState().suspendScope(scopeId)
   latestPanelBoundsByScope.delete(scopeId)
-  if (activeScopeId === scopeId) activeScopeId = LEGACY_BROWSER_SCOPE
+  if (activeScopeId === scopeId) activeScopeId = null
 }
 
 /**
@@ -64,29 +68,15 @@ export function initBrowserAgentTransport(): void {
   if (!agent) return
   initialized = true
   agent.onPageState((state: BrowserPageState) => {
-    useBrowserSessionStore.getState().setPageState(state, state.scopeId ?? activeScopeId)
+    useBrowserSessionStore.getState().setPageState(state)
   })
-  if (agent.onTabsState) {
-    agent.onTabsState((state: BrowserTabsState) => {
-      const scopeId = state.scopeId ?? activeScopeId
-      useBrowserSessionStore.getState().setTabsSupported(true, scopeId)
-      useBrowserSessionStore.getState().setTabsState(state, scopeId)
-    })
-    if (agent.getTabsState) {
-      const initialScopeId = activeScopeId
-      void agent
-        .getTabsState(initialScopeId)
-        .then((state) => {
-          useBrowserSessionStore.getState().setTabsSupported(true, initialScopeId)
-          useBrowserSessionStore.getState().setTabsState(state, initialScopeId)
-        })
-        .catch(() => {})
-    }
-  }
+  agent.onTabsState((state: BrowserTabsState) => {
+    useBrowserSessionStore.getState().setTabsState(state)
+  })
   agent.onSessionStatus((alive, scopeId) => {
-    useBrowserSessionStore.getState().setSessionAlive(alive, scopeId ?? activeScopeId)
+    if (scopeId) useBrowserSessionStore.getState().setSessionAlive(alive, scopeId)
   })
-  agent.onScopeSuspended?.(applyBrowserScopeSuspended)
+  agent.onScopeSuspended(applyBrowserScopeSuspended)
 }
 
 /** Makes one chat's browser set active in both renderer and desktop. */
@@ -95,13 +85,8 @@ export async function activateBrowserScope(scopeId: string): Promise<void> {
   useBrowserSessionStore.getState().activateScope(scopeId)
   const agent = bridge()
   if (!agent) return
-  const tabs = agent.activateScope
-    ? await agent.activateScope(scopeId)
-    : await agent.getTabsState?.(scopeId)
-  if (tabs) {
-    useBrowserSessionStore.getState().setTabsSupported(true, scopeId)
-    useBrowserSessionStore.getState().setTabsState(tabs, scopeId)
-  }
+  const tabs = await agent.activateScope(scopeId)
+  useBrowserSessionStore.getState().setTabsState(tabs)
 }
 
 /**
@@ -109,17 +94,22 @@ export async function activateBrowserScope(scopeId: string): Promise<void> {
  * its React panel to mount and report native-view bounds.
  */
 export async function restoreBrowserScope(scopeId: string): Promise<boolean> {
-  const tabs = await bridge()?.restoreScope?.(scopeId)
-  if (!tabs) return false
-  useBrowserSessionStore.getState().setTabsSupported(true, scopeId)
-  useBrowserSessionStore.getState().setTabsState(tabs, scopeId)
+  const agent = bridge()
+  if (!agent) return false
+  const tabs = await agent.restoreScope(scopeId)
+  useBrowserSessionStore.getState().setTabsState(tabs)
   return tabs.tabs.length > 0
 }
 
 /** Rebinds a pending new-chat browser set to the chat id assigned by the server. */
 export async function migrateBrowserScope(fromScopeId: string, toScopeId: string): Promise<void> {
-  const tabs = await bridge()?.migrateScope?.(fromScopeId, toScopeId)
-  if (tabs?.scopeId !== toScopeId) {
+  const agent = bridge()
+  if (!agent) {
+    await discardBrowserScope(fromScopeId)
+    return
+  }
+  const tabs = await agent.migrateScope(fromScopeId, toScopeId)
+  if (tabs.scopeId !== toScopeId) {
     // A material durable destination wins. Drop the provisional source rather
     // than moving renderer state ahead of a native migration that was refused
     // and leaving hidden WebContents orphaned under the pending id.
@@ -136,8 +126,7 @@ export async function migrateBrowserScope(fromScopeId: string, toScopeId: string
     )
     latestPanelBoundsByScope.delete(fromScopeId)
   }
-  useBrowserSessionStore.getState().setTabsSupported(true, toScopeId)
-  useBrowserSessionStore.getState().setTabsState(tabs, toScopeId)
+  useBrowserSessionStore.getState().setTabsState(tabs)
 }
 
 /** Drops an abandoned pre-chat browser group from renderer and native memory. */
@@ -145,8 +134,8 @@ export async function discardBrowserScope(scopeId: string): Promise<void> {
   if (!scopeId.startsWith('pending:')) return
   useBrowserSessionStore.getState().discardScope(scopeId)
   latestPanelBoundsByScope.delete(scopeId)
-  if (activeScopeId === scopeId) activeScopeId = LEGACY_BROWSER_SCOPE
-  await bridge()?.disposeScope?.(scopeId)
+  if (activeScopeId === scopeId) activeScopeId = null
+  await bridge()?.disposeScope(scopeId)
 }
 
 /**
@@ -156,15 +145,15 @@ export async function discardBrowserScope(scopeId: string): Promise<void> {
  * when the chat is restored.
  */
 export async function suspendBrowserScope(scopeId: string): Promise<boolean> {
-  if (scopeId === LEGACY_BROWSER_SCOPE || scopeId.startsWith('pending:')) return false
-  const suspended = (await bridge()?.suspendScope?.(scopeId)) ?? false
+  if (scopeId.startsWith('pending:')) return false
+  const suspended = (await bridge()?.suspendScope(scopeId)) ?? false
   if (!suspended) return false
 
   applyBrowserScopeSuspended(scopeId)
   return true
 }
 
-/** True when browser tools can run (gates the copilot's browserCapable flag). */
+/** True when browser tools can run in the installed desktop shell. */
 export function isBrowserAgentAvailable(): boolean {
   return isBrowserAgentEnabled()
 }
@@ -179,7 +168,7 @@ export async function executeBrowserTool(
   tool: BrowserToolName,
   params: Record<string, unknown>,
   timeoutMs: number | null,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): Promise<unknown> {
   const agent = bridge()
   if (!agent) {
@@ -208,75 +197,61 @@ export async function executeBrowserTool(
 export function sendBrowserPanelAction(
   action: BrowserPanelAction['action'],
   payload: Omit<BrowserPanelAction, 'action'> = {},
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): void {
   bridge()?.panelAction({ action, ...payload }, scopeId)
 }
 
-/** Whether the installed desktop shell supports durable browser-tab pinning. */
-export function isBrowserTabPinningAvailable(): boolean {
-  return typeof bridge()?.setTabPinned === 'function'
-}
-
-/** Pins or unpins a live browser tab when supported by the desktop shell. */
-export function setBrowserTabPinned(tabId: string, pinned: boolean, scopeId = activeScopeId): void {
-  bridge()?.setTabPinned?.(tabId, pinned, scopeId)
+/** Pins or unpins a live browser tab. */
+export function setBrowserTabPinned(
+  tabId: string,
+  pinned: boolean,
+  scopeId = currentBrowserScopeId()
+): void {
+  bridge()?.setTabPinned(tabId, pinned, scopeId)
 }
 
 /** Opens the desktop shell's native menu for one browser tab. */
-export function showBrowserTabContextMenu(tabId: string, scopeId = activeScopeId): void {
-  bridge()?.showTabContextMenu?.(tabId, scopeId)
+export function showBrowserTabContextMenu(tabId: string, scopeId = currentBrowserScopeId()): void {
+  bridge()?.showTabContextMenu(tabId, scopeId)
 }
 
-/** Whether the installed desktop shell supports user-driven browser-tab ordering. */
-export function isBrowserTabReorderingAvailable(): boolean {
-  return typeof bridge()?.reorderTab === 'function'
-}
-
-/** Moves a live browser tab to its final list index when supported by the shell. */
+/** Moves a live browser tab to its final list index. */
 export function reorderBrowserTab(
   tabId: string,
   targetIndex: number,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): void {
-  bridge()?.reorderTab?.(tabId, targetIndex, scopeId)
+  bridge()?.reorderTab(tabId, targetIndex, scopeId)
 }
 
 /** Mirrors Sim's raw light/dark/system preference into embedded pages. */
 export function reportBrowserTheme(theme: BrowserTheme): void {
-  bridge()?.setTheme?.(theme)
+  bridge()?.setTheme(theme)
 }
 
 /** Subscribes to browser appearance changes initiated by native desktop UI. */
 export function onBrowserAppearanceThemeChanged(
   callback: (theme: DesktopAppearanceTheme) => void
 ): () => void {
-  return bridge()?.onAppearanceThemeChanged?.(callback) ?? (() => {})
-}
-
-/** Whether the installed shell exposes the native recent-downloads surface. */
-export function isBrowserDownloadsAvailable(): boolean {
-  const agent = bridge()
-  return (
-    typeof agent?.getDownloadsState === 'function' && typeof agent.showDownloadsMenu === 'function'
-  )
+  return bridge()?.onAppearanceThemeChanged(callback) ?? (() => {})
 }
 
 /** Reads one chat's recent browser downloads. */
 export async function loadBrowserDownloads(
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): Promise<BrowserDownloadsState> {
-  return (await bridge()?.getDownloadsState?.(scopeId)) ?? { downloads: [], scopeId }
+  return (await bridge()?.getDownloadsState(scopeId)) ?? { downloads: [], scopeId }
 }
 
 /** Subscribes to download starts, progress, and completion for one chat. */
 export function onBrowserDownloadsState(
   callback: (state: BrowserDownloadsState) => void,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): () => void {
   return (
-    bridge()?.onDownloadsState?.((state) => {
-      if (state.scopeId === undefined || state.scopeId === scopeId) callback(state)
+    bridge()?.onDownloadsState((state) => {
+      if (state.scopeId === scopeId) callback(state)
     }) ?? (() => {})
   )
 }
@@ -284,27 +259,27 @@ export function onBrowserDownloadsState(
 /** Opens the native downloads list above the embedded browser surface. */
 export function showBrowserDownloadsMenu(
   anchor: { x: number; y: number },
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): void {
-  void bridge()?.showDownloadsMenu?.(anchor, scopeId)
+  void bridge()?.showDownloadsMenu(anchor, scopeId)
 }
 
 /** Opens the native browser overflow menu above the embedded page. */
 export function showBrowserToolbarMenu(
   anchor: { x: number; y: number },
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): void {
-  void bridge()?.showToolbarMenu?.(anchor, scopeId)
+  void bridge()?.showToolbarMenu(anchor, scopeId)
 }
 
 /** Routes native overflow-menu navigation back into the owning chat renderer. */
 export function onBrowserToolbarCommand(
   callback: (command: BrowserToolbarCommand) => void,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): () => void {
   return (
-    bridge()?.onToolbarCommand?.((command, eventScopeId) => {
-      if (eventScopeId === undefined || eventScopeId === scopeId) callback(command)
+    bridge()?.onToolbarCommand((command, eventScopeId) => {
+      if (eventScopeId === scopeId) callback(command)
     }) ?? (() => {})
   )
 }
@@ -312,10 +287,10 @@ export function onBrowserToolbarCommand(
 /** Routes selected page text only to the browser panel for its owning chat. */
 export function onBrowserAddToChat(
   callback: (payload: BrowserAddToChatPayload) => void,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): () => void {
   return (
-    bridge()?.onAddToChat?.((payload) => {
+    bridge()?.onAddToChat((payload) => {
       if (payload.scopeId === scopeId) callback(payload)
     }) ?? (() => {})
   )
@@ -324,9 +299,9 @@ export function onBrowserAddToChat(
 /** Reveals a completed download without opening the downloaded file. */
 export function showBrowserDownloadInFolder(
   downloadId: string,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): Promise<boolean> {
-  return bridge()?.showDownloadInFolder?.(downloadId, scopeId) ?? Promise.resolve(false)
+  return bridge()?.showDownloadInFolder(downloadId, scopeId) ?? Promise.resolve(false)
 }
 
 /**
@@ -336,12 +311,12 @@ export function showBrowserDownloadInFolder(
  */
 export function onBrowserFillAvailability(
   callback: (available: boolean) => void,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): () => void {
   return (
-    getDesktopBridge()?.browserCredentials?.onFillAvailability?.(
+    getDesktopBridge()?.browserCredentials.onFillAvailability(
       ({ available, scopeId: eventScope }) => {
-        if (eventScope === undefined || eventScope === scopeId) callback(available)
+        if (eventScope === scopeId) callback(available)
       },
       scopeId
     ) ?? (() => {})
@@ -350,11 +325,11 @@ export function onBrowserFillAvailability(
 
 /** Saved accounts that the active scoped page can accept right now. */
 export function loadBrowserFillOptions(
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): Promise<BrowserCredentialMetadata[]> {
   return (
     getDesktopBridge()
-      ?.browserCredentials?.listFillOptions?.(scopeId)
+      ?.browserCredentials.listFillOptions(scopeId)
       .catch(() => []) ?? Promise.resolve([])
   )
 }
@@ -362,10 +337,10 @@ export function loadBrowserFillOptions(
 /** Fills one user-selected saved account into the active scoped page. */
 export function fillBrowserCredential(
   credentialId: string,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): Promise<boolean> {
   return (
-    getDesktopBridge()?.browserCredentials?.fill?.(credentialId, scopeId) ?? Promise.resolve(false)
+    getDesktopBridge()?.browserCredentials.fill(credentialId, scopeId) ?? Promise.resolve(false)
   )
 }
 
@@ -376,9 +351,9 @@ export function fillBrowserCredential(
  */
 export function showBrowserCredentialChooser(
   anchor: { x: number; y: number },
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): void {
-  void getDesktopBridge()?.browserCredentials?.showChooser?.(anchor, scopeId)
+  void getDesktopBridge()?.browserCredentials.showChooser(anchor, scopeId)
 }
 
 /**
@@ -397,9 +372,9 @@ export async function loadBrowserSuggestionSources(): Promise<{
 }> {
   const desktop = getDesktopBridge()
   const [known, credentials, sites] = await Promise.all([
-    desktop?.browserAgent?.getKnownSessions?.().catch(() => null) ?? null,
-    desktop?.browserCredentials?.list().catch(() => []) ?? [],
-    desktop?.browserImport?.listSites?.().catch(() => []) ?? [],
+    desktop?.browserAgent.getKnownSessions().catch(() => null) ?? null,
+    desktop?.browserCredentials.list().catch(() => []) ?? [],
+    desktop?.browserImport?.listSites().catch(() => []) ?? [],
   ])
   return { sessions: known?.sessions ?? [], credentials, sites }
 }
@@ -407,18 +382,13 @@ export async function loadBrowserSuggestionSources(): Promise<{
 /** Subscribes to native browser shortcuts that target the renderer omnibox. */
 export function onBrowserOmniboxFocus(
   callback: (mode: BrowserOmniboxFocusMode) => void,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): () => void {
   return (
-    bridge()?.onFocusOmnibox?.((mode, eventScopeId) => {
-      if (eventScopeId === undefined || eventScopeId === scopeId) callback(mode)
+    bridge()?.onFocusOmnibox((mode, eventScopeId) => {
+      if (eventScopeId === scopeId) callback(mode)
     }) ?? (() => {})
   )
-}
-
-/** Whether the installed desktop shell supports find-in-page. */
-export function isBrowserFindAvailable(): boolean {
-  return typeof bridge()?.find === 'function'
 }
 
 /**
@@ -426,8 +396,11 @@ export function isBrowserFindAvailable(): boolean {
  * {@link onBrowserFindResult} — Chromium resolves them asynchronously and
  * streams several updates per request.
  */
-export function findInBrowserPage(request: BrowserFindRequest, scopeId = activeScopeId): void {
-  bridge()?.find?.(request, scopeId)
+export function findInBrowserPage(
+  request: BrowserFindRequest,
+  scopeId = currentBrowserScopeId()
+): void {
+  bridge()?.find(request, scopeId)
 }
 
 /**
@@ -436,24 +409,30 @@ export function findInBrowserPage(request: BrowserFindRequest, scopeId = activeS
  * stranded on the removed input; leave it off when the bar is unmounting
  * because the panel is going away.
  */
-export function stopBrowserFind(focusPage = false, scopeId = activeScopeId): void {
-  bridge()?.stopFind?.(focusPage, scopeId)
+export function stopBrowserFind(focusPage = false, scopeId = currentBrowserScopeId()): void {
+  bridge()?.stopFind(focusPage, scopeId)
 }
 
 /** Subscribes to Mod+F pressed while the embedded page held focus. */
-export function onBrowserFindOpen(callback: () => void, scopeId = activeScopeId): () => void {
+export function onBrowserFindOpen(
+  callback: () => void,
+  scopeId = currentBrowserScopeId()
+): () => void {
   return (
-    bridge()?.onOpenFind?.((eventScopeId) => {
-      if (eventScopeId === undefined || eventScopeId === scopeId) callback()
+    bridge()?.onOpenFind((eventScopeId) => {
+      if (eventScopeId === scopeId) callback()
     }) ?? (() => {})
   )
 }
 
 /** Subscribes to the shell dismissing find (navigation, tab switch). */
-export function onBrowserFindClose(callback: () => void, scopeId = activeScopeId): () => void {
+export function onBrowserFindClose(
+  callback: () => void,
+  scopeId = currentBrowserScopeId()
+): () => void {
   return (
-    bridge()?.onCloseFind?.((eventScopeId) => {
-      if (eventScopeId === undefined || eventScopeId === scopeId) callback()
+    bridge()?.onCloseFind((eventScopeId) => {
+      if (eventScopeId === scopeId) callback()
     }) ?? (() => {})
   )
 }
@@ -461,11 +440,11 @@ export function onBrowserFindClose(callback: () => void, scopeId = activeScopeId
 /** Subscribes to match counts for the running find. */
 export function onBrowserFindResult(
   callback: (result: BrowserFindResult) => void,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): () => void {
   return (
-    bridge()?.onFindResult?.((result, eventScopeId) => {
-      if (eventScopeId === undefined || eventScopeId === scopeId) callback(result)
+    bridge()?.onFindResult((result, eventScopeId) => {
+      if (eventScopeId === scopeId) callback(result)
     }) ?? (() => {})
   )
 }
@@ -477,36 +456,25 @@ export function onBrowserFindResult(
 export function reportBrowserPanelBounds(
   bounds: BrowserPanelBounds | null,
   anchor: BrowserPanelAnchor | null = null,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): void {
   latestPanelBoundsByScope.set(scopeId, bounds)
   bridge()?.setPanelBounds(bounds, anchor, scopeId)
 }
 
-/** Whether the shell supports paint-confirmed renderer menus over the native page. */
-export function isBrowserPanelOcclusionAvailable(): boolean {
-  const agent = bridge()
-  return (
-    typeof agent?.capturePanelSnapshot === 'function' &&
-    typeof agent.setPanelOccluded === 'function'
-  )
-}
-
 /** Captures the live page without hiding or resizing it. */
 export function captureBrowserPanelSnapshot(
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): Promise<BrowserPanelSnapshot | null> {
-  return bridge()?.capturePanelSnapshot?.(scopeId) ?? Promise.resolve(null)
+  return bridge()?.capturePanelSnapshot(scopeId) ?? Promise.resolve(null)
 }
 
 /** Hides or reveals the native page after the renderer's replacement has painted. */
 export function setBrowserPanelOccluded(
   occluded: boolean,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): Promise<boolean> {
-  const setOccluded = bridge()?.setPanelOccluded
-  if (!setOccluded) return Promise.resolve(false)
-  return Promise.resolve(setOccluded(occluded, scopeId)).then((result) => result !== false)
+  return bridge()?.setPanelOccluded(occluded, scopeId) ?? Promise.resolve(false)
 }
 
 /**
@@ -532,7 +500,7 @@ export function setBrowserPanelOccluded(
  */
 export function beginBrowserPanelDividerDrag(
   startDividerX: number,
-  scopeId = activeScopeId
+  scopeId = currentBrowserScopeId()
 ): ((dividerX: number) => void) | null {
   const base = latestPanelBoundsByScope.get(scopeId)
   if (!bridge() || !base) return null
@@ -552,6 +520,9 @@ export function beginBrowserPanelDividerDrag(
 }
 
 /** Reports whether renderer-owned browser chrome owns the interaction context. */
-export function reportBrowserPanelFocused(focused: boolean, scopeId = activeScopeId): void {
-  bridge()?.setPanelFocused?.(focused, scopeId)
+export function reportBrowserPanelFocused(
+  focused: boolean,
+  scopeId = currentBrowserScopeId()
+): void {
+  bridge()?.setPanelFocused(focused, scopeId)
 }

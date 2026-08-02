@@ -2,11 +2,12 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
-import type {
-  DesktopZoomPercent,
-  TerminalAppearanceTheme,
-  TerminalSelectedProfile,
-  TerminalThemeProfile,
+import {
+  type DesktopAppearanceTheme,
+  type DesktopZoomPercent,
+  TERMINAL_DARK_THEME,
+  type TerminalAppearanceTheme,
+  type TerminalThemeProfile,
 } from '@sim/desktop-bridge'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -105,7 +106,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/terminal/terminal-the
     onBuiltInSelect,
     onProfileSelect,
   }: {
-    value: string
+    value: TerminalAppearanceTheme
     profiles: TerminalThemeProfile[]
     disabled?: boolean
     onBuiltInSelect: (theme: 'app' | 'light' | 'dark') => void
@@ -113,11 +114,11 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/terminal/terminal-the
   }) => (
     <select
       aria-label='Terminal theme'
-      value={value}
+      value={typeof value === 'string' ? value : value.id}
       disabled={disabled}
       onChange={(event) => {
         const next = event.currentTarget.value
-        const profile = profiles.find(({ id }) => `profile:${id}` === next)
+        const profile = profiles.find(({ id }) => id === next)
         if (profile) onProfileSelect(profile)
         else onBuiltInSelect(next as 'app' | 'light' | 'dark')
       }}
@@ -126,8 +127,8 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/terminal/terminal-the
       <option value='light'>Sim Light</option>
       <option value='dark'>Sim Dark</option>
       {profiles.map((profile) => (
-        <option key={profile.id} value={`profile:${profile.id}`}>
-          {profile.sourceLabel} · {profile.name}
+        <option key={profile.id} value={profile.id}>
+          {profile.source === 'iterm2' ? 'iTerm2' : 'Terminal'} · {profile.name}
         </option>
       ))}
     </select>
@@ -140,35 +141,14 @@ const importedProfile = {
   id: 'iterm2:ocean',
   name: 'Ocean',
   source: 'iterm2' as const,
-  sourceLabel: 'iTerm2',
-  isDefault: true,
   palette: {
+    ...TERMINAL_DARK_THEME,
     background: '#101010',
-    foreground: '#f0f0f0',
-    cursor: '#ffffff',
-    selectionBackground: '#264f78',
-    black: '#000000',
-    red: '#cc0000',
-    green: '#00cc00',
-    yellow: '#cccc00',
-    blue: '#0000cc',
-    magenta: '#cc00cc',
-    cyan: '#00cccc',
-    white: '#cccccc',
-    brightBlack: '#555555',
-    brightRed: '#ff5555',
-    brightGreen: '#55ff55',
-    brightYellow: '#ffff55',
-    brightBlue: '#5555ff',
-    brightMagenta: '#ff55ff',
-    brightCyan: '#55ffff',
-    brightWhite: '#ffffff',
   },
 }
 
 function createBridge(
   theme: TerminalAppearanceTheme = 'app',
-  terminalProfile?: TerminalSelectedProfile,
   terminalDefaultZoom: DesktopZoomPercent = 100
 ) {
   const preferences = {
@@ -180,14 +160,16 @@ function createBridge(
     terminalEnabled: true,
     terminalTheme: theme,
     terminalDefaultZoom,
-    ...(terminalProfile ? { terminalProfile } : {}),
   }
   return {
     terminal: {},
     settings: {
       getPreferences: vi.fn(async () => preferences),
-      setTerminalEnabled: vi.fn(),
-      setTerminalTheme: vi.fn(async (next: TerminalAppearanceTheme) => ({
+      setPreference: vi.fn(async (_key: 'terminalEnabled', enabled: boolean) => ({
+        ...preferences,
+        terminalEnabled: enabled,
+      })),
+      setTerminalTheme: vi.fn(async (next: DesktopAppearanceTheme) => ({
         ...preferences,
         terminalTheme: next,
       })),
@@ -200,8 +182,7 @@ function createBridge(
       listProfiles: vi.fn(async () => [importedProfile]),
       selectProfile: vi.fn(async () => ({
         ...preferences,
-        terminalTheme: 'profile:iterm2:ocean' as const,
-        terminalProfile: {
+        terminalTheme: {
           id: importedProfile.id,
           name: importedProfile.name,
           source: importedProfile.source,
@@ -268,7 +249,7 @@ describe('Terminal settings', () => {
   })
 
   it('persists the default terminal zoom with the shared zoom selector', async () => {
-    const bridge = createBridge('app', undefined, 100)
+    const bridge = createBridge('app', 100)
     mockBridge.current = bridge
     await act(async () => {
       root.render(<Terminal />)
@@ -300,13 +281,15 @@ describe('Terminal settings', () => {
     const select = container.querySelector<HTMLSelectElement>('select[aria-label="Terminal theme"]')
     await act(async () => {
       if (!select) throw new Error('Missing terminal theme selector')
-      select.value = 'profile:iterm2:ocean'
+      select.value = 'iterm2:ocean'
       select.dispatchEvent(new Event('change', { bubbles: true }))
     })
 
     expect(bridge.terminalThemes.selectProfile).toHaveBeenCalledWith('iterm2:ocean')
     expect(mockSnapshot).toHaveBeenCalledWith(
-      expect.objectContaining({ terminalTheme: 'profile:iterm2:ocean' })
+      expect.objectContaining({
+        terminalTheme: expect.objectContaining({ id: 'iterm2:ocean' }),
+      })
     )
   })
 })

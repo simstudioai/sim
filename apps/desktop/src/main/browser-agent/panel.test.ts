@@ -23,6 +23,7 @@ function freshPanel(): PanelModule {
     ensureInitialTab: () => {},
     onViewDetached: () => {},
   })
+  panelModule.activatePanelScope('chat-test')
   return panelModule
 }
 
@@ -32,7 +33,7 @@ const PANEL_RECT = { x: 400, y: 64, width: 600, height: 800 }
 function showPanel(panel: PanelModule) {
   const win = new BrowserWindow()
   const view = new WebContentsView()
-  const active = { id: 'tab-1', view, pinned: false }
+  const active = { id: 'tab-1', scopeId: 'chat-test', view, pinned: false }
   panel.initPanel({
     getMainWindow: () => win,
     activeTab: () => active,
@@ -40,6 +41,7 @@ function showPanel(panel: PanelModule) {
     ensureInitialTab: () => {},
     onViewDetached: () => {},
   })
+  panel.activatePanelScope('chat-test')
   panel.setPanelBounds(PANEL_RECT, win)
   return { win, view }
 }
@@ -67,14 +69,14 @@ describe('panel chat scope', () => {
     expect(panel.isPanelVisible()).toBe(true)
   })
 
-  it('captures a lossless frame before changing native-view visibility', async () => {
+  it('captures a bounded frame before changing native-view visibility', async () => {
     const { win, view } = showPanel(panel)
     const scopeId = panel.getActivePanelScopeId()
     vi.mocked(view.setVisible).mockClear()
     vi.mocked(view.setBounds).mockClear()
 
     await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.toEqual({
-      dataUrl: 'data:image/png;base64,c2lt',
+      dataUrl: 'data:image/jpeg;base64,c2lt',
       tabId: 'tab-1',
       zoomPercent: 110,
       scopeId,
@@ -95,10 +97,7 @@ describe('panel chat scope', () => {
     const { win, view } = showPanel(panel)
     const scopeId = panel.getActivePanelScopeId()
     vi.mocked(view.webContents.getURL).mockReturnValue('about:blank')
-    vi.mocked(view.webContents.capturePage).mockResolvedValueOnce({
-      isEmpty: vi.fn(() => true),
-      toDataURL: vi.fn(),
-    } as never)
+    vi.mocked(view.webContents.capturePage).mockClear()
 
     const snapshot = await panel.capturePanelSnapshot(win, scopeId)
 
@@ -109,6 +108,7 @@ describe('panel chat scope', () => {
     })
     expect(snapshot?.dataUrl).toContain('data:image/svg+xml,')
     expect(decodeURIComponent(snapshot?.dataUrl ?? '')).toContain('fill="#0c0c0c"')
+    expect(view.webContents.capturePage).not.toHaveBeenCalled()
   })
 
   it('refuses to hide the page for a stale chat scope', () => {

@@ -1,18 +1,11 @@
 'use client'
 
-import {
-  type TerminalAppearanceTheme,
-  type TerminalSelectedProfile,
-  type TerminalThemeProfile,
-  terminalProfileThemeId,
-  terminalProfileThemeValue,
-} from '@sim/desktop-bridge'
+import type { TerminalAppearanceTheme, TerminalThemeProfile } from '@sim/desktop-bridge'
 import { ChipCombobox } from '@sim/emcn'
 
 interface TerminalThemePickerProps {
   value: TerminalAppearanceTheme
   profiles: TerminalThemeProfile[]
-  selectedProfile?: TerminalSelectedProfile
   disabled?: boolean
   onBuiltInSelect: (theme: 'app' | 'light' | 'dark') => void
   onProfileSelect: (profile: TerminalThemeProfile) => void
@@ -32,15 +25,16 @@ function sourceLabel(source: TerminalThemeProfile['source']): string {
 export function TerminalThemePicker({
   value,
   profiles,
-  selectedProfile,
   disabled,
   onBuiltInSelect,
   onProfileSelect,
 }: TerminalThemePickerProps) {
+  const selectedProfile = typeof value === 'string' ? undefined : value
   const availableProfiles =
     selectedProfile && !profiles.some(({ id }) => id === selectedProfile.id)
-      ? [...profiles, { ...selectedProfile, sourceLabel: sourceLabel(selectedProfile.source) }]
+      ? [...profiles, selectedProfile]
       : profiles
+  const selectedValue = typeof value === 'string' ? value : value.id
 
   return (
     <div className='w-[240px] flex-shrink-0'>
@@ -50,14 +44,14 @@ export function TerminalThemePicker({
         searchable
         searchPlaceholder='Search themes'
         dropdownWidth={240}
-        value={value}
+        value={selectedValue}
         disabled={disabled}
         placeholder='Select theme'
         options={[
           ...BUILT_INS,
           ...availableProfiles.map((profile) => ({
             label: `${sourceLabel(profile.source)} · ${profile.name}`,
-            value: terminalProfileThemeValue(profile.id),
+            value: profile.id,
           })),
         ]}
         onChange={(next) => {
@@ -65,8 +59,7 @@ export function TerminalThemePicker({
             onBuiltInSelect(next)
             return
           }
-          const profileId = terminalProfileThemeId(next as TerminalAppearanceTheme)
-          const profile = availableProfiles.find(({ id }) => id === profileId)
+          const profile = availableProfiles.find(({ id }) => id === next)
           if (profile) onProfileSelect(profile)
         }}
       />

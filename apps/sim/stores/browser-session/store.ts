@@ -2,15 +2,12 @@ import type { BrowserPageState, BrowserTabState, BrowserTabsState } from '@sim/b
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
-export const LEGACY_BROWSER_SCOPE = 'legacy'
-
 export interface BrowserSessionData {
   /** Live state of the agent browser's active page, pushed by the desktop app. */
   pageState: BrowserPageState | null
-  /** All live tabs, available on desktop versions with multi-tab support. */
+  /** All live tabs in this browser scope. */
   tabs: BrowserTabState[]
   activeTabId: string | null
-  tabsSupported: boolean
   /** False after this chat's browser session ends; true again when a new one starts. */
   sessionAlive: boolean
   /** Live views were administratively stopped while the restart descriptor was retained. */
@@ -18,17 +15,15 @@ export interface BrowserSessionData {
 }
 
 interface BrowserSessionState extends BrowserSessionData {
-  activeScopeId: string
+  activeScopeId: string | null
   sessions: Record<string, BrowserSessionData>
   activateScope: (scopeId: string) => void
   migrateScope: (fromScopeId: string, toScopeId: string) => void
   discardScope: (scopeId: string) => void
   suspendScope: (scopeId: string) => void
-  setPageState: (state: BrowserPageState, scopeId?: string) => void
-  setTabsState: (state: BrowserTabsState, scopeId?: string) => void
-  setTabsSupported: (supported: boolean, scopeId?: string) => void
-  setSessionAlive: (alive: boolean, scopeId?: string) => void
-  resetScope: (scopeId?: string) => void
+  setPageState: (state: BrowserPageState) => void
+  setTabsState: (state: BrowserTabsState) => void
+  setSessionAlive: (alive: boolean, scopeId: string) => void
 }
 
 function createInitialSession(): BrowserSessionData {
@@ -36,7 +31,6 @@ function createInitialSession(): BrowserSessionData {
     pageState: null,
     tabs: [],
     activeTabId: null,
-    tabsSupported: false,
     sessionAlive: true,
     suspended: false,
   }
@@ -88,14 +82,6 @@ function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null):
   )
 }
 
-function scopeFor(
-  requestedScopeId: string | undefined,
-  eventScopeId: string | undefined,
-  activeScopeId: string
-): string {
-  return requestedScopeId ?? eventScopeId ?? activeScopeId
-}
-
 function withSession(
   state: BrowserSessionState,
   scopeId: string,
@@ -116,8 +102,8 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
   devtools(
     (set) => ({
       ...initialSession,
-      activeScopeId: LEGACY_BROWSER_SCOPE,
-      sessions: { [LEGACY_BROWSER_SCOPE]: initialSession },
+      activeScopeId: null,
+      sessions: {},
       activateScope: (scopeId) =>
         set((state) => {
           const current = state.sessions[scopeId] ?? createInitialSession()
@@ -154,11 +140,9 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
           const sessions = { ...state.sessions }
           delete sessions[scopeId]
           if (state.activeScopeId !== scopeId) return { sessions }
-          const fallback = sessions[LEGACY_BROWSER_SCOPE] ?? createInitialSession()
-          sessions[LEGACY_BROWSER_SCOPE] = fallback
           return {
-            ...fallback,
-            activeScopeId: LEGACY_BROWSER_SCOPE,
+            ...createInitialSession(),
+            activeScopeId: null,
             sessions,
           }
         }),
@@ -184,18 +168,11 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
             }
           })
         ),
-      setPageState: (pageState, requestedScopeId) =>
+      setPageState: (pageState) =>
         set((state) => {
-          const scopeId = scopeFor(requestedScopeId, pageState.scopeId, state.activeScopeId)
+          const { scopeId } = pageState
           return withSession(state, scopeId, (current) => {
             if (current.suspended) return current
-            if (!pageState.tabId) {
-              return pageStateEqual(current.pageState, pageState)
-                ? current.sessionAlive
-                  ? current
-                  : { ...current, sessionAlive: true }
-                : { ...current, pageState, sessionAlive: true }
-            }
             const nextTabs = current.tabs.map((tab) =>
               tab.tabId === pageState.tabId
                 ? {
@@ -227,9 +204,9 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
             }
           })
         }),
-      setTabsState: (tabsState, requestedScopeId) =>
+      setTabsState: (tabsState) =>
         set((state) => {
-          const scopeId = scopeFor(requestedScopeId, tabsState.scopeId, state.activeScopeId)
+          const { scopeId } = tabsState
           return withSession(state, scopeId, (current) => {
             if (current.suspended) return current
             const tabs = tabsEqual(current.tabs, tabsState.tabs) ? current.tabs : tabsState.tabs
@@ -268,16 +245,8 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
             }
           })
         }),
-      setTabsSupported: (tabsSupported, requestedScopeId) =>
+      setSessionAlive: (alive, scopeId) =>
         set((state) => {
-          const scopeId = requestedScopeId ?? state.activeScopeId
-          return withSession(state, scopeId, (current) =>
-            current.tabsSupported === tabsSupported ? current : { ...current, tabsSupported }
-          )
-        }),
-      setSessionAlive: (alive, requestedScopeId) =>
-        set((state) => {
-          const scopeId = requestedScopeId ?? state.activeScopeId
           return withSession(state, scopeId, (current) => {
             if (current.suspended) return current
             if (alive) {
@@ -299,11 +268,6 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               activeTabId: null,
             }
           })
-        }),
-      resetScope: (requestedScopeId) =>
-        set((state) => {
-          const scopeId = requestedScopeId ?? state.activeScopeId
-          return withSession(state, scopeId, () => createInitialSession())
         }),
     }),
     { name: 'browser-session-store' }

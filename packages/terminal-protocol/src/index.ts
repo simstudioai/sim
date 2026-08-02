@@ -332,12 +332,11 @@ export interface TerminalPanesResult {
 export interface TerminalTabsState {
   tabs: TerminalTabState[]
   activeTerminalId: string | null
-  /**
-   * Renderer-to-desktop scope that owns these terminals. New desktop builds
-   * set this on pushed state; it remains optional for compatibility with
-   * installed builds that predate chat isolation.
-   */
-  scopeId?: string
+}
+
+/** A tab strip crossing the desktop bridge, tagged with its owning chat. */
+export interface ScopedTerminalTabsState extends TerminalTabsState {
+  scopeId: string
 }
 
 /** The result of one terminal tool invocation, as returned over the bridge. */
@@ -345,8 +344,7 @@ export interface TerminalToolResponse {
   ok: boolean
   result?: unknown
   error?: string
-  /** Error codes are open-ended across independently updated desktop shells. */
-  code?: string
+  code?: TerminalErrorCode
 }
 
 export type TerminalErrorCode =
@@ -388,10 +386,13 @@ export interface TerminalCommandEvent {
   terminalId: string
   phase: 'start' | 'end'
   command: string
-  /** Chat scope that owns the terminal, when reported by a scoped desktop build. */
-  scopeId?: string
   /** Set when the agent initiated this command rather than the user. */
   toolCallId?: string
   exitCode?: number
   durationMs?: number
+}
+
+/** A command event crossing the desktop bridge, tagged with its owning chat. */
+export interface ScopedTerminalCommandEvent extends TerminalCommandEvent {
+  scopeId: string
 }

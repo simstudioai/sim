@@ -91,7 +91,7 @@ describe('pending tmux runs', () => {
     tmuxStub.handles.length = 0
     tmuxStub.complete.clear()
     tmuxStub.done = false
-    service = new TerminalService({ loadCwd: () => '/tmp', saveCwd: () => {} })
+    service = new TerminalService({ loadCwd: () => '/tmp' })
   })
 
   it('reclaims a still-running run when the terminal is closed', async () => {

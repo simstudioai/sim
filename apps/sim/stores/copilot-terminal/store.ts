@@ -1,12 +1,11 @@
 import type {
-  TerminalCommandEvent,
+  ScopedTerminalCommandEvent,
+  ScopedTerminalTabsState,
   TerminalTabState,
   TerminalTabsState,
 } from '@sim/terminal-protocol'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-
-export const LEGACY_TERMINAL_SCOPE = 'legacy'
 
 export interface CopilotTerminalSessionData {
   tabs: TerminalTabsState
@@ -25,15 +24,14 @@ export interface CopilotTerminalSessionData {
  * execution-log panel, which is unrelated.
  */
 interface CopilotTerminalState extends CopilotTerminalSessionData {
-  activeScopeId: string
+  activeScopeId: string | null
   sessions: Record<string, CopilotTerminalSessionData>
   activateScope: (scopeId: string) => void
   migrateScope: (fromScopeId: string, toScopeId: string) => void
   discardScope: (scopeId: string) => void
   suspendScope: (scopeId: string) => void
-  setTabs: (tabs: TerminalTabsState, scopeId?: string) => void
-  applyCommandEvent: (event: TerminalCommandEvent, scopeId?: string) => void
-  reset: (scopeId?: string) => void
+  setTabs: (tabs: ScopedTerminalTabsState) => void
+  applyCommandEvent: (event: ScopedTerminalCommandEvent) => void
 }
 
 function createInitialSession(): CopilotTerminalSessionData {
@@ -103,8 +101,8 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
   devtools(
     (set) => ({
       ...initialSession,
-      activeScopeId: LEGACY_TERMINAL_SCOPE,
-      sessions: { [LEGACY_TERMINAL_SCOPE]: initialSession },
+      activeScopeId: null,
+      sessions: {},
       activateScope: (scopeId) =>
         set((state) => {
           const current = state.sessions[scopeId] ?? createInitialSession()
@@ -141,11 +139,9 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
           const sessions = { ...state.sessions }
           delete sessions[scopeId]
           if (state.activeScopeId !== scopeId) return { sessions }
-          const fallback = sessions[LEGACY_TERMINAL_SCOPE] ?? createInitialSession()
-          sessions[LEGACY_TERMINAL_SCOPE] = fallback
           return {
-            ...fallback,
-            activeScopeId: LEGACY_TERMINAL_SCOPE,
+            ...createInitialSession(),
+            activeScopeId: null,
             sessions,
           }
         }),
@@ -167,19 +163,17 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
             }
           })
         ),
-      setTabs: (tabs, requestedScopeId) =>
+      setTabs: (tabs) =>
         set((state) => {
-          const scopeId = requestedScopeId ?? tabs.scopeId ?? state.activeScopeId
-          return withSession(state, scopeId, (current) =>
+          return withSession(state, tabs.scopeId, (current) =>
             current.suspended || tabsEqual(current.tabs, tabs) ? current : { ...current, tabs }
           )
         }),
-      applyCommandEvent: (event, requestedScopeId) =>
+      applyCommandEvent: (event) =>
         set((state) => {
           const toolCallId = event.toolCallId
           if (!toolCallId) return {}
-          const scopeId = requestedScopeId ?? event.scopeId ?? state.activeScopeId
-          return withSession(state, scopeId, (current) => {
+          return withSession(state, event.scopeId, (current) => {
             if (current.suspended) return current
             const agentCommandIds =
               event.phase === 'start'
@@ -191,11 +185,6 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
               ? current
               : { ...current, agentCommandIds }
           })
-        }),
-      reset: (requestedScopeId) =>
-        set((state) => {
-          const scopeId = requestedScopeId ?? state.activeScopeId
-          return withSession(state, scopeId, () => createInitialSession())
         }),
     }),
     { name: 'copilot-terminal-store' }

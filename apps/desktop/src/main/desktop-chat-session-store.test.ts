@@ -131,7 +131,8 @@ describe('DesktopChatSessionStore', () => {
     expect(pending.flush()).toBe(true)
     expect(existsSync(filePath)).toBe(false)
 
-    expect(pending.migrateScope(ORIGIN, 'pending:workspace-a', 'chat-resolved')).toBe(true)
+    expect(pending.migrateBrowser(ORIGIN, 'pending:workspace-a', 'chat-resolved')).toBe(true)
+    expect(pending.migrateTerminal(ORIGIN, 'pending:workspace-a', 'chat-resolved')).toBe(true)
     expect(pending.flush()).toBe(true)
 
     const restarted = open(provider)
@@ -139,20 +140,6 @@ describe('DesktopChatSessionStore', () => {
     expect(restarted.getBrowser(ORIGIN, 'pending:workspace-a')).toBeNull()
     expect(restarted.getBrowser(ORIGIN, 'chat-resolved')).toEqual(BROWSER)
     expect(restarted.getTerminal(ORIGIN, 'chat-resolved')).toEqual(TERMINAL)
-  })
-
-  it('does not overwrite a durable destination during pending-scope migration', () => {
-    const store = open()
-    store.setBrowser(ORIGIN, 'pending:workspace-a', BROWSER)
-    store.setBrowser(ORIGIN, 'chat-existing', {
-      v: 1,
-      tabs: [{ url: 'https://existing.example/', pinned: false }],
-      activeIndex: 0,
-    })
-
-    expect(store.migrateScope(ORIGIN, 'pending:workspace-a', 'chat-existing')).toBe(false)
-    expect(store.getBrowser(ORIGIN, 'chat-existing')?.tabs[0].url).toBe('https://existing.example/')
-    expect(store.getBrowser(ORIGIN, 'pending:workspace-a')).toEqual(BROWSER)
   })
 
   it('migrates browser and terminal descriptors independently into one durable chat', () => {
@@ -170,7 +157,8 @@ describe('DesktopChatSessionStore', () => {
     expect(store.migrateTerminal(ORIGIN, 'pending:workspace-a', 'chat-resolved')).toBe(true)
     expect(store.getBrowser(ORIGIN, 'chat-resolved')).toEqual(BROWSER)
     expect(store.getTerminal(ORIGIN, 'chat-resolved')).toEqual(TERMINAL)
-    expect(store.hasScope(ORIGIN, 'pending:workspace-a')).toBe(false)
+    expect(store.getBrowser(ORIGIN, 'pending:workspace-a')).toBeNull()
+    expect(store.getTerminal(ORIGIN, 'pending:workspace-a')).toBeNull()
 
     expect(store.flush()).toBe(true)
     const restarted = open(provider)
@@ -188,7 +176,8 @@ describe('DesktopChatSessionStore', () => {
 
     expect(store.getBrowser(ORIGIN, 'chat-resolved')).toEqual(BROWSER)
     expect(store.getTerminal(ORIGIN, 'chat-resolved')).toEqual(TERMINAL)
-    expect(store.hasScope(ORIGIN, 'pending:workspace-a')).toBe(false)
+    expect(store.getBrowser(ORIGIN, 'pending:workspace-a')).toBeNull()
+    expect(store.getTerminal(ORIGIN, 'pending:workspace-a')).toBeNull()
   })
 
   it('migrates the non-conflicting component without replacing a durable destination', () => {
@@ -197,6 +186,7 @@ describe('DesktopChatSessionStore', () => {
       v: 1,
       tabs: [{ url: 'https://existing.example/', pinned: true }],
       activeIndex: 0,
+      downloads: [],
     }
     store.setBrowser(ORIGIN, 'chat-existing', existingBrowser)
     store.setBrowser(ORIGIN, 'pending:workspace-a', BROWSER)
@@ -218,6 +208,7 @@ describe('DesktopChatSessionStore', () => {
       v: 1,
       tabs: [{ url: 'https://other.example/', pinned: false }],
       activeIndex: 0,
+      downloads: [],
     })
 
     expect(store.getBrowser(ORIGIN, 'chat-a')?.tabs[0].url).toBe('https://example.com/inbox')
@@ -236,6 +227,7 @@ describe('DesktopChatSessionStore', () => {
         pinned: index < 2,
       })),
       activeIndex: 99,
+      downloads: [],
     })
     store.setTerminal(ORIGIN, 'chat-a', {
       v: 1,
@@ -273,6 +265,7 @@ describe('DesktopChatSessionStore', () => {
               { url: `https://example.com/${'x'.repeat(8_200)}`, pinned: false },
             ],
             activeIndex: 20,
+            downloads: [],
           },
           terminal: {
             v: 1,
@@ -310,6 +303,7 @@ describe('DesktopChatSessionStore', () => {
         { url: 'http://localhost:3000/path', pinned: true },
       ],
       activeIndex: 1,
+      downloads: [],
     })
     expect(store.getTerminal(ORIGIN, 'chat-valid')).toEqual({
       v: 1,
@@ -318,6 +312,31 @@ describe('DesktopChatSessionStore', () => {
     })
     expect(store.getBrowser(ORIGIN, 'pending:must-not-load')).toBeNull()
     expect(store.getBrowser(ORIGIN, 'chat-bad-origin')).toBeNull()
+  })
+
+  it('rejects persisted browser snapshots without a downloads array', () => {
+    const provider = encryption()
+    writeEncryptedPayload(provider, {
+      v: 1,
+      entries: [
+        {
+          origin: ORIGIN,
+          scope: 'chat-missing-downloads',
+          lastAccessedAt: 1,
+          browser: { v: 1, tabs: [], activeIndex: 0 },
+        },
+        {
+          origin: ORIGIN,
+          scope: 'chat-invalid-downloads',
+          lastAccessedAt: 2,
+          browser: { v: 1, tabs: [], activeIndex: 0, downloads: null },
+        },
+      ],
+    })
+
+    const store = open(provider)
+    expect(store.getBrowser(ORIGIN, 'chat-missing-downloads')).toBeNull()
+    expect(store.getBrowser(ORIGIN, 'chat-invalid-downloads')).toBeNull()
   })
 
   it('keeps only the 100 most recently used durable chat entries', () => {

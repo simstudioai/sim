@@ -17,7 +17,7 @@ import type {
 } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { BrowserWindow, WebContentsView } from 'electron'
+import type { BrowserWindow, NativeImage, WebContentsView } from 'electron'
 import { zoomPercentOf } from '@/main/browser-agent/context-menu'
 import type { AgentTab } from '@/main/browser-agent/session'
 
@@ -67,7 +67,7 @@ let panelCaptureGeneration = 0
 let panelLeaseAt = 0
 let leaseTimer: ReturnType<typeof setInterval> | null = null
 /** Chat whose native browser surface may currently be composited. */
-let activePanelScopeId = 'legacy'
+let activePanelScopeId: string | null = null
 /** The window currently hosting the active view, for re-parenting checks. */
 let hostedWindow: BrowserWindow | null = null
 /** The app window whose renderer most recently leased the visible panel. */
@@ -99,13 +99,14 @@ export function initPanel(panelHost: PanelHost): void {
   panelAnchor = null
   panelLeaseAt = 0
   panelOwnerWindow = null
+  activePanelScopeId = null
 }
 
 /**
  * Moves the singleton compositor to another chat. Bounds are renderer leases,
  * so the new chat must report its own rect before any native page is shown.
  */
-export function activatePanelScope(scopeId: string): void {
+export function activatePanelScope(scopeId: string | null): void {
   if (activePanelScopeId === scopeId) return
   activePanelScopeId = scopeId
   resetOcclusion()
@@ -123,7 +124,7 @@ export function migratePanelScope(fromScopeId: string, toScopeId: string): void 
   panelCaptureGeneration++
 }
 
-export function getActivePanelScopeId(): string {
+export function getActivePanelScopeId(): string | null {
   return activePanelScopeId
 }
 
@@ -153,7 +154,7 @@ export function panelUpdateAllowed(
   ownerWindow?: BrowserWindow,
   scopeId = activePanelScopeId
 ): boolean {
-  if (scopeId !== activePanelScopeId) return false
+  if (!scopeId || scopeId !== activePanelScopeId) return false
   if (!ownerWindow) return true
   const owner = panelOwner()
   return owner === null || owner === ownerWindow
@@ -171,7 +172,7 @@ export function canReportPanelBounds(
   focusedWindow: BrowserWindow | null,
   scopeId = activePanelScopeId
 ): boolean {
-  if (scopeId !== activePanelScopeId) return false
+  if (!scopeId || scopeId !== activePanelScopeId) return false
   const owner = panelOwner()
   return owner === null || owner === win || focusedWindow === win
 }
@@ -397,17 +398,40 @@ export function layout(): void {
   }
 }
 
-/**
- * Captures the visible compositor surface without resizing or JPEG encoding.
- * The PNG crosses IPC at its native resolution so the renderer can place it
- * over the exact host rectangle without blur, scaling artifacts, or a color
- * shift. The page remains visible throughout this operation.
- */
+const SNAPSHOT_MAX_WIDTH = 1024
+const SNAPSHOT_JPEG_QUALITY = 70
+
+/** Bounds the transient replacement frame before it crosses IPC. */
+function encodeSnapshot(image: NativeImage): string {
+  const { width } = image.getSize()
+  const scaled = width > SNAPSHOT_MAX_WIDTH ? image.resize({ width: SNAPSHOT_MAX_WIDTH }) : image
+  const jpeg = scaled.toJPEG(SNAPSHOT_JPEG_QUALITY)
+  return `data:image/jpeg;base64,${jpeg.toString('base64')}`
+}
+
+/** A blank tab needs only its native backdrop, not a compositor capture. */
+function blankSnapshot(scopeId: string, tabId: string, zoomPercent: number): BrowserPanelSnapshot {
+  return {
+    scopeId,
+    tabId,
+    zoomPercent,
+    dataUrl: `data:image/svg+xml,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><path fill="${host.backgroundColor()}" d="M0 0h1v1H0z"/></svg>`
+    )}`,
+  }
+}
+
+/** Captures a compact replacement while leaving the native page visible. */
 export async function capturePanelSnapshot(
   ownerWindow?: BrowserWindow,
   scopeId = activePanelScopeId
 ): Promise<BrowserPanelSnapshot | null> {
-  if (!panelUpdateAllowed(ownerWindow, scopeId) || panelBounds === null || panelOccluded) {
+  if (
+    !scopeId ||
+    !panelUpdateAllowed(ownerWindow, scopeId) ||
+    panelBounds === null ||
+    panelOccluded
+  ) {
     return null
   }
   const active = host.activeTab()
@@ -417,29 +441,28 @@ export async function capturePanelSnapshot(
   const generation = ++panelCaptureGeneration
   const tabId = active.id
   const contents = active.view.webContents
+  const zoomPercent = zoomPercentOf(contents.getZoomFactor())
+  const url = contents.getURL()
+  if (url === '' || url === 'about:blank') {
+    return blankSnapshot(scopeId, tabId, zoomPercent)
+  }
   try {
     const image = await contents.capturePage(undefined, { stayHidden: false })
-    const blankTab = contents.getURL() === '' || contents.getURL() === 'about:blank'
     if (
       generation !== panelCaptureGeneration ||
       scopeId !== activePanelScopeId ||
       host.activeTab()?.id !== tabId ||
       panelWindow() !== win ||
       win.isDestroyed() ||
-      (image.isEmpty() && !blankTab)
+      image.isEmpty()
     ) {
       return null
     }
-    const dataUrl = image.isEmpty()
-      ? `data:image/svg+xml,${encodeURIComponent(
-          `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><path fill="${host.backgroundColor()}" d="M0 0h1v1H0z"/></svg>`
-        )}`
-      : image.toDataURL()
     return {
       scopeId,
       tabId,
-      zoomPercent: zoomPercentOf(contents.getZoomFactor()),
-      dataUrl,
+      zoomPercent,
+      dataUrl: encodeSnapshot(image),
     }
   } catch (error) {
     logger.warn('Could not capture browser panel for a toolbar menu', {
@@ -478,7 +501,7 @@ export function setPanelBounds(
   anchor?: BrowserPanelAnchor,
   scopeId = activePanelScopeId
 ): void {
-  if (scopeId !== activePanelScopeId) return
+  if (!scopeId || scopeId !== activePanelScopeId) return
   // A closing window releases the panel from its `closed` handler, by which
   // point Electron has already destroyed it. That release has to be honoured
   // or the panel stays "visible" with a dead owner, and the next layout

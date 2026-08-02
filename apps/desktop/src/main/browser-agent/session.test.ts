@@ -10,6 +10,7 @@ import { BrowserWindow, session as electronSession, Menu, shell } from 'electron
 import { BASE_ZOOM_FACTOR, steppedZoomFactor } from '@/main/browser-agent/context-menu'
 import * as panel from '@/main/browser-agent/panel'
 import * as sessionModule from '@/main/browser-agent/session'
+import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 
 type SessionModule = typeof import('@/main/browser-agent/session')
 
@@ -64,7 +65,6 @@ function mainWindowMock() {
 function freshSession(
   win: BrowserWindow | null | (() => BrowserWindow | null),
   eventOverrides: Partial<sessionModule.AgentSessionEvents> = {},
-  persistence?: sessionModule.PinnedTabPersistence,
   browserPersistence?: sessionModule.BrowserSessionPersistence,
   downloadSettings?: sessionModule.BrowserDownloadSettings
 ): SessionModule {
@@ -82,16 +82,14 @@ function freshSession(
       ...eventOverrides,
     },
     mainWindowProvider,
-    persistence,
     browserPersistence,
     downloadSettings
   )
+  session.activateBrowserScope('chat-test')
   return session
 }
 
-function memoryBrowserPersistence(
-  initial: Record<string, sessionModule.BrowserSessionSnapshotV1> = {}
-) {
+function memoryBrowserPersistence(initial: Record<string, BrowserSessionSnapshot> = {}) {
   const snapshots = new Map(
     Object.entries(initial).map(([scopeId, snapshot]) => [scopeId, structuredClone(snapshot)])
   )
@@ -112,7 +110,6 @@ function memoryBrowserPersistence(
       snapshots.delete(fromScopeId)
       return true
     }),
-    flush: vi.fn(() => true),
     disposeScope: vi.fn((scopeId) => snapshots.delete(scopeId)),
   }
   return { persistence, snapshots }
@@ -281,15 +278,16 @@ describe('browser-agent session', () => {
   })
 
   it('preserves a persisted destination behind a lazy activation', () => {
-    const existingSnapshot: sessionModule.BrowserSessionSnapshotV1 = {
+    const existingSnapshot: BrowserSessionSnapshot = {
       v: 1,
       tabs: [{ url: 'https://existing.example/', pinned: false }],
       activeIndex: 0,
+      downloads: [],
     }
     const { persistence, snapshots } = memoryBrowserPersistence({
       'chat-real': existingSnapshot,
     })
-    session = freshSession(win, {}, undefined, persistence)
+    session = freshSession(win, {}, persistence)
     session.withBrowserScope('pending:workspace', () => session.ensureTab())
     session.activateBrowserScope('chat-real')
 
@@ -301,7 +299,7 @@ describe('browser-agent session', () => {
   it('does not retag live tabs when persistence explicitly refuses migration', () => {
     const { persistence } = memoryBrowserPersistence()
     persistence.migrateScope = vi.fn(() => false)
-    session = freshSession(win, {}, undefined, persistence)
+    session = freshSession(win, {}, persistence)
     const pendingTab = session.withBrowserScope('pending:workspace', () => session.ensureTab())
 
     expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(false)
@@ -374,7 +372,7 @@ describe('browser-agent session', () => {
 
   it('restores the complete per-chat tab strip after a restart', () => {
     const { persistence } = memoryBrowserPersistence()
-    session = freshSession(win, {}, undefined, persistence)
+    session = freshSession(win, {}, persistence)
 
     const first = session.withBrowserScope('chat-a', () => session.ensureTab())
     vi.mocked((first.view as unknown as MockView).webContents.getURL).mockReturnValue(
@@ -389,7 +387,7 @@ describe('browser-agent session', () => {
       session.switchTab(second.id)
     })
 
-    session = freshSession(win, {}, undefined, persistence)
+    session = freshSession(win, {}, persistence)
     vi.mocked(persistence.load).mockClear()
     session.activateBrowserScope('chat-a')
     expect(session.withBrowserScope('chat-a', () => session.peekTabsState())).toMatchObject({
@@ -425,9 +423,10 @@ describe('browser-agent session', () => {
         v: 1,
         tabs,
         activeIndex: tabs.length - 1,
+        downloads: [],
       },
     })
-    session = freshSession(win, {}, undefined, persistence)
+    session = freshSession(win, {}, persistence)
 
     const restored = session.withBrowserScope('chat-many-tabs', () => {
       session.restoreBrowserSession()
@@ -445,15 +444,16 @@ describe('browser-agent session', () => {
   it('quiesces live scopes without publishing session closure', () => {
     const onTabsChanged = vi.fn()
     const onSessionClosed = vi.fn()
-    const lazySnapshot: sessionModule.BrowserSessionSnapshotV1 = {
+    const lazySnapshot: BrowserSessionSnapshot = {
       v: 1,
       tabs: [{ url: 'https://lazy.example/', pinned: false }],
       activeIndex: 0,
+      downloads: [],
     }
     const { persistence, snapshots } = memoryBrowserPersistence({
       'chat-lazy': lazySnapshot,
     })
-    session = freshSession(win, { onTabsChanged, onSessionClosed }, undefined, persistence)
+    session = freshSession(win, { onTabsChanged, onSessionClosed }, persistence)
     session.activateBrowserScope('chat-lazy')
     const chatATab = session.withBrowserScope('chat-a', () => session.ensureTab())
     const chatBTab = session.withBrowserScope('chat-b', () => session.ensureTab())
@@ -483,15 +483,16 @@ describe('browser-agent session', () => {
   })
 
   it('migrates a persisted pending snapshot without hydrating either scope', () => {
-    const snapshot: sessionModule.BrowserSessionSnapshotV1 = {
+    const snapshot: BrowserSessionSnapshot = {
       v: 1,
       tabs: [{ url: 'https://pending.example/', pinned: false }],
       activeIndex: 0,
+      downloads: [],
     }
     const { persistence, snapshots } = memoryBrowserPersistence({
       'pending:workspace': snapshot,
     })
-    session = freshSession(win, {}, undefined, persistence)
+    session = freshSession(win, {}, persistence)
     session.activateBrowserScope('pending:workspace')
 
     expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(true)
@@ -507,65 +508,9 @@ describe('browser-agent session', () => {
     expect(restored.tabs).toMatchObject([{ url: 'https://pending.example/' }])
   })
 
-  it('keeps legacy pinned fallback until a pending scope migrates durably', () => {
-    const legacyPersistence: sessionModule.PinnedTabPersistence = {
-      load: vi.fn(() => ['https://legacy.example/']),
-      save: vi.fn(),
-    }
-    const { persistence, snapshots } = memoryBrowserPersistence()
-    session = freshSession(win, {}, legacyPersistence, persistence)
-
-    session.withBrowserScope('pending:workspace', () => session.restoreBrowserSession())
-
-    expect(snapshots.get('pending:workspace')).toMatchObject({
-      tabs: [{ url: 'https://legacy.example/', pinned: true }],
-    })
-    expect(legacyPersistence.save).not.toHaveBeenCalledWith([])
-
-    expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(true)
-    expect(snapshots.has('pending:workspace')).toBe(false)
-    expect(snapshots.get('chat-real')).toMatchObject({
-      tabs: [{ url: 'https://legacy.example/', pinned: true }],
-    })
-    expect(legacyPersistence.save).toHaveBeenCalledWith([])
-  })
-
-  it('does not clear fallback claimed by legacy until a durable chat adopts it', () => {
-    const legacyPersistence: sessionModule.PinnedTabPersistence = {
-      load: vi.fn(() => ['https://legacy.example/']),
-      save: vi.fn(),
-    }
-    const { persistence, snapshots } = memoryBrowserPersistence()
-    session = freshSession(win, {}, legacyPersistence, persistence)
-
-    session.withBrowserScope('legacy', () => session.restoreBrowserSession())
-    expect(legacyPersistence.save).not.toHaveBeenCalledWith([])
-
-    session.withBrowserScope('chat-real', () => session.restoreBrowserSession())
-    expect(snapshots.get('chat-real')).toMatchObject({
-      tabs: [{ url: 'https://legacy.example/', pinned: true }],
-    })
-    expect(legacyPersistence.save).toHaveBeenCalledWith([])
-  })
-
-  it('keeps the legacy fallback when the scoped descriptor cannot flush durably', () => {
-    const legacyPersistence: sessionModule.PinnedTabPersistence = {
-      load: vi.fn(() => ['https://legacy.example/']),
-      save: vi.fn(),
-    }
-    const { persistence } = memoryBrowserPersistence()
-    persistence.flush = vi.fn(() => false)
-    session = freshSession(win, {}, legacyPersistence, persistence)
-
-    session.withBrowserScope('chat-real', () => session.restoreBrowserSession())
-
-    expect(persistence.flush).toHaveBeenCalled()
-    expect(legacyPersistence.save).not.toHaveBeenCalledWith([])
-  })
-
   it('disposes an abandoned browser scope and its persisted descriptor', () => {
     const { persistence, snapshots } = memoryBrowserPersistence()
-    session = freshSession(win, {}, undefined, persistence)
+    session = freshSession(win, {}, persistence)
     const tab = session.withBrowserScope('pending:abandoned', () => session.ensureTab())
     expect(snapshots.has('pending:abandoned')).toBe(true)
 
@@ -586,7 +531,7 @@ describe('browser-agent session', () => {
     const onTabsChanged = vi.fn()
     const onSessionClosed = vi.fn()
     const { persistence, snapshots } = memoryBrowserPersistence()
-    session = freshSession(win, { onTabsChanged, onSessionClosed }, undefined, persistence)
+    session = freshSession(win, { onTabsChanged, onSessionClosed }, persistence)
     const tab = session.withBrowserScope('chat-deleted', () => session.ensureTab())
     vi.mocked((tab.view as unknown as MockView).webContents.getURL).mockReturnValue(
       'https://retained.example/'
@@ -602,6 +547,7 @@ describe('browser-agent session', () => {
       v: 1,
       tabs: [{ url: 'https://retained.example/', pinned: false }],
       activeIndex: 0,
+      downloads: [],
     })
     expect(onTabsChanged).not.toHaveBeenCalled()
     expect(onSessionClosed).not.toHaveBeenCalled()
@@ -671,7 +617,7 @@ describe('browser-agent session', () => {
     expect(win.webContents.send).toHaveBeenLastCalledWith(
       'browser-agent:focus-omnibox',
       'select',
-      'legacy'
+      'chat-test'
     )
 
     beforeInput?.(event, { ...input, key: 't' })
@@ -679,7 +625,7 @@ describe('browser-agent session', () => {
     expect(win.webContents.send).toHaveBeenLastCalledWith(
       'browser-agent:focus-omnibox',
       'clear',
-      'legacy'
+      'chat-test'
     )
 
     const second = session.activeTab()
@@ -700,7 +646,7 @@ describe('browser-agent session', () => {
     expect(win.webContents.send).toHaveBeenLastCalledWith(
       'browser-agent:focus-omnibox',
       'clear',
-      'legacy'
+      'chat-test'
     )
   })
 
@@ -728,7 +674,7 @@ describe('browser-agent session', () => {
 
     // The page never sees it — otherwise a site's own Mod+F wins over find.
     expect(event.preventDefault).toHaveBeenCalled()
-    expect(win.webContents.send).toHaveBeenLastCalledWith('browser-agent:open-find', 'legacy')
+    expect(win.webContents.send).toHaveBeenLastCalledWith('browser-agent:open-find', 'chat-test')
   })
 
   it('restarts the search while typing and steps without restarting on next/previous', () => {
@@ -782,7 +728,7 @@ describe('browser-agent session', () => {
         matches: 7,
         final: true,
       },
-      'legacy'
+      'chat-test'
     )
 
     // A late result from a tab that is not being searched would relabel the bar
@@ -815,7 +761,7 @@ describe('browser-agent session', () => {
     expect(win.webContents.send).toHaveBeenLastCalledWith(
       'browser-agent:find-result',
       { activeMatchOrdinal: 2, matches: 7, final: true },
-      'legacy'
+      'chat-test'
     )
   })
 
@@ -839,7 +785,7 @@ describe('browser-agent session', () => {
 
     navigate?.({ isMainFrame: true, isSameDocument: false })
     expect(contents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
-    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'legacy')
+    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'chat-test')
   })
 
   it('drops the find when the tab it is running on is closed', () => {
@@ -855,7 +801,7 @@ describe('browser-agent session', () => {
 
     session.closeTab(second.id)
 
-    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'legacy')
+    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'chat-test')
   })
 
   it('drops the find when the tab it is running on crashes', () => {
@@ -872,7 +818,7 @@ describe('browser-agent session', () => {
     )?.[1] as ((event: unknown, details: { reason: string }) => void) | undefined
     gone?.({}, { reason: 'crashed' })
 
-    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'legacy')
+    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'chat-test')
   })
 
   it('drops the find when the user switches to another tab', () => {
@@ -887,7 +833,7 @@ describe('browser-agent session', () => {
 
     session.switchTab(second.id)
     expect(firstContents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
-    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'legacy')
+    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'chat-test')
   })
 
   it('returns focus to the page only when the user dismissed the bar', () => {
@@ -1230,15 +1176,8 @@ describe('browser-agent session', () => {
   })
 
   it('moves pinned tabs left and requires unpinning before any close path', async () => {
-    const save = vi.fn()
-    const pinnedSession = freshSession(
-      win,
-      {},
-      {
-        load: () => [],
-        save,
-      }
-    )
+    const { persistence, snapshots } = memoryBrowserPersistence()
+    const pinnedSession = freshSession(win, {}, persistence)
     const first = pinnedSession.ensureTab()
     const second = pinnedSession.addTab()
 
@@ -1248,13 +1187,18 @@ describe('browser-agent session', () => {
       expect.objectContaining({ tabId: second.id, pinned: true }),
       expect.objectContaining({ tabId: first.id, pinned: false }),
     ])
-    expect(save).toHaveBeenLastCalledWith(['https://example.com/'])
+    expect(snapshots.get('chat-test')?.tabs).toEqual([
+      { url: 'https://example.com/', pinned: true },
+      { url: 'https://example.com/', pinned: false },
+    ])
     expect(() => pinnedSession.closeTab(second.id)).toThrow(/Pinned tabs cannot be closed/)
 
     pinnedSession.setTabPinned(second.id, false)
     pinnedSession.closeTab(second.id)
     expect(pinnedSession.listTabs().map((tab) => tab.tabId)).toEqual([first.id])
-    expect(save).toHaveBeenLastCalledWith([])
+    expect(snapshots.get('chat-test')?.tabs).toEqual([
+      { url: 'https://example.com/', pinned: false },
+    ])
   })
 
   it('opens native tab actions and keeps them bound to the right-clicked chat', () => {
@@ -1280,14 +1224,15 @@ describe('browser-agent session', () => {
   })
 
   it('restores pinned tabs when the browser resource opens again', async () => {
-    const restoredSession = freshSession(
-      win,
-      {},
-      {
-        load: () => ['https://docs.sim.ai/guide'],
-        save: vi.fn(),
-      }
-    )
+    const { persistence } = memoryBrowserPersistence({
+      'chat-test': {
+        v: 1,
+        tabs: [{ url: 'https://docs.sim.ai/guide', pinned: true }],
+        activeIndex: 0,
+        downloads: [],
+      },
+    })
+    const restoredSession = freshSession(win, {}, persistence)
 
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
 
@@ -1655,8 +1600,8 @@ describe('browser-agent session', () => {
       clearStorageData,
       clearCache,
     } as unknown as ReturnType<typeof electronSession.fromPartition>)
-    const save = vi.fn()
-    session = freshSession(win, {}, { load: () => [], save })
+    const { persistence, snapshots } = memoryBrowserPersistence()
+    session = freshSession(win, {}, persistence)
 
     panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
     const survivor = (session.ensureTab().view as unknown as MockView).webContents
@@ -1669,20 +1614,20 @@ describe('browser-agent session', () => {
     expect(session.listTabs()).toHaveLength(0)
     // Reopen Closed Tab must not resurrect the previous account's browsing.
     expect(session.reopenClosedTab()).toBeNull()
-    expect(save).toHaveBeenLastCalledWith([])
+    expect(snapshots.get('chat-test')).toMatchObject({ tabs: [], activeIndex: -1 })
     expect(clearStorageData).toHaveBeenCalled()
     expect(clearCache).toHaveBeenCalled()
   })
 
   it('does not rewrite the settings file when the pinned tabs have not changed', async () => {
-    const save = vi.fn()
-    session = freshSession(win, {}, { load: () => [], save })
+    const { persistence } = memoryBrowserPersistence()
+    session = freshSession(win, {}, persistence)
     const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
     const onNavigate = contents.on.mock.calls.find(
       ([eventName]) => eventName === 'did-navigate-in-page'
     )?.[1] as () => void
-    save.mockClear()
+    vi.mocked(persistence.save).mockClear()
 
     // Any single-page app fires this on every route change, and the settings
     // store's `===` comparison never matches a freshly built array — so each
@@ -1691,20 +1636,23 @@ describe('browser-agent session', () => {
     onNavigate()
     onNavigate()
 
-    expect(save).not.toHaveBeenCalled()
+    expect(persistence.save).not.toHaveBeenCalled()
   })
 
   it('persists once when a tab actually becomes pinned', async () => {
-    const save = vi.fn()
-    session = freshSession(win, {}, { load: () => [], save })
+    const { persistence } = memoryBrowserPersistence()
+    session = freshSession(win, {}, persistence)
     const tab = session.ensureTab()
     ;(tab.view as unknown as MockView).webContents.getURL.mockReturnValue('https://example.com/')
-    save.mockClear()
+    vi.mocked(persistence.save).mockClear()
 
     session.setTabPinned(tab.id, true)
 
-    expect(save).toHaveBeenCalledTimes(1)
-    expect(save).toHaveBeenLastCalledWith(['https://example.com/'])
+    expect(persistence.save).toHaveBeenCalledTimes(1)
+    expect(persistence.save).toHaveBeenLastCalledWith(
+      'chat-test',
+      expect.objectContaining({ tabs: [{ url: 'https://example.com/', pinned: true }] })
+    )
   })
 
   it('drops a tab whose renderer crashed instead of wedging the session', () => {
@@ -1803,7 +1751,7 @@ describe('browser-agent session', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
     const { persistence, snapshots } = memoryBrowserPersistence()
     const onDownloadsChanged = vi.fn()
-    session = freshSession(win, { onDownloadsChanged }, undefined, persistence, {
+    session = freshSession(win, { onDownloadsChanged }, persistence, {
       getDirectory: () => directory,
     })
     const contents = (session.ensureTab().view as unknown as MockView).webContents
@@ -1832,7 +1780,7 @@ describe('browser-agent session', () => {
     expect(item.setSavePath).toHaveBeenCalledWith(join(directory, 'report.csv'))
     expect(item.once).toHaveBeenCalledWith('done', expect.any(Function))
     expect(onDownloadsChanged).toHaveBeenLastCalledWith({
-      scopeId: 'legacy',
+      scopeId: 'chat-test',
       downloads: [
         expect.objectContaining({
           filename: 'report.csv',
@@ -1850,11 +1798,11 @@ describe('browser-agent session', () => {
     writeFileSync(join(directory, 'report.csv'), 'report')
     done?.({}, 'completed')
 
-    expect(session.getBrowserDownloadsState('legacy').downloads[0]).toMatchObject({
+    expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
       filename: 'report.csv',
       state: 'completed',
     })
-    expect(snapshots.get('legacy')?.downloads?.[0]).toMatchObject({
+    expect(snapshots.get('chat-test')?.downloads[0]).toMatchObject({
       filename: 'report.csv',
       state: 'completed',
       savePath: join(directory, 'report.csv'),
@@ -1862,7 +1810,7 @@ describe('browser-agent session', () => {
 
     vi.mocked(Menu.buildFromTemplate).mockClear()
     vi.mocked(shell.showItemInFolder).mockClear()
-    expect(session.showBrowserDownloadsMenu('legacy', win, { x: 10, y: 20 })).toBe(true)
+    expect(session.showBrowserDownloadsMenu('chat-test', win, { x: 10, y: 20 })).toBe(true)
     const template = vi.mocked(Menu.buildFromTemplate).mock.calls[0]?.[0] as
       | MenuItemConstructorOptions[]
       | undefined
@@ -1871,9 +1819,9 @@ describe('browser-agent session', () => {
     reveal?.()
     expect(shell.showItemInFolder).toHaveBeenCalledWith(join(directory, 'report.csv'))
 
-    session = freshSession(win, {}, undefined, persistence, { getDirectory: () => directory })
+    session = freshSession(win, {}, persistence, { getDirectory: () => directory })
     session.restoreBrowserSession()
-    expect(session.getBrowserDownloadsState('legacy').downloads[0]).toMatchObject({
+    expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
       filename: 'report.csv',
       state: 'completed',
     })

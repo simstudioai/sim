@@ -149,13 +149,6 @@ html[data-sim-desktop-title-bar="inset"]
   transition: width 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
-/* Sidebar rows need to track the pointer immediately. The shared chip transition is
-   pleasant for isolated controls, but across a dense list a fast cursor can leave a
-   row before its background becomes visible, which reads as skipped hover states. */
-.sidebar-container .group.cursor-pointer {
-  transition-duration: 0ms;
-}
-
 /**
  * Collapsed width is driven by the server-rendered `data-collapsed` attribute —
  * the same cookie source as the collapsed structure — so the rail can never paint

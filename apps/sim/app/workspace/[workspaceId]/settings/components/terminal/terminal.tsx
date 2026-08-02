@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type {
+  DesktopAppearanceTheme,
   DesktopPreferences,
   DesktopZoomPercent,
-  TerminalAppearanceTheme,
   TerminalThemeProfile,
 } from '@sim/desktop-bridge'
 import { Label, Switch, toast } from '@sim/emcn'
@@ -27,7 +27,7 @@ export function Terminal() {
 
   useEffect(() => {
     const bridge = getDesktopBridge()
-    if (!bridge?.terminal || !bridge.settings) {
+    if (!bridge?.terminal) {
       router.replace(`/workspace/${workspaceId}/settings/general`)
       return
     }
@@ -43,11 +43,11 @@ export function Terminal() {
   }, [router, workspaceId])
 
   const setEnabled = useCallback(async (enabled: boolean) => {
-    const setTerminalEnabled = getDesktopBridge()?.settings?.setTerminalEnabled
-    if (!setTerminalEnabled) return
+    const settings = getDesktopBridge()?.settings
+    if (!settings) return
     setTogglePending(true)
     try {
-      const next = await setTerminalEnabled(enabled)
+      const next = await settings.setPreference('terminalEnabled', enabled)
       setPreferences(next)
       setDesktopPreferencesSnapshot(next)
     } catch {
@@ -76,12 +76,12 @@ export function Terminal() {
     }
   }, [])
 
-  const setTheme = useCallback(async (theme: TerminalAppearanceTheme) => {
-    const setTerminalTheme = getDesktopBridge()?.settings?.setTerminalTheme
-    if (!setTerminalTheme) return
+  const setTheme = useCallback(async (theme: DesktopAppearanceTheme) => {
+    const settings = getDesktopBridge()?.settings
+    if (!settings) return
     setThemePending(true)
     try {
-      const next = await setTerminalTheme(theme)
+      const next = await settings.setTerminalTheme(theme)
       setPreferences(next)
       setDesktopPreferencesSnapshot(next)
     } catch {
@@ -92,11 +92,11 @@ export function Terminal() {
   }, [])
 
   const setDefaultZoom = useCallback(async (zoom: DesktopZoomPercent) => {
-    const setTerminalDefaultZoom = getDesktopBridge()?.settings?.setTerminalDefaultZoom
-    if (!setTerminalDefaultZoom) return
+    const settings = getDesktopBridge()?.settings
+    if (!settings) return
     setZoomPending(true)
     try {
-      const next = await setTerminalDefaultZoom(zoom)
+      const next = await settings.setTerminalDefaultZoom(zoom)
       setPreferences(next)
       setDesktopPreferencesSnapshot(next)
     } catch {
@@ -110,10 +110,6 @@ export function Terminal() {
     return null
   }
 
-  const canSetTheme = typeof getDesktopBridge()?.settings?.setTerminalTheme === 'function'
-  const canSetDefaultZoom =
-    typeof getDesktopBridge()?.settings?.setTerminalDefaultZoom === 'function'
-
   return (
     <SettingsPanel>
       <SettingsSection label='General'>
@@ -122,37 +118,32 @@ export function Terminal() {
             <Label htmlFor='terminal-enabled'>Let Chat run commands</Label>
             <Switch
               id='terminal-enabled'
-              checked={preferences.terminalEnabled ?? true}
+              checked={preferences.terminalEnabled}
               disabled={togglePending}
               onCheckedChange={(checked) => void setEnabled(checked)}
             />
           </div>
 
-          {canSetTheme && (
-            <div className='flex items-center justify-between gap-4'>
-              <Label>Theme</Label>
-              <TerminalThemePicker
-                value={preferences.terminalTheme ?? 'app'}
-                profiles={profiles}
-                selectedProfile={preferences.terminalProfile}
-                disabled={themePending}
-                onBuiltInSelect={(theme) => void setTheme(theme)}
-                onProfileSelect={(profile) => void selectProfile(profile)}
-              />
-            </div>
-          )}
+          <div className='flex items-center justify-between gap-4'>
+            <Label>Theme</Label>
+            <TerminalThemePicker
+              value={preferences.terminalTheme}
+              profiles={profiles}
+              disabled={themePending}
+              onBuiltInSelect={(theme) => void setTheme(theme)}
+              onProfileSelect={(profile) => void selectProfile(profile)}
+            />
+          </div>
 
-          {canSetDefaultZoom && (
-            <div className='flex items-center justify-between gap-4'>
-              <Label>Default zoom</Label>
-              <DefaultZoomSelect
-                ariaLabel='Terminal default zoom'
-                value={preferences.terminalDefaultZoom ?? 100}
-                onChange={(zoom) => void setDefaultZoom(zoom)}
-                disabled={zoomPending}
-              />
-            </div>
-          )}
+          <div className='flex items-center justify-between gap-4'>
+            <Label>Default zoom</Label>
+            <DefaultZoomSelect
+              ariaLabel='Terminal default zoom'
+              value={preferences.terminalDefaultZoom}
+              onChange={(zoom) => void setDefaultZoom(zoom)}
+              disabled={zoomPending}
+            />
+          </div>
         </div>
       </SettingsSection>
     </SettingsPanel>

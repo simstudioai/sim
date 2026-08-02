@@ -81,7 +81,6 @@ export function Desktop() {
   const [mountToForget, setMountToForget] = useState<LocalFilesystemMount | null>(null)
   const [mountMutationPending, setMountMutationPending] = useState(false)
   const [updateState, setUpdateState] = useState<DesktopUpdateState>({ status: 'idle' })
-  const [hasUpdatesSurface, setHasUpdatesSurface] = useState(false)
   const [shellVersion, setShellVersion] = useState<string | undefined>(undefined)
 
   const refreshMounts = useCallback(async () => {
@@ -98,7 +97,7 @@ export function Desktop() {
 
   useEffect(() => {
     const bridge = getDesktopBridge()
-    if (!bridge?.settings) {
+    if (!bridge) {
       router.replace(`/workspace/${workspaceId}/settings/general`)
       return
     }
@@ -111,7 +110,6 @@ export function Desktop() {
     setShellVersion(getDesktopShellVersion())
     const updates = getDesktopUpdates()
     if (!updates) return
-    setHasUpdatesSurface(true)
     const unsubscribe = updates.onState(setUpdateState)
     void updates
       .getState()
@@ -126,19 +124,6 @@ export function Desktop() {
     setPendingPreference(key)
     try {
       setPreferences(await settings.setPreference(key, value))
-    } catch {
-      toast.error('Could not update desktop settings')
-    } finally {
-      setPendingPreference(null)
-    }
-  }, [])
-
-  const updateTrayEnabled = useCallback(async (enabled: boolean) => {
-    const settings = getDesktopBridge()?.settings
-    if (!settings?.setTrayEnabled) return
-    setPendingPreference('trayEnabled')
-    try {
-      setPreferences(await settings.setTrayEnabled(enabled))
     } catch {
       toast.error('Could not update desktop settings')
     } finally {
@@ -236,32 +221,26 @@ export function Desktop() {
               disabled={pendingPreference !== null}
               onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
             />
-            {getDesktopBridge()?.settings?.setTrayEnabled && (
-              <PreferenceRow
-                id='desktop-tray-enabled'
-                label='Show Sim in Control Center'
-                checked={preferences.trayEnabled ?? true}
-                disabled={pendingPreference !== null}
-                onCheckedChange={(checked) => void updateTrayEnabled(checked)}
-              />
-            )}
+            <PreferenceRow
+              id='desktop-tray-enabled'
+              label='Show Sim in Control Center'
+              checked={preferences.trayEnabled}
+              disabled={pendingPreference !== null}
+              onCheckedChange={(checked) => void updatePreference('trayEnabled', checked)}
+            />
           </div>
         </SettingsSection>
 
         <SettingsSection
           label='Updates'
-          action={
-            hasUpdatesSurface
-              ? (() => {
-                  const chip = updateChipFor(updateState)
-                  return (
-                    <Chip onClick={chip.onClick} disabled={chip.disabled}>
-                      {chip.label}
-                    </Chip>
-                  )
-                })()
-              : undefined
-          }
+          action={(() => {
+            const chip = updateChipFor(updateState)
+            return (
+              <Chip onClick={chip.onClick} disabled={chip.disabled}>
+                {chip.label}
+              </Chip>
+            )
+          })()}
         >
           <div className='flex flex-col gap-3'>
             <PreferenceRow

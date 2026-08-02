@@ -111,7 +111,13 @@ export const MothershipView = memo(
           open()
           return
         }
-        void controller.requestOverlay('resources', open).then(open)
+        let didOpen = false
+        const openOnce = () => {
+          if (didOpen) return
+          didOpen = true
+          open()
+        }
+        void controller.requestOverlay('resources', openOnce).then(openOnce, openOnce)
       },
       [active?.type]
     )

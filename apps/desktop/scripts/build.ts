@@ -1,5 +1,6 @@
 import { cpSync, rmSync } from 'node:fs'
 import { build } from 'esbuild'
+import { identityForOrigin } from './channels'
 
 const watch = process.argv.includes('--watch')
 
@@ -23,19 +24,7 @@ if (bakedDefaultOrigin) {
   console.log(`• Baking default server origin: ${bakedDefaultOrigin}`)
 }
 
-/** Selects the branded app icon that matches the build's baked environment. */
-function iconForOrigin(origin: string): string {
-  if (!origin) return 'build/icon.icon'
-  const host = new URL(origin).hostname.toLowerCase()
-  if (host === 'localhost' || host === '127.0.0.1') return 'build/icon-local.icon'
-  if (host === 'dev.sim.ai' || host.endsWith('.dev.sim.ai')) return 'build/icon-dev.icon'
-  if (host === 'staging.sim.ai' || host.endsWith('.staging.sim.ai')) {
-    return 'build/icon-staging.icon'
-  }
-  return 'build/icon.icon'
-}
-
-const appIcon = iconForOrigin(bakedDefaultOrigin)
+const appIcon = identityForOrigin(bakedDefaultOrigin).icon
 const generatedIcon = 'build/generated-icon.icon'
 rmSync(generatedIcon, { force: true, recursive: true })
 cpSync(appIcon, generatedIcon, { recursive: true })

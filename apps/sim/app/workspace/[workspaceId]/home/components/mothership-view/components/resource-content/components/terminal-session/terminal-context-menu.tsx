@@ -1,10 +1,9 @@
 'use client'
 
 import {
-  isTerminalAppearanceTheme,
+  isDesktopAppearanceTheme,
   type TerminalAppearanceTheme,
   type TerminalThemeProfile,
-  terminalProfileThemeValue,
 } from '@sim/desktop-bridge'
 import {
   DropdownMenu,
@@ -93,6 +92,7 @@ export function TerminalContextMenu({
   onCloseTerminal,
 }: TerminalContextMenuProps) {
   const { navigateToSettings } = useSettingsNavigation()
+  const selectedValue = typeof appearanceTheme === 'string' ? appearanceTheme : appearanceTheme.id
   const run = (action: () => void) => () => {
     action()
     onClose()
@@ -144,9 +144,9 @@ export function TerminalContextMenu({
             <DropdownMenuSubContent>
               <DropdownMenuRadioGroup
                 aria-label='Terminal theme'
-                value={appearanceTheme}
+                value={selectedValue}
                 onValueChange={(theme) => {
-                  if (isTerminalAppearanceTheme(theme)) onAppearanceThemeChange(theme)
+                  if (isDesktopAppearanceTheme(theme)) onAppearanceThemeChange(theme)
                 }}
               >
                 <DropdownMenuRadioItem value='app'>Default</DropdownMenuRadioItem>
@@ -154,13 +154,12 @@ export function TerminalContextMenu({
                 <DropdownMenuRadioItem value='dark'>Sim Dark</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
               {profiles.map((profile) => {
-                const value = terminalProfileThemeValue(profile.id)
                 return (
                   <DropdownMenuItem
                     key={profile.id}
-                    onSelect={() => onAppearanceThemeChange(value)}
+                    onSelect={() => onAppearanceThemeChange(profile)}
                   >
-                    <Check className={appearanceTheme === value ? 'opacity-100' : 'opacity-0'} />
+                    <Check className={selectedValue === profile.id ? 'opacity-100' : 'opacity-0'} />
                     {profile.source === 'iterm2' ? 'iTerm2' : 'Terminal'} · {profile.name}
                   </DropdownMenuItem>
                 )

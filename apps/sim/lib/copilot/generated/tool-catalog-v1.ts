@@ -328,7 +328,7 @@ export const BrowserClick: ToolCatalogEntry = {
       elementId: {
         type: 'number',
         description:
-          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime.",
+          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
     },
     required: ['elementId'],
@@ -347,11 +347,6 @@ export const BrowserClick: ToolCatalogEntry = {
           tabId: { type: 'string', description: 'Stable browser tab id.' },
           url: { type: 'string', description: 'New active tab URL.' },
         },
-      },
-      clicked: {
-        type: 'boolean',
-        description:
-          'Backward-compatible indication that click input was dispatched, not proof of an effect.',
       },
       dialogs: {
         type: 'array',
@@ -422,7 +417,7 @@ export const BrowserClick: ToolCatalogEntry = {
         description: 'Whether Chromium trusted pointer/keyboard input was used.',
       },
     },
-    required: ['clicked'],
+    required: ['dispatched'],
   },
   clientExecutable: true,
 }
@@ -535,7 +530,7 @@ export const BrowserHover: ToolCatalogEntry = {
       elementId: {
         type: 'number',
         description:
-          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime.",
+          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
     },
     required: ['elementId'],
@@ -784,7 +779,7 @@ export const BrowserReadText: ToolCatalogEntry = {
       elementId: {
         type: 'number',
         description:
-          "Optional element id from the current tab's most recent browser_snapshot. Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime. Omit to read the whole page.",
+          "Optional element id from the current tab's most recent browser_snapshot. Treat refs as invalid across tab switches or later snapshots. Omit to read the whole page.",
       },
     },
   },
@@ -873,7 +868,7 @@ export const BrowserScroll: ToolCatalogEntry = {
       elementId: {
         type: 'number',
         description:
-          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime.",
+          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
     },
     required: ['direction'],
@@ -929,7 +924,7 @@ export const BrowserSelectOption: ToolCatalogEntry = {
       elementId: {
         type: 'number',
         description:
-          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime.",
+          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
       value: { type: 'string', description: "The option's visible label or its value." },
     },
@@ -979,43 +974,6 @@ export const BrowserSnapshot: ToolCatalogEntry = {
   resultSchema: {
     type: 'object',
     properties: {
-      browserProtocolVersion: {
-        type: 'number',
-        description:
-          'Additive desktop browser protocol version; v2 supports the capability/result fields documented here.',
-      },
-      capabilities: {
-        type: 'object',
-        description: 'Protocol capabilities supported by this desktop.',
-        properties: {
-          crossOriginFrameSnapshots: {
-            type: 'boolean',
-            description: 'Can append eligible live cross-origin frame snapshots.',
-          },
-          internalScrollTargets: {
-            type: 'boolean',
-            description: 'Can select and scroll inner SPA containers.',
-          },
-          monotonicSnapshotRefs: {
-            type: 'boolean',
-            description:
-              'Snapshot refs are monotonic and invalidated by navigation, a later snapshot, or a tab change.',
-          },
-          trustedMappedFramePointers: {
-            type: 'boolean',
-            description:
-              'Can dispatch trusted pointer input into safely mappable visible child frames.',
-          },
-          trustedTopPageClicks: {
-            type: 'boolean',
-            description: 'Can dispatch trusted Chromium pointer clicks on the top page.',
-          },
-          verifiedInputEffects: {
-            type: 'boolean',
-            description: 'Input results separate dispatch from observed effects.',
-          },
-        },
-      },
       capturedCrossOriginFrames: {
         type: 'number',
         description: 'Number of non-empty eligible cross-origin frames appended.',
@@ -1084,7 +1042,7 @@ export const BrowserType: ToolCatalogEntry = {
       elementId: {
         type: 'number',
         description:
-          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime.",
+          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
       submit: { type: 'boolean', description: 'Press Enter after typing. Default false.' },
       text: {
@@ -1186,10 +1144,6 @@ export const BrowserType: ToolCatalogEntry = {
           'Whether Enter dispatch completed and a strong submission effect was observed.',
       },
       trusted: { type: 'boolean', description: 'Whether native Chromium input was used.' },
-      typed: {
-        type: 'boolean',
-        description: 'Backward-compatible indication that type input was dispatched.',
-      },
       valueLength: {
         type: 'number',
         description: 'Focused non-secret field length when safely inspectable.',
@@ -1199,7 +1153,7 @@ export const BrowserType: ToolCatalogEntry = {
         description: 'Bounded focused non-secret field preview when safely inspectable.',
       },
     },
-    required: ['typed'],
+    required: ['dispatched'],
   },
   clientExecutable: true,
 }

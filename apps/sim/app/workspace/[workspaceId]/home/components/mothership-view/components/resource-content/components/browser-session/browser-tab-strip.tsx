@@ -28,8 +28,6 @@ interface BrowserTabStripProps {
   onCloseTabMenu: () => void
   onReorderTab: (tabId: string, targetIndex: number) => void
   contextMenuOpen: boolean
-  pinningSupported: boolean
-  reorderingSupported: boolean
 }
 
 function tabTitle(tab: BrowserTabState): string {
@@ -89,8 +87,6 @@ export function BrowserTabStrip({
   onCloseTabMenu,
   onReorderTab,
   contextMenuOpen,
-  pinningSupported,
-  reorderingSupported,
 }: BrowserTabStripProps) {
   const [contextTabId, setContextTabId] = useState<string | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
@@ -157,7 +153,7 @@ export function BrowserTabStrip({
       onNew={onNewTab}
       onTabContextMenu={openTabContextMenu}
       onTabDragStart={startTabDrag}
-      {...(reorderingSupported ? { onReorder: onReorderTab } : {})}
+      onReorder={onReorderTab}
     >
       <ContextMenu
         isOpen={contextMenuOpen && Boolean(contextTab)}
@@ -165,9 +161,7 @@ export function BrowserTabStrip({
         menuRef={contextMenuRef}
         onClose={closeTabContextMenu}
         onTogglePin={
-          contextTab && pinningSupported
-            ? () => onSetTabPinned(contextTab.tabId, !contextTab.pinned)
-            : undefined
+          contextTab ? () => onSetTabPinned(contextTab.tabId, !contextTab.pinned) : undefined
         }
         onDuplicate={contextTab ? () => onDuplicateTab(contextTab.tabId) : undefined}
         // Pinned tabs are durable and deliberately have no close action.
@@ -175,7 +169,7 @@ export function BrowserTabStrip({
           ? { onCloseTab: () => onCloseTab(contextTab.tabId), showCloseTab: true }
           : {})}
         onDelete={() => {}}
-        showPin={Boolean(contextTab) && pinningSupported}
+        showPin={Boolean(contextTab)}
         isPinned={Boolean(contextTab?.pinned)}
         showRename={false}
         showDuplicate={Boolean(contextTab)}

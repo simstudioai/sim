@@ -57,7 +57,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         elementId: {
           type: 'number',
           description:
-            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime.",
+            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
         },
       },
       required: ['elementId'],
@@ -82,11 +82,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               description: 'New active tab URL.',
             },
           },
-        },
-        clicked: {
-          type: 'boolean',
-          description:
-            'Backward-compatible indication that click input was dispatched, not proof of an effect.',
         },
         dialogs: {
           type: 'array',
@@ -185,7 +180,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Whether Chromium trusted pointer/keyboard input was used.',
         },
       },
-      required: ['clicked'],
+      required: ['dispatched'],
     },
   },
   browser_close_tab: {
@@ -288,7 +283,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         elementId: {
           type: 'number',
           description:
-            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime.",
+            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
         },
       },
       required: ['elementId'],
@@ -574,7 +569,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         elementId: {
           type: 'number',
           description:
-            "Optional element id from the current tab's most recent browser_snapshot. Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime. Omit to read the whole page.",
+            "Optional element id from the current tab's most recent browser_snapshot. Treat refs as invalid across tab switches or later snapshots. Omit to read the whole page.",
         },
       },
     },
@@ -666,7 +661,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         elementId: {
           type: 'number',
           description:
-            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime.",
+            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
         },
       },
       required: ['direction'],
@@ -730,7 +725,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         elementId: {
           type: 'number',
           description:
-            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime.",
+            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
         },
         value: {
           type: 'string',
@@ -797,43 +792,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     resultSchema: {
       type: 'object',
       properties: {
-        browserProtocolVersion: {
-          type: 'number',
-          description:
-            'Additive desktop browser protocol version; v2 supports the capability/result fields documented here.',
-        },
-        capabilities: {
-          type: 'object',
-          description: 'Protocol capabilities supported by this desktop.',
-          properties: {
-            crossOriginFrameSnapshots: {
-              type: 'boolean',
-              description: 'Can append eligible live cross-origin frame snapshots.',
-            },
-            internalScrollTargets: {
-              type: 'boolean',
-              description: 'Can select and scroll inner SPA containers.',
-            },
-            monotonicSnapshotRefs: {
-              type: 'boolean',
-              description:
-                'Snapshot refs are monotonic and invalidated by navigation, a later snapshot, or a tab change.',
-            },
-            trustedMappedFramePointers: {
-              type: 'boolean',
-              description:
-                'Can dispatch trusted pointer input into safely mappable visible child frames.',
-            },
-            trustedTopPageClicks: {
-              type: 'boolean',
-              description: 'Can dispatch trusted Chromium pointer clicks on the top page.',
-            },
-            verifiedInputEffects: {
-              type: 'boolean',
-              description: 'Input results separate dispatch from observed effects.',
-            },
-          },
-        },
         capturedCrossOriginFrames: {
           type: 'number',
           description: 'Number of non-empty eligible cross-origin frames appended.',
@@ -911,7 +869,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         elementId: {
           type: 'number',
           description:
-            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots; protocol v2 enforces that lifetime.",
+            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
         },
         submit: {
           type: 'boolean',
@@ -1048,10 +1006,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'boolean',
           description: 'Whether native Chromium input was used.',
         },
-        typed: {
-          type: 'boolean',
-          description: 'Backward-compatible indication that type input was dispatched.',
-        },
         valueLength: {
           type: 'number',
           description: 'Focused non-secret field length when safely inspectable.',
@@ -1061,7 +1015,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Bounded focused non-secret field preview when safely inspectable.',
         },
       },
-      required: ['typed'],
+      required: ['dispatched'],
     },
   },
   browser_wait_for: {

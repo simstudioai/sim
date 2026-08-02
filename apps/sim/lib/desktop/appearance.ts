@@ -4,62 +4,51 @@ import {
   isDesktopAppearanceTheme,
   isDesktopZoomPercent,
   isTerminalAppearanceTheme,
-  isTerminalSelectedProfile,
   type TerminalAppearanceTheme,
-  type TerminalSelectedProfile,
   type TerminalThemeProfile,
-  terminalProfileThemeId,
 } from '@sim/desktop-bridge'
 import { getDesktopBridge } from '@/lib/desktop'
 
-export type DesktopAppearanceSurface = 'browser' | 'terminal'
 export type ResolvedDesktopTheme = 'system' | 'light' | 'dark'
 
 export interface DesktopTerminalAppearance {
   theme: TerminalAppearanceTheme
   defaultZoom: DesktopZoomPercent
-  selectedProfile?: TerminalSelectedProfile
-  profiles: TerminalThemeProfile[]
 }
 
-/** Reads one device-level appearance preference, preserving old-shell behavior. */
-export async function loadDesktopAppearanceTheme(
-  surface: DesktopAppearanceSurface
-): Promise<DesktopAppearanceTheme> {
+/** Reads the device-level browser appearance preference. */
+export async function loadDesktopBrowserAppearanceTheme(): Promise<DesktopAppearanceTheme> {
   try {
-    const preferences = await getDesktopBridge()?.settings?.getPreferences()
-    const value = surface === 'browser' ? preferences?.browserTheme : preferences?.terminalTheme
+    const preferences = await getDesktopBridge()?.settings.getPreferences()
+    const value = preferences?.browserTheme
     return isDesktopAppearanceTheme(value) ? value : 'app'
   } catch {
     return 'app'
   }
 }
 
-/** Reads the terminal selection, its cached colors, and currently available source profiles. */
+/** Reads the persisted terminal appearance without waiting for source profile discovery. */
 export async function loadDesktopTerminalAppearance(): Promise<DesktopTerminalAppearance> {
   try {
-    const bridge = getDesktopBridge()
-    const [preferences, profiles] = await Promise.all([
-      bridge?.settings?.getPreferences(),
-      bridge?.terminalThemes?.listProfiles().catch(() => []) ?? [],
-    ])
-    const selectedProfile = isTerminalSelectedProfile(preferences?.terminalProfile)
-      ? preferences.terminalProfile
-      : undefined
-    const selectedId = isTerminalAppearanceTheme(preferences?.terminalTheme)
-      ? terminalProfileThemeId(preferences.terminalTheme)
-      : null
-    const theme =
-      isTerminalAppearanceTheme(preferences?.terminalTheme) &&
-      (!selectedId || selectedProfile?.id === selectedId)
-        ? preferences.terminalTheme
-        : 'app'
+    const preferences = await getDesktopBridge()?.settings.getPreferences()
+    const theme = isTerminalAppearanceTheme(preferences?.terminalTheme)
+      ? preferences.terminalTheme
+      : 'app'
     const defaultZoom = isDesktopZoomPercent(preferences?.terminalDefaultZoom)
       ? preferences.terminalDefaultZoom
       : 100
-    return { theme, defaultZoom, ...(selectedProfile ? { selectedProfile } : {}), profiles }
+    return { theme, defaultZoom }
   } catch {
-    return { theme: 'app', defaultZoom: 100, profiles: [] }
+    return { theme: 'app', defaultZoom: 100 }
+  }
+}
+
+/** Lists Terminal.app and iTerm2 profiles independently of the active selection. */
+export async function loadDesktopTerminalThemeProfiles(): Promise<TerminalThemeProfile[]> {
+  try {
+    return (await getDesktopBridge()?.terminalThemes?.listProfiles()) ?? []
+  } catch {
+    return []
   }
 }
 

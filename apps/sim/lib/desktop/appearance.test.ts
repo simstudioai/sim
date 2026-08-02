@@ -1,3 +1,4 @@
+import { TERMINAL_DARK_THEME } from '@sim/desktop-bridge'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { mockBridge } = vi.hoisted(() => ({ mockBridge: { current: undefined as unknown } }))
@@ -6,7 +7,11 @@ vi.mock('@/lib/desktop', () => ({
   getDesktopBridge: () => mockBridge.current,
 }))
 
-import { loadDesktopTerminalAppearance, resolveDesktopAppearanceTheme } from './appearance'
+import {
+  loadDesktopTerminalAppearance,
+  loadDesktopTerminalThemeProfiles,
+  resolveDesktopAppearanceTheme,
+} from './appearance'
 
 afterEach(() => {
   mockBridge.current = undefined
@@ -31,34 +36,17 @@ describe('resolveDesktopAppearanceTheme', () => {
 })
 
 describe('loadDesktopTerminalAppearance', () => {
-  it('returns the cached selection and currently available source profiles', async () => {
+  it('returns a cached profile selection without waiting for source discovery', async () => {
     const selectedProfile = {
       id: 'iterm2:ocean',
       name: 'Ocean',
       source: 'iterm2' as const,
       palette: {
+        ...TERMINAL_DARK_THEME,
         background: '#101010',
-        foreground: '#f0f0f0',
-        cursor: '#ffffff',
-        selectionBackground: '#264f78',
-        black: '#000000',
-        red: '#cc0000',
-        green: '#00cc00',
-        yellow: '#cccc00',
-        blue: '#0000cc',
-        magenta: '#cc00cc',
-        cyan: '#00cccc',
-        white: '#cccccc',
-        brightBlack: '#555555',
-        brightRed: '#ff5555',
-        brightGreen: '#55ff55',
-        brightYellow: '#ffff55',
-        brightBlue: '#5555ff',
-        brightMagenta: '#ff55ff',
-        brightCyan: '#55ffff',
-        brightWhite: '#ffffff',
       },
     }
+    const listProfiles = vi.fn(async () => [selectedProfile])
     mockBridge.current = {
       settings: {
         getPreferences: vi.fn(async () => ({
@@ -67,24 +55,19 @@ describe('loadDesktopTerminalAppearance', () => {
           notificationsOnlyWhenUnfocused: true,
           launchAtLogin: false,
           autoDownloadUpdates: true,
-          terminalTheme: 'profile:iterm2:ocean',
+          terminalTheme: selectedProfile,
           terminalDefaultZoom: 125,
-          terminalProfile: selectedProfile,
         })),
       },
-      terminalThemes: {
-        listProfiles: vi.fn(async () => [
-          { ...selectedProfile, sourceLabel: 'iTerm2', isDefault: true },
-        ]),
-      },
+      terminalThemes: { listProfiles },
     }
 
     await expect(loadDesktopTerminalAppearance()).resolves.toEqual({
-      theme: 'profile:iterm2:ocean',
+      theme: selectedProfile,
       defaultZoom: 125,
-      selectedProfile,
-      profiles: [{ ...selectedProfile, sourceLabel: 'iTerm2', isDefault: true }],
     })
+    expect(listProfiles).not.toHaveBeenCalled()
+    await expect(loadDesktopTerminalThemeProfiles()).resolves.toEqual([selectedProfile])
   })
   it('falls back to actual size when the shell has no valid baseline', async () => {
     mockBridge.current = {

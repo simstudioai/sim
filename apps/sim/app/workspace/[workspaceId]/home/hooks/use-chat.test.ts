@@ -13,6 +13,7 @@ import {
   panelForExecutingClientTool,
   reconcileLiveAssistantTurn,
   selectReconnectReplayState,
+  waitForDetachedChatResolution,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type {
   ChatMessage,
@@ -70,6 +71,39 @@ function toolBatchEvent(
     },
   } as StreamBatchEvent
 }
+
+describe('waitForDetachedChatResolution', () => {
+  it('returns a durable chat owner without retrying', async () => {
+    const resolve = vi.fn(async () => ({ chatId: 'chat-1', terminal: false }))
+
+    await expect(
+      waitForDetachedChatResolution(resolve, new AbortController().signal)
+    ).resolves.toEqual({ chatId: 'chat-1', terminal: false })
+    expect(resolve).toHaveBeenCalledOnce()
+  })
+
+  it('returns a terminal result without retrying', async () => {
+    const resolve = vi.fn(async () => ({ terminal: true }))
+
+    await expect(
+      waitForDetachedChatResolution(resolve, new AbortController().signal)
+    ).resolves.toEqual({ terminal: true })
+    expect(resolve).toHaveBeenCalledOnce()
+  })
+
+  it('does not continue resolution after cancellation', async () => {
+    const controller = new AbortController()
+    const resolve = vi.fn(async () => {
+      controller.abort('test cancellation')
+      return { terminal: false }
+    })
+
+    await expect(waitForDetachedChatResolution(resolve, controller.signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(resolve).toHaveBeenCalledOnce()
+  })
+})
 
 describe('reconcileLiveAssistantTurn', () => {
   it('replaces the live assistant for the active stream owner', () => {

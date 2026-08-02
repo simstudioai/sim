@@ -14,6 +14,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
@@ -183,6 +184,8 @@ const QUEUED_SEND_HANDOFF_TTL_MS = 5 * 60 * 1000
 const QUEUED_SEND_HANDOFF_CLAIM_TTL_MS = 30_000
 const QUEUED_SEND_HANDOFF_RETRY_BASE_MS = 1000
 const QUEUED_SEND_HANDOFF_RETRY_MAX_MS = 30_000
+const DETACHED_CHAT_RETRY_BASE_MS = 1000
+const DETACHED_CHAT_RETRY_MAX_MS = 30_000
 
 // Stable empty array — sharing one reference keeps the selector from
 // re-rendering on unrelated store writes.
@@ -302,6 +305,28 @@ async function sleepWithAbort(ms: number, signal?: AbortSignal) {
       signal.addEventListener('abort', onAbort, { once: true })
     }),
   ]).finally(() => cleanup?.())
+}
+
+/** Resolves a detached stream until it has a durable chat owner or reaches a terminal state. */
+export async function waitForDetachedChatResolution(
+  resolve: () => Promise<DetachedChatResolution>,
+  signal: AbortSignal
+): Promise<DetachedChatResolution> {
+  let attempt = 1
+  while (true) {
+    if (signal.aborted) throw createAbortError(signal)
+    const resolution = await resolve()
+    if (signal.aborted) throw createAbortError(signal)
+    if (resolution.chatId || resolution.terminal) return resolution
+    await sleepWithAbort(
+      backoffWithJitter(attempt, null, {
+        baseMs: DETACHED_CHAT_RETRY_BASE_MS,
+        maxMs: DETACHED_CHAT_RETRY_MAX_MS,
+      }),
+      signal
+    )
+    attempt++
+  }
 }
 
 function isFileAttachmentForApi(value: unknown): value is FileAttachmentForApi {
@@ -1337,7 +1362,7 @@ export function useChat(
     ) => Promise<string | undefined>
   >(async () => undefined)
   const resolveDetachedChatForStreamRef = useRef<
-    (streamId: string) => Promise<DetachedChatResolution>
+    (streamId: string, signal?: AbortSignal) => Promise<DetachedChatResolution>
   >(async () => ({ terminal: false }))
   const finalizeRef = useRef<(options?: { error?: boolean; targetChatId?: string }) => void>(
     () => {}
@@ -1345,6 +1370,7 @@ export function useChat(
   const recoveringQueuedSendHandoffRef = useRef<ActiveQueuedSendHandoffRecovery | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
+  const detachedChatResolutionControllersRef = useRef<Set<AbortController>>(new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const pendingDesktopScopeIdRef = useRef(
@@ -1957,28 +1983,30 @@ export function useChat(
           // emits its chat id. Keep resolving that detached stream in the
           // background so its native resources are re-keyed onto the server
           // chat even though this reader is intentionally being cancelled.
+          const detachedResolutionController = new AbortController()
+          detachedChatResolutionControllersRef.current.add(detachedResolutionController)
           void (async () => {
-            let resolvedChatId: string | undefined
-            let retryDelayMs = 1000
-            while (!resolvedChatId) {
-              const resolution = await resolveDetachedChatForStreamRef.current(pendingStreamId)
-              resolvedChatId = resolution.chatId
-              if (resolvedChatId) break
-              if (resolution.terminal) {
-                await Promise.all([
-                  discardBrowserScope(previousDesktopScopeId),
-                  discardTerminalScope(previousDesktopScopeId),
-                ])
-                logger.warn(
-                  'Detached stream ended without a chat id; discarded provisional resources',
-                  {
-                    streamId: pendingStreamId,
-                  }
-                )
-                return
-              }
-              await sleep(retryDelayMs)
-              retryDelayMs = Math.min(retryDelayMs * 2, 30_000)
+            const resolution = await waitForDetachedChatResolution(
+              () =>
+                resolveDetachedChatForStreamRef.current(
+                  pendingStreamId,
+                  detachedResolutionController.signal
+                ),
+              detachedResolutionController.signal
+            )
+            const resolvedChatId = resolution.chatId
+            if (!resolvedChatId) {
+              await Promise.all([
+                discardBrowserScope(previousDesktopScopeId),
+                discardTerminalScope(previousDesktopScopeId),
+              ])
+              logger.warn(
+                'Detached stream ended without a chat id; discarded provisional resources',
+                {
+                  streamId: pendingStreamId,
+                }
+              )
+              return
             }
 
             await Promise.all([
@@ -1999,12 +2027,17 @@ export function useChat(
               queryKey: mothershipChatKeys.detail(resolvedChatId),
             })
             queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
-          })().catch((error) => {
-            logger.warn('Failed to attach provisional desktop resources to detached chat', {
-              streamId: pendingStreamId,
-              error: toError(error).message,
+          })()
+            .catch((error) => {
+              if (detachedResolutionController.signal.aborted) return
+              logger.warn('Failed to attach provisional desktop resources to detached chat', {
+                streamId: pendingStreamId,
+                error: toError(error).message,
+              })
             })
-          })
+            .finally(() => {
+              detachedChatResolutionControllersRef.current.delete(detachedResolutionController)
+            })
         }
         // Detach the current UI from the old stream without cancelling it on the server.
         // Reopening that chat later will reconnect through the existing chatHistory flow.
@@ -2560,9 +2593,9 @@ export function useChat(
   resolveChatIdForStreamRef.current = resolveChatIdForStream
 
   const resolveDetachedChatForStream = useCallback(
-    async (streamId: string): Promise<DetachedChatResolution> => {
+    async (streamId: string, signal?: AbortSignal): Promise<DetachedChatResolution> => {
       try {
-        const batch = await fetchStreamBatch(streamId, '0')
+        const batch = await fetchStreamBatch(streamId, '0', signal)
         const chatId = resolveChatIdFromStreamBatch(batch)
         return {
           ...(chatId ? { chatId } : {}),
@@ -4647,6 +4680,10 @@ export function useChat(
       cancelActiveStreamReader()
       abortControllerRef.current?.abort('unmount:client_cleanup')
       abortControllerRef.current = null
+      for (const controller of detachedChatResolutionControllersRef.current) {
+        controller.abort('unmount:detached_chat_resolution')
+      }
+      detachedChatResolutionControllersRef.current.clear()
       clearActiveTurn()
       sendingRef.current = false
       // Release the editing slot — the composer it binds to is unmounting.

@@ -23,8 +23,7 @@ interface ImportModalProps {
 function browserOptions(profiles: BrowserImportProfile[]) {
   const seen = new Map<string, string>()
   for (const { browserId, browserLabel } of profiles) {
-    const id = browserId ?? 'chrome'
-    if (!seen.has(id)) seen.set(id, browserLabel ?? 'Chrome')
+    if (!seen.has(browserId)) seen.set(browserId, browserLabel)
   }
   return [...seen].map(([value, label]) => ({ value, label }))
 }
@@ -43,7 +42,7 @@ export function ImportModal({ open, onOpenChange, profiles, pending, onImport }:
   const [browserId, setBrowserId] = useState(browsers[0]?.value ?? '')
 
   const profilesForBrowser = useMemo(
-    () => profiles.filter((profile) => (profile.browserId ?? 'chrome') === browserId),
+    () => profiles.filter((profile) => profile.browserId === browserId),
     [browserId, profiles]
   )
   const [profileId, setProfileId] = useState(profilesForBrowser[0]?.id ?? '')
@@ -90,7 +89,7 @@ export function ImportModal({ open, onOpenChange, profiles, pending, onImport }:
           title='Profile'
           options={profilesForBrowser.map((profile) => ({
             value: profile.id,
-            label: profile.profileLabel ?? profile.label,
+            label: profile.profileLabel,
           }))}
           value={profileId}
           onChange={setProfileId}

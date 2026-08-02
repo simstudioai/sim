@@ -259,16 +259,6 @@ describe('PasswordDetail', () => {
     expect(onBack).toHaveBeenCalled()
   })
 
-  it('disables reveal and copy on shells that predate them', async () => {
-    const stale = createBridge()
-    ;(stale.browserCredentials as { reveal?: unknown }).reveal = undefined
-    mockBridge.current = stale
-    await render()
-
-    expect(buttonWithLabel('Show password').disabled).toBe(true)
-    expect(buttonWithLabel('Copy password').disabled).toBe(true)
-  })
-
   it('shows the site\u2019s own icon when the import captured one', async () => {
     await render({ ...CREDENTIAL, icon: 'data:image/png;base64,AA' })
 

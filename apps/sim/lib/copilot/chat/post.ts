@@ -309,7 +309,6 @@ const ChatMessageSchema = z.object({
         .optional(),
     })
     .optional(),
-  browserCapable: z.boolean().optional(),
 })
 
 type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
@@ -352,7 +351,7 @@ type UnifiedChatBranch =
         workspaceContext?: string
         vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
-        browserCapable?: boolean
+        browser?: boolean
         terminalCapable?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
@@ -388,7 +387,7 @@ type UnifiedChatBranch =
         workspaceContext?: string
         vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
-        browserCapable?: boolean
+        browser?: boolean
         terminalCapable?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
@@ -865,7 +864,7 @@ async function resolveBranch(params: {
             userTimezone: payloadParams.userTimezone,
             userMetadata: payloadParams.userMetadata,
             desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
-            browserCapable: payloadParams.browserCapable,
+            browser: payloadParams.browser,
             terminalCapable: payloadParams.terminalCapable,
             terminals: payloadParams.terminals,
             browserSessions: payloadParams.browserSessions,
@@ -927,7 +926,7 @@ async function resolveBranch(params: {
           userTimezone: payloadParams.userTimezone,
           userMetadata: payloadParams.userMetadata,
           desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
-          browserCapable: payloadParams.browserCapable,
+          browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
           terminals: payloadParams.terminals,
           browserSessions: payloadParams.browserSessions,
@@ -1262,8 +1261,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 workspaceContext,
                 vfs,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
-                browserCapable:
-                  body.desktopCapabilities?.browser === true || body.browserCapable === true,
+                browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
@@ -1283,8 +1281,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 workspaceContext,
                 vfs,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
-                browserCapable:
-                  body.desktopCapabilities?.browser === true || body.browserCapable === true,
+                browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,

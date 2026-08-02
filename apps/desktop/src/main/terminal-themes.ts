@@ -1,38 +1,17 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import type {
-  TerminalThemePalette,
-  TerminalThemeProfile,
-  TerminalThemeSource,
+import {
+  isTerminalSelectedProfile,
+  TERMINAL_DARK_THEME,
+  TERMINAL_LIGHT_THEME,
+  TERMINAL_THEME_ANSI_KEYS,
+  type TerminalThemeProfile,
 } from '@sim/desktop-bridge'
-import { isRecordLike } from '@sim/utils/object'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 
 const execFileAsync = promisify(execFile)
-
-const REQUIRED_PALETTE_KEYS = [
-  'background',
-  'foreground',
-  'cursor',
-  'selectionBackground',
-  'black',
-  'red',
-  'green',
-  'yellow',
-  'blue',
-  'magenta',
-  'cyan',
-  'white',
-  'brightBlack',
-  'brightRed',
-  'brightGreen',
-  'brightYellow',
-  'brightBlue',
-  'brightMagenta',
-  'brightCyan',
-  'brightWhite',
-] as const satisfies readonly (keyof TerminalThemePalette)[]
-
-const COLOR_PATTERN = /^#[0-9a-f]{6}$/i
+const logger = createLogger('TerminalThemes')
 
 const JXA_SCRIPT = `
 ObjC.import('AppKit')
@@ -65,7 +44,11 @@ function appKitColor(profile, key, fallback) {
 
 function dictionaryColor(value, fallback) {
   if (!value || typeof value !== 'object') return fallback
-  return hex(value['Red Component'], value['Green Component'], value['Blue Component'])
+  const red = Number(value['Red Component'])
+  const green = Number(value['Green Component'])
+  const blue = Number(value['Blue Component'])
+  if (![red, green, blue].every(Number.isFinite)) return fallback
+  return hex(red, green, blue)
 }
 
 function isDark(color) {
@@ -75,19 +58,9 @@ function isDark(color) {
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue < 0.5
 }
 
-const LIGHT_ANSI = [
-  '#24292e', '#d1242f', '#1a7f37', '#9a6700', '#0969da', '#8250df', '#1b7c83', '#6e7781',
-  '#57606a', '#a40e26', '#1a7f37', '#633c01', '#218bff', '#a475f9', '#3192aa', '#8c959f'
-]
-const DARK_ANSI = [
-  '#484f58', '#ff7b72', '#3fb950', '#d29922', '#58a6ff', '#bc8cff', '#39c5cf', '#b1bac4',
-  '#6e7681', '#ffa198', '#56d364', '#e3b341', '#79c0ff', '#d2a8ff', '#56d4dd', '#f0f6fc'
-]
-const PALETTE_KEYS = [
-  'black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white',
-  'brightBlack', 'brightRed', 'brightGreen', 'brightYellow', 'brightBlue', 'brightMagenta',
-  'brightCyan', 'brightWhite'
-]
+const LIGHT_THEME = ${JSON.stringify(TERMINAL_LIGHT_THEME)}
+const DARK_THEME = ${JSON.stringify(TERMINAL_DARK_THEME)}
+const PALETTE_KEYS = ${JSON.stringify(TERMINAL_THEME_ANSI_KEYS)}
 const TERMINAL_ANSI_KEYS = [
   'ANSIBlackColor', 'ANSIRedColor', 'ANSIGreenColor', 'ANSIYellowColor', 'ANSIBlueColor',
   'ANSIMagentaColor', 'ANSICyanColor', 'ANSIWhiteColor', 'ANSIBrightBlackColor',
@@ -96,37 +69,38 @@ const TERMINAL_ANSI_KEYS = [
 ]
 
 function terminalPalette(profile) {
-  const fallbackBackground = '#ffffff'
-  const background = appKitColor(profile, 'BackgroundColor', fallbackBackground)
+  const background = appKitColor(profile, 'BackgroundColor', LIGHT_THEME.background)
   const dark = isDark(background)
-  const ansi = dark ? DARK_ANSI : LIGHT_ANSI
+  const fallback = dark ? DARK_THEME : LIGHT_THEME
   const palette = {
     background: background,
-    foreground: appKitColor(profile, 'TextColor', dark ? '#e6edf3' : '#1f2328'),
-    cursor: appKitColor(profile, 'CursorColor', dark ? '#e6edf3' : '#1f2328'),
+    foreground: appKitColor(profile, 'TextColor', fallback.foreground),
+    cursor: appKitColor(profile, 'CursorColor', fallback.cursor),
     cursorAccent: background,
-    selectionBackground: appKitColor(profile, 'SelectionColor', dark ? '#264f78' : '#b4d5fe')
+    selectionBackground: appKitColor(profile, 'SelectionColor', fallback.selectionBackground)
   }
   for (let index = 0; index < PALETTE_KEYS.length; index += 1) {
-    palette[PALETTE_KEYS[index]] = appKitColor(profile, TERMINAL_ANSI_KEYS[index], ansi[index])
+    const key = PALETTE_KEYS[index]
+    palette[key] = appKitColor(profile, TERMINAL_ANSI_KEYS[index], fallback[key])
   }
   return palette
 }
 
 function itermPalette(profile) {
-  const background = dictionaryColor(profile['Background Color'], '#ffffff')
+  const background = dictionaryColor(profile['Background Color'], LIGHT_THEME.background)
   const dark = isDark(background)
-  const ansi = dark ? DARK_ANSI : LIGHT_ANSI
+  const fallback = dark ? DARK_THEME : LIGHT_THEME
   const palette = {
     background: background,
-    foreground: dictionaryColor(profile['Foreground Color'], dark ? '#e6edf3' : '#1f2328'),
-    cursor: dictionaryColor(profile['Cursor Color'], dark ? '#e6edf3' : '#1f2328'),
+    foreground: dictionaryColor(profile['Foreground Color'], fallback.foreground),
+    cursor: dictionaryColor(profile['Cursor Color'], fallback.cursor),
     cursorAccent: dictionaryColor(profile['Cursor Text Color'], background),
-    selectionBackground: dictionaryColor(profile['Selection Color'], dark ? '#264f78' : '#b4d5fe'),
-    selectionForeground: dictionaryColor(profile['Selected Text Color'], dark ? '#e6edf3' : '#1f2328')
+    selectionBackground: dictionaryColor(profile['Selection Color'], fallback.selectionBackground),
+    selectionForeground: dictionaryColor(profile['Selected Text Color'], fallback.foreground)
   }
   for (let index = 0; index < PALETTE_KEYS.length; index += 1) {
-    palette[PALETTE_KEYS[index]] = dictionaryColor(profile['Ansi ' + index + ' Color'], ansi[index])
+    const key = PALETTE_KEYS[index]
+    palette[key] = dictionaryColor(profile['Ansi ' + index + ' Color'], fallback[key])
   }
   return palette
 }
@@ -136,7 +110,6 @@ const profiles = []
 try {
   const defaults = $.NSUserDefaults.alloc.initWithSuiteName('com.apple.Terminal')
   const settings = defaults.dictionaryForKey('Window Settings')
-  const defaultName = String(ObjC.unwrap(defaults.stringForKey('Default Window Settings')) || '')
   const names = settings ? ObjC.deepUnwrap(settings.allKeys) : []
   for (const name of names) {
     const profile = settings.objectForKey(name)
@@ -145,8 +118,6 @@ try {
       id: 'terminal:' + encodeURIComponent(name),
       name: String(name),
       source: 'terminal',
-      sourceLabel: 'Terminal',
-      isDefault: String(name) === defaultName,
       palette: terminalPalette(profile)
     })
   }
@@ -155,7 +126,6 @@ try {
 try {
   const defaults = $.NSUserDefaults.alloc.initWithSuiteName('com.googlecode.iterm2')
   const bookmarks = ObjC.deepUnwrap(defaults.arrayForKey('New Bookmarks')) || []
-  const defaultGuid = String(ObjC.unwrap(defaults.stringForKey('Default Bookmark Guid')) || '')
   for (const profile of bookmarks) {
     if (!profile || typeof profile !== 'object') continue
     const guid = String(profile.Guid || '')
@@ -165,8 +135,6 @@ try {
       id: 'iterm2:' + encodeURIComponent(guid),
       name: name,
       source: 'iterm2',
-      sourceLabel: 'iTerm2',
-      isDefault: guid === defaultGuid,
       palette: itermPalette(profile)
     })
   }
@@ -175,82 +143,65 @@ try {
 JSON.stringify(profiles)
 `
 
-function isThemeSource(value: unknown): value is TerminalThemeSource {
-  return value === 'terminal' || value === 'iterm2'
-}
-
-function isThemePalette(value: unknown): value is TerminalThemePalette {
-  if (!isRecordLike(value)) return false
-  for (const key of REQUIRED_PALETTE_KEYS) {
-    if (typeof value[key] !== 'string' || !COLOR_PATTERN.test(value[key])) return false
-  }
-  for (const key of ['cursorAccent', 'selectionForeground'] as const) {
-    if (
-      value[key] !== undefined &&
-      (typeof value[key] !== 'string' || !COLOR_PATTERN.test(value[key]))
-    ) {
-      return false
-    }
-  }
-  return true
-}
-
-function parsePalette(value: unknown): TerminalThemePalette | null {
-  return isThemePalette(value) ? value : null
-}
-
 /** Validates the color-only output of the macOS profile reader. */
 export function parseTerminalThemeProfiles(value: unknown): TerminalThemeProfile[] {
   if (!Array.isArray(value)) return []
   const seen = new Set<string>()
   const profiles: TerminalThemeProfile[] = []
   for (const candidate of value) {
-    if (!isRecordLike(candidate)) continue
-    const { id, name, source, sourceLabel, isDefault } = candidate
-    const palette = parsePalette(candidate.palette)
-    if (
-      typeof id !== 'string' ||
-      id.length === 0 ||
-      id.length > 300 ||
-      seen.has(id) ||
-      typeof name !== 'string' ||
-      name.length === 0 ||
-      name.length > 200 ||
-      !isThemeSource(source) ||
-      typeof sourceLabel !== 'string' ||
-      sourceLabel.length === 0 ||
-      sourceLabel.length > 50 ||
-      typeof isDefault !== 'boolean' ||
-      !palette
-    ) {
-      continue
-    }
-    seen.add(id)
-    profiles.push({ id, name, source, sourceLabel, isDefault, palette })
+    if (!isTerminalSelectedProfile(candidate) || seen.has(candidate.id)) continue
+    seen.add(candidate.id)
+    profiles.push({
+      id: candidate.id,
+      name: candidate.name,
+      source: candidate.source,
+      palette: { ...candidate.palette },
+    })
   }
   return profiles.sort(
-    (left, right) =>
-      left.sourceLabel.localeCompare(right.sourceLabel) ||
-      Number(right.isDefault) - Number(left.isDefault) ||
-      left.name.localeCompare(right.name)
+    (left, right) => left.source.localeCompare(right.source) || left.name.localeCompare(right.name)
   )
 }
 
-/** Reads installed Terminal.app and iTerm2 profiles without modifying either application. */
-export async function listTerminalThemeProfiles(): Promise<TerminalThemeProfile[]> {
+async function readTerminalThemeProfiles(): Promise<TerminalThemeProfile[]> {
   if (process.platform !== 'darwin') return []
-  try {
-    const { stdout } = await execFileAsync(
-      '/usr/bin/osascript',
-      ['-l', 'JavaScript', '-e', JXA_SCRIPT],
-      {
-        encoding: 'utf8',
-        maxBuffer: 4 * 1024 * 1024,
-        timeout: 5_000,
-      }
-    )
-    return parseTerminalThemeProfiles(JSON.parse(stdout))
-  } catch {
-    return []
-  }
+  const { stdout } = await execFileAsync(
+    '/usr/bin/osascript',
+    ['-l', 'JavaScript', '-e', JXA_SCRIPT],
+    {
+      encoding: 'utf8',
+      maxBuffer: 4 * 1024 * 1024,
+      timeout: 5_000,
+    }
+  )
+  return parseTerminalThemeProfiles(JSON.parse(stdout))
+}
+
+let cachedProfiles: TerminalThemeProfile[] | null = null
+let profileLoad: Promise<TerminalThemeProfile[]> | null = null
+
+/** Reads Terminal.app and iTerm2 profiles once per desktop process. */
+export async function listTerminalThemeProfiles(): Promise<TerminalThemeProfile[]> {
+  if (cachedProfiles) return cachedProfiles
+  profileLoad ??= readTerminalThemeProfiles()
+    .then((profiles) => {
+      cachedProfiles = profiles
+      return profiles
+    })
+    .catch((error) => {
+      logger.warn('Could not read terminal theme profiles', { error: getErrorMessage(error) })
+      cachedProfiles = []
+      return cachedProfiles
+    })
+    .finally(() => {
+      profileLoad = null
+    })
+  return profileLoad
+}
+
+/** Resolves selection only from profiles already shown to the user. */
+export function findCachedTerminalThemeProfile(
+  profileId: string
+): TerminalThemeProfile | undefined {
+  return cachedProfiles?.find(({ id }) => id === profileId)
 }

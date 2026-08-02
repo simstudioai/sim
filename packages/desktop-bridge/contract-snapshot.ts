@@ -137,7 +137,7 @@ export interface BrowserPanelSnapshot {
   tabId: string
   zoomPercent: number
   /** Chat scope that owns the captured tab. */
-  scopeId?: string
+  scopeId: string
 }
 
 /**
@@ -171,10 +171,9 @@ export interface BrowserPanelAction {
 
 /** Live state of the active page, pushed to the panel header. */
 export interface BrowserPageState {
-  /** Present on desktop versions with multi-tab UI support. */
-  tabId?: string
-  /** Chat scope that owns this page, when reported by a scoped desktop build. */
-  scopeId?: string
+  tabId: string
+  /** Chat scope that owns this page. */
+  scopeId: string
   url: string
   title: string
   loading: boolean
@@ -225,15 +224,15 @@ export interface BrowserTabState {
   loading: boolean
   active: boolean
   /** Pinned tabs are ordered before regular tabs and cannot be closed. */
-  pinned?: boolean
+  pinned: boolean
 }
 
 /** Complete live tab list pushed by the desktop shell. */
 export interface BrowserTabsState {
   tabs: BrowserTabState[]
   activeTabId: string | null
-  /** Chat scope that owns this tab set, when reported by a scoped desktop build. */
-  scopeId?: string
+  /** Chat scope that owns this tab set. */
+  scopeId: string
 }
 
 /**
@@ -608,12 +607,11 @@ export interface TerminalPanesResult {
 export interface TerminalTabsState {
   tabs: TerminalTabState[]
   activeTerminalId: string | null
-  /**
-   * Renderer-to-desktop scope that owns these terminals. New desktop builds
-   * set this on pushed state; it remains optional for compatibility with
-   * installed builds that predate chat isolation.
-   */
-  scopeId?: string
+}
+
+/** A tab strip crossing the desktop bridge, tagged with its owning chat. */
+export interface ScopedTerminalTabsState extends TerminalTabsState {
+  scopeId: string
 }
 
 /** The result of one terminal tool invocation, as returned over the bridge. */
@@ -621,8 +619,7 @@ export interface TerminalToolResponse {
   ok: boolean
   result?: unknown
   error?: string
-  /** Error codes are open-ended across independently updated desktop shells. */
-  code?: string
+  code?: TerminalErrorCode
 }
 
 export type TerminalErrorCode =
@@ -664,12 +661,32 @@ export interface TerminalCommandEvent {
   terminalId: string
   phase: 'start' | 'end'
   command: string
-  /** Chat scope that owns the terminal, when reported by a scoped desktop build. */
-  scopeId?: string
   /** Set when the agent initiated this command rather than the user. */
   toolCallId?: string
   exitCode?: number
   durationMs?: number
+}
+
+/** A command event crossing the desktop bridge, tagged with its owning chat. */
+export interface ScopedTerminalCommandEvent extends TerminalCommandEvent {
+  scopeId: string
+}
+
+export const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
+
+const DESKTOP_SCOPE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+const PENDING_DESKTOP_SCOPE_PATTERN = /^pending:[A-Za-z0-9_-]{1,128}$/
+
+/** True for a durable chat id or the provisional id used while creating one. */
+export function isDesktopScopeId(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    (DESKTOP_SCOPE_PATTERN.test(value) || PENDING_DESKTOP_SCOPE_PATTERN.test(value))
+  )
+}
+
+export function isPendingDesktopScopeId(scopeId: string): boolean {
+  return scopeId.startsWith(PENDING_DESKTOP_SCOPE_PREFIX)
 }
 
 /**
@@ -678,18 +695,10 @@ export interface TerminalCommandEvent {
  * forwards keystrokes back. Several terminals can be open at once, each its own
  * shell, and the user and the agent share them — so working directory and
  * environment stay consistent between the two.
- *
- * Members added after this surface first shipped are `optional?`, matching the
- * browser-agent surface beside it and the "feature-detect, never assume" rule
- * in apps/desktop/README.md: one web app is served to shells of every age, and
- * `MIN_DESKTOP_VERSION` is still `0.0.0` (no floor), so an older shell reaches
- * this code. Declaring such a member required makes the type disagree with the
- * renderer, which has to `?.` it anyway — and the contract audit cannot catch
- * that, because it compares against a snapshot the same PR regenerates.
  */
 export interface SimDesktopTerminalApi {
   /** Open the first terminal, or adopt the ones already running. */
-  start(options: TerminalStartOptions, scopeId?: string): Promise<TerminalTabsState>
+  start(options: TerminalStartOptions, scopeId: string): Promise<ScopedTerminalTabsState>
   /**
    * Execute one terminal operation. Resolves with the outcome; never rejects
    * for tool-level failures (those ride `ok: false`).
@@ -698,10 +707,10 @@ export interface SimDesktopTerminalApi {
     toolCallId: string,
     operation: TerminalOperation,
     args: TerminalToolArgs,
-    scopeId?: string
+    scopeId: string
   ): Promise<TerminalToolResponse>
   /** Forward the user's keystrokes to one terminal's PTY. */
-  write(terminalId: string, data: string, scopeId?: string): void
+  write(terminalId: string, data: string, scopeId: string): void
   /**
    * Paste the system clipboard into one terminal's PTY.
    *
@@ -710,62 +719,56 @@ export interface SimDesktopTerminalApi {
    * content cannot reach the clipboard, and it means a compromised renderer can
    * only replay what the user already copied instead of choosing the bytes.
    * Resolves false when the clipboard held nothing to paste.
-   *
-   * Optional: shells that predate it fall back to reading the clipboard in the
-   * renderer.
    */
-  paste?(terminalId: string, scopeId?: string): Promise<boolean>
-  resize(terminalId: string, cols: number, rows: number, scopeId?: string): void
+  paste(terminalId: string, scopeId: string): Promise<boolean>
+  resize(terminalId: string, cols: number, rows: number, scopeId: string): void
   /** Open an additional terminal and make it active. */
-  openTerminal(cwd?: string, scopeId?: string): Promise<TerminalTabsState>
-  switchTerminal(terminalId: string, scopeId?: string): Promise<TerminalTabsState>
-  closeTerminal(terminalId: string, scopeId?: string): Promise<TerminalTabsState>
-  getTabs?(scopeId?: string): Promise<TerminalTabsState>
+  openTerminal(cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState>
+  switchTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
+  closeTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
+  getTabs(scopeId: string): Promise<ScopedTerminalTabsState>
   /** Makes a chat's terminal group the renderer-visible group. */
-  activateScope?(scopeId: string): Promise<TerminalTabsState>
+  activateScope(scopeId: string): Promise<ScopedTerminalTabsState>
   /** Moves a pending new-chat terminal group onto its assigned chat id. */
-  migrateScope?(fromScopeId: string, toScopeId: string): Promise<TerminalTabsState>
+  migrateScope(fromScopeId: string, toScopeId: string): Promise<ScopedTerminalTabsState>
   /** Abandons a provisional new-chat terminal group and its fresh shells. */
-  disposeScope?(scopeId: string): Promise<boolean>
+  disposeScope(scopeId: string): Promise<boolean>
   /** Stops a soft-deleted chat's shells while retaining its restart descriptor. */
-  suspendScope?(scopeId: string): Promise<boolean>
+  suspendScope(scopeId: string): Promise<boolean>
   /** End every shell. A new one starts on the next `start`. */
   dispose(): void
   /** Subscribe to PTY output batches. Returns an unsubscribe function. */
-  onData?(callback: (terminalId: string, data: string, scopeId?: string) => void): () => void
+  onData(callback: (terminalId: string, data: string, scopeId: string) => void): () => void
   /**
    * Everything already on a terminal's screen, for a new view to paint itself
    * from. Pulled per view so the repaint cannot be aimed at the wrong set of
    * subscribers, or at none at all.
    */
-  getScrollback(terminalId: string, scopeId?: string): Promise<string>
-  /**
-   * Forget retained output for one terminal. Optional so a newer renderer can
-   * still clear its local xterm when hosted by an older desktop shell.
-   */
-  clearScrollback?(terminalId: string, scopeId?: string): Promise<boolean>
+  getScrollback(terminalId: string, scopeId: string): Promise<string>
+  /** Forget retained output for one terminal. */
+  clearScrollback(terminalId: string, scopeId: string): Promise<boolean>
   /**
    * Reports whether the terminal panel owns keyboard focus, so global menu
    * accelerators can tell a Cmd-W meant for a terminal from one meant for the
    * window.
    */
-  setFocused?(focused: boolean, scopeId?: string): void
+  setFocused(focused: boolean, scopeId: string): void
   /**
    * The user finishing a handoff — the hand-back chip on the waiting tool row.
    */
-  finishHandoff?(terminalId: string, scopeId?: string): void
+  finishHandoff(terminalId: string, scopeId: string): void
   /** Subscribe to the open-terminal list and which one is active. */
-  onTabs?(callback: (state: TerminalTabsState) => void): () => void
+  onTabs(callback: (state: ScopedTerminalTabsState) => void): () => void
   /** Subscribe to command start/end, used for agent attribution in the panel. */
-  onCommand?(callback: (event: TerminalCommandEvent) => void): () => void
+  onCommand(callback: (event: ScopedTerminalCommandEvent) => void): () => void
   /** Subscribe to focus-routed terminal commands from desktop menu accelerators. */
-  onShortcutCommand?(
-    callback: (command: TerminalShortcutCommand, scopeId?: string, terminalId?: string) => void
+  onShortcutCommand(
+    callback: (command: TerminalShortcutCommand, scopeId: string, terminalId?: string) => void
   ): () => void
   /** Subscribe when the device-wide terminal zoom baseline changes. */
-  onDefaultZoomChanged?(callback: (zoom: DesktopZoomPercent) => void): () => void
+  onDefaultZoomChanged(callback: (zoom: DesktopZoomPercent) => void): () => void
   /** Subscribe when a task's live PTYs are stopped but its restart descriptor is retained. */
-  onScopeSuspended?(callback: (scopeId: string) => void): () => void
+  onScopeSuspended(callback: (scopeId: string) => void): () => void
 }
 
 /**
@@ -783,141 +786,114 @@ export interface SimDesktopBrowserAgentApi {
     toolCallId: string,
     tool: BrowserToolName,
     params: Record<string, unknown>,
-    scopeId?: string
+    scopeId: string
   ): Promise<BrowserToolResponse>
   /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
-  panelAction(action: BrowserPanelAction, scopeId?: string): void
+  panelAction(action: BrowserPanelAction, scopeId: string): void
   /** Makes a chat's browser tab set the renderer-visible set. */
-  activateScope?(scopeId: string): Promise<BrowserTabsState>
+  activateScope(scopeId: string): Promise<BrowserTabsState>
   /** Materializes a lazily activated chat's persisted tabs without showing its panel. */
-  restoreScope?(scopeId: string): Promise<BrowserTabsState>
+  restoreScope(scopeId: string): Promise<BrowserTabsState>
   /** Moves a pending new-chat browser set onto its assigned chat id. */
-  migrateScope?(fromScopeId: string, toScopeId: string): Promise<BrowserTabsState>
+  migrateScope(fromScopeId: string, toScopeId: string): Promise<BrowserTabsState>
   /** Abandons a provisional new-chat browser set and its local descriptor. */
-  disposeScope?(scopeId: string): Promise<boolean>
+  disposeScope(scopeId: string): Promise<boolean>
   /** Closes a soft-deleted chat's live pages while retaining its restart descriptor. */
-  suspendScope?(scopeId: string): Promise<boolean>
-  /**
-   * Pin or unpin a live browser tab. Optional for compatibility with desktop
-   * builds predating durable pinned tabs.
-   */
-  setTabPinned?(tabId: string, pinned: boolean, scopeId?: string): void
+  suspendScope(scopeId: string): Promise<boolean>
+  /** Pin or unpin a live browser tab. */
+  setTabPinned(tabId: string, pinned: boolean, scopeId: string): void
   /** Opens the native tab actions menu without covering the embedded page. */
-  showTabContextMenu?(tabId: string, scopeId?: string): void
-  /**
-   * Move a live tab to a final list index. Optional for compatibility with
-   * desktop builds predating tab reordering.
-   */
-  reorderTab?(tabId: string, targetIndex: number, scopeId?: string): void
+  showTabContextMenu(tabId: string, scopeId: string): void
+  /** Move a live tab to a final list index. */
+  reorderTab(tabId: string, targetIndex: number, scopeId: string): void
   /**
    * Report where the browser panel sits in the window (CSS pixels relative
    * to the viewport), or null when the panel is hidden/unmounted. The main
    * process keeps the embedded view glued to this rect.
    *
    * `anchor` declares how that rect derives from the viewport so the shell can
-   * re-evaluate it mid-resize rather than hold a stale rect; omit it and the
-   * shell falls back to the measured rect alone. Shells predating it ignore the
-   * argument.
+   * re-evaluate it mid-resize rather than hold a stale rect; null falls back to
+   * the measured rect alone.
    */
   setPanelBounds(
     bounds: BrowserPanelBounds | null,
-    anchor?: BrowserPanelAnchor | null,
-    scopeId?: string
+    anchor: BrowserPanelAnchor | null,
+    scopeId: string
   ): void
   /** Capture the current page before opening renderer-owned UI above it. */
-  capturePanelSnapshot?(scopeId?: string): Promise<BrowserPanelSnapshot | null>
+  capturePanelSnapshot(scopeId: string): Promise<BrowserPanelSnapshot | null>
   /** Hide/reveal the native page only after its replacement frame has painted. */
-  setPanelOccluded?(occluded: boolean, scopeId?: string): Promise<boolean> | ReturnType<() => void>
-  /**
-   * Report whether renderer-owned browser chrome currently owns the user's
-   * interaction context. Optional for compatibility with older desktop builds.
-   */
-  setPanelFocused?(focused: boolean, scopeId?: string): void
-  /**
-   * Mirror Sim's light/dark/system preference into the embedded pages.
-   * Optional for compatibility with desktop builds predating theme sync.
-   */
-  setTheme?(theme: BrowserTheme): void
+  setPanelOccluded(occluded: boolean, scopeId: string): Promise<boolean>
+  /** Report whether renderer-owned browser chrome owns the user's interaction context. */
+  setPanelFocused(focused: boolean, scopeId: string): void
+  /** Mirror Sim's light/dark/system preference into embedded pages. */
+  setTheme(theme: BrowserTheme): void
   /**
    * Focus requests emitted by native tabs for browser-level keyboard
    * shortcuts such as Mod+L and Mod+T.
    */
-  onFocusOmnibox?(callback: (mode: BrowserOmniboxFocusMode, scopeId?: string) => void): () => void
+  onFocusOmnibox(callback: (mode: BrowserOmniboxFocusMode, scopeId: string) => void): () => void
   /**
    * Run Chromium's find-in-page against the active tab. Results do not come
-   * back from this call — they stream through {@link onFindResult}. Optional
-   * for compatibility with desktop builds predating find-in-page.
+   * back from this call — they stream through {@link onFindResult}.
    */
-  find?(request: BrowserFindRequest, scopeId?: string): void
+  find(request: BrowserFindRequest, scopeId: string): void
   /**
    * Stop the running find and clear its highlights. `focusPage` hands keyboard
    * focus back to the page, for the user dismissing the bar; omit it when the
    * bar is going away because the panel is.
    */
-  stopFind?(focusPage?: boolean, scopeId?: string): void
+  stopFind(focusPage: boolean, scopeId: string): void
   /**
    * Mod+F pressed while the embedded page had focus, which the renderer never
    * sees as a key event. Opening the find bar is the renderer's job either
    * way, so both entry paths land on the same handler.
    */
-  onOpenFind?(callback: (scopeId?: string) => void): () => void
+  onOpenFind(callback: (scopeId: string) => void): () => void
   /**
    * The shell dismissing the find bar — the active tab navigated away from the
    * document the find was run against, or the user switched tabs.
    */
-  onCloseFind?(callback: (scopeId?: string) => void): () => void
+  onCloseFind(callback: (scopeId: string) => void): () => void
   /** Match counts for the running find, as Chromium resolves them. */
-  onFindResult?(callback: (result: BrowserFindResult, scopeId?: string) => void): () => void
+  onFindResult(callback: (result: BrowserFindResult, scopeId: string) => void): () => void
   /** Subscribe to live page state for the panel header. Returns an unsubscribe function. */
   onPageState(callback: (state: BrowserPageState) => void): () => void
-  /**
-   * Read the current live tab list. Optional so a newer web deployment remains
-   * compatible with installed desktop versions that only support one visible tab.
-   */
-  getTabsState?(scopeId?: string): Promise<BrowserTabsState>
-  /**
-   * Read a privacy-preserving hint of websites that may have a usable session
-   * in the dedicated profile. Optional for compatibility with older shells.
-   */
-  getKnownSessions?(): Promise<BrowserKnownSessionsState>
+  /** Read the current live tab list. */
+  getTabsState(scopeId: string): Promise<BrowserTabsState>
+  /** Read a privacy-preserving hint of websites that may have a usable session. */
+  getKnownSessions(): Promise<BrowserKnownSessionsState>
   /**
    * Erase browsing data from the dedicated profile and resolve the resulting
    * session list. Pass the kinds to clear; omit for all of them. Saved
    * passwords are never included — deleting those is a separate action.
-   * Optional for compatibility with older shells, which ignore the argument
-   * and clear everything.
    */
-  clearBrowsingData?(kinds?: readonly BrowserDataKind[]): Promise<BrowserKnownSessionsState>
+  clearBrowsingData(kinds?: readonly BrowserDataKind[]): Promise<BrowserKnownSessionsState>
   /** Recent downloads owned by one chat's isolated browser session. */
-  getDownloadsState?(scopeId?: string): Promise<BrowserDownloadsState>
+  getDownloadsState(scopeId: string): Promise<BrowserDownloadsState>
   /** Opens the native recent-downloads menu at a point in the app window. */
-  showDownloadsMenu?(anchor: { x: number; y: number }, scopeId?: string): Promise<boolean>
+  showDownloadsMenu(anchor: { x: number; y: number }, scopeId: string): Promise<boolean>
   /** Opens the native browser overflow menu at a point in the app window. */
-  showToolbarMenu?(anchor: { x: number; y: number }, scopeId?: string): Promise<boolean>
+  showToolbarMenu(anchor: { x: number; y: number }, scopeId: string): Promise<boolean>
   /** Reveals one completed download in Finder or the platform file manager. */
-  showDownloadInFolder?(downloadId: string, scopeId?: string): Promise<boolean>
+  showDownloadInFolder(downloadId: string, scopeId: string): Promise<boolean>
   /** Subscribe to download starts, progress, and completion for the active chat. */
-  onDownloadsState?(callback: (state: BrowserDownloadsState) => void): () => void
+  onDownloadsState(callback: (state: BrowserDownloadsState) => void): () => void
   /** Subscribe to settings/navigation actions chosen from the native toolbar menu. */
-  onToolbarCommand?(
-    callback: (command: BrowserToolbarCommand, scopeId?: string) => void
-  ): () => void
+  onToolbarCommand(callback: (command: BrowserToolbarCommand, scopeId: string) => void): () => void
   /** Subscribe when selected page text is attached to the owning chat input. */
-  onAddToChat?(callback: (payload: BrowserAddToChatPayload) => void): () => void
+  onAddToChat(callback: (payload: BrowserAddToChatPayload) => void): () => void
   /** Subscribe when the device-level browser appearance preference changes. */
-  onAppearanceThemeChanged?(callback: (theme: DesktopAppearanceTheme) => void): () => void
-  /**
-   * Subscribe to live tab-list changes. Optional for compatibility with older
-   * installed desktop versions.
-   */
-  onTabsState?(callback: (state: BrowserTabsState) => void): () => void
+  onAppearanceThemeChanged(callback: (theme: DesktopAppearanceTheme) => void): () => void
+  /** Subscribe to live tab-list changes. */
+  onTabsState(callback: (state: BrowserTabsState) => void): () => void
   /**
    * Subscribe to session liveness changes (false when the browser session
    * ends). Returns an unsubscribe function.
    */
-  onSessionStatus(callback: (alive: boolean, scopeId?: string) => void): () => void
+  onSessionStatus(callback: (alive: boolean, scopeId: string) => void): () => void
   /** Subscribe when a task's live pages close but its restart descriptor is retained. */
-  onScopeSuspended?(callback: (scopeId: string) => void): () => void
+  onScopeSuspended(callback: (scopeId: string) => void): () => void
 }
 
 export type BrowserDownloadState = 'progressing' | 'completed' | 'interrupted' | 'cancelled'
@@ -935,11 +911,11 @@ export interface BrowserDownloadInfo {
 /** The newest downloads for one browser scope, newest first. */
 export interface BrowserDownloadsState {
   downloads: BrowserDownloadInfo[]
-  scopeId?: string
+  scopeId: string
 }
 
 /** Renderer navigation requested by the native browser toolbar menu. */
-export type BrowserToolbarCommand = 'browser-settings' | 'passwords' | 'import' | 'clear-data'
+export type BrowserToolbarCommand = 'browser-settings' | 'import'
 
 /** Selected text and live page identity handed from the native browser to Sim. */
 export interface BrowserAddToChatPayload {
@@ -958,19 +934,17 @@ export interface BrowserAddToChatPayload {
  * the shell resolves it against the profiles it discovered rather than
  * building a path from it. Host paths never cross this bridge.
  *
- * `browserId` and `browserLabel` are optional because shells that only
- * supported Chrome did not report them — treat their absence as Chrome.
  */
 export interface BrowserImportProfile {
   id: string
   /** Browser and profile together, e.g. `Arc · Microtrades`. */
   label: string
   /** Stable browser identifier, e.g. `chrome`, `arc`, `brave`. */
-  browserId?: string
+  browserId: string
   /** The browser's product name, e.g. `Arc`. */
-  browserLabel?: string
+  browserLabel: string
   /** The profile on its own, e.g. `Microtrades` or `Default`. */
-  profileLabel?: string
+  profileLabel: string
 }
 
 /**
@@ -1001,9 +975,8 @@ export interface BrowserImportResult {
 
 /**
  * Local, user-initiated import of Chrome data into the built-in browser's
- * dedicated profile. macOS-only today, and optional in two senses: older
- * shells lack the surface entirely, and shells on platforms without a
- * supported importer omit it too — so always feature-detect before rendering.
+ * dedicated profile. macOS-only today; shells on platforms without a
+ * supported importer omit the entire surface.
  *
  * The agent cannot reach this. Both methods are gated in the main process to
  * the Sim app origin, `importChromeCookies` additionally requires a live user
@@ -1034,11 +1007,8 @@ export interface SimDesktopBrowserImportApi {
    * The sites previous imports brought over, so the omnibox has somewhere to
    * start on a browser that keeps no history of its own — and can offer
    * "Gmail" instead of `mail.google.com`.
-   *
-   * Optional — feature-detect before calling, so a newer web deployment keeps
-   * working against an installed shell that predates it.
    */
-  listSites?(): Promise<BrowserSiteInfo[]>
+  listSites(): Promise<BrowserSiteInfo[]>
   /**
    * Copy one Chrome profile's cookies into the built-in browser, preserving
    * each cookie's security attributes. Requires an active user gesture in the
@@ -1054,10 +1024,8 @@ export interface SimDesktopBrowserImportApi {
    * then be refused for a user who did nothing wrong. Each half reports its
    * own outcome, so one failing does not hide the other.
    *
-   * Optional: shells that predate saved passwords expose only
-   * {@link importChromeCookies}, so feature-detect before offering it.
    */
-  importFromChrome?(
+  importFromChrome(
     profileId?: string,
     policy?: BrowserCredentialConflictPolicy
   ): Promise<BrowserChromeImportResult>
@@ -1109,27 +1077,26 @@ export interface BrowserCredentialMetadata {
  * Whether the active browser tab is showing a login form that Sim holds a
  * credential for — just enough to decide whether to offer the fill affordance.
  *
- * Intentionally carries only the boolean and its opaque chat scope. The
- * renderer learns nothing about which accounts exist, and the chooser itself
- * is a native main-process surface, so no credential identifier crosses this
- * bridge on the fill path at all.
+ * Intentionally carries only the boolean and its opaque chat scope. Matching
+ * accounts are requested separately and only in response to opening the
+ * chooser, while password plaintext never crosses this bridge on the fill
+ * path.
  */
 export interface BrowserFillAvailability {
   available: boolean
   /** Chat scope owning the page whose availability was measured. */
-  scopeId?: string
+  scopeId: string
 }
 
 /**
  * The saved-password surface for the built-in browser: an OS-encrypted local
  * vault plus a user-driven fill.
  *
- * Optional so newer web deployments keep working against shells that lack it,
- * and absent where secure storage is unavailable — there is no plaintext
- * fallback. The agent has no path to any of it: management calls require the
- * Sim app origin, filling additionally requires a real user gesture and is
- * completed by a native menu the renderer cannot drive, and no browser tool
- * maps to these channels.
+ * The surface remains present when secure storage is unavailable and reports
+ * that state through {@link SimDesktopBrowserCredentialsApi.isAvailable};
+ * there is no plaintext fallback. The agent has no path to any of it:
+ * management calls require the Sim app origin, filling additionally requires
+ * a real user gesture, and no browser tool maps to these channels.
  */
 export interface SimDesktopBrowserCredentialsApi {
   /** False when OS-backed encryption is unavailable and passwords are disabled. */
@@ -1138,11 +1105,8 @@ export interface SimDesktopBrowserCredentialsApi {
   list(): Promise<BrowserCredentialMetadata[]>
   /** Forget one credential; resolves the remaining list. */
   forget(id: string): Promise<BrowserCredentialMetadata[]>
-  /**
-   * Delete every saved password. Requires an active user gesture; resolves the
-   * resulting (empty) list. Optional — feature-detect before offering it.
-   */
-  forgetAll?(): Promise<BrowserCredentialMetadata[]>
+  /** Delete every saved password; resolves the resulting empty list. */
+  forgetAll(): Promise<BrowserCredentialMetadata[]>
   /**
    * Reveal one saved password so the user can read it.
    *
@@ -1151,16 +1115,14 @@ export interface SimDesktopBrowserCredentialsApi {
    * gesture, the shell prompts for Touch ID (or a native confirmation where
    * Touch ID is unavailable) on every call, and it returns exactly one
    * password. Resolves null when the user declines or the credential is gone.
-   *
-   * Optional — shells that predate the password manager omit it.
    */
-  reveal?(id: string): Promise<string | null>
+  reveal(id: string): Promise<string | null>
   /**
    * Copy one saved password to the clipboard. Same authorization as
    * {@link reveal}, but the password never enters the renderer: the shell
    * writes the clipboard itself and clears it again shortly after.
    */
-  copy?(id: string): Promise<boolean>
+  copy(id: string): Promise<boolean>
   /** Copy saved passwords out of a Chrome profile into the vault. */
   importFromChrome(
     profileId?: string,
@@ -1171,11 +1133,18 @@ export interface SimDesktopBrowserCredentialsApi {
    * window. Requires a user gesture. The shell performs the fill itself when
    * the user picks an account — no password or credential id comes back here.
    */
-  showChooser(anchor: { x: number; y: number }): Promise<boolean>
+  showChooser(anchor: { x: number; y: number }, scopeId: string): Promise<boolean>
+  /** Password-free options for the active scoped login form. */
+  listFillOptions(scopeId: string): Promise<BrowserCredentialMetadata[]>
+  /**
+   * Fill one option from the latest scoped list. Requires a live user gesture;
+   * the password stays in the shell and resolves only whether a fill occurred.
+   */
+  fill(id: string, scopeId: string): Promise<boolean>
   /** Subscribe to whether the active tab can be filled. Replays the latest scoped value. */
   onFillAvailability(
     callback: (state: BrowserFillAvailability) => void,
-    scopeId?: string
+    scopeId: string
   ): () => void
 }
 
@@ -1330,26 +1299,7 @@ export interface TerminalThemePalette {
   brightWhite: string
 }
 
-export type TerminalThemeSource = 'terminal' | 'iterm2'
-
-export interface TerminalSelectedProfile {
-  /** Stable source profile id used to restore this selection. */
-  id: string
-  name: string
-  source: TerminalThemeSource
-  palette: TerminalThemePalette
-}
-
-export interface TerminalThemeProfile extends TerminalSelectedProfile {
-  sourceLabel: string
-  isDefault?: boolean
-}
-
-const TERMINAL_THEME_PALETTE_KEYS: readonly (keyof TerminalThemePalette)[] = [
-  'background',
-  'foreground',
-  'cursor',
-  'selectionBackground',
+export const TERMINAL_THEME_ANSI_KEYS = [
   'black',
   'red',
   'green',
@@ -1366,6 +1316,72 @@ const TERMINAL_THEME_PALETTE_KEYS: readonly (keyof TerminalThemePalette)[] = [
   'brightMagenta',
   'brightCyan',
   'brightWhite',
+] as const satisfies readonly (keyof TerminalThemePalette)[]
+
+export const TERMINAL_LIGHT_THEME = {
+  background: '#fefefe',
+  foreground: '#1f2328',
+  cursor: '#1f2328',
+  selectionBackground: '#b4d5fe',
+  black: '#24292e',
+  red: '#d1242f',
+  green: '#1a7f37',
+  yellow: '#9a6700',
+  blue: '#0969da',
+  magenta: '#8250df',
+  cyan: '#1b7c83',
+  white: '#6e7781',
+  brightBlack: '#57606a',
+  brightRed: '#a40e26',
+  brightGreen: '#1a7f37',
+  brightYellow: '#633c01',
+  brightBlue: '#218bff',
+  brightMagenta: '#a475f9',
+  brightCyan: '#3192aa',
+  brightWhite: '#8c959f',
+} as const satisfies TerminalThemePalette
+
+export const TERMINAL_DARK_THEME = {
+  background: '#1b1b1b',
+  foreground: '#e6edf3',
+  cursor: '#e6edf3',
+  selectionBackground: '#264f78',
+  black: '#484f58',
+  red: '#ff7b72',
+  green: '#3fb950',
+  yellow: '#d29922',
+  blue: '#58a6ff',
+  magenta: '#bc8cff',
+  cyan: '#39c5cf',
+  white: '#b1bac4',
+  brightBlack: '#6e7681',
+  brightRed: '#ffa198',
+  brightGreen: '#56d364',
+  brightYellow: '#e3b341',
+  brightBlue: '#79c0ff',
+  brightMagenta: '#d2a8ff',
+  brightCyan: '#56d4dd',
+  brightWhite: '#f0f6fc',
+} as const satisfies TerminalThemePalette
+
+export type TerminalThemeSource = 'terminal' | 'iterm2'
+
+export interface TerminalSelectedProfile {
+  /** Stable source profile id used to restore this selection. */
+  id: string
+  name: string
+  source: TerminalThemeSource
+  palette: TerminalThemePalette
+}
+
+export type TerminalThemeProfile = TerminalSelectedProfile
+
+const TERMINAL_THEME_PALETTE_KEYS: readonly (keyof TerminalThemePalette)[] = [
+  'background',
+  'foreground',
+  'cursor',
+  'selectionBackground',
+  ...TERMINAL_THEME_ANSI_KEYS,
 ]
 
 const TERMINAL_THEME_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
@@ -1409,34 +1425,25 @@ export interface DesktopPreferences {
   notificationsOnlyWhenUnfocused: boolean
   launchAtLogin: boolean
   autoDownloadUpdates: boolean
-  /**
-   * Show the Sim status item (recent chats menu) in the macOS menu bar.
-   * Optional because shells predating the preference don't report it.
-   */
-  trayEnabled?: boolean
-  /**
-   * Let Chat drive the built-in agent browser on this device. Optional
-   * because shells predating the preference don't report it; absent means the
-   * surface is simply always on, which is how those shells behave.
-   */
-  browserEnabled?: boolean
-  /** Let Chat run commands in local shells. Same compatibility caveat. */
-  terminalEnabled?: boolean
+  /** Show the Sim status item (recent chats menu) in the macOS menu bar. */
+  trayEnabled: boolean
+  /** Let Chat drive the built-in agent browser on this device. */
+  browserEnabled: boolean
+  /** Let Chat run commands in local shells. */
+  terminalEnabled: boolean
   /**
    * Appearance used by browser pages on this device. `app` follows Sim's
    * current preference; explicit values override it.
    */
-  browserTheme?: DesktopAppearanceTheme
+  browserTheme: DesktopAppearanceTheme
   /** Default page zoom used by current and future built-in browser tabs. */
-  browserDefaultZoom?: DesktopZoomPercent
+  browserDefaultZoom: DesktopZoomPercent
   /** Folder where the built-in browser saves downloads on this device. */
-  browserDownloadDirectory?: string
+  browserDownloadDirectory: string
   /** Appearance used by terminal canvases on this device. */
-  terminalTheme?: TerminalAppearanceTheme
+  terminalTheme: TerminalAppearanceTheme
   /** Default canvas zoom used by current and future built-in terminal tabs. */
-  terminalDefaultZoom?: DesktopZoomPercent
-  /** Cached colors for the selected Terminal.app or iTerm2 profile. */
-  terminalProfile?: TerminalSelectedProfile
+  terminalDefaultZoom: DesktopZoomPercent
 }
 
 export const DESKTOP_ZOOM_PERCENTS = [67, 75, 80, 90, 100, 110, 125, 150, 175, 200] as const
@@ -1481,50 +1488,16 @@ export function isDesktopAppearanceTheme(value: unknown): value is DesktopAppear
   )
 }
 
-export const TERMINAL_PROFILE_THEME_PREFIX = 'profile:' as const
-
-export type TerminalAppearanceTheme =
-  | DesktopAppearanceTheme
-  | `${typeof TERMINAL_PROFILE_THEME_PREFIX}${string}`
-
-export function terminalProfileThemeValue(id: string): TerminalAppearanceTheme {
-  return `${TERMINAL_PROFILE_THEME_PREFIX}${id}`
-}
-
-export function terminalProfileThemeId(value: TerminalAppearanceTheme): string | null {
-  return value.startsWith(TERMINAL_PROFILE_THEME_PREFIX)
-    ? value.slice(TERMINAL_PROFILE_THEME_PREFIX.length)
-    : null
-}
+export type TerminalAppearanceTheme = DesktopAppearanceTheme | TerminalSelectedProfile
 
 export function isTerminalAppearanceTheme(value: unknown): value is TerminalAppearanceTheme {
-  if (isDesktopAppearanceTheme(value)) return true
-  if (typeof value !== 'string' || !value.startsWith(TERMINAL_PROFILE_THEME_PREFIX)) return false
-  const id = value.slice(TERMINAL_PROFILE_THEME_PREFIX.length)
-  return id.length > 0 && id.length <= 300
+  return isDesktopAppearanceTheme(value) || isTerminalSelectedProfile(value)
 }
 
-/**
- * The keys settable through {@link SimDesktopSettingsApi.setPreference}. A
- * closed union frozen at the first shell release: widening it would demand a
- * capability installed shells lack (their setPreference is typed over fewer
- * keys), which the bridge contract audit rejects. Preferences added later get
- * their own optional setter (e.g. {@link SimDesktopSettingsApi.setTrayEnabled})
- * so the web app can feature-detect them — and must be excluded here, or they
- * widen this union right back.
- */
-export type DesktopPreferenceKey = Exclude<
-  keyof DesktopPreferences,
-  | 'trayEnabled'
-  | 'browserEnabled'
-  | 'terminalEnabled'
-  | 'browserTheme'
-  | 'browserDefaultZoom'
-  | 'browserDownloadDirectory'
-  | 'terminalTheme'
-  | 'terminalDefaultZoom'
-  | 'terminalProfile'
->
+/** Boolean preferences handled by the generic settings setter. */
+export type DesktopPreferenceKey = {
+  [K in keyof DesktopPreferences]-?: DesktopPreferences[K] extends boolean ? K : never
+}[keyof DesktopPreferences]
 
 export interface DesktopNotificationPayload {
   title: string
@@ -1533,10 +1506,7 @@ export interface DesktopNotificationPayload {
   route?: string
 }
 
-/**
- * Device-level settings owned by the desktop shell. This surface is optional
- * so a newer web deployment remains compatible with older installed shells.
- */
+/** Device-level settings owned by the desktop shell. */
 export interface SimDesktopSettingsApi {
   getPreferences(): Promise<DesktopPreferences>
   setPreference<K extends DesktopPreferenceKey>(
@@ -1544,35 +1514,16 @@ export interface SimDesktopSettingsApi {
     value: DesktopPreferences[K]
   ): Promise<DesktopPreferences>
   notify(payload: DesktopNotificationPayload): Promise<boolean>
-  /**
-   * Shows or hides the Sim menu-bar status item. Optional: only shells that
-   * support the tray preference expose it — feature-detect before rendering
-   * a toggle.
-   */
-  setTrayEnabled?(enabled: boolean): Promise<DesktopPreferences>
-  /**
-   * Turns the agent browser on or off for this device; disabling it also ends
-   * the running session. Optional — feature-detect before rendering a toggle.
-   */
-  setBrowserEnabled?(enabled: boolean): Promise<DesktopPreferences>
-  /**
-   * Turns the agent terminal on or off for this device; disabling it also
-   * ends every open shell. Optional, like {@link setBrowserEnabled}.
-   */
-  setTerminalEnabled?(enabled: boolean): Promise<DesktopPreferences>
-  /**
-   * Overrides the appearance requested by browser pages. Optional so web
-   * deployments can feature-detect shells that expose the preference.
-   */
-  setBrowserTheme?(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
+  /** Overrides the appearance requested by browser pages. */
+  setBrowserTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
   /** Sets the default page zoom for current and future browser tabs. */
-  setBrowserDefaultZoom?(zoom: DesktopZoomPercent): Promise<DesktopPreferences>
+  setBrowserDefaultZoom(zoom: DesktopZoomPercent): Promise<DesktopPreferences>
   /** Shows a native folder picker and persists the selected browser download location. */
-  chooseBrowserDownloadDirectory?(): Promise<DesktopPreferences | null>
-  /** Overrides the terminal canvas appearance. Optional, like {@link setBrowserTheme}. */
-  setTerminalTheme?(theme: TerminalAppearanceTheme): Promise<DesktopPreferences>
+  chooseBrowserDownloadDirectory(): Promise<DesktopPreferences | null>
+  /** Overrides the terminal canvas appearance. */
+  setTerminalTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
   /** Sets the default canvas zoom for current and future terminal tabs. */
-  setTerminalDefaultZoom?(zoom: DesktopZoomPercent): Promise<DesktopPreferences>
+  setTerminalDefaultZoom(zoom: DesktopZoomPercent): Promise<DesktopPreferences>
 }
 
 export interface SimDesktopTerminalThemesApi {
@@ -1609,10 +1560,7 @@ export interface DesktopUpdateState {
   manual?: boolean
 }
 
-/**
- * The shell updater surface. Optional so a newer web deployment remains
- * compatible with older installed shells.
- */
+/** The shell updater surface. */
 export interface SimDesktopUpdatesApi {
   getState(): Promise<DesktopUpdateState>
   /**
@@ -1638,12 +1586,8 @@ export interface SimDesktopWindowStateApi {
 }
 
 export interface SimDesktopApi {
-  /**
-   * Installed shell version (plain semver, e.g. `0.3.1`). Optional because
-   * shells predating version reporting don't set it — the web app's minimum
-   * shell version gate treats an absent version as older than any floor.
-   */
-  version?: string
+  /** Installed shell version (plain semver, e.g. `0.3.1`). */
+  version: string
   openExternal(url: string): Promise<boolean>
   /**
    * Start the OAuth connect handoff for a provider: the whole flow runs in
@@ -1659,26 +1603,19 @@ export interface SimDesktopApi {
   offlineRetry(): void
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
   /** Subscribe to commands initiated by the native application menu. */
-  onCommand?(callback: (command: DesktopCommand) => void): () => void
-  windowState?: SimDesktopWindowStateApi
-  settings?: SimDesktopSettingsApi
-  updates?: SimDesktopUpdatesApi
-  browserAgent?: SimDesktopBrowserAgentApi
+  onCommand(callback: (command: DesktopCommand) => void): () => void
+  windowState: SimDesktopWindowStateApi
+  settings: SimDesktopSettingsApi
+  updates: SimDesktopUpdatesApi
+  browserAgent: SimDesktopBrowserAgentApi
   /**
-   * Local Chrome import for the built-in browser. Absent on shells predating
-   * it and on platforms without a supported importer.
+   * Local Chrome import for the built-in browser. Absent on platforms without
+   * a supported importer.
    */
   browserImport?: SimDesktopBrowserImportApi
-  /**
-   * Saved passwords and user-driven fill for the built-in browser. Absent on
-   * older shells and wherever OS-backed encryption is unavailable.
-   */
-  browserCredentials?: SimDesktopBrowserCredentialsApi
-  /**
-   * Optional so a newer web deployment stays compatible with installed shells
-   * that predate the agent terminal.
-   */
-  terminal?: SimDesktopTerminalApi
+  /** Saved passwords and user-driven fill for the built-in browser. */
+  browserCredentials: SimDesktopBrowserCredentialsApi
+  terminal: SimDesktopTerminalApi
   /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }

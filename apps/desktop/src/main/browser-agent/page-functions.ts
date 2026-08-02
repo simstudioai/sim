@@ -1065,7 +1065,7 @@ export function clickElement(
     .slice(0, 80)
   // Drop a trailing lone high surrogate the slice may have created.
   return {
-    clicked: dispatchSynthetic,
+    dispatched: dispatchSynthetic,
     element: label.replace(/[\uD800-\uDBFF]$/, ''),
     x: pageX,
     y: pageY,
@@ -1543,7 +1543,6 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
     }
   }
   return {
-    typed: true,
     dispatched: true,
     replacedExisting: true,
     submitRequested: submit === true,

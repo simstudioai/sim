@@ -152,7 +152,6 @@ export interface TerminalServiceOptions {
    * to the home directory.
    */
   loadCwd?(): string | undefined
-  saveCwd?(cwd: string): void
 }
 
 export class TerminalService {
@@ -509,12 +508,6 @@ export class TerminalService {
   dispose(): void {
     this.disposing = true
     this.stopCwdWatch()
-    // Persisted here rather than left to the onState callback, which resolves
-    // the active session out of the very map this teardown empties. Losing it
-    // reopens the next launch in whichever directory last reported a change
-    // instead of the one the user was working in.
-    const activeCwd = this.activeId ? this.sessions.get(this.activeId)?.currentCwd : null
-    if (activeCwd) this.options.saveCwd?.(activeCwd)
     // Remove each session before disposing it: dispose() emits state, which
     // reads back through getTabs(), and a session still in the map there is
     // published to the renderer as a live tab after its shell is gone.
@@ -923,8 +916,6 @@ export class TerminalService {
         callbacks: {
           onData: (id, data) => this.sink?.data(id, data),
           onState: () => {
-            const active = this.activeId ? this.sessions.get(this.activeId) : null
-            if (active?.currentCwd) this.options.saveCwd?.(active.currentCwd)
             this.emitTabs()
           },
           onCommand: (event) => this.sink?.command(event),

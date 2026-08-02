@@ -8,31 +8,16 @@ import {
   isDesktopAppearanceTheme,
   isDesktopZoomPercent,
   isTerminalAppearanceTheme,
-  isTerminalSelectedProfile,
-  type TerminalAppearanceTheme,
   type TerminalThemeProfile,
-  terminalProfileThemeId,
-  terminalProfileThemeValue,
 } from '@sim/desktop-bridge'
 import type { BrowserWindow } from 'electron'
 import { app, Notification } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { isSafeInternalPath } from '@/main/config'
 
-/**
- * Every key the shell accepts over the settings IPC channel: the closed
- * `setPreference` union plus preferences added after the first release, which
- * ride their own optional bridge setters but share this channel.
- */
-export type DesktopSettingKey =
-  | DesktopPreferenceKey
-  | 'trayEnabled'
-  | 'browserEnabled'
-  | 'terminalEnabled'
-
 export type DesktopAppearanceSettingKey = 'browserTheme' | 'terminalTheme'
 
-const PREFERENCE_KEYS: ReadonlySet<string> = new Set<DesktopSettingKey>([
+const PREFERENCE_KEYS: ReadonlySet<string> = new Set<DesktopPreferenceKey>([
   'notificationsEnabled',
   'notificationSounds',
   'notificationsOnlyWhenUnfocused',
@@ -43,27 +28,16 @@ const PREFERENCE_KEYS: ReadonlySet<string> = new Set<DesktopSettingKey>([
   'terminalEnabled',
 ])
 
-const APPEARANCE_KEYS: ReadonlySet<string> = new Set<DesktopAppearanceSettingKey>([
-  'browserTheme',
-  'terminalTheme',
-])
-
-export function isDesktopPreferenceKey(value: unknown): value is DesktopSettingKey {
+export function isDesktopPreferenceKey(value: unknown): value is DesktopPreferenceKey {
   return typeof value === 'string' && PREFERENCE_KEYS.has(value)
-}
-
-export function isDesktopAppearanceSettingKey(
-  value: unknown
-): value is DesktopAppearanceSettingKey {
-  return typeof value === 'string' && APPEARANCE_KEYS.has(value)
 }
 
 export interface DesktopSettingsService {
   getPreferences(): DesktopPreferences
-  setPreference(key: DesktopSettingKey, value: boolean): DesktopPreferences
+  setPreference(key: DesktopPreferenceKey, value: boolean): DesktopPreferences
   setAppearancePreference(
     key: DesktopAppearanceSettingKey,
-    value: DesktopAppearanceTheme | TerminalAppearanceTheme
+    value: DesktopAppearanceTheme
   ): DesktopPreferences
   setBrowserDefaultZoom(zoom: DesktopZoomPercent): DesktopPreferences
   setTerminalDefaultZoom(zoom: DesktopZoomPercent): DesktopPreferences
@@ -107,18 +81,6 @@ function readPreferences(
   const terminalDefaultZoom = config.get('terminalDefaultZoom')
   const storedBrowserDownloadDirectory = config.get('browserDownloadDirectory')
   const storedTerminalTheme = config.get('terminalTheme')
-  const storedTerminalProfile = config.get('terminalProfile')
-  const terminalProfile = isTerminalSelectedProfile(storedTerminalProfile)
-    ? storedTerminalProfile
-    : undefined
-  const selectedProfileId = isTerminalAppearanceTheme(storedTerminalTheme)
-    ? terminalProfileThemeId(storedTerminalTheme)
-    : null
-  const terminalTheme =
-    isTerminalAppearanceTheme(storedTerminalTheme) &&
-    (!selectedProfileId || terminalProfile?.id === selectedProfileId)
-      ? storedTerminalTheme
-      : 'app'
   return {
     notificationsEnabled: config.get('notificationsEnabled') ?? true,
     notificationSounds: config.get('notificationSounds') ?? true,
@@ -135,9 +97,8 @@ function readPreferences(
       isAbsolute(storedBrowserDownloadDirectory)
         ? storedBrowserDownloadDirectory
         : defaultBrowserDownloadDirectory,
-    terminalTheme: isTerminalAppearanceTheme(terminalTheme) ? terminalTheme : 'app',
+    terminalTheme: isTerminalAppearanceTheme(storedTerminalTheme) ? storedTerminalTheme : 'app',
     terminalDefaultZoom: isDesktopZoomPercent(terminalDefaultZoom) ? terminalDefaultZoom : 100,
-    ...(terminalProfile ? { terminalProfile } : {}),
   }
 }
 
@@ -193,16 +154,7 @@ export function createDesktopSettingsService(
     },
     setAppearancePreference(key, value) {
       const previousBrowserTheme = key === 'browserTheme' ? read().browserTheme : undefined
-      if (key === 'browserTheme' && !isDesktopAppearanceTheme(value)) {
-        return read()
-      }
-      if (key === 'terminalTheme') {
-        if (!isTerminalAppearanceTheme(value)) return read()
-        const profileId = terminalProfileThemeId(value)
-        if (profileId && read().terminalProfile?.id !== profileId) {
-          return read()
-        }
-      }
+      if (!isDesktopAppearanceTheme(value)) return read()
       deps.config.set(key, value)
       deps.config.flush()
       if (key === 'browserTheme') {
@@ -229,18 +181,17 @@ export function createDesktopSettingsService(
       return read()
     },
     selectTerminalProfile(profile) {
-      deps.config.set('terminalProfile', {
+      deps.config.set('terminalTheme', {
         id: profile.id,
         name: profile.name,
         source: profile.source,
         palette: { ...profile.palette },
       })
-      deps.config.set('terminalTheme', terminalProfileThemeValue(profile.id))
       deps.config.flush()
       return read()
     },
     async chooseBrowserDownloadDirectory() {
-      const current = read().browserDownloadDirectory ?? deps.getDefaultBrowserDownloadDirectory()
+      const current = read().browserDownloadDirectory
       const selected = await deps.chooseBrowserDownloadDirectory(current)
       if (!selected || !isAbsolute(selected)) return null
       deps.config.set('browserDownloadDirectory', selected)
@@ -274,9 +225,9 @@ export function createDesktopSettingsService(
       const preferences = read()
       applyLaunchAtLogin(preferences.launchAtLogin)
       deps.setAutoDownloadUpdates(preferences.autoDownloadUpdates)
-      deps.setBrowserTheme(preferences.browserTheme ?? 'app')
-      deps.setBrowserDefaultZoom(preferences.browserDefaultZoom ?? 100)
-      deps.setTerminalDefaultZoom(preferences.terminalDefaultZoom ?? 100)
+      deps.setBrowserTheme(preferences.browserTheme)
+      deps.setBrowserDefaultZoom(preferences.browserDefaultZoom)
+      deps.setTerminalDefaultZoom(preferences.terminalDefaultZoom)
     },
   }
 }

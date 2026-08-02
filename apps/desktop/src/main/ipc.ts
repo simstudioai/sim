@@ -14,9 +14,9 @@ import {
   type DesktopWindowState,
   type DesktopZoomPercent,
   isDesktopAppearanceTheme,
+  isDesktopScopeId,
   isDesktopZoomPercent,
-  isTerminalAppearanceTheme,
-  type TerminalAppearanceTheme,
+  isPendingDesktopScopeId,
 } from '@sim/desktop-bridge'
 import {
   isTerminalOperation,
@@ -75,20 +75,17 @@ import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import type { ScopedEventRouter } from '@/main/scoped-event-router'
 import type { TerminalRegistry } from '@/main/terminal/registry'
-import { listTerminalThemeProfiles } from '@/main/terminal-themes'
+import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
 
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
-const PENDING_DESKTOP_SCOPE_PATTERN = /^pending:[A-Za-z0-9_-]{1,128}$/
-const LEGACY_DESKTOP_SCOPE = 'legacy'
 
 /**
  * Desktop state is partitioned by the existing chat id. A new-chat view uses
  * the composer’s existing provisional key until the server assigns that id.
  */
 export function parseDesktopScope(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null
-  return ID_PATTERN.test(raw) || PENDING_DESKTOP_SCOPE_PATTERN.test(raw) ? raw : null
+  return isDesktopScopeId(raw) ? raw : null
 }
 
 export interface OAuthConnectScope {
@@ -540,10 +537,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     sender: WebContents,
     rawScope: unknown
   ): string | null => {
-    const requested =
-      rawScope === undefined
-        ? (scopes.get(sender) ?? LEGACY_DESKTOP_SCOPE)
-        : parseDesktopScope(rawScope)
+    const requested = parseDesktopScope(rawScope)
     if (!requested) return null
 
     const active = scopes.get(sender)
@@ -564,10 +558,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     sender: WebContents,
     rawScope: unknown
   ): string | null => {
-    const requested =
-      rawScope === undefined
-        ? (scopes.get(sender) ?? LEGACY_DESKTOP_SCOPE)
-        : parseDesktopScope(rawScope)
+    const requested = parseDesktopScope(rawScope)
     if (requested && !scopes.has(sender)) scopes.set(sender, requested)
     return requested
   }
@@ -632,8 +623,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (key === 'browserTheme' && isDesktopAppearanceTheme(value)) {
           return deps.settings.setAppearancePreference(key, value as DesktopAppearanceTheme)
         }
-        if (key === 'terminalTheme' && isTerminalAppearanceTheme(value)) {
-          return deps.settings.setAppearancePreference(key, value as TerminalAppearanceTheme)
+        if (key === 'terminalTheme' && isDesktopAppearanceTheme(value)) {
+          return deps.settings.setAppearancePreference(key, value)
         }
         return deps.settings.getPreferences()
       },
@@ -676,9 +667,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       requires: 'terminal',
       needsUserActivation: true,
       denied: null,
-      handler: async (profileId) => {
+      handler: (profileId) => {
         if (typeof profileId !== 'string') return null
-        const profile = (await listTerminalThemeProfiles()).find(({ id }) => id === profileId)
+        const profile = findCachedTerminalThemeProfile(profileId)
         return profile ? deps.settings.selectTerminalProfile(profile) : null
       },
     },
@@ -736,13 +727,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, rawScope) => {
         const contents = sender as WebContents
         const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
-        // Compatibility for renderers predating explicit activation. They
-        // initialize by reading the legacy tab strip, so that read also
-        // establishes the scoped outbound event route.
-        if (scope && rawScope === undefined) {
-          deps.scopeEvents.activateBrowser(contents, scope)
-          deps.browserPanel.activateScope(contents, scope)
-        }
         return scope
           ? withBrowserScope(scope, () => peekTabsState())
           : { tabs: [], activeTabId: null }
@@ -787,10 +771,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         const to = parseDesktopScope(rawTo)
         const contents = sender as WebContents
         if (
-          !from?.startsWith('pending:') ||
+          !from ||
+          !isPendingDesktopScopeId(from) ||
           !to ||
-          to === LEGACY_DESKTOP_SCOPE ||
-          to.startsWith('pending:') ||
+          isPendingDesktopScopeId(to) ||
           !browserPendingScopesBySender.get(contents)?.has(from) ||
           !migrateBrowserScope(from, to)
         ) {
@@ -811,7 +795,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       denied: false,
       handler: (rawScope) => {
         const scope = parseDesktopScope(rawScope)
-        if (!scope?.startsWith('pending:')) return false
+        if (!scope || !isPendingDesktopScopeId(scope)) return false
         disposeBrowserScope(scope)
         return true
       },
@@ -823,7 +807,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       denied: false,
       handler: (rawScope) => {
         const scope = parseDesktopScope(rawScope)
-        if (!scope || scope === LEGACY_DESKTOP_SCOPE || scope.startsWith('pending:')) return false
+        if (!scope || isPendingDesktopScopeId(scope)) return false
         const suspended = suspendBrowserScope(scope)
         if (suspended) {
           deps.scopeEvents.sendBrowser(scope, 'browser-agent:scope-suspended', scope)
@@ -1169,14 +1153,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (
           typeof origin !== 'string' ||
           typeof hasLoginForm !== 'boolean' ||
-          (hasPasswordField !== undefined && typeof hasPasswordField !== 'boolean')
+          typeof hasPasswordField !== 'boolean'
         ) {
           return
         }
         fillCoordinator()?.noteFormState(sender as WebContents, {
           origin,
           hasLoginForm,
-          ...(typeof hasPasswordField === 'boolean' ? { hasPasswordField } : {}),
+          hasPasswordField,
         })
       },
     },
@@ -1328,9 +1312,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (!scope) {
           return { ok: false, code: 'STALE_SCOPE', error: 'This terminal chat is not active.' }
         }
-        if (rawScope === undefined) {
-          deps.scopeEvents.activateTerminal(contents, scope)
-        }
         const options = isRecordLike(raw) ? raw : {}
         const cols = Number(options.cols)
         const rows = Number(options.rows)
@@ -1454,9 +1435,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, rawScope) => {
         const contents = sender as WebContents
         const scope = rendererScope(terminalScopeBySender, contents, rawScope)
-        if (scope && rawScope === undefined) {
-          deps.scopeEvents.activateTerminal(contents, scope)
-        }
         return scope
           ? { ...deps.terminal.peekTabs(scope), scopeId: scope }
           : { tabs: [], activeTerminalId: null }
@@ -1489,10 +1467,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         const to = parseDesktopScope(rawTo)
         const contents = sender as WebContents
         if (
-          !from?.startsWith('pending:') ||
+          !from ||
+          !isPendingDesktopScopeId(from) ||
           !to ||
-          to === LEGACY_DESKTOP_SCOPE ||
-          to.startsWith('pending:') ||
+          isPendingDesktopScopeId(to) ||
           !terminalPendingScopesBySender.get(contents)?.has(from) ||
           !deps.terminal.migrateScope(from, to)
         ) {
@@ -1513,7 +1491,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       denied: false,
       handler: (rawScope) => {
         const scope = parseDesktopScope(rawScope)
-        if (!scope?.startsWith('pending:')) return false
+        if (!scope || !isPendingDesktopScopeId(scope)) return false
         deps.terminal.disposeScope(scope)
         return true
       },
@@ -1525,7 +1503,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       denied: false,
       handler: (rawScope) => {
         const scope = parseDesktopScope(rawScope)
-        if (!scope || scope === LEGACY_DESKTOP_SCOPE || scope.startsWith('pending:')) return false
+        if (!scope || isPendingDesktopScopeId(scope)) return false
         const suspended = deps.terminal.suspendScope(scope)
         if (suspended) {
           deps.scopeEvents.sendTerminal(scope, 'terminal:scope-suspended', scope)
@@ -1644,10 +1622,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const featureAllowed = (feature: ChannelFeature | undefined): boolean => {
     if (!feature) return true
     const preferences = deps.settings.getPreferences()
-    // Absent means on: the surfaces predate the preference.
-    return feature === 'browser'
-      ? preferences.browserEnabled !== false
-      : preferences.terminalEnabled !== false
+    return feature === 'browser' ? preferences.browserEnabled : preferences.terminalEnabled
   }
 
   for (const [channel, spec] of Object.entries(channels)) {

@@ -21,6 +21,7 @@ import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/compo
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
+  RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_GAP_CLASS,
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
@@ -616,8 +617,12 @@ export function ResourceTabs({
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center border-[var(--border)] border-b py-[8.5px] pl-4',
-        useFixedResourceToggle ? 'pr-[54px]' : 'pr-4',
+        'flex shrink-0 items-center border-[var(--border)] border-b',
+        RESOURCE_HEADER_CLASSES.bar,
+        RESOURCE_HEADER_CLASSES.startPadding,
+        useFixedResourceToggle
+          ? RESOURCE_HEADER_CLASSES.fixedEndPadding
+          : RESOURCE_HEADER_CLASSES.endPadding,
         RESOURCE_TAB_GAP_CLASS
       )}
     >
@@ -696,7 +701,9 @@ export function ResourceTabs({
             the first prompt is context for that prompt, and gating on a chat id
             meant the panel could be opened but not filled. */}
         {useFixedResourceToggle ? (
-          <div className={cn('relative flex', resources.length === 0 && '-left-[6px]')}>
+          <div
+            className={cn('flex', resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}
+          >
             {addResourceDropdown}
           </div>
         ) : (

@@ -8,6 +8,7 @@ import * as cdp from '@/main/browser-agent/cdp'
 import * as driverModule from '@/main/browser-agent/driver'
 import * as session from '@/main/browser-agent/session'
 import { fillCoordinator } from '@/main/browser-credentials'
+import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 
 type DriverModule = typeof import('@/main/browser-agent/driver')
 
@@ -28,6 +29,7 @@ function freshDriver(): DriverModule {
     },
     () => null
   )
+  driverModule.activateBrowserScope('chat-test')
   return driverModule
 }
 
@@ -45,13 +47,15 @@ describe('executeTool', () => {
 
   it('returns ok:false instead of throwing for tool-level failures', async () => {
     // No session exists, so any page-dependent tool fails with guidance.
-    const result = await driver.executeTool('browser_click', { elementId: 1 })
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 1 })
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/No page is open yet/)
   })
 
   it('validates navigation URLs before touching the session', async () => {
-    const result = await driver.executeTool('browser_navigate', { url: 'file:///etc/passwd' })
+    const result = await driver.executeTool('chat-test', 'browser_navigate', {
+      url: 'file:///etc/passwd',
+    })
     expect(result).toEqual({
       ok: false,
       error: 'URL must be absolute and start with http:// or https://',
@@ -59,7 +63,7 @@ describe('executeTool', () => {
   })
 
   it('reports missing required parameters by name', async () => {
-    const result = await driver.executeTool('browser_navigate', {})
+    const result = await driver.executeTool('chat-test', 'browser_navigate', {})
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/Missing required parameter "url"/)
   })
@@ -67,14 +71,14 @@ describe('executeTool', () => {
   it('reports an aborted navigation when Chromium never leaves the current URL', async () => {
     vi.useFakeTimers()
     try {
-      await driver.executeTool('browser_open_tab', {})
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
       const contents = session.requireTab().view.webContents
       vi.mocked(contents.getURL).mockReturnValue('http://127.0.0.1/old')
       vi.mocked(contents.loadURL).mockRejectedValue(
         Object.assign(new Error('net::ERR_ABORTED'), { code: 'ERR_ABORTED' })
       )
 
-      const navigation = driver.executeTool('browser_navigate', {
+      const navigation = driver.executeTool('chat-test', 'browser_navigate', {
         url: 'http://127.0.0.1/new',
       })
       await vi.advanceTimersByTimeAsync(200)
@@ -91,7 +95,7 @@ describe('executeTool', () => {
   it('accepts ERR_ABORTED only when a replacement navigation changed the URL', async () => {
     vi.useFakeTimers()
     try {
-      await driver.executeTool('browser_open_tab', {})
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
       const contents = session.requireTab().view.webContents
       let currentUrl = 'http://127.0.0.1/old'
       vi.mocked(contents.getURL).mockImplementation(() => currentUrl)
@@ -100,7 +104,7 @@ describe('executeTool', () => {
         throw Object.assign(new Error('net::ERR_ABORTED'), { code: 'ERR_ABORTED' })
       })
 
-      const navigation = driver.executeTool('browser_navigate', {
+      const navigation = driver.executeTool('chat-test', 'browser_navigate', {
         url: 'http://127.0.0.1/new',
       })
       await vi.advanceTimersByTimeAsync(1_000)
@@ -115,13 +119,13 @@ describe('executeTool', () => {
   })
 
   it('reports non-abort navigation failures instead of treating dispatch as success', async () => {
-    await driver.executeTool('browser_open_tab', {})
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents
     vi.mocked(contents.loadURL).mockRejectedValue(
       Object.assign(new Error('net::ERR_NAME_NOT_RESOLVED'), { code: 'ERR_NAME_NOT_RESOLVED' })
     )
 
-    const result = await driver.executeTool('browser_navigate', {
+    const result = await driver.executeTool('chat-test', 'browser_navigate', {
       url: 'http://127.0.0.1/unavailable',
     })
 
@@ -132,9 +136,9 @@ describe('executeTool', () => {
   })
 
   it('serializes tool calls: a queued failure never rejects the next call', async () => {
-    const first = await driver.executeTool('browser_snapshot', {})
+    const first = await driver.executeTool('chat-test', 'browser_snapshot', {})
     expect(first.ok).toBe(false)
-    const second = await driver.executeTool('browser_list_tabs', {})
+    const second = await driver.executeTool('chat-test', 'browser_list_tabs', {})
     // list_tabs works without a session (empty list).
     expect(second.ok).toBe(true)
     expect(second.result).toMatchObject({ tabs: [] })
@@ -153,7 +157,8 @@ describe('executeTool', () => {
       },
       () => win
     )
-    await driver.executeTool('browser_open_tab', {})
+    driver.activateBrowserScope('chat-test')
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents
     const eventHandlers = (contents.on as unknown as ReturnType<typeof vi.fn>).mock.calls
     const startLoad = eventHandlers.find(([eventName]) => eventName === 'did-start-loading')?.[1] as
@@ -187,8 +192,8 @@ describe('executeTool', () => {
     driver.activateBrowserScope('chat-with-login')
     expect(refreshAvailability).toHaveBeenCalledWith(true)
 
-    await driver.executeTool('browser_open_tab', {})
-    await driver.executeTool('browser_open_tab', {})
+    await driver.executeTool('chat-with-login', 'browser_open_tab', {})
+    await driver.executeTool('chat-with-login', 'browser_open_tab', {})
     refreshAvailability.mockClear()
     session.switchTab('1')
 
@@ -196,11 +201,11 @@ describe('executeTool', () => {
   })
 
   it('builds the native toolbar menu and routes renderer-owned actions back to its chat', async () => {
-    await driver.executeTool('browser_open_tab', {})
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
     const win = new BrowserWindow()
     vi.mocked(Menu.buildFromTemplate).mockClear()
 
-    expect(driver.showToolbarMenu('legacy', win, { x: 20, y: 30 })).toBe(true)
+    expect(driver.showToolbarMenu('chat-test', win, { x: 20, y: 30 })).toBe(true)
     const template = vi.mocked(Menu.buildFromTemplate).mock.calls[0]?.[0] as
       | MenuItemConstructorOptions[]
       | undefined
@@ -213,7 +218,7 @@ describe('executeTool', () => {
     expect(win.webContents.send).toHaveBeenCalledWith(
       'browser-agent:toolbar-command',
       'browser-settings',
-      'legacy'
+      'chat-test'
     )
   })
 
@@ -251,10 +256,11 @@ describe('executeTool', () => {
   })
 
   it('keeps activation lazy, then restores and disposes through the driver API', async () => {
-    const snapshot: session.BrowserSessionSnapshotV1 = {
+    const snapshot: BrowserSessionSnapshot = {
       v: 1,
       tabs: [{ url: 'https://restored.example/', pinned: false }],
       activeIndex: 0,
+      downloads: [],
     }
     const load = vi.fn(() => snapshot)
     const disposeScope = vi.fn()
@@ -269,8 +275,8 @@ describe('executeTool', () => {
       undefined,
       {
         load,
-        save: vi.fn(),
-        migrateScope: vi.fn(),
+        save: vi.fn(() => true),
+        migrateScope: vi.fn(() => true),
         disposeScope,
       }
     )
@@ -306,14 +312,15 @@ describe('executeTool', () => {
         },
         () => win
       )
-      await driver.executeTool('browser_open_tab', {})
+      driver.activateBrowserScope('chat-test')
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
 
       const contents = session.requireTab().view.webContents
       vi.mocked(contents.getURL).mockReturnValue(url)
       vi.mocked(contents.executeJavaScript).mockImplementation(() => new Promise<never>(() => {}))
 
-      const snapshot = driver.executeTool('browser_snapshot', {})
-      const listTabs = driver.executeTool('browser_list_tabs', {})
+      const snapshot = driver.executeTool('chat-test', 'browser_snapshot', {})
+      const listTabs = driver.executeTool('chat-test', 'browser_list_tabs', {})
 
       await expect(snapshot).resolves.toEqual({
         ok: false,
@@ -336,7 +343,7 @@ describe('executeTool', () => {
       // Racing against an uncancellable sleep left one timer alive per call for
       // the full watchdog window — up to two minutes, dozens deep in a run.
       const before = vi.getTimerCount()
-      await driver.executeTool('browser_list_tabs', {})
+      await driver.executeTool('chat-test', 'browser_list_tabs', {})
 
       expect(vi.getTimerCount()).toBe(before)
     } finally {
@@ -357,13 +364,14 @@ describe('executeTool', () => {
         },
         () => win
       )
-      await driver.executeTool('browser_open_tab', {})
+      driver.activateBrowserScope('chat-test')
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
 
       const contents = session.requireTab().view.webContents
       vi.mocked(contents.executeJavaScript).mockImplementation(() => new Promise<never>(() => {}))
 
-      const hung = driver.executeTool('browser_snapshot', {})
-      const queued = driver.executeTool('browser_list_tabs', {})
+      const hung = driver.executeTool('chat-test', 'browser_snapshot', {})
+      const queued = driver.executeTool('chat-test', 'browser_list_tabs', {})
       await vi.advanceTimersByTimeAsync(20_000)
 
       await expect(hung).resolves.toMatchObject({
@@ -380,11 +388,11 @@ describe('executeTool', () => {
   })
 
   it('sanitizes hostile tab titles before returning them across the tool boundary', async () => {
-    await driver.executeTool('browser_open_tab', {})
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents
     vi.mocked(contents.getTitle).mockReturnValue(`bad\0\uD800${'x'.repeat(600)}`)
 
-    const listed = await driver.executeTool('browser_list_tabs', {})
+    const listed = await driver.executeTool('chat-test', 'browser_list_tabs', {})
     const title = (listed.result as { tabs: Array<{ title: string }> }).tabs[0]?.title ?? ''
 
     expect(title).toHaveLength(500)
@@ -394,7 +402,7 @@ describe('executeTool', () => {
   })
 
   it('rejects snapshot refs whose structural line evidence is missing', async () => {
-    await driver.executeTool('browser_open_tab', {})
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents
     vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
     vi.mocked(contents.executeJavaScript).mockResolvedValue({
@@ -407,11 +415,13 @@ describe('executeTool', () => {
       nextElementId: 1,
     })
 
-    await expect(driver.executeTool('browser_snapshot', {})).resolves.toMatchObject({
+    await expect(driver.executeTool('chat-test', 'browser_snapshot', {})).resolves.toMatchObject({
       ok: false,
       error: expect.stringContaining('invalid element ids'),
     })
-    await expect(driver.executeTool('browser_click', { elementId: 0 })).resolves.toMatchObject({
+    await expect(
+      driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+    ).resolves.toMatchObject({
       ok: false,
       error: expect.stringContaining('Element ids are not valid'),
     })
@@ -424,7 +434,7 @@ describe('executeTool', () => {
   it('does not let a snapshot that resolves after timeout overwrite newer refs', async () => {
     vi.useFakeTimers()
     try {
-      await driver.executeTool('browser_open_tab', {})
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
       const contents = session.requireTab().view.webContents
       vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
       let resolveLate: ((value: unknown) => void) | undefined
@@ -448,10 +458,12 @@ describe('executeTool', () => {
         })
       })
 
-      const late = driver.executeTool('browser_snapshot', {})
+      const late = driver.executeTool('chat-test', 'browser_snapshot', {})
       await vi.advanceTimersByTimeAsync(20_000)
       await expect(late).resolves.toMatchObject({ ok: false })
-      await expect(driver.executeTool('browser_snapshot', {})).resolves.toMatchObject({ ok: true })
+      await expect(driver.executeTool('chat-test', 'browser_snapshot', {})).resolves.toMatchObject({
+        ok: true,
+      })
 
       resolveLate?.({
         url: 'https://example.com/',
@@ -465,7 +477,9 @@ describe('executeTool', () => {
       await Promise.resolve()
       await Promise.resolve()
 
-      await expect(driver.executeTool('browser_click', { elementId: 0 })).resolves.toMatchObject({
+      await expect(
+        driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+      ).resolves.toMatchObject({
         ok: false,
         error: expect.stringContaining('not present in the current snapshot'),
       })
@@ -485,7 +499,8 @@ describe('executeTool', () => {
       },
       () => win
     )
-    await driver.executeTool('browser_open_tab', {})
+    driver.activateBrowserScope('chat-test')
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents
     vi.mocked(contents.getURL).mockReturnValue('https://mail.google.com/mail/u/0/#inbox')
     vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
@@ -588,7 +603,7 @@ describe('executeTool', () => {
         }
         if (isPageCall(expression, 'clickElement')) {
           return Promise.resolve({
-            clicked: false,
+            dispatched: false,
             x: 24,
             y: 48,
             element: 'Drive',
@@ -640,15 +655,18 @@ describe('executeTool', () => {
         return Promise.reject(new Error('unexpected isolated frame target'))
       })
 
-    const snapshot = await driver.executeTool('browser_snapshot', {})
-    const textResult = await driver.executeTool('browser_read_text', {})
-    const scroll = await driver.executeTool('browser_scroll', {
+    const snapshot = await driver.executeTool('chat-test', 'browser_snapshot', {})
+    const textResult = await driver.executeTool('chat-test', 'browser_read_text', {})
+    const scroll = await driver.executeTool('chat-test', 'browser_scroll', {
       direction: 'down',
       amount: 500,
       elementId: 1,
     })
-    const click = await driver.executeTool('browser_click', { elementId: 1 })
-    const typed = await driver.executeTool('browser_type', { elementId: 2, text: 'drive' })
+    const click = await driver.executeTool('chat-test', 'browser_click', { elementId: 1 })
+    const typed = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 2,
+      text: 'drive',
+    })
 
     expect(snapshot).toMatchObject({
       ok: true,
@@ -662,6 +680,8 @@ describe('executeTool', () => {
     expect(snapshot).toMatchObject({
       result: { outline: expect.stringContaining('link "Drive" [ref=1]') },
     })
+    expect(snapshot.result).not.toHaveProperty('browserProtocolVersion')
+    expect(snapshot.result).not.toHaveProperty('capabilities')
     expect(textResult).toMatchObject({
       ok: true,
       result: {
@@ -684,12 +704,14 @@ describe('executeTool', () => {
     })
     expect(click).toMatchObject({
       ok: true,
-      result: { clicked: true, trusted: true, element: 'Drive', effectObserved: false },
+      result: { dispatched: true, trusted: true, element: 'Drive', effectObserved: false },
     })
     expect(typed).toMatchObject({
       ok: true,
-      result: { typed: true, trusted: true, effectObserved: false },
+      result: { dispatched: true, trusted: true, effectObserved: false },
     })
+    expect(click.result).not.toHaveProperty('clicked')
+    expect(typed.result).not.toHaveProperty('typed')
     expect(
       vi
         .mocked(contents.debugger.sendCommand)
@@ -724,7 +746,8 @@ describe('credential protection', () => {
       },
       () => win
     )
-    await driver.executeTool('browser_open_tab', {})
+    driver.activateBrowserScope('chat-test')
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents
     vi.mocked(contents.getURL).mockReturnValue('https://example.com/login')
     vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
@@ -741,7 +764,7 @@ describe('credential protection', () => {
       }
       return Promise.resolve(undefined)
     })
-    await driver.executeTool('browser_snapshot', {})
+    await driver.executeTool('chat-test', 'browser_snapshot', {})
     return contents
   }
 
@@ -758,7 +781,7 @@ describe('credential protection', () => {
         if (isPageCall(expression, fnName)) return Promise.resolve(value)
       }
       if (isPageCall(expression, 'clickElement')) {
-        return Promise.resolve({ clicked: false, x: 24, y: 48, element: 'Test' })
+        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Test' })
       }
       return Promise.resolve(undefined)
     })
@@ -774,7 +797,7 @@ describe('credential protection', () => {
     const contents = await openPage()
     respondWith(contents, { activeElementSecrecy: 'secret' })
 
-    const result = await driver.executeTool('browser_press_key', { key: 'a' })
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'a' })
 
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/Refusing to act on a password field/)
@@ -785,7 +808,7 @@ describe('credential protection', () => {
     const contents = await openPage()
     respondWith(contents, { activeElementSecrecy: 'opaque' })
 
-    const result = await driver.executeTool('browser_press_key', { key: 'a' })
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'a' })
 
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/cross-origin frame/)
@@ -796,7 +819,7 @@ describe('credential protection', () => {
     const contents = await openPage()
     respondWith(contents, { activeElementSecrecy: 'opaque', readActiveElementState: {} })
 
-    const result = await driver.executeTool('browser_press_key', { key: 'Escape' })
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Escape' })
 
     expect(result.ok).toBe(true)
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
@@ -806,7 +829,7 @@ describe('credential protection', () => {
     const contents = await openPage()
     respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
 
-    const result = await driver.executeTool('browser_press_key', { key: 'a' })
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'a' })
 
     expect(result.ok).toBe(true)
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
@@ -832,7 +855,7 @@ describe('credential protection', () => {
       },
     })
 
-    const result = await driver.executeTool('browser_press_key', { key: 'Control+K' })
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Control+K' })
 
     expect(result).toMatchObject({
       ok: true,
@@ -853,7 +876,10 @@ describe('credential protection', () => {
       activeElementSecrecy: 'secret',
     })
 
-    const result = await driver.executeTool('browser_type', { elementId: 0, text: 'hunter2' })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: 'hunter2',
+    })
 
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/Refusing to act on a password field/)
@@ -872,7 +898,7 @@ describe('credential protection', () => {
         return Promise.resolve(secrecyReads === 1 ? 'safe' : 'secret')
       }
       if (isPageCall(expression, 'clickElement')) {
-        return Promise.resolve({ clicked: false, x: 24, y: 48, element: 'Test' })
+        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Test' })
       }
       if (isPageCall(expression, 'readActiveElementState')) {
         return Promise.resolve({ activeElement: 'input', valueLength: 0 })
@@ -890,7 +916,10 @@ describe('credential protection', () => {
       return Promise.resolve(undefined)
     })
 
-    const result = await driver.executeTool('browser_type', { elementId: 0, text: 'hunter2' })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: 'hunter2',
+    })
 
     expect(secrecyReads).toBe(2)
     expect(result.ok).toBe(false)
@@ -906,7 +935,10 @@ describe('credential protection', () => {
       readActiveElementState: { activeElement: 'input', valueLength: 7 },
     })
 
-    const result = await driver.executeTool('browser_type', { elementId: 0, text: 'hunter2' })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: 'hunter2',
+    })
 
     expect(result.ok).toBe(true)
     expect(result).toMatchObject({
@@ -932,7 +964,7 @@ describe('credential protection', () => {
       }
       if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
       if (isPageCall(expression, 'clickElement')) {
-        return Promise.resolve({ clicked: false, x: 24, y: 48, element: 'Test' })
+        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Test' })
       }
       if (isPageCall(expression, 'readActiveElementState')) {
         observedInsertionStates.push(inserted)
@@ -951,12 +983,15 @@ describe('credential protection', () => {
       return Promise.resolve(undefined)
     })
 
-    const result = await driver.executeTool('browser_type', { elementId: 0, text: 'hunter2' })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: 'hunter2',
+    })
 
     expect(observedInsertionStates).toEqual([false, true])
     expect(result).toMatchObject({
       ok: true,
-      result: { typed: true, effectObserved: true, effect: { fieldChanged: true } },
+      result: { dispatched: true, effectObserved: true, effect: { fieldChanged: true } },
     })
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
   })
@@ -967,7 +1002,7 @@ describe('credential protection', () => {
       const contents = await openPage()
       respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
 
-      const result = await driver.executeTool('browser_press_key', { key })
+      const result = await driver.executeTool('chat-test', 'browser_press_key', { key })
 
       // Paste would move a password copied out of a manager into the page,
       // where the next snapshot reports it as an ordinary field value.
@@ -981,7 +1016,7 @@ describe('credential protection', () => {
     const contents = await openPage()
     respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
 
-    const result = await driver.executeTool('browser_press_key', { key: 'Cmd+A' })
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Cmd+A' })
 
     expect(result.ok).toBe(true)
   })
@@ -990,7 +1025,7 @@ describe('credential protection', () => {
     const contents = await openPage()
     respondWith(contents, { clickElement: { error: 'password' } })
 
-    const result = await driver.executeTool('browser_click', { elementId: 0 })
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
 
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/Refusing to act on a password field/)
@@ -999,7 +1034,7 @@ describe('credential protection', () => {
   it('uses trusted CDP mouse input for element clicks', async () => {
     const contents = await openPage()
     respondWith(contents, {
-      clickElement: { clicked: false, x: 24, y: 48, element: 'Search result' },
+      clickElement: { dispatched: false, x: 24, y: 48, element: 'Search result' },
       readActiveElementState: {},
       readPageActionState: {
         url: 'https://example.com/login',
@@ -1011,12 +1046,12 @@ describe('credential protection', () => {
       },
     })
 
-    const result = await driver.executeTool('browser_click', { elementId: 0 })
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
 
     expect(result).toMatchObject({
       ok: true,
       result: {
-        clicked: true,
+        dispatched: true,
         trusted: true,
         effectObserved: false,
         note: expect.stringContaining('No strong observable page change'),
@@ -1042,7 +1077,7 @@ describe('credential protection', () => {
       },
     })
 
-    const result = await driver.executeTool('browser_scroll', {
+    const result = await driver.executeTool('chat-test', 'browser_scroll', {
       direction: 'up',
       amount: 500,
     })
@@ -1065,7 +1100,7 @@ describe('credential protection', () => {
     let actionReads = 0
     vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
       if (isPageCall(expression, 'clickElement')) {
-        return Promise.resolve({ clicked: false, x: 24, y: 48, element: 'Channels' })
+        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Channels' })
       }
       if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
       if (isPageCall(expression, 'readPageActionState')) {
@@ -1083,7 +1118,7 @@ describe('credential protection', () => {
       return Promise.resolve(undefined)
     })
 
-    const result = await driver.executeTool('browser_click', { elementId: 0 })
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
 
     expect(result).toMatchObject({
       ok: true,
@@ -1116,7 +1151,7 @@ describe('credential protection', () => {
       return Promise.resolve({})
     })
 
-    const result = await driver.executeTool('browser_type', {
+    const result = await driver.executeTool('chat-test', 'browser_type', {
       elementId: 0,
       text: 'hello',
       submit: true,
@@ -1125,7 +1160,7 @@ describe('credential protection', () => {
     expect(result).toMatchObject({
       ok: true,
       result: {
-        typed: true,
+        dispatched: true,
         submitRequested: true,
         submitted: false,
         submitUncertain: true,
@@ -1148,7 +1183,7 @@ describe('credential protection', () => {
       return Promise.resolve({})
     })
 
-    const result = await driver.executeTool('browser_type', {
+    const result = await driver.executeTool('chat-test', 'browser_type', {
       elementId: 0,
       text: 'hello',
     })
@@ -1175,11 +1210,11 @@ describe('credential protection', () => {
         }),
       })
 
-      const result = driver.executeTool('browser_click', { elementId: 0 })
+      const result = driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
       await vi.advanceTimersByTimeAsync(20_000)
       await expect(result).resolves.toMatchObject({ ok: false })
 
-      resolveClick?.({ clicked: false, x: 24, y: 48, element: 'Too late' })
+      resolveClick?.({ dispatched: false, x: 24, y: 48, element: 'Too late' })
       await Promise.resolve()
       await Promise.resolve()
 
@@ -1210,7 +1245,7 @@ describe('credential protection', () => {
       },
     })
 
-    const result = await driver.executeTool('browser_press_key', { key: 'Escape' })
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Escape' })
 
     expect(result.ok).toBe(true)
     expect(mainFrame.executeJavaScript).not.toHaveBeenCalled()
@@ -1221,7 +1256,7 @@ describe('credential protection', () => {
     let actionReads = 0
     vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
       if (isPageCall(expression, 'clickElement')) {
-        return Promise.resolve({ clicked: false, x: 24, y: 48, element: 'Search result' })
+        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Search result' })
       }
       if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
       if (isPageCall(expression, 'readPageActionState')) {
@@ -1249,7 +1284,7 @@ describe('credential protection', () => {
       return Promise.resolve(undefined)
     })
 
-    const result = await driver.executeTool('browser_click', { elementId: 0 })
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
 
     expect(result).toMatchObject({
       ok: true,
@@ -1278,8 +1313,8 @@ describe('credential protection', () => {
       })
     )
 
-    const first = await driver.executeTool('browser_list_tabs', {})
-    const second = await driver.executeTool('browser_list_tabs', {})
+    const first = await driver.executeTool('chat-test', 'browser_list_tabs', {})
+    const second = await driver.executeTool('chat-test', 'browser_list_tabs', {})
 
     expect(first).toMatchObject({
       ok: true,
@@ -1292,9 +1327,9 @@ describe('credential protection', () => {
 
   it('invalidates element ids when the active tab changes', async () => {
     await openPage()
-    await driver.executeTool('browser_open_tab', {})
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
 
-    const result = await driver.executeTool('browser_click', { elementId: 0 })
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
 
     expect(result).toEqual({
       ok: false,

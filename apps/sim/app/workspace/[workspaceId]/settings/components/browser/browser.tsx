@@ -75,11 +75,11 @@ export function Browser() {
   const [clearPending, setClearPending] = useState(false)
 
   const setTheme = useCallback(async (theme: DesktopAppearanceTheme) => {
-    const setBrowserTheme = getDesktopBridge()?.settings?.setBrowserTheme
-    if (!setBrowserTheme) return
+    const desktop = getDesktopBridge()
+    if (!desktop) return
     setThemePending(true)
     try {
-      const next = await setBrowserTheme(theme)
+      const next = await desktop.settings.setBrowserTheme(theme)
       setPreferences(next)
       setDesktopPreferencesSnapshot(next)
     } catch {
@@ -90,11 +90,11 @@ export function Browser() {
   }, [])
 
   const setDefaultZoom = useCallback(async (zoom: DesktopZoomPercent) => {
-    const setBrowserDefaultZoom = getDesktopBridge()?.settings?.setBrowserDefaultZoom
-    if (!setBrowserDefaultZoom) return
+    const desktop = getDesktopBridge()
+    if (!desktop) return
     setZoomPending(true)
     try {
-      const next = await setBrowserDefaultZoom(zoom)
+      const next = await desktop.settings.setBrowserDefaultZoom(zoom)
       setPreferences(next)
       setDesktopPreferencesSnapshot(next)
     } catch {
@@ -105,11 +105,11 @@ export function Browser() {
   }, [])
 
   const chooseDownloadDirectory = useCallback(async () => {
-    const choose = getDesktopBridge()?.settings?.chooseBrowserDownloadDirectory
-    if (!choose) return
+    const desktop = getDesktopBridge()
+    if (!desktop) return
     setDownloadDirectoryPending(true)
     try {
-      const next = await choose()
+      const next = await desktop.settings.chooseBrowserDownloadDirectory()
       if (!next) return
       setPreferences(next)
       setDesktopPreferencesSnapshot(next)
@@ -129,7 +129,7 @@ export function Browser() {
 
   useEffect(() => {
     const bridge = getDesktopBridge()
-    if (!bridge?.browserAgent || !bridge.settings) {
+    if (!bridge) {
       router.replace(`/workspace/${workspaceId}/settings/general`)
       return
     }
@@ -139,11 +139,11 @@ export function Browser() {
   }, [refreshCredentials, router, workspaceId])
 
   const setEnabled = useCallback(async (enabled: boolean) => {
-    const setBrowserEnabled = getDesktopBridge()?.settings?.setBrowserEnabled
-    if (!setBrowserEnabled) return
+    const desktop = getDesktopBridge()
+    if (!desktop) return
     setTogglePending(true)
     try {
-      const next = await setBrowserEnabled(enabled)
+      const next = await desktop.settings.setPreference('browserEnabled', enabled)
       setPreferences(next)
       setDesktopPreferencesSnapshot(next)
     } catch {
@@ -154,11 +154,11 @@ export function Browser() {
   }, [])
 
   const clear = useCallback(async (kinds: readonly BrowserDataKind[]) => {
-    const clearBrowsingData = getDesktopBridge()?.browserAgent?.clearBrowsingData
-    if (!clearBrowsingData) return
+    const desktop = getDesktopBridge()
+    if (!desktop) return
     setClearPending(true)
     try {
-      await clearBrowsingData(kinds)
+      await desktop.browserAgent.clearBrowsingData(kinds)
       setConfirming(null)
     } catch {
       toast.error('Could not delete browsing data')
@@ -183,33 +183,20 @@ export function Browser() {
     )
   }
 
-  const enabled = preferences.browserEnabled ?? true
-  const canClearData = typeof getDesktopBridge()?.browserAgent?.clearBrowsingData === 'function'
-  const canManagePasswords = Boolean(getDesktopBridge()?.browserCredentials)
-  const canSetTheme = typeof getDesktopBridge()?.settings?.setBrowserTheme === 'function'
-  const canSetDefaultZoom =
-    typeof getDesktopBridge()?.settings?.setBrowserDefaultZoom === 'function'
-  const canChooseDownloadDirectory =
-    typeof getDesktopBridge()?.settings?.chooseBrowserDownloadDirectory === 'function'
+  const enabled = preferences.browserEnabled
   const target = confirming === 'all' ? null : confirming
 
   return (
     <>
       <SettingsPanel
         actions={[
-          ...(canManagePasswords
-            ? [{ text: 'Passwords', onSelect: () => setShowPasswords(true) }]
-            : []),
-          ...(canClearData
-            ? [
-                {
-                  text: 'Clear all',
-                  variant: 'destructive' as const,
-                  onSelect: () => setConfirming('all'),
-                  disabled: clearPending,
-                },
-              ]
-            : []),
+          { text: 'Passwords', onSelect: () => setShowPasswords(true) },
+          {
+            text: 'Clear all',
+            variant: 'destructive' as const,
+            onSelect: () => setConfirming('all'),
+            disabled: clearPending,
+          },
         ]}
       >
         <SettingsSection label='General'>
@@ -224,67 +211,59 @@ export function Browser() {
               />
             </div>
 
-            {canSetTheme && (
-              <div className='flex items-center justify-between gap-4'>
-                <Label>Theme</Label>
-                <AppearanceThemeSelect
-                  ariaLabel='Browser theme'
-                  value={preferences.browserTheme ?? 'app'}
-                  disabled={themePending}
-                  onChange={(theme) => {
-                    if (isDesktopAppearanceTheme(theme)) void setTheme(theme)
-                  }}
-                />
-              </div>
-            )}
+            <div className='flex items-center justify-between gap-4'>
+              <Label>Theme</Label>
+              <AppearanceThemeSelect
+                ariaLabel='Browser theme'
+                value={preferences.browserTheme}
+                disabled={themePending}
+                onChange={(theme) => {
+                  if (isDesktopAppearanceTheme(theme)) void setTheme(theme)
+                }}
+              />
+            </div>
 
-            {canSetDefaultZoom && (
-              <div className='flex items-center justify-between gap-4'>
-                <Label>Default zoom</Label>
-                <DefaultZoomSelect
-                  value={preferences.browserDefaultZoom ?? 100}
-                  onChange={(zoom) => void setDefaultZoom(zoom)}
-                  disabled={zoomPending}
-                />
-              </div>
-            )}
+            <div className='flex items-center justify-between gap-4'>
+              <Label>Default zoom</Label>
+              <DefaultZoomSelect
+                value={preferences.browserDefaultZoom}
+                onChange={(zoom) => void setDefaultZoom(zoom)}
+                disabled={zoomPending}
+              />
+            </div>
 
-            {canChooseDownloadDirectory && (
-              <div className='flex items-center justify-between gap-4'>
-                <div className='flex min-w-0 flex-col gap-1'>
-                  <Label>Download location</Label>
-                  <p
-                    className='max-w-[520px] truncate text-[var(--text-muted)] text-caption'
-                    title={preferences.browserDownloadDirectory}
-                  >
-                    {preferences.browserDownloadDirectory}
-                  </p>
-                </div>
-                <Chip
-                  disabled={downloadDirectoryPending}
-                  onClick={() => void chooseDownloadDirectory()}
+            <div className='flex items-center justify-between gap-4'>
+              <div className='flex min-w-0 flex-col gap-1'>
+                <Label>Download location</Label>
+                <p
+                  className='max-w-[520px] truncate text-[var(--text-muted)] text-caption'
+                  title={preferences.browserDownloadDirectory}
                 >
-                  {downloadDirectoryPending ? 'Choosing...' : 'Change'}
-                </Chip>
+                  {preferences.browserDownloadDirectory}
+                </p>
               </div>
-            )}
+              <Chip
+                disabled={downloadDirectoryPending}
+                onClick={() => void chooseDownloadDirectory()}
+              >
+                {downloadDirectoryPending ? 'Choosing...' : 'Change'}
+              </Chip>
+            </div>
           </div>
         </SettingsSection>
 
-        {canClearData && (
-          <SettingsSection label='Browsing data'>
-            <div className='flex flex-col gap-3'>
-              {DATA_ROWS.map((row) => (
-                <div key={row.kind} className='flex items-center justify-between'>
-                  <Label>{row.label}</Label>
-                  <Chip disabled={clearPending} onClick={() => setConfirming(row)}>
-                    {row.action}
-                  </Chip>
-                </div>
-              ))}
-            </div>
-          </SettingsSection>
-        )}
+        <SettingsSection label='Browsing data'>
+          <div className='flex flex-col gap-3'>
+            {DATA_ROWS.map((row) => (
+              <div key={row.kind} className='flex items-center justify-between'>
+                <Label>{row.label}</Label>
+                <Chip disabled={clearPending} onClick={() => setConfirming(row)}>
+                  {row.action}
+                </Chip>
+              </div>
+            ))}
+          </div>
+        </SettingsSection>
       </SettingsPanel>
 
       <ChipConfirmModal

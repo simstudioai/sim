@@ -4,17 +4,15 @@
  * The web app is served identically to browsers and to the desktop shell; the
  * only difference is the preload bridge the shell injects
  * (`window.simDesktop`, typed in `@sim/desktop-bridge`). Desktop features are
- * progressive enhancements: feature-detect a bridge surface here, never
- * assume it.
+ * progressive enhancements: check for the bridge here, never assume it.
  *
  * Rules for scaling desktop features without scattering gates:
  * - Shared code must not touch `window.simDesktop` directly — add an accessor
  *   here (or a feature-scoped wrapper like `lib/browser-agent/transport.ts`
  *   that builds on {@link getDesktopBridge}) so "everything desktop" stays
  *   greppable from one module.
- * - Gate on the specific bridge surface a feature needs (e.g.
- *   {@link hasLocalFilesystem}), not on "is desktop" — older shells may lack
- *   newer surfaces.
+ * - Gate through a feature-named helper (e.g. {@link hasLocalFilesystem}) so
+ *   callers remain explicit about what they need.
  * - The browser and terminal additionally have a device switch the user can
  *   turn off. `has*` answers whether the shell ships the surface (what the
  *   settings pages need, so the switch can be turned back on); `is*Enabled`
@@ -39,29 +37,28 @@ export function isDesktopApp(): boolean {
 
 /** True when the shell can serve read-only local-directory grants. */
 export function hasLocalFilesystem(): boolean {
-  return Boolean(getDesktopBridge()?.localFilesystem)
+  return isDesktopApp()
 }
 
 /** True when the shell hosts the embedded agent browser. */
 export function hasBrowserAgent(): boolean {
-  return Boolean(getDesktopBridge()?.browserAgent)
+  return isDesktopApp()
 }
 
 /** True when the shell can run an interactive local shell for the agent. */
 export function hasTerminal(): boolean {
-  return Boolean(getDesktopBridge()?.terminal)
+  return isDesktopApp()
 }
 
 /** True when the shell exposes device-level desktop preferences. */
 export function hasDesktopSettings(): boolean {
-  return Boolean(getDesktopBridge()?.settings)
+  return isDesktopApp()
 }
 
 /**
  * The device switches for the browser and terminal, cached because the chat UI
  * reads availability synchronously while the shell only answers over async
- * IPC. An unread or absent value means enabled: both surfaces predate the
- * preference, and both default to on.
+ * IPC. An unread value uses the shell default (enabled).
  *
  * The cache is authoritative at call time, which is what tool execution and
  * capability reporting need. React trees that read it in a memo settle on the
@@ -74,7 +71,7 @@ let devicePreferencesLoad: Promise<void> | null = null
 function loadDevicePreferences(): Promise<void> {
   devicePreferencesLoad ??=
     getDesktopBridge()
-      ?.settings?.getPreferences()
+      ?.settings.getPreferences()
       .then((preferences) => {
         devicePreferences = preferences
       })
@@ -98,32 +95,24 @@ export function setDesktopPreferencesSnapshot(preferences: DesktopPreferences): 
 
 /** True when the agent browser is installed and switched on for this device. */
 export function isBrowserAgentEnabled(): boolean {
-  const browser = getDesktopBridge()?.browserAgent
-  return (
-    Boolean(browser?.activateScope && browser.migrateScope) && isSurfaceSwitchedOn('browserEnabled')
-  )
+  return hasBrowserAgent() && isSurfaceSwitchedOn('browserEnabled')
 }
 
 /** True when the agent terminal is installed and switched on for this device. */
 export function isTerminalEnabled(): boolean {
-  const terminal = getDesktopBridge()?.terminal
-  return (
-    Boolean(terminal?.activateScope && terminal.migrateScope) &&
-    isSurfaceSwitchedOn('terminalEnabled')
-  )
+  return hasTerminal() && isSurfaceSwitchedOn('terminalEnabled')
 }
 
 /**
- * The installed shell's semver, or undefined in a browser and on shells that
- * predate version reporting. Input to the minimum-shell-version gate (see
- * `lib/desktop/min-version.ts`).
+ * The installed shell's semver, or undefined in a browser. Input to the
+ * minimum-shell-version gate (see `lib/desktop/min-version.ts`).
  */
 export function getDesktopShellVersion(): string | undefined {
   return getDesktopBridge()?.version
 }
 
 /** The shell updater surface, when the installed shell provides one. */
-export function getDesktopUpdates(): SimDesktopApi['updates'] {
+export function getDesktopUpdates(): SimDesktopApi['updates'] | undefined {
   return getDesktopBridge()?.updates
 }
 
@@ -148,8 +137,6 @@ export interface DesktopChatCapabilities {
     browserSessions?: BrowserKnownSession[]
     terminals?: DesktopTerminalHint[]
   }
-  /** Compatibility for mothership deployments predating desktopCapabilities.browser. */
-  browserCapable?: true
 }
 
 /**
@@ -158,7 +145,7 @@ export interface DesktopChatCapabilities {
  * in a plain web browser the model never sees the features.
  */
 export async function getDesktopChatCapabilities(
-  scopeId?: string
+  scopeId: string
 ): Promise<DesktopChatCapabilities> {
   const bridge = getDesktopBridge()
   // Never advertise a surface the user switched off, even on the first
@@ -171,7 +158,7 @@ export async function getDesktopChatCapabilities(
   // spending a tool call to ask — and, more importantly, so it notices a
   // terminal that is occupied instead of launching a second copy into it.
   const terminals: DesktopTerminalHint[] =
-    terminal && bridge?.terminal?.getTabs
+    terminal && bridge
       ? await bridge.terminal
           .getTabs(scopeId)
           .then((state) =>
@@ -186,7 +173,7 @@ export async function getDesktopChatCapabilities(
           .catch(() => [])
       : []
   const browserSessions =
-    browser && bridge?.browserAgent?.getKnownSessions
+    browser && bridge
       ? await bridge.browserAgent
           .getKnownSessions()
           .then((state) => state.sessions)
@@ -204,6 +191,5 @@ export async function getDesktopChatCapabilities(
           },
         }
       : {}),
-    ...(browser ? { browserCapable: true } : {}),
   }
 }

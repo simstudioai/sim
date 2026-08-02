@@ -122,7 +122,7 @@ export interface BrowserPanelSnapshot {
   tabId: string
   zoomPercent: number
   /** Chat scope that owns the captured tab. */
-  scopeId?: string
+  scopeId: string
 }
 
 /**
@@ -156,10 +156,9 @@ export interface BrowserPanelAction {
 
 /** Live state of the active page, pushed to the panel header. */
 export interface BrowserPageState {
-  /** Present on desktop versions with multi-tab UI support. */
-  tabId?: string
-  /** Chat scope that owns this page, when reported by a scoped desktop build. */
-  scopeId?: string
+  tabId: string
+  /** Chat scope that owns this page. */
+  scopeId: string
   url: string
   title: string
   loading: boolean
@@ -210,15 +209,15 @@ export interface BrowserTabState {
   loading: boolean
   active: boolean
   /** Pinned tabs are ordered before regular tabs and cannot be closed. */
-  pinned?: boolean
+  pinned: boolean
 }
 
 /** Complete live tab list pushed by the desktop shell. */
 export interface BrowserTabsState {
   tabs: BrowserTabState[]
   activeTabId: string | null
-  /** Chat scope that owns this tab set, when reported by a scoped desktop build. */
-  scopeId?: string
+  /** Chat scope that owns this tab set. */
+  scopeId: string
 }
 
 /**

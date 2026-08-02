@@ -35,9 +35,8 @@ const {
   showToolbarMenu,
   setTheme,
   setTabsState,
-  setTabsSupported,
 } = vi.hoisted(() => ({
-  activateScope: vi.fn(),
+  activateScope: vi.fn(async (scopeId: string) => ({ scopeId, tabs: [], activeTabId: null })),
   capturePanelSnapshot: vi.fn(),
   discardScope: vi.fn(),
   disposeScope: vi.fn(async () => true),
@@ -71,16 +70,16 @@ const {
   showToolbarMenu: vi.fn(),
   setTheme: vi.fn(),
   setTabsState: vi.fn(),
-  setTabsSupported: vi.fn(),
 }))
 
 vi.mock('@/lib/desktop', () => ({
+  isBrowserAgentEnabled: () => true,
   getDesktopBridge: () => ({
     browserAgent: {
+      activateScope,
       executeTool: vi.fn(),
       capturePanelSnapshot,
       disposeScope,
-      getTabsState: vi.fn(async () => ({ tabs: [], activeTabId: null })),
       migrateScope: nativeMigrateScope,
       onCloseFind,
       onAddToChat,
@@ -114,10 +113,9 @@ vi.mock('@/lib/desktop', () => ({
 }))
 
 vi.mock('@/stores/browser-session/store', () => ({
-  LEGACY_BROWSER_SCOPE: 'legacy',
   useBrowserSessionStore: {
     getState: () => ({
-      activeScopeId: 'legacy',
+      activeScopeId: null,
       activateScope,
       discardScope,
       migrateScope: migrateStoreScope,
@@ -125,19 +123,16 @@ vi.mock('@/stores/browser-session/store', () => ({
       setPageState,
       setSessionAlive,
       setTabsState,
-      setTabsSupported,
     }),
   },
 }))
 
 import {
+  activateBrowserScope,
   captureBrowserPanelSnapshot,
   discardBrowserScope,
   fillBrowserCredential,
   initBrowserAgentTransport,
-  isBrowserPanelOcclusionAvailable,
-  isBrowserTabPinningAvailable,
-  isBrowserTabReorderingAvailable,
   loadBrowserFillOptions,
   migrateBrowserScope,
   onBrowserAddToChat,
@@ -161,7 +156,8 @@ import {
 } from '@/lib/browser-agent/transport'
 
 describe('browser panel transport', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await activateBrowserScope('chat-test')
     setPanelBounds.mockClear()
     setPanelFocused.mockClear()
     capturePanelSnapshot.mockReset()
@@ -169,7 +165,6 @@ describe('browser panel transport', () => {
     setPageState.mockClear()
     setSessionAlive.mockClear()
     setTabsState.mockClear()
-    setTabsSupported.mockClear()
     reorderTab.mockClear()
     restoreScope.mockReset()
     nativeSuspendScope.mockReset()
@@ -198,8 +193,8 @@ describe('browser panel transport', () => {
     // A caller with no anchor to declare keeps whatever was last retained —
     // here there was never one, so the shell is told null both times.
     expect(setPanelBounds.mock.calls).toEqual([
-      [initialBounds, null, 'legacy'],
-      [updatedBounds, null, 'legacy'],
+      [initialBounds, null, 'chat-test'],
+      [updatedBounds, null, 'chat-test'],
     ])
   })
 
@@ -208,8 +203,8 @@ describe('browser panel transport', () => {
     reportBrowserPanelFocused(false)
 
     expect(setPanelFocused.mock.calls).toEqual([
-      [true, 'legacy'],
-      [false, 'legacy'],
+      [true, 'chat-test'],
+      [false, 'chat-test'],
     ])
   })
 
@@ -223,7 +218,6 @@ describe('browser panel transport', () => {
     capturePanelSnapshot.mockResolvedValue(snapshot)
     setPanelOccluded.mockResolvedValue(true)
 
-    expect(isBrowserPanelOcclusionAvailable()).toBe(true)
     await expect(captureBrowserPanelSnapshot('chat-a')).resolves.toEqual(snapshot)
     await expect(setBrowserPanelOccluded(true, 'chat-a')).resolves.toBe(true)
     await expect(setBrowserPanelOccluded(false, 'chat-a')).resolves.toBe(true)
@@ -235,15 +229,13 @@ describe('browser panel transport', () => {
     ])
   })
 
-  it('forwards tab pinning only through shells that advertise support', () => {
-    expect(isBrowserTabPinningAvailable()).toBe(true)
-
+  it('forwards tab pinning to the native browser', () => {
     setBrowserTabPinned('tab-2', true)
     setBrowserTabPinned('tab-2', false)
 
     expect(setTabPinned.mock.calls).toEqual([
-      ['tab-2', true, 'legacy'],
-      ['tab-2', false, 'legacy'],
+      ['tab-2', true, 'chat-test'],
+      ['tab-2', false, 'chat-test'],
     ])
   })
 
@@ -330,12 +322,10 @@ describe('browser panel transport', () => {
     expect(showCredentialChooser).toHaveBeenCalledWith({ x: 10, y: 20 }, 'chat-a')
   })
 
-  it('forwards tab reordering only through shells that advertise support', () => {
-    expect(isBrowserTabReorderingAvailable()).toBe(true)
-
+  it('forwards tab reordering to the native browser', () => {
     reorderBrowserTab('tab-3', 1)
 
-    expect(reorderTab).toHaveBeenCalledWith('tab-3', 1, 'legacy')
+    expect(reorderTab).toHaveBeenCalledWith('tab-3', 1, 'chat-test')
   })
 
   it('forgets an abandoned provisional browser scope on both sides', async () => {
@@ -405,8 +395,7 @@ describe('browser panel transport', () => {
     await expect(restoreBrowserScope('chat-restored')).resolves.toBe(true)
 
     expect(restoreScope).toHaveBeenCalledWith('chat-restored')
-    expect(setTabsSupported).toHaveBeenCalledWith(true, 'chat-restored')
-    expect(setTabsState).toHaveBeenCalledWith(tabsState, 'chat-restored')
+    expect(setTabsState).toHaveBeenCalledWith(tabsState)
   })
 
   it('routes late browser events to the scope carried by the event', () => {
@@ -444,9 +433,8 @@ describe('browser panel transport', () => {
     tabsListener(tabsState)
     statusListener(false, 'chat-c')
 
-    expect(setPageState).toHaveBeenCalledWith(pageState, 'chat-a')
-    expect(setTabsSupported).toHaveBeenCalledWith(true, 'chat-b')
-    expect(setTabsState).toHaveBeenCalledWith(tabsState, 'chat-b')
+    expect(setPageState).toHaveBeenCalledWith(pageState)
+    expect(setTabsState).toHaveBeenCalledWith(tabsState)
     expect(setSessionAlive).toHaveBeenCalledWith(false, 'chat-c')
   })
 

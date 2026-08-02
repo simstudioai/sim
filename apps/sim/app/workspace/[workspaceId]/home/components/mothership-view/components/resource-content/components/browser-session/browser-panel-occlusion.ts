@@ -2,11 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { BrowserPanelSnapshot } from '@sim/browser-protocol'
-import {
-  captureBrowserPanelSnapshot,
-  isBrowserPanelOcclusionAvailable,
-  setBrowserPanelOccluded,
-} from '@/lib/browser-agent/transport'
+import { captureBrowserPanelSnapshot, setBrowserPanelOccluded } from '@/lib/browser-agent/transport'
 
 const SNAPSHOT_DECODE_TIMEOUT_MS = 3_000
 const SNAPSHOT_PAINT_TIMEOUT_MS = 1_000
@@ -72,7 +68,7 @@ async function decodeSnapshot(dataUrl: string): Promise<boolean> {
  * Explicit browser-chrome native-surface swap.
  *
  * Unlike the previous global overlay observer, this runs only after a browser
- * chrome interaction. The native page remains visible while its lossless frame is
+ * chrome interaction. The native page remains visible while its bounded frame is
  * captured and decoded. React paints that frame underneath the still-visible
  * page; only after two animation frames does the desktop hide the native view
  * and let the requested emcn menu mount. Closing performs the inverse order.
@@ -81,12 +77,12 @@ export function useBrowserPanelOcclusion(
   scopeId: string,
   activeTabId: string | null
 ): BrowserPanelOcclusion {
-  const supported = isBrowserPanelOcclusionAvailable()
   const [snapshotRender, setSnapshotRender] = useState<SnapshotRender | null>(null)
   const [activeOverlay, setActiveOverlay] = useState<BrowserPanelOverlay | null>(null)
   const activeOverlayRef = useRef<BrowserPanelOverlay | null>(null)
   const activeTabIdRef = useRef(activeTabId)
   const requestIdRef = useRef(0)
+  const overlayRequestPendingRef = useRef(false)
   const pendingPaintRef = useRef<PendingPaint | null>(null)
   const paintFramesRef = useRef<number[]>([])
   const revealPromiseRef = useRef<Promise<void>>(Promise.resolve())
@@ -161,59 +157,65 @@ export function useBrowserPanelOcclusion(
 
   const requestOverlay = useCallback(
     async (overlay: BrowserPanelOverlay, fallback: () => void) => {
-      if (activeOverlayRef.current === overlay || pendingPaintRef.current) return
-      if (!supported) {
-        fallback()
+      if (
+        activeOverlayRef.current === overlay ||
+        pendingPaintRef.current ||
+        overlayRequestPendingRef.current
+      ) {
         return
       }
-
+      overlayRequestPendingRef.current = true
       const requestId = ++requestIdRef.current
-      const frame = await captureBrowserPanelSnapshot(scopeId).catch(() => null)
-      if (!mountedRef.current || requestIdRef.current !== requestId) return
-      if (!frame || (activeTabIdRef.current && frame.tabId !== activeTabIdRef.current)) {
-        fallback()
-        return
-      }
+      try {
+        const frame = await captureBrowserPanelSnapshot(scopeId).catch(() => null)
+        if (!mountedRef.current || requestIdRef.current !== requestId) return
+        if (!frame || (activeTabIdRef.current && frame.tabId !== activeTabIdRef.current)) {
+          fallback()
+          return
+        }
 
-      const decoded = await decodeSnapshot(frame.dataUrl)
-      if (!mountedRef.current || requestIdRef.current !== requestId) return
-      if (!decoded) {
-        fallback()
-        return
-      }
+        const decoded = await decodeSnapshot(frame.dataUrl)
+        if (!mountedRef.current || requestIdRef.current !== requestId) return
+        if (!decoded) {
+          fallback()
+          return
+        }
 
-      const painted = new Promise<boolean>((resolve) => {
-        pendingPaintRef.current = { requestId, resolve }
-      })
-      setSnapshotRender({ frame, requestId })
-      const paintTimeout = window.setTimeout(
-        () => settlePaint(requestId, false),
-        SNAPSHOT_PAINT_TIMEOUT_MS
-      )
-      const didPaint = await painted
-      window.clearTimeout(paintTimeout)
-      if (!mountedRef.current || requestIdRef.current !== requestId) return
-      if (!didPaint) {
-        setSnapshotRender(null)
-        fallback()
-        return
-      }
+        const painted = new Promise<boolean>((resolve) => {
+          pendingPaintRef.current = { requestId, resolve }
+        })
+        setSnapshotRender({ frame, requestId })
+        const paintTimeout = window.setTimeout(
+          () => settlePaint(requestId, false),
+          SNAPSHOT_PAINT_TIMEOUT_MS
+        )
+        const didPaint = await painted
+        window.clearTimeout(paintTimeout)
+        if (!mountedRef.current || requestIdRef.current !== requestId) return
+        if (!didPaint) {
+          setSnapshotRender(null)
+          fallback()
+          return
+        }
 
-      const hidden = await setBrowserPanelOccluded(true, scopeId).catch(() => false)
-      if (!mountedRef.current || requestIdRef.current !== requestId) {
-        if (hidden) await setBrowserPanelOccluded(false, scopeId).catch(() => false)
-        return
-      }
-      if (!hidden) {
-        setSnapshotRender(null)
-        fallback()
-        return
-      }
+        const hidden = await setBrowserPanelOccluded(true, scopeId).catch(() => false)
+        if (!mountedRef.current || requestIdRef.current !== requestId) {
+          if (hidden) await setBrowserPanelOccluded(false, scopeId).catch(() => false)
+          return
+        }
+        if (!hidden) {
+          setSnapshotRender(null)
+          fallback()
+          return
+        }
 
-      activeOverlayRef.current = overlay
-      setActiveOverlay(overlay)
+        activeOverlayRef.current = overlay
+        setActiveOverlay(overlay)
+      } finally {
+        overlayRequestPendingRef.current = false
+      }
     },
-    [scopeId, settlePaint, supported]
+    [scopeId, settlePaint]
   )
 
   useEffect(() => {

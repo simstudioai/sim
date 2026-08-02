@@ -1,6 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { TERMINAL_DARK_THEME } from '@sim/desktop-bridge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -11,26 +12,8 @@ import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { Notification } from '@/test/electron-mock'
 
 const IMPORTED_PALETTE = {
+  ...TERMINAL_DARK_THEME,
   background: '#101010',
-  foreground: '#f0f0f0',
-  cursor: '#ffffff',
-  selectionBackground: '#264f78',
-  black: '#000000',
-  red: '#cc0000',
-  green: '#00cc00',
-  yellow: '#cccc00',
-  blue: '#0000cc',
-  magenta: '#cc00cc',
-  cyan: '#00cccc',
-  white: '#cccccc',
-  brightBlack: '#555555',
-  brightRed: '#ff5555',
-  brightGreen: '#55ff55',
-  brightYellow: '#ffff55',
-  brightBlue: '#5555ff',
-  brightMagenta: '#ff55ff',
-  brightCyan: '#55ffff',
-  brightWhite: '#ffffff',
 }
 
 function makeService() {
@@ -215,31 +198,32 @@ describe('desktop settings service', () => {
       id: 'iterm2:ocean',
       name: 'Ocean',
       source: 'iterm2',
-      sourceLabel: 'iTerm2',
-      isDefault: true,
       palette: IMPORTED_PALETTE,
     })
 
-    expect(config.get('terminalTheme')).toBe('profile:iterm2:ocean')
-    expect(config.get('terminalProfile')).toEqual({
+    expect(config.get('terminalTheme')).toEqual({
       id: 'iterm2:ocean',
       name: 'Ocean',
       source: 'iterm2',
       palette: IMPORTED_PALETTE,
     })
     expect(preferences).toMatchObject({
-      terminalTheme: 'profile:iterm2:ocean',
-      terminalProfile: { id: 'iterm2:ocean', name: 'Ocean' },
+      terminalTheme: { id: 'iterm2:ocean', name: 'Ocean' },
     })
   })
 
-  it('does not select a profile theme without its cached palette', () => {
-    const { config, service } = makeService()
+  it('replaces a selected profile completely when a built-in theme is selected', () => {
+    const { service } = makeService()
 
-    service.setAppearancePreference('terminalTheme', 'profile:missing')
+    service.selectTerminalProfile({
+      id: 'iterm2:ocean',
+      name: 'Ocean',
+      source: 'iterm2',
+      palette: IMPORTED_PALETTE,
+    })
+    const preferences = service.setAppearancePreference('terminalTheme', 'light')
 
-    expect(config.get('terminalTheme')).toBeUndefined()
-    expect(service.getPreferences().terminalTheme).toBe('app')
+    expect(preferences.terminalTheme).toBe('light')
   })
 
   it('applies login-item changes only for packaged builds', () => {

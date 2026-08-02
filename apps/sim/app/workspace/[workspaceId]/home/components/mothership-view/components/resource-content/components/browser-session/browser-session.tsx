@@ -30,9 +30,6 @@ import { Globe } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import {
   fillBrowserCredential,
-  isBrowserFindAvailable,
-  isBrowserTabPinningAvailable,
-  isBrowserTabReorderingAvailable,
   loadBrowserFillOptions,
   loadBrowserSuggestionSources,
   onBrowserAddToChat,
@@ -53,7 +50,10 @@ import {
   showBrowserToolbarMenu,
 } from '@/lib/browser-agent/transport'
 import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
-import { loadDesktopAppearanceTheme, resolveDesktopAppearanceTheme } from '@/lib/desktop/appearance'
+import {
+  loadDesktopBrowserAppearanceTheme,
+  resolveDesktopAppearanceTheme,
+} from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { addMothershipContext } from '@/lib/mothership/events'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
@@ -215,15 +215,10 @@ export function BrowserSession({
   const activeTabId = useBrowserSessionStore(
     (state) => state.sessions[scopeId]?.activeTabId ?? null
   )
-  const tabsSupported = useBrowserSessionStore(
-    (state) => state.sessions[scopeId]?.tabsSupported ?? false
-  )
   const sessionAlive = useBrowserSessionStore(
     (state) => state.sessions[scopeId]?.sessionAlive ?? true
   )
   const suspended = useBrowserSessionStore((state) => state.sessions[scopeId]?.suspended ?? false)
-  const tabPinningSupported = isBrowserTabPinningAvailable()
-  const tabReorderingSupported = isBrowserTabReorderingAvailable()
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
@@ -280,7 +275,6 @@ export function BrowserSession({
   const [suggestionsVisible, setSuggestionsVisible] = useState(false)
   /** Whether the find bar is docked above the page. */
   const [findOpen, setFindOpen] = useState(false)
-  const findSupported = isBrowserFindAvailable()
   const {
     activeOverlay,
     snapshot: panelSnapshot,
@@ -307,7 +301,7 @@ export function BrowserSession({
 
   useEffect(() => {
     let active = true
-    void loadDesktopAppearanceTheme('browser').then((next) => {
+    void loadDesktopBrowserAppearanceTheme().then((next) => {
       if (active) setAppearanceTheme(next)
     })
     return () => {
@@ -322,14 +316,6 @@ export function BrowserSession({
       onBrowserToolbarCommand((command) => {
         if (command === 'import') {
           navigateToSettings({ section: 'browser', browserView: 'passwords', browserImport: true })
-          return
-        }
-        if (command === 'passwords') {
-          navigateToSettings({ section: 'browser', browserView: 'passwords' })
-          return
-        }
-        if (command === 'clear-data') {
-          navigateToSettings({ section: 'browser', browserClear: true })
           return
         }
         navigateToSettings({ section: 'browser' })
@@ -442,17 +428,15 @@ export function BrowserSession({
   // at all (the shell intercepts it and calls back), and with Sim's own chrome
   // focused the shell never sees it. Both land here.
   useEffect(() => {
-    if (!findSupported) return
     return onBrowserFindOpen(openFind, scopeId)
-  }, [findSupported, openFind, scopeId])
+  }, [openFind, scopeId])
 
   useEffect(() => {
-    if (!findSupported) return
     return onBrowserFindClose(() => setFindOpen(false), scopeId)
-  }, [findSupported, scopeId])
+  }, [scopeId])
 
   useEffect(() => {
-    if (!findSupported || !panelVisible) return
+    if (!panelVisible) return
     const panel = panelRef.current
     if (!panel) return
     const handleFindShortcut = (event: KeyboardEvent) => {
@@ -466,7 +450,7 @@ export function BrowserSession({
     }
     panel.addEventListener('keydown', handleFindShortcut)
     return () => panel.removeEventListener('keydown', handleFindShortcut)
-  }, [findSupported, panelVisible, openFind])
+  }, [panelVisible, openFind])
 
   // Unmounting the bar strands focus on a removed node; the shell hands it back
   // to the page when it stops the find, which is where native focus is owned.
@@ -696,25 +680,21 @@ export function BrowserSession({
   return (
     <div ref={panelRef} className='flex h-full flex-col overflow-hidden'>
       <div className='shrink-0 border-[var(--border)] border-b bg-[var(--bg)]'>
-        {tabsSupported && (
-          <BrowserTabStrip
-            tabs={tabs}
-            activeTabId={activeTabId}
-            onNewTab={handleNewTab}
-            onSwitchTab={handleSwitchTab}
-            onCloseTab={handleCloseTab}
-            onDuplicateTab={handleDuplicateTab}
-            onSetTabPinned={handleSetTabPinned}
-            onOpenTabMenu={(tabId) =>
-              void requestOverlay('tab', () => showBrowserTabContextMenu(tabId, scopeId))
-            }
-            onCloseTabMenu={() => void closeOverlay('tab')}
-            onReorderTab={handleReorderTab}
-            contextMenuOpen={activeOverlay === 'tab'}
-            pinningSupported={tabPinningSupported}
-            reorderingSupported={tabReorderingSupported}
-          />
-        )}
+        <BrowserTabStrip
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onNewTab={handleNewTab}
+          onSwitchTab={handleSwitchTab}
+          onCloseTab={handleCloseTab}
+          onDuplicateTab={handleDuplicateTab}
+          onSetTabPinned={handleSetTabPinned}
+          onOpenTabMenu={(tabId) =>
+            void requestOverlay('tab', () => showBrowserTabContextMenu(tabId, scopeId))
+          }
+          onCloseTabMenu={() => void closeOverlay('tab')}
+          onReorderTab={handleReorderTab}
+          contextMenuOpen={activeOverlay === 'tab'}
+        />
         <div className='flex items-center gap-1 px-2.5 py-1.5'>
           <Button
             type='button'
@@ -935,10 +915,7 @@ export function BrowserSession({
               // find input opened by its own action and returns focus here.
               onCloseAutoFocus={(event) => event.preventDefault()}
             >
-              <DropdownMenuItem
-                disabled={!findSupported}
-                onSelect={() => void closeOverlay('toolbar').then(openFind)}
-              >
+              <DropdownMenuItem onSelect={() => void closeOverlay('toolbar').then(openFind)}>
                 Find in Page
                 <DropdownMenuShortcut>⌘F</DropdownMenuShortcut>
               </DropdownMenuItem>

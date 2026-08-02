@@ -1,9 +1,5 @@
 import { readFileSync } from 'node:fs'
-import type {
-  DesktopZoomPercent,
-  TerminalAppearanceTheme,
-  TerminalSelectedProfile,
-} from '@sim/desktop-bridge'
+import type { DesktopZoomPercent, TerminalAppearanceTheme } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/ssrf'
 import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
@@ -116,26 +112,12 @@ export interface DesktopSettings {
   terminalTheme?: TerminalAppearanceTheme
   /** Device-wide default zoom for built-in terminal canvases. */
   terminalDefaultZoom?: DesktopZoomPercent
-  terminalProfile?: TerminalSelectedProfile
-  /**
-   * Where the agent terminal last was. A shell that always reopened in the
-   * home directory would drop the user back at square one every session, and
-   * `$HOME` is the worst possible working directory for tools that ask what
-   * they are allowed to touch. Restored on the next launch when it still
-   * exists.
-   */
-  terminalCwd?: string
   /**
    * Top-level sites visited in the dedicated agent-browser profile. This is
    * local inference metadata only; no cookies, credentials, or account data
    * are persisted here.
    */
   browserKnownSites?: BrowserKnownSiteSetting[]
-  /**
-   * URLs of user-pinned agent-browser tabs, in pinned-strip order. Pinned
-   * pages are restored locally when the browser resource is opened again.
-   */
-  browserPinnedTabUrls?: string[]
 }
 
 export type OriginValidation = { ok: true; origin: string } | { ok: false; error: string }

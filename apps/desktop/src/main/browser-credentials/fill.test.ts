@@ -66,12 +66,24 @@ function setup(contents: Contents = fakeContents(), vault = fakeVault()) {
   }
 }
 
-/** Reports a login form, opens the chooser, and returns its menu template. */
-async function openChooser(context: ReturnType<typeof setup>) {
-  context.coordinator.noteFormState(context.contents as unknown as WebContents, {
+function loginFormState(
+  overrides: Partial<{
+    origin: string
+    hasLoginForm: boolean
+    hasPasswordField: boolean
+  }> = {}
+) {
+  return {
     origin: ORIGIN,
     hasLoginForm: true,
-  })
+    hasPasswordField: true,
+    ...overrides,
+  }
+}
+
+/** Reports a login form, opens the chooser, and returns its menu template. */
+async function openChooser(context: ReturnType<typeof setup>) {
+  context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
   await context.coordinator.showChooser(WINDOW, { x: 10, y: 20 })
   const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as
     | Array<{ label: string; click: () => void }>
@@ -100,20 +112,14 @@ beforeEach(() => {
 describe('fill availability', () => {
   it('is available once a login form has a saved match', async () => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
 
     await expect(context.coordinator.isFillAvailable()).resolves.toBe(true)
   })
 
   it('replays the active tab availability when its chat is reactivated', async () => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
     await settle()
     context.onAvailabilityChanged.mockClear()
 
@@ -134,10 +140,7 @@ describe('fill availability', () => {
     )
     const context = setup(fakeContents(), fakeVault({ listForOrigin }))
 
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
     context.coordinator.noteNavigation(context.contents as unknown as WebContents)
     await settle()
     resolveMatches([
@@ -164,10 +167,7 @@ describe('fill availability', () => {
         })
     )
     const context = setup(fakeContents(), fakeVault({ listForOrigin }))
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
 
     context.setActive(fakeContents('https://other.example/login'))
     resolveMatches([
@@ -190,41 +190,31 @@ describe('fill availability', () => {
     ['the page origin cannot hold a credential', { origin: 'about:blank' }],
   ])('is unavailable when %s', async (_label, report) => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-      ...report,
-    })
+    context.coordinator.noteFormState(
+      context.contents as unknown as WebContents,
+      loginFormState(report)
+    )
 
     await expect(context.coordinator.isFillAvailable()).resolves.toBe(false)
   })
 
   it('is unavailable with no saved credential for the origin', async () => {
     const context = setup(fakeContents(), fakeVault({ listForOrigin: vi.fn(async () => []) }))
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
 
     await expect(context.coordinator.isFillAvailable()).resolves.toBe(false)
   })
 
   it('is unavailable when secure storage is unavailable', async () => {
     const context = setup(fakeContents(), fakeVault({ isAvailable: vi.fn(() => false) }))
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
 
     await expect(context.coordinator.isFillAvailable()).resolves.toBe(false)
   })
 
   it('drops to unavailable as soon as the page navigates', async () => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
 
     context.coordinator.noteNavigation(context.contents as unknown as WebContents)
 
@@ -243,10 +233,7 @@ describe('fill availability', () => {
 
   it('forgets a closed tab', async () => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
 
     context.coordinator.forget(context.contents as unknown as WebContents)
 
@@ -268,10 +255,10 @@ describe('credential chooser', () => {
     await expect(context.coordinator.showChooser(WINDOW, { x: 0, y: 0 })).resolves.toBe(false)
 
     const noMatches = setup(fakeContents(), fakeVault({ listForOrigin: vi.fn(async () => []) }))
-    noMatches.coordinator.noteFormState(noMatches.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    noMatches.coordinator.noteFormState(
+      noMatches.contents as unknown as WebContents,
+      loginFormState()
+    )
     await expect(noMatches.coordinator.showChooser(WINDOW, { x: 0, y: 0 })).resolves.toBe(false)
   })
 })
@@ -279,10 +266,7 @@ describe('credential chooser', () => {
 describe('renderer credential chooser', () => {
   it('lists only matching metadata and never reads a password', async () => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
 
     await expect(context.coordinator.listFillOptions(SCOPE)).resolves.toEqual([
       expect.objectContaining({ id: 'c1', origin: ORIGIN, username: 'ada' }),
@@ -293,10 +277,7 @@ describe('renderer credential chooser', () => {
 
   it('refuses to list options for a scope that does not own the active tab', async () => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
     await settle()
     context.vault.listForOrigin.mockClear()
 
@@ -306,10 +287,7 @@ describe('renderer credential chooser', () => {
 
   it('fills one selected option and consumes its authorization', async () => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
     await context.coordinator.listFillOptions(SCOPE)
 
     await expect(context.coordinator.fillCredential('c1', SCOPE)).resolves.toBe(true)
@@ -324,10 +302,7 @@ describe('renderer credential chooser', () => {
 
   it('refuses an id that was not in the matching option list', async () => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
     await context.coordinator.listFillOptions(SCOPE)
 
     await expect(context.coordinator.fillCredential('other', SCOPE)).resolves.toBe(false)
@@ -336,17 +311,11 @@ describe('renderer credential chooser', () => {
 
   it('invalidates a renderer selection when the page navigates', async () => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
     await context.coordinator.listFillOptions(SCOPE)
 
     context.coordinator.noteNavigation(context.contents as unknown as WebContents)
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
 
     await expect(context.coordinator.fillCredential('c1', SCOPE)).resolves.toBe(false)
     expect(context.vault.readForFill).not.toHaveBeenCalled()
@@ -364,10 +333,7 @@ describe('renderer credential chooser', () => {
       }),
     })
     const context = setup(fakeContents(), vault)
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
+    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
     await context.coordinator.listFillOptions(SCOPE)
 
     const fill = context.coordinator.fillCredential('c1', SCOPE)
@@ -397,11 +363,10 @@ describe('performing a fill', () => {
 
   it('fills the email step of a two-step sign-in without sending the password', async () => {
     const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-      hasPasswordField: false,
-    })
+    context.coordinator.noteFormState(
+      context.contents as unknown as WebContents,
+      loginFormState({ hasPasswordField: false })
+    )
     await context.coordinator.showChooser(WINDOW, { x: 10, y: 20 })
     const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
       click: () => void
@@ -416,27 +381,6 @@ describe('performing a fill', () => {
       username: 'ada',
       password: undefined,
     })
-  })
-
-  it('sends the password to a shell that never reported whether a field exists', async () => {
-    const context = setup()
-    // Older preloads omit the flag; assuming a password field keeps them working.
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, {
-      origin: ORIGIN,
-      hasLoginForm: true,
-    })
-    await context.coordinator.showChooser(WINDOW, { x: 10, y: 20 })
-    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as Array<{
-      click: () => void
-    }>
-
-    template[0].click()
-    await settle()
-
-    expect(context.contents.send).toHaveBeenCalledWith(
-      'browser-credentials:fill',
-      expect.objectContaining({ password: 'hunter2' })
-    )
   })
 
   it('refuses after the page navigated between choosing and clicking', async () => {

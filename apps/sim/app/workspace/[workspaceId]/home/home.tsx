@@ -35,6 +35,7 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import {
@@ -475,13 +476,16 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   const showEmptyState = !hasMessages && !showChatSkeleton
 
   return (
-    <div className='relative flex h-full bg-[var(--bg)]'>
+    <div className={cn('relative flex h-full bg-[var(--bg)]', RESOURCE_HEADER_CLASSES.layout)}>
       <div className='relative flex h-full min-w-[240px] flex-1 flex-col'>
         {showEmptyState && (
           <div
             className={cn(
-              'absolute top-[8.5px] z-10',
-              isDesktop || isResourceCollapsed ? 'right-[54px]' : 'right-[16px]'
+              'absolute z-10',
+              RESOURCE_HEADER_CLASSES.contentTop,
+              isDesktop || isResourceCollapsed
+                ? RESOURCE_HEADER_CLASSES.adjacentEndPosition
+                : RESOURCE_HEADER_CLASSES.endPosition
             )}
           >
             <CreditsChip />
@@ -587,7 +591,13 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       </MothershipResourcesProvider>
 
       {isDesktop ? (
-        <div className='absolute top-[6.5px] right-[16px] z-30'>
+        <div
+          className={cn(
+            'absolute top-0 z-30 flex items-center',
+            RESOURCE_HEADER_CLASSES.controls,
+            RESOURCE_HEADER_CLASSES.endPosition
+          )}
+        >
           <Button
             variant='ghost'
             size={null}
@@ -601,7 +611,13 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         </div>
       ) : (
         isResourceCollapsed && (
-          <div className='absolute top-[8.5px] right-[16px]'>
+          <div
+            className={cn(
+              'absolute',
+              RESOURCE_HEADER_CLASSES.contentTop,
+              RESOURCE_HEADER_CLASSES.endPosition
+            )}
+          >
             <Button
               variant='ghost'
               size={null}

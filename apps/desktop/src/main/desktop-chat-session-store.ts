@@ -1,5 +1,6 @@
 import { readFileSync, unlinkSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
+import { isDesktopScopeId, isPendingDesktopScopeId } from '@sim/desktop-bridge'
 import { safeStorage } from 'electron'
 import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
 
@@ -7,7 +8,6 @@ const STORE_VERSION = 1
 const SNAPSHOT_VERSION = 1
 const MAX_DURABLE_ENTRIES = 100
 const MAX_ORIGIN_LENGTH = 2_048
-const MAX_SCOPE_LENGTH = 512
 const MAX_URL_LENGTH = 8_192
 const MAX_CWD_LENGTH = 4_096
 const MAX_DOWNLOADS = 5
@@ -23,7 +23,7 @@ export interface BrowserSessionSnapshot {
     pinned: boolean
   }>
   activeIndex: number
-  downloads?: Array<{
+  downloads: Array<{
     id: string
     filename: string
     state: 'completed' | 'interrupted' | 'cancelled'
@@ -102,19 +102,11 @@ function normalizeOrigin(origin: unknown): string | null {
 }
 
 function normalizeScope(scope: unknown): string | null {
-  if (
-    typeof scope !== 'string' ||
-    scope.trim().length === 0 ||
-    scope.length > MAX_SCOPE_LENGTH ||
-    scope.includes('\0')
-  ) {
-    return null
-  }
-  return scope
+  return isDesktopScopeId(scope) ? scope : null
 }
 
 function isDurableScope(scope: string): boolean {
-  return !scope.startsWith('pending:') && scope !== 'legacy'
+  return !isPendingDesktopScopeId(scope)
 }
 
 function normalizeBrowserUrl(value: unknown): string | null {
@@ -143,7 +135,14 @@ function normalizeActiveIndex(value: unknown, tabCount: number): number {
 }
 
 function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null {
-  if (!isRecord(value) || value.v !== SNAPSHOT_VERSION || !Array.isArray(value.tabs)) return null
+  if (
+    !isRecord(value) ||
+    value.v !== SNAPSHOT_VERSION ||
+    !Array.isArray(value.tabs) ||
+    !Array.isArray(value.downloads)
+  ) {
+    return null
+  }
 
   const tabs: BrowserSessionSnapshot['tabs'] = []
   for (const candidate of value.tabs) {
@@ -153,54 +152,52 @@ function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null
     tabs.push({ url, pinned: candidate.pinned })
   }
 
-  const downloads: NonNullable<BrowserSessionSnapshot['downloads']> = []
-  if (Array.isArray(value.downloads)) {
-    for (const candidate of value.downloads) {
-      if (!isRecord(candidate)) continue
-      if (
-        typeof candidate.id !== 'string' ||
-        candidate.id.length === 0 ||
-        candidate.id.length > MAX_DOWNLOAD_ID_LENGTH ||
-        typeof candidate.filename !== 'string' ||
-        candidate.filename.length === 0 ||
-        candidate.filename.length > MAX_DOWNLOAD_FILENAME_LENGTH ||
-        (candidate.state !== 'completed' &&
-          candidate.state !== 'interrupted' &&
-          candidate.state !== 'cancelled') ||
-        typeof candidate.receivedBytes !== 'number' ||
-        !Number.isSafeInteger(candidate.receivedBytes) ||
-        candidate.receivedBytes < 0 ||
-        typeof candidate.totalBytes !== 'number' ||
-        !Number.isSafeInteger(candidate.totalBytes) ||
-        candidate.totalBytes < 0 ||
-        typeof candidate.startedAt !== 'string' ||
-        !Number.isFinite(Date.parse(candidate.startedAt)) ||
-        typeof candidate.savePath !== 'string' ||
-        candidate.savePath.length === 0 ||
-        candidate.savePath.length > MAX_DOWNLOAD_PATH_LENGTH ||
-        candidate.savePath.includes('\0') ||
-        !isAbsolute(candidate.savePath)
-      ) {
-        continue
-      }
-      downloads.push({
-        id: candidate.id,
-        filename: candidate.filename,
-        state: candidate.state,
-        receivedBytes: candidate.receivedBytes,
-        totalBytes: candidate.totalBytes,
-        startedAt: candidate.startedAt,
-        savePath: candidate.savePath,
-      })
-      if (downloads.length >= MAX_DOWNLOADS) break
+  const downloads: BrowserSessionSnapshot['downloads'] = []
+  for (const candidate of value.downloads) {
+    if (!isRecord(candidate)) continue
+    if (
+      typeof candidate.id !== 'string' ||
+      candidate.id.length === 0 ||
+      candidate.id.length > MAX_DOWNLOAD_ID_LENGTH ||
+      typeof candidate.filename !== 'string' ||
+      candidate.filename.length === 0 ||
+      candidate.filename.length > MAX_DOWNLOAD_FILENAME_LENGTH ||
+      (candidate.state !== 'completed' &&
+        candidate.state !== 'interrupted' &&
+        candidate.state !== 'cancelled') ||
+      typeof candidate.receivedBytes !== 'number' ||
+      !Number.isSafeInteger(candidate.receivedBytes) ||
+      candidate.receivedBytes < 0 ||
+      typeof candidate.totalBytes !== 'number' ||
+      !Number.isSafeInteger(candidate.totalBytes) ||
+      candidate.totalBytes < 0 ||
+      typeof candidate.startedAt !== 'string' ||
+      !Number.isFinite(Date.parse(candidate.startedAt)) ||
+      typeof candidate.savePath !== 'string' ||
+      candidate.savePath.length === 0 ||
+      candidate.savePath.length > MAX_DOWNLOAD_PATH_LENGTH ||
+      candidate.savePath.includes('\0') ||
+      !isAbsolute(candidate.savePath)
+    ) {
+      continue
     }
+    downloads.push({
+      id: candidate.id,
+      filename: candidate.filename,
+      state: candidate.state,
+      receivedBytes: candidate.receivedBytes,
+      totalBytes: candidate.totalBytes,
+      startedAt: candidate.startedAt,
+      savePath: candidate.savePath,
+    })
+    if (downloads.length >= MAX_DOWNLOADS) break
   }
 
   return {
     v: SNAPSHOT_VERSION,
     tabs,
     activeIndex: normalizeActiveIndex(value.activeIndex, tabs.length),
-    ...(downloads.length > 0 ? { downloads } : {}),
+    downloads,
   }
 }
 
@@ -232,9 +229,7 @@ function cloneBrowserSnapshot(snapshot: BrowserSessionSnapshot): BrowserSessionS
     v: SNAPSHOT_VERSION,
     tabs: snapshot.tabs.map((tab) => ({ ...tab })),
     activeIndex: snapshot.activeIndex,
-    ...(snapshot.downloads
-      ? { downloads: snapshot.downloads.map((download) => ({ ...download })) }
-      : {}),
+    downloads: snapshot.downloads.map((download) => ({ ...download })),
   }
 }
 
@@ -357,13 +352,6 @@ export class DesktopChatSessionStore {
     return cloneBrowserSnapshot(entry.browser)
   }
 
-  hasScope(origin: string, scope: string): boolean {
-    const normalizedOrigin = normalizeOrigin(origin)
-    const normalizedScope = normalizeScope(scope)
-    if (!normalizedOrigin || !normalizedScope) return false
-    return this.entries.has(keyFor(normalizedOrigin, normalizedScope))
-  }
-
   setBrowser(origin: string, scope: string, snapshot: BrowserSessionSnapshot): boolean {
     const normalized = normalizeBrowserSnapshot(snapshot)
     if (!normalized) return false
@@ -412,33 +400,6 @@ export class DesktopChatSessionStore {
    */
   migrateTerminal(origin: string, from: string, to: string): boolean {
     return this.migrateComponent(origin, from, to, 'terminal')
-  }
-
-  /**
-   * Re-keys a provisional scope once the server assigns the chat id. A
-   * populated destination is left untouched rather than merging two unrelated
-   * sessions.
-   */
-  migrateScope(origin: string, from: string, to: string): boolean {
-    const normalizedOrigin = normalizeOrigin(origin)
-    const normalizedFrom = normalizeScope(from)
-    const normalizedTo = normalizeScope(to)
-    if (!normalizedOrigin || !normalizedFrom || !normalizedTo) return false
-    if (isDurableScope(normalizedFrom) || !isDurableScope(normalizedTo)) return false
-
-    const fromKey = keyFor(normalizedOrigin, normalizedFrom)
-    const toKey = keyFor(normalizedOrigin, normalizedTo)
-    if (fromKey === toKey) return this.entries.has(fromKey)
-
-    const entry = this.entries.get(fromKey)
-    if (!entry || this.entries.has(toKey)) return false
-
-    this.entries.delete(fromKey)
-    entry.scope = normalizedTo
-    this.touch(entry)
-    this.entries.set(toKey, entry)
-    this.changed(normalizedTo)
-    return true
   }
 
   private migrateComponent(

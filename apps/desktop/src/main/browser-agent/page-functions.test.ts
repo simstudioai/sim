@@ -235,9 +235,9 @@ describe('secret-field detection', () => {
     register(text, button, email)
 
     expect(typeIntoElement(0, 'search terms', false)).toMatchObject({
-      typed: true,
+      dispatched: true,
     })
-    expect(clickElement(1)).toMatchObject({ clicked: true })
+    expect(clickElement(1)).toMatchObject({ dispatched: true })
     expect(focusElementForTyping(2)).toMatchObject({ focused: true })
   })
 
@@ -302,7 +302,7 @@ describe('elements inside a same-origin iframe', () => {
     register(field)
 
     expect(field instanceof HTMLInputElement).toBe(false)
-    expect(typeIntoElement(0, 'hello', false)).toMatchObject({ typed: true })
+    expect(typeIntoElement(0, 'hello', false)).toMatchObject({ dispatched: true })
     expect(field.value).toBe('hello')
   })
 
@@ -351,7 +351,7 @@ describe('elements inside a same-origin iframe', () => {
       focused = true
     })
 
-    expect(clickElement(0)).toMatchObject({ clicked: true })
+    expect(clickElement(0)).toMatchObject({ dispatched: true })
     expect(focused).toBe(true)
   })
 
@@ -363,11 +363,11 @@ describe('elements inside a same-origin iframe', () => {
     register(text, checkbox)
 
     expect(clickElement(0, false, true)).toMatchObject({
-      clicked: false,
+      dispatched: false,
       activationKey: undefined,
     })
     expect(clickElement(1, false, true)).toMatchObject({
-      clicked: false,
+      dispatched: false,
       activationKey: 'Space',
     })
   })
@@ -442,7 +442,7 @@ describe('collectSnapshot', () => {
     const ref = refFor(outline, 'eng-bugs')
 
     expect(outline).toContain('clickable "eng-bugs"')
-    expect(clickElement(ref)).toMatchObject({ clicked: true })
+    expect(clickElement(ref)).toMatchObject({ dispatched: true })
     expect(clicked).toBe(true)
   })
 
@@ -618,7 +618,7 @@ describe('collectSnapshot', () => {
     original.replaceWith(replacement)
 
     expect(clickElement(ref)).toMatchObject({
-      clicked: true,
+      dispatched: true,
       refRecovered: true,
     })
     expect(clicked).toBe(true)
@@ -668,7 +668,7 @@ describe('collectSnapshot', () => {
 
     expect(secondRef).toBeGreaterThan(firstRef)
     expect(clickElement(firstRef)).toEqual({ error: 'stale' })
-    expect(clickElement(secondRef)).toMatchObject({ clicked: true })
+    expect(clickElement(secondRef)).toMatchObject({ dispatched: true })
   })
 })
 

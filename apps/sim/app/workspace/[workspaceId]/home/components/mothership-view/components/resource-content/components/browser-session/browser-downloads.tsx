@@ -13,7 +13,6 @@ import {
 } from '@sim/emcn'
 import { CircleAlert, CircleCheck, Download, File, Loader } from '@sim/emcn/icons'
 import {
-  isBrowserDownloadsAvailable,
   loadBrowserDownloads,
   onBrowserDownloadsState,
   showBrowserDownloadInFolder,
@@ -56,7 +55,6 @@ interface BrowserDownloadsProps {
 
 /** Animated toolbar activity plus an emcn recent-downloads menu for one browser scope. */
 export function BrowserDownloads({ scopeId, open, requestOpen, onClose }: BrowserDownloadsProps) {
-  const supported = isBrowserDownloadsAvailable()
   const [downloads, setDownloads] = useState<BrowserDownloadInfo[]>([])
   const [hasUnviewedCompletion, setHasUnviewedCompletion] = useState(false)
   const [completionAnimationVersion, setCompletionAnimationVersion] = useState(0)
@@ -65,7 +63,6 @@ export function BrowserDownloads({ scopeId, open, requestOpen, onClose }: Browse
   const completionTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (!supported) return
     let active = true
     downloadsRef.current = []
     setDownloads([])
@@ -102,12 +99,12 @@ export function BrowserDownloads({ scopeId, open, requestOpen, onClose }: Browse
         completionTimerRef.current = null
       }
     }
-  }, [scopeId, supported])
+  }, [scopeId])
 
   const activeDownloads = downloads.filter((download) => download.state === 'progressing')
   const aggregatePercent = useMemo(() => aggregateDownloadPercent(downloads), [downloads])
 
-  if (!supported || downloads.length === 0) return null
+  if (downloads.length === 0) return null
 
   const hasActiveDownloads = activeDownloads.length > 0
   const label = hasActiveDownloads

@@ -8,6 +8,7 @@ import type {
   TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import type { BrowserWindow, WebContents } from 'electron'
+import type { TerminalSessionSnapshot } from '@/main/desktop-chat-session-store'
 import type { FocusedResourceShortcut } from '@/main/resource-shortcuts'
 import { TerminalService, type TerminalServiceOptions, type TerminalSink } from '@/main/terminal'
 
@@ -24,23 +25,17 @@ export type TerminalServiceFactory = (
   options: TerminalServiceOptions
 ) => TerminalService
 
-export interface PersistedTerminalScope {
-  v: 1
-  tabs: Array<{ cwd: string }>
-  activeIndex: number
-}
-
 export interface TerminalScopePersistence {
-  load(scope: string): PersistedTerminalScope | undefined
-  save(scope: string, snapshot: PersistedTerminalScope): boolean | undefined
-  migrate(from: string, to: string): boolean | undefined
-  disposeScope?(scope: string): void
+  load(scope: string): TerminalSessionSnapshot | undefined
+  save(scope: string, snapshot: TerminalSessionSnapshot): boolean
+  migrate(from: string, to: string): boolean
+  disposeScope(scope: string): void
 }
 
 interface TerminalRegistryEntry {
   scope: string
   service: TerminalService
-  persisted: PersistedTerminalScope | undefined
+  persisted: TerminalSessionSnapshot | undefined
   restoreApplied: boolean
   restoring: boolean
 }
@@ -77,9 +72,8 @@ export class TerminalRegistry {
   private sink: ScopedTerminalSink | null = null
 
   constructor(
-    private readonly serviceOptions: TerminalServiceOptions = {},
-    private readonly serviceFactory: TerminalServiceFactory = createTerminalService,
-    private readonly persistence?: TerminalScopePersistence
+    private readonly persistence?: TerminalScopePersistence,
+    private readonly serviceFactory: TerminalServiceFactory = createTerminalService
   ) {}
 
   setSink(sink: ScopedTerminalSink | null): void {
@@ -179,7 +173,7 @@ export class TerminalRegistry {
     if (from === to) return this.entries.has(from)
     const entry = this.entries.get(from)
     if (this.entries.has(to) || this.suspendedScopes.has(to)) return false
-    if (this.persistence?.migrate(from, to) === false) return false
+    if (this.persistence && !this.persistence.migrate(from, to)) return false
     if (!entry) {
       return true
     }
@@ -236,7 +230,7 @@ export class TerminalRegistry {
       entry.service.setSink(null)
       entry.service.dispose()
     }
-    this.persistence?.disposeScope?.(scope)
+    this.persistence?.disposeScope(scope)
   }
 
   /**
@@ -288,16 +282,10 @@ export class TerminalRegistry {
 
     const persisted = this.persistence?.load(scope)
     const rememberedCwd = persisted?.tabs[0]?.cwd
-    const legacyScope = scope === 'legacy'
     const entry: TerminalRegistryEntry = {
       scope,
       service: this.serviceFactory(scope, {
-        ...this.serviceOptions,
-        // The pre-scoping setting remains a compatibility fallback only for
-        // old renderers. Letting every new chat read/write it would make chat B
-        // inherit chat A's directory even though their shells are isolated.
-        loadCwd: () => rememberedCwd ?? (legacyScope ? this.serviceOptions.loadCwd?.() : undefined),
-        saveCwd: legacyScope ? this.serviceOptions.saveCwd : undefined,
+        loadCwd: () => rememberedCwd,
       }),
       persisted,
       restoreApplied: false,
@@ -377,6 +365,6 @@ export class TerminalRegistry {
       0,
       state.tabs.findIndex((tab) => tab.terminalId === state.activeTerminalId)
     )
-    return this.persistence.save(entry.scope, { v: 1, tabs, activeIndex }) !== false
+    return this.persistence.save(entry.scope, { v: 1, tabs, activeIndex })
   }
 }

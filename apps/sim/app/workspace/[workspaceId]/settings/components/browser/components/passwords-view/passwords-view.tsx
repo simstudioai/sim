@@ -83,8 +83,7 @@ export function PasswordsView({
   const [importPending, setImportPending] = useState(false)
 
   useEffect(() => {
-    // Absent on shells without the importer and on platforms where one cannot
-    // run, so the action simply does not render there.
+    // Absent on platforms where the local importer cannot run.
     const listProfiles = getDesktopBridge()?.browserImport?.listChromeProfiles
     if (!listProfiles) return
     void listProfiles()
@@ -127,7 +126,7 @@ export function PasswordsView({
 
   const forgetAll = useCallback(async () => {
     const bridge = getDesktopBridge()?.browserCredentials
-    if (!bridge?.forgetAll) return
+    if (!bridge) return
     setDeleteAllPending(true)
     try {
       onChange(await bridge.forgetAll())
@@ -160,7 +159,6 @@ export function PasswordsView({
     )
   }
 
-  const canForgetAll = typeof getDesktopBridge()?.browserCredentials?.forgetAll === 'function'
   const canImport = profiles.length > 0
 
   return (
@@ -171,7 +169,7 @@ export function PasswordsView({
         description='Saved logins for the built-in browser, encrypted on this device.'
         search={{ value: searchTerm, onChange: setSearchTerm, placeholder: 'Search passwords...' }}
         actions={[
-          ...(canForgetAll && credentials.length > 0
+          ...(credentials.length > 0
             ? [
                 {
                   text: 'Delete all',

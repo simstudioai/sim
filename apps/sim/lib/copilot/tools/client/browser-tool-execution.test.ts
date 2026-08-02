@@ -21,7 +21,9 @@ vi.mock('@/lib/copilot/tools/client/completion', () => ({
 }))
 
 import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
-import { LEGACY_BROWSER_SCOPE, useBrowserSessionStore } from '@/stores/browser-session/store'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
+
+const CHAT_SCOPE = 'chat-test'
 
 /** Waits for the fire-and-forget execution promise chain to settle. */
 async function flush(): Promise<void> {
@@ -42,13 +44,13 @@ describe('executeBrowserToolOnClient', () => {
       pageState: null,
       tabs: [],
       activeTabId: null,
-      tabsSupported: false,
       sessionAlive: true,
+      suspended: false,
     }
     useBrowserSessionStore.setState({
       ...session,
-      activeScopeId: LEGACY_BROWSER_SCOPE,
-      sessions: { [LEGACY_BROWSER_SCOPE]: session },
+      activeScopeId: CHAT_SCOPE,
+      sessions: { [CHAT_SCOPE]: session },
     })
     mockReportCompletion.mockResolvedValue(undefined)
     mockRestoreBrowserScope.mockResolvedValue(false)
@@ -66,7 +68,7 @@ describe('executeBrowserToolOnClient', () => {
       'browser_snapshot',
       {},
       30_000,
-      LEGACY_BROWSER_SCOPE
+      CHAT_SCOPE
     )
     expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
       text: 'page content',
@@ -137,20 +139,20 @@ describe('executeBrowserToolOnClient', () => {
         'browser_wait_for',
         params,
         expected,
-        LEGACY_BROWSER_SCOPE
+        CHAT_SCOPE
       )
     }
   )
 
   it('rejects page-dependent tools up front when the session is closed', async () => {
-    useBrowserSessionStore.getState().setSessionAlive(false)
+    useBrowserSessionStore.getState().setSessionAlive(false, CHAT_SCOPE)
     const toolCallId = nextToolCallId()
 
     executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
     await flush()
 
     expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
-    expect(mockRestoreBrowserScope).toHaveBeenCalledWith(LEGACY_BROWSER_SCOPE)
+    expect(mockRestoreBrowserScope).toHaveBeenCalledWith(CHAT_SCOPE)
     expect(mockReportCompletion).toHaveBeenCalledWith(
       toolCallId,
       'error',
@@ -191,7 +193,7 @@ describe('executeBrowserToolOnClient', () => {
   })
 
   it('still allows session-revival tools when the session is closed', async () => {
-    useBrowserSessionStore.getState().setSessionAlive(false)
+    useBrowserSessionStore.getState().setSessionAlive(false, CHAT_SCOPE)
     mockExecuteBrowserTool.mockResolvedValue({ url: 'https://example.com' })
     const toolCallId = nextToolCallId()
 
@@ -203,7 +205,7 @@ describe('executeBrowserToolOnClient', () => {
       'browser_navigate',
       { url: 'https://example.com' },
       45_000,
-      LEGACY_BROWSER_SCOPE
+      CHAT_SCOPE
     )
     expect(mockRestoreBrowserScope).not.toHaveBeenCalled()
     expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
@@ -213,7 +215,7 @@ describe('executeBrowserToolOnClient', () => {
 
   it('tags a failure with sessionClosed when the session died mid-call', async () => {
     mockExecuteBrowserTool.mockImplementation(async () => {
-      useBrowserSessionStore.getState().setSessionAlive(false)
+      useBrowserSessionStore.getState().setSessionAlive(false, CHAT_SCOPE)
       throw new Error('The browser did not respond within 30000ms')
     })
     const toolCallId = nextToolCallId()
