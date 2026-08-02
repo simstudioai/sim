@@ -32,6 +32,7 @@ vi.mock('@/lib/table/rows/service', () => ({
 vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
 vi.mock('@/app/api/table/utils', async () => {
   const { NextResponse } = await import('next/server')
+  const { TableRequestError } = await import('@/lib/table/errors')
   return {
     normalizeColumn: (column: unknown) => column,
     csvProxyBodyCapResponse: () => null,
@@ -40,6 +41,10 @@ vi.mock('@/app/api/table/utils', async () => {
         { error: error.message },
         { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 }
       ),
+    tableRequestErrorResponse: (error: unknown) =>
+      error instanceof TableRequestError
+        ? NextResponse.json({ error: error.message }, { status: error.status })
+        : null,
     rowWriteErrorResponse: (error: unknown) => {
       const message = getErrorMessage(error)
       return message.includes('row limit')
@@ -50,6 +55,7 @@ vi.mock('@/app/api/table/utils', async () => {
 })
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
+import { TableRequestError } from '@/lib/table/errors'
 import { POST } from '@/app/api/table/import-csv/route'
 
 type Part =
@@ -191,6 +197,20 @@ describe('POST /api/table/import-csv', () => {
 
     expect(response.status).toBe(400)
     expect(data.error).toMatch(/row limit/)
+  })
+
+  /**
+   * `createTable` validates the name, the schema, the per-column rules, and both
+   * plan caps. The substring list in this route's catch named only some of those
+   * messages, so the rest reached the client as a generic 500.
+   */
+  it('surfaces a typed createTable failure the substring list never named', async () => {
+    const message = 'Column name exceeds maximum length (64 characters)'
+    mockCreateTable.mockRejectedValueOnce(new TableRequestError(message))
+    const response = await POST(makeRequest(uploadParts(csvWithRows(5))))
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe(message)
   })
 
   it('rolls back the created table when a batch insert fails mid-stream', async () => {

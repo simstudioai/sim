@@ -3,8 +3,14 @@
  */
 import { describe, expect, it } from 'vitest'
 import { TableRowLimitError } from '@/lib/table/billing'
+import { TableRequestError } from '@/lib/table/errors'
 import type { ColumnDefinition } from '@/lib/table/types'
-import { rootErrorMessage, rowWriteErrorResponse, tableFilterError } from '@/app/api/table/utils'
+import {
+  rootErrorMessage,
+  rowWriteErrorResponse,
+  tableFilterError,
+  tableRequestErrorResponse,
+} from '@/app/api/table/utils'
 
 /** Mimics drizzle's DrizzleQueryError: message is the failed SQL, real error on `cause`. */
 function wrapLikeDrizzle(cause: Error): Error {
@@ -52,6 +58,34 @@ describe('rowWriteErrorResponse', () => {
   it('returns null for unknown errors so callers keep their generic 500', () => {
     expect(rowWriteErrorResponse(new Error('connection refused'))).toBeNull()
     expect(rowWriteErrorResponse(wrapLikeDrizzle(new Error('deadlock detected')))).toBeNull()
+  })
+})
+
+/**
+ * The service classifies its own failures, so callers must not re-derive the
+ * verdict from message text. These cases are exactly the ones no substring list
+ * named — which is how they reached clients as a generic 500.
+ */
+describe('tableRequestErrorResponse', () => {
+  it('carries the service message at the status the service chose', async () => {
+    const response = tableRequestErrorResponse(
+      new TableRequestError('Adding 2 column(s) would exceed maximum column limit (100)')
+    )
+    expect(response?.status).toBe(400)
+    const body = await response?.json()
+    expect(body.error).toBe('Adding 2 column(s) would exceed maximum column limit (100)')
+  })
+
+  it('preserves a 404 rather than flattening every typed failure to 400', () => {
+    expect(tableRequestErrorResponse(new TableRequestError('Table not found', 404))?.status).toBe(
+      404
+    )
+  })
+
+  it('returns null for anything the service did not type', () => {
+    expect(tableRequestErrorResponse(new Error('connection refused'))).toBeNull()
+    expect(tableRequestErrorResponse(new TableRowLimitError(10000))).toBeNull()
+    expect(tableRequestErrorResponse('not an error')).toBeNull()
   })
 })
 

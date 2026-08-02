@@ -13,6 +13,7 @@ import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { typeMetadataOf } from '@/lib/table/column-types'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import { TableRequestError } from '@/lib/table/errors'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { isTablePredicate } from '@/lib/table/query-builder/converters'
 import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
@@ -103,6 +104,22 @@ export function rootErrorMessage(error: unknown): string {
     current = current.cause
   }
   return toError(current).message
+}
+
+/**
+ * Maps the table service's own typed failures to the status they declare, or
+ * `null` when the error came from somewhere else.
+ *
+ * Prefer this over matching message substrings: the service says whose fault a
+ * failure is, so a new validation message is classified correctly the day it is
+ * added. The substring lists still cover the layers that are not table-aware
+ * (the CSV parser, drizzle), which is why callers run both — this one first,
+ * since a typed error carries an explicit status that a substring match would
+ * flatten to 400.
+ */
+export function tableRequestErrorResponse(error: unknown): NextResponse | null {
+  if (!(error instanceof TableRequestError)) return null
+  return NextResponse.json({ error: error.message }, { status: error.status })
 }
 
 /**

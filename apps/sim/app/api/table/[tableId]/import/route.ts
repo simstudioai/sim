@@ -37,7 +37,6 @@ import {
   wouldExceedRowLimit,
 } from '@/lib/table'
 import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
-import { TableRequestError } from '@/lib/table/errors'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
 import { getUserSettings } from '@/lib/users/queries'
@@ -47,6 +46,7 @@ import {
   csvProxyBodyCapResponse,
   multipartErrorResponse,
   tableLockErrorResponse,
+  tableRequestErrorResponse,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSVExisting')
@@ -346,11 +346,17 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           },
         })
       } catch (err) {
-        // This branch returns rather than rethrowing, so the outer catch's
-        // mapper is unreachable from here — map the lock error first or a 423
-        // degrades into a generic 500 (replace mode rethrows and maps fine).
+        // This branch returns rather than rethrowing, so NOTHING in the outer
+        // catch runs for an append failure — every mapper it applies has to be
+        // repeated here (replace mode rethrows and maps fine). A 423 lock
+        // violation and the service's own typed failures both degrade into a
+        // generic 500 without these two lines: `addTableColumnsWithTx` runs
+        // INSIDE `importAppendRows`, so an invalid column name or the column
+        // cap surfaces here, not out there.
         const lockError = tableLockErrorResponse(err)
         if (lockError) return lockError
+        const requestError = tableRequestErrorResponse(err)
+        if (requestError) return requestError
 
         const message = toError(err).message
         logger.warn(`[${requestId}] Append failed for table ${tableId}`, {
@@ -437,9 +443,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     // is not table-aware — but the service's own validation (an invalid column
     // type, the column cap) matched none of those strings and was reported as a
     // 500 with the message swallowed.
-    if (error instanceof TableRequestError) {
-      return NextResponse.json({ error: error.message }, { status: error.status })
-    }
+    const requestError = tableRequestErrorResponse(error)
+    if (requestError) return requestError
 
     const isClientError =
       message.includes('CSV file has no') ||
