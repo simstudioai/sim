@@ -740,19 +740,16 @@ describe('QuickBooks tool and block boundaries', () => {
   it('exposes the ten compact operations and unique subblock IDs', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     expect(operation?.options).toEqual([
-      { label: 'Company: Get Info', id: 'quickbooks_get_company_info' },
-      { label: 'Master Data: Read', id: 'quickbooks_read_master_data' },
-      { label: 'Customers: Create', id: 'quickbooks_create_customer' },
-      { label: 'Customers: Update', id: 'quickbooks_update_customer' },
-      { label: 'Vendors: Create', id: 'quickbooks_create_vendor' },
-      { label: 'Vendors: Update', id: 'quickbooks_update_vendor' },
-      { label: 'Items: Create', id: 'quickbooks_create_item' },
-      { label: 'Items: Update', id: 'quickbooks_update_item' },
-      {
-        label: 'Purchasing: List Purchase Orders',
-        id: 'quickbooks_list_purchase_orders',
-      },
-      { label: 'Payables: List Bills', id: 'quickbooks_list_bills' },
+      { label: 'Get Company Info', id: 'quickbooks_get_company_info' },
+      { label: 'Read Master Data', id: 'quickbooks_read_master_data' },
+      { label: 'Create Customer', id: 'quickbooks_create_customer' },
+      { label: 'Update Customer', id: 'quickbooks_update_customer' },
+      { label: 'Create Vendor', id: 'quickbooks_create_vendor' },
+      { label: 'Update Vendor', id: 'quickbooks_update_vendor' },
+      { label: 'Create Item', id: 'quickbooks_create_item' },
+      { label: 'Update Item', id: 'quickbooks_update_item' },
+      { label: 'List Purchase Orders', id: 'quickbooks_list_purchase_orders' },
+      { label: 'List Bills', id: 'quickbooks_list_bills' },
     ])
     const ids = QuickBooksBlock.subBlocks.map((subBlock) => subBlock.id)
     expect(new Set(ids).size).toBe(ids.length)
