@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
-import type { CursorKey } from '@/lib/api/list-query'
+import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { asOrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import type { RateLimitResult, WorkspaceAccessError } from '@/app/api/v1/middleware'
@@ -190,36 +190,26 @@ export type DecodedSortedCursor =
  * Reads a keyset cursor back, refusing one that does not belong to the
  * requested sort. Resuming a `name`-ordered cursor under `createdAt` would
  * compare the wrong column and silently duplicate or skip rows, so a mismatch
- * is a client error rather than a best-effort page. A malformed cursor — bad
- * base64, or the wrong number of keys for `keyCount` — is rejected for the same
- * reason: ignoring it would restart from page one while the caller believes it
- * is paging forward, and a short key list would compare a column against
- * `undefined`.
+ * is a client error rather than a best-effort page. A cursor that isn't valid
+ * base64-JSON is rejected for the same reason: ignoring it would restart from
+ * page one while the caller believes it is paging forward.
+ *
+ * This checks the envelope only. The key VALUES are caller-controlled too, and
+ * are type-checked against the sort's keys by `keysetAfter`, which is where a
+ * bad arity or an unparseable timestamp is caught.
  */
-export function decodeSortedCursor(
-  cursor: string | undefined,
-  sort: string,
-  keyCount: number
-): DecodedSortedCursor {
+export function decodeSortedCursor(cursor: string | undefined, sort: string): DecodedSortedCursor {
   if (!cursor) return { status: 'absent' }
   const decoded = decodeCursor<Partial<SortedCursorPayload>>(cursor)
-  if (
-    !decoded ||
-    decoded.sort !== sort ||
-    !Array.isArray(decoded.keys) ||
-    decoded.keys.length !== keyCount
-  ) {
+  if (!decoded || decoded.sort !== sort || !Array.isArray(decoded.keys)) {
     return { status: 'invalid' }
   }
   return { status: 'ok', keys: decoded.keys }
 }
 
-/** The 400 for a cursor that does not match the request's sort. */
+/** The 400 for a cursor that cannot be resumed under the request's sort. */
 export function v2CursorSortError(): NextResponse {
-  return v2Error(
-    'BAD_REQUEST',
-    'cursor does not match the requested sortBy/sortOrder. Restart pagination without a cursor after changing the sort.'
-  )
+  return v2Error('BAD_REQUEST', INVALID_CURSOR_MESSAGE)
 }
 
 const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode> = {

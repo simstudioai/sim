@@ -11,11 +11,15 @@ import {
   v2ListWorkflowsContract,
 } from '@/lib/api/contracts/v2/workflows'
 import {
-  cursorDate,
-  type KeysetSort,
+  encodeKeyset,
+  type KeysetKey,
   keysetAfter,
+  keysetColumns,
   listOrderBy,
+  numberKey,
   searchFilter,
+  textKey,
+  timestampKey,
 } from '@/lib/api/list-query'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -57,37 +61,20 @@ type WorkflowRow = {
  * `sortOrder` freely, and dropping `createdAt` from the tiebreak would reshuffle
  * every workspace's default list.
  */
+const workflowId = textKey<WorkflowRow>(workflow.id, (row) => row.id)
+const workflowCreatedAt = timestampKey<WorkflowRow>(workflow.createdAt, (row) => row.createdAt)
+
 const WORKFLOW_SORTS = {
-  position: {
-    keys: [workflow.sortOrder, workflow.createdAt, workflow.id],
-    encode: (row) => [row.sortOrder, cursorDate.encode(row.createdAt), row.id],
-    decode: ([sortOrder, createdAt, id]) => [
-      Number(sortOrder),
-      cursorDate.decode(createdAt),
-      String(id),
-    ],
-  },
-  name: {
-    keys: [workflow.name, workflow.id],
-    encode: (row) => [row.name, row.id],
-    decode: ([name, id]) => [String(name), String(id)],
-  },
-  createdAt: {
-    keys: [workflow.createdAt, workflow.id],
-    encode: (row) => [cursorDate.encode(row.createdAt), row.id],
-    decode: ([createdAt, id]) => [cursorDate.decode(createdAt), String(id)],
-  },
-  updatedAt: {
-    keys: [workflow.updatedAt, workflow.id],
-    encode: (row) => [cursorDate.encode(row.updatedAt), row.id],
-    decode: ([updatedAt, id]) => [cursorDate.decode(updatedAt), String(id)],
-  },
-  runCount: {
-    keys: [workflow.runCount, workflow.id],
-    encode: (row) => [row.runCount, row.id],
-    decode: ([runCount, id]) => [Number(runCount), String(id)],
-  },
-} satisfies Record<V2WorkflowSortBy, KeysetSort<WorkflowRow>>
+  position: [
+    numberKey<WorkflowRow>(workflow.sortOrder, (row) => row.sortOrder),
+    workflowCreatedAt,
+    workflowId,
+  ],
+  name: [textKey<WorkflowRow>(workflow.name, (row) => row.name), workflowId],
+  createdAt: [workflowCreatedAt, workflowId],
+  updatedAt: [timestampKey<WorkflowRow>(workflow.updatedAt, (row) => row.updatedAt), workflowId],
+  runCount: [numberKey<WorkflowRow>(workflow.runCount, (row) => row.runCount), workflowId],
+} satisfies Record<V2WorkflowSortBy, readonly KeysetKey<WorkflowRow>[]>
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -117,9 +104,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (access) return v2WorkspaceAccessError(access)
 
     const sortKey = cursorSortKey(params.sortBy, params.sortOrder)
-    const sort: KeysetSort<WorkflowRow> = WORKFLOW_SORTS[params.sortBy]
-    const decoded = decodeSortedCursor(params.cursor, sortKey, sort.keys.length)
+    const keys: readonly KeysetKey<WorkflowRow>[] = WORKFLOW_SORTS[params.sortBy]
+    const decoded = decodeSortedCursor(params.cursor, sortKey)
     if (decoded.status === 'invalid') return v2CursorSortError()
+
+    // `null` here is a cursor whose values don't fit this sort — a client error, not an empty page.
+    const resumeAfter =
+      decoded.status === 'ok' ? keysetAfter(keys, decoded.keys, params.sortOrder) : undefined
+    if (resumeAfter === null) return v2CursorSortError()
 
     const conditions = [
       eq(workflow.workspaceId, params.workspaceId),
@@ -127,9 +119,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       params.folderId ? eq(workflow.folderId, params.folderId) : undefined,
       params.deployedOnly ? eq(workflow.isDeployed, true) : undefined,
       searchFilter(workflow.name, params.search),
-      decoded.status === 'ok'
-        ? keysetAfter(sort.keys, sort.decode(decoded.keys), params.sortOrder)
-        : undefined,
+      resumeAfter,
     ]
 
     const rows = await db
@@ -149,14 +139,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
       .from(workflow)
       .where(and(...conditions))
-      .orderBy(...listOrderBy(sort.keys, params.sortOrder))
+      .orderBy(...listOrderBy(keysetColumns(keys), params.sortOrder))
       .limit(params.limit + 1)
 
     const hasMore = rows.length > params.limit
     const data = rows.slice(0, params.limit)
 
     const last = data.at(-1)
-    const nextCursor = hasMore && last ? encodeSortedCursor(sortKey, sort.encode(last)) : null
+    const nextCursor =
+      hasMore && last ? encodeSortedCursor(sortKey, encodeKeyset(keys, last)) : null
 
     const formatted: V2WorkflowListItem[] = data.map((w) => ({
       id: w.id,

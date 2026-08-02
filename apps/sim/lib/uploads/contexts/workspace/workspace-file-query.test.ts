@@ -45,10 +45,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => 
   normalizeWorkspaceFileItemName: vi.fn((name: string) => name),
 }))
 
-import {
-  queryWorkspaceFiles,
-  workspaceFileCursorKeyCount,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { queryWorkspaceFiles } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const WS = 'workspace-1'
 
@@ -187,9 +184,23 @@ describe('queryWorkspaceFiles', () => {
     expect(conditions.some((c) => c.type === 'or')).toBe(true)
   })
 
-  /** The route checks a decoded cursor against this, so a truncated cursor is a 400. */
-  it('reports how many keyset values a cursor for each sort carries', () => {
-    expect(workspaceFileCursorKeyCount('name')).toBe(2)
-    expect(workspaceFileCursorKeyCount('uploadedAt')).toBe(2)
+  /**
+   * Cursor contents are caller-controlled, so a value the key cannot hold is a
+   * client error. Classified `validation` so the route renders 400, not 500.
+   */
+  it('rejects a cursor whose values do not fit the sort', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
+
+    await expect(
+      queryWorkspaceFiles(WS, { ...DEFAULTS, sortBy: 'uploadedAt', after: ['not-a-date', 'wf_1'] })
+    ).rejects.toMatchObject({ code: 'validation' })
+  })
+
+  it('rejects a cursor with the wrong number of keys for the sort', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
+
+    await expect(
+      queryWorkspaceFiles(WS, { ...DEFAULTS, sortBy: 'name', after: ['data.csv'] })
+    ).rejects.toMatchObject({ code: 'validation' })
   })
 })

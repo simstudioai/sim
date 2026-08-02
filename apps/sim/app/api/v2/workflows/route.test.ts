@@ -70,6 +70,13 @@ const lastConditions = () =>
 
 const lastOrderBy = () => dbChainMockFns.orderBy.mock.calls.at(-1) ?? []
 
+/**
+ * Timestamp keys order on `date_trunc('milliseconds', col)` rather than the raw
+ * column, so the mocked `sql` fragment carries the column in its interpolated
+ * values rather than being the column itself.
+ */
+const truncatedColumnOf = (entry: { column: { values?: unknown[] } }) => entry.column?.values?.[0]
+
 describe('GET /api/v2/workflows', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -133,11 +140,11 @@ describe('GET /api/v2/workflows', () => {
 
     await callList(`workspaceId=${WS}`)
 
-    expect(lastOrderBy()).toEqual([
-      { type: 'asc', column: schemaMock.workflow.sortOrder },
-      { type: 'asc', column: schemaMock.workflow.createdAt },
-      { type: 'asc', column: schemaMock.workflow.id },
-    ])
+    const orderBy = lastOrderBy()
+    expect(orderBy.map((e: { type: string }) => e.type)).toEqual(['asc', 'asc', 'asc'])
+    expect(orderBy[0].column).toBe(schemaMock.workflow.sortOrder)
+    expect(truncatedColumnOf(orderBy[1])).toBe(schemaMock.workflow.createdAt)
+    expect(orderBy[2].column).toBe(schemaMock.workflow.id)
   })
 
   it('orders by the requested field and direction', async () => {

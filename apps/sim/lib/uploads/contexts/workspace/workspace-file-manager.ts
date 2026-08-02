@@ -9,17 +9,22 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, type SQL } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import {
   type CursorKey,
-  cursorDate,
-  type KeysetSort,
+  encodeKeyset,
+  INVALID_CURSOR_MESSAGE,
+  type KeysetKey,
   keysetAfter,
+  keysetColumns,
   listOrderBy,
+  numberKey,
   searchFilter,
+  textKey,
+  timestampKey,
 } from '@/lib/api/list-query'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -844,37 +849,14 @@ export async function listWorkspaceFiles(
  * Every key column is `NOT NULL`, and `id` closes each keyset so a page
  * boundary inside a run of equal names/sizes/timestamps is still stable.
  */
-const WORKSPACE_FILE_SORTS = {
-  name: {
-    keys: [workspaceFiles.originalName, workspaceFiles.id],
-    encode: (row) => [row.name, row.id],
-    decode: ([name, id]) => [String(name), String(id)],
-  },
-  size: {
-    keys: [workspaceFiles.size, workspaceFiles.id],
-    encode: (row) => [row.size, row.id],
-    decode: ([size, id]) => [Number(size), String(id)],
-  },
-  uploadedAt: {
-    keys: [workspaceFiles.uploadedAt, workspaceFiles.id],
-    encode: (row) => [cursorDate.encode(row.uploadedAt), row.id],
-    decode: ([uploadedAt, id]) => [cursorDate.decode(uploadedAt), String(id)],
-  },
-  updatedAt: {
-    keys: [workspaceFiles.updatedAt, workspaceFiles.id],
-    encode: (row) => [cursorDate.encode(row.updatedAt), row.id],
-    decode: ([updatedAt, id]) => [cursorDate.decode(updatedAt), String(id)],
-  },
-} satisfies Record<V2FileSortBy, KeysetSort<WorkspaceFileRecord>>
+const fileId = textKey<WorkspaceFileRecord>(workspaceFiles.id, (row) => row.id)
 
-/**
- * How many keyset values a cursor for `sortBy` carries. The route checks the
- * decoded cursor against this before handing it back, so a truncated cursor is
- * a 400 rather than a comparison against `undefined`.
- */
-export function workspaceFileCursorKeyCount(sortBy: V2FileSortBy): number {
-  return WORKSPACE_FILE_SORTS[sortBy].keys.length
-}
+const WORKSPACE_FILE_SORTS = {
+  name: [textKey(workspaceFiles.originalName, (row) => row.name), fileId],
+  size: [numberKey(workspaceFiles.size, (row) => row.size), fileId],
+  uploadedAt: [timestampKey(workspaceFiles.uploadedAt, (row) => row.uploadedAt), fileId],
+  updatedAt: [timestampKey(workspaceFiles.updatedAt, (row) => row.updatedAt), fileId],
+} satisfies Record<V2FileSortBy, readonly KeysetKey<WorkspaceFileRecord>[]>
 
 export interface QueryWorkspaceFilesOptions {
   scope?: WorkspaceFileScope
@@ -905,33 +887,42 @@ export interface QueryWorkspaceFilesResult {
  *
  * Throws rather than returning a short page — a swallowed storage error here is
  * indistinguishable from "no more results" and would silently end pagination.
+ * A cursor that does not fit the requested sort is a classified `validation`
+ * failure, so the route renders it as a 400 rather than a 500.
  */
 export async function queryWorkspaceFiles(
   workspaceId: string,
   options: QueryWorkspaceFilesOptions
 ): Promise<QueryWorkspaceFilesResult> {
   const { scope = 'active', folderId, search, sortBy, sortOrder, limit, after } = options
-  const sort: KeysetSort<WorkspaceFileRecord> = WORKSPACE_FILE_SORTS[sortBy]
+  const keys: readonly KeysetKey<WorkspaceFileRecord>[] = WORKSPACE_FILE_SORTS[sortBy]
+
+  let resumeAfter: SQL | undefined
+  if (after) {
+    const condition = keysetAfter(keys, after, sortOrder)
+    if (!condition) throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+    resumeAfter = condition
+  }
 
   const conditions = [
     workspaceFileScopeCondition(workspaceId, scope),
     folderId ? eq(workspaceFiles.folderId, folderId) : undefined,
     searchFilter(workspaceFiles.originalName, search),
-    after ? keysetAfter(sort.keys, sort.decode(after), sortOrder) : undefined,
+    resumeAfter,
   ]
 
   const rows = await db
     .select()
     .from(workspaceFiles)
     .where(and(...conditions))
-    .orderBy(...listOrderBy(sort.keys, sortOrder))
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
     .limit(limit + 1)
 
   const hasMore = rows.length > limit
   const files = await hydrateWorkspaceFilePaths(rows.slice(0, limit), workspaceId)
   const last = files.at(-1)
 
-  return { files, nextKeys: hasMore && last ? sort.encode(last) : null }
+  return { files, nextKeys: hasMore && last ? encodeKeyset(keys, last) : null }
 }
 
 /**

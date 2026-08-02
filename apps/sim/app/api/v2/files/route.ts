@@ -18,7 +18,6 @@ import {
   getWorkspaceFile,
   queryWorkspaceFiles,
   uploadWorkspaceFile,
-  workspaceFileCursorKeyCount,
 } from '@/lib/uploads/contexts/workspace'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2File } from '@/app/api/v2/files/utils'
@@ -83,7 +82,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (access) return v2WorkspaceAccessError(access)
 
     const sort = cursorSortKey(sortBy, sortOrder)
-    const decoded = decodeSortedCursor(cursor, sort, workspaceFileCursorKeyCount(sortBy))
+    const decoded = decodeSortedCursor(cursor, sort)
     if (decoded.status === 'invalid') return v2CursorSortError()
 
     const { files, nextKeys } = await queryWorkspaceFiles(workspaceId, {
@@ -101,6 +100,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return v2CursorList(items, nextCursor, { rateLimit })
   } catch (error) {
+    // A cursor that doesn't fit the requested sort arrives classified as `validation` → 400.
+    const classified = v2CaughtOrchestrationError(error)
+    if (classified) return classified
+
     logger.error('Error listing files', { error: getErrorMessage(error, 'Unknown error') })
     return v2Error('INTERNAL_ERROR', 'Internal server error')
   }

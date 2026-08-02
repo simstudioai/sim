@@ -36,7 +36,6 @@ vi.mock('@/app/api/v2/lib/gate', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   queryWorkspaceFiles: mockQueryWorkspaceFiles,
-  workspaceFileCursorKeyCount: () => 2,
   uploadWorkspaceFile: mockUploadWorkspaceFile,
   getWorkspaceFile: mockGetWorkspaceFile,
   FileConflictError: class FileConflictError extends Error {},
@@ -286,6 +285,20 @@ describe('GET /api/v2/files', () => {
 
     expect(res.status).toBe(400)
     expect(mockQueryWorkspaceFiles).not.toHaveBeenCalled()
+  })
+
+  it('400s when the cursor carries values the sort cannot hold', async () => {
+    mockQueryWorkspaceFiles.mockRejectedValue(
+      new OrchestrationError('validation', 'cursor does not match the requested sortBy/sortOrder.')
+    )
+    const cursor = Buffer.from(
+      JSON.stringify({ sort: 'uploadedAt:asc', keys: ['not-a-date', 'wf_1'] })
+    ).toString('base64')
+
+    const res = await callList(`workspaceId=${WS}&cursor=${encodeURIComponent(cursor)}`)
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
   })
 
   it('terminates pagination when the query reports no further keys', async () => {

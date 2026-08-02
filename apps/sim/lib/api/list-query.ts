@@ -1,4 +1,17 @@
-import { and, asc, type Column, desc, eq, gt, ilike, lt, or, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  type Column,
+  desc,
+  eq,
+  gt,
+  ilike,
+  lt,
+  or,
+  type SQL,
+  type SQLWrapper,
+  sql,
+} from 'drizzle-orm'
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -7,10 +20,9 @@ import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
  * validated `sortBy`/`sortOrder` pair into SQL.
  *
  * Nothing here accepts a caller string as SQL. `search` becomes a bound ILIKE
- * parameter, and a sort is only ever expressed as one of the {@link Column}
- * objects the resource itself listed — the enum in the contract is what makes
- * the lookup total, so an unknown field is rejected at the boundary and never
- * reaches a query builder.
+ * parameter, a sort is only ever expressed as one of the keys the resource
+ * itself listed (the contract enum is what makes that lookup total), and a
+ * cursor's values are type-checked against their key before they are bound.
  */
 
 /**
@@ -38,57 +50,127 @@ export function searchFilter(column: Column, term: string | undefined): SQL | un
 /** A cursor key value, as it survives the base64-JSON round trip. */
 export type CursorKey = string | number
 
+/** Caller-facing message for a cursor that cannot be resumed under the requested sort. */
+export const INVALID_CURSOR_MESSAGE =
+  'cursor does not match the requested sortBy/sortOrder. Restart pagination without a cursor after changing the sort.'
+
 /**
- * The keyset behind one sortable field. `keys` is the full ordering, most
- * significant first, and its last entry must be unique within the filtered set
- * (in practice the id) or a page boundary can drop or repeat rows. Every column
- * must be `NOT NULL`: a keyset comparison against a NULL is NULL, which silently
- * truncates the page.
+ * One column of a keyset ordering, with the codec that moves its value through
+ * the opaque cursor.
+ *
+ * `bind` returning `null` is how a malformed cursor becomes a 400. The values
+ * inside a cursor are caller-controlled, so "the sort stamp and key count
+ * match" is not enough — a non-numeric `size` or an unparseable timestamp has
+ * to be rejected at the boundary instead of reaching the query as `NaN` or an
+ * `Invalid Date`, which surfaces as a 500.
  */
-export interface KeysetSort<Row> {
-  keys: readonly Column[]
-  /** Cursor values for `row`, in `keys` order. */
-  encode: (row: Row) => CursorKey[]
-  /** Rehydrates cursor values into the column JS types, in `keys` order. */
-  decode: (values: CursorKey[]) => unknown[]
+export interface KeysetKey<Row> {
+  /** The expression this key both orders and compares on. */
+  expr: SQLWrapper
+  /** This key's cursor value for `row`. */
+  encode: (row: Row) => CursorKey
+  /** The cursor value as bindable SQL, or `null` when this key cannot hold it. */
+  bind: (value: CursorKey) => SQL | null
 }
 
-/** Passing a `Date`-valued column through the cursor as an ISO-8601 string. */
-export const cursorDate = {
-  encode: (value: Date): string => value.toISOString(),
-  decode: (value: CursorKey): Date => new Date(value),
-} as const
+/** A text key — names, titles, ids. */
+export function textKey<Row>(column: Column, read: (row: Row) => string): KeysetKey<Row> {
+  return {
+    expr: column,
+    encode: read,
+    bind: (value) => (typeof value === 'string' ? sql`${value}` : null),
+  }
+}
+
+/** A numeric key — sizes, counts, manual positions. */
+export function numberKey<Row>(column: Column, read: (row: Row) => number): KeysetKey<Row> {
+  return {
+    expr: column,
+    encode: read,
+    bind: (value) => (typeof value === 'number' && Number.isFinite(value) ? sql`${value}` : null),
+  }
+}
+
+/**
+ * A timestamp key, ordered and compared at millisecond precision.
+ *
+ * Postgres keeps microseconds and `defaultNow()` populates them, but a cursor
+ * value round-trips through a JS `Date`, which cannot represent them. Ordering
+ * on the raw column while comparing against a truncated cursor value re-admits
+ * the page's own last row — `stored > truncated` is true for it — which
+ * duplicates that row and stalls pagination outright at a page size of one.
+ * Truncating both sides makes the SQL ordering exactly the ordering a cursor
+ * can express, so the `id` tiebreaker is what actually separates rows inside a
+ * millisecond.
+ *
+ * `date_trunc` rules out an index-ordered scan, but none of the timestamp
+ * columns sorted here are indexed, so it costs nothing today. Adding an index
+ * to serve one of these sorts means indexing this same expression.
+ */
+export function timestampKey<Row>(column: Column, read: (row: Row) => Date): KeysetKey<Row> {
+  return {
+    expr: sql`date_trunc('milliseconds', ${column})`,
+    encode: (row) => read(row).toISOString(),
+    bind: (value) => {
+      if (typeof value !== 'string') return null
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return null
+      // Bound through the column so drizzle's own timestamp encoder serializes it.
+      return sql`date_trunc('milliseconds', ${sql.param(date, column)})`
+    },
+  }
+}
 
 export function sortDirection(order: V2SortOrder): typeof asc {
   return order === 'asc' ? asc : desc
 }
 
 /**
- * `ORDER BY` for an ordered column list, every column taking the requested
- * direction. On a paginated list these are the keyset's keys; on a single-page
- * list they are just the sort plus its tiebreaker.
+ * `ORDER BY` for an ordered key list, every key taking the requested direction.
+ * On a paginated list these are the keyset's keys; on a single-page list they
+ * are just the sort plus its tiebreaker.
  */
-export function listOrderBy(keys: readonly Column[], order: V2SortOrder): SQL[] {
+export function listOrderBy(keys: readonly SQLWrapper[], order: V2SortOrder): SQL[] {
   const direction = sortDirection(order)
-  return keys.map((column) => direction(column))
+  return keys.map((key) => direction(key))
+}
+
+/** The `expr` of each keyset key, for `ORDER BY`. */
+export function keysetColumns<Row>(keys: readonly KeysetKey<Row>[]): SQLWrapper[] {
+  return keys.map((key) => key.expr)
+}
+
+/** The cursor values for `row`, in key order. */
+export function encodeKeyset<Row>(keys: readonly KeysetKey<Row>[], row: Row): CursorKey[] {
+  return keys.map((key) => key.encode(row))
 }
 
 /**
  * The `WHERE` half of the keyset: strictly after `values` in the requested
  * direction, expanded lexicographically so ties on a leading key fall through
  * to the next one.
+ *
+ * Returns `null` when the cursor does not fit this sort — wrong number of keys,
+ * or a value the key cannot hold. Callers render that as a 400 rather than
+ * paging from a nonsense position.
  */
-export function keysetAfter(
-  keys: readonly Column[],
-  values: unknown[],
+export function keysetAfter<Row>(
+  keys: readonly KeysetKey<Row>[],
+  values: CursorKey[],
   order: V2SortOrder
-): SQL | undefined {
-  if (values.length !== keys.length) {
-    throw new Error(`Keyset cursor carries ${values.length} values for a ${keys.length}-key sort`)
+): SQL | null {
+  if (values.length !== keys.length) return null
+
+  const bound: SQL[] = []
+  for (const [i, key] of keys.entries()) {
+    const value = key.bind(values[i])
+    if (value === null) return null
+    bound.push(value)
   }
+
   const beyond = order === 'asc' ? gt : lt
-  const clauses = keys.map((column, i) =>
-    and(...keys.slice(0, i).map((prior, j) => eq(prior, values[j])), beyond(column, values[i]))
+  const clauses = keys.map((key, i) =>
+    and(...keys.slice(0, i).map((prior, j) => eq(prior.expr, bound[j])), beyond(key.expr, bound[i]))
   )
-  return or(...clauses)
+  return or(...clauses) ?? null
 }
