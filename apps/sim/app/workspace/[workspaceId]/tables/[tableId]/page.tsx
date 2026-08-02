@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 }
 
 interface TablePageProps {
-  params: Promise<{ workspaceId: string }>
+  params: Promise<{ workspaceId: string; tableId: string }>
 }
 
 /**
@@ -28,7 +28,7 @@ interface TablePageProps {
  * the two flag lookups share them.
  */
 export default async function TablePage({ params }: TablePageProps) {
-  const [{ workspaceId }, session] = await Promise.all([params, getSession()])
+  const [{ workspaceId, tableId }, session] = await Promise.all([params, getSession()])
   const userId = session?.user?.id
   const host = userId ? await getWorkspaceHostContextForViewer(workspaceId, userId) : null
   const orgId = host?.hostOrganizationId ?? undefined
@@ -39,7 +39,13 @@ export default async function TablePage({ params }: TablePageProps) {
 
   return (
     <Suspense fallback={<TableLoading />}>
-      <Table tableLocksEnabled={tableLocksEnabled} viewsEnabled={viewsEnabled} />
+      <Table
+        host='page'
+        workspaceId={workspaceId}
+        tableId={tableId}
+        tableLocksEnabled={tableLocksEnabled}
+        viewsEnabled={viewsEnabled}
+      />
     </Suspense>
   )
 }

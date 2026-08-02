@@ -264,9 +264,9 @@ export const ResourceContent = memo(function ResourceContent({
       return (
         <Table
           key={resource.id}
+          host='panel'
           workspaceId={workspaceId}
           tableId={resource.id}
-          embedded
           viewsEnabled={tableViewsEnabled}
         />
       )

@@ -5,7 +5,7 @@ import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
 import { Download, Lock, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -55,6 +55,7 @@ import {
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import type { ResourceHost } from '@/resources'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
@@ -92,12 +93,30 @@ const logger = createLogger('Table')
 const BLOCKED_TOAST_MS = 8000
 
 interface TableProps {
-  /** When set, the table renders without its page header / breadcrumbs / page-level
-   *  options bar. Used by the mothership chat panel to embed a table inline. */
-  embedded?: boolean
-  /** Identifiers — only set in embedded mode. Page mode reads from `useParams()`. */
-  workspaceId?: string
-  tableId?: string
+  /**
+   * Which surface this table is mounted on. `'page'` renders the full route
+   * chrome — header, breadcrumbs, page-level options bar; every other host
+   * renders the grid alone, as the mothership chat panel does.
+   *
+   * This replaces an `embedded` boolean so the shell speaks the same vocabulary
+   * as the canonical views it sits beside. `'public'` is not reachable here:
+   * the editing shell holds a write path, and an anonymous surface mounts
+   * `TableView` instead.
+   */
+  host: Extract<ResourceHost, 'page' | 'panel'>
+  /**
+   * The table's address. Required rather than derived: both mounts know it
+   * (`page.tsx` from its route params, the panel from the open resource), and a
+   * `useParams()` fallback meant this component could only ever exist once per
+   * page.
+   *
+   * Plain ids rather than a `ResourceSource` because `page.tsx` is a Server
+   * Component and a source carries functions, which cannot cross the RSC
+   * boundary — the same reason the public interface page hands over a plain
+   * seed and lets the client mint the source.
+   */
+  workspaceId: string
+  tableId: string
   /**
    * Whether an admin may CHANGE locks, resolved server-side by the page (the
    * flag's gating lives in AppConfig and has no client counterpart). Defaults
@@ -208,16 +227,16 @@ function isSameViewConfig(a: TableViewConfig, b: TableViewConfig): boolean {
  * Embedded mode skips the page header but otherwise renders the same surface.
  */
 export function Table({
-  embedded,
-  workspaceId: propWorkspaceId,
-  tableId: propTableId,
+  host,
+  workspaceId,
+  tableId,
   tableLocksEnabled = false,
   viewsEnabled = false,
-}: TableProps = {}) {
-  const params = useParams()
+}: TableProps) {
   const router = useRouter()
-  const workspaceId = propWorkspaceId || (params.workspaceId as string)
-  const tableId = propTableId || (params.tableId as string)
+
+  /** `host === 'page'` is the only surface that owns the route chrome. */
+  const embedded = host !== 'page'
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
