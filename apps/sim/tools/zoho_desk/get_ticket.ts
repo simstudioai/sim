@@ -3,10 +3,10 @@ import type { ZohoDeskGetTicketParams, ZohoDeskResponse } from '@/tools/zoho_des
 import { ZOHO_DESK_TICKET_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
   buildZohoDeskHeaders,
-  deriveZohoContentText,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
   requireZohoDeskId,
+  withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskGetTicketTool: ToolConfig<ZohoDeskGetTicketParams, ZohoDeskResponse> = {
@@ -69,14 +69,12 @@ export const zohoDeskGetTicketTool: ToolConfig<ZohoDeskGetTicketParams, ZohoDesk
         getZohoDeskErrorMessage(data, `Failed to get ticket (HTTP ${response.status})`)
       )
     }
-    // Zoho tags the ticket body with `descriptionContentType`; add a derived
-    // plain-text field alongside the raw description without mutating it. Absent
-    // or plain-text descriptions are mirrored unchanged.
-    const descriptionText = deriveZohoContentText(data.description, data.descriptionContentType)
-    const ticket = descriptionText !== undefined ? { ...data, descriptionText } : data
+    // Adds the derived plain-text `descriptionText` alongside the raw
+    // description without mutating it. Absent or plain-text descriptions are
+    // mirrored unchanged.
     return {
       success: true,
-      output: { ticket },
+      output: { ticket: withDerivedContentText(data) },
     }
   },
 

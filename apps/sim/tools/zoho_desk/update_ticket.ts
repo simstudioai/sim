@@ -6,6 +6,7 @@ import {
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
   requireZohoDeskId,
+  withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
 /**
@@ -177,9 +178,11 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
         getZohoDeskErrorMessage(data, `Failed to update ticket (HTTP ${response.status})`)
       )
     }
+    // The PATCH response is the updated ticket, so derive `descriptionText` the
+    // same way get_ticket does - the shared output map declares it.
     return {
       success: true,
-      output: { ticket: data },
+      output: { ticket: withDerivedContentText(data) },
     }
   },
 

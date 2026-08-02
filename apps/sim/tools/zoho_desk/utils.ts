@@ -54,9 +54,20 @@ export function deriveZohoContentText(content: unknown, contentType: unknown): s
 export function withDerivedContentText(resource: unknown): unknown {
   if (!resource || typeof resource !== 'object' || Array.isArray(resource)) return resource
   const record = resource as Record<string, unknown>
+
   const contentText = deriveZohoContentText(record.content, record.contentType)
-  if (contentText === undefined) return record
-  return { ...record, contentText }
+  // Ticket resources carry their body on `description` rather than `content`, so
+  // a webhook's ticket payload would otherwise reach the workflow as raw HTML
+  // with no plain-text sibling - unlike get_ticket, which derives one. Mirror
+  // that here so trigger and tool outputs agree.
+  const descriptionText = deriveZohoContentText(record.description, record.descriptionContentType)
+
+  if (contentText === undefined && descriptionText === undefined) return record
+  return {
+    ...record,
+    ...(contentText !== undefined ? { contentText } : {}),
+    ...(descriptionText !== undefined ? { descriptionText } : {}),
+  }
 }
 
 /**

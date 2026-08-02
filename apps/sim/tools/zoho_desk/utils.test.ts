@@ -250,5 +250,40 @@ describe('zoho desk tool utils', () => {
       expect(withDerivedContentText(null)).toBeNull()
       expect(withDerivedContentText('str')).toBe('str')
     })
+
+    // Ticket resources carry their body on `description`, not `content`, so a
+    // webhook ticket payload would otherwise reach the workflow as raw HTML with
+    // no plain-text sibling — unlike get_ticket, which derives one.
+    it('derives descriptionText for ticket-shaped resources', () => {
+      const ticket = {
+        id: '5',
+        subject: 'Delay',
+        description: '<div>order is late</div>',
+        descriptionContentType: 'html',
+      }
+      const result = withDerivedContentText(ticket) as Record<string, unknown>
+      expect(result.description).toBe('<div>order is late</div>')
+      expect(result.descriptionText).toBe('order is late')
+      expect('contentText' in result).toBe(false)
+    })
+
+    it('derives both fields when a resource carries content and description', () => {
+      const result = withDerivedContentText({
+        content: '<b>c</b>',
+        contentType: 'text/html',
+        description: '<b>d</b>',
+        descriptionContentType: 'html',
+      }) as Record<string, unknown>
+      expect(result.contentText).toBe('c')
+      expect(result.descriptionText).toBe('d')
+    })
+
+    it('omits descriptionText when there is no string description', () => {
+      const result = withDerivedContentText({ id: '6', description: null }) as Record<
+        string,
+        unknown
+      >
+      expect('descriptionText' in result).toBe(false)
+    })
   })
 })
