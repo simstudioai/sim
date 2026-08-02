@@ -4,6 +4,7 @@ import {
   getPasswordPlaceholder,
   hasExistingPassword,
   isPasswordRequired,
+  isWhitespaceOnlyPassword,
   shouldConfirmPasswordChange,
 } from './utils'
 
@@ -24,6 +25,12 @@ describe.concurrent('chat password state', () => {
     expect(isPasswordRequired('password', '', true)).toBe(false)
   })
 
+  it('identifies whitespace-only password values', () => {
+    expect(isWhitespaceOnlyPassword('   ')).toBe(true)
+    expect(isWhitespaceOnlyPassword('')).toBe(false)
+    expect(isWhitespaceOnlyPassword(' password ')).toBe(false)
+  })
+
   it('returns copy that matches the stored-password state', () => {
     expect(getPasswordPlaceholder(true)).toBe('Enter new password to change')
     expect(getPasswordHelperText(true)).toBe('Leave empty to keep the current password')
@@ -34,6 +41,7 @@ describe.concurrent('chat password state', () => {
   it('confirms a password change only for an existing password deployment with a new value', () => {
     expect(shouldConfirmPasswordChange(true, 'password', 'new-password')).toBe(true)
     expect(shouldConfirmPasswordChange(true, 'password', '')).toBe(false)
+    expect(shouldConfirmPasswordChange(true, 'password', '   ')).toBe(false)
     expect(shouldConfirmPasswordChange(true, 'public', 'new-password')).toBe(false)
     expect(shouldConfirmPasswordChange(false, 'password', 'new-password')).toBe(false)
   })

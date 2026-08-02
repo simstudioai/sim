@@ -4,6 +4,13 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 export const chatAuthTypeSchema = z.enum(['public', 'password', 'email', 'sso'])
 export type ChatAuthType = z.output<typeof chatAuthTypeSchema>
 
+export const chatDeploymentPasswordSchema = z
+  .string()
+  .refine(
+    (password) => password.length === 0 || password.trim().length > 0,
+    'Password cannot contain only whitespace'
+  )
+
 export const chatIdParamsSchema = z.object({
   id: z.string().min(1),
 })
@@ -38,7 +45,7 @@ export const createChatBodySchema = z.object({
   description: z.string().optional(),
   customizations: chatCustomizationsSchema,
   authType: chatAuthTypeSchema.default('public'),
-  password: z.string().optional(),
+  password: chatDeploymentPasswordSchema.optional(),
   allowedEmails: z.array(z.string()).optional().default([]),
   outputConfigs: z.array(chatOutputConfigSchema).optional().default([]),
   /** When true, clients may receive thinking SSE if they also send the protocol header. Default off. */
@@ -59,7 +66,7 @@ export const updateChatBodySchema = z.object({
   description: z.string().optional(),
   customizations: chatCustomizationsSchema.optional(),
   authType: chatAuthTypeSchema.optional(),
-  password: z.string().optional(),
+  password: chatDeploymentPasswordSchema.optional(),
   allowedEmails: z.array(z.string()).optional(),
   outputConfigs: z.array(chatOutputConfigSchema).optional(),
   includeThinking: z.boolean().optional(),

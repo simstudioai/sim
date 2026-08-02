@@ -42,6 +42,7 @@ import {
   getPasswordPlaceholder,
   hasExistingPassword,
   isPasswordRequired,
+  isWhitespaceOnlyPassword,
   shouldConfirmPasswordChange,
 } from './utils'
 
@@ -158,6 +159,8 @@ export function ChatDeploy({
 
     if (isPasswordRequired(formData.authType, formData.password, existingPassword)) {
       newErrors.password = 'Password is required when using password protection'
+    } else if (formData.authType === 'password' && isWhitespaceOnlyPassword(formData.password)) {
+      newErrors.password = 'Password cannot contain only whitespace'
     }
 
     if (
@@ -180,6 +183,7 @@ export function ChatDeploy({
     Boolean(formData.title.trim()) &&
     formData.selectedOutputBlocks.length > 0 &&
     !isPasswordRequired(formData.authType, formData.password, existingPassword) &&
+    (formData.authType !== 'password' || !isWhitespaceOnlyPassword(formData.password)) &&
     ((formData.authType !== 'email' && formData.authType !== 'sso') || formData.emails.length > 0)
 
   useEffect(() => {

@@ -19,12 +19,16 @@ export function isPasswordRequired(
   return authType === 'password' && !existingPassword && !password.trim()
 }
 
+export function isWhitespaceOnlyPassword(password: string): boolean {
+  return password.length > 0 && password.trim().length === 0
+}
+
 export function shouldConfirmPasswordChange(
   hasExistingChat: boolean,
   authType: AuthType,
   password: string
 ): boolean {
-  return hasExistingChat && authType === 'password' && password.length > 0
+  return hasExistingChat && authType === 'password' && password.trim().length > 0
 }
 
 export function getPasswordPlaceholder(existingPassword: boolean): string {
