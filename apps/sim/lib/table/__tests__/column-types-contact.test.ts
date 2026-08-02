@@ -23,6 +23,7 @@ import { metadataMigrationFor } from '@/lib/table/column-types/registry.server'
 import { buildConvertedColumn } from '@/lib/table/columns/service'
 import { coerceValue } from '@/lib/table/import'
 import { filterRulesToFilter, prunePredicateForColumns } from '@/lib/table/query-builder/converters'
+import { buildFilterClause } from '@/lib/table/sql'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const column = (type: ColumnDefinition['type'], extra: Partial<ColumnDefinition> = {}) =>
@@ -507,6 +508,81 @@ describe('final-audit regressions', () => {
     // A fragment with NO digits is left alone — reducing it to '' would make
     // ILIKE '%%' match every row.
     expect(contains('abc')).toEqual({ c: { $contains: 'abc' } })
+  })
+})
+
+describe('server-side operand canonicalization', () => {
+  const emailCol: ColumnDefinition = { id: 'c', name: 'c', type: 'email' }
+  const phoneCol: ColumnDefinition = { id: 'c', name: 'c', type: 'phone' }
+  const render = (clause: unknown) => JSON.stringify(clause)
+
+  it('canonicalizes even when the caller supplies NO column definitions', () => {
+    // The workflow Table blocks build a filter long before any schema is known
+    // and call the converters with no columns, so the client-side pass is
+    // skipped entirely. The SQL builder is the one place the column is always
+    // in hand, which is why the guarantee lives there.
+    const withoutColumns = filterRulesToFilter(
+      [
+        {
+          id: 'r1',
+          logicalOperator: 'and' as const,
+          column: 'c',
+          operator: 'eq',
+          value: 'Ada@Example.COM',
+        },
+      ],
+      []
+    )
+    // The converter left it raw...
+    expect(withoutColumns).toEqual({ c: 'Ada@Example.COM' })
+    // ...and the SQL builder still compiles the canonical operand.
+    const clause = buildFilterClause(withoutColumns as Filter, 'user_table_rows', [emailCol])
+    expect(render(clause)).toContain('ada@example.com')
+    expect(render(clause)).not.toContain('Ada@Example.COM')
+  })
+
+  it('canonicalizes a phone operand arriving formatted from a workflow', () => {
+    const clause = buildFilterClause(
+      { c: { $eq: '+44 20 7123 4567' } } as Filter,
+      'user_table_rows',
+      [phoneCol]
+    )
+    expect(render(clause)).toContain('+442071234567')
+  })
+
+  it('normalizes a fragment for a text match, not the whole value', () => {
+    const clause = buildFilterClause(
+      { c: { $contains: '(555) 123' } } as Filter,
+      'user_table_rows',
+      [phoneCol]
+    )
+    expect(render(clause)).toContain('555123')
+  })
+
+  it('is idempotent, so an already-canonical operand is unchanged', () => {
+    const once = buildFilterClause({ c: { $eq: 'ada@example.com' } } as Filter, 'user_table_rows', [
+      emailCol,
+    ])
+    expect(render(once)).toContain('ada@example.com')
+  })
+
+  it('leaves a non-text operand to the existing validation', () => {
+    // `date.coerce` accepts an epoch, so canonicalizing a NUMBER would silently
+    // reinterpret a likely mistake instead of rejecting it.
+    expect(() =>
+      buildFilterClause({ d: { $gte: 1704067200000 } } as Filter, 'user_table_rows', [
+        { id: 'd', name: 'd', type: 'date' },
+      ])
+    ).toThrow(/requires a date string, got number/)
+  })
+
+  it('leaves an unparseable operand alone rather than nulling it', () => {
+    const clause = buildFilterClause(
+      { c: { $eq: 'not an address' } } as Filter,
+      'user_table_rows',
+      [emailCol]
+    )
+    expect(render(clause)).toContain('not an address')
   })
 })
 

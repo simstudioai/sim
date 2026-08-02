@@ -16,6 +16,7 @@ import { getColumnId } from '@/lib/table/column-keys'
 import { type ColumnType, columnTypeById } from '@/lib/table/column-types'
 import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
+import { parseDecimalNumber } from '@/lib/table/numeric'
 import type { ColumnDefinition, JsonValue, RowData, TableSchema } from '@/lib/table/types'
 
 /**
@@ -295,10 +296,10 @@ export function inferColumnType(values: unknown[]): InferredCsvColumnType {
   const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
   if (nonEmpty.length === 0) return 'string'
 
-  const allNumber = nonEmpty.every((v) => {
-    const n = Number(v)
-    return !Number.isNaN(n) && String(v).trim() !== ''
-  })
+  // The same parser `coerceValue` uses below. If inference read `0x10` as a
+  // number while coercion rejected it, the column would be created as `number`
+  // and then have every one of those cells nulled on write.
+  const allNumber = nonEmpty.every((v) => parseDecimalNumber(v) !== null)
   if (allNumber) return 'number'
 
   const allBoolean = nonEmpty.every((v) => {
@@ -405,10 +406,11 @@ export function coerceValue(
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
   switch (colType) {
-    case 'number': {
-      const n = Number(value)
-      return Number.isNaN(n) ? null : n
-    }
+    case 'number':
+      // The same decimal parser inline edits use. Bare `Number()` read `0x10`
+      // as 16 and `Infinity` as infinity, so a CSV could import values the
+      // grid would reject if typed.
+      return parseDecimalNumber(value)
     // Importing into an existing currency column: the file carries the
     // formatted amount (`$1,234.56`) but the cell stores a bare number. The
     // column's currency is forwarded because it decides how a lone separator

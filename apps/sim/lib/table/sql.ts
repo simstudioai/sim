@@ -14,6 +14,7 @@ import {
   columnTypeOf,
   filterOperatorsFor,
   MULTI_SELECT_OPERATORS,
+  normalizeFilterFragment,
   predicateOperatorsFor,
   SINGLE_SELECT_OPERATORS,
   storesMultipleValues,
@@ -474,12 +475,25 @@ export function fieldPredicate(
     )
   }
 
+  // Read the operand the way the column stores its cells. This is the one place
+  // every filter reaches with its column in hand — both wire grammars compile
+  // through here — so canonicalizing at this point covers callers that cannot
+  // supply column definitions at all: the workflow Table blocks build a filter
+  // from user input long before any schema is known, and a raw API caller need
+  // not know the storage form either.
+  //
+  // The client-side pass in `converters.ts` is a convenience for the filter UI,
+  // not the guarantee. When it was the only pass, a workflow filtering an Email
+  // column for `Ada@Example.com` compiled to an operand that never met the
+  // stored `ada@example.com` and silently returned no rows.
+  const operand = column ? canonicalizeOperand(value, op, column) : value
+
   if (isMultiSelect) {
     switch (op) {
       case 'contains':
-        return buildArrayMembershipClause(tableName, field, value as JsonValue)
+        return buildArrayMembershipClause(tableName, field, operand as JsonValue)
       case 'ncontains':
-        return sql`NOT (${buildArrayMembershipClause(tableName, field, value as JsonValue)})`
+        return sql`NOT (${buildArrayMembershipClause(tableName, field, operand as JsonValue)})`
       case 'isEmpty':
         return buildEmptyClause(tableName, field, true, true)
       case 'isNotEmpty':
@@ -491,55 +505,55 @@ export function fieldPredicate(
 
   switch (op) {
     case 'eq':
-      return buildContainmentClause(tableName, field, value as JsonValue)
+      return buildContainmentClause(tableName, field, operand as JsonValue)
 
     case 'ne':
-      return sql`NOT (${buildContainmentClause(tableName, field, value as JsonValue)})`
+      return sql`NOT (${buildContainmentClause(tableName, field, operand as JsonValue)})`
 
     case 'gt':
-      return buildComparisonClause(tableName, field, '>', value as number | string, columnType)
+      return buildComparisonClause(tableName, field, '>', operand as number | string, columnType)
     case 'gte':
-      return buildComparisonClause(tableName, field, '>=', value as number | string, columnType)
+      return buildComparisonClause(tableName, field, '>=', operand as number | string, columnType)
     case 'lt':
-      return buildComparisonClause(tableName, field, '<', value as number | string, columnType)
+      return buildComparisonClause(tableName, field, '<', operand as number | string, columnType)
     case 'lte':
-      return buildComparisonClause(tableName, field, '<=', value as number | string, columnType)
+      return buildComparisonClause(tableName, field, '<=', operand as number | string, columnType)
 
     case 'in': {
-      if (!Array.isArray(value) || value.length === 0) return undefined
-      if (value.length === 1) return buildContainmentClause(tableName, field, value[0])
-      const inConditions = value.map((v) => buildContainmentClause(tableName, field, v))
+      if (!Array.isArray(operand) || operand.length === 0) return undefined
+      if (operand.length === 1) return buildContainmentClause(tableName, field, operand[0])
+      const inConditions = operand.map((v) => buildContainmentClause(tableName, field, v))
       return sql`(${sql.join(inConditions, sql.raw(' OR '))})`
     }
 
     case 'nin': {
-      if (!Array.isArray(value) || value.length === 0) return undefined
-      const ninConditions = value.map(
+      if (!Array.isArray(operand) || operand.length === 0) return undefined
+      const ninConditions = operand.map(
         (v) => sql`NOT (${buildContainmentClause(tableName, field, v)})`
       )
       return sql`(${sql.join(ninConditions, sql.raw(' AND '))})`
     }
 
     case 'contains':
-      return buildLikeClause(tableName, field, value as string, 'contains')
+      return buildLikeClause(tableName, field, operand as string, 'contains')
     case 'ncontains':
-      return buildLikeClause(tableName, field, value as string, 'contains', { negate: true })
+      return buildLikeClause(tableName, field, operand as string, 'contains', { negate: true })
     case 'startsWith':
-      return buildLikeClause(tableName, field, value as string, 'startsWith')
+      return buildLikeClause(tableName, field, operand as string, 'startsWith')
     case 'endsWith':
-      return buildLikeClause(tableName, field, value as string, 'endsWith')
+      return buildLikeClause(tableName, field, operand as string, 'endsWith')
 
     case 'like':
-      return buildPatternClause(tableName, field, value as string, { caseInsensitive: false })
+      return buildPatternClause(tableName, field, operand as string, { caseInsensitive: false })
     case 'ilike':
-      return buildPatternClause(tableName, field, value as string, { caseInsensitive: true })
+      return buildPatternClause(tableName, field, operand as string, { caseInsensitive: true })
     case 'nlike':
-      return buildPatternClause(tableName, field, value as string, {
+      return buildPatternClause(tableName, field, operand as string, {
         caseInsensitive: false,
         negate: true,
       })
     case 'nilike':
-      return buildPatternClause(tableName, field, value as string, {
+      return buildPatternClause(tableName, field, operand as string, {
         caseInsensitive: true,
         negate: true,
       })
@@ -754,6 +768,64 @@ function buildArrayMembershipClause(tableName: string, field: string, value: Jso
  * Cannot use the GIN index — falls back to a sequential scan over the table's
  * rows (bounded by the btree prefix on `table_id`).
  */
+/**
+ * Canonicalizes a filter operand into the shape the column stores.
+ *
+ * Three cases, because "the value the user typed" relates to storage three
+ * different ways:
+ *
+ * - **Opaque ids** (`select`) are resolved from option NAMES to ids upstream by
+ *   `resolveFilterSelectValues`, which needs the whole option set. Touching
+ *   them here would re-coerce an already-resolved id.
+ * - **Text matches** take a FRAGMENT, which is not a whole value and so cannot
+ *   go through `coerce` — a partial phone number fails validation. The type
+ *   normalizes it instead, if its canonical form drops characters.
+ * - **Everything else** goes through the type's own `coerce`, which is by
+ *   definition how the cell was written. Idempotent, so an operand a caller
+ *   already canonicalized passes through unchanged.
+ *
+ * An operand `coerce` rejects is left alone rather than nulled: the value is
+ * the user's, and the range-operator validator below still gets to reject it
+ * with a message naming what they actually typed.
+ */
+function canonicalizeOperand(
+  value: JsonValue | undefined,
+  op: FilterOp,
+  column: ColumnDefinition
+): JsonValue | undefined {
+  if (value === undefined || value === null) return value
+  const definition = columnTypeOf(column)
+  if (definition.storesOpaqueIds || !definition.canonicalizesValues) return value
+
+  if (TEXT_MATCH_OPS.has(op)) {
+    return typeof value === 'string' ? normalizeFilterFragment(column, value) : value
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) =>
+      typeof entry === 'string' ? canonicalizeText(entry, column) : entry
+    )
+  }
+  return typeof value === 'string' ? canonicalizeText(value, column) : value
+}
+
+/**
+ * Runs one TEXT operand through the column's own coercion.
+ *
+ * Strings only, deliberately. Canonicalization exists to reconcile what a user
+ * TYPED with how the cell was stored; an operand that arrived as another type
+ * was not typed as text and keeps its existing path — which matters because
+ * `date.coerce` accepts an epoch number, so canonicalizing one would silently
+ * reinterpret `{ birthDate: { $gte: 1704067200000 } }` as a date rather than
+ * letting `validateComparisonValue` reject a likely mistake.
+ */
+function canonicalizeText(value: string, column: ColumnDefinition): JsonValue {
+  const coerced = columnTypeOf(column).coerce(value, column)
+  return coerced.ok ? coerced.value : value
+}
+
+/** Operators whose operand is a search fragment rather than a whole value. */
+const TEXT_MATCH_OPS = new Set<FilterOp>(['contains', 'ncontains', 'startsWith', 'endsWith'])
+
 function buildComparisonClause(
   tableName: string,
   field: string,
