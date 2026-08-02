@@ -873,6 +873,18 @@ describe('QuickBooks tool and block boundaries', () => {
         readMode: 'by_id',
       })
     ).toBe(true)
+    expect(
+      typeof subBlocks.startPosition.condition === 'function'
+        ? subBlocks.startPosition.condition()
+        : subBlocks.startPosition.condition
+    ).toEqual({
+      field: 'operation',
+      value: [
+        'quickbooks_read_master_data',
+        'quickbooks_list_purchase_orders',
+        'quickbooks_list_bills',
+      ],
+    })
     expect(QuickBooksBlock.outputs.items.condition).toEqual({
       field: 'operation',
       value: [

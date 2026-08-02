@@ -72,6 +72,9 @@ function optionalValue(value: unknown): unknown {
 }
 
 function paginationCondition(values?: Record<string, unknown>) {
+  if (!values) {
+    return { field: 'operation', value: [...PAGINATED_OPERATIONS] }
+  }
   if (values?.operation === MASTER_DATA_OPERATION) {
     return { field: 'readMode', value: 'list' }
   }
