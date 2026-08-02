@@ -144,10 +144,15 @@ describe('extractDocumentStyle', () => {
   })
 
   it('never hands JSZip an archive with an implausible compression ratio', async () => {
+    // 400 MiB sits under the 1 GiB absolute cap, so this exercises the ratio
+    // check rather than the size check. Declaring the expansion rather than
+    // carrying it keeps the fixture a few hundred bytes — the guard reads the
+    // declared total, so a real payload would only cost the suite memory.
     const bomb = buildZip([
       {
         name: 'word/theme/theme1.xml',
-        content: 'A'.repeat(400 * 1024 * 1024),
+        content: THEME_XML,
+        declaredUncompressedSize: 400 * 1024 * 1024,
       },
     ])
 
