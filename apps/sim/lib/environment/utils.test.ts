@@ -1,12 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  dbChainMockFns,
-  encryptionMock,
-  encryptionMockFns,
-  resetDbChainMock,
-} from '@sim/testing'
+import { dbChainMockFns, encryptionMock, encryptionMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
