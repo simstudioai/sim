@@ -21,6 +21,7 @@ import { slackSelectors } from '@/hooks/selectors/providers/slack/selectors'
 import { trelloSelectors } from '@/hooks/selectors/providers/trello/selectors'
 import { wealthboxSelectors } from '@/hooks/selectors/providers/wealthbox/selectors'
 import { webflowSelectors } from '@/hooks/selectors/providers/webflow/selectors'
+import { zohoDeskSelectors } from '@/hooks/selectors/providers/zoho-desk/selectors'
 import { zoomSelectors } from '@/hooks/selectors/providers/zoom/selectors'
 import type {
   SelectorDefinition,
@@ -43,6 +44,7 @@ export const selectorRegistry = {
   ...pipedriveSelectors,
   ...sharepointSelectors,
   ...trelloSelectors,
+  ...zohoDeskSelectors,
   ...zoomSelectors,
   ...slackSelectors,
   ...wealthboxSelectors,

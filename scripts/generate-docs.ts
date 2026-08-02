@@ -62,6 +62,7 @@ const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'trello-service-account',
   'wealthbox-service-account',
   'webflow-service-account',
+  'zoho-desk-service-account',
   'zoom-service-account',
 ])
 

@@ -109,6 +109,7 @@ import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
+import { deriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
 
 const logger = createLogger('Auth')
 
@@ -2023,6 +2024,161 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error creating Salesforce user profile:', { error })
+              return null
+            }
+          },
+        },
+
+        {
+          providerId: 'zoho-desk',
+          clientId: env.ZOHO_CLIENT_ID as string,
+          clientSecret: env.ZOHO_CLIENT_SECRET as string,
+          authorizationUrl: 'https://accounts.zoho.com/oauth/v2/auth',
+          tokenUrl: 'https://accounts.zoho.com/oauth/v2/token',
+          scopes: getCanonicalScopesForProvider('zoho-desk'),
+          responseType: 'code',
+          pkce: true,
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/zoho-desk`,
+          // Zoho only issues a refresh token when access_type=offline AND
+          // prompt=consent are present on the authorize request, and it expects
+          // comma-separated scopes rather than the default space-delimited list.
+          authorizationUrlParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+            scope: getCanonicalScopesForProvider('zoho-desk').join(','),
+          },
+          getToken: async ({ code, redirectURI, codeVerifier }) => {
+            const tokenParams = new URLSearchParams({
+              client_id: env.ZOHO_CLIENT_ID as string,
+              client_secret: env.ZOHO_CLIENT_SECRET as string,
+              code,
+              grant_type: 'authorization_code',
+              redirect_uri: redirectURI,
+            })
+            // PKCE is enabled, so better-auth sent a code_challenge on the authorize
+            // request. The exchange MUST echo the matching code_verifier or Zoho
+            // rejects the request shape (invalid_request). Verified by isolating
+            // pkce:false (which connected) then restoring pkce:true + this verifier.
+            if (codeVerifier) tokenParams.set('code_verifier', codeVerifier)
+
+            const response = await fetch('https://accounts.zoho.com/oauth/v2/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: tokenParams,
+            })
+            const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
+              maxBytes: 1024 * 1024,
+              label: 'Zoho Desk OAuth token response',
+            })
+
+            // Zoho signals OAuth failures in the JSON body, usually with HTTP 200,
+            // e.g. { error: 'invalid_code' } or { error: 'invalid_client',
+            // error_description: '...' }. The status-only guard therefore never
+            // fires, so surface the actual error/description instead of collapsing
+            // every failure into one opaque "no access token" string.
+            const errorObj =
+              data && typeof data === 'object' && !Array.isArray(data)
+                ? (data as { error?: unknown; error_description?: unknown })
+                : {}
+            const zohoError = typeof errorObj.error === 'string' ? errorObj.error : undefined
+            const zohoErrorDescription =
+              typeof errorObj.error_description === 'string'
+                ? errorObj.error_description
+                : undefined
+            if (
+              !response.ok ||
+              !data ||
+              typeof data !== 'object' ||
+              Array.isArray(data) ||
+              zohoError
+            ) {
+              logger.error('Zoho Desk OAuth token exchange failed', {
+                status: response.status,
+                zohoError: zohoError ?? null,
+                zohoErrorDescription: zohoErrorDescription ?? null,
+              })
+              throw new Error(
+                `Zoho Desk OAuth token exchange failed (HTTP ${response.status}${
+                  zohoError ? `, ${zohoError}` : ''
+                }${zohoErrorDescription ? `: ${zohoErrorDescription}` : ''})`
+              )
+            }
+
+            const tokens = getOAuth2Tokens(data)
+            if (!tokens.accessToken) {
+              logger.error('Zoho Desk OAuth token response had no access token', {
+                status: response.status,
+                bodyKeys: Object.keys(data),
+              })
+              throw new Error('Zoho Desk OAuth token response did not include an access token')
+            }
+
+            // Persist the data-center-scoped Desk REST base derived from the
+            // token response api_domain so every API call targets the correct
+            // host instead of assuming desk.zoho.com. Stored inside the scope
+            // string (survives refreshes, which never rewrite scope) and read
+            // back in /api/auth/oauth/token as `apiDomain`.
+            const deskBase = deriveZohoDeskBaseFromApiDomain(
+              typeof data.api_domain === 'string' ? data.api_domain : undefined
+            )
+            // Zoho's docs are inconsistent about whether the Desk token response
+            // carries `scope` (the Mail sample has it; the CRM/Creator samples do
+            // not). If it is absent, fall back to the scopes we requested and were
+            // granted by completing the flow - otherwise the stored scope list is
+            // just the domain marker, and the credential picker would show a
+            // permanent "needs update / reconnect" badge on every connection.
+            // Mirrors the existing Box fallback in this file.
+            const reportedScopes =
+              typeof data.scope === 'string' ? data.scope.split(/[\s,]+/).filter(Boolean) : []
+            const grantedScopes = reportedScopes.length
+              ? reportedScopes
+              : getCanonicalScopesForProvider('zoho-desk')
+            tokens.scopes = [`__zoho_domain__:${deskBase}`, ...grantedScopes]
+            return tokens
+          },
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://accounts.zoho.com/oauth/user/info', {
+                headers: { Authorization: `Zoho-oauthtoken ${tokens.accessToken}` },
+              })
+
+              if (!response.ok) {
+                await readResponseTextWithLimit(response, {
+                  maxBytes: 1024 * 1024,
+                  label: 'Zoho Desk profile error response',
+                }).catch(() => {})
+                logger.error('Error fetching Zoho Desk user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const profile = await readResponseJsonWithLimit<{
+                ZUID?: number | string
+                Display_Name?: string
+                Email?: string
+              }>(response, { maxBytes: 1024 * 1024, label: 'Zoho Desk profile response' })
+
+              const zuid = profile.ZUID?.toString()
+              if (!zuid) {
+                logger.error('Invalid Zoho Desk profile response:', profile)
+                return null
+              }
+
+              const now = new Date()
+              return {
+                id: `${zuid}-${generateId()}`,
+                name: profile.Display_Name || 'Zoho User',
+                email: profile.Email || `zoho-${zuid}@zoho.user`,
+                emailVerified: Boolean(profile.Email),
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Zoho Desk getUserInfo:', { error })
               return null
             }
           },

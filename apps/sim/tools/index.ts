@@ -1454,6 +1454,9 @@ export async function executeTool(
         if (data.instanceUrl) {
           contextParams.instanceUrl = data.instanceUrl
         }
+        if (data.apiDomain && !contextParams.apiDomain) {
+          contextParams.apiDomain = data.apiDomain
+        }
         if (data.cloudId && !contextParams.cloudId) {
           contextParams.cloudId = data.cloudId
         }
