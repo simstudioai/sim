@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { encryptSecret } from '@/lib/core/security/encryption'
+import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
@@ -21,6 +21,30 @@ import { TokenServiceAccountValidationError } from '@/lib/credentials/token-serv
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
+
+/**
+ * Read the `dataCenter` already stored in a service-account credential's
+ * encrypted blob. Used on reconnect so a non-secret regional selector survives a
+ * secret rotation that does not resubmit it. Returns undefined on any failure -
+ * a blob that cannot be read must not block the reconnect, and the provider's
+ * own default then applies.
+ */
+async function readStoredDataCenter(credentialId: string): Promise<string | undefined> {
+  try {
+    const rows = await db
+      .select({ key: credential.encryptedServiceAccountKey })
+      .from(credential)
+      .where(eq(credential.id, credentialId))
+      .limit(1)
+    const key = rows[0]?.key
+    if (!key) return undefined
+    const { decrypted } = await decryptSecret(key)
+    const blob = JSON.parse(decrypted) as { dataCenter?: unknown }
+    return typeof blob.dataCenter === 'string' && blob.dataCenter ? blob.dataCenter : undefined
+  } catch {
+    return undefined
+  }
+}
 
 export type CredentialOrchestrationErrorCode =
   | 'not_found'
@@ -138,6 +162,17 @@ export async function performUpdateCredential(
       params.dataCenter !== undefined
     let rotatedSlackBotUserId: string | undefined
     if (hasRotationSecret && access.credential.type === 'service_account') {
+      // A reconnect rebuilds the secret blob from the submitted fields only, and
+      // the modal never prefills (secrets are never echoed back). For an actual
+      // secret that is correct - the admin retypes it. But a non-secret selector
+      // like the Zoho data center would be silently dropped, moving an EU/IN/AU
+      // credential back to the US accounts server. Carry the stored value forward
+      // when the caller did not supply one.
+      const carriedDataCenter =
+        params.dataCenter === undefined
+          ? await readStoredDataCenter(access.credential.id)
+          : params.dataCenter
+
       try {
         const secret = await verifyAndBuildServiceAccountSecret(
           access.credential.providerId ?? '',
@@ -149,7 +184,7 @@ export async function performUpdateCredential(
             clientId: params.clientId,
             clientSecret: params.clientSecret,
             orgId: params.orgId,
-            dataCenter: params.dataCenter,
+            dataCenter: carriedDataCenter,
           }
         )
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
