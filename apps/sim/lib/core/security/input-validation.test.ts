@@ -1460,6 +1460,19 @@ describe('validateAwsRegion', () => {
     })
   })
 
+  describe('valid European Sovereign Cloud regions', () => {
+    it.concurrent('should accept eusc-de-east-1', () => {
+      const result = validateAwsRegion('eusc-de-east-1')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('eusc-de-east-1')
+    })
+
+    it.concurrent('should reject a malformed eusc region', () => {
+      expect(validateAwsRegion('eusc-de-east').isValid).toBe(false)
+      expect(validateAwsRegion('eusc-deu-east-1').isValid).toBe(false)
+    })
+  })
+
   describe('valid China regions', () => {
     it.concurrent('should accept cn-north-1', () => {
       const result = validateAwsRegion('cn-north-1')
