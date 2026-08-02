@@ -4,6 +4,7 @@ import {
   type ClientIpHeaderSource,
   parseTrustedProxies,
   resolveClientIp,
+  UNKNOWN_CLIENT_IP,
 } from '@sim/security/client-ip'
 import { generateShortId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
@@ -40,11 +41,21 @@ interface AuditLogParams {
 const trustedProxies = parseTrustedProxies(process.env.AUTH_TRUSTED_PROXIES)
 
 /**
+ * Mirrors the app's `TRUST_PROXY_HEADERS`. Recording a caller-authored address
+ * as forensic evidence is worse than recording none, so a deployment that
+ * declares it has no proxy in front gets `unknown` rather than a fabrication.
+ */
+const trustForwardedHeaders = !/^(false|0|no|off)$/i.test(
+  (process.env.TRUST_PROXY_HEADERS ?? '').trim()
+)
+
+/**
  * An audit row's `ipAddress` is forensic evidence, so it must not be whatever
  * the caller put in the leftmost `X-Forwarded-For` entry. See
  * {@link resolveClientIp}.
  */
 function getClientIp(request: ClientIpHeaderSource): string {
+  if (!trustForwardedHeaders) return UNKNOWN_CLIENT_IP
   return resolveClientIp(request, trustedProxies)
 }
 

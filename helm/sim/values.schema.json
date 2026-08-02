@@ -159,6 +159,10 @@
               "type": "string",
               "description": "Comma-separated reverse-proxy IPs or CIDR ranges in front of the app (e.g. the ingress pods, '10.42.0.0/24'). When set, Better Auth and Sim's per-IP rate limits both walk x-forwarded-for right to left, skip these hops, and use the first untrusted address as the client IP. Leave empty and the two differ: Better Auth trusts only a single-value header, while Sim's throttles key on the rightmost, proxy-written entry. Do not use a range broad enough to also cover client traffic — a caller inside a trusted range makes the whole chain trusted."
             },
+            "TRUST_PROXY_HEADERS": {
+              "type": "string",
+              "description": "Whether x-forwarded-for / x-real-ip may be believed at all. Empty (the default) means yes, which is correct behind the chart's ingress. Set to 'false' only when the app is exposed with no proxy appending the peer address, where those headers are entirely caller-written; per-IP rate limits then collapse to one shared bucket rather than being bypassable per request."
+            },
             "SSO_TRUSTED_PROVIDER_IDS": {
               "type": "string",
               "description": "Comma-separated SSO provider IDs to trust for automatic account linking when an SSO sign-in matches an existing account's email. Only needed for IdPs that do not assert email_verified. Merged into Better Auth accountLinking.trustedProviders."

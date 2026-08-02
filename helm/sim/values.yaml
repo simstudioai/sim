@@ -91,6 +91,13 @@ app:
     # to also cover client traffic: a caller whose own address falls inside a trusted range makes
     # the whole chain trusted and can then forge the value Sim keys on.
     AUTH_TRUSTED_PROXIES: ""
+    # TRUST_PROXY_HEADERS: whether x-forwarded-for / x-real-ip may be believed at all. Left empty
+    # (= true), which is correct here because the chart runs behind an ingress that appends the peer
+    # address. Set to "false" only if you expose the Service directly with no proxy in front: with
+    # nothing appending, those headers are written entirely by the caller and believing them lets
+    # anyone rotate a header for a fresh per-IP rate-limit bucket per request. While false, per-IP
+    # limits collapse into one shared bucket — blunt, but it fails closed.
+    TRUST_PROXY_HEADERS: ""
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
     # NEXT_PUBLIC_SOCKET_URL: public WebSocket URL for browsers. Leave empty to default to the
     # page's own origin (assumes the ingress/reverse proxy routes /socket.io to the realtime service).

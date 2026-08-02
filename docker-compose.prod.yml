@@ -36,6 +36,16 @@ services:
       # chain trusted. This all assumes a proxy that appends the peer address —
       # an app exposed directly to the internet sees only what the caller wrote.
       - AUTH_TRUSTED_PROXIES=${AUTH_TRUSTED_PROXIES:-}
+      # TRUST_PROXY_HEADERS: whether x-forwarded-for / x-real-ip may be believed.
+      # Defaults to FALSE here because this file publishes port 3000 directly and
+      # ships no reverse proxy — with nothing in front, those headers are written
+      # entirely by the caller, and believing them would let anyone rotate a
+      # header to get a fresh per-IP rate-limit bucket on every request. While
+      # false, per-IP limits collapse into one shared bucket: blunt, but it fails
+      # closed. Set it to true once a proxy that APPENDS the peer address (nginx,
+      # Caddy, Traefik, an ALB, Cloudflare) terminates in front of the app, and
+      # set AUTH_TRUSTED_PROXIES to that proxy's address at the same time.
+      - TRUST_PROXY_HEADERS=${TRUST_PROXY_HEADERS:-false}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}
