@@ -23,6 +23,10 @@ afterAll(() => {
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import {
+  ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const {
   ensureWorkflowAccessMock,
@@ -39,6 +43,7 @@ const {
   checkAttributedUsageLimitsMock,
   reserveExecutionSlotMock,
   releaseExecutionSlotMock,
+  decryptSecretMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   ensureWorkspaceAccessMock: vi.fn(),
@@ -54,6 +59,7 @@ const {
   checkAttributedUsageLimitsMock: vi.fn(),
   reserveExecutionSlotMock: vi.fn(),
   releaseExecutionSlotMock: vi.fn(),
+  decryptSecretMock: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -77,6 +83,11 @@ vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
   releaseExecutionSlot: releaseExecutionSlotMock,
   reserveExecutionSlot: reserveExecutionSlotMock,
   UsageReservationUnavailableError: class UsageReservationUnavailableError extends Error {},
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: decryptSecretMock,
+  encryptSecret: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
@@ -297,6 +308,7 @@ describe('executeCreateWorkflow billing attribution', () => {
       payerUsage: { currentUsage: 1, limit: 10 },
     })
     reserveExecutionSlotMock.mockResolvedValue({ reserved: true, created: true })
+    decryptSecretMock.mockResolvedValue({ decrypted: 'secret-value' })
     listFoldersMock.mockResolvedValue([])
   })
 
@@ -580,6 +592,7 @@ describe('Copilot workflow execution billing attribution', () => {
       payerUsage: { currentUsage: 1, limit: 10 },
     })
     reserveExecutionSlotMock.mockResolvedValue({ reserved: true, created: true })
+    decryptSecretMock.mockResolvedValue({ decrypted: 'secret-value' })
   })
 
   async function expectBillingAttributionForwarded(
@@ -600,6 +613,178 @@ describe('Copilot workflow execution billing attribution', () => {
     await expectBillingAttributionForwarded(() =>
       executeRunWorkflow({ workflowId: 'workflow-1', useMockPayload: true }, executionContext)
     )
+  })
+
+  it('passes only input-crossing parent provenance to the child execution', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'INPUT_SECRET',
+          plaintext: 'input-secret',
+          encryptedValue: 'input-ciphertext',
+        },
+        {
+          name: 'UNRELATED_SECRET',
+          plaintext: 'unrelated-secret',
+          encryptedValue: 'unrelated-ciphertext',
+        },
+      ],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('INPUT_SECRET', 'input-secret')
+    registry.recordResolved('UNRELATED_SECRET', 'unrelated-secret')
+    resolveTriggerRunOptionsMock.mockReturnValueOnce([
+      {
+        triggerBlockId: 'trigger-1',
+        blockName: 'Start',
+        mockPayload: { value: 'input-secret' },
+      },
+    ])
+    executeWorkflowMock.mockResolvedValueOnce({
+      success: true,
+      output: { ok: true },
+      logs: [],
+      metadata: { executionId: 'new-execution-1' },
+      executionState: {
+        resolvedSecretTraceProvenance: {
+          version: 1,
+          complete: true,
+          entries: [],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        },
+      },
+    })
+
+    const result = await executeRunWorkflow(
+      { workflowId: 'workflow-1', useMockPayload: true },
+      { ...executionContext, resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(result.success).toBe(true)
+    expect(executeWorkflowMock.mock.calls[0]?.[2]).toEqual({ value: 'input-secret' })
+    expect(executeWorkflowMock.mock.calls[0]?.[4]).toEqual(
+      expect.objectContaining({
+        trustedInitialResolvedSecretTraceProvenance: {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'INPUT_SECRET', encryptedValue: 'input-ciphertext' }],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        },
+      })
+    )
+    expect(JSON.stringify(result)).not.toContain('input-ciphertext')
+    expect(JSON.stringify(result)).not.toContain('unrelated-ciphertext')
+  })
+
+  it('imports child provenance without returning private metadata to the model', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    const context: ExecutionContext = {
+      ...executionContext,
+      resolvedSecretTraceRegistry: registry,
+    }
+    executeWorkflowMock.mockResolvedValueOnce({
+      success: true,
+      output: { value: 'secret-value' },
+      logs: [],
+      metadata: { executionId: 'new-execution-1' },
+      executionState: {
+        resolvedSecretTraceProvenance: {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        },
+      },
+    })
+
+    const result = await executeRunWorkflow(
+      { workflowId: 'workflow-1', useMockPayload: true },
+      context
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { output: { value: 'secret-value' } },
+    })
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
+    ])
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+    expect(JSON.stringify(result)).not.toContain('encrypted-secret')
+  })
+
+  it('marks provenance incomplete when child execution returns no trusted state', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const context: ExecutionContext = {
+      ...executionContext,
+      resolvedSecretTraceRegistry: registry,
+    }
+
+    const result = await executeRunWorkflow(
+      { workflowId: 'workflow-1', useMockPayload: true },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(registry.isComplete()).toBe(false)
+  })
+
+  it('filters and anonymizes cross-workspace child provenance to values that cross back', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    const context: ExecutionContext = {
+      ...executionContext,
+      resolvedSecretTraceRegistry: registry,
+    }
+    ensureWorkflowAccessMock.mockResolvedValueOnce({
+      workflow: {
+        id: 'workflow-2',
+        userId: 'owner-2',
+        workspaceId: 'workspace-2',
+        variables: {},
+      },
+    })
+    resolveBillingAttributionMock.mockResolvedValueOnce(childBillingAttribution)
+    decryptSecretMock.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: encryptedValue === 'used-ciphertext' ? 'used-secret' : 'workspace-only-secret',
+    }))
+    executeWorkflowMock.mockResolvedValueOnce({
+      success: true,
+      output: { value: 'used-secret' },
+      logs: [],
+      metadata: { executionId: 'child-execution' },
+      executionState: {
+        resolvedSecretTraceProvenance: {
+          version: 1,
+          complete: true,
+          entries: [
+            { name: 'USED', encryptedValue: 'used-ciphertext' },
+            { name: 'WORKSPACE_ONLY', encryptedValue: 'workspace-only-ciphertext' },
+          ],
+          scope: { userId: 'user-1', workspaceId: 'workspace-2' },
+        },
+      },
+    })
+
+    const result = await executeRunWorkflow(
+      { workflowId: 'workflow-2', useMockPayload: true },
+      context
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { output: { value: 'used-secret' } },
+    })
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'used-secret', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
+    ])
+    expect(JSON.stringify(result)).not.toContain('workspace-only-ciphertext')
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
   })
 
   it('passes immutable attribution when running until a block', async () => {

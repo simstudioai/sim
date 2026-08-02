@@ -97,5 +97,16 @@ export function useSecretValue({ workspaceId, credential }: UseSecretValueParams
     }
   }
 
-  return { value: draft, setValue: setDraft, canEdit, isConflicted, isDirty, save, isSaving }
+  const discard = () => setDraft(currentValue)
+
+  return {
+    value: draft,
+    setValue: setDraft,
+    canEdit,
+    isConflicted,
+    isDirty,
+    save,
+    discard,
+    isSaving,
+  }
 }

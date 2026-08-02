@@ -57,7 +57,7 @@ Click any entry to open its sidebar: the run's timeline (start/end, total durati
     The block's result — JSON-formatted structured data, markdown rendering for AI content, and a copy button.
   </Tab>
   <Tab>
-    What the block received — resolved variable values, referenced outputs, and environment variables. API keys are automatically redacted.
+    What the block received — resolved variable values, referenced outputs, and environment variables. Exact secret values activated by a successful `{{KEY}}` substitution are masked in this trace view. See [Execution log protection](/platform/credentials#execution-log-protection).
   </Tab>
 </Tabs>
 
@@ -95,7 +95,7 @@ import { FAQ } from '@/components/ui/faq'
 <FAQ items={[
   { question: "How long are run logs retained?", answer: "Free plans retain logs for 7 days — after that, logs are archived to cloud storage and deleted from the database. Pro, Team, and Enterprise plans retain logs indefinitely with no automatic cleanup." },
   { question: "What data is captured in each run log?", answer: "Each log entry includes the run ID, workflow ID, trigger type, start and end timestamps, total duration in milliseconds, cost breakdown (total cost, token counts, and per-model breakdowns), run data with trace spans, final output, and any associated files. The log details sidebar lets you inspect block-level inputs and outputs." },
-  { question: "Are API keys visible in the logs?", answer: "No. API keys and credentials are automatically redacted in the log input tab for security. You can safely inspect block inputs without exposing sensitive values." },
+  { question: "Are saved secrets visible in logs?", answer: "When a value saved under Secrets is successfully substituted through {{KEY}}, exact, case-sensitive occurrences are masked throughout the log-facing copy, including the live block-log display, Logs Overview input and output, Trace, log-read APIs, and the Logs block's Get Run Details output. This is not a general redactor: hardcoded or directly read values do not activate masking by themselves, and encoded, hashed, or transformed values are not matched. Functional execution responses, streams, and callbacks remain unchanged. See Execution log protection under Secrets for details." },
   { question: "What is a workflow snapshot?", answer: "A frozen copy of the workflow's structure (blocks, connections, and configuration) captured at run time, so you can see the exact state behind a particular run — useful for debugging workflows that have been modified since." },
   { question: "Can I access logs programmatically?", answer: "Yes. The External API provides endpoints to query logs with filtering by workflow, time range, trigger type, duration, cost, and model. You can also set up webhook, email, or Slack notifications for real-time alerts when runs complete." },
   { question: "What does Live mode do on the Logs page?", answer: "It refreshes the Logs page in real time so new entries appear as they are recorded — useful during deployments or when monitoring active workflows." },

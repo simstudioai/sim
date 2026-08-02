@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { copilotToolCanWrite, copilotWriteDeniedMessage } from '@/lib/copilot/tools/permissions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   deleteCustomTool,
@@ -30,7 +31,6 @@ interface ManageCustomToolParams {
   schema?: ManageCustomToolSchema
   code?: string
   title?: string
-  workspaceId?: string
 }
 
 export async function executeManageCustomTool(
@@ -39,22 +39,25 @@ export async function executeManageCustomTool(
 ): Promise<ToolCallResult> {
   const params = rawParams as ManageCustomToolParams
   const operation = String(params.operation || '').toLowerCase() as ManageCustomToolOperation
-  const workspaceId = params.workspaceId || context.workspaceId
+  /**
+   * Server-set context only. A model-supplied `params.workspaceId` used to win
+   * here, while the permission gate above is resolved for the CONTEXT
+   * workspace — so a caller could name another workspace and have it
+   * authorized against their own. `upsertCustomTools` does no authz of its own
+   * (it only scopes queries by the id it is handed), so nothing downstream
+   * caught it. Matches manage_mcp_tool and manage_skill.
+   */
+  const workspaceId = context.workspaceId
 
   if (!operation) {
     return { success: false, error: "Missing required 'operation' argument" }
   }
 
   const writeOps: string[] = ['add', 'edit', 'delete']
-  if (
-    writeOps.includes(operation) &&
-    context.userPermission &&
-    context.userPermission !== 'write' &&
-    context.userPermission !== 'admin'
-  ) {
+  if (writeOps.includes(operation) && !copilotToolCanWrite(context.userPermission)) {
     return {
       success: false,
-      error: `Permission denied: '${operation}' on manage_custom_tool requires write access. You have '${context.userPermission}' permission.`,
+      error: copilotWriteDeniedMessage('manage_custom_tool', operation, context.userPermission),
     }
   }
 

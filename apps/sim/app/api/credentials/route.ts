@@ -318,6 +318,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       clientId,
       clientSecret,
       orgId,
+      dataCenter,
     } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
@@ -378,6 +379,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           clientId,
           clientSecret,
           orgId,
+          dataCenter,
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null

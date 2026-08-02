@@ -78,6 +78,35 @@ export const MemoizedActionItem = memo(
     prev.shortcut === next.shortcut
 )
 
+/**
+ * Right-aligned folder breadcrumb. All but the last segment collapse first so a
+ * deep path degrades to the immediate parent rather than truncating the whole
+ * trail. Renders nothing at the workspace root.
+ */
+function FolderPathSuffix({ folderPath }: { folderPath?: string[] }) {
+  if (!folderPath || folderPath.length === 0) return null
+  return (
+    <span className='ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small'>
+      {folderPath.length > 1 && (
+        <>
+          <span className='min-w-0 truncate [flex-shrink:9999]'>
+            {folderPath.slice(0, -1).join(' / ')}
+          </span>
+          <span className='flex-shrink-0 whitespace-pre'> / </span>
+        </>
+      )}
+      <span className='min-w-0 truncate'>{folderPath[folderPath.length - 1]}</span>
+    </span>
+  )
+}
+
+/** Element-wise compare so a rebuilt-but-identical path array skips the re-render. */
+function sameFolderPath(a?: string[], b?: string[]): boolean {
+  if (a === b) return true
+  if (a?.length !== b?.length) return false
+  return (a ?? []).every((segment, i) => segment === b?.[i])
+}
+
 export const MemoizedWorkflowItem = memo(
   function WorkflowItem({
     value,
@@ -101,19 +130,7 @@ export const MemoizedWorkflowItem = memo(
           <span className='truncate'>{name}</span>
           {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
         </span>
-        {folderPath && folderPath.length > 0 && (
-          <span className='ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small'>
-            {folderPath.length > 1 && (
-              <>
-                <span className='min-w-0 truncate [flex-shrink:9999]'>
-                  {folderPath.slice(0, -1).join(' / ')}
-                </span>
-                <span className='flex-shrink-0 whitespace-pre'> / </span>
-              </>
-            )}
-            <span className='min-w-0 truncate'>{folderPath[folderPath.length - 1]}</span>
-          </span>
-        )}
+        <FolderPathSuffix folderPath={folderPath} />
       </Command.Item>
     )
   },
@@ -121,9 +138,7 @@ export const MemoizedWorkflowItem = memo(
     prev.value === next.value &&
     prev.name === next.name &&
     prev.isCurrent === next.isCurrent &&
-    (prev.folderPath === next.folderPath ||
-      (prev.folderPath?.length === next.folderPath?.length &&
-        (prev.folderPath ?? []).every((segment, i) => segment === next.folderPath?.[i])))
+    sameFolderPath(prev.folderPath, next.folderPath)
 )
 
 export const MemoizedFileItem = memo(
@@ -143,31 +158,17 @@ export const MemoizedFileItem = memo(
         <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
           <File className='size-[14px] text-[var(--text-icon)]' />
         </div>
-        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 font-base text-[var(--text-body)]'>
+        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
           <span className='truncate'>{name}</span>
         </span>
-        {folderPath && folderPath.length > 0 && (
-          <span className='ml-auto flex min-w-0 pl-2 font-base text-[var(--text-subtle)] text-small'>
-            {folderPath.length > 1 && (
-              <>
-                <span className='min-w-0 truncate [flex-shrink:9999]'>
-                  {folderPath.slice(0, -1).join(' / ')}
-                </span>
-                <span className='flex-shrink-0 whitespace-pre'> / </span>
-              </>
-            )}
-            <span className='min-w-0 truncate'>{folderPath[folderPath.length - 1]}</span>
-          </span>
-        )}
+        <FolderPathSuffix folderPath={folderPath} />
       </Command.Item>
     )
   },
   (prev, next) =>
     prev.value === next.value &&
     prev.name === next.name &&
-    (prev.folderPath === next.folderPath ||
-      (prev.folderPath?.length === next.folderPath?.length &&
-        (prev.folderPath ?? []).every((segment, i) => segment === next.folderPath?.[i])))
+    sameFolderPath(prev.folderPath, next.folderPath)
 )
 
 export const MemoizedTaskItem = memo(
@@ -253,18 +254,27 @@ export const MemoizedIconItem = memo(
     onSelect,
     name,
     icon: Icon,
+    folderPath,
   }: {
     value: string
     onSelect: () => void
     name: string
     icon: ComponentType<{ className?: string }>
+    folderPath?: string[]
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='truncate text-[var(--text-body)]'>{name}</span>
+        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
+          <span className='truncate'>{name}</span>
+        </span>
+        <FolderPathSuffix folderPath={folderPath} />
       </Command.Item>
     )
   },
-  (prev, next) => prev.value === next.value && prev.name === next.name && prev.icon === next.icon
+  (prev, next) =>
+    prev.value === next.value &&
+    prev.name === next.name &&
+    prev.icon === next.icon &&
+    sameFolderPath(prev.folderPath, next.folderPath)
 )

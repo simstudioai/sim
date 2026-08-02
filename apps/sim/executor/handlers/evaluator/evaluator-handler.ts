@@ -135,11 +135,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
     let finalApiKey: string | undefined = evaluatorConfig.apiKey
     if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
-      finalApiKey = await resolveVertexCredential(
-        evaluatorConfig.vertexCredential,
-        ctx.userId,
-        'vertex-evaluator'
-      )
+      finalApiKey = await resolveVertexCredential({
+        credentialId: evaluatorConfig.vertexCredential,
+        actingUserId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        callerLabel: 'vertex-evaluator',
+      })
     }
 
     try {

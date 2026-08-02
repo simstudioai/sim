@@ -409,6 +409,16 @@ export const tools: Record<string, ToolConfig> = {
 }
 ```
 
+Then regenerate the generated tool metadata and commit it:
+
+```bash
+bun run tool-metadata:generate
+```
+
+Client code reads `params`/`outputs` from these artifacts rather than importing
+the registry, so a tool you add, change or remove is invisible to the UI until they are regenerated,
+and CI fails on stale ones. See `.agents/skills/tool-registry-boundary/SKILL.md`.
+
 ### Block Registry (`apps/sim/blocks/registry-maps.ts`)
 
 The data maps (`BLOCK_REGISTRY` + `BLOCK_META_REGISTRY`) live in `registry-maps.ts`; `registry.ts` holds only the accessor functions. Add the import and an entry to each map alphabetically:
@@ -484,6 +494,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] All optional outputs have `optional: true`
 - [ ] Created `index.ts` barrel export
 - [ ] Registered all tools in `tools/registry.ts`
+- [ ] Ran `bun run tool-metadata:generate` and committed the regenerated artifacts
 
 ### Block
 - [ ] Created `blocks/blocks/{service}.ts`

@@ -24,6 +24,7 @@
  * @module
  */
 import { createLogger } from '@sim/logger'
+import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
 import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
@@ -51,8 +52,10 @@ import {
   REDIS_ORIGIN,
   REDIS_SNAPSHOT_ORIGIN,
 } from '@/handlers/file-doc-store'
+import { evictSocketFromRoom, registerRoomEvictionHandler } from '@/handlers/room-eviction'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
 import type { AuthenticatedSocket } from '@/middleware/auth'
+import { peekRoomPermission, resolveCurrentRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
 
 const logger = createLogger('FileDocHandlers')
@@ -837,11 +840,73 @@ function emitJoinError(
   })
 }
 
-function handleMessage(socket: AuthenticatedSocket, data: unknown) {
+/**
+ * The permission occupying a file-doc room requires — `write`, since the room IS
+ * the collaborative editor. Sourced from the shared map so the join check, the
+ * per-frame gate below, and the re-validation sweep can never drift apart.
+ */
+const FILE_DOC_ACTION = ROOM_MEMBERSHIP_ACTIONS[ROOM_TYPES.WORKSPACE_FILE_DOC]
+
+/**
+ * Per-frame authorization for a socket's inbound document/awareness frames.
+ *
+ * Room membership alone is NOT a standing right to write: a collaborator removed
+ * from the workspace — or downgraded to `read` — must stop landing durable edits on
+ * an already-open socket, without waiting for the next re-validation sweep. This is
+ * the synchronous half of that enforcement; the sweep is the asynchronous half.
+ *
+ * Reads the shared role cache without awaiting, because this sits on the Yjs relay
+ * hot path (one call per keystroke-sized frame). Three outcomes:
+ *  - fresh cached permission that satisfies `write` → accept.
+ *  - fresh cached permission that does NOT → drop the frame and evict immediately.
+ *  - nothing fresh cached (TTL lapsed) → accept this frame and kick off a background
+ *    refresh, so the very next frames are gated on an authoritative read. Accepting
+ *    is correct rather than lax: the entry was authoritative when written and every
+ *    join records one, so the exposure is bounded by the same TTL the workflow
+ *    write-path has always had, and the sweep evicts independently.
+ */
+function isFileDocWriteAllowed(socket: AuthenticatedSocket, io: Server, name: string): boolean {
+  const userId = socket.userId
+  const fileId = fileDocRooms.get(name)?.fileId
+  if (!userId || !fileId) return false
+
+  const room = fileDocRoom(fileId)
+  const cached = peekRoomPermission(userId, room)
+  if (cached === undefined) {
+    // Single-flighted, so a burst of frames triggers at most one query.
+    void resolveCurrentRoomPermission(userId, room, FILE_DOC_ACTION).catch(() => {})
+    return true
+  }
+  if (satisfiesRoomMembership(cached, ROOM_TYPES.WORKSPACE_FILE_DOC)) return true
+
+  logger.warn(
+    `Dropping file-doc frame from user ${userId} whose access to file ${fileId} no longer permits writing`
+  )
+  // Evicting (not just dropping the frame) is what makes this stick: the registered
+  // eviction handler clears `socketToRoomName`, and every inbound frame is gated on
+  // that binding — so the socket cannot apply another document update even if it
+  // keeps sending them.
+  evictSocketFromRoom(socket, room, 'Your access to this document has been revoked', io)
+  return false
+}
+
+/**
+ * Reconciles this handler's pod-local state when the access re-validation sweep
+ * evicts a socket from a file-doc room (the sweep has already emitted the
+ * revocation and left the Socket.IO room). Scoped to the evicted room so a socket
+ * that has since switched documents keeps the one it legitimately holds.
+ */
+registerRoomEvictionHandler(ROOM_TYPES.WORKSPACE_FILE_DOC, (socketId, room, io) => {
+  if (socketToRoomName.get(socketId) !== roomName(room)) return
+  cleanupFileDocForSocket(socketId, io)
+})
+
+function handleMessage(socket: AuthenticatedSocket, io: Server, data: unknown) {
   const name = socketToRoomName.get(socket.id)
   if (!name) return
   const room = fileDocRooms.get(name)
   if (!room) return
+  if (!isFileDocWriteAllowed(socket, io, name)) return
 
   const bytes = toFileDocBytes(data)
   if (!bytes) return
@@ -1009,7 +1074,7 @@ export function setupWorkspaceFileDocHandlers(
       const authorized = await resolveRoomJoinAuth({
         userId,
         room,
-        action: 'write',
+        action: FILE_DOC_ACTION,
         logger,
         logLabel: `file-doc room for ${userId}`,
         messages: {
@@ -1026,9 +1091,25 @@ export function setupWorkspaceFileDocHandlers(
       // awareness). Resolved here so the generation guard below also covers this await.
       const avatarUrl = await resolveAvatarUrl(socket, userId)
 
+      // Re-check access immediately before registering, mirroring the workflow join: the
+      // access re-validation sweep records a revocation BEFORE it evicts, so a join that
+      // authorized just before the revocation must not complete afterwards and re-bind
+      // the socket to the document. This RE-RESOLVES rather than peeking the cache — a
+      // peek treats an expired entry as unknown and fails open, which a join stalled
+      // longer than the cache TTL would slip straight through. Normally a cache hit (this
+      // join's own authorize just warmed it), so it costs no extra query.
+      const currentPermission = await resolveCurrentRoomPermission(userId, room, FILE_DOC_ACTION)
+      if (!satisfiesRoomMembership(currentPermission, ROOM_TYPES.WORKSPACE_FILE_DOC)) {
+        logger.warn(`User ${userId} lost write access to file ${fileId} before the join completed`)
+        emitJoinError(socket, fileId, 'Access denied to file', 'ACCESS_DENIED', false)
+        return
+      }
+
       // Abort a JOIN superseded during authorization/identity resolution: the socket
       // disconnected, or a newer JOIN (a document switch) bumped the generation. Registering
       // here would leak a dead socket's room or bind the socket to the wrong document.
+      // Last await before the commit, so nothing can interleave between the access
+      // re-check above and the registration below.
       if (socket.disconnected || joinGeneration.get(socket.id) !== generation) return
 
       const entry = getOrCreateRoom(io, room)
@@ -1148,7 +1229,7 @@ export function setupWorkspaceFileDocHandlers(
     }
   })
 
-  socket.on(FILE_DOC_EVENTS.MESSAGE, (data: unknown) => handleMessage(socket, data))
+  socket.on(FILE_DOC_EVENTS.MESSAGE, (data: unknown) => handleMessage(socket, io, data))
 
   socket.on(FILE_DOC_EVENTS.LEAVE, (payload?: LeaveFileDocPayload) => {
     try {

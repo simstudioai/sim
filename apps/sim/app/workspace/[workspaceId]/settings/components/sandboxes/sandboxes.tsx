@@ -8,6 +8,7 @@ import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { CodeIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -29,7 +30,6 @@ import {
   type SandboxDraft,
   toSubmittedLines,
 } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
@@ -202,6 +202,7 @@ export function Sandboxes() {
                 setIssues([])
               },
               saveDisabled: !canAdmin || current.name.trim().length === 0,
+              creating: isCreating,
             }),
             ...(selected && canAdmin
               ? [

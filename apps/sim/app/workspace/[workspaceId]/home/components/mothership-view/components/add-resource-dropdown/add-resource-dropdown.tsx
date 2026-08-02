@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
   Tooltip,
 } from '@sim/emcn'
-import { Folder, Plus, Workflow } from '@sim/emcn/icons'
+import { Folder, Plus } from '@sim/emcn/icons'
 import { truncate } from '@sim/utils/string'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import {
@@ -22,6 +22,11 @@ import {
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
+import {
+  type AvailableItem,
+  buildResourceFolderTree,
+  type ResourceTreeNode,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
@@ -55,15 +60,25 @@ export interface AddResourceDropdownProps {
   excludeTypes?: readonly MothershipResourceType[]
 }
 
-export type AvailableItem = { id: string; name: string; [key: string]: unknown }
-
 interface AvailableItemsByType {
   type: MothershipResourceType
   items: AvailableItem[]
 }
 
+/**
+ * Folder hierarchies that exist purely to structure the browse menus. Unlike
+ * workflow (`folder`) and workspace-file (`filefolder`) folders these are not
+ * attachable resources, so they stay out of `groups` — which also feeds the
+ * flat search results, where a non-attachable row would be a dead end.
+ */
+interface StructureFolders {
+  table: AvailableItem[]
+  knowledgebase: AvailableItem[]
+}
+
 interface AvailableResources {
   groups: AvailableItemsByType[]
+  structureFolders: StructureFolders
   /**
    * True while enabled and at least one list has yet to produce data. Callers
    * that act on "no candidates" must check this first — an empty result during
@@ -128,6 +143,16 @@ export function useAvailableResources(
     { enabled }
   )
   const { data: folders, isPending: foldersPending } = useFolders(workspaceId, { enabled })
+  // Folder lists exist only to shape their family's submenu, so they skip the
+  // fetch entirely when that family is excluded.
+  const { data: tableFolders } = useFolders(workspaceId, {
+    enabled: enabled && !excludeTypes?.includes('table'),
+    resourceType: 'table',
+  })
+  const { data: knowledgeBaseFolders } = useFolders(workspaceId, {
+    enabled: enabled && !excludeTypes?.includes('knowledgebase'),
+    resourceType: 'knowledge_base',
+  })
   const { data: fileFolders, isPending: fileFoldersPending } = useWorkspaceFileFolders(
     workspaceId,
     'active',
@@ -148,6 +173,11 @@ export function useAvailableResources(
    * Keyed off `isPending` rather than `data === undefined` so a failed list
    * settles to "not hydrating" — an errored query must not block the caller
    * forever.
+   *
+   * Only the lists feeding `groups` count. The table and knowledge-base folder
+   * lists shape submenus but never add candidates, so gating on them would
+   * swallow an `@`-mention Enter behind two round-trips that cannot change the
+   * answer.
    */
   const isHydrating =
     enabled &&
@@ -185,7 +215,11 @@ export function useAvailableResources(
       },
       {
         type: 'table' as const,
-        items: (tables ?? []).map((t) => ({ id: t.id, name: t.name })),
+        items: (tables ?? []).map((t) => ({
+          id: t.id,
+          name: t.name,
+          folderId: t.folderId ?? null,
+        })),
       },
       {
         type: 'file' as const,
@@ -201,7 +235,11 @@ export function useAvailableResources(
       },
       {
         type: 'knowledgebase' as const,
-        items: (knowledgeBases ?? []).map((kb) => ({ id: kb.id, name: kb.name })),
+        items: (knowledgeBases ?? []).map((kb) => ({
+          id: kb.id,
+          name: kb.name,
+          folderId: kb.folderId ?? null,
+        })),
       },
       {
         type: 'integration' as const,
@@ -275,88 +313,61 @@ export function useAvailableResources(
     excludeTypes,
   ])
 
-  // `groups` keeps its own stable identity so the consumers' downstream memos
-  // still key on it; only this wrapper changes when hydration settles.
-  return useMemo(() => ({ groups, isHydrating }), [groups, isHydrating])
+  /**
+   * Sorted by name to match how the Tables and Knowledge pages order folders —
+   * the list endpoint makes no ordering guarantee, and these folders carry no
+   * user-defined ordering the way workflow folders do.
+   */
+  const structureFolders = useMemo<StructureFolders>(() => {
+    const toFolderItems = (source: typeof tableFolders): AvailableItem[] =>
+      (source ?? [])
+        .map((f) => ({ id: f.id, name: f.name, parentId: f.parentId ?? null }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    return {
+      table: toFolderItems(tableFolders),
+      knowledgebase: toFolderItems(knowledgeBaseFolders),
+    }
+  }, [tableFolders, knowledgeBaseFolders])
+
+  // `groups` and `structureFolders` keep their own stable identities so the
+  // consumers' downstream memos still key on them; only this wrapper changes
+  // when hydration settles.
+  return useMemo(
+    () => ({ groups, structureFolders, isHydrating }),
+    [groups, structureFolders, isHydrating]
+  )
 }
 
-export type WorkflowTreeNode =
-  | { kind: 'workflow'; id: string; name: string }
-  | { kind: 'folder'; id: string; name: string; children: WorkflowTreeNode[] }
-
-export function buildWorkflowFolderTree(
-  workflowItems: AvailableItem[],
-  folderItems: AvailableItem[]
-): WorkflowTreeNode[] {
-  const knownFolderIds = new Set(folderItems.map((f) => f.id))
-
-  const byFolder = new Map<string | null, AvailableItem[]>()
-  for (const w of workflowItems) {
-    const fid = (w.folderId as string | null | undefined) ?? null
-    const key = fid && knownFolderIds.has(fid) ? fid : null
-    const bucket = byFolder.get(key) ?? []
-    bucket.push(w)
-    byFolder.set(key, bucket)
-  }
-
-  const toWorkflowNode = (w: AvailableItem): WorkflowTreeNode => ({
-    kind: 'workflow',
-    id: w.id,
-    name: w.name,
-  })
-
-  const buildLevel = (parentId: string | null): WorkflowTreeNode[] => {
-    const childFolders = folderItems.filter(
-      (f) => ((f.parentId as string | null | undefined) ?? null) === parentId
-    )
-    const childWorkflows = byFolder.get(parentId) ?? []
-
-    const mixed: Array<{ sortOrder: number; id: string; node: WorkflowTreeNode }> = []
-
-    for (const f of childFolders) {
-      const children = buildLevel(f.id)
-      if (children.length === 0) continue
-      mixed.push({
-        sortOrder: (f.sortOrder as number) ?? 0,
-        id: f.id,
-        node: { kind: 'folder', id: f.id, name: f.name, children },
-      })
-    }
-
-    for (const w of childWorkflows) {
-      mixed.push({
-        sortOrder: (w.sortOrder as number) ?? 0,
-        id: w.id,
-        node: toWorkflowNode(w),
-      })
-    }
-
-    mixed.sort((a, b) =>
-      a.sortOrder !== b.sortOrder ? a.sortOrder - b.sortOrder : a.id.localeCompare(b.id)
-    )
-    return mixed.map((m) => m.node)
-  }
-
-  return buildLevel(null)
-}
-
-interface WorkflowFolderTreeItemsProps {
-  nodes: WorkflowTreeNode[]
+interface ResourceFolderTreeItemsProps {
+  nodes: ResourceTreeNode[]
+  /** Resource type of the leaf items. */
+  type: MothershipResourceType
+  /**
+   * Set when the folder is itself an attachable resource (workspace files): the
+   * folder is then offered as the first entry of its own submenu. Omitted for
+   * folders that only provide structure (workflows, tables, knowledge bases).
+   */
+  folderType?: MothershipResourceType
   onSelect: (resource: MothershipResource) => void
 }
 
-export function WorkflowFolderTreeItems({ nodes, onSelect }: WorkflowFolderTreeItemsProps) {
+/** Renders a {@link buildResourceFolderTree} result as nested dropdown submenus. */
+export function ResourceFolderTreeItems({
+  nodes,
+  type,
+  folderType,
+  onSelect,
+}: ResourceFolderTreeItemsProps) {
+  const config = getResourceConfig(type)
   return (
     <>
       {nodes.map((node) =>
-        node.kind === 'workflow' ? (
+        node.kind === 'item' ? (
           <DropdownMenuItem
             key={node.id}
-            onClick={() => onSelect({ type: 'workflow', id: node.id, title: node.name })}
+            onClick={() => onSelect({ type, id: node.id, title: node.item.name })}
           >
-            {getResourceConfig('workflow').renderDropdownItem({
-              item: { id: node.id, name: node.name },
-            })}
+            {config.renderDropdownItem({ item: node.item })}
           </DropdownMenuItem>
         ) : (
           <DropdownMenuSub key={node.id}>
@@ -365,7 +376,20 @@ export function WorkflowFolderTreeItems({ nodes, onSelect }: WorkflowFolderTreeI
               <span>{node.name}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <WorkflowFolderTreeItems nodes={node.children} onSelect={onSelect} />
+              {folderType && (
+                <DropdownMenuItem
+                  onClick={() => onSelect({ type: folderType, id: node.id, title: node.name })}
+                >
+                  <Folder className='size-[14px]' />
+                  <span>{node.name}</span>
+                </DropdownMenuItem>
+              )}
+              <ResourceFolderTreeItems
+                nodes={node.children}
+                type={type}
+                folderType={folderType}
+                onSelect={onSelect}
+              />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )
@@ -374,83 +398,115 @@ export function WorkflowFolderTreeItems({ nodes, onSelect }: WorkflowFolderTreeI
   )
 }
 
-export type FileFolderTreeNode =
-  | { kind: 'file'; id: string; name: string }
-  | { kind: 'folder'; id: string; name: string; children: FileFolderTreeNode[] }
-
-export function buildFileFolderTree(
-  fileItems: AvailableItem[],
-  folderItems: AvailableItem[]
-): FileFolderTreeNode[] {
-  const byFolder = new Map<string | null, AvailableItem[]>()
-  for (const f of fileItems) {
-    const key = (f.folderId as string | null | undefined) ?? null
-    const bucket = byFolder.get(key) ?? []
-    bucket.push(f)
-    byFolder.set(key, bucket)
-  }
-
-  const buildLevel = (parentId: string | null): FileFolderTreeNode[] => {
-    const childFolders = folderItems.filter(
-      (f) => ((f.parentId as string | null | undefined) ?? null) === parentId
-    )
-    const childFiles = byFolder.get(parentId) ?? []
-    const nodes: FileFolderTreeNode[] = []
-    for (const folder of childFolders) {
-      nodes.push({
-        kind: 'folder',
-        id: folder.id,
-        name: folder.name,
-        children: buildLevel(folder.id),
-      })
-    }
-    for (const file of childFiles) {
-      nodes.push({ kind: 'file', id: file.id, name: file.name })
-    }
-    return nodes
-  }
-
-  return buildLevel(null)
+interface FolderedSectionSpec {
+  /** Leaf resource type — also supplies the submenu's label and icon. */
+  type: MothershipResourceType
+  /**
+   * Where this family's folders come from: another entry in `groups` when the
+   * folders are attachable resources, or `structureFolders` when they are not.
+   */
+  folders:
+    | { kind: 'group'; type: MothershipResourceType }
+    | { kind: 'structure'; key: keyof StructureFolders }
+  /**
+   * Set when the folder is itself attachable. Doubles as the pruning rule: a
+   * folder the user cannot select is dead UI when empty, while a selectable one
+   * must stay reachable.
+   */
+  folderType?: MothershipResourceType
+  /** Interleave folders and items by `sortOrder` — the workflow sidebar's manual ordering. */
+  orderBySortOrder?: boolean
 }
 
-interface FileFolderTreeItemsProps {
-  nodes: FileFolderTreeNode[]
+/** Single source of truth for the foldered submenus, in display order. */
+const FOLDERED_SECTION_SPECS: readonly FolderedSectionSpec[] = [
+  { type: 'workflow', folders: { kind: 'group', type: 'folder' }, orderBySortOrder: true },
+  { type: 'file', folders: { kind: 'group', type: 'filefolder' }, folderType: 'filefolder' },
+  { type: 'table', folders: { kind: 'structure', key: 'table' } },
+  { type: 'knowledgebase', folders: { kind: 'structure', key: 'knowledgebase' } },
+]
+
+/**
+ * Every resource type the foldered submenus already render, derived from the
+ * specs so a new family cannot be added to one list and missed in the other —
+ * which would render it twice, once as a submenu and again in the flat tail.
+ */
+export const FOLDERED_RESOURCE_TYPES = new Set<MothershipResourceType>(
+  FOLDERED_SECTION_SPECS.flatMap((spec) =>
+    spec.folders.kind === 'group' ? [spec.type, spec.folders.type] : [spec.type]
+  )
+)
+
+export interface ResourceTreeSection {
+  type: MothershipResourceType
+  folderType?: MothershipResourceType
+  nodes: ResourceTreeNode[]
+}
+
+/**
+ * Builds the foldered submenus every browse menu shares, in display order and
+ * with empty families dropped.
+ */
+export function useResourceTreeSections({
+  groups,
+  structureFolders,
+}: Pick<AvailableResources, 'groups' | 'structureFolders'>): ResourceTreeSection[] {
+  return useMemo(() => {
+    const itemsOf = (type: MothershipResourceType) =>
+      groups.find((group) => group.type === type)?.items ?? []
+    return FOLDERED_SECTION_SPECS.map((spec) => ({
+      type: spec.type,
+      folderType: spec.folderType,
+      nodes: buildResourceFolderTree(
+        itemsOf(spec.type),
+        spec.folders.kind === 'group'
+          ? itemsOf(spec.folders.type)
+          : structureFolders[spec.folders.key],
+        { orderBySortOrder: spec.orderBySortOrder, pruneEmpty: !spec.folderType }
+      ),
+    })).filter((section) => section.nodes.length > 0)
+  }, [groups, structureFolders])
+}
+
+interface ResourceTreeSectionsProps {
+  sections: ResourceTreeSection[]
   onSelect: (resource: MothershipResource) => void
+  /**
+   * Width override for the submenu panels. The chat menu widens them past the
+   * canonical 280px and clamps to the viewport so a deep folder path cannot
+   * overflow a narrow window.
+   */
+  subContentClassName?: string
 }
 
-export function FileFolderTreeItems({ nodes, onSelect }: FileFolderTreeItemsProps) {
+/** Renders {@link useResourceTreeSections} output as one submenu per family. */
+export function ResourceTreeSections({
+  sections,
+  onSelect,
+  subContentClassName,
+}: ResourceTreeSectionsProps) {
   return (
     <>
-      {nodes.map((node) =>
-        node.kind === 'file' ? (
-          <DropdownMenuItem
-            key={node.id}
-            onClick={() => onSelect({ type: 'file', id: node.id, title: node.name })}
-          >
-            {getResourceConfig('file').renderDropdownItem({
-              item: { id: node.id, name: node.name },
-            })}
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuSub key={node.id}>
+      {sections.map((section) => {
+        const config = getResourceConfig(section.type)
+        const SectionIcon = config.icon
+        return (
+          <DropdownMenuSub key={section.type}>
             <DropdownMenuSubTrigger>
-              <Folder className='size-[14px]' />
-              <span>{node.name}</span>
+              <SectionIcon className='size-[14px]' />
+              <span>{config.label}</span>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem
-                onClick={() => onSelect({ type: 'filefolder', id: node.id, title: node.name })}
-              >
-                <Folder className='size-[14px]' />
-                <span>{node.name}</span>
-              </DropdownMenuItem>
-              {node.children.length > 0 && (
-                <FileFolderTreeItems nodes={node.children} onSelect={onSelect} />
-              )}
+            <DropdownMenuSubContent className={subContentClassName}>
+              <ResourceFolderTreeItems
+                nodes={section.nodes}
+                type={section.type}
+                folderType={section.folderType}
+                onSelect={onSelect}
+              />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )
-      )}
+      })}
     </>
   )
 }
@@ -466,7 +522,11 @@ export function AddResourceDropdown({
   const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   // Gated on `open` so an idle tab bar never fetches the workspace lists.
-  const { groups: available } = useAvailableResources(workspaceId, { enabled: open, excludeTypes })
+  const { groups: available, structureFolders } = useAvailableResources(workspaceId, {
+    enabled: open,
+    excludeTypes,
+  })
+  const treeSections = useResourceTreeSections({ groups: available, structureFolders })
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
     if (!next) {
@@ -485,18 +545,6 @@ export function AddResourceDropdown({
     setSearch('')
     setActiveIndex(0)
   }
-
-  const workflowTree = useMemo(() => {
-    const workflowGroup = available.find((g) => g.type === 'workflow')
-    const folderGroup = available.find((g) => g.type === 'folder')
-    return buildWorkflowFolderTree(workflowGroup?.items ?? [], folderGroup?.items ?? [])
-  }, [available])
-
-  const fileFolderTree = useMemo(() => {
-    const fileGroup = available.find((g) => g.type === 'file')
-    const fileFolderGroup = available.find((g) => g.type === 'filefolder')
-    return buildFileFolderTree(fileGroup?.items ?? [], fileFolderGroup?.items ?? [])
-  }, [available])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -579,39 +627,9 @@ export function AddResourceDropdown({
             )
           ) : (
             <>
-              {workflowTree.length > 0 && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Workflow className='size-[14px]' />
-                    <span>Workflows</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    <WorkflowFolderTreeItems nodes={workflowTree} onSelect={select} />
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
-              {fileFolderTree.length > 0 && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    {(() => {
-                      const Icon = getResourceConfig('file').icon
-                      return <Icon className='size-[14px]' />
-                    })()}
-                    <span>Files</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    <FileFolderTreeItems nodes={fileFolderTree} onSelect={select} />
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
+              <ResourceTreeSections sections={treeSections} onSelect={select} />
               {available.map(({ type, items }) => {
-                if (
-                  type === 'workflow' ||
-                  type === 'folder' ||
-                  type === 'file' ||
-                  type === 'filefolder'
-                )
-                  return null
+                if (FOLDERED_RESOURCE_TYPES.has(type)) return null
                 if (items.length === 0) return null
                 const config = getResourceConfig(type)
                 const Icon = config.icon

@@ -59,6 +59,15 @@ describe('provider attachments', () => {
     ).toBe('image/png')
   })
 
+  it('infers MIME type from filename when file type is a generated-doc source marker', () => {
+    expect(
+      inferAttachmentMimeType({
+        ...pdfFile,
+        type: 'text/x-python-pdf',
+      })
+    ).toBe('application/pdf')
+  })
+
   it('formats OpenAI Responses content with text, image, and file parts', () => {
     const content = buildOpenAIMessageContent(
       'Analyze these files',
@@ -299,6 +308,16 @@ describe('provider large-file capability', () => {
     expect(shouldUseLargeFilePath(small, 'openai')).toBe(false)
     expect(shouldUseLargeFilePath(large, 'openai')).toBe(true)
     expect(shouldUseLargeFilePath(large, 'bedrock')).toBe(false)
+  })
+
+  it('does not expose generated source through a remote-url large-file path', () => {
+    const generated = {
+      ...pdfFile,
+      size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1,
+      type: 'text/x-python-pdf',
+    }
+    expect(shouldUseLargeFilePath(generated, 'openai')).toBe(true)
+    expect(shouldUseLargeFilePath(generated, 'anthropic')).toBe(false)
   })
 
   it('references uploaded OpenAI files by file_id instead of inlining base64', () => {

@@ -97,7 +97,9 @@ async function executeCopilotWorkflowTarget(params: {
   )
 
   try {
-    return await executeWorkflow(
+    const trustedInitialResolvedSecretTraceProvenance =
+      params.context.resolvedSecretTraceRegistry?.exportProvenanceForValue(params.input)
+    const result = await executeWorkflow(
       params.workflow,
       generateRequestId(),
       params.input,
@@ -105,10 +107,34 @@ async function executeCopilotWorkflowTarget(params: {
       {
         ...params.options,
         billingAttribution: admission.billingAttribution,
+        ...(trustedInitialResolvedSecretTraceProvenance
+          ? { trustedInitialResolvedSecretTraceProvenance }
+          : {}),
       },
       childExecutionId
     )
+    if (params.context.resolvedSecretTraceRegistry) {
+      await params.context.resolvedSecretTraceRegistry.importCrossingProvenance(
+        result.executionState?.resolvedSecretTraceProvenance,
+        { output: result.output, logs: result.logs, error: result.error },
+        { trusted: true }
+      )
+    }
+    return result
   } catch (error) {
+    if (params.context.resolvedSecretTraceRegistry) {
+      const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+      await params.context.resolvedSecretTraceRegistry.importCrossingProvenance(
+        executionResult?.executionState?.resolvedSecretTraceProvenance,
+        {
+          output: executionResult?.output,
+          logs: executionResult?.logs,
+          error: executionResult?.error,
+          thrownMessage: toError(error).message,
+        },
+        { trusted: true }
+      )
+    }
     if (admission.targetReservation) {
       await releaseExecutionSlot(childExecutionId)
     }

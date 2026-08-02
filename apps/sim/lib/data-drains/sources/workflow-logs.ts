@@ -11,7 +11,7 @@ import {
 } from '@/lib/data-drains/sources/cursor'
 import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 
 type WorkflowLogRow = typeof workflowExecutionLogs.$inferSelect
 
@@ -55,7 +55,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<WorkflowLogRow[]> {
     // Use the order-preserving returned array (the util's documented contract)
     // and write back, rather than mutating rows inside the mapper.
     const materialized = await mapWithConcurrency(rows, MATERIALIZE_CONCURRENCY, (row) =>
-      materializeExecutionData(row.executionData as Record<string, unknown> | null, {
+      materializeExecutionDataForDisplay(row.executionData as Record<string, unknown> | null, {
         workspaceId: row.workspaceId,
         workflowId: row.workflowId,
         executionId: row.executionId,

@@ -58,6 +58,12 @@ import {
 import { containsLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { type PreprocessExecutionSuccess, preprocessExecution } from '@/lib/execution/preprocessing'
+import {
+  PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+  requestsPrivateToolMetadata,
+} from '@/lib/execution/private-tool-metadata'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import {
   MAX_MCP_WORKFLOW_RESPONSE_BYTES,
@@ -114,12 +120,18 @@ import {
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
+  BlockCompletionCallbackData,
   ChildWorkflowContext,
   ExecutionMetadata,
   IterationContext,
   SerializableExecutionState,
 } from '@/executor/execution/types'
-import type { BlockLog, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import type {
+  BlockLog,
+  ExecutionResult,
+  NormalizedBlockOutput,
+  StreamingExecution,
+} from '@/executor/types'
 import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
@@ -132,6 +144,31 @@ const WORKFLOW_EXECUTION_JOB_ID_PREFIX = 'workflow-execution:'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+function createExecutionJsonResponse(
+  body: Record<string, unknown>,
+  init: ResponseInit | undefined,
+  includePrivateProvenance: boolean,
+  result?: ExecutionResult
+): NextResponse {
+  if (!includePrivateProvenance) {
+    return NextResponse.json(body, init)
+  }
+
+  const headers = new Headers(init?.headers)
+  headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
+  return NextResponse.json(
+    {
+      ...body,
+      [RESOLVED_SECRET_PROVENANCE_FIELD]: result?.executionState?.resolvedSecretTraceProvenance ?? {
+        version: 1,
+        complete: false,
+        entries: [],
+      },
+    },
+    { ...init, headers }
+  )
+}
 
 async function compactRoutePayload<T>(
   value: T,
@@ -573,6 +610,10 @@ async function handleExecutePost(
 
     const isMcpBridgeRequest =
       auth.authType === AuthType.INTERNAL_JWT && req.headers.get(MCP_TOOL_BRIDGE_HEADER) === 'true'
+    const includePrivateTraceProvenance =
+      auth.success &&
+      auth.authType === AuthType.INTERNAL_JWT &&
+      requestsPrivateToolMetadata(req.headers, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
     const useMcpBridgeAuthenticatedUserAsActor =
       isMcpBridgeRequest && req.headers.get(MCP_TOOL_BRIDGE_ACTOR_HEADER) === 'authenticated-user'
 
@@ -682,6 +723,7 @@ async function handleExecutePost(
       includeToolCalls: requestedIncludeToolCalls,
       useDraftState,
       input: validatedInput,
+      inputFromExecutionId,
       isClientSession = false,
       includeFileBase64,
       base64MaxBytes,
@@ -726,6 +768,20 @@ async function handleExecutePost(
     if (isPublicApiAccess && isClientSession) {
       return NextResponse.json(
         { error: 'Public API callers cannot set isClientSession' },
+        { status: 400 }
+      )
+    }
+
+    if (inputFromExecutionId && (isPublicApiAccess || auth.authType !== AuthType.SESSION)) {
+      return NextResponse.json(
+        { error: 'Stored execution input can only be reused by an authenticated session' },
+        { status: 403 }
+      )
+    }
+
+    if (inputFromExecutionId && validatedInput !== undefined) {
+      return NextResponse.json(
+        { error: 'Provide either input or inputFromExecutionId, not both' },
         { status: 400 }
       )
     }
@@ -776,14 +832,7 @@ async function handleExecutePost(
         )
       }
 
-      if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {
-        // Public API callers cannot inject arbitrary block state via sourceSnapshot.
-        // They must use executionId to resume from a server-stored execution state.
-        resolvedRunFromBlock = {
-          startBlockId: rawRunFromBlock.startBlockId,
-          sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
-        }
-      } else if (rawRunFromBlock.executionId) {
+      if (rawRunFromBlock.executionId) {
         const { getExecutionStateForWorkflow, getLatestExecutionStateWithExecutionId } =
           await import('@/lib/workflows/executor/execution-state')
         const sourceExecution =
@@ -795,17 +844,32 @@ async function handleExecutePost(
               }
         const snapshot = sourceExecution?.state
         if (!snapshot) {
-          return NextResponse.json(
-            {
-              error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first.`,
-            },
-            { status: 400 }
-          )
+          if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {
+            resolvedRunFromBlock = {
+              startBlockId: rawRunFromBlock.startBlockId,
+              sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
+            }
+          } else {
+            return NextResponse.json(
+              {
+                error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first.`,
+              },
+              { status: 400 }
+            )
+          }
+        } else {
+          resolvedRunFromBlock = {
+            startBlockId: rawRunFromBlock.startBlockId,
+            sourceSnapshot: snapshot,
+            sourceExecutionId: sourceExecution.executionId,
+          }
         }
+      } else if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {
+        // Public API callers cannot inject arbitrary block state via sourceSnapshot.
+        // They must use executionId to resume from a server-stored execution state.
         resolvedRunFromBlock = {
           startBlockId: rawRunFromBlock.startBlockId,
-          sourceSnapshot: snapshot,
-          sourceExecutionId: sourceExecution.executionId,
+          sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
         }
       } else {
         return NextResponse.json(
@@ -817,7 +881,7 @@ async function handleExecutePost(
 
     // For API key and internal JWT auth, the entire body is the input (except for our control fields)
     // For session auth, the input is explicitly provided in the input field
-    const input = isMcpBridgeRequest
+    let input = isMcpBridgeRequest
       ? validatedInput
       : isPublicApiAccess ||
           auth.authType === AuthType.API_KEY ||
@@ -828,6 +892,7 @@ async function handleExecutePost(
               triggerType,
               stream,
               useDraftState,
+              inputFromExecutionId: _inputFromExecutionId,
               includeFileBase64,
               base64MaxBytes,
               workflowStateOverride,
@@ -960,6 +1025,20 @@ async function handleExecutePost(
         },
         { status: 403 }
       )
+    }
+
+    if (inputFromExecutionId) {
+      const { getExecutionInputForWorkflow } = await import(
+        '@/lib/workflows/executor/execution-state'
+      )
+      const sourceExecution = await getExecutionInputForWorkflow(inputFromExecutionId, workflowId)
+      if (!sourceExecution.found) {
+        return NextResponse.json(
+          { error: 'Source workflow execution was not found' },
+          { status: 404 }
+        )
+      }
+      input = sourceExecution.input
     }
 
     const upstreamBillingAttribution =
@@ -1287,7 +1366,7 @@ async function handleExecutePost(
             workflowResponseCompaction
           )
 
-          return NextResponse.json(
+          return createExecutionJsonResponse(
             {
               success: false,
               output: compactResultOutput,
@@ -1300,7 +1379,9 @@ async function handleExecutePost(
                   }
                 : undefined,
             },
-            { status: 408 }
+            { status: 408 },
+            includePrivateTraceProvenance,
+            result
           )
         }
 
@@ -1367,7 +1448,12 @@ async function handleExecutePost(
             : undefined,
         }
 
-        return NextResponse.json(filteredResult)
+        return createExecutionJsonResponse(
+          filteredResult,
+          undefined,
+          includePrivateTraceProvenance,
+          result
+        )
       } catch (error: unknown) {
         const errorMessage = getErrorMessage(error, 'Unknown error')
 
@@ -1405,7 +1491,7 @@ async function handleExecutePost(
             throw compactError
           }
         }
-        return NextResponse.json(
+        return createExecutionJsonResponse(
           {
             success: false,
             output: compactErrorOutput,
@@ -1418,7 +1504,9 @@ async function handleExecutePost(
                 }
               : undefined,
           },
-          { status }
+          { status },
+          includePrivateTraceProvenance,
+          executionResult
         )
       } finally {
         requestAbort.cleanup()
@@ -1663,7 +1751,7 @@ async function handleExecutePost(
             blockId: string,
             blockName: string,
             blockType: string,
-            callbackData: any,
+            callbackData: BlockCompletionCallbackData,
             iterationContext?: IterationContext,
             childWorkflowContext?: ChildWorkflowContext
           ) => {
@@ -1686,7 +1774,13 @@ async function handleExecutePost(
                 preserveRoot: true,
               }),
             }
-            const hasError = compactCallbackData.output?.error
+            const callbackError = compactCallbackData.output?.error
+            const hasError = typeof callbackError === 'string' && callbackError.length > 0
+            const display = await loggingSession.projectDisplayContent({
+              input: compactCallbackData.input,
+              output: compactCallbackData.output,
+              ...(hasError ? { error: callbackError } : {}),
+            })
             const childWorkflowData = childWorkflowContext
               ? {
                   childWorkflowBlockId: childWorkflowContext.parentBlockId,
@@ -1703,7 +1797,7 @@ async function handleExecutePost(
                 blockId,
                 blockName,
                 blockType,
-                error: compactCallbackData.output.error,
+                error: display.error,
               })
               await sendEvent({
                 type: 'block:error',
@@ -1715,7 +1809,12 @@ async function handleExecutePost(
                   blockName,
                   blockType,
                   input: compactCallbackData.input,
-                  error: compactCallbackData.output.error,
+                  error: callbackError,
+                  display: {
+                    ...(Object.hasOwn(display, 'input') ? { input: display.input } : {}),
+                    ...(display.error !== undefined ? { error: display.error } : {}),
+                    ...(display.clearLiveDisplay ? { clearLiveDisplay: true as const } : {}),
+                  },
                   durationMs: compactCallbackData.executionTime || 0,
                   startedAt: compactCallbackData.startedAt,
                   executionOrder: compactCallbackData.executionOrder,
@@ -1750,6 +1849,11 @@ async function handleExecutePost(
                   blockType,
                   input: compactCallbackData.input,
                   output: compactCallbackData.output,
+                  display: {
+                    ...(Object.hasOwn(display, 'input') ? { input: display.input } : {}),
+                    ...(Object.hasOwn(display, 'output') ? { output: display.output } : {}),
+                    ...(display.clearLiveDisplay ? { clearLiveDisplay: true as const } : {}),
+                  },
                   durationMs: compactCallbackData.executionTime || 0,
                   startedAt: compactCallbackData.startedAt,
                   executionOrder: compactCallbackData.executionOrder,
@@ -1786,6 +1890,7 @@ async function handleExecutePost(
               workflowId,
               sendEvent,
               forwardAnswerText: answerTextFromSink,
+              projectDisplay: (field, value) => loggingSession.projectLiveDisplayText(field, value),
             })
 
             const reader = streamingExec.stream.getReader()
@@ -1807,12 +1912,13 @@ async function handleExecutePost(
                 if (answerTextFromSink) continue
 
                 const chunk = decoder.decode(value, { stream: true })
+                const display = await loggingSession.projectLiveDisplayText('chunk', chunk)
                 await sendEvent({
                   type: 'stream:chunk',
                   timestamp: new Date().toISOString(),
                   executionId,
                   workflowId,
-                  data: { blockId, chunk },
+                  data: { blockId, chunk, display },
                 })
               }
 
@@ -1931,7 +2037,10 @@ async function handleExecutePost(
            * object storage, so doing it twice would double the latency and storage
            * load on the happy path.
            */
-          const compactedBlockLogs = await compactBlockLogs(result.logs, {
+          const displayBlockLogs = await loggingSession.projectBlockLogsForDisplay(
+            result.logs ?? []
+          )
+          const compactedBlockLogs = await compactBlockLogs(displayBlockLogs, {
             workspaceId,
             workflowId,
             executionId,
@@ -1947,6 +2056,9 @@ async function handleExecutePost(
               })
 
               await loggingSession.markAsFailed(timeoutErrorMessage)
+              const timeoutDisplay = await loggingSession.projectDisplayContent({
+                error: timeoutErrorMessage,
+              })
 
               finalMetaStatus = 'error'
               await sendEvent(
@@ -1957,6 +2069,11 @@ async function handleExecutePost(
                   workflowId,
                   data: {
                     error: timeoutErrorMessage,
+                    display: {
+                      ...(timeoutDisplay.error !== undefined
+                        ? { error: timeoutDisplay.error }
+                        : {}),
+                    },
                     duration: result.metadata?.duration || 0,
                     finalBlockLogs: compactedBlockLogs,
                   },
@@ -2061,13 +2178,16 @@ async function handleExecutePost(
           let compactErrorLogs: BlockLog[] | undefined
           try {
             compactErrorLogs = executionResult?.logs
-              ? await compactBlockLogs(executionResult.logs, {
-                  workspaceId,
-                  workflowId,
-                  executionId,
-                  userId: actorUserId,
-                  requireDurable: true,
-                })
+              ? await compactBlockLogs(
+                  await loggingSession.projectBlockLogsForDisplay(executionResult.logs),
+                  {
+                    workspaceId,
+                    workflowId,
+                    executionId,
+                    userId: actorUserId,
+                    requireDurable: true,
+                  }
+                )
               : undefined
           } catch (compactionError) {
             reqLogger.warn('Failed to compact SSE error logs, omitting oversized error details', {
@@ -2076,6 +2196,10 @@ async function handleExecutePost(
           }
 
           finalMetaStatus = 'error'
+          const terminalError = executionResult?.error || errorMessage
+          const terminalDisplay = await loggingSession.projectDisplayContent({
+            error: terminalError,
+          })
           await sendEvent(
             {
               type: 'execution:error',
@@ -2083,7 +2207,10 @@ async function handleExecutePost(
               executionId,
               workflowId,
               data: {
-                error: executionResult?.error || errorMessage,
+                error: terminalError,
+                display: {
+                  ...(terminalDisplay.error !== undefined ? { error: terminalDisplay.error } : {}),
+                },
                 duration: executionResult?.metadata?.duration || 0,
                 finalBlockLogs: compactErrorLogs,
               },

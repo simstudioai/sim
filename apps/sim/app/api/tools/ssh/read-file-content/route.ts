@@ -6,7 +6,9 @@ import type { Client, SFTPWrapper } from 'ssh2'
 import { sshReadFileContentContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { readSftpFileCapped } from '@/app/api/tools/sftp/utils'
 import { createSSHConnection, sanitizePath } from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHReadFileContentAPI')
@@ -68,51 +70,37 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (stats.size > maxBytes) {
         return NextResponse.json(
           { error: `File size (${stats.size} bytes) exceeds maximum allowed (${maxBytes} bytes)` },
-          { status: 400 }
+          { status: 413 }
         )
       }
 
-      const content = await new Promise<string>((resolve, reject) => {
-        const chunks: Buffer[] = []
-        let totalBytes = 0
-        const readStream = sftp.createReadStream(filePath)
-
-        readStream.on('data', (chunk: Buffer) => {
-          totalBytes += chunk.length
-          if (totalBytes > maxBytes) {
-            readStream.destroy()
-            reject(new Error(`File exceeds maximum allowed size of ${params.maxSize}MB`))
-            return
-          }
-          chunks.push(chunk)
-        })
-
-        readStream.on('end', () => {
-          const buffer = Buffer.concat(chunks)
-          resolve(buffer.toString(params.encoding as BufferEncoding))
-        })
-
-        readStream.on('error', reject)
-      })
+      const buffer = await readSftpFileCapped(sftp, filePath, maxBytes, `File '${filePath}'`)
+      const content = buffer.toString(params.encoding as BufferEncoding)
 
       const lines = content.split('\n').length
 
       logger.info(
-        `[${requestId}] File content read successfully: ${stats.size} bytes, ${lines} lines`
+        `[${requestId}] File content read successfully: ${buffer.length} bytes, ${lines} lines`
       )
 
       return NextResponse.json({
         content,
-        size: stats.size,
+        size: buffer.length,
         lines,
         path: filePath,
-        message: `File read successfully: ${stats.size} bytes, ${lines} lines`,
+        message: `File read successfully: ${buffer.length} bytes, ${lines} lines`,
       })
     } finally {
       client.end()
     }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Unknown error occurred')
+
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn(`[${requestId}] SSH read file content aborted: ${errorMessage}`)
+      return NextResponse.json({ error: errorMessage }, { status: 413 })
+    }
+
     logger.error(`[${requestId}] SSH read file content failed:`, error)
 
     return NextResponse.json(

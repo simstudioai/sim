@@ -18,6 +18,7 @@ export const AuditAction = {
   CHAT_DEPLOYED: 'chat.deployed',
   CHAT_UPDATED: 'chat.updated',
   CHAT_DELETED: 'chat.deleted',
+  CHAT_PASSWORD_VIEWED: 'chat.password_viewed',
 
   // Custom Blocks (deploy-as-block)
   CUSTOM_BLOCK_PUBLISHED: 'custom_block.published',

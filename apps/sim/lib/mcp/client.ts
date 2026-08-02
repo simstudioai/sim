@@ -74,6 +74,7 @@ export class McpClient {
   private authProvider?: McpClientOptions['authProvider']
   private isConnected = false
   private closeGuardedTransport?: () => Promise<void>
+  private readonly resolvedSecretTraceProvenance?: McpClientOptions['resolvedSecretTraceProvenance']
 
   constructor(options: McpClientOptions) {
     this.config = options.config
@@ -84,6 +85,7 @@ export class McpClient {
     }
     this.onToolsChanged = options.onToolsChanged
     this.authProvider = options.authProvider
+    this.resolvedSecretTraceProvenance = options.resolvedSecretTraceProvenance
     const resolvedIP = options.resolvedIP
 
     this.connectionStatus = { connected: false }
@@ -131,6 +133,12 @@ export class McpClient {
         error: getMcpSafeErrorDiagnostics(error),
       })
     }
+  }
+
+  getResolvedSecretTraceProvenance(): McpClientOptions['resolvedSecretTraceProvenance'] {
+    return this.resolvedSecretTraceProvenance
+      ? structuredClone(this.resolvedSecretTraceProvenance)
+      : undefined
   }
 
   /**

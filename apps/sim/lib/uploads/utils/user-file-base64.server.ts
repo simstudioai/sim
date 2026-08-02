@@ -27,6 +27,7 @@ import {
   ExecutionResourceLimitError,
   isExecutionResourceLimitError,
 } from '@/lib/execution/resource-errors'
+import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
 const INLINE_BASE64_JSON_OVERHEAD_BYTES = 512 * 1024
@@ -58,7 +59,7 @@ if bytes and bytes > 0 then
     local user_next = redis.call('DECRBY', KEYS[4], bytes)
     if user_next <= 0 then
       redis.call('DEL', KEYS[4])
-    else
+    elseif redis.call('TTL', KEYS[4]) < 0 then
       redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
     end
   end
@@ -128,7 +129,7 @@ if #KEYS >= 4 then
       redis.call('DEL', KEYS[4])
     end
   end
-  if redis.call('EXISTS', KEYS[4]) == 1 then
+  if redis.call('EXISTS', KEYS[4]) == 1 and redis.call('TTL', KEYS[4]) < 0 then
     redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
   end
 end
@@ -391,7 +392,11 @@ async function resolveBase64(
   const allowUnknownSize = options.allowUnknownSize ?? false
   const hasStableStorageKey = Boolean(file.key)
 
-  if (Number.isFinite(file.size) && file.size > maxBytes) {
+  if (
+    !isGeneratedDocumentSourceType(file.type) &&
+    Number.isFinite(file.size) &&
+    file.size > maxBytes
+  ) {
     logger.warn(
       `[${options.requestId}] Skipping base64 for ${file.name} (size ${file.size} exceeds ${maxBytes})`
     )
@@ -420,9 +425,11 @@ async function resolveBase64(
       userId: options.userId,
       encoding: 'base64',
       maxBytes,
-      maxSourceBytes: maxBytes,
     })
   } catch (error) {
+    if (error instanceof Error && error.name === 'DocCompileUserError') {
+      throw error
+    }
     logger.warn(`[${requestId}] Failed to hydrate base64 for ${file.name}`, error)
     return null
   }
@@ -456,7 +463,11 @@ async function hydrateUserFile(
   const cached = await state.cache.get(file)
   if (cached) {
     const maxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
-    if (Buffer.byteLength(cached, 'base64') > maxBytes) {
+    const cachedBytes = Buffer.byteLength(cached, 'base64')
+    if (isGeneratedDocumentSourceType(file.type)) {
+      file.size = cachedBytes
+    }
+    if (cachedBytes > maxBytes) {
       return stripBase64(file)
     }
     return { ...file, base64: cached }

@@ -9,6 +9,8 @@ import {
   validateExternalUrl,
   validateFileExtension,
   validateGoogleCalendarId,
+  validateGoogleCloudLocation,
+  validateGoogleCloudProject,
   validateHostname,
   validateImageUrl,
   validateInteger,
@@ -1458,6 +1460,19 @@ describe('validateAwsRegion', () => {
     })
   })
 
+  describe('valid European Sovereign Cloud regions', () => {
+    it.concurrent('should accept eusc-de-east-1', () => {
+      const result = validateAwsRegion('eusc-de-east-1')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('eusc-de-east-1')
+    })
+
+    it.concurrent('should reject a malformed eusc region', () => {
+      expect(validateAwsRegion('eusc-de-east').isValid).toBe(false)
+      expect(validateAwsRegion('eusc-deu-east-1').isValid).toBe(false)
+    })
+  })
+
   describe('valid China regions', () => {
     it.concurrent('should accept cn-north-1', () => {
       const result = validateAwsRegion('cn-north-1')
@@ -1558,6 +1573,91 @@ describe('validateAwsRegion', () => {
       const result = validateAwsRegion('', 'awsRegion')
       expect(result.error).toContain('awsRegion')
     })
+  })
+})
+
+describe('validateGoogleCloudLocation', () => {
+  describe('valid locations', () => {
+    it.concurrent.each([
+      'us-central1',
+      'us-east5',
+      'europe-west4',
+      'northamerica-northeast1',
+      'southamerica-east1',
+      'asia-northeast3',
+      'australia-southeast2',
+      'africa-south1',
+      'me-central2',
+      'global',
+    ])('should accept %s', (location) => {
+      const result = validateGoogleCloudLocation(location)
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe(location)
+    })
+  })
+
+  describe('hostname injection', () => {
+    it.concurrent.each([
+      'attacker.example.com/x',
+      'us-central1/../attacker.tld',
+      'us-central1:8080',
+      'user@attacker.tld',
+      'us-central1?a=b',
+      'us-central1#frag',
+      'us central1',
+      'us-central1\n',
+      'US-CENTRAL1',
+      '../us-central1',
+    ])('should reject %j', (location) => {
+      const result = validateGoogleCloudLocation(location)
+      expect(result.isValid).toBe(false)
+    })
+  })
+
+  it.concurrent('should reject empty and missing values', () => {
+    expect(validateGoogleCloudLocation('').isValid).toBe(false)
+    expect(validateGoogleCloudLocation(null).isValid).toBe(false)
+    expect(validateGoogleCloudLocation(undefined).isValid).toBe(false)
+  })
+
+  it.concurrent('should name the parameter in the error', () => {
+    const result = validateGoogleCloudLocation('bad host', 'vertexLocation')
+    expect(result.error).toContain('vertexLocation')
+  })
+})
+
+describe('validateGoogleCloudProject', () => {
+  describe('valid projects', () => {
+    it.concurrent.each(['my-project', 'sim-prod-1', 'abcdef', '123456789012'])(
+      'should accept %s',
+      (project) => {
+        const result = validateGoogleCloudProject(project)
+        expect(result.isValid).toBe(true)
+        expect(result.sanitized).toBe(project)
+      }
+    )
+  })
+
+  describe('path injection and malformed ids', () => {
+    it.concurrent.each([
+      'my-project/../../other',
+      'my-project:alias',
+      'my project',
+      'My-Project',
+      '1project',
+      'my-project-',
+      'abc',
+      'a'.repeat(31),
+    ])('should reject %j', (project) => {
+      const result = validateGoogleCloudProject(project)
+      expect(result.isValid).toBe(false)
+    })
+  })
+
+  it.concurrent('should reject empty and missing values', () => {
+    expect(validateGoogleCloudProject('').isValid).toBe(false)
+    expect(validateGoogleCloudProject(null).isValid).toBe(false)
+    expect(validateGoogleCloudProject(undefined).isValid).toBe(false)
   })
 })
 

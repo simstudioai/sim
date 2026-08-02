@@ -99,11 +99,12 @@ export class RouterBlockHandler implements BlockHandler {
 
       let finalApiKey: string | undefined = routerConfig.apiKey
       if (providerId === 'vertex' && routerConfig.vertexCredential) {
-        finalApiKey = await resolveVertexCredential(
-          routerConfig.vertexCredential,
-          ctx.userId,
-          'vertex-router'
-        )
+        finalApiKey = await resolveVertexCredential({
+          credentialId: routerConfig.vertexCredential,
+          actingUserId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          callerLabel: 'vertex-router',
+        })
       }
 
       const providerRequest: Record<string, any> = {
@@ -239,11 +240,12 @@ export class RouterBlockHandler implements BlockHandler {
 
       let finalApiKey: string | undefined = routerConfig.apiKey
       if (providerId === 'vertex' && routerConfig.vertexCredential) {
-        finalApiKey = await resolveVertexCredential(
-          routerConfig.vertexCredential,
-          ctx.userId,
-          'vertex-router'
-        )
+        finalApiKey = await resolveVertexCredential({
+          credentialId: routerConfig.vertexCredential,
+          actingUserId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          callerLabel: 'vertex-router',
+        })
       }
 
       const providerRequest: Record<string, any> = {

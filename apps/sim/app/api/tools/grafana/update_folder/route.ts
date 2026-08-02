@@ -5,6 +5,7 @@ import { grafanaUpdateFolderContract } from '@/lib/api/contracts/tools/grafana'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
+  MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
@@ -73,6 +74,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const getResponse = await secureFetchWithPinnedIP(folderUrl, urlValidation.resolvedIP, {
       method: 'GET',
       headers,
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     })
 
     if (!getResponse.ok) {
@@ -104,6 +106,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       method: 'PUT',
       headers,
       body: JSON.stringify(body),
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     })
 
     if (!updateResponse.ok) {

@@ -30,6 +30,49 @@ describe('reconcileFinalBlockLogs (real store)', () => {
     } as any)
   })
 
+  it('replaces completed terminal content with the final server projection', () => {
+    const store = useTerminalConsoleStore.getState()
+    store.addConsole({
+      workflowId: 'wf-1',
+      blockId: 'function-1',
+      blockName: 'Function 1',
+      blockType: 'function',
+      executionId: 'exec-1',
+      executionOrder: 1,
+      isRunning: false,
+      success: false,
+      input: { code: 'return resolved-secret-value-123' },
+      output: { error: 'resolved-secret-value-123' },
+      error: 'SyntaxError: resolved-secret-value-123',
+      agentStreamThinking: 'resolved-secret-value-123',
+    })
+
+    const startedAt = new Date().toISOString()
+    reconcileFinalBlockLogs(store.updateConsole, 'wf-1', 'exec-1', [
+      {
+        blockId: 'function-1',
+        blockName: 'Function 1',
+        blockType: 'function',
+        executionOrder: 1,
+        success: false,
+        input: { code: 'return {{SECRET_NAME}}' },
+        output: { error: '{{SECRET_NAME}}' },
+        error: 'SyntaxError: {{SECRET_NAME}}',
+        clearLiveDisplay: true,
+        startedAt,
+        endedAt: startedAt,
+        durationMs: 1,
+      } as any,
+    ])
+
+    const entry = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')[0]
+    expect(entry.input).toEqual({ code: 'return {{SECRET_NAME}}' })
+    expect(entry.output).toEqual({ error: '{{SECRET_NAME}}' })
+    expect(entry.error).toBe('SyntaxError: {{SECRET_NAME}}')
+    expect(entry.agentStreamThinking).toBeUndefined()
+    expect(JSON.stringify(entry)).not.toContain('resolved-secret-value-123')
+  })
+
   it('actually flips a child-workflow inner block from running to success', () => {
     const store = useTerminalConsoleStore.getState()
     store.addConsole({

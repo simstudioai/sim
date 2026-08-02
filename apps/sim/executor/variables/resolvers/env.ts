@@ -16,6 +16,9 @@ export class EnvResolver implements Resolver {
     if (value === undefined) {
       return reference
     }
+    if (Object.hasOwn(context.executionContext.environmentVariables, varName)) {
+      context.executionContext.resolvedSecretTraceRegistry?.recordResolved(varName, value)
+    }
     return value
   }
 }

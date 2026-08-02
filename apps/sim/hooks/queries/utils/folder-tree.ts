@@ -55,6 +55,37 @@ export function getFolderPath(
 }
 
 /**
+ * Names that appear more than once in the list, so callers can disambiguate
+ * only the entries that actually collide.
+ */
+export function collectDuplicateNames(names: Iterable<string>): Set<string> {
+  const seen = new Set<string>()
+  const duplicates = new Set<string>()
+  for (const name of names) {
+    if (seen.has(name)) duplicates.add(name)
+    else seen.add(name)
+  }
+  return duplicates
+}
+
+/**
+ * Appends the folder path to a name that another item in the same list shares,
+ * e.g. `Leads (Sales / EMEA)` — or `Leads (Root)` at the workspace root. Names
+ * that are already unique are returned untouched so the common case stays
+ * readable.
+ */
+export function disambiguateLabelByFolder(
+  name: string,
+  folderId: string | null | undefined,
+  folders: Record<string, WorkflowFolder>,
+  duplicateNames: Set<string>
+): string {
+  if (!duplicateNames.has(name)) return name
+  const folderPath = getFolderPath(folderId, folders)
+  return folderPath ? `${name} (${folderPath})` : `${name} (Root)`
+}
+
+/**
  * Returns the closest locked ancestor folder for the given folderId, or `null`
  * when neither the folder nor any of its ancestors are locked. Cycles or
  * missing ancestors short-circuit and return `null` rather than looping.

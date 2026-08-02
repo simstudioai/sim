@@ -429,6 +429,24 @@ describe('Chat Edit API Route', () => {
       expect(data.error).toBe('Password is required when using password protection')
     })
 
+    it('rejects a whitespace-only replacement password', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-id' },
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
+        method: 'PATCH',
+        body: JSON.stringify({ authType: 'password', password: '   ' }),
+      })
+      const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.error).toBe('Password cannot contain only whitespace')
+      expect(mockCheckChatAccess).not.toHaveBeenCalled()
+      expect(mockEncryptSecret).not.toHaveBeenCalled()
+    })
+
     it('should keep the existing password when updating a password-protected chat', async () => {
       authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id' },

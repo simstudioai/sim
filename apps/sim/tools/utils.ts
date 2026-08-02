@@ -58,6 +58,13 @@ export function getLatestVersionTools(
 /**
  * Resolves a tool name to its actual tool ID in the registry.
  * Handles both stripped names (e.g., 'notion_search') and versioned names (e.g., 'notion_search_v2').
+ *
+ * Server-side counterpart to `resolveToolId` in `@/tools/tool-ids`. Both exist
+ * deliberately: this one reads the live registry, so a tool added but not yet
+ * regenerated stays resolvable; that one resolves against the generated id list
+ * without pulling 4,300 tools into a client graph. Client code wants that one.
+ * `tool-metadata:check` asserts the two never diverge.
+ *
  * @param toolName The tool name to resolve (may or may not have version suffix)
  * @returns The actual tool ID in the registry, or the original name if not found
  */

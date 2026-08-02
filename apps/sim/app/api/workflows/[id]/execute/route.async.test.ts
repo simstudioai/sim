@@ -9,9 +9,11 @@ import {
   executionPreprocessingMockFns,
   hybridAuthMockFns,
   loggingSessionMock,
+  queueTableRows,
   requestUtilsMockFns,
   resetDbChainMock,
   resetEnvMock,
+  schemaMock,
   setEnv,
   workflowAuthzMockFns,
   workflowsPersistenceUtilsMock,
@@ -337,6 +339,125 @@ describe('workflow execute async route', () => {
       },
     })
     mockHandlePostExecutionPauseState.mockResolvedValue(undefined)
+  })
+
+  it('reuses raw workflow input by execution ID without returning it to the client', async () => {
+    const sourceInput = { token: 'raw-secret-1234', nested: { value: 42 } }
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'source-execution',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionData: { workflowInput: sourceInput },
+      },
+    ])
+    const request = createMockRequest(
+      'POST',
+      { inputFromExecutionId: 'source-execution' },
+      {
+        'Content-Type': 'application/json',
+        'X-Execution-Mode': 'async',
+        Cookie: 'session=value',
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
+    const responseBody = await response.json()
+
+    expect(response.status).toBe(202)
+    expect(responseBody).not.toHaveProperty('input')
+    expect(JSON.stringify(responseBody)).not.toContain('raw-secret-1234')
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'workflow-execution',
+      expect.objectContaining({ input: sourceInput }),
+      expect.any(Object)
+    )
+  })
+
+  it('recovers legacy starter input by execution ID without returning it to the client', async () => {
+    const sourceInput = { token: 'legacy-retry-input', nested: { value: 42 } }
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'source-execution',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionData: {
+          executionState: {
+            blockStates: {
+              start: {
+                output: sourceInput,
+                executed: false,
+                executionTime: 0,
+              },
+            },
+          },
+        },
+      },
+    ])
+    const request = createMockRequest(
+      'POST',
+      { inputFromExecutionId: 'source-execution' },
+      {
+        'Content-Type': 'application/json',
+        'X-Execution-Mode': 'async',
+        Cookie: 'session=value',
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
+    const responseBody = await response.json()
+
+    expect(response.status).toBe(202)
+    expect(responseBody).not.toHaveProperty('input')
+    expect(JSON.stringify(responseBody)).not.toContain('legacy-retry-input')
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'workflow-execution',
+      expect.objectContaining({ input: sourceInput }),
+      expect.any(Object)
+    )
+  })
+
+  it('rejects client input alongside a stored execution input reference', async () => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          input: { replacement: true },
+          inputFromExecutionId: 'source-execution',
+        },
+        { 'Content-Type': 'application/json', Cookie: 'session=value' }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Provide either input or inputFromExecutionId, not both',
+    })
+    expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('rejects stored execution input references from external callers', async () => {
+    mockCheckHybridAuth.mockResolvedValue({
+      success: true,
+      userId: 'personal-key-user-1',
+      authType: 'api_key',
+      apiKeyType: 'personal',
+    })
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { inputFromExecutionId: 'source-execution' },
+        { 'Content-Type': 'application/json', 'X-API-Key': 'personal-key' }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Stored execution input can only be reused by an authenticated session',
+    })
+    expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
   it('queues async execution with matching correlation metadata', async () => {
@@ -748,6 +869,173 @@ describe('workflow execute async route', () => {
 
     expect(response.status).toBe(500)
     expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
+  })
+
+  it('loads trusted run-from-block state by execution ID and preserves its source identity', async () => {
+    const sourceState = {
+      blockStates: { previous: { output: { value: 'cached' } } },
+      executedBlocks: ['previous'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+      resolvedSecretTraceProvenance: {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+        scope: { userId: 'owner-1', workspaceId: 'workspace-1' },
+      },
+    }
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'source-execution',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionData: { executionState: sourceState },
+      },
+    ])
+    const request = createMockRequest(
+      'POST',
+      {
+        input: { hello: 'world' },
+        runFromBlock: {
+          startBlockId: 'start-block',
+          executionId: 'source-execution',
+        },
+      },
+      {
+        'Content-Type': 'application/json',
+        Cookie: 'session=value',
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
+
+    expect(response.status).toBe(200)
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runFromBlock: {
+          startBlockId: 'start-block',
+          sourceSnapshot: sourceState,
+          sourceExecutionId: 'source-execution',
+        },
+      })
+    )
+  })
+
+  it('falls back to an untrusted client snapshot while stored run-from-block state is pending', async () => {
+    const sourceSnapshot = {
+      blockStates: { previous: { output: { value: 'cached' } } },
+      executedBlocks: ['previous'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+      resolvedSecretTraceProvenance: {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'TOKEN', encryptedValue: 'untrusted-ciphertext' }],
+      },
+    }
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+    const request = createMockRequest(
+      'POST',
+      {
+        input: { hello: 'world' },
+        runFromBlock: {
+          startBlockId: 'start-block',
+          executionId: 'source-execution',
+          sourceSnapshot,
+        },
+      },
+      {
+        'Content-Type': 'application/json',
+        Cookie: 'session=value',
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
+
+    expect(response.status).toBe(200)
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runFromBlock: {
+          startBlockId: 'start-block',
+          sourceSnapshot: expect.objectContaining({
+            blockStates: sourceSnapshot.blockStates,
+            executedBlocks: sourceSnapshot.executedBlocks,
+          }),
+        },
+      })
+    )
+    const runFromBlock = mockExecuteWorkflowCore.mock.calls[0]?.[0]?.runFromBlock
+    expect(runFromBlock).not.toHaveProperty('sourceExecutionId')
+    expect(runFromBlock?.sourceSnapshot).not.toHaveProperty('resolvedSecretTraceProvenance')
+  })
+
+  it('returns encrypted resolution provenance only to an authenticated internal tool caller', async () => {
+    const caller = EXECUTION_CALLERS[4]
+    configureExecutionCaller(caller)
+    const provenance = {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'CHILD_SECRET', encryptedValue: 'encrypted-child-secret' }],
+    }
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      output: { ok: true },
+      executionState: { resolvedSecretTraceProvenance: provenance },
+      metadata: {
+        duration: 100,
+        startTime: '2026-01-01T00:00:00Z',
+        endTime: '2026-01-01T00:00:01Z',
+      },
+    })
+    const request = createCallerExecutionRequest(caller, undefined, 'sync')
+    request.headers.set('x-sim-request-private-tool-metadata', 'resolved-secret-provenance-v1')
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-sim-private-tool-metadata')).toBe(
+      'resolved-secret-provenance-v1'
+    )
+    await expect(response.json()).resolves.toMatchObject({
+      output: { ok: true },
+      __resolvedSecretTraceProvenance: provenance,
+    })
+  })
+
+  it('does not expose private provenance metadata to non-internal callers', async () => {
+    const caller = EXECUTION_CALLERS[1]
+    configureExecutionCaller(caller)
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      output: { ok: true },
+      executionState: {
+        resolvedSecretTraceProvenance: {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'SECRET', encryptedValue: 'encrypted-secret' }],
+        },
+      },
+      metadata: {
+        duration: 100,
+        startTime: '2026-01-01T00:00:00Z',
+        endTime: '2026-01-01T00:00:01Z',
+      },
+    })
+    const request = createCallerExecutionRequest(caller, undefined, 'sync')
+    request.headers.set('x-sim-request-private-tool-metadata', 'resolved-secret-provenance-v1')
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-sim-private-tool-metadata')).toBeNull()
+    expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
   })
 
   it('releases the admission reservation when enqueue proves non-acceptance', async () => {

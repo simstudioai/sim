@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { copilotToolCanWrite, copilotWriteDeniedMessage } from '@/lib/copilot/tools/permissions'
 import {
   performCreateMcpServer,
   performDeleteMcpServer,
@@ -46,15 +47,10 @@ export async function executeManageMcpTool(
   }
 
   const writeOps: string[] = ['add', 'edit', 'delete']
-  if (
-    writeOps.includes(operation) &&
-    context.userPermission &&
-    context.userPermission !== 'write' &&
-    context.userPermission !== 'admin'
-  ) {
+  if (writeOps.includes(operation) && !copilotToolCanWrite(context.userPermission)) {
     return {
       success: false,
-      error: `Permission denied: '${operation}' on manage_mcp_tool requires write access. You have '${context.userPermission}' permission.`,
+      error: copilotWriteDeniedMessage('manage_mcp_tool', operation, context.userPermission),
     }
   }
 

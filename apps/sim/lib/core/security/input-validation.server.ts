@@ -358,6 +358,11 @@ export interface SecureFetchOptions {
   body?: string | Buffer | Uint8Array
   timeout?: number
   maxRedirects?: number
+  /**
+   * Maximum bytes read from the response body. Defaults to
+   * {@link DEFAULT_MAX_RESPONSE_BYTES} — there is deliberately no "unlimited" mode, since
+   * many callers target a user-supplied host that can stream an endless body.
+   */
   maxResponseBytes?: number
   signal?: AbortSignal
   /** Drop the Authorization header when following a redirect, so it is not sent to the redirect target's origin. */
@@ -413,6 +418,19 @@ export interface SecureFetchResponse {
 }
 
 const DEFAULT_MAX_REDIRECTS = 5
+
+/**
+ * Fail-safe ceiling applied by {@link secureFetchWithPinnedIP} when the caller does not
+ * pass `maxResponseBytes`. Many callers fetch a user-supplied host, so an omitted cap
+ * would let a malicious upstream stream an endless chunked body into memory until the
+ * process is OOM-killed. Set to the platform's largest legitimate payload (100MB, matching
+ * the upload limit); callers that need more must opt in explicitly, and callers handling
+ * small JSON should pass a much tighter cap.
+ */
+export const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024
+
+/** Response cap for JSON/control-plane proxies to user-supplied hosts. */
+export const MAX_JSON_API_RESPONSE_BYTES = 10 * 1024 * 1024
 
 function isRedirectStatus(status: number): boolean {
   return status >= 300 && status < 400 && status !== 304
@@ -937,6 +955,10 @@ export function createPinnedFetchWithDispatcher(
  * Performs a fetch with IP pinning to prevent DNS rebinding attacks.
  * Uses the pre-resolved IP address while preserving the original hostname for TLS SNI.
  * Follows redirects securely by validating each redirect target.
+ *
+ * The response body is always bounded — `options.maxResponseBytes` when supplied (and
+ * positive), otherwise {@link DEFAULT_MAX_RESPONSE_BYTES}. Exceeding the cap rejects with
+ * a {@link PayloadSizeLimitError} and destroys the socket.
  */
 export async function secureFetchWithPinnedIP(
   url: string,
@@ -945,7 +967,11 @@ export async function secureFetchWithPinnedIP(
   redirectCount = 0
 ): Promise<SecureFetchResponse> {
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
-  const maxResponseBytes = options.maxResponseBytes
+  const requestedMaxResponseBytes = options.maxResponseBytes
+  const maxResponseBytes =
+    typeof requestedMaxResponseBytes === 'number' && requestedMaxResponseBytes > 0
+      ? requestedMaxResponseBytes
+      : DEFAULT_MAX_RESPONSE_BYTES
 
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
@@ -1037,8 +1063,15 @@ export async function secureFetchWithPinnedIP(
         }
       }
 
+      // Responses that carry no body (HEAD, 204, 304) may still advertise the resource's full
+      // size in content-length. That is metadata, not a payload, so it must not trip the cap —
+      // otherwise a HEAD probe of a large file, or a conditional-GET 304, would fail spuriously.
+      const isBodylessResponse =
+        (requestOptions.method || 'GET').toUpperCase() === 'HEAD' ||
+        statusCode === 204 ||
+        statusCode === 304
       const contentLength = headersRecord['content-length']
-      if (typeof maxResponseBytes === 'number' && maxResponseBytes > 0 && contentLength) {
+      if (contentLength && !isBodylessResponse) {
         const parsedLength = Number.parseInt(contentLength, 10)
         if (Number.isFinite(parsedLength) && parsedLength > maxResponseBytes) {
           cleanupAbort()
@@ -1074,11 +1107,7 @@ export async function secureFetchWithPinnedIP(
         start(controller) {
           nodeRes.on('data', (chunk: Buffer) => {
             totalBytes += chunk.length
-            if (
-              typeof maxResponseBytes === 'number' &&
-              maxResponseBytes > 0 &&
-              totalBytes > maxResponseBytes
-            ) {
+            if (totalBytes > maxResponseBytes) {
               cleanupAbort()
               controller.error(
                 new PayloadSizeLimitError({

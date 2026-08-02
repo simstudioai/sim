@@ -68,6 +68,10 @@ function isResetScript(script: string): boolean {
   return script.includes('retained_bytes') && script.includes('replayStartEventId')
 }
 
+function countOccurrences(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1
+}
+
 describe('execution event buffer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -415,6 +419,37 @@ describe('execution event buffer', () => {
         workflowId: 'wf-1',
       })
     )
+  })
+
+  it('never extends an existing user budget window while flushing events', async () => {
+    let flushScript = ''
+    mockRedis.eval.mockImplementation(async (script: string) => {
+      if (isFlushScript(script)) flushScript = script
+      return [1, false, 0]
+    })
+
+    const writer = createExecutionEventWriter('exec-1', { userId: 'user-1' })
+    await writer.writeTerminal(makeEvent('terminal'), 'complete')
+
+    expect(flushScript).not.toBe('')
+    const userKeyExpires = countOccurrences(flushScript, "redis.call('EXPIRE', KEYS[5]")
+    const userKeyTtlGuards = countOccurrences(flushScript, "redis.call('TTL', KEYS[5]) < 0")
+    expect(userKeyExpires).toBeGreaterThan(0)
+    expect(userKeyTtlGuards).toBe(userKeyExpires)
+  })
+
+  it('keeps sliding the execution budget window, which expires with its own data', async () => {
+    let flushScript = ''
+    mockRedis.eval.mockImplementation(async (script: string) => {
+      if (isFlushScript(script)) flushScript = script
+      return [1, false, 0]
+    })
+
+    const writer = createExecutionEventWriter('exec-1', { userId: 'user-1' })
+    await writer.writeTerminal(makeEvent('terminal'), 'complete')
+
+    expect(countOccurrences(flushScript, "redis.call('TTL', KEYS[4]) < 0")).toBe(0)
+    expect(countOccurrences(flushScript, "redis.call('EXPIRE', KEYS[4]")).toBeGreaterThan(0)
   })
 
   it('reports pruned replay buffers before reading incomplete events', async () => {

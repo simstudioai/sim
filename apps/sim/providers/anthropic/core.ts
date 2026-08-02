@@ -24,6 +24,7 @@ import {
   supportsNativeStructuredOutputs,
   supportsTemperature,
 } from '@/providers/models'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { adaptAnthropicToolSchema } from '@/providers/tool-schema-adapter'
@@ -31,7 +32,6 @@ import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 /**
  * Configuration for creating an Anthropic provider instance.
@@ -653,7 +653,7 @@ export async function executeAnthropicProviderRequest(
             }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
+            const result = await executeProviderTool(toolName, executionParams, {
               signal: request.abortSignal,
             })
             const toolCallEndTime = Date.now()

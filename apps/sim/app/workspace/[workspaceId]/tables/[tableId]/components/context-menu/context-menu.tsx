@@ -8,6 +8,7 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  Blimp,
   Duplicate,
   Eye,
   Pencil,
@@ -55,6 +56,21 @@ interface ContextMenuProps {
    */
   disableDuplicate?: boolean
   disableDelete?: boolean
+  /** Adds the selected rows / cell range to Chat as a reference. Omit to hide. */
+  onAddToChat?: () => void
+  /**
+   * True when the selection is a spreadsheet-style cell range rather than whole
+   * rows, switching the label from row-scoped to cell-scoped. Mirrors
+   * {@link ContextMenuProps.workflowCellScoped}.
+   */
+  addToChatCellScoped?: boolean
+  /**
+   * Rows the chip will reference. Differs from {@link ContextMenuProps.selectedRowCount}
+   * because a gutter selection can extend past the loaded page and the chip
+   * carries ids the server re-fetches, so the label must not promise fewer rows
+   * than are actually sent. Defaults to `selectedRowCount`.
+   */
+  addToChatRowCount?: number
 }
 
 export function ContextMenu({
@@ -79,6 +95,9 @@ export function ContextMenu({
   disableInsert = false,
   disableDuplicate = false,
   disableDelete = false,
+  onAddToChat,
+  addToChatCellScoped = false,
+  addToChatRowCount,
 }: ContextMenuProps) {
   const count = selectedRowCount.toLocaleString()
   const deleteLabel = selectedRowCount > 1 ? `Delete ${count} rows` : 'Delete row'
@@ -100,6 +119,12 @@ export function ContextMenu({
     runningInSelectionCount === 1
       ? 'Stop running workflow'
       : `Stop ${runningInSelectionCount} running workflows`
+  const addToChatRows = addToChatRowCount ?? selectedRowCount
+  const addToChatLabel = addToChatCellScoped
+    ? 'Add cell range to Chat'
+    : addToChatRows > 1
+      ? `Add ${addToChatRows.toLocaleString()} rows to Chat`
+      : 'Add row to Chat'
 
   return (
     <DropdownMenu
@@ -127,6 +152,15 @@ export function ContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
+        {onAddToChat && (
+          <>
+            <DropdownMenuItem onSelect={onAddToChat}>
+              <Blimp />
+              {addToChatLabel}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {contextMenu.columnName && canEditCell && (
           <DropdownMenuItem disabled={disableEdit} onSelect={onEditCell}>
             <Pencil />

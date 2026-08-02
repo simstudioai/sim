@@ -3,6 +3,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  collectDuplicateNames,
+  disambiguateLabelByFolder,
   findLockedAncestorFolder,
   getFolderPath,
   isFolderEffectivelyLocked,
@@ -201,5 +203,52 @@ describe('isFolderEffectivelyLocked', () => {
 
   it('returns false for a root-level folder with no own lock', () => {
     expect(isFolderEffectivelyLocked({ locked: false, parentId: null }, {})).toBe(false)
+  })
+})
+
+describe('collectDuplicateNames', () => {
+  it('returns only names seen more than once', () => {
+    expect(collectDuplicateNames(['a', 'b', 'a', 'c'])).toEqual(new Set(['a']))
+  })
+
+  it('returns an empty set when every name is unique', () => {
+    expect(collectDuplicateNames(['a', 'b', 'c']).size).toBe(0)
+  })
+
+  it('reports a name once no matter how many times it repeats', () => {
+    expect(collectDuplicateNames(['a', 'a', 'a'])).toEqual(new Set(['a']))
+  })
+
+  it('is case sensitive, so callers normalize before collecting', () => {
+    expect(collectDuplicateNames(['Leads', 'leads']).size).toBe(0)
+  })
+})
+
+describe('disambiguateLabelByFolder', () => {
+  const folders = {
+    sales: makeFolder({ id: 'sales', name: 'Sales' }),
+    emea: makeFolder({ id: 'emea', name: 'EMEA', parentId: 'sales' }),
+  }
+
+  it('leaves a unique name untouched', () => {
+    expect(disambiguateLabelByFolder('Leads', 'emea', folders, new Set())).toBe('Leads')
+  })
+
+  it('appends the full folder path to a colliding name', () => {
+    expect(disambiguateLabelByFolder('Leads', 'emea', folders, new Set(['Leads']))).toBe(
+      'Leads (Sales / EMEA)'
+    )
+  })
+
+  it('labels a colliding name at the workspace root as Root', () => {
+    expect(disambiguateLabelByFolder('Leads', null, folders, new Set(['Leads']))).toBe(
+      'Leads (Root)'
+    )
+  })
+
+  it('falls back to Root when the folder is unknown', () => {
+    expect(disambiguateLabelByFolder('Leads', 'deleted', folders, new Set(['Leads']))).toBe(
+      'Leads (Root)'
+    )
   })
 })
