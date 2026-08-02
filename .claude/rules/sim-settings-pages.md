@@ -167,11 +167,32 @@ Any settings surface with editable state uses **one** shared stack — never
 hand-roll a Save button, a Discard button, a `beforeunload`, or an "Unsaved
 changes" modal:
 
-- **`saveDiscardActions(config)`** (`…/components/save-discard-actions/save-discard-actions`)
-  — returns the canonical dirty-gated **Discard + Save** `SettingsAction[]` (empty
-  when not dirty). Spread it into a `SettingsPanel` `actions` array, beside any
+- **`saveDiscardActions(config)`** (`@/components/settings/save-discard-actions`)
+  — returns the canonical **Discard + Save** `SettingsAction[]`. **Save is always
+  rendered** (primary), disabled until there is something to save, so every
+  editable surface announces its primary action in the same place and a create
+  form is never a page with no visible way to commit it; **Discard appears only
+  when dirty**. Spread it into a `SettingsPanel` `actions` array, beside any
   sibling actions (a detail view's Delete / Remove override). Config: `dirty`,
-  `saving`, `onSave`, `onDiscard`, `saveDisabled?`, `saveLabel?`, `savingLabel?`.
+  `saving`, `onSave`, `onDiscard`, `saveDisabled?`, `saveTooltip?`, `creating?`,
+  `saveLabel?`, `savingLabel?`. Create flows pass `creating` — the
+  Create / Creating... labels come as a pair and can never drift apart.
+  `saveLabel`/`savingLabel` are only for genuinely bespoke wording (SSO's
+  `Update`); never hand-roll the pair to get a create label.
+- **`<SaveDiscardChips {...config} />`** (same module) — the identical rule
+  rendered as chips, for surfaces whose header takes a `ReactNode` instead of
+  action data (`CredentialDetailLayout`: skills, secrets, connected credentials).
+  Both stacks derive from the one function; never hand-roll a Save chip.
+
+`CredentialDetailLayout` stays slot-driven for exactly two reasons: its back
+control is a real `<ChipLink href>` (deep-linkable / middle-clickable, which
+`SettingsBackAction`'s `onSelect` cannot express), and actions like
+`SkillImportButton` own a hidden file input and their own pending state.
+**Everything else in one of those headers should be `SettingsAction` data**
+rendered through `<SettingsActionChips actions={…} />` from
+`@/components/settings/settings-header` — that is the shared chip path, and it
+is what keeps tone/icon/variant/tooltip handling from drifting between the two
+shells. Reach for it before hand-rolling a `Chip`.
 - **`useSettingsUnsavedGuard({ isDirty })`** (`…/settings/hooks/use-settings-unsaved-guard`)
   — syncs the page's local `isDirty` into the shared `useSettingsDirtyStore` (so
   the sidebar's **section-switch** confirm + the centralized `beforeunload` both

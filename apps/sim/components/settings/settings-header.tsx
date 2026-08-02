@@ -19,6 +19,8 @@ import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 export interface SettingsAction {
+  /** Stable render identity. Falls back to `text`, which remounts the chip whenever the label flips (Save → Saving...). */
+  id?: string
   text: string
   textTone?: 'error'
   icon?: ComponentType<{ className?: string }>
@@ -116,6 +118,75 @@ export function useSettingsHeader(config: SettingsHeaderConfig) {
   }, [register])
 }
 
+interface SettingsActionChipProps {
+  /** Presentation fields plus the default `onSelect` / `onPrefetch` handlers. */
+  action: SettingsAction
+  /** Overrides `action.onSelect` — the header shell passes a ref-reading indirection to avoid stale closures. */
+  onSelect?: () => void
+  /** Overrides `action.onPrefetch`, same reason. */
+  onPrefetch?: () => void
+}
+
+/**
+ * The one chip rendering of a {@link SettingsAction}. Both header stacks render
+ * through this, so an action's chrome — tone, icon, variant, disabled, tooltip —
+ * is identical wherever it is mounted. Container spacing still belongs to the
+ * enclosing shell.
+ */
+export function SettingsActionChip({
+  action,
+  onSelect = action.onSelect,
+  onPrefetch = action.onPrefetch,
+}: SettingsActionChipProps) {
+  const chip = (
+    <Chip
+      variant={action.variant}
+      active={action.active}
+      leftIcon={action.icon}
+      onClick={onSelect}
+      onMouseEnter={onPrefetch}
+      onFocus={onPrefetch}
+      disabled={action.disabled}
+      // A disabled <button> is not a hit-test target, so the tooltip's wrapping
+      // span would never see pointerenter and the explanation would never show.
+      className={cn(action.tooltip && action.disabled && 'pointer-events-none')}
+    >
+      {action.textTone === 'error' ? (
+        <span className='text-[var(--text-error)]'>{action.text}</span>
+      ) : (
+        action.text
+      )}
+    </Chip>
+  )
+  if (!action.tooltip) return chip
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <span className='inline-flex'>{chip}</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{action.tooltip}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+/**
+ * Renders a {@link SettingsAction} list as chips using each action's own
+ * handlers. This is the data path for headers that take a `ReactNode`
+ * (`CredentialDetailLayout`) — reach for it instead of hand-rolling `Chip`s, so
+ * those surfaces keep the same chrome as the settings shell. The shell itself
+ * maps through {@link SettingsActionChip} directly, since it must route every
+ * handler through a ref to avoid stale closures.
+ */
+export function SettingsActionChips({ actions }: { actions: SettingsAction[] }) {
+  return (
+    <>
+      {actions.map((action) => (
+        <SettingsActionChip key={action.id ?? action.text} action={action} />
+      ))}
+    </>
+  )
+}
+
 export function SettingsHeaderShell({ children }: { children: ReactNode }) {
   const read = useContext(ReadContext)
   const configRef = read?.configRef
@@ -138,44 +209,18 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
               Docs
             </ChipLink>
           )}
-          {actions?.map((action, index) => {
-            const chip = (
-              <Chip
-                key={action.text}
-                variant={action.variant}
-                active={action.active}
-                leftIcon={action.icon}
-                onClick={() => configRef?.current.actions?.[index]?.onSelect()}
-                onMouseEnter={
-                  action.onPrefetch
-                    ? () => configRef?.current.actions?.[index]?.onPrefetch?.()
-                    : undefined
-                }
-                onFocus={
-                  action.onPrefetch
-                    ? () => configRef?.current.actions?.[index]?.onPrefetch?.()
-                    : undefined
-                }
-                disabled={action.disabled}
-              >
-                {action.textTone === 'error' ? (
-                  <span className='text-[var(--text-error)]'>{action.text}</span>
-                ) : (
-                  action.text
-                )}
-              </Chip>
-            )
-            return action.tooltip ? (
-              <Tooltip.Root key={action.text}>
-                <Tooltip.Trigger asChild>
-                  <span className='inline-flex'>{chip}</span>
-                </Tooltip.Trigger>
-                <Tooltip.Content>{action.tooltip}</Tooltip.Content>
-              </Tooltip.Root>
-            ) : (
-              chip
-            )
-          })}
+          {actions?.map((action, index) => (
+            <SettingsActionChip
+              key={action.id ?? action.text}
+              action={action}
+              onSelect={() => configRef?.current.actions?.[index]?.onSelect()}
+              onPrefetch={
+                action.onPrefetch
+                  ? () => configRef?.current.actions?.[index]?.onPrefetch?.()
+                  : undefined
+              }
+            />
+          ))}
         </div>
       </div>
       <div

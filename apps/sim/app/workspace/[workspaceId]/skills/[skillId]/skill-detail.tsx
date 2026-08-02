@@ -7,6 +7,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { AddPeopleModal } from '@/components/permissions'
+import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import {
   CredentialDetailHeading,
@@ -36,7 +37,7 @@ interface SkillDetailProps {
 
 /**
  * Full-page skill detail, mirroring the integration credential detail surface:
- * a fixed action bar (Share / Delete / Save), a heading, editable Name /
+ * a fixed action bar (Share / Delete / Discard / Save), a heading, editable Name /
  * Description / Content sections, and the Skill Editors roster. Non-editors
  * and built-in template skills render read-only.
  */
@@ -71,15 +72,20 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [prevSkillId, setPrevSkillId] = useState<string | null>(null)
 
+  /** Applies a full skill shape to all three drafts and remounts the Content editor. */
+  const seedDrafts = (source: { name: string; description: string; content: string }) => {
+    setNameDraft(source.name)
+    setDescriptionDraft(source.description)
+    setContentDraft(source.content)
+    setErrors({})
+    setContentSeed((seed) => seed + 1)
+  }
+
   // Seed drafts when the skill first resolves (or the route id changes); a
   // background refetch of the same skill must not clobber an in-progress edit.
   if (skill && skill.id !== prevSkillId) {
     setPrevSkillId(skill.id)
-    setNameDraft(skill.name)
-    setDescriptionDraft(skill.description)
-    setContentDraft(skill.content)
-    setErrors({})
-    setContentSeed((seed) => seed + 1)
+    seedDrafts(skill)
   }
 
   const isDirty =
@@ -155,11 +161,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const handleContentPaste = (text: string): boolean => {
     const parsed = parseSkillMarkdown(text)
     if (!parsed.nameFromFrontmatter) return false
-    setNameDraft(parsed.name)
-    setDescriptionDraft(parsed.description)
-    setContentDraft(parsed.content)
-    setErrors({})
-    setContentSeed((seed) => seed + 1)
+    seedDrafts(parsed)
     return true
   }
 
@@ -168,6 +170,10 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
       Skills
     </ChipLink>
   )
+
+  const handleDiscard = () => {
+    if (skill) seedDrafts(skill)
+  }
 
   const actions =
     skill && canEdit ? (
@@ -178,9 +184,12 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
         <Chip onClick={() => setShowDeleteConfirm(true)} disabled={deleteSkill.isPending}>
           Delete
         </Chip>
-        <Chip onClick={handleSave} disabled={!isDirty || updateSkill.isPending}>
-          {updateSkill.isPending ? 'Saving...' : 'Save'}
-        </Chip>
+        <SaveDiscardChips
+          dirty={isDirty}
+          saving={updateSkill.isPending}
+          onSave={handleSave}
+          onDiscard={handleDiscard}
+        />
       </>
     ) : null
 
