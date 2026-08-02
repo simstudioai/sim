@@ -2,7 +2,12 @@ import { z } from 'zod'
 import { mcpAuthTypeSchema, mcpServerSchema, mcpTransportSchema } from '@/lib/api/contracts/mcp'
 import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2SearchSchema,
+  v2SortFields,
+} from '@/lib/api/contracts/v2/shared'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 /**
@@ -115,6 +120,17 @@ export const v2McpServerWorkspaceQuerySchema = z.object({
 })
 export type V2McpServerWorkspaceQuery = z.output<typeof v2McpServerWorkspaceQuerySchema>
 
+export const v2McpServerSortFields = ['name', 'createdAt', 'updatedAt'] as const
+
+export type V2McpServerSortBy = (typeof v2McpServerSortFields)[number]
+
+export const v2ListMcpServersQuerySchema = v2McpServerWorkspaceQuerySchema.extend({
+  search: v2SearchSchema,
+  ...v2SortFields(v2McpServerSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+})
+
+export type V2ListMcpServersQuery = z.output<typeof v2ListMcpServersQuerySchema>
+
 export const v2CreateMcpServerBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
@@ -166,7 +182,7 @@ export type V2UpdateMcpServerBody = z.input<typeof v2UpdateMcpServerBodySchema>
 export const v2ListMcpServersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/mcp-servers',
-  query: v2McpServerWorkspaceQuerySchema,
+  query: v2ListMcpServersQuerySchema,
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2McpServerSchema),

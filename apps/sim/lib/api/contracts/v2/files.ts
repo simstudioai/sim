@@ -2,7 +2,12 @@ import { z } from 'zod'
 import { workspaceFileIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { shareAuthTypeSchema, shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2SearchSchema,
+  v2SortFields,
+} from '@/lib/api/contracts/v2/shared'
 
 /**
  * v2 files contracts. v2 drops the v1 `{ success, data, limits }` envelope in
@@ -89,14 +94,27 @@ const v2FileItemNameSchema = z
     'name cannot contain path separators or dot segments'
   )
 
+/** Sortable file fields. `name` is the uploaded file name, not the storage key. */
+export const v2FileSortFields = ['name', 'size', 'uploadedAt', 'updatedAt'] as const
+
+export type V2FileSortBy = (typeof v2FileSortFields)[number]
+
 /**
- * List query: workspace scope plus opaque keyset cursor pagination keyed on
- * `(uploadedAt, id)`. `limit` clamps to `[1, 1000]` (default 100) to bound the
- * response. The cursor is the base64-JSON codec shared across the v2 surface.
+ * List query: workspace scope, the v2 search/sort convention, an optional
+ * folder filter, and opaque keyset cursor pagination. `limit` clamps to
+ * `[1, 1000]` (default 100) to bound the response.
+ *
+ * The keyset is `(<sortBy>, id)`, so the cursor is stamped with the sort it was
+ * minted under and rejected if the request's sort has since changed. Filtering,
+ * ordering, and the page slice all happen in the query.
  */
 export const v2ListFilesQuerySchema = z.object({
   workspaceId: workspaceIdSchema,
   scope: v2FileScopeSchema.default('active'),
+  /** Restrict to one file folder. Omit to list the whole workspace. */
+  folderId: z.string().min(1, 'folderId cannot be empty').optional(),
+  search: v2SearchSchema,
+  ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
   limit: z.coerce
     .number()
     .optional()

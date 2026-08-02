@@ -10,7 +10,22 @@ import {
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import {
+  and,
+  type Column,
+  count,
+  eq,
+  exists,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm'
+import type { V2KnowledgeBaseSortBy } from '@/lib/api/contracts/v2/knowledge'
+import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import { listOrderBy, searchFilter } from '@/lib/api/list-query'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { ensureUserStatsExists } from '@/lib/billing/core/usage'
@@ -108,13 +123,38 @@ type KnowledgeBaseStorageMove =
     }
 
 /**
- * Get knowledge bases that a user can access
+ * Orderings for the public list's sortable fields, made total over the contract
+ * enum by `satisfies`. Each ends in `createdAt` so knowledge bases sharing a
+ * name still come back in a stable order.
+ */
+const KNOWLEDGE_BASE_SORTS = {
+  name: [knowledgeBase.name, knowledgeBase.createdAt],
+  createdAt: [knowledgeBase.createdAt],
+  updatedAt: [knowledgeBase.updatedAt, knowledgeBase.createdAt],
+} satisfies Record<V2KnowledgeBaseSortBy, readonly Column[]>
+
+interface GetKnowledgeBasesOptions {
+  /** Restrict to one knowledge-base folder. */
+  folderId?: string
+  /** Case-insensitive substring match on the knowledge base name. */
+  search?: string
+  sortBy?: V2KnowledgeBaseSortBy
+  sortOrder?: V2SortOrder
+}
+
+/**
+ * Get knowledge bases that a user can access.
+ *
+ * Filter and sort are applied in the query, so a search costs one narrowed scan
+ * rather than materializing every knowledge base the caller can reach.
  */
 export async function getKnowledgeBases(
   userId: string,
   workspaceId?: string | null,
-  scope: KnowledgeBaseScope = 'active'
+  scope: KnowledgeBaseScope = 'active',
+  options?: GetKnowledgeBasesOptions
 ): Promise<KnowledgeBaseWithCounts[]> {
+  const { folderId, search, sortBy = 'createdAt', sortOrder = 'asc' } = options ?? {}
   const scopeCondition =
     scope === 'all'
       ? undefined
@@ -161,6 +201,8 @@ export async function getKnowledgeBases(
     .where(
       and(
         scopeCondition,
+        folderId ? eq(knowledgeBase.folderId, folderId) : undefined,
+        searchFilter(knowledgeBase.name, search),
         workspaceId
           ? // When filtering by workspace
             or(
@@ -183,7 +225,7 @@ export async function getKnowledgeBases(
       )
     )
     .groupBy(knowledgeBase.id)
-    .orderBy(knowledgeBase.createdAt)
+    .orderBy(...listOrderBy(KNOWLEDGE_BASE_SORTS[sortBy], sortOrder))
 
   const kbIds = knowledgeBasesWithCounts.map((kb) => kb.id)
 

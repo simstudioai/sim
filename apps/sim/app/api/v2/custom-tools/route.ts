@@ -52,12 +52,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId } = parsed.data.query
+    const { workspaceId, search, sortBy, sortOrder } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const rows = await listWorkspaceCustomTools({ workspaceId })
+    const rows = await listWorkspaceCustomTools({ workspaceId, search, sortBy, sortOrder })
 
     // The per-workspace tool set is small and bounded → a single full page.
     return v2CursorList(rows.map(toV2CustomTool), null, { rateLimit })

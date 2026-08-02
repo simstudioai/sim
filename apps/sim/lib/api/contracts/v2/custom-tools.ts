@@ -2,7 +2,12 @@ import { z } from 'zod'
 import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { customToolSchemaSchema } from '@/lib/api/contracts/tools/custom'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2SearchSchema,
+  v2SortFields,
+} from '@/lib/api/contracts/v2/shared'
 
 /**
  * v2 custom tool contracts.
@@ -59,6 +64,18 @@ export const v2CustomToolWorkspaceQuerySchema = z.object({
 })
 export type V2CustomToolWorkspaceQuery = z.output<typeof v2CustomToolWorkspaceQuerySchema>
 
+/** A custom tool's natural name field is `title`, so that is what `search` matches. */
+export const v2CustomToolSortFields = ['title', 'createdAt', 'updatedAt'] as const
+
+export type V2CustomToolSortBy = (typeof v2CustomToolSortFields)[number]
+
+export const v2ListCustomToolsQuerySchema = v2CustomToolWorkspaceQuerySchema.extend({
+  search: v2SearchSchema,
+  ...v2SortFields(v2CustomToolSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+})
+
+export type V2ListCustomToolsQuery = z.output<typeof v2ListCustomToolsQuerySchema>
+
 export const v2CreateCustomToolBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
@@ -97,7 +114,7 @@ export type V2UpdateCustomToolBody = z.input<typeof v2UpdateCustomToolBodySchema
 export const v2ListCustomToolsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/custom-tools',
-  query: v2CustomToolWorkspaceQuerySchema,
+  query: v2ListCustomToolsQuerySchema,
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2CustomToolSchema),

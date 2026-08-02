@@ -55,12 +55,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId } = parsed.data.query
+    const { workspaceId, search, sortBy, sortOrder } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const rows = await listWorkspaceMcpServers({ workspaceId })
+    const rows = await listWorkspaceMcpServers({ workspaceId, search, sortBy, sortOrder })
 
     // The per-workspace server set is small and bounded → a single full page.
     return v2CursorList(rows.map(toV2McpServer), null, { rateLimit })

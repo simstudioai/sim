@@ -79,6 +79,38 @@
           },
           {
             "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "folderId",
+            "in": "query",
+            "required": false,
+            "description": "Restrict the list to one folder. Omit to list every file in the workspace.",
+            "schema": { "type": "string", "minLength": 1 }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the file `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field to sort by. The cursor is a keyset over the active sort, so it carries the sort it was minted under. Replaying a cursor after changing `sortBy` or `sortOrder` returns `400`; restart pagination without a cursor instead.",
+            "schema": {
+              "type": "string",
+              "enum": ["name", "size", "uploadedAt", "updatedAt"],
+              "default": "uploadedAt"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction. The cursor is a keyset over the active sort, so it carries the sort it was minted under. Replaying a cursor after changing `sortBy` or `sortOrder` returns `400`; restart pagination without a cursor instead.",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
           }
         ],
         "responses": {

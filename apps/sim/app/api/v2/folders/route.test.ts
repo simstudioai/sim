@@ -95,6 +95,13 @@ function buildRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** What the route forwards for a bare `?workspaceId=` list. */
+const DEFAULT_LIST_ARGS = {
+  search: undefined,
+  sortBy: 'position',
+  sortOrder: 'asc',
+}
+
 const callList = (query: string) =>
   GET(new NextRequest(`http://localhost:3000/api/v2/folders?${query}`))
 
@@ -189,12 +196,49 @@ describe('GET /api/v2/folders', () => {
         deletedAt: null,
       },
     ])
-    expect(mockListFoldersForWorkspace).toHaveBeenCalledWith('workspace-1', 'active', 'workflow')
+    expect(mockListFoldersForWorkspace).toHaveBeenCalledWith(
+      'workspace-1',
+      'active',
+      'workflow',
+      DEFAULT_LIST_ARGS
+    )
   })
 
   it('passes the archived scope through', async () => {
     await callList('workspaceId=workspace-1&resourceType=table&scope=archived')
-    expect(mockListFoldersForWorkspace).toHaveBeenCalledWith('workspace-1', 'archived', 'table')
+    expect(mockListFoldersForWorkspace).toHaveBeenCalledWith(
+      'workspace-1',
+      'archived',
+      'table',
+      DEFAULT_LIST_ARGS
+    )
+  })
+  it('400s on a sort field outside the enum instead of letting it reach the query', async () => {
+    const res = await callList(`workspaceId=workspace-1&resourceType=workflow&sortBy=name);--`)
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
+  })
+
+  it('400s on a sort direction outside the enum', async () => {
+    const res = await callList(`workspaceId=workspace-1&resourceType=workflow&sortOrder=sideways`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('400s on an empty search rather than treating it as unsearched', async () => {
+    const res = await callList(`workspaceId=workspace-1&resourceType=workflow&search=`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('forwards search and sort into the query and still terminates pagination', async () => {
+    const res = await callList(
+      `workspaceId=workspace-1&resourceType=workflow&search=report&sortBy=name&sortOrder=asc`
+    )
+
+    expect(res.status).toBe(200)
+    expect((await res.json()).nextCursor).toBeNull()
   })
 })
 

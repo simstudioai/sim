@@ -14,7 +14,12 @@ import {
   v1RollbackWorkflowDataSchema,
   v1WorkflowExportPayloadSchema,
 } from '@/lib/api/contracts/v1/workflows'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2SearchSchema,
+  v2SortFields,
+} from '@/lib/api/contracts/v2/shared'
 import {
   cancelWorkflowExecutionReasonSchema,
   workflowExecutionParamsSchema,
@@ -24,18 +29,46 @@ import {
 } from '@/lib/api/contracts/workflows'
 
 /**
- * v2 workflows contracts. Request shapes are reused verbatim from v1 (the list
- * query and `[id]` param are unchanged); only the response envelope is upgraded
- * to the canonical v2 shapes with concrete item/detail schemas. The
- * deploy/rollback/undeploy data payloads reuse the already-concrete v1 schemas,
- * re-wrapped in `v2DataResponse` (the v1 `limits` body field is dropped — v2
- * carries rate-limit state in headers and usage on a dedicated endpoint).
+ * v2 workflows contracts. Request shapes are reused from v1 (the `[id]` param
+ * is unchanged, and the list query extends v1's with the v2 search/sort
+ * convention); only the response envelope is upgraded to the canonical v2
+ * shapes with concrete item/detail schemas. The deploy/rollback/undeploy data
+ * payloads reuse the already-concrete v1 schemas, re-wrapped in
+ * `v2DataResponse` (the v1 `limits` body field is dropped — v2 carries
+ * rate-limit state in headers and usage on a dedicated endpoint).
  *
  * The create/update bodies have no v1 counterpart and are v2-native: they carry
  * only the fields a public caller owns (name, description, folder placement).
  * `sortOrder`, `locked`, and `forkSyncExcluded` are workspace-UI concerns and
  * are not part of the public surface.
  */
+
+/**
+ * Sortable workflow fields. `position` is the workspace's manual arrangement
+ * (the `sort_order` column the sidebar writes), kept as the default so a bare
+ * list still returns workflows in the order the workspace put them in.
+ */
+export const v2WorkflowSortFields = [
+  'position',
+  'name',
+  'createdAt',
+  'updatedAt',
+  'runCount',
+] as const
+
+export type V2WorkflowSortBy = (typeof v2WorkflowSortFields)[number]
+
+/**
+ * List query: v1's workspace/folder/deployment filters plus the v2 search and
+ * sort convention. The keyset behind the cursor follows `sortBy`, so the cursor
+ * carries the sort it was minted under and is rejected once that changes.
+ */
+export const v2ListWorkflowsQuerySchema = v1ListWorkflowsQuerySchema.extend({
+  search: v2SearchSchema,
+  ...v2SortFields(v2WorkflowSortFields, { sortBy: 'position', sortOrder: 'asc' }),
+})
+
+export type V2ListWorkflowsQuery = z.output<typeof v2ListWorkflowsQuerySchema>
 
 export const v2WorkflowListItemSchema = z.object({
   id: z.string(),
@@ -84,7 +117,7 @@ const v2UndeployWorkflowDataSchema = v1DeployWorkflowDataSchema.omit({ version: 
 export const v2ListWorkflowsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows',
-  query: v1ListWorkflowsQuerySchema,
+  query: v2ListWorkflowsQuerySchema,
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2WorkflowListItemSchema),
