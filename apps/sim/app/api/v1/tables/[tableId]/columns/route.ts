@@ -21,6 +21,7 @@ import {
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { columnTypeById, metadataKeysIn, pickMetadata } from '@/lib/table/column-types'
 import { validateMetadataUpdate } from '@/lib/table/columns/metadata'
+import { TableColumnError } from '@/lib/table/errors'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   accessError,
@@ -350,25 +351,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
-    if (error instanceof Error) {
-      const msg = error.message
-      if (msg.includes('not found') || msg.includes('Table not found')) {
-        return NextResponse.json({ error: msg }, { status: 404 })
-      }
-      if (
-        msg.includes('already exists') ||
-        msg.includes('Cannot delete the last column') ||
-        msg.includes('Cannot set column') ||
-        msg.includes('Invalid column') ||
-        msg.includes('exceeds maximum') ||
-        msg.includes('incompatible') ||
-        msg.includes('duplicate') ||
-        msg.includes('option') ||
-        msg.includes('currency') ||
-        msg.includes('is already type')
-      ) {
-        return NextResponse.json({ error: msg }, { status: 400 })
-      }
+    // One typed check instead of a per-message substring list: the service
+    // says whether a failure is the caller's and what status it deserves.
+    if (error instanceof TableColumnError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
     logger.error(`[${requestId}] Error updating column in table:`, error)

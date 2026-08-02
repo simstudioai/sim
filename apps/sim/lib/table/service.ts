@@ -21,6 +21,7 @@ import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { tableColumnNotFound } from '@/lib/table/errors'
 import { appendTableEvent } from '@/lib/table/events'
 import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
 import { assertSchemaMutable, TableLockedError } from '@/lib/table/mutation-locks'
@@ -104,7 +105,7 @@ export async function withLockedTable<T>(
     )
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
     if (!table) {
-      throw new Error('Table not found')
+      throw tableColumnNotFound('Table not found')
     }
     return mutate(table, trx)
   })
@@ -924,7 +925,7 @@ export async function restoreTable(
 ): Promise<void> {
   const table = await getTableById(tableId, { includeArchived: true })
   if (!table) {
-    throw new Error('Table not found')
+    throw tableColumnNotFound('Table not found')
   }
 
   if (!table.archivedAt) {

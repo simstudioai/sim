@@ -1,6 +1,7 @@
 import { TypeNumber } from '@sim/emcn/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 import { ownedKeysOf } from '@/lib/table/column-types/types'
+import { parseDecimalNumber } from '@/lib/table/numeric'
 import { clampPrecision, DEFAULT_PRECISION, formatWithPrecision } from '@/lib/table/precision'
 
 export const numberColumnType: ColumnTypeDefinition = {
@@ -22,14 +23,8 @@ export const numberColumnType: ColumnTypeDefinition = {
   parseErrorMessage: 'Invalid number',
 
   coerce(value) {
-    if (typeof value === 'number') {
-      return Number.isFinite(value) ? { ok: true, value } : { ok: false }
-    }
-    if (typeof value === 'string' && value.trim() !== '') {
-      const parsed = Number(value)
-      return Number.isFinite(parsed) ? { ok: true, value: parsed } : { ok: false }
-    }
-    return { ok: false }
+    const parsed = parseDecimalNumber(value)
+    return parsed === null ? { ok: false } : { ok: true, value: parsed }
   },
 
   validateCell(value, column) {

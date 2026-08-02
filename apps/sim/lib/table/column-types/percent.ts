@@ -1,6 +1,7 @@
 import { TypePercent } from '@sim/emcn/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 import { ownedKeysOf } from '@/lib/table/column-types/types'
+import { parseDecimalNumber } from '@/lib/table/numeric'
 import { clampPrecision, DEFAULT_PRECISION, formatWithPrecision } from '@/lib/table/precision'
 
 /**
@@ -12,12 +13,9 @@ import { clampPrecision, DEFAULT_PRECISION, formatWithPrecision } from '@/lib/ta
  * written against either column means the same thing.
  */
 function parsePercent(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'number') return parseDecimalNumber(value)
   if (typeof value !== 'string') return null
-  const trimmed = value.trim().replace(/%$/, '').trim()
-  if (trimmed === '') return null
-  const parsed = Number(trimmed)
-  return Number.isFinite(parsed) ? parsed : null
+  return parseDecimalNumber(value.trim().replace(/%$/, ''))
 }
 
 export const percentColumnType: ColumnTypeDefinition = {

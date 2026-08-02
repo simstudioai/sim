@@ -26,3 +26,31 @@ export class TableQueryValidationError extends Error {
     this.code = code
   }
 }
+
+/**
+ * Error thrown when a column mutation fails for a reason the CALLER can fix —
+ * a name collision, an unsupported conversion, metadata on a type that does not
+ * own it, a column or table that does not exist.
+ *
+ * Carries its own HTTP status so routes map it directly. This replaced a list
+ * of `msg.includes('already exists') || msg.includes('option') || …` in every
+ * route: that list had to be extended for each new message, and any message it
+ * did not happen to contain — the metadata-ownership error among them — fell
+ * through to a 500, telling the caller the server broke when in fact their
+ * request was invalid.
+ */
+export class TableColumnError extends Error {
+  /** 400 for an invalid request, 404 for a missing table or column. */
+  readonly status: 400 | 404
+
+  constructor(message: string, status: 400 | 404 = 400) {
+    super(message)
+    this.name = 'TableColumnError'
+    this.status = status
+  }
+}
+
+/** Shorthand for the 404 half, which is the only non-400 case. */
+export function tableColumnNotFound(message: string): TableColumnError {
+  return new TableColumnError(message, 404)
+}

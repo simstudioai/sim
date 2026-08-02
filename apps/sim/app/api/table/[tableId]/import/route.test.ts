@@ -428,9 +428,9 @@ describe('POST /api/table/[tableId]/import', () => {
       )
       expect(response.status).toBe(200)
       expect(mockImportAppendRows).toHaveBeenCalledTimes(1)
-      expect(appendAdditions()).toEqual([
-        expect.objectContaining({ name: 'email', type: 'string' }),
-      ])
+      // Inferred as `email`, not `string`: the fixture values are real
+      // addresses, and CSV inference now recognises them.
+      expect(appendAdditions()).toEqual([expect.objectContaining({ name: 'email', type: 'email' })])
       // Existing columns have no id (legacy) → keyed by name; the new `email`
       // column was assigned id `col_deadbeefcafef00d` (mocked generateId).
       expect(appendRows()).toEqual([
@@ -473,7 +473,7 @@ describe('POST /api/table/[tableId]/import', () => {
       )
       expect(response.status).toBe(200)
       expect(appendAdditions()).toEqual([
-        expect.objectContaining({ name: 'Email_2', type: 'string' }),
+        expect.objectContaining({ name: 'Email_2', type: 'email' }),
       ])
     })
 
@@ -537,9 +537,9 @@ describe('POST /api/table/[tableId]/import', () => {
         })
       )
       // Route forwarded the column addition into the (now atomic) import op.
-      expect(appendAdditions()).toEqual([
-        expect.objectContaining({ name: 'email', type: 'string' }),
-      ])
+      // Inferred as `email`, not `string`: the fixture values are real
+      // addresses, and CSV inference now recognises them.
+      expect(appendAdditions()).toEqual([expect.objectContaining({ name: 'email', type: 'email' })])
       expect(response.status).toBe(400)
       const data = await response.json()
       expect(data.success).toBeUndefined()

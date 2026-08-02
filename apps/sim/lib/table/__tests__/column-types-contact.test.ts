@@ -20,7 +20,7 @@ import {
   pickMetadata,
 } from '@/lib/table/column-types'
 import { buildConvertedColumn } from '@/lib/table/columns/service'
-import { coerceValue } from '@/lib/table/import'
+import { coerceValue, inferColumnType } from '@/lib/table/import'
 import { filterRulesToFilter, prunePredicateForColumns } from '@/lib/table/query-builder/converters'
 import type { ColumnDefinition } from '@/lib/table/types'
 
@@ -406,6 +406,40 @@ describe('review-round-7 regressions', () => {
       { isSelectType: false, targetMultiple: false }
     )
     expect(replaced.precision).toBe(4)
+  })
+})
+
+describe('follow-up fixes', () => {
+  it('reads a numeric cell as decimal, not as an alternate base', () => {
+    // `Number()` reads `0x10` as 16 and `0b11` as 3. A user typing `0x10`
+    // means the text, so parsing it that way stored a value never entered.
+    for (const type of ['number', 'percent'] as const) {
+      for (const input of ['0x10', '0b11', '0o17', 'Infinity', '1e400']) {
+        expect(COLUMN_TYPE_REGISTRY[type].coerce(input, column(type)).ok, `${type} ${input}`).toBe(
+          false
+        )
+      }
+      // Exponent notation stays accepted — spreadsheets export it.
+      const exp = COLUMN_TYPE_REGISTRY[type].coerce('1e3', column(type))
+      expect(exp.ok && exp.value).toBe(1000)
+      const neg = COLUMN_TYPE_REGISTRY[type].coerce('-2.5', column(type))
+      expect(neg.ok && neg.value).toBe(-2.5)
+    }
+  })
+
+  it('infers an email column from a CSV, using the type’s own validation', () => {
+    expect(inferColumnType(['ada@example.com', 'bob@example.co.uk'])).toBe('email')
+    expect(inferColumnType(['ada@example.com', 'not an address'])).toBe('string')
+  })
+
+  it('infers phone only on strong evidence, never from bare digits or dashes', () => {
+    expect(inferColumnType(['+1 555 123 4567', '+44 20 7123 4567'])).toBe('phone')
+    expect(inferColumnType(['(555) 123-4567', '(555) 987-6543'])).toBe('phone')
+    // An ID column of bare digits is a Number, which is the right answer.
+    expect(inferColumnType(['5551234567', '5559876543'])).toBe('number')
+    // Dash-separated digit runs are ISBNs and SKUs as often as phone numbers,
+    // and a phone column keeps only the digits — so these stay text.
+    expect(inferColumnType(['978-0-13-235088-4', '978-0-32-135668-0'])).toBe('string')
   })
 })
 

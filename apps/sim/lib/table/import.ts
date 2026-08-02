@@ -206,7 +206,10 @@ export type CsvColumnType = ColumnType
  * configuration inference cannot supply (`select`'s options, `currency`'s
  * code) or would swallow ordinary text (`json`).
  */
-type InferredCsvColumnType = Extract<ColumnType, 'string' | 'number' | 'boolean' | 'date'>
+type InferredCsvColumnType = Extract<
+  ColumnType,
+  'string' | 'number' | 'boolean' | 'date' | 'email' | 'phone'
+>
 
 /** Number of CSV rows sampled when inferring column types for a new table. */
 export const CSV_SCHEMA_SAMPLE_SIZE = 100
@@ -313,6 +316,31 @@ export function inferColumnType(values: unknown[]): InferredCsvColumnType {
     return isoDatePattern.test(s) && !Number.isNaN(Date.parse(s))
   })
   if (allDate) return 'date'
+
+  // Email is safe to infer: an `@` in every value is unambiguous, and the check
+  // is the type's own `coerce`, so inference and the write path cannot disagree
+  // about what counts as an address.
+  const emailColumn: ColumnDefinition = { name: '', type: 'email' }
+  if (nonEmpty.every((v) => columnTypeById('email').coerce(v as JsonValue, emailColumn).ok)) {
+    return 'email'
+  }
+
+  // Phone is inferred only on STRONG evidence — every value carrying a `+` or a
+  // parenthesised area code.
+  //
+  // Deliberately not "everything that parses as a phone": ISBNs, SKUs and part
+  // numbers are dash-separated digit runs too, and a phone column stores only
+  // the digits, so a wrong guess silently drops their punctuation. A column of
+  // bare digits never reaches here anyway — it returned `number` above — which
+  // is the right answer for an ID column and the reason this check does not try
+  // to reclaim it.
+  const phoneColumn: ColumnDefinition = { name: '', type: 'phone' }
+  const allPhone = nonEmpty.every((v) => {
+    const raw = String(v).trim()
+    if (!raw.startsWith('+') && !/^\(\d{3}\)/.test(raw)) return false
+    return columnTypeById('phone').coerce(v as JsonValue, phoneColumn).ok
+  })
+  if (allPhone) return 'phone'
 
   return 'string'
 }

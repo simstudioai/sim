@@ -22,6 +22,7 @@ import {
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { columnTypeById, metadataKeysIn, pickMetadata } from '@/lib/table/column-types'
 import { validateMetadataUpdate } from '@/lib/table/columns/metadata'
+import { TableColumnError } from '@/lib/table/errors'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   accessError,
@@ -78,18 +79,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       return validationErrorResponse(error, 'Invalid request data')
     }
 
-    const msg = rootErrorMessage(error)
-    if (
-      msg.includes('already exists') ||
-      msg.includes('maximum column') ||
-      msg.includes('Invalid column') ||
-      msg.includes('exceeds maximum') ||
-      msg.includes('option')
-    ) {
-      return NextResponse.json({ error: msg }, { status: 400 })
-    }
-    if (msg === 'Table not found') {
-      return NextResponse.json({ error: msg }, { status: 404 })
+    // One typed check instead of a per-message substring list: the service
+    // says whether a failure is the caller's and what status it deserves.
+    if (error instanceof TableColumnError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
     logger.error(`[${requestId}] Error adding column to table ${tableId}:`, error)
@@ -305,24 +298,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       return validationErrorResponse(error, 'Invalid request data')
     }
 
-    const msg = rootErrorMessage(error)
-    if (msg.includes('not found') || msg.includes('Table not found')) {
-      return NextResponse.json({ error: msg }, { status: 404 })
-    }
-    if (
-      msg.includes('already exists') ||
-      msg.includes('Cannot delete the last column') ||
-      msg.includes('Cannot set column') ||
-      msg.includes('Cannot set unique column') ||
-      msg.includes('Invalid column') ||
-      msg.includes('exceeds maximum') ||
-      msg.includes('incompatible') ||
-      msg.includes('duplicate') ||
-      msg.includes('option') ||
-      msg.includes('currency') ||
-      msg.includes('is already type')
-    ) {
-      return NextResponse.json({ error: msg }, { status: 400 })
+    // One typed check instead of a per-message substring list: the service
+    // says whether a failure is the caller's and what status it deserves.
+    if (error instanceof TableColumnError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
     logger.error(`[${requestId}] Error updating column in table ${tableId}:`, error)
