@@ -1,4 +1,5 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type McpTransport = 'streamable-http'
 
@@ -188,6 +189,8 @@ export interface McpClientOptions {
    * server configs.
    */
   authProvider?: import('@modelcontextprotocol/sdk/client/auth.js').OAuthClientProvider
+  /** Encrypted-only provenance for Secrets-tab references resolved into this connection. */
+  resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 export interface ToolsChangedEvent {

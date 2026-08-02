@@ -9,7 +9,10 @@
  * chunks.
  */
 
-import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
+import type {
+  ExecutionEvent,
+  ExecutionEventDisplayData,
+} from '@/lib/workflows/executor/execution-events'
 import type { StreamingExecution } from '@/executor/types'
 
 export interface ForwardAgentStreamEventsOptions {
@@ -25,6 +28,21 @@ export interface ForwardAgentStreamEventsOptions {
    * projected streams ({@link StreamingExecution.clientStreamTransformed}).
    */
   forwardAnswerText?: boolean
+  /** Builds the safe display copy without exposing provenance to the stream bridge. */
+  projectDisplay?: (field: 'text' | 'chunk', value: string) => Promise<ExecutionEventDisplayData>
+}
+
+async function projectDisplayValue(
+  projectDisplay: ForwardAgentStreamEventsOptions['projectDisplay'],
+  field: 'text' | 'chunk',
+  value: string
+): Promise<ExecutionEventDisplayData | undefined> {
+  if (!projectDisplay) return undefined
+  try {
+    return await projectDisplay(field, value)
+  } catch {
+    return {}
+  }
 }
 
 /**
@@ -52,18 +70,30 @@ export function forwardAgentStreamToExecutionEvents(
     return () => {}
   }
 
-  const { blockId, executionId, workflowId, sendEvent, forwardAnswerText = false } = options
+  const {
+    blockId,
+    executionId,
+    workflowId,
+    sendEvent,
+    forwardAnswerText = false,
+    projectDisplay,
+  } = options
   let emittedSinceReset = false
 
   return streamingExec.subscribe({
     onEvent: async (event) => {
       if (event.type === 'thinking_delta') {
+        const display = await projectDisplayValue(projectDisplay, 'text', event.text)
         await sendEvent({
           type: 'stream:thinking',
           timestamp: new Date().toISOString(),
           executionId,
           workflowId,
-          data: { blockId, text: event.text },
+          data: {
+            blockId,
+            text: event.text,
+            ...(display !== undefined ? { display } : {}),
+          },
         })
         return
       }
@@ -93,12 +123,17 @@ export function forwardAgentStreamToExecutionEvents(
       if (event.type === 'text_delta') {
         if (event.turn === 'intermediate' || !event.text) return
         emittedSinceReset = true
+        const display = await projectDisplayValue(projectDisplay, 'chunk', event.text)
         await sendEvent({
           type: 'stream:chunk',
           timestamp: new Date().toISOString(),
           executionId,
           workflowId,
-          data: { blockId, chunk: event.text },
+          data: {
+            blockId,
+            chunk: event.text,
+            ...(display !== undefined ? { display } : {}),
+          },
         })
         return
       }

@@ -1127,6 +1127,24 @@ export const InstagramBlockMeta = {
     },
     {
       icon: InstagramIcon,
+      title: 'Instagram Story publishing queue',
+      prompt:
+        'Create a scheduled workflow that reads approved Story assets from a content table, publishes each image or video to Instagram Stories, checks the container status, and records the resulting media ID and outcome.',
+      modules: ['tables', 'scheduled', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'stories', 'automation'],
+    },
+    {
+      icon: InstagramIcon,
+      title: 'Instagram carousel campaign publisher',
+      prompt:
+        'Build a workflow that assembles two to ten approved images or videos into an Instagram carousel, publishes it with a campaign caption, checks processing status, and saves the published media ID to a campaign table.',
+      modules: ['tables', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content', 'automation'],
+    },
+    {
+      icon: InstagramIcon,
       title: 'Instagram comment moderator',
       prompt:
         'Create a scheduled workflow that lists recent Instagram media, pulls comments on each post, uses an agent to flag spam or abusive replies, and hides or deletes those comments while logging actions to a moderation table.',
@@ -1151,6 +1169,15 @@ export const InstagramBlockMeta = {
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'analytics', 'automation'],
+    },
+    {
+      icon: InstagramIcon,
+      title: 'Instagram media archive',
+      prompt:
+        'Create a scheduled workflow that lists recent Instagram posts and Stories, downloads each media item as durable files, and records the source media ID, type, file references, and download status in an archive table.',
+      modules: ['scheduled', 'tables', 'workflows'],
+      category: 'operations',
+      tags: ['content', 'archive', 'automation'],
     },
   ],
   skills: [

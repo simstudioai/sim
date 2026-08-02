@@ -9,6 +9,7 @@ import {
   executionPreprocessingMockFns,
   LoggingSessionMock,
   loggingSessionMock,
+  loggingSessionMockFns,
   resetDbChainMock,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
@@ -16,13 +17,21 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 
-const { mockTask, mockExecuteWorkflowCore, mockGetScheduleTimeValues, mockGetSubBlockValue } =
-  vi.hoisted(() => ({
-    mockTask: vi.fn((config) => config),
-    mockExecuteWorkflowCore: vi.fn(),
-    mockGetScheduleTimeValues: vi.fn(),
-    mockGetSubBlockValue: vi.fn(),
-  }))
+const {
+  mockTask,
+  mockExecuteWorkflowCore,
+  mockWasExecutionFinalizedByCore,
+  mockHasExecutionResult,
+  mockGetScheduleTimeValues,
+  mockGetSubBlockValue,
+} = vi.hoisted(() => ({
+  mockTask: vi.fn((config) => config),
+  mockExecuteWorkflowCore: vi.fn(),
+  mockWasExecutionFinalizedByCore: vi.fn(),
+  mockHasExecutionResult: vi.fn(),
+  mockGetScheduleTimeValues: vi.fn(),
+  mockGetSubBlockValue: vi.fn(),
+}))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
@@ -55,7 +64,7 @@ vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
 
 vi.mock('@/lib/workflows/executor/execution-core', () => ({
   executeWorkflowCore: mockExecuteWorkflowCore,
-  wasExecutionFinalizedByCore: vi.fn().mockReturnValue(false),
+  wasExecutionFinalizedByCore: mockWasExecutionFinalizedByCore,
 }))
 
 vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
@@ -78,7 +87,7 @@ vi.mock('@/executor/execution/snapshot', () => ({
 }))
 
 vi.mock('@/executor/utils/errors', () => ({
-  hasExecutionResult: vi.fn().mockReturnValue(false),
+  hasExecutionResult: mockHasExecutionResult,
 }))
 
 import { executeScheduleJob } from './schedule-execution'
@@ -100,6 +109,8 @@ const billingAttribution = {
 describe('async preprocessing correlation threading', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockWasExecutionFinalizedByCore.mockReturnValue(false)
+    mockHasExecutionResult.mockReturnValue(false)
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([
       {
@@ -162,6 +173,84 @@ describe('async preprocessing correlation threading', () => {
     expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
       expect.objectContaining({
         loggingSession,
+      })
+    )
+  })
+
+  it('preserves a core-finalized execution error for task failure semantics', async () => {
+    const rawError = Object.assign(new Error('Function 1 failed with activated-secret-value'), {
+      executionResult: {
+        success: false,
+        output: { error: 'Function failed' },
+        logs: [],
+      },
+    })
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockRejectedValueOnce(rawError)
+    mockHasExecutionResult.mockImplementation((error) => error === rawError)
+    mockWasExecutionFinalizedByCore.mockReturnValue(true)
+
+    await expect(
+      executeWorkflowJob({
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        billingAttribution,
+        triggerType: 'api',
+        executionId: 'execution-finalized',
+        requestId: 'request-finalized',
+      })
+    ).rejects.toBe(rawError)
+
+    expect(loggingSessionMockFns.mockWaitForPostExecution).not.toHaveBeenCalled()
+    expect(mockWasExecutionFinalizedByCore).toHaveBeenCalledWith(rawError, 'execution-finalized')
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+  })
+
+  it('persists and rethrows the original unfinalized execution error', async () => {
+    const rawError = new Error('Function 1 failed with activated-secret-value')
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockRejectedValueOnce(rawError)
+
+    await expect(
+      executeWorkflowJob({
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        billingAttribution,
+        triggerType: 'api',
+        executionId: 'execution-fault',
+        requestId: 'request-fault',
+      })
+    ).rejects.toBe(rawError)
+
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Function 1 failed with activated-secret-value',
+        }),
       })
     )
   })

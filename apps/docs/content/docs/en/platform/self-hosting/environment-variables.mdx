@@ -64,7 +64,8 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | Variable | Description |
 |----------|-------------|
 | `API_ENCRYPTION_KEY` | Encrypts stored API keys (32 hex chars): `openssl rand -hex 32` |
-| `COPILOT_API_KEY` | API key for copilot features |
+| `COPILOT_API_KEY` | API key for Chat. Without it the Sim Chat block, scheduled prompt jobs, and Inbox cannot run |
+| `NEXT_PUBLIC_CHAT_DISABLED` | Set to `true` to hide the Chat module: the workspace lands on your first workflow, with no chats list, scheduled tasks, or editor Chat panel. Chat is shown when unset; `bun run setup` sets it for you if you skip the chat key |
 | `ADMIN_API_KEY` | Admin API key for GitOps operations |
 | `ALLOWED_LOGIN_DOMAINS` | Restrict signups to domains (comma-separated) |
 | `ALLOWED_LOGIN_EMAILS` | Restrict signups to specific emails (comma-separated) |

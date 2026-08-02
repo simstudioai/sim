@@ -167,4 +167,23 @@ describe('executeWorkflow billing attribution', () => {
       'request-1'
     )
   })
+
+  it('forwards trusted initial trace-secret provenance to the execution core', async () => {
+    const provenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+      scope: { userId: 'actor-1', workspaceId: 'workspace-1' },
+    }
+
+    await executeWorkflow(workflow, 'request-1', { prompt: 'hello' }, 'actor-1', {
+      enabled: true,
+      billingAttribution,
+      trustedInitialResolvedSecretTraceProvenance: provenance,
+    })
+
+    expect(executeWorkflowCoreMock).toHaveBeenCalledWith(
+      expect.objectContaining({ trustedInitialResolvedSecretTraceProvenance: provenance })
+    )
+  })
 })

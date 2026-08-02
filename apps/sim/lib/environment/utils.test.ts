@@ -1,39 +1,34 @@
 /**
  * @vitest-environment node
  */
+import {
+  dbChainMockFns,
+  encryptionMock,
+  encryptionMockFns,
+  resetDbChainMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCreateWorkspaceEnvCredentials,
-  mockEncryptSecret,
   mockGetUserEntityPermissions,
   mockGetWorkspaceEnvKeyAdminAccess,
   mockRecordAudit,
-  mockTx,
 } = vi.hoisted(() => ({
   mockCreateWorkspaceEnvCredentials: vi.fn(),
-  mockEncryptSecret: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
   mockRecordAudit: vi.fn(),
-  mockTx: {
-    execute: vi.fn(),
-    select: vi.fn(),
-    insert: vi.fn(),
-  },
 }))
 
 // vitest.setup.ts mocks this module globally; this suite tests the real one.
 vi.unmock('@/lib/environment/utils')
 
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@sim/audit', () => ({
   AuditAction: { ENVIRONMENT_UPDATED: 'environment.updated' },
   AuditResourceType: { ENVIRONMENT: 'environment' },
   recordAudit: mockRecordAudit,
-}))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: vi.fn(),
-  encryptSecret: mockEncryptSecret,
 }))
 vi.mock('@/lib/credentials/environment', () => ({
   createWorkspaceEnvCredentials: mockCreateWorkspaceEnvCredentials,
@@ -41,22 +36,24 @@ vi.mock('@/lib/credentials/environment', () => ({
   getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser: vi.fn(),
 }))
-vi.mock('@sim/db', () => ({
-  db: {
-    transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(mockTx)),
-  },
-}))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: vi.fn(),
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 
-import { upsertWorkspaceEnvVars, WorkspaceEnvAccessError } from '@/lib/environment/utils'
+import {
+  getEffectiveDecryptedEnv,
+  getEffectiveEnvironmentSnapshot,
+  invalidateEffectiveDecryptedEnvCache,
+  upsertWorkspaceEnvVars,
+  WorkspaceEnvAccessError,
+} from '@/lib/environment/utils'
 
 describe('upsertWorkspaceEnvVars', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockEncryptSecret.mockResolvedValue({ encrypted: 'cipher' })
+    resetDbChainMock()
+    encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'cipher' })
   })
 
   it('refuses to overwrite an existing secret the caller does not administer', async () => {
@@ -73,7 +70,7 @@ describe('upsertWorkspaceEnvVars', () => {
       upsertWorkspaceEnvVars('ws-1', { STRIPE_KEY: 'rotated' }, 'user-1')
     ).rejects.toBeInstanceOf(WorkspaceEnvAccessError)
 
-    expect(mockEncryptSecret).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
@@ -88,17 +85,11 @@ describe('upsertWorkspaceEnvVars', () => {
       upsertWorkspaceEnvVars('ws-1', { NEW_KEY: 'value' }, 'user-1')
     ).rejects.toBeInstanceOf(WorkspaceEnvAccessError)
 
-    expect(mockEncryptSecret).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 
   function stubStoredVariables(variables: Record<string, string>) {
-    mockTx.execute.mockResolvedValue(undefined)
-    mockTx.select.mockReturnValue({
-      from: () => ({ where: () => ({ limit: async () => [{ variables }] }) }),
-    })
-    mockTx.insert.mockReturnValue({
-      values: () => ({ onConflictDoUpdate: async () => undefined }),
-    })
+    dbChainMockFns.limit.mockResolvedValue([{ variables }])
   }
 
   it('allows a key admin to rotate the key they administer', async () => {
@@ -113,7 +104,7 @@ describe('upsertWorkspaceEnvVars', () => {
       upsertWorkspaceEnvVars('ws-1', { STRIPE_KEY: 'rotated' }, 'user-1')
     ).resolves.toEqual(['STRIPE_KEY'])
 
-    expect(mockEncryptSecret).toHaveBeenCalledWith('rotated')
+    expect(encryptionMockFns.mockEncryptSecret).toHaveBeenCalledWith('rotated')
     expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: 'ws-1', actorId: 'user-1' })
     )
@@ -170,5 +161,74 @@ describe('upsertWorkspaceEnvVars', () => {
     expect(mockCreateWorkspaceEnvCredentials).toHaveBeenCalledWith(
       expect.objectContaining({ newKeys: ['BRAND_NEW'] })
     )
+  })
+})
+
+describe('effective environment resolution cache', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    encryptionMockFns.mockDecryptSecret.mockReset()
+    encryptionMockFns.mockEncryptSecret.mockReset()
+    invalidateEffectiveDecryptedEnvCache({ userId: 'user-1' })
+    dbChainMockFns.limit.mockResolvedValue([{ variables: { API_KEY: 'encrypted-value' } }])
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'runtime-value' })
+  })
+
+  it('shares one atomic snapshot and returns defensive clones', async () => {
+    const [decrypted, snapshot] = await Promise.all([
+      getEffectiveDecryptedEnv('user-1'),
+      getEffectiveEnvironmentSnapshot('user-1'),
+    ])
+
+    expect(decrypted).toEqual({ API_KEY: 'runtime-value' })
+    expect(snapshot).toMatchObject({
+      personalEncrypted: { API_KEY: 'encrypted-value' },
+      personalDecrypted: { API_KEY: 'runtime-value' },
+    })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+
+    decrypted.API_KEY = 'mutated-runtime'
+    snapshot.personalEncrypted.API_KEY = 'mutated-ciphertext'
+    snapshot.personalDecrypted.API_KEY = 'mutated-snapshot'
+    snapshot.conflicts.push('MUTATED')
+
+    await expect(getEffectiveDecryptedEnv('user-1')).resolves.toEqual({
+      API_KEY: 'runtime-value',
+    })
+    await expect(getEffectiveEnvironmentSnapshot('user-1')).resolves.toMatchObject({
+      personalEncrypted: { API_KEY: 'encrypted-value' },
+      personalDecrypted: { API_KEY: 'runtime-value' },
+      conflicts: [],
+    })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+  })
+
+  it('evicts rejected loads and retries the canonical lookup', async () => {
+    dbChainMockFns.limit.mockRejectedValueOnce(new Error('database unavailable'))
+
+    await expect(getEffectiveEnvironmentSnapshot('user-1')).rejects.toThrow('database unavailable')
+
+    dbChainMockFns.limit.mockResolvedValue([{ variables: { API_KEY: 'encrypted-value' } }])
+    await expect(getEffectiveDecryptedEnv('user-1')).resolves.toEqual({
+      API_KEY: 'runtime-value',
+    })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+  })
+
+  it('reloads the full snapshot after invalidation', async () => {
+    await expect(getEffectiveDecryptedEnv('user-1')).resolves.toEqual({
+      API_KEY: 'runtime-value',
+    })
+
+    invalidateEffectiveDecryptedEnvCache({ userId: 'user-1' })
+    dbChainMockFns.limit.mockResolvedValue([{ variables: { API_KEY: 'rotated-ciphertext' } }])
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'rotated-runtime' })
+
+    await expect(getEffectiveEnvironmentSnapshot('user-1')).resolves.toMatchObject({
+      personalEncrypted: { API_KEY: 'rotated-ciphertext' },
+      personalDecrypted: { API_KEY: 'rotated-runtime' },
+    })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledTimes(2)
   })
 })

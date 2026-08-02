@@ -77,8 +77,11 @@ import {
   isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { FileDocAvatars } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-avatars'
+import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
 import {
   filesFilterParsers,
   filesFilterUrlKeys,
@@ -86,6 +89,12 @@ import {
   filesSortParams,
   filesUrlKeys,
 } from '@/app/workspace/[workspaceId]/files/search-params'
+import {
+  DEFAULT_UNTITLED_NAME,
+  deriveMarkdownFileName,
+  isUntitledName,
+  uniqueMarkdownName,
+} from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
@@ -207,6 +216,11 @@ export function Files() {
   const userPermissions = useUserPermissionsContext()
   const canEdit = userPermissions.canEdit === true
   const { config: permissionConfig } = usePermissionConfig()
+
+  // Joined for the live file tree: a `workspace-files-changed` broadcast invalidates the
+  // browser. "Who's in this file" comes from the file-doc room (see FileDocRoomProvider),
+  // not from who's browsing the Files section.
+  useWorkspaceFilesRoom(workspaceId)
 
   useEffect(() => {
     if (permissionConfig.hideFilesTab) {
@@ -358,6 +372,34 @@ export function Files() {
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
 
+  /**
+   * While a file is still untitled, name it after the leading heading the user types in its editor. The
+   * editor reports the heading text (debounced); here we re-check the file is still untitled, derive a
+   * unique `.md` name among its folder siblings, and rename. A no-op once the file has a real name.
+   */
+  const handleDeriveTitleFromHeading = useCallback(
+    (headingText: string) => {
+      const currentFile = selectedFileRef.current
+      if (!currentFile || !isUntitledName(currentFile.name)) return
+      const derived = deriveMarkdownFileName(headingText)
+      if (!derived) return
+      const siblingNames = new Set(
+        filesRef.current
+          .filter(
+            (f) =>
+              (f.folderId ?? null) === (currentFile.folderId ?? null) && f.id !== currentFile.id
+          )
+          .map((f) => f.name)
+      )
+      const name = uniqueMarkdownName(derived, siblingNames)
+      if (name === currentFile.name) return
+      renameFile
+        .mutateAsync({ workspaceId, fileId: currentFile.id, name })
+        .catch((err) => logger.error('Failed to auto-name file from heading:', err))
+    },
+    [workspaceId]
+  )
+
   const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
   const shareModal = shareFile ? (
     <ShareModal
@@ -426,23 +468,28 @@ export function Files() {
       : siblings
     const col = activeSort?.column ?? 'name'
     const dir = activeSort?.direction ?? 'asc'
-    return [...searched].sort((a, b) => {
+    // Decorate-sort: compute each key + pinned flag once (O(N)) rather than parsing dates per comparison.
+    const decorated = searched.map((folder) => ({
+      folder,
+      pinned: pinnedFolderIds.has(folder.id),
+      key:
+        col === 'updated'
+          ? new Date(folder.updatedAt).getTime()
+          : col === 'created'
+            ? new Date(folder.createdAt).getTime()
+            : folder.name,
+    }))
+    decorated.sort((a, b) => {
       // Pinned folders float to the top of every sort/direction — pinning is a
       // user-declared priority, not another sort key to be inverted by `desc`.
-      const aPinned = pinnedFolderIds.has(a.id)
-      const bPinned = pinnedFolderIds.has(b.id)
-      if (aPinned !== bPinned) return aPinned ? -1 : 1
-
-      let cmp = 0
-      if (col === 'updated') {
-        cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-      } else if (col === 'created') {
-        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      } else {
-        cmp = a.name.localeCompare(b.name)
-      }
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+      const cmp =
+        typeof a.key === 'number' && typeof b.key === 'number'
+          ? a.key - b.key
+          : String(a.key).localeCompare(String(b.key))
       return dir === 'asc' ? cmp : -cmp
     })
+    return decorated.map((d) => d.folder)
   }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
 
   const filteredFiles = useMemo(() => {
@@ -480,38 +527,36 @@ export function Files() {
 
     const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
-    return [...result].sort((a, b) => {
+    // Decorate-sort: compute each row's sort key + pinned flag ONCE (O(N)), then compare precomputed
+    // keys — the comparator ran per-comparison work (Date parsing, `formatFileType`, member lookups) at
+    // O(N log N). Stable sort + pinned-primary ordering are preserved.
+    const decorated = result.map((f) => ({
+      f,
+      pinned: pinnedFileIds.has(f.id),
+      key:
+        col === 'size'
+          ? f.size
+          : col === 'type'
+            ? formatFileType(f.type, f.name)
+            : col === 'created'
+              ? new Date(f.uploadedAt).getTime()
+              : col === 'updated'
+                ? new Date(f.updatedAt).getTime()
+                : col === 'owner'
+                  ? (membersById.get(f.uploadedBy)?.name ?? '')
+                  : f.name,
+    }))
+    decorated.sort((a, b) => {
       // Pinned files float to the top of every sort/direction — pinning is a
       // user-declared priority, not another sort key to be inverted by `desc`.
-      const aPinned = pinnedFileIds.has(a.id)
-      const bPinned = pinnedFileIds.has(b.id)
-      if (aPinned !== bPinned) return aPinned ? -1 : 1
-
-      let cmp = 0
-      switch (col) {
-        case 'name':
-          cmp = a.name.localeCompare(b.name)
-          break
-        case 'size':
-          cmp = a.size - b.size
-          break
-        case 'type':
-          cmp = formatFileType(a.type, a.name).localeCompare(formatFileType(b.type, b.name))
-          break
-        case 'created':
-          cmp = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()
-          break
-        case 'updated':
-          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-          break
-        case 'owner':
-          cmp = (membersById.get(a.uploadedBy)?.name ?? '').localeCompare(
-            membersById.get(b.uploadedBy)?.name ?? ''
-          )
-          break
-      }
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+      const cmp =
+        typeof a.key === 'number' && typeof b.key === 'number'
+          ? a.key - b.key
+          : String(a.key).localeCompare(String(b.key))
       return dir === 'asc' ? cmp : -cmp
     })
+    return decorated.map((d) => d.f)
   }, [
     files,
     currentFolderId,
@@ -1248,12 +1293,7 @@ export function Files() {
       const existingNames = new Set(
         filesRef.current.filter((f) => (f.folderId ?? null) === currentFolderId).map((f) => f.name)
       )
-      let name = 'untitled.md'
-      let counter = 1
-      while (existingNames.has(name)) {
-        name = `untitled (${counter}).md`
-        counter++
-      }
+      const name = uniqueMarkdownName(DEFAULT_UNTITLED_NAME, existingNames)
 
       const mimeType = getMimeTypeFromExtension('md')
       const blob = new Blob([''], { type: mimeType })
@@ -1781,10 +1821,18 @@ export function Files() {
   )
 
   const contextMenuMoveOptions = useMemo((): MoveOptionNode[] => {
+    // Index children by parent ONCE (the same pattern used for folder sizes + descendant maps above),
+    // so building the tree is O(N) instead of a full `folders.filter` scan at every node (O(N²)).
+    const childrenByParent = new Map<string | null, typeof folders>()
+    for (const f of folders) {
+      const key = f.parentId ?? null
+      const arr = childrenByParent.get(key)
+      if (arr) arr.push(f)
+      else childrenByParent.set(key, [f])
+    }
     const buildSubtree = (parentId: string | null): MoveOptionNode[] =>
-      folders
+      (childrenByParent.get(parentId) ?? [])
         .filter((f) => {
-          if ((f.parentId ?? null) !== parentId) return false
           if (selectedFolderIds.includes(f.id)) return false
           return selectedFolderIds.every(
             (sid) => !descendantFolderIdsByFolderId.get(sid)?.has(f.id)
@@ -1979,35 +2027,43 @@ export function Files() {
   if (selectedFile) {
     return (
       <>
-        <Resource>
-          <Resource.Header
-            icon={FilesIcon}
-            breadcrumbs={fileDetailBreadcrumbs}
-            actions={fileActions}
-          />
-          <FileViewer
-            key={selectedFile.id}
-            file={selectedFile}
-            workspaceId={workspaceId}
-            canEdit={canEdit}
-            previewMode={previewMode}
-            autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
-            onDirtyChange={setIsDirty}
-            onSaveStatusChange={handleSaveStatusChange}
-            saveRef={saveRef}
-            discardRef={discardRef}
-          />
+        {/* The room provider scopes "who's in this file" presence to the open document: the
+            editor (inside FileViewer) publishes the server-authenticated roster and the
+            header's FileDocAvatars reads it — both must be descendants. */}
+        <FileDocRoomProvider>
+          <Resource>
+            <Resource.Header
+              icon={FilesIcon}
+              breadcrumbs={fileDetailBreadcrumbs}
+              actions={fileActions}
+              aside={<FileDocAvatars />}
+            />
+            <FileViewer
+              key={selectedFile.id}
+              file={selectedFile}
+              workspaceId={workspaceId}
+              canEdit={canEdit}
+              previewMode={previewMode}
+              autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
+              onDirtyChange={setIsDirty}
+              onSaveStatusChange={handleSaveStatusChange}
+              saveRef={saveRef}
+              discardRef={discardRef}
+              collaborative
+              onDeriveTitleFromHeading={handleDeriveTitleFromHeading}
+            />
 
-          <ChipConfirmModal
-            open={showUnsavedChangesAlert}
-            onOpenChange={setShowUnsavedChangesAlert}
-            srTitle='Unsaved Changes'
-            title='Unsaved Changes'
-            text='You have unsaved changes. Are you sure you want to discard them?'
-            dismissLabel='Keep editing'
-            confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
-          />
-        </Resource>
+            <ChipConfirmModal
+              open={showUnsavedChangesAlert}
+              onOpenChange={setShowUnsavedChangesAlert}
+              srTitle='Unsaved Changes'
+              title='Unsaved Changes'
+              text='You have unsaved changes. Are you sure you want to discard them?'
+              dismissLabel='Keep editing'
+              confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
+            />
+          </Resource>
+        </FileDocRoomProvider>
 
         <DeleteConfirmModal
           open={showDeleteConfirm}

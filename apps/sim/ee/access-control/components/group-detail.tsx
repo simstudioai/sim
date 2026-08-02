@@ -28,6 +28,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { ChevronDown, Plus } from 'lucide-react'
 import { useQueryState } from 'nuqs'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
@@ -45,7 +46,6 @@ import {
   MemberRow,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -76,7 +76,7 @@ import {
 import type { ProviderId } from '@/providers/types'
 import { getAllProviderIds, getProviderFromModel } from '@/providers/utils'
 import type { ProviderName } from '@/stores/providers'
-import { getTool } from '@/tools/utils'
+import { getToolMetadata } from '@/tools/metadata'
 
 const logger = createLogger('AccessControlGroupDetail')
 
@@ -733,7 +733,7 @@ function BlockToolRow({
   const checkboxId = `block-${block.type}`
 
   const toolItems = useMemo<DenylistGridItem[]>(
-    () => (block.tools?.access ?? []).map((id) => ({ id, label: getTool(id)?.name ?? id })),
+    () => (block.tools?.access ?? []).map((id) => ({ id, label: getToolMetadata(id)?.name ?? id })),
     [block.tools?.access]
   )
   const isExpandable = toolItems.length > 1

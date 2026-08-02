@@ -17,7 +17,10 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
+import {
+  MAX_JSON_API_RESPONSE_BYTES,
+  secureFetchWithPinnedIP,
+} from '@/lib/core/security/input-validation.server'
 
 /** Connect-format field type strings returned by normalization. */
 type ConnectFieldType =
@@ -344,7 +347,13 @@ export interface ConnectResponse {
   arrayBuffer: () => Promise<ArrayBuffer>
 }
 
-/** Proxy a request to the 1Password Connect Server. */
+/**
+ * Proxy a request to the 1Password Connect Server.
+ *
+ * The Connect server is self-hosted at a user-supplied `serverUrl`, so the response body
+ * is always capped. JSON endpoints use {@link MAX_JSON_API_RESPONSE_BYTES}; callers
+ * downloading file content pass a larger `maxResponseBytes` explicitly.
+ */
 export async function connectRequest(options: {
   serverUrl: string
   apiKey: string
@@ -352,6 +361,7 @@ export async function connectRequest(options: {
   method: string
   body?: unknown
   query?: string
+  maxResponseBytes?: number
 }): Promise<ConnectResponse> {
   const resolvedIP = await validateConnectServerUrl(options.serverUrl)
 
@@ -372,6 +382,7 @@ export async function connectRequest(options: {
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
     allowHttp: true,
+    maxResponseBytes: options.maxResponseBytes ?? MAX_JSON_API_RESPONSE_BYTES,
   })
 }
 

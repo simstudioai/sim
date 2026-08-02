@@ -6,6 +6,7 @@ import { onePasswordGetItemFileContract } from '@/lib/api/contracts/tools/onepas
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import {
   connectRequest,
   createOnePasswordClient,
@@ -80,6 +81,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       apiKey: creds.apiKey!,
       path: `/v1/vaults/${params.vaultId}/items/${params.itemId}/files/${params.fileId}/content`,
       method: 'GET',
+      maxResponseBytes: MAX_FILE_SIZE,
     })
     if (!contentResponse.ok) {
       const errorData = await contentResponse.json().catch(() => ({}))

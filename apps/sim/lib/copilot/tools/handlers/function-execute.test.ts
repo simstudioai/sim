@@ -89,6 +89,32 @@ function mountedFiles() {
 
 const snapshotCacheOn = (flag: string) => Promise.resolve(flag === 'table-snapshot-cache')
 
+describe('executeFunctionExecute trace-secret provenance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExecuteTool.mockResolvedValue({ success: true })
+  })
+
+  it('forwards the registry only through server execution options', async () => {
+    const resolvedSecretTraceRegistry = { recordResolved: vi.fn() }
+
+    await executeFunctionExecute({ code: 'return {{API_KEY}}' }, {
+      userId: 'u1',
+      workspaceId: 'ws_1',
+      resolvedSecretTraceRegistry,
+    } as never)
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.not.objectContaining({ resolvedSecretTraceRegistry: expect.anything() }),
+      { resolvedSecretTraceRegistry }
+    )
+    const appParams = mockExecuteTool.mock.calls[0]?.[1] as Record<string, unknown>
+    expect(appParams._context).not.toHaveProperty('resolvedSecretTraceRegistry')
+    expect(JSON.stringify(appParams)).not.toContain('resolvedSecretTraceRegistry')
+  })
+})
+
 describe('executeFunctionExecute table mounts', () => {
   beforeEach(() => {
     vi.clearAllMocks()

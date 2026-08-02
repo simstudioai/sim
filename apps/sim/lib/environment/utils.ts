@@ -21,6 +21,8 @@ import {
 
 const logger = createLogger('EnvironmentUtils')
 const WORKSPACE_ENV_LOCK_TIMEOUT_MS = 5_000
+const EFFECTIVE_ENVIRONMENT_CACHE_TTL_MS = 2_000
+const EFFECTIVE_ENVIRONMENT_CACHE_MAX_ENTRIES = 1_000
 
 /** Thrown when the acting user may not write one of the requested env keys. */
 export class WorkspaceEnvAccessError extends Error {
@@ -29,26 +31,42 @@ export class WorkspaceEnvAccessError extends Error {
     this.name = 'WorkspaceEnvAccessError'
   }
 }
-const EFFECTIVE_DECRYPTED_ENV_CACHE_TTL_MS = 2_000
-const EFFECTIVE_DECRYPTED_ENV_CACHE_MAX_ENTRIES = 1_000
 
-interface EffectiveDecryptedEnvCacheEntry {
-  userId: string
-  workspaceId?: string
-  promise: Promise<Record<string, string>>
+export interface EnvironmentResolutionSnapshot {
+  personalEncrypted: Record<string, string>
+  workspaceEncrypted: Record<string, string>
+  personalDecrypted: Record<string, string>
+  workspaceDecrypted: Record<string, string>
+  conflicts: string[]
+  decryptionFailures: string[]
 }
 
-const effectiveDecryptedEnvCache = new LRUCache<string, EffectiveDecryptedEnvCacheEntry>({
-  max: EFFECTIVE_DECRYPTED_ENV_CACHE_MAX_ENTRIES,
-  ttl: EFFECTIVE_DECRYPTED_ENV_CACHE_TTL_MS,
+interface EffectiveEnvironmentCacheEntry {
+  userId: string
+  workspaceId?: string
+  promise: Promise<EnvironmentResolutionSnapshot>
+}
+
+const effectiveEnvironmentCache = new LRUCache<string, EffectiveEnvironmentCacheEntry>({
+  max: EFFECTIVE_ENVIRONMENT_CACHE_MAX_ENTRIES,
+  ttl: EFFECTIVE_ENVIRONMENT_CACHE_TTL_MS,
 })
 
-function getEffectiveDecryptedEnvCacheKey(userId: string, workspaceId?: string): string {
+function getEffectiveEnvironmentCacheKey(userId: string, workspaceId?: string): string {
   return JSON.stringify([userId, workspaceId ?? null])
 }
 
-function cloneEnvVars(envVars: Record<string, string>): Record<string, string> {
-  return { ...envVars }
+function cloneEnvironmentResolutionSnapshot(
+  snapshot: EnvironmentResolutionSnapshot
+): EnvironmentResolutionSnapshot {
+  return {
+    personalEncrypted: { ...snapshot.personalEncrypted },
+    workspaceEncrypted: { ...snapshot.workspaceEncrypted },
+    personalDecrypted: { ...snapshot.personalDecrypted },
+    workspaceDecrypted: { ...snapshot.workspaceDecrypted },
+    conflicts: [...snapshot.conflicts],
+    decryptionFailures: [...snapshot.decryptionFailures],
+  }
 }
 
 export function invalidateEffectiveDecryptedEnvCache(input: {
@@ -58,13 +76,13 @@ export function invalidateEffectiveDecryptedEnvCache(input: {
   const { userId, workspaceId } = input
   if (!userId && !workspaceId) return
 
-  effectiveDecryptedEnvCache.forEach((entry, cacheKey) => {
+  effectiveEnvironmentCache.forEach((entry, cacheKey) => {
     if (userId && entry.userId === userId) {
-      effectiveDecryptedEnvCache.delete(cacheKey)
+      effectiveEnvironmentCache.delete(cacheKey)
       return
     }
     if (workspaceId && entry.workspaceId === workspaceId) {
-      effectiveDecryptedEnvCache.delete(cacheKey)
+      effectiveEnvironmentCache.delete(cacheKey)
     }
   })
 }
@@ -109,14 +127,7 @@ export async function getPersonalAndWorkspaceEnv(
   userId: string,
   workspaceId?: string,
   options?: { workspaceAccess?: WorkspaceAccess }
-): Promise<{
-  personalEncrypted: Record<string, string>
-  workspaceEncrypted: Record<string, string>
-  personalDecrypted: Record<string, string>
-  workspaceDecrypted: Record<string, string>
-  conflicts: string[]
-  decryptionFailures: string[]
-}> {
+): Promise<EnvironmentResolutionSnapshot> {
   let workspaceCanAdmin = false
   if (workspaceId) {
     const access = options?.workspaceAccess ?? (await checkWorkspaceAccess(workspaceId, userId))
@@ -426,6 +437,42 @@ export async function upsertWorkspaceEnvVars(
   return updatedKeys
 }
 
+async function getCachedEnvironmentResolutionSnapshot(
+  userId: string,
+  workspaceId?: string
+): Promise<EnvironmentResolutionSnapshot> {
+  const cacheKey = getEffectiveEnvironmentCacheKey(userId, workspaceId)
+  const cached = effectiveEnvironmentCache.get(cacheKey)
+  if (cached) {
+    return cached.promise
+  }
+
+  const promise = getPersonalAndWorkspaceEnv(userId, workspaceId).catch((error) => {
+    effectiveEnvironmentCache.delete(cacheKey)
+    throw error
+  })
+
+  effectiveEnvironmentCache.set(cacheKey, {
+    userId,
+    workspaceId,
+    promise,
+  })
+
+  return promise
+}
+
+/**
+ * Returns a defensive clone of the cached environment snapshot used for runtime resolution.
+ */
+export async function getEffectiveEnvironmentSnapshot(
+  userId: string,
+  workspaceId?: string
+): Promise<EnvironmentResolutionSnapshot> {
+  return cloneEnvironmentResolutionSnapshot(
+    await getCachedEnvironmentResolutionSnapshot(userId, workspaceId)
+  )
+}
+
 /**
  * Returns a merged decrypted env map for webhook/copilot/MCP config resolution.
  */
@@ -433,27 +480,9 @@ export async function getEffectiveDecryptedEnv(
   userId: string,
   workspaceId?: string
 ): Promise<Record<string, string>> {
-  const cacheKey = getEffectiveDecryptedEnvCacheKey(userId, workspaceId)
-  const cached = effectiveDecryptedEnvCache.get(cacheKey)
-  if (cached) {
-    return cloneEnvVars(await cached.promise)
-  }
-
-  const promise = getPersonalAndWorkspaceEnv(userId, workspaceId)
-    .then(({ personalDecrypted, workspaceDecrypted }) => ({
-      ...personalDecrypted,
-      ...workspaceDecrypted,
-    }))
-    .catch((error) => {
-      effectiveDecryptedEnvCache.delete(cacheKey)
-      throw error
-    })
-
-  effectiveDecryptedEnvCache.set(cacheKey, {
+  const { personalDecrypted, workspaceDecrypted } = await getCachedEnvironmentResolutionSnapshot(
     userId,
-    workspaceId,
-    promise,
-  })
-
-  return cloneEnvVars(await promise)
+    workspaceId
+  )
+  return { ...personalDecrypted, ...workspaceDecrypted }
 }

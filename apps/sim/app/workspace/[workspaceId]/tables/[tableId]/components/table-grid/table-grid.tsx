@@ -5,11 +5,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { cn, toast, useToast } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
+import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
@@ -23,6 +25,7 @@ import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
@@ -39,8 +42,10 @@ import {
   useUpdateTableRow,
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
+import { useAddToChat } from '@/hooks/use-add-to-chat'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
+import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
@@ -53,18 +58,24 @@ import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
+import { RemoteSelectionOverlay } from './remote-selection-overlay'
 import { TableFind } from './table-find'
 import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
 import type { DisplayColumn } from './types'
 import {
   buildHeaderGroups,
+  buildTableSelectionContext,
   type CellCoord,
+  canWriteRowsWithChip,
   checkboxColLayout,
+  chipRowCount,
   classifyExecStatusMix,
   collectRowSnapshots,
   computeNormalizedSelection,
+  drainTargetForChip,
   type ExecStatusMix,
   expandToDisplayColumns,
+  isCellInSelection,
   moveCell,
   ROW_SELECTION_ALL,
   ROW_SELECTION_NONE,
@@ -73,6 +84,7 @@ import {
   rowSelectionIncludes,
   rowSelectionIsEmpty,
   rowSelectionMaterialize,
+  selectedColumnIds,
 } from './utils'
 
 const logger = createLogger('TableView')
@@ -149,6 +161,10 @@ interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
+  /** Remote collaborators' cell selections, rendered as presence overlays. */
+  remoteSelections: RemoteTableSelection[]
+  /** Broadcast the local viewer's cell selection to the table presence room. */
+  emitCellSelection: (cell: TableCellSelection) => void
   /** The table's mutation locks; gates row/schema affordances alongside `canEdit`. */
   locks?: TableLocks
   /**
@@ -299,6 +315,40 @@ function cellToText(value: unknown, column?: DisplayColumn): string {
 }
 
 /**
+ * Copies `rows` synchronously on the copy event so a chat-selection chip can
+ * ride alongside the tab-separated text. Eligibility lives in
+ * {@link canWriteRowsWithChip}; this owns only the clipboard and toast effects.
+ *
+ * @returns True when it handled the copy, false to fall through to the paged path.
+ */
+function writeLoadedRowsWithChip(opts: {
+  clipboardData: DataTransfer | null
+  rows: TableRowType[]
+  complete: boolean
+  buildCells: (row: TableRowType) => string[]
+  context: ChatContext | null
+}): boolean {
+  const { rows, context } = opts
+  if (
+    !canWriteRowsWithChip({
+      rowCount: rows.length,
+      complete: opts.complete,
+      hasContext: Boolean(context),
+    }) ||
+    !context
+  ) {
+    return false
+  }
+  opts.clipboardData?.setData(
+    'text/plain',
+    rows.map((row) => opts.buildCells(row).join('\t')).join('\n')
+  )
+  attachSelectionContextToClipboard(opts.clipboardData, context)
+  toast.success(`Copied ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`)
+  return true
+}
+
+/**
  * Value-equality for a cell's stored value vs a pending edit. Primitives compare
  * with `===`; arrays/objects (multiselect id arrays, json) compare structurally
  * so a no-op edit — e.g. opening a multiselect and closing it unchanged — isn't
@@ -365,6 +415,8 @@ export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
+  remoteSelections,
+  emitCellSelection,
   locks,
   onBlockedAction,
   sidebarReservedPx,
@@ -432,6 +484,13 @@ export function TableGrid({
   const columnWidthsRef = useRef(columnWidths)
   columnWidthsRef.current = columnWidths
   const [resizingColumn, setResizingColumn] = useState<string | null>(null)
+  const resizingColumnRef = useRef(resizingColumn)
+  resizingColumnRef.current = resizingColumn
+  /** True from a committed local width change until its metadata PUT settles. Keeps a
+   *  concurrent peer-triggered definition refetch (the value-less `metadata` event forces a
+   *  refetch that can carry the not-yet-persisted server widths) from momentarily reverting
+   *  the just-written widths. */
+  const pendingWidthWriteRef = useRef(false)
   const [columnOrder, setColumnOrder] = useState<string[] | null>(null)
   const columnOrderRef = useRef(columnOrder)
   columnOrderRef.current = columnOrder
@@ -797,6 +856,24 @@ export function TableGrid({
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, hiddenColumns, tableWorkflowGroups])
 
+  /** Column id → its rendered index (matches the cells' `data-col`), for placing overlays.
+   *  Only built when collaborators are present (the overlay it feeds is gated on that too),
+   *  so solo editing never pays the map build. */
+  const columnIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    if (remoteSelections.length > 0) displayColumns.forEach((col, index) => map.set(col.key, index))
+    return map
+  }, [displayColumns, remoteSelections.length])
+
+  /** Row id → its index in the current row list, for testing local-selection coverage.
+   *  Only built when collaborators are present (the overlay is gated on that too), so
+   *  solo editing never pays the O(n) map build on a refetch. */
+  const rowIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    if (remoteSelections.length > 0) rows.forEach((row, index) => map.set(row.id, index))
+    return map
+  }, [rows, remoteSelections.length])
+
   const workflowGroupById = useMemo(
     () => new Map(tableWorkflowGroups.map((g) => [g.id, g])),
     [tableWorkflowGroups]
@@ -957,6 +1034,9 @@ export function TableGrid({
   const rowSelectionRef = useRef(rowSelection)
   rowSelectionRef.current = rowSelection
 
+  const tableNameRef = useRef(tableData?.name)
+  tableNameRef.current = tableData?.name
+
   columnsRef.current = displayColumns
   schemaColumnsRef.current = columns
   workflowGroupsRef.current = tableWorkflowGroups
@@ -970,6 +1050,30 @@ export function TableGrid({
   focusRowIdRef.current = selectionFocus
     ? (rowsRef.current[selectionFocus.rowIndex]?.id ?? null)
     : null
+
+  // Broadcast the local viewer's cell selection to the presence room. Resolves the
+  // index-based selection to stable (rowId, columnId), re-running on `rows`/`displayColumns`
+  // too so a peer's row insert/delete/reorder re-broadcasts the shifted id under the same
+  // index (the emitter dedups an unchanged result). `editing` marks the active cell so
+  // peers darken it (the "someone is typing here" signal).
+  useEffect(() => {
+    const resolve = (coord: CellCoord | null) => {
+      if (!coord) return null
+      const rowId = rows[coord.rowIndex]?.id
+      const columnId = displayColumns[coord.colIndex]?.key
+      return rowId && columnId ? { rowId, columnId } : null
+    }
+    const anchor = resolve(selectionAnchor)
+    if (!anchor) {
+      emitCellSelection(null)
+      return
+    }
+    // A single-cell click leaves `selectionFocus` null; the grid treats that as a
+    // one-cell selection at the anchor (`focus ?? anchor`). Mirror that — otherwise the
+    // most common selection would never broadcast and would clear the prior outline.
+    const focus = resolve(selectionFocus) ?? anchor
+    emitCellSelection({ anchor, focus, editing: editingCell !== null })
+  }, [selectionAnchor, selectionFocus, editingCell, rows, displayColumns, emitCellSelection])
 
   const { data: findData, isFetching: isFindFetching } = useFindTableRows({
     workspaceId,
@@ -1341,12 +1445,7 @@ export function TableGrid({
             selectionAnchorRef.current,
             selectionFocusRef.current
           )
-          const isWithinSelection =
-            sel !== null &&
-            rowIndex >= sel.startRow &&
-            rowIndex <= sel.endRow &&
-            colIndex >= sel.startCol &&
-            colIndex <= sel.endCol
+          const isWithinSelection = sel !== null && isCellInSelection(rowIndex, colIndex, sel)
 
           if (!isWithinSelection) {
             setSelectionAnchor({ rowIndex, colIndex })
@@ -1563,7 +1662,11 @@ export function TableGrid({
 
   const handleColumnResizeEnd = useCallback(() => {
     setResizingColumn(null)
-    updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
+    pendingWidthWriteRef.current = true
+    updateMetadataRef.current(
+      { columnWidths: columnWidthsRef.current },
+      { onSettled: () => (pendingWidthWriteRef.current = false) }
+    )
   }, [])
 
   const handleColumnAutoResize = useCallback((columnKey: string) => {
@@ -1616,7 +1719,11 @@ export function TableGrid({
     setColumnWidths((prev) => ({ ...prev, [columnKey]: newWidth }))
     const updated = { ...columnWidthsRef.current, [columnKey]: newWidth }
     columnWidthsRef.current = updated
-    updateMetadataRef.current({ columnWidths: updated })
+    pendingWidthWriteRef.current = true
+    updateMetadataRef.current(
+      { columnWidths: updated },
+      { onSettled: () => (pendingWidthWriteRef.current = false) }
+    )
   }, [])
 
   const handleColumnDragStart = useCallback((columnName: string) => {
@@ -1921,28 +2028,45 @@ export function TableGrid({
       return
     }
     if (!source) return
-    // After first load: only re-seed `columnOrder` when the *set of columns*
-    // changes (e.g. a workflow group adds/removes outputs server-side). Pure
-    // reorders are left alone so an in-flight optimistic drag isn't clobbered
-    // by a refetch returning the pre-drag order.
+    // After first load a collaborator (or our own committed edit) reshaped the layout.
+    // Re-apply it live from the active layout source (a view's config when one is active,
+    // else the table's own metadata), but never clobber the gesture the local user is
+    // mid-way through — their in-progress value leads the server's. Each field is guarded
+    // by reference: React Query structural sharing keeps an unchanged sub-object
+    // referentially stable, so an unrelated change (e.g. a peer's pin) doesn't re-apply
+    // widths/order.
+    // Width: keep the column being actively resized on its live local value.
+    const serverWidths = source.columnWidths
+    if (serverWidths && serverWidths !== columnWidthsRef.current) {
+      const resizing = resizingColumnRef.current
+      const localWidth = resizing ? columnWidthsRef.current[resizing] : undefined
+      if (resizing && localWidth !== undefined) {
+        setColumnWidths({ ...serverWidths, [resizing]: localWidth })
+      } else if (!pendingWidthWriteRef.current) {
+        setColumnWidths(serverWidths)
+      }
+      // else: a just-committed local width write is still in flight — local leads until
+      // its onSettled invalidation brings back the server's committed (merged) widths.
+    }
+    // Pins toggle instantly (no in-progress gesture) — apply on change.
+    const serverPins = source.pinnedColumns
+    if (serverPins && serverPins !== pinnedColumnsRef.current) {
+      setPinnedColumns(serverPins)
+    }
+    // Order: apply the server order live (a peer reorder or our own committed edit),
+    // unless a local column drag is in flight (an optimistic reorder would otherwise be
+    // reverted to the pre-drag order the refetch returns). Preserve our own just-appended
+    // ids whose patch is still in flight by appending them — `viewLayout` gets a new
+    // identity on every save, so a refetch/view-save predating the append must not drop
+    // them; `displayColumns` harmlessly skips any id with no matching column.
     const serverOrder = source.columnOrder
-    if (serverOrder) {
+    if (serverOrder && serverOrder !== columnOrderRef.current && !dragColumnNameRef.current) {
       const localOrder = columnOrderRef.current
       if (!localOrder) {
         setColumnOrder(serverOrder)
       } else {
-        // Re-seed only when the server knows an id the local order lacks — a real
-        // schema change (a workflow group gained outputs). Ids present locally but
-        // NOT on the server are our own just-appended columns whose patch is still
-        // in flight: `viewLayout` gets a new identity on every save, so a refetch
-        // carrying the pre-append order would otherwise roll them back, and the
-        // append effect can't re-fire because `columns` is unchanged. Ids the
-        // server drops stay in the local order harmlessly — `displayColumns`
-        // skips any id with no matching column.
-        const localSet = new Set(localOrder)
-        if (serverOrder.some((id) => !localSet.has(id))) {
-          setColumnOrder(serverOrder)
-        }
+        const localOnly = localOrder.filter((id) => !serverOrder.includes(id))
+        setColumnOrder(localOnly.length > 0 ? [...serverOrder, ...localOnly] : serverOrder)
       }
     }
   }, [tableData?.metadata, viewLayout, viewLayoutKey])
@@ -2846,6 +2970,30 @@ export function TableGrid({
 
       if (!rowSelectionIsEmpty(rowSel)) {
         e.preventDefault()
+        // Only an explicit multi-row selection can take this path: a filtered
+        // select-all ('all') pages in rows beyond those loaded, which the async
+        // fall-through must fetch. `complete` refers to the copied TEXT only —
+        // for 'some' the fall-through re-reads these same loaded rows (see its
+        // `loadRows`), so it can never serialize more than this does. The chip
+        // is not bound by that; see `rowIds` below.
+        if (rowSel.kind === 'some') {
+          const selectedRows = currentRows.filter((row) => rowSelectionIncludes(rowSel, row.id))
+          const handled = writeLoadedRowsWithChip({
+            clipboardData: e.clipboardData,
+            rows: selectedRows,
+            complete: true,
+            buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
+            context: buildTableSelectionContext({
+              tableId,
+              tableName: tableNameRef.current,
+              // Every selected id, not just the loaded page: the chip carries
+              // ids and the server re-fetches them, so an unloaded row still
+              // reaches the agent. Only the pasted text is limited to `rows`.
+              rowIds: [...rowSel.ids],
+            }),
+          })
+          if (handled) return
+        }
         writeSelectionToClipboard({
           loadRows:
             rowSel.kind === 'all'
@@ -2874,6 +3022,24 @@ export function TableGrid({
           if (name) colNames.push(name)
         }
         const colByKey = new Map(cols.map((c) => [c.key, c]))
+
+        // A column-header selection spans every row, and its fall-through pages
+        // in the rest — so the chip path applies only once all of them are here.
+        const handled = writeLoadedRowsWithChip({
+          clipboardData: e.clipboardData,
+          rows: currentRows,
+          complete: currentRows.length >= selectAllTotalRef.current,
+          buildCells: (row) =>
+            colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
+          context: buildTableSelectionContext({
+            tableId,
+            tableName: tableNameRef.current,
+            rowIds: currentRows.map((row) => row.id),
+            columnIds: selectedColumnIds(cols, sel),
+          }),
+        })
+        if (handled) return
+
         writeSelectionToClipboard({
           loadRows: () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS),
           selectRow: () => true,
@@ -2884,6 +3050,21 @@ export function TableGrid({
         })
         return
       }
+
+      // The cell-range write below is already synchronous, so the chip simply
+      // rides along on the same event.
+      const rangeRowIds: string[] = []
+      for (let r = sel.startRow; r <= sel.endRow; r++) {
+        const row = currentRows[r]
+        if (row) rangeRowIds.push(row.id)
+      }
+      const rangeContext = buildTableSelectionContext({
+        tableId,
+        tableName: tableNameRef.current,
+        rowIds: rangeRowIds,
+        columnIds: selectedColumnIds(cols, sel),
+      })
+      if (rangeContext) attachSelectionContextToClipboard(e.clipboardData, rangeContext)
 
       const lines: string[] = []
       for (let r = sel.startRow; r <= sel.endRow; r++) {
@@ -3603,6 +3784,95 @@ export function TableGrid({
       )
     : contextMenuRowIds.length || 1
 
+  /**
+   * Rows the Add to Chat chip will reference, before the async drain that
+   * select-all and column selections perform. A gutter `some` selection can
+   * extend past the loaded page, and the chip carries ids the server re-fetches,
+   * so it uses the whole set rather than the loaded intersection
+   * `contextMenuRowIds` holds. Shared with the menu label so the count shown and
+   * the count sent can't disagree.
+   */
+  const addToChatRowIds = useMemo<string[]>(() => {
+    if (
+      rowSelection.kind === 'some' &&
+      contextMenu.row &&
+      rowSelectionIncludes(rowSelection, contextMenu.row.id)
+    ) {
+      return [...rowSelection.ids]
+    }
+    return contextMenuRowIds
+  }, [rowSelection, contextMenu.row, contextMenuRowIds])
+
+  /**
+   * Column ids for an "Add to chat" table selection. A spreadsheet-style cell
+   * range AND a column-header selection (which spans every row of the chosen
+   * columns) narrow the columns; whole-row (gutter) selections and single rows
+   * send every column (undefined).
+   */
+  const contextMenuColumnIds = useMemo<string[] | undefined>(() => {
+    if (!contextMenu.isOpen || !contextMenu.row) return undefined
+    if (
+      !rowSelectionIsEmpty(rowSelection) &&
+      rowSelectionIncludes(rowSelection, contextMenu.row.id)
+    ) {
+      return undefined
+    }
+    const sel = normalizedSelection
+    if (!sel) return undefined
+    const contextRowArrayIndex = rows.findIndex((r) => r.id === contextMenu.row!.id)
+    if (contextRowArrayIndex < sel.startRow || contextRowArrayIndex > sel.endRow) return undefined
+    // Collapsed here too (not only in buildTableSelectionContext) because this
+    // also decides whether the menu item reads "cell range" or "rows".
+    // Not collapsed to `undefined` when it spans every visible column: hidden
+    // columns mean "all visible" is not "all", and widening would send the agent
+    // columns the user hid. See buildTableSelectionContext.
+    const ids = selectedColumnIds(displayColumns, sel)
+    return ids.length > 0 ? ids : undefined
+  }, [contextMenu.isOpen, contextMenu.row, rowSelection, normalizedSelection, rows, displayColumns])
+
+  const addToChat = useAddToChat()
+  const handleAddSelectionToChat = useCallback(async () => {
+    // A gutter select-all (filtered) or a column-header selection (every row of
+    // the chosen columns) covers rows beyond the loaded page that
+    // `contextMenuRowIds` reflects; drain up to the cap so the chip references as
+    // many rows as it can carry (bounded by MAX_TABLE_SELECTION_ROWS) instead of a
+    // silent loaded-only subset — mirroring how the copy path loads before writing.
+    let sourceRowIds = addToChatRowIds
+    if (contextMenuIsSelectAll || isColumnSelectionRef.current) {
+      try {
+        const excludedCount =
+          rowSelectionRef.current.kind === 'all' ? (rowSelectionRef.current.excluded?.size ?? 0) : 0
+        const { rows: loaded } = await ensureRowsLoadedUpToRef.current(
+          drainTargetForChip(excludedCount)
+        )
+        // A column selection spans all rows; a gutter select-all filters by the
+        // (exclusion-aware) row selection.
+        const drained = (
+          contextMenuIsSelectAll
+            ? loaded.filter((row) => rowSelectionIncludes(rowSelectionRef.current, row.id))
+            : loaded
+        ).map((row) => row.id)
+        if (drained.length > 0) sourceRowIds = drained
+      } catch {
+        // Fall back to the already-loaded rows if the drain fails.
+      }
+    }
+    const context = buildTableSelectionContext({
+      tableId,
+      tableName: tableData?.name,
+      rowIds: sourceRowIds,
+      columnIds: contextMenuColumnIds,
+    })
+    if (context) addToChat(context)
+  }, [
+    addToChat,
+    addToChatRowIds,
+    contextMenuColumnIds,
+    contextMenuIsSelectAll,
+    tableId,
+    tableData?.name,
+  ])
+
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
   /**
@@ -4253,6 +4523,15 @@ export function TableGrid({
                     })()}
               </tbody>
             </table>
+            {remoteSelections.length > 0 && (
+              <RemoteSelectionOverlay
+                remoteSelections={remoteSelections}
+                columnIndexById={columnIndexById}
+                rowIndexById={rowIndexById}
+                localSelection={normalizedSelection}
+                scrollElement={scrollRef.current}
+              />
+            )}
             {resizingColumn && (
               <div
                 className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
@@ -4316,6 +4595,11 @@ export function TableGrid({
         disableInsert={!canManualAddRow}
         disableDuplicate={!canInsertFullRow}
         disableDelete={!canDeleteRow}
+        onAddToChat={addToChatRowIds.length > 0 ? handleAddSelectionToChat : undefined}
+        addToChatCellScoped={Boolean(contextMenuColumnIds)}
+        addToChatRowCount={chipRowCount(
+          contextMenuIsSelectAll ? selectedRowCount : addToChatRowIds.length
+        )}
       />
 
       <ExpandedCellPopover

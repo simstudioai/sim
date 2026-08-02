@@ -1,5 +1,6 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ToolExecutionContext {
   userId: string
@@ -24,6 +25,7 @@ export interface ToolExecutionContext {
   userTimezone?: string
   userPermission?: string
   decryptedEnvVars?: Record<string, string>
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
 export interface ToolExecutionResult {

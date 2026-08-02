@@ -5,8 +5,15 @@ import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import { env } from '@/lib/core/config/env'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
+import {
+  PRIVATE_TOOL_METADATA_REQUEST_HEADER,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+  responseHasPrivateToolMetadata,
+} from '@/lib/execution/private-tool-metadata'
 import {
   createFileContentFromBase64,
   type MessageContent,
@@ -23,6 +30,7 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('MothershipBlockHandler')
@@ -42,13 +50,31 @@ type MothershipExecuteResult = {
   tokens?: Record<string, unknown>
   toolCalls?: Array<Record<string, unknown>>
   cost?: unknown
-}
+} & Partial<Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>>
 
 type MothershipExecuteStreamEvent =
   | { type: 'heartbeat'; timestamp?: string }
   | { type: 'chunk'; content?: string }
   | { type: 'final'; data: MothershipExecuteResult }
-  | { type: 'error'; error?: string }
+  | ({ type: 'error'; error?: string } & Partial<
+      Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>
+    >)
+
+async function consumeMothershipProvenance(
+  payload: Partial<Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>>,
+  response: Response,
+  registry?: ResolvedSecretTraceRegistry
+): Promise<boolean> {
+  if (!registry) return true
+  if (
+    !responseHasPrivateToolMetadata(response.headers, RESOLVED_SECRET_PROVENANCE_METADATA_V1) ||
+    !Object.hasOwn(payload, RESOLVED_SECRET_PROVENANCE_FIELD)
+  ) {
+    registry.markIncomplete()
+    return false
+  }
+  return registry.importProvenance(payload[RESOLVED_SECRET_PROVENANCE_FIELD], { trusted: true })
+}
 
 function parseMothershipExecuteStreamLine(line: string): MothershipExecuteStreamEvent | undefined {
   const trimmed = line.trim()
@@ -99,10 +125,15 @@ function isContentSelectedForStreaming(ctx: ExecutionContext, block: SerializedB
   )
 }
 
-async function readMothershipExecuteResponse(response: Response): Promise<MothershipExecuteResult> {
+async function readMothershipExecuteResponse(
+  response: Response,
+  registry?: ResolvedSecretTraceRegistry
+): Promise<MothershipExecuteResult> {
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.includes('application/x-ndjson')) {
-    return response.json()
+    const result = (await response.json()) as MothershipExecuteResult
+    await consumeMothershipProvenance(result, response, registry)
+    return result
   }
 
   if (!response.body) {
@@ -113,8 +144,9 @@ async function readMothershipExecuteResponse(response: Response): Promise<Mother
   const decoder = new TextDecoder()
   let buffer = ''
   let finalResult: MothershipExecuteResult | undefined
+  let receivedTerminalProvenance = false
 
-  const processLine = (line: string) => {
+  const processLine = async (line: string): Promise<void> => {
     const event = parseMothershipExecuteStreamLine(line)
     if (!event) return
 
@@ -123,10 +155,12 @@ async function readMothershipExecuteResponse(response: Response): Promise<Mother
     }
 
     if (event.type === 'error') {
+      receivedTerminalProvenance = await consumeMothershipProvenance(event, response, registry)
       throw new Error(`Sim execution failed: ${event.error || 'Unknown error'}`)
     }
 
     if (event.type === 'final') {
+      await consumeMothershipProvenance(event.data, response, registry)
       finalResult = event.data
       return
     }
@@ -143,12 +177,12 @@ async function readMothershipExecuteResponse(response: Response): Promise<Mother
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
       for (const line of lines) {
-        processLine(line)
+        await processLine(line)
       }
     }
 
     buffer += decoder.decode()
-    processLine(buffer)
+    await processLine(buffer)
 
     if (!finalResult) {
       throw new Error('Sim execution stream ended without a final result')
@@ -156,6 +190,7 @@ async function readMothershipExecuteResponse(response: Response): Promise<Mother
 
     return finalResult
   } finally {
+    if (!finalResult && !receivedTerminalProvenance) registry?.markIncomplete()
     reader.releaseLock()
   }
 }
@@ -167,6 +202,7 @@ function createMothershipStreamingExecution(
   options: {
     onCancel?: (reason?: unknown) => void
     onDone?: () => void
+    registry?: ResolvedSecretTraceRegistry
   } = {}
 ): StreamingExecution {
   if (!response.body) {
@@ -190,8 +226,9 @@ function createMothershipStreamingExecution(
       const encoder = new TextEncoder()
       let buffer = ''
       let sawFinal = false
+      let receivedTerminalProvenance = false
 
-      const processLine = (line: string) => {
+      const processLine = async (line: string): Promise<void> => {
         const event = parseMothershipExecuteStreamLine(line)
         if (!event) return
 
@@ -207,10 +244,16 @@ function createMothershipStreamingExecution(
         }
 
         if (event.type === 'error') {
+          receivedTerminalProvenance = await consumeMothershipProvenance(
+            event,
+            response,
+            options.registry
+          )
           throw new Error(`Sim execution failed: ${event.error || 'Unknown error'}`)
         }
 
         if (event.type === 'final') {
+          await consumeMothershipProvenance(event.data, response, options.registry)
           sawFinal = true
           Object.assign(output, formatMothershipBlockOutput(event.data, fallbackChatId))
           return
@@ -229,12 +272,12 @@ function createMothershipStreamingExecution(
           const lines = buffer.split('\n')
           buffer = lines.pop() ?? ''
           for (const line of lines) {
-            processLine(line)
+            await processLine(line)
           }
         }
 
         buffer += decoder.decode()
-        processLine(buffer)
+        await processLine(buffer)
 
         if (!sawFinal) {
           throw new Error('Sim execution stream ended without a final result')
@@ -248,6 +291,7 @@ function createMothershipStreamingExecution(
           controller.error(error)
         }
       } finally {
+        if (!sawFinal && !receivedTerminalProvenance) options.registry?.markIncomplete()
         cleanup()
         reader?.releaseLock()
       }
@@ -337,6 +381,12 @@ export class MothershipBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
+    // Without the key the mothership rejects every request, so fail with
+    // something the workflow author can act on instead of a bare 401.
+    if (!env.COPILOT_API_KEY) {
+      throw new Error('COPILOT_API_KEY is not configured, so the Sim Chat block cannot run')
+    }
+
     const prompt = inputs.prompt
     if (!prompt || typeof prompt !== 'string') {
       throw new Error('Prompt input is required')
@@ -375,6 +425,9 @@ export class MothershipBlockHandler implements BlockHandler {
     const headers = await buildAuthHeaders(ctx.userId)
     headers.Accept = 'application/x-ndjson'
     headers[MOTHERSHIP_EXECUTE_STREAM_HEADER] = MOTHERSHIP_EXECUTE_STREAM_VALUE
+    if (ctx.resolvedSecretTraceRegistry) {
+      headers[PRIVATE_TOOL_METADATA_REQUEST_HEADER] = RESOLVED_SECRET_PROVENANCE_METADATA_V1
+    }
     if (!ctx.metadata.billingAttribution) {
       throw new Error('Billing attribution is required for Mothership execution')
     }
@@ -467,6 +520,14 @@ export class MothershipBlockHandler implements BlockHandler {
       })
 
       if (!response.ok) {
+        if (ctx.resolvedSecretTraceRegistry) {
+          try {
+            const payload = (await response.clone().json()) as MothershipExecuteResult
+            await consumeMothershipProvenance(payload, response, ctx.resolvedSecretTraceRegistry)
+          } catch {
+            ctx.resolvedSecretTraceRegistry.markIncomplete()
+          }
+        }
         const errorMsg = await extractAPIErrorMessage(response)
         throw new Error(`Sim execution failed: ${errorMsg}`)
       }
@@ -479,12 +540,13 @@ export class MothershipBlockHandler implements BlockHandler {
             }
           },
           onDone: cleanupAbortListeners,
+          registry: ctx.resolvedSecretTraceRegistry,
         })
         cleanupImmediately = false
         return streamingExecution
       }
 
-      const result = await readMothershipExecuteResponse(response)
+      const result = await readMothershipExecuteResponse(response, ctx.resolvedSecretTraceRegistry)
       return formatMothershipBlockOutput(result, chatId)
     } finally {
       if (cleanupImmediately) {

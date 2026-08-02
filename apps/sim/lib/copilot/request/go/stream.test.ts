@@ -34,7 +34,10 @@ vi.mock('@/lib/copilot/tools/server/files/file-preview', async () => {
   >('@/lib/copilot/tools/server/files/file-preview')
   return {
     ...actual,
-    loadWorkspaceFileTextForPreview: vi.fn().mockResolvedValue(''),
+    // Returns the file's preview base as a `WorkspaceFilePreviewBase` ({ text }), NOT a bare string —
+    // the adapter reads `previewBase.text` to seed an append/patch base. An empty base ('') is defined,
+    // so a base-less append doesn't fail closed.
+    loadWorkspaceFileTextForPreview: vi.fn().mockResolvedValue({ text: '' }),
   }
 })
 

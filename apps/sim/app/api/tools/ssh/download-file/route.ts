@@ -7,8 +7,10 @@ import type { Client, SFTPWrapper } from 'ssh2'
 import { sshDownloadFileContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { MAX_SFTP_READ_BYTES, readSftpFileCapped } from '@/app/api/tools/sftp/utils'
 import { createSSHConnection, sanitizePath } from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHDownloadFileAPI')
@@ -67,31 +69,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       })
 
-      // Check file size limit (50MB to prevent memory exhaustion)
-      const maxSize = 50 * 1024 * 1024
-      if (stats.size > maxSize) {
+      if (stats.size > MAX_SFTP_READ_BYTES) {
         const sizeMB = (stats.size / (1024 * 1024)).toFixed(2)
         return NextResponse.json(
           { error: `File size (${sizeMB}MB) exceeds download limit of 50MB` },
-          { status: 400 }
+          { status: 413 }
         )
       }
 
-      // Read file content
-      const content = await new Promise<Buffer>((resolve, reject) => {
-        const chunks: Buffer[] = []
-        const readStream = sftp.createReadStream(remotePath)
-
-        readStream.on('data', (chunk: Buffer) => {
-          chunks.push(chunk)
-        })
-
-        readStream.on('end', () => {
-          resolve(Buffer.concat(chunks))
-        })
-
-        readStream.on('error', reject)
-      })
+      const content = await readSftpFileCapped(
+        sftp,
+        remotePath,
+        MAX_SFTP_READ_BYTES,
+        'SSH file download'
+      )
 
       const fileName = path.basename(remotePath)
       const extension = getFileExtension(fileName)
@@ -108,12 +99,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           name: fileName,
           mimeType,
           data: base64Content,
-          size: stats.size,
+          size: content.length,
         },
         content: base64Content,
         fileName: fileName,
         remotePath: remotePath,
-        size: stats.size,
+        size: content.length,
         message: `File downloaded successfully from ${remotePath}`,
       })
     } finally {
@@ -121,6 +112,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Unknown error occurred')
+
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn(`[${requestId}] SSH file download aborted: ${errorMessage}`)
+      return NextResponse.json({ error: errorMessage }, { status: 413 })
+    }
+
     logger.error(`[${requestId}] SSH file download failed:`, error)
 
     return NextResponse.json(
