@@ -333,10 +333,23 @@ export async function buildCopilotRequestPayload(
   const effectiveMode = mode === 'agent' ? 'build' : mode
   const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
-  // Track uploaded files in the DB and build context tags instead of base64 inlining
+  // Track uploaded files in the DB and build context tags instead of base64 inlining.
+  // Tracking writes `workspace_files` rows, so it needs the same write grant the
+  // upload routes that issue these keys already require — reaching the chat
+  // endpoint with `read` must not confer a file-write capability.
   const uploadContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
+  const canWriteWorkspaceFiles =
+    params.userPermission === 'write' || params.userPermission === 'admin'
   if (chatId && params.workspaceId && fileAttachments && fileAttachments.length > 0) {
-    for (const f of fileAttachments) {
+    if (!canWriteWorkspaceFiles) {
+      logger.warn('Dropping chat file attachments without workspace write access', {
+        chatId,
+        workspaceId: params.workspaceId,
+        attachmentCount: fileAttachments.length,
+      })
+    }
+    const trackableAttachments = canWriteWorkspaceFiles ? fileAttachments : []
+    for (const f of trackableAttachments) {
       const filename = (f.filename ?? f.name ?? 'file') as string
       const mediaType = (f.media_type ?? f.mimeType ?? 'application/octet-stream') as string
       try {

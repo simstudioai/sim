@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -10,11 +10,15 @@ const {
   mockDecrementStorageUsageForBillingContext,
   mockIncrementStorageUsageForBillingContext,
   mockResolveStorageBillingContext,
+  mockHasCloudStorage,
+  mockHeadObject,
 } = vi.hoisted(() => ({
   mockCheckStorageQuotaForBillingContext: vi.fn(),
   mockDecrementStorageUsageForBillingContext: vi.fn(),
   mockIncrementStorageUsageForBillingContext: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
+  mockHasCloudStorage: vi.fn(),
+  mockHeadObject: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/storage', () => ({
@@ -24,12 +28,39 @@ vi.mock('@/lib/billing/storage', () => ({
   resolveStorageBillingContext: mockResolveStorageBillingContext,
 }))
 
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  deleteFile: vi.fn(),
+  downloadFile: vi.fn(),
+  hasCloudStorage: mockHasCloudStorage,
+  headObject: mockHeadObject,
+  uploadFile: vi.fn(),
+}))
+
 import { CHAT_DISPLAY_NAME_INDEX, suffixedName, trackChatUpload } from './workspace-file-manager'
 
 const CHAT_ID = '11111111-1111-1111-1111-111111111111'
-const WORKSPACE_ID = 'ws_1'
+const WORKSPACE_ID = '22222222-2222-2222-2222-222222222222'
+const OTHER_WORKSPACE_ID = '33333333-3333-3333-3333-333333333333'
 const USER_ID = 'user_1'
-const S3_KEY = 'mothership/abc/123-image.png'
+const OTHER_USER_ID = 'user_2'
+const S3_KEY = `workspace/${WORKSPACE_ID}/1731000000000-ab12cd34-image.png`
+
+/** Row shape `resolveClaimableChatUploadRow` selects, with claimable defaults. */
+function existingRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'wf_existing',
+    userId: USER_ID,
+    workspaceId: WORKSPACE_ID,
+    context: 'mothership',
+    deletedAt: null,
+    ...overrides,
+  }
+}
+
+/** Queue the key-ownership lookup that runs before every bind. */
+function queueOwnershipLookup(rows: unknown[]): void {
+  queueTableRows(schemaMock.workspaceFiles, rows)
+}
 
 function expectNoWorkspaceStorageAccounting(): void {
   expect(mockCheckStorageQuotaForBillingContext).not.toHaveBeenCalled()
@@ -69,9 +100,12 @@ describe('trackChatUpload', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockHasCloudStorage.mockReturnValue(true)
+    mockHeadObject.mockResolvedValue({ size: 1024 })
   })
 
   it('finalizes an existing direct upload without workspace storage accounting', async () => {
+    queueOwnershipLookup([existingRow()])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
 
     const result = await trackChatUpload(
@@ -96,7 +130,7 @@ describe('trackChatUpload', () => {
   })
 
   it('finalizes a presigned upload without workspace storage accounting', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueOwnershipLookup([])
 
     const result = await trackChatUpload(
       WORKSPACE_ID,
@@ -122,6 +156,7 @@ describe('trackChatUpload', () => {
   })
 
   it('stamps message_id on the UPDATE arm when the birth message is known', async () => {
+    queueOwnershipLookup([existingRow()])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
 
     await trackChatUpload(
@@ -141,7 +176,7 @@ describe('trackChatUpload', () => {
   })
 
   it('stamps message_id on the fallback INSERT arm and nulls it when omitted', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueOwnershipLookup([])
 
     await trackChatUpload(
       WORKSPACE_ID,
@@ -159,6 +194,7 @@ describe('trackChatUpload', () => {
     )
 
     // Legacy callers without a message id write an explicit NULL ("birth unknown").
+    queueOwnershipLookup([existingRow()])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
     await trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
     expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
@@ -173,9 +209,8 @@ describe('trackChatUpload', () => {
       constraint_name: CHAT_DISPLAY_NAME_INDEX,
     })
 
-    dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueOwnershipLookup([])
     dbChainMockFns.values.mockRejectedValueOnce(displayNameCollision)
-    dbChainMockFns.returning.mockResolvedValueOnce([])
     dbChainMockFns.values.mockResolvedValueOnce(undefined)
 
     const result = await trackChatUpload(
@@ -204,7 +239,7 @@ describe('trackChatUpload', () => {
       constraint_name: 'workspace_files_key_active_unique',
     })
 
-    dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueOwnershipLookup([])
     dbChainMockFns.values.mockRejectedValueOnce(keyCollision)
 
     await expect(
@@ -216,6 +251,7 @@ describe('trackChatUpload', () => {
   })
 
   it('rethrows metadata errors without workspace storage accounting', async () => {
+    queueOwnershipLookup([existingRow()])
     dbChainMockFns.returning.mockRejectedValueOnce(new Error('connection lost'))
 
     await expect(
@@ -223,5 +259,151 @@ describe('trackChatUpload', () => {
     ).rejects.toThrow('connection lost')
 
     expectNoWorkspaceStorageAccounting()
+  })
+
+  describe('storage key ownership', () => {
+    /**
+     * A caller-supplied key that resolves to a different workspace must never
+     * reach the binding write — that is cross-tenant key smuggling.
+     */
+    it('rejects a key addressed to another workspace', async () => {
+      const foreignKey = `workspace/${OTHER_WORKSPACE_ID}/1731000000000-ab12cd34-image.png`
+
+      await expect(
+        trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, foreignKey, 'image.png', 'image/png', 1024)
+      ).rejects.toThrow('not available for a chat attachment')
+
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    })
+
+    it('rejects a key with no workspace prefix at all', async () => {
+      await expect(
+        trackChatUpload(
+          WORKSPACE_ID,
+          USER_ID,
+          CHAT_ID,
+          'mothership/abc/123-image.png',
+          'image.png',
+          'image/png',
+          1024
+        )
+      ).rejects.toThrow('not available for a chat attachment')
+
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The reported attack: a member hands in another member's workspace-file key
+     * and the UPDATE re-parents that row to the caller's chat, hiding it from the
+     * workspace Files listing and exposing it to the chat-delete FK cascade.
+     */
+    it("refuses to re-parent another member's workspace file", async () => {
+      queueOwnershipLookup([
+        existingRow({ id: 'wf_victim', userId: OTHER_USER_ID, context: 'workspace' }),
+      ])
+
+      await expect(
+        trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
+      ).rejects.toThrow('not available for a chat attachment')
+
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    })
+
+    it("refuses to re-parent another member's chat upload", async () => {
+      queueOwnershipLookup([existingRow({ id: 'wf_victim', userId: OTHER_USER_ID })])
+
+      await expect(
+        trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
+      ).rejects.toThrow('not available for a chat attachment')
+
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    })
+
+    /** The caller's own workspace file is still a Files-tab file, not a chat upload. */
+    it("refuses to convert the caller's own workspace file into a chat upload", async () => {
+      queueOwnershipLookup([existingRow({ context: 'workspace' })])
+
+      await expect(
+        trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
+      ).rejects.toThrow('not available for a chat attachment')
+
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The active-key unique index is partial on `deleted_at IS NULL`, so an
+     * INSERT over an archived row would succeed and mint a binding granting read
+     * access to the archived file's bytes.
+     */
+    it('refuses to mint a binding over a soft-deleted record for the same key', async () => {
+      queueOwnershipLookup([
+        existingRow({ id: 'wf_archived', deletedAt: new Date('2026-01-01T00:00:00Z') }),
+      ])
+
+      await expect(
+        trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
+      ).rejects.toThrow('not available for a chat attachment')
+
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    })
+
+    it('scopes the UPDATE to the caller-owned row id rather than the raw key', async () => {
+      queueOwnershipLookup([existingRow({ id: 'wf_mine' })])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_mine' }])
+
+      await trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
+
+      expect(dbChainMockFns.where).toHaveBeenCalled()
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ chatId: CHAT_ID, context: 'mothership' })
+      )
+    })
+
+    /** The row vanished between the ownership check and the write — fail closed. */
+    it('fails closed when the owned row disappears before the update lands', async () => {
+      queueOwnershipLookup([existingRow({ id: 'wf_mine' })])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+
+      await expect(
+        trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
+      ).rejects.toThrow('not available for a chat attachment')
+
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    })
+
+    it('requires the object to exist in storage before minting a new binding', async () => {
+      queueOwnershipLookup([])
+      mockHeadObject.mockResolvedValueOnce(null)
+
+      await expect(
+        trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
+      ).rejects.toThrow('not available for a chat attachment')
+
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    })
+
+    /** Local-storage deployments have no headObject to consult; ownership still gates. */
+    it('skips the storage existence probe when cloud storage is not configured', async () => {
+      mockHasCloudStorage.mockReturnValue(false)
+      queueOwnershipLookup([])
+
+      const result = await trackChatUpload(
+        WORKSPACE_ID,
+        USER_ID,
+        CHAT_ID,
+        S3_KEY,
+        'image.png',
+        'image/png',
+        1024
+      )
+
+      expect(result).toEqual({ displayName: 'image.png' })
+      expect(mockHeadObject).not.toHaveBeenCalled()
+    })
   })
 })
