@@ -94,6 +94,18 @@ describe('toolCallNeedsApproval', () => {
     expect(toolCallNeedsApproval('terminal', context, {}, false, runCall)).toBe(false)
   })
 
+  it('applies the normal saved permission to code with a secret reference', () => {
+    const context = makeContext()
+    context.toolPermissions.autoAllowed.add('function_execute')
+
+    expect(
+      toolCallNeedsApproval('function_execute', context, {}, false, {
+        language: 'javascript',
+        code: 'return {{API_KEY}}',
+      })
+    ).toBe(false)
+  })
+
   it('never gates a non-interactive run, which has nobody to answer the prompt', () => {
     expect(
       toolCallNeedsApproval('terminal', makeContext(), { interactive: false }, false, runCall)
@@ -104,6 +116,18 @@ describe('toolCallNeedsApproval', () => {
     const context = makeContext()
     context.toolPermissions.enabled = false
     expect(toolCallNeedsApproval('terminal', context, {}, false, runCall)).toBe(false)
+  })
+
+  it('does not add a secret-specific gate when the permission feature is off', () => {
+    const context = makeContext()
+    context.toolPermissions.enabled = false
+
+    expect(
+      toolCallNeedsApproval('function_execute', context, {}, false, {
+        language: 'javascript',
+        code: 'return {{API_KEY}}',
+      })
+    ).toBe(false)
   })
 
   it('gates a resolved integration operation off the frame Go stamped', () => {
@@ -282,6 +306,23 @@ describe('runGatedToolExecution', () => {
 
     expect(execute).toHaveBeenCalledTimes(1)
     expect(context.toolPermissions.autoAllowed.has('terminal')).toBe(true)
+  })
+
+  it('accepts the normal chat-level decision for code with a secret reference', async () => {
+    const context = makeContext()
+    const toolCall = makeToolCall()
+    toolCall.name = 'function_execute'
+    toolCall.params = { language: 'javascript', code: 'return {{API_KEY}}' }
+    const execute = vi.fn().mockResolvedValue({ status: 'success' })
+    waitForToolPermissionDecision.mockResolvedValue({
+      toolCallId: 'call-1',
+      decision: 'allow_chat',
+    })
+
+    await gate(context, toolCall, execute, [])
+
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(context.toolPermissions.autoAllowed.has('function_execute')).toBe(true)
   })
 
   it('does not suppress later prompts for a one-off allow', async () => {
