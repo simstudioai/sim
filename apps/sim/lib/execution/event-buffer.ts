@@ -109,6 +109,9 @@ else
   if redis.call('EXISTS', KEYS[4]) == 1 then
     redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
   end
+  if #KEYS >= 5 and redis.call('EXISTS', KEYS[5]) == 1 and redis.call('TTL', KEYS[5]) < 0 then
+    redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
+  end
 end
 for i = 9, #ARGV, 2 do
   redis.call('ZADD', KEYS[1], ARGV[i], ARGV[i + 1])
