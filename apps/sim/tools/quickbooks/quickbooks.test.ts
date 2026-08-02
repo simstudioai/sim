@@ -9,21 +9,26 @@ import {
   quickbooksCreateBillTool,
   quickbooksCreateCreditMemoTool,
   quickbooksCreateCustomerPaymentTool,
+  quickbooksCreateDepositTool,
   quickbooksCreateEstimateTool,
   quickbooksCreateInvoiceTool,
+  quickbooksCreateJournalEntryTool,
   quickbooksCreatePurchaseOrderTool,
   quickbooksCreatePurchaseTool,
   quickbooksCreateRefundReceiptTool,
   quickbooksCreateSalesReceiptTool,
   quickbooksCreateVendorCreditTool,
+  quickbooksReadAccountingTransactionsTool,
   quickbooksReadPurchasingTransactionsTool,
   quickbooksReadSalesTransactionsTool,
   quickbooksUpdateBillPaymentTool,
   quickbooksUpdateBillTool,
   quickbooksUpdateCreditMemoTool,
   quickbooksUpdateCustomerPaymentTool,
+  quickbooksUpdateDepositTool,
   quickbooksUpdateEstimateTool,
   quickbooksUpdateInvoiceTool,
+  quickbooksUpdateJournalEntryTool,
   quickbooksUpdatePurchaseOrderTool,
   quickbooksUpdatePurchaseTool,
   quickbooksUpdateRefundReceiptTool,
@@ -880,9 +885,11 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksCreateCreditMemoTool,
     quickbooksCreateCustomerTool,
     quickbooksCreateCustomerPaymentTool,
+    quickbooksCreateDepositTool,
     quickbooksCreateEstimateTool,
     quickbooksCreateItemTool,
     quickbooksCreateInvoiceTool,
+    quickbooksCreateJournalEntryTool,
     quickbooksCreatePurchaseOrderTool,
     quickbooksCreatePurchaseTool,
     quickbooksCreateRefundReceiptTool,
@@ -891,6 +898,7 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksCreateVendorCreditTool,
     quickbooksGetCompanyInfoTool,
     quickbooksReadMasterDataTool,
+    quickbooksReadAccountingTransactionsTool,
     quickbooksReadPurchasingTransactionsTool,
     quickbooksReadSalesTransactionsTool,
     quickbooksUpdateBillPaymentTool,
@@ -898,9 +906,11 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksUpdateCreditMemoTool,
     quickbooksUpdateCustomerTool,
     quickbooksUpdateCustomerPaymentTool,
+    quickbooksUpdateDepositTool,
     quickbooksUpdateEstimateTool,
     quickbooksUpdateItemTool,
     quickbooksUpdateInvoiceTool,
+    quickbooksUpdateJournalEntryTool,
     quickbooksUpdatePurchaseOrderTool,
     quickbooksUpdatePurchaseTool,
     quickbooksUpdateRefundReceiptTool,
@@ -911,7 +921,7 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksVoidInvoiceTool,
   ]
 
-  it('declares exactly 34 bounded tools with hidden company credentials and no retries', () => {
+  it('declares exactly 39 bounded tools with hidden company credentials and no retries', () => {
     expect(tools.map((tool) => tool.id).sort()).toEqual([...QuickBooksBlock.tools.access].sort())
     for (const tool of tools) {
       expect(tool.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
@@ -922,7 +932,7 @@ describe('QuickBooks tool and block boundaries', () => {
     }
   })
 
-  it('exposes the 34 compact operations and unique subblock IDs', () => {
+  it('exposes the 39 compact operations and unique subblock IDs', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     expect(operation?.options).toEqual([
       { label: 'Get Company Info', id: 'quickbooks_get_company_info' },
@@ -962,6 +972,14 @@ describe('QuickBooks tool and block boundaries', () => {
       { label: 'Update Vendor Credit', id: 'quickbooks_update_vendor_credit' },
       { label: 'Create Purchase or Expense', id: 'quickbooks_create_purchase' },
       { label: 'Update Purchase or Expense', id: 'quickbooks_update_purchase' },
+      {
+        label: 'Read Accounting Transactions',
+        id: 'quickbooks_read_accounting_transactions',
+      },
+      { label: 'Create Journal Entry', id: 'quickbooks_create_journal_entry' },
+      { label: 'Update Journal Entry', id: 'quickbooks_update_journal_entry' },
+      { label: 'Create Deposit', id: 'quickbooks_create_deposit' },
+      { label: 'Update Deposit', id: 'quickbooks_update_deposit' },
     ])
     const ids = QuickBooksBlock.subBlocks.map((subBlock) => subBlock.id)
     expect(new Set(ids).size).toBe(ids.length)
@@ -1116,6 +1134,7 @@ describe('QuickBooks tool and block boundaries', () => {
         'quickbooks_read_master_data',
         'quickbooks_read_sales_transactions',
         'quickbooks_read_purchasing_transactions',
+        'quickbooks_read_accounting_transactions',
       ],
     })
     expect(
@@ -1127,6 +1146,7 @@ describe('QuickBooks tool and block boundaries', () => {
       value: [
         'quickbooks_read_sales_transactions',
         'quickbooks_read_purchasing_transactions',
+        'quickbooks_read_accounting_transactions',
         'quickbooks_update_estimate',
         'quickbooks_update_invoice',
         'quickbooks_update_sales_receipt',
@@ -1140,6 +1160,8 @@ describe('QuickBooks tool and block boundaries', () => {
         'quickbooks_update_bill_payment',
         'quickbooks_update_vendor_credit',
         'quickbooks_update_purchase',
+        'quickbooks_update_journal_entry',
+        'quickbooks_update_deposit',
       ],
     })
     expect(QuickBooksBlock.outputs.items.condition).toEqual({
@@ -1148,6 +1170,7 @@ describe('QuickBooks tool and block boundaries', () => {
         'quickbooks_read_master_data',
         'quickbooks_read_sales_transactions',
         'quickbooks_read_purchasing_transactions',
+        'quickbooks_read_accounting_transactions',
       ],
       and: { field: 'readMode', value: 'list' },
     })
@@ -1189,6 +1212,8 @@ describe('QuickBooks tool and block boundaries', () => {
         'quickbooks_update_bill_payment',
         'quickbooks_update_vendor_credit',
         'quickbooks_update_purchase',
+        'quickbooks_update_journal_entry',
+        'quickbooks_update_deposit',
       ],
     })
     expect(subBlocks.itemType.condition).toEqual({

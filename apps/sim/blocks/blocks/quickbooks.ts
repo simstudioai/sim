@@ -3,6 +3,10 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, OutputCondition } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  parseQuickBooksDepositLines,
+  parseQuickBooksJournalLines,
+} from '@/tools/quickbooks/accounting_utils'
+import {
   parseQuickBooksBillAllocations,
   parseQuickBooksPurchasingLines,
 } from '@/tools/quickbooks/purchasing_utils'
@@ -16,6 +20,7 @@ import { parseQuickBooksAddress } from '@/tools/quickbooks/utils'
 const MASTER_DATA_OPERATION = 'quickbooks_read_master_data'
 const SALES_READ_OPERATION = 'quickbooks_read_sales_transactions'
 const PURCHASING_READ_OPERATION = 'quickbooks_read_purchasing_transactions'
+const ACCOUNTING_READ_OPERATION = 'quickbooks_read_accounting_transactions'
 const CUSTOMER_OPERATIONS = ['quickbooks_create_customer', 'quickbooks_update_customer'] as const
 const VENDOR_OPERATIONS = ['quickbooks_create_vendor', 'quickbooks_update_vendor'] as const
 const ITEM_OPERATIONS = ['quickbooks_create_item', 'quickbooks_update_item'] as const
@@ -57,10 +62,15 @@ const PURCHASING_CREATE_OPERATIONS = [
   'quickbooks_create_vendor_credit',
   'quickbooks_create_purchase',
 ] as const
+const ACCOUNTING_CREATE_OPERATIONS = [
+  'quickbooks_create_journal_entry',
+  'quickbooks_create_deposit',
+] as const
 const CREATE_OPERATIONS = [
   ...MASTER_DATA_CREATE_OPERATIONS,
   ...SALES_CREATE_OPERATIONS,
   ...PURCHASING_CREATE_OPERATIONS,
+  ...ACCOUNTING_CREATE_OPERATIONS,
 ] as const
 const SALES_UPDATE_OPERATIONS = [
   ...SALES_DOCUMENT_UPDATE_OPERATIONS,
@@ -82,6 +92,10 @@ const PURCHASING_UPDATE_OPERATIONS = [
   'quickbooks_update_vendor_credit',
   'quickbooks_update_purchase',
 ] as const
+const ACCOUNTING_UPDATE_OPERATIONS = [
+  'quickbooks_update_journal_entry',
+  'quickbooks_update_deposit',
+] as const
 const SALES_MUTATION_OPERATIONS = [
   ...SALES_CREATE_OPERATIONS,
   ...SALES_UPDATE_OPERATIONS,
@@ -91,11 +105,16 @@ const PURCHASING_MUTATION_OPERATIONS = [
   ...PURCHASING_CREATE_OPERATIONS,
   ...PURCHASING_UPDATE_OPERATIONS,
 ] as const
+const ACCOUNTING_MUTATION_OPERATIONS = [
+  ...ACCOUNTING_CREATE_OPERATIONS,
+  ...ACCOUNTING_UPDATE_OPERATIONS,
+] as const
 const UPDATE_OPERATIONS = [
   ...MASTER_DATA_UPDATE_OPERATIONS,
   ...SALES_UPDATE_OPERATIONS,
   ...SALES_VOID_OPERATIONS,
   ...PURCHASING_UPDATE_OPERATIONS,
+  ...ACCOUNTING_UPDATE_OPERATIONS,
 ] as const
 const MUTATION_OPERATIONS = [
   ...CUSTOMER_OPERATIONS,
@@ -103,15 +122,22 @@ const MUTATION_OPERATIONS = [
   ...VENDOR_OPERATIONS,
   ...SALES_MUTATION_OPERATIONS,
   ...PURCHASING_MUTATION_OPERATIONS,
+  ...ACCOUNTING_MUTATION_OPERATIONS,
 ] as const
 const PAGINATED_OPERATIONS = [
   MASTER_DATA_OPERATION,
   SALES_READ_OPERATION,
   PURCHASING_READ_OPERATION,
+  ACCOUNTING_READ_OPERATION,
 ] as const
 const LIST_OUTPUT_CONDITION: OutputCondition = {
   field: 'operation',
-  value: [MASTER_DATA_OPERATION, SALES_READ_OPERATION, PURCHASING_READ_OPERATION],
+  value: [
+    MASTER_DATA_OPERATION,
+    SALES_READ_OPERATION,
+    PURCHASING_READ_OPERATION,
+    ACCOUNTING_READ_OPERATION,
+  ],
   and: { field: 'readMode', value: 'list' },
 }
 const QUICKBOOKS_OPERATIONS = [
@@ -119,6 +145,7 @@ const QUICKBOOKS_OPERATIONS = [
   MASTER_DATA_OPERATION,
   SALES_READ_OPERATION,
   PURCHASING_READ_OPERATION,
+  ACCOUNTING_READ_OPERATION,
   ...MUTATION_OPERATIONS,
 ] as const
 
@@ -171,6 +198,9 @@ function paginationCondition(values?: Record<string, unknown>) {
   if (values?.operation === PURCHASING_READ_OPERATION) {
     return { field: 'readMode', value: 'list' }
   }
+  if (values?.operation === ACCOUNTING_READ_OPERATION) {
+    return { field: 'readMode', value: 'list' }
+  }
   return { field: 'operation', value: [] }
 }
 
@@ -181,37 +211,45 @@ function salesTransactionIdCondition(values?: Record<string, unknown>) {
       value: [
         SALES_READ_OPERATION,
         PURCHASING_READ_OPERATION,
+        ACCOUNTING_READ_OPERATION,
         ...SALES_UPDATE_OPERATIONS,
         ...SALES_VOID_OPERATIONS,
         ...PURCHASING_UPDATE_OPERATIONS,
+        ...ACCOUNTING_UPDATE_OPERATIONS,
       ],
     }
   }
   if (
     values?.operation === SALES_READ_OPERATION ||
-    values?.operation === PURCHASING_READ_OPERATION
+    values?.operation === PURCHASING_READ_OPERATION ||
+    values?.operation === ACCOUNTING_READ_OPERATION
   ) {
     return { field: 'readMode', value: 'by_id' }
   }
   return {
     field: 'operation',
-    value: [...SALES_UPDATE_OPERATIONS, ...SALES_VOID_OPERATIONS, ...PURCHASING_UPDATE_OPERATIONS],
+    value: [
+      ...SALES_UPDATE_OPERATIONS,
+      ...SALES_VOID_OPERATIONS,
+      ...PURCHASING_UPDATE_OPERATIONS,
+      ...ACCOUNTING_UPDATE_OPERATIONS,
+    ],
   }
 }
 
-function parseConfirmation(value: unknown): boolean {
+function parseConfirmation(value: unknown, fieldName: string): boolean {
   if (value === true || value === 'yes') return true
   if (value === false || value === 'no' || value == null || value === '') return false
-  throw new Error('confirmVoid must be yes or no')
+  throw new Error(`${fieldName} must be yes or no`)
 }
 
 export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
   type: 'quickbooks',
   name: 'QuickBooks',
-  description: 'Manage QuickBooks Online company, sales, purchasing, and payables',
+  description: 'Manage QuickBooks Online company, sales, purchasing, payables, and accounting',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, and payables workflows.',
+    'Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, and general-accounting workflows.',
   docsLink: 'https://docs.sim.ai/integrations/quickbooks',
   category: 'tools',
   integrationType: IntegrationType.Commerce,
@@ -260,6 +298,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Update Vendor Credit', id: 'quickbooks_update_vendor_credit' },
         { label: 'Create Purchase or Expense', id: 'quickbooks_create_purchase' },
         { label: 'Update Purchase or Expense', id: 'quickbooks_update_purchase' },
+        {
+          label: 'Read Accounting Transactions',
+          id: 'quickbooks_read_accounting_transactions',
+        },
+        { label: 'Create Journal Entry', id: 'quickbooks_create_journal_entry' },
+        { label: 'Update Journal Entry', id: 'quickbooks_update_journal_entry' },
+        { label: 'Create Deposit', id: 'quickbooks_create_deposit' },
+        { label: 'Update Deposit', id: 'quickbooks_update_deposit' },
       ],
       value: () => 'quickbooks_get_company_info',
     },
@@ -298,11 +344,21 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       ],
       condition: {
         field: 'operation',
-        value: [MASTER_DATA_OPERATION, SALES_READ_OPERATION, PURCHASING_READ_OPERATION],
+        value: [
+          MASTER_DATA_OPERATION,
+          SALES_READ_OPERATION,
+          PURCHASING_READ_OPERATION,
+          ACCOUNTING_READ_OPERATION,
+        ],
       },
       required: {
         field: 'operation',
-        value: [MASTER_DATA_OPERATION, SALES_READ_OPERATION, PURCHASING_READ_OPERATION],
+        value: [
+          MASTER_DATA_OPERATION,
+          SALES_READ_OPERATION,
+          PURCHASING_READ_OPERATION,
+          ACCOUNTING_READ_OPERATION,
+        ],
       },
       value: () => 'list',
     },
@@ -352,6 +408,19 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       condition: { field: 'operation', value: PURCHASING_READ_OPERATION },
       required: { field: 'operation', value: PURCHASING_READ_OPERATION },
       value: () => 'bill',
+    },
+    {
+      id: 'accountingTransactionType',
+      title: 'Transaction Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Journal Entry', id: 'journal_entry' },
+        { label: 'Deposit', id: 'deposit' },
+        { label: 'Transfer', id: 'transfer' },
+      ],
+      condition: { field: 'operation', value: ACCOUNTING_READ_OPERATION },
+      required: { field: 'operation', value: ACCOUNTING_READ_OPERATION },
+      value: () => 'journal_entry',
     },
     {
       id: 'transactionId',
@@ -699,6 +768,35 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       },
     },
     {
+      id: 'journalLines',
+      title: 'Journal Lines (JSON)',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '[{"postingType":"debit","amount":100,"accountId":"7"},{"postingType":"credit","amount":100,"accountId":"35"}]',
+      condition: { field: 'operation', value: 'quickbooks_create_journal_entry' },
+      required: { field: 'operation', value: 'quickbooks_create_journal_entry' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a balanced JSON array of QuickBooks journal lines. Each line needs postingType debit or credit, a positive amount, and accountId. Optional fields are description and an entityType/entityId pair. Debits and credits must total the same amount. Return ONLY the JSON array.',
+      },
+    },
+    {
+      id: 'depositLines',
+      title: 'Deposit Lines (JSON)',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{"amount":100,"accountId":"7","description":"Deposit source"}]',
+      condition: { field: 'operation', value: 'quickbooks_create_deposit' },
+      required: { field: 'operation', value: 'quickbooks_create_deposit' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of QuickBooks deposit lines. Each line needs a positive amount and accountId, with optional description. Return ONLY the JSON array.',
+      },
+    },
+    {
       id: 'totalAmount',
       title: 'Total Amount',
       type: 'short-input',
@@ -806,6 +904,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           ...SALES_CREATE_OPERATIONS,
           ...SALES_UPDATE_OPERATIONS,
           ...PURCHASING_MUTATION_OPERATIONS,
+          ...ACCOUNTING_MUTATION_OPERATIONS,
         ],
       },
       mode: 'advanced',
@@ -852,6 +951,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           'quickbooks_update_bill',
           'quickbooks_create_vendor_credit',
           'quickbooks_update_vendor_credit',
+          'quickbooks_create_journal_entry',
+          'quickbooks_update_journal_entry',
         ],
       },
       mode: 'advanced',
@@ -867,6 +968,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           ...SALES_CREATE_OPERATIONS,
           ...SALES_UPDATE_OPERATIONS,
           ...PURCHASING_MUTATION_OPERATIONS,
+          ...ACCOUNTING_MUTATION_OPERATIONS,
         ],
       },
       mode: 'advanced',
@@ -926,9 +1028,13 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           'quickbooks_create_refund_receipt',
           'quickbooks_update_refund_receipt',
           ...PAYMENT_OPERATIONS,
+          'quickbooks_create_deposit',
         ],
       },
-      required: { field: 'operation', value: 'quickbooks_create_refund_receipt' },
+      required: {
+        field: 'operation',
+        value: ['quickbooks_create_refund_receipt', 'quickbooks_create_deposit'],
+      },
     },
     {
       id: 'invoiceAllocations',
@@ -975,6 +1081,24 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       required: { field: 'operation', value: [...SALES_VOID_OPERATIONS] },
       value: () => 'no',
     },
+    {
+      id: 'confirmPosting',
+      title: 'Confirm Posting',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'no' },
+        { label: 'Yes', id: 'yes' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['quickbooks_create_journal_entry', 'quickbooks_update_journal_entry'],
+      },
+      required: {
+        field: 'operation',
+        value: ['quickbooks_create_journal_entry', 'quickbooks_update_journal_entry'],
+      },
+      value: () => 'no',
+    },
   ],
   tools: {
     access: [
@@ -1012,6 +1136,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       'quickbooks_update_vendor_credit',
       'quickbooks_create_purchase',
       'quickbooks_update_purchase',
+      'quickbooks_read_accounting_transactions',
+      'quickbooks_create_journal_entry',
+      'quickbooks_update_journal_entry',
+      'quickbooks_create_deposit',
+      'quickbooks_update_deposit',
     ],
     config: {
       tool: (params) => {
@@ -1076,12 +1205,29 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
         }
+        if (operation === ACCOUNTING_READ_OPERATION) {
+          if (params.readMode === 'by_id') {
+            return {
+              credential: oauthCredentialValue,
+              transactionType: params.accountingTransactionType,
+              readMode: params.readMode,
+              transactionId: optionalValue(params.transactionId),
+            }
+          }
+          return {
+            credential: oauthCredentialValue,
+            transactionType: params.accountingTransactionType,
+            readMode: params.readMode,
+            startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
+            maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
+          }
+        }
         if (SALES_VOID_OPERATIONS.includes(operation as (typeof SALES_VOID_OPERATIONS)[number])) {
           return {
             credential: oauthCredentialValue,
             transactionId: optionalValue(params.transactionId),
             syncToken: optionalValue(params.syncToken),
-            confirmVoid: parseConfirmation(params.confirmVoid),
+            confirmVoid: parseConfirmation(params.confirmVoid, 'confirmVoid'),
           }
         }
         if (
@@ -1213,6 +1359,41 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           }
         }
         if (
+          ACCOUNTING_MUTATION_OPERATIONS.includes(
+            operation as (typeof ACCOUNTING_MUTATION_OPERATIONS)[number]
+          )
+        ) {
+          const isJournalEntry =
+            operation === 'quickbooks_create_journal_entry' ||
+            operation === 'quickbooks_update_journal_entry'
+          const isCreate = ACCOUNTING_CREATE_OPERATIONS.includes(
+            operation as (typeof ACCOUNTING_CREATE_OPERATIONS)[number]
+          )
+          return {
+            credential: oauthCredentialValue,
+            journalEntryId:
+              !isCreate && isJournalEntry ? optionalValue(params.transactionId) : undefined,
+            depositId:
+              !isCreate && !isJournalEntry ? optionalValue(params.transactionId) : undefined,
+            syncToken: isCreate ? undefined : optionalValue(params.syncToken),
+            lines:
+              isCreate && isJournalEntry
+                ? parseQuickBooksJournalLines(params.journalLines)
+                : isCreate
+                  ? parseQuickBooksDepositLines(params.depositLines)
+                  : undefined,
+            confirmPosting: isJournalEntry
+              ? parseConfirmation(params.confirmPosting, 'confirmPosting')
+              : undefined,
+            depositAccountId:
+              isCreate && !isJournalEntry ? optionalValue(params.depositAccountId) : undefined,
+            transactionDate: optionalValue(params.transactionDate),
+            documentNumber: isJournalEntry ? optionalValue(params.documentNumber) : undefined,
+            privateNote: optionalValue(params.privateNote),
+            requestId: isCreate ? optionalValue(params.requestId) : undefined,
+          }
+        }
+        if (
           operation === 'quickbooks_create_customer' ||
           operation === 'quickbooks_update_customer'
         ) {
@@ -1292,6 +1473,10 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'string',
       description: 'Purchasing transaction entity type',
     },
+    accountingTransactionType: {
+      type: 'string',
+      description: 'Accounting transaction entity type',
+    },
     transactionId: { type: 'string', description: 'QuickBooks transaction ID' },
     startPosition: {
       type: 'number',
@@ -1328,6 +1513,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     activeStatus: { type: 'string', description: 'Entity active-status change' },
     lines: { type: 'json', description: 'Bounded item and description sales lines' },
     purchasingLines: { type: 'json', description: 'Bounded purchasing expense lines' },
+    journalLines: { type: 'json', description: 'Bounded balanced journal-entry lines' },
+    depositLines: { type: 'json', description: 'Bounded account-based deposit lines' },
     totalAmount: { type: 'number', description: 'Customer or Bill payment total' },
     apAccountId: { type: 'string', description: 'QuickBooks accounts-payable account ID' },
     billPaymentType: { type: 'string', description: 'Check or credit-card BillPayment type' },
@@ -1360,6 +1547,10 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     },
     requestId: { type: 'string', description: 'Optional Intuit idempotency request ID' },
     confirmVoid: { type: 'boolean', description: 'Explicit confirmation for a void operation' },
+    confirmPosting: {
+      type: 'boolean',
+      description: 'Explicit confirmation before posting a journal entry',
+    },
   },
   outputs: {
     company: {
@@ -1375,26 +1566,31 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     },
     transactionType: {
       type: 'string',
-      description: 'Sales or purchasing transaction type returned by the read',
+      description: 'Sales, purchasing, or accounting transaction type returned by the read',
       condition: {
         field: 'operation',
-        value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION],
+        value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION, ACCOUNTING_READ_OPERATION],
       },
     },
     item: {
       type: 'json',
       description:
-        'Single master-data, sales, or purchasing transaction with native QuickBooks fields',
+        'Single master-data, sales, purchasing, or accounting transaction with native QuickBooks fields',
       condition: {
         field: 'operation',
-        value: [MASTER_DATA_OPERATION, SALES_READ_OPERATION, PURCHASING_READ_OPERATION],
+        value: [
+          MASTER_DATA_OPERATION,
+          SALES_READ_OPERATION,
+          PURCHASING_READ_OPERATION,
+          ACCOUNTING_READ_OPERATION,
+        ],
         and: { field: 'readMode', value: 'by_id' },
       },
     },
     items: {
       type: 'array',
       description:
-        'Master-data, sales, or purchasing transaction objects with native QuickBooks fields',
+        'Master-data, sales, purchasing, or accounting transaction objects with native QuickBooks fields',
       condition: LIST_OUTPUT_CONDITION,
     },
     startPosition: {
@@ -1420,7 +1616,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     record: {
       type: 'json',
       description:
-        'Created, updated, or voided master-data, sales, or purchasing record with native QuickBooks fields',
+        'Created, updated, or voided master-data, sales, purchasing, or accounting record with native QuickBooks fields',
       condition: { field: 'operation', value: [...MUTATION_OPERATIONS] },
     },
     recordId: {
@@ -1514,12 +1710,12 @@ export const QuickBooksBlockMeta = {
     },
     {
       icon: QuickBooksIcon,
-      title: 'QuickBooks credit and refund review',
+      title: 'QuickBooks journal adjustments and deposits',
       prompt:
-        'Build a controlled workflow that creates approved QuickBooks credit memos or refund receipts, stores their IDs and sync tokens, and sends the resulting records for review.',
+        'Build a controlled workflow that posts an explicitly approved, balanced QuickBooks journal entry or records a bounded deposit, stores the returned ID and sync token, and reads transfers for cash-movement review.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
-      tags: ['finance', 'credits', 'refunds'],
+      tags: ['finance', 'accounting', 'journal-entries'],
     },
     {
       icon: QuickBooksIcon,
@@ -1569,10 +1765,10 @@ export const QuickBooksBlockMeta = {
         '# Maintain QuickBooks Products and Services\n\n## Steps\n1. Read Account master data to obtain approved account IDs.\n2. Create a Service or Non-inventory Item, or update exposed basic fields without changing the existing item Type.\n3. Store the latest item ID and sync token.\n\n## Output\nReturn the native Item record. Do not claim to create Inventory, Category, or Group items or manage their specialized fields.',
     },
     {
-      name: 'audit-quickbooks-master-data',
-      description: 'Review QuickBooks master-data pages for incomplete or inconsistent records.',
+      name: 'record-quickbooks-accounting-adjustments',
+      description: 'Post approved balanced journal entries, record deposits, and review transfers.',
       content:
-        '# Audit QuickBooks Master Data\n\n## Steps\n1. Use Read Master Data in List mode for the required record types.\n2. Continue only with explicit `nextStartPosition` values while `hasMore` is true.\n3. Report incomplete or inconsistent records with their QuickBooks IDs.\n\n## Output\nReturn a read-only audit with source IDs and supporting values.',
+        '# Record QuickBooks Accounting Adjustments\n\n## Steps\n1. Read the approved account IDs from Master Data.\n2. For a journal entry, verify that positive debit and credit lines balance and require explicit posting confirmation; for a deposit, verify the destination and source account IDs.\n3. Store the returned `recordId` and `syncToken`; use Read Accounting Transactions to review journal entries, deposits, or read-only transfers.\n\n## Output\nReturn the native accounting transaction and identifiers. Do not claim to create transfers, replace transaction lines, or administer currencies.',
     },
     {
       name: 'prepare-quickbooks-estimates',
