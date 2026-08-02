@@ -8,7 +8,7 @@ import {
 } from '@/lib/workflows/deployment-lifecycle'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const deployedWorkflowStateSchema = z.custom<WorkflowState>(
+export const deployedWorkflowStateSchema = z.custom<WorkflowState>(
   (value) => typeof value === 'object' && value !== null,
   'Expected workflow state'
 )

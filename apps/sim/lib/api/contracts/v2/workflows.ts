@@ -1,4 +1,10 @@
 import { z } from 'zod'
+import {
+  deployedWorkflowStateSchema,
+  deploymentVersionParamsSchema,
+  deploymentVersionSchema,
+} from '@/lib/api/contracts/deployments'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v1DeployWorkflowDataSchema,
@@ -24,6 +30,11 @@ import {
  * deploy/rollback/undeploy data payloads reuse the already-concrete v1 schemas,
  * re-wrapped in `v2DataResponse` (the v1 `limits` body field is dropped — v2
  * carries rate-limit state in headers and usage on a dedicated endpoint).
+ *
+ * The create/update bodies have no v1 counterpart and are v2-native: they carry
+ * only the fields a public caller owns (name, description, folder placement).
+ * `sortOrder`, `locked`, and `forkSyncExcluded` are workspace-UI concerns and
+ * are not part of the public surface.
  */
 
 export const v2WorkflowListItemSchema = z.object({
@@ -87,6 +98,139 @@ export const v2GetWorkflowContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowDetailSchema),
+  },
+})
+
+/**
+ * Create body. `workspaceId` is required — personal (workspace-less) workflows
+ * are not creatable on any surface. Name collisions inside the target folder
+ * are a 409 rather than being silently deduplicated: a public caller that asked
+ * for a name should learn it was taken, not discover "My Agent (2)" later.
+ */
+export const v2CreateWorkflowBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
+    description: z.string().max(50_000, 'description is too long').nullable().optional(),
+    /** Explicit `null` (or omission) creates the workflow at the workspace root. */
+    folderId: z.string().min(1, 'folderId cannot be empty').nullable().optional(),
+  })
+  .strict()
+export type V2CreateWorkflowBody = z.input<typeof v2CreateWorkflowBodySchema>
+
+/** Update body. Omitted fields keep their stored values. */
+export const v2UpdateWorkflowBodySchema = z
+  .object({
+    name: z.string().trim().min(1, 'name cannot be empty').max(255, 'name is too long').optional(),
+    description: z.string().max(50_000, 'description is too long').nullable().optional(),
+    folderId: z.string().min(1, 'folderId cannot be empty').nullable().optional(),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.name === undefined && body.description === undefined && body.folderId === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['name'],
+        message: 'At least one of name, description, or folderId is required',
+      })
+    }
+  })
+export type V2UpdateWorkflowBody = z.input<typeof v2UpdateWorkflowBodySchema>
+
+/**
+ * Delete acknowledgement. Deletion archives the workflow (it lands in Recently
+ * Deleted) rather than dropping its rows, so runs and logs stay attributable.
+ */
+export const v2DeleteWorkflowDataSchema = z.object({
+  id: z.string(),
+  deleted: z.literal(true),
+})
+export type V2DeleteWorkflowData = z.output<typeof v2DeleteWorkflowDataSchema>
+
+export const v2CreateWorkflowContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows',
+  body: v2CreateWorkflowBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowListItemSchema),
+  },
+})
+
+export const v2UpdateWorkflowContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/workflows/[id]',
+  params: workflowIdParamsSchema,
+  body: v2UpdateWorkflowBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowListItemSchema),
+  },
+})
+
+export const v2DeleteWorkflowContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/workflows/[id]',
+  params: workflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2DeleteWorkflowDataSchema),
+  },
+})
+
+/**
+ * A deployment version as the public surface sees it: the internal row minus
+ * `createdBy`, which is a raw user id with no public resolution path —
+ * `deployedBy` already carries the human-readable name.
+ */
+export const v2WorkflowVersionSchema = deploymentVersionSchema.omit({ createdBy: true })
+export type V2WorkflowVersion = z.output<typeof v2WorkflowVersionSchema>
+
+/**
+ * Version listing is cursor-paginated: a workflow accrues one version per
+ * deploy and nothing prunes them, so the set is unbounded. The cursor is keyed
+ * on the version number, which is dense and strictly descending.
+ */
+export const v2ListWorkflowVersionsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+  cursor: z.string().optional(),
+})
+export type V2ListWorkflowVersionsQuery = z.output<typeof v2ListWorkflowVersionsQuerySchema>
+
+/**
+ * A single version plus the workflow state it pins. `state` is the deployed
+ * graph snapshot — the same portable blob the internal deployment reader
+ * serves — and is the thing a caller diffs before rolling back to it.
+ */
+export const v2WorkflowVersionDetailSchema = z.object({
+  id: z.string(),
+  version: z.number().int().positive(),
+  name: z.string().nullable(),
+  description: z.string().nullable(),
+  isActive: z.boolean(),
+  createdAt: z.string(),
+  state: deployedWorkflowStateSchema,
+})
+export type V2WorkflowVersionDetail = z.output<typeof v2WorkflowVersionDetailSchema>
+
+export const v2ListWorkflowVersionsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/versions',
+  params: workflowIdParamsSchema,
+  query: v2ListWorkflowVersionsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkflowVersionSchema),
+  },
+})
+
+export const v2GetWorkflowVersionContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/versions/[version]',
+  params: deploymentVersionParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowVersionDetailSchema),
   },
 })
 

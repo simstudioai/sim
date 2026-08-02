@@ -1,0 +1,202 @@
+/**
+ * @vitest-environment node
+ *
+ * Public v2 workflow creation: the handler order (rate limit → gate → parse →
+ * workspace access → lib), the 423 a locked destination folder produces, and
+ * the orchestration failure codes rendered in the v2 error envelope.
+ */
+import { NextRequest } from 'next/server'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const {
+  mockCheckRateLimit,
+  mockResolveWorkspaceAccess,
+  mockPerformCreateWorkflow,
+  mockAssertFolderMutable,
+  FolderLockedErrorMock,
+} = vi.hoisted(() => ({
+  mockCheckRateLimit: vi.fn(),
+  mockResolveWorkspaceAccess: vi.fn(),
+  mockPerformCreateWorkflow: vi.fn(),
+  mockAssertFolderMutable: vi.fn(),
+  FolderLockedErrorMock: class FolderLockedError extends Error {
+    status = 423
+  },
+}))
+
+vi.mock('@/app/api/v1/middleware', () => ({
+  checkRateLimit: mockCheckRateLimit,
+  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+}))
+
+vi.mock('@/lib/workflows/orchestration', () => ({
+  performCreateWorkflow: mockPerformCreateWorkflow,
+}))
+
+vi.mock('@sim/platform-authz/workflow', () => ({
+  assertFolderMutable: mockAssertFolderMutable,
+  FolderLockedError: FolderLockedErrorMock,
+}))
+
+vi.mock('@/app/api/v2/lib/gate', () => ({
+  v2ApiGateError: vi.fn().mockResolvedValue(null),
+}))
+
+import { POST } from '@/app/api/v2/workflows/route'
+
+const RATE_LIMIT_OK = {
+  allowed: true,
+  userId: 'user-1',
+  keyType: 'workspace',
+  limit: 100,
+  remaining: 99,
+  resetAt: new Date('2024-01-01T01:00:00Z'),
+}
+
+const RATE_LIMIT_DENIED = {
+  allowed: false,
+  limit: 100,
+  remaining: 0,
+  resetAt: new Date('2024-01-01T01:00:00Z'),
+  retryAfterMs: 1000,
+}
+
+const ACCESS_DENIED = { status: 403, code: 'FORBIDDEN', message: 'Access denied' }
+
+const CREATED = {
+  id: 'wf-1',
+  name: 'Support Agent',
+  description: 'Handles tickets',
+  workspaceId: 'workspace-1',
+  folderId: null,
+  sortOrder: 0,
+  createdAt: new Date('2024-01-01T00:00:00Z'),
+  updatedAt: new Date('2024-01-01T00:00:00Z'),
+  startBlockId: 'block-1',
+  subBlockValues: {},
+}
+
+const VALID_BODY = {
+  workspaceId: 'workspace-1',
+  name: 'Support Agent',
+  description: 'Handles tickets',
+}
+
+function callPost(body: unknown) {
+  return POST(
+    new NextRequest('http://localhost:3000/api/v2/workflows', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  )
+}
+
+describe('POST /api/v2/workflows', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
+    mockResolveWorkspaceAccess.mockResolvedValue(null)
+    mockAssertFolderMutable.mockResolvedValue(undefined)
+    mockPerformCreateWorkflow.mockResolvedValue({ success: true, workflow: CREATED })
+  })
+
+  it('returns 404 when the v2 API surface flag is off', async () => {
+    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
+    const { v2Error } = await import('@/app/api/v2/lib/response')
+    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+
+    const res = await callPost(VALID_BODY)
+
+    expect(res.status).toBe(404)
+    expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('400s when name is missing', async () => {
+    const res = await callPost({ workspaceId: 'workspace-1' })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
+    expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('400s on an unknown body field', async () => {
+    const res = await callPost({ ...VALID_BODY, sortOrder: 3 })
+    expect(res.status).toBe(400)
+    expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an access-denied failure in the v2 error envelope', async () => {
+    mockResolveWorkspaceAccess.mockResolvedValue(ACCESS_DENIED)
+    const res = await callPost(VALID_BODY)
+    expect(res.status).toBe(403)
+    expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('requires write access on the target workspace', async () => {
+    await callPost(VALID_BODY)
+    expect(mockResolveWorkspaceAccess).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      'workspace-1',
+      'write'
+    )
+  })
+
+  it('returns the rate-limit response when denied', async () => {
+    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
+    const res = await callPost(VALID_BODY)
+    expect(res.status).toBe(429)
+    expect((await res.json()).error.code).toBe('RATE_LIMITED')
+  })
+
+  it('423s when the destination folder is locked', async () => {
+    mockAssertFolderMutable.mockRejectedValue(new FolderLockedErrorMock('Folder is locked'))
+    const res = await callPost({ ...VALID_BODY, folderId: 'fld-1' })
+    expect(res.status).toBe(423)
+    expect((await res.json()).error.code).toBe('LOCKED')
+    expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('409s when the name is already taken in the target folder', async () => {
+    mockPerformCreateWorkflow.mockResolvedValue({
+      success: false,
+      error: 'A workflow named "Support Agent" already exists in this folder',
+      errorCode: 'conflict',
+    })
+    const res = await callPost(VALID_BODY)
+    expect(res.status).toBe(409)
+    expect((await res.json()).error.code).toBe('CONFLICT')
+  })
+
+  it('creates the workflow and returns 201 with the public shape', async () => {
+    const res = await callPost(VALID_BODY)
+    const body = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(body).toEqual({
+      data: {
+        id: 'wf-1',
+        name: 'Support Agent',
+        description: 'Handles tickets',
+        folderId: null,
+        workspaceId: 'workspace-1',
+        isDeployed: false,
+        deployedAt: null,
+        runCount: 0,
+        lastRunAt: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      },
+    })
+    expect(res.headers.get('X-RateLimit-Remaining')).toBe('99')
+    expect(mockPerformCreateWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        name: 'Support Agent',
+        description: 'Handles tickets',
+        folderId: undefined,
+      })
+    )
+  })
+})
