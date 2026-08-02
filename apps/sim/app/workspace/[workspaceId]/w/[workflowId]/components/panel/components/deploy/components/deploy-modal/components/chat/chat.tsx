@@ -245,7 +245,7 @@ export function ChatDeploy({
 
       if (
         !passwordChangeConfirmed &&
-        shouldConfirmPasswordChange(Boolean(existingChat?.id), formData.authType, formData.password)
+        shouldConfirmPasswordChange(existingPassword, formData.authType, formData.password)
       ) {
         setShowPasswordChangeConfirmation(true)
         return
@@ -700,6 +700,16 @@ function AuthSelector({
   const emailsRef = useRef(emails)
   const invalidEmailItemsRef = useRef(invalidEmailItems)
 
+  /**
+   * Editing or regenerating the password clears a failed reveal. The mutation
+   * only drops its error on the next attempt, so it would otherwise keep
+   * reporting a stale failure over a field the admin has already moved on from.
+   */
+  const handlePasswordChange = (value: string) => {
+    if (revealPasswordMutation.isError) revealPasswordMutation.reset()
+    onPasswordChange(value)
+  }
+
   useEffect(() => {
     emailsRef.current = emails
   }, [emails])
@@ -799,7 +809,7 @@ function AuthSelector({
           </Label>
           <GeneratedPasswordInput
             value={password}
-            onChange={onPasswordChange}
+            onChange={handlePasswordChange}
             disabled={disabled}
             placeholder={hasExistingPassword ? '' : getPasswordPlaceholder(false)}
             required={!hasExistingPassword}

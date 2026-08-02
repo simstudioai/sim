@@ -23,12 +23,18 @@ export function isWhitespaceOnlyPassword(password: string): boolean {
   return password.length > 0 && password.trim().length === 0
 }
 
+/**
+ * Whether submitting should confirm before overwriting the stored password.
+ * Only a genuine replacement warrants the prompt — keying this on "a chat
+ * exists" asked an admin to confirm changing a password that was never set,
+ * e.g. when switching a public chat to password protection for the first time.
+ */
 export function shouldConfirmPasswordChange(
-  hasExistingChat: boolean,
+  existingPassword: boolean,
   authType: AuthType,
   password: string
 ): boolean {
-  return hasExistingChat && authType === 'password' && password.trim().length > 0
+  return existingPassword && authType === 'password' && password.trim().length > 0
 }
 
 export function getPasswordPlaceholder(existingPassword: boolean): string {

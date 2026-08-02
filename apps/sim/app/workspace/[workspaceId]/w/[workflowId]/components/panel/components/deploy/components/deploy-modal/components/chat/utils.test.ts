@@ -38,11 +38,16 @@ describe.concurrent('chat password state', () => {
     expect(getPasswordHelperText(false)).toBe('This password will be required to access your chat')
   })
 
-  it('confirms a password change only for an existing password deployment with a new value', () => {
+  it('confirms only when a stored password is actually being replaced', () => {
     expect(shouldConfirmPasswordChange(true, 'password', 'new-password')).toBe(true)
     expect(shouldConfirmPasswordChange(true, 'password', '')).toBe(false)
     expect(shouldConfirmPasswordChange(true, 'password', '   ')).toBe(false)
     expect(shouldConfirmPasswordChange(true, 'public', 'new-password')).toBe(false)
+  })
+
+  it('does not confirm when the deployment has no password to replace', () => {
     expect(shouldConfirmPasswordChange(false, 'password', 'new-password')).toBe(false)
+    expect(hasExistingPassword({ authType: 'public', hasPassword: false })).toBe(false)
+    expect(hasExistingPassword({ authType: 'password', hasPassword: true })).toBe(true)
   })
 })
