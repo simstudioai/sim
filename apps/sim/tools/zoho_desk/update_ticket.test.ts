@@ -19,4 +19,39 @@ describe('zohoDeskUpdateTicketTool request body', () => {
       subject: 'Hi',
     })
   })
+
+  // The workflow serializer initializes every untouched subBlock to `null` (not
+  // `undefined`) and writes those nulls into tool params, so this - not the
+  // fields-absent case above - is the shape the block actually produces. A
+  // status-only edit must not post `subject: null` and blank the ticket.
+  it('drops untouched fields that arrive as null from the serializer', () => {
+    const serializedParams = {
+      ...base,
+      subject: null,
+      status: 'Closed',
+      priority: null,
+      assigneeId: null,
+      departmentId: null,
+      category: null,
+      subCategory: null,
+      dueDate: null,
+      description: null,
+      resolution: null,
+      classification: null,
+      customFields: null,
+    }
+    expect(buildBody(serializedParams)).toEqual({ status: 'Closed' })
+  })
+
+  it('drops fields the user cleared to an empty string', () => {
+    expect(buildBody({ ...base, status: 'Closed', subject: '' })).toEqual({ status: 'Closed' })
+  })
+
+  // The empty-PATCH guard must be reachable from the real serializer shape, not
+  // only from the synthetic fields-absent case.
+  it('throws when every updatable field is null', () => {
+    expect(() => buildBody({ ...base, subject: null, status: null, priority: null })).toThrow(
+      /no fields to update/i
+    )
+  })
 })

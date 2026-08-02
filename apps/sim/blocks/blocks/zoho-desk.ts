@@ -322,7 +322,7 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Max results (max 100)',
+      placeholder: 'Max results (tickets/comments 100, threads 200)',
       condition: {
         field: 'operation',
         value: ['list_tickets', 'list_comments', 'list_threads'],
@@ -371,11 +371,14 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
         // Zoho documents from >= 0 and limit >= 1 as integers; a negative or
         // fractional value reaches the API as an opaque provider error, so drop
         // anything outside those bounds here rather than round-tripping it.
-        if (rawFrom !== undefined && rawFrom !== '') {
+        // `null` is checked explicitly: the serializer initializes untouched
+        // subBlocks to null, and Number(null) is 0 — which would otherwise inject
+        // from=0 on every operation instead of leaving the param unset.
+        if (rawFrom !== undefined && rawFrom !== null && rawFrom !== '') {
           const from = Number(rawFrom)
           if (Number.isInteger(from) && from >= 0) result.from = from
         }
-        if (rawLimit !== undefined && rawLimit !== '') {
+        if (rawLimit !== undefined && rawLimit !== null && rawLimit !== '') {
           const limit = Number(rawLimit)
           if (Number.isInteger(limit) && limit >= 1) result.limit = limit
         }

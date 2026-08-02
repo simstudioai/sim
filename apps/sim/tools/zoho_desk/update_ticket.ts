@@ -1,4 +1,3 @@
-import { filterUndefined } from '@sim/utils/object'
 import type { ToolConfig } from '@/tools/types'
 import type { ZohoDeskResponse, ZohoDeskUpdateTicketParams } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_TICKET_PROPERTIES } from '@/tools/zoho_desk/types'
@@ -8,6 +7,26 @@ import {
   getZohoDeskErrorMessage,
   requireZohoDeskId,
 } from '@/tools/zoho_desk/utils'
+
+/**
+ * Drop keys the caller did not set, so a PATCH only carries real edits.
+ *
+ * Deliberately NOT `filterUndefined`: that helper strips `undefined` only, but
+ * an untouched subBlock does not arrive as `undefined` - the workflow serializer
+ * initializes every subBlock value to `null` and writes those nulls straight
+ * into tool params. A status-only update therefore reached Zoho as
+ * `{"subject": null, "status": "Closed"}`, which either fails the PATCH or
+ * blanks the ticket's subject. Empty strings are treated the same way: an input
+ * the user cleared means "leave unchanged", not "set to empty".
+ */
+function omitUnset(fields: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined || value === null || value === '') continue
+    result[key] = value
+  }
+  return result
+}
 
 export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, ZohoDeskResponse> = {
   id: 'zoho_desk_update_ticket',
@@ -122,7 +141,7 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
     method: 'PATCH',
     headers: (params) => buildZohoDeskHeaders(params),
     body: (params) => {
-      const body = filterUndefined({
+      const body = omitUnset({
         subject: params.subject,
         status: params.status,
         priority: params.priority,
