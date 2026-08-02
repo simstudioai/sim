@@ -31,6 +31,21 @@ describe('zoho desk tool utils', () => {
     it('falls back to the US host when no api domain is provided', () => {
       expect(getZohoDeskApiBase({})).toBe('https://desk.zoho.com/api/v1')
     })
+
+    // apiDomain reaches this helper from injected context, so a lookalike or
+    // plaintext host must never receive the OAuth token.
+    it('falls back to the US base for non-Zoho, lookalike, or non-https hosts', () => {
+      expect(getZohoDeskApiBase({ apiDomain: 'https://desk.zoho.com.attacker.com' })).toBe(
+        'https://desk.zoho.com/api/v1'
+      )
+      expect(getZohoDeskApiBase({ apiDomain: 'https://attacker.com' })).toBe(
+        'https://desk.zoho.com/api/v1'
+      )
+      expect(getZohoDeskApiBase({ apiDomain: 'http://desk.zoho.eu' })).toBe(
+        'https://desk.zoho.com/api/v1'
+      )
+      expect(getZohoDeskApiBase({ apiDomain: 'not-a-url' })).toBe('https://desk.zoho.com/api/v1')
+    })
   })
 
   describe('buildZohoDeskHeaders', () => {
@@ -191,6 +206,19 @@ describe('zoho desk tool utils', () => {
     it('returns undefined when content is not a string', () => {
       expect(deriveZohoContentText(null, 'html')).toBeUndefined()
       expect(deriveZohoContentText(undefined, 'plainText')).toBeUndefined()
+    })
+
+    // Zoho spells the HTML discriminator differently per resource: comments come
+    // back as `html`, threads as the MIME form `text/html`. A strict `=== 'html'`
+    // check silently passed thread markup through as "plain text".
+    it('strips HTML for the text/html spelling Zoho uses on threads', () => {
+      expect(deriveZohoContentText('<b>hi</b>', 'text/html')).toBe('hi')
+    })
+
+    it('strips HTML for a parameterized or differently-cased content type', () => {
+      expect(deriveZohoContentText('<b>hi</b>', 'text/html; charset=UTF-8')).toBe('hi')
+      expect(deriveZohoContentText('<b>hi</b>', 'TEXT/HTML')).toBe('hi')
+      expect(deriveZohoContentText('<b>hi</b>', 'HTML')).toBe('hi')
     })
   })
 

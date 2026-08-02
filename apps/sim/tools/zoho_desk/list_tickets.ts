@@ -10,7 +10,8 @@ import {
 export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, ZohoDeskResponse> = {
   id: 'zoho_desk_list_tickets',
   name: 'Zoho Desk List Tickets',
-  description: 'List tickets from a Zoho Desk organization with optional filters.',
+  description:
+    'List tickets from a Zoho Desk organization with optional filters. Returns a list projection: description, resolution, statusType and classification are only available from Get Ticket.',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'zoho-desk' },
@@ -38,43 +39,46 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination start index (1-based)',
+      description: 'Pagination start index (0-based, max 4999)',
     },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of tickets to return (max 100)',
+      description: 'Number of tickets to return (1-100, default 10)',
     },
-    departmentId: {
+    departmentIds: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by department ID',
+      description: 'Filter by department ID (comma-separated for multiple)',
     },
     status: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by status (e.g. Open, Closed)',
+      description:
+        'Filter by status, including custom statuses. Comma-separate to match multiple (e.g. "Open,On Hold")',
     },
     priority: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by priority (e.g. High)',
+      description: 'Filter by priority. Comma-separate to match multiple (e.g. "High,Urgent")',
     },
     sortBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort field (e.g. createdTime, -modifiedTime)',
+      description:
+        'Sort field: createdTime, customerResponseTime, or responseDueDate. Prefix with - for descending.',
     },
     include: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated related data (contacts, assignee, departments, team, products)',
+      description:
+        'Comma-separated related data to embed. Allowed: contacts, products, departments, team, isRead, assignee',
     },
   },
 
@@ -83,7 +87,9 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
       const query = new URLSearchParams()
       if (params.from !== undefined) query.set('from', String(params.from))
       if (params.limit !== undefined) query.set('limit', String(params.limit))
-      if (params.departmentId) query.set('departmentId', params.departmentId)
+      // Zoho names this query param `departmentIds` (plural). A singular
+      // `departmentId` is silently ignored, returning every department's tickets.
+      if (params.departmentIds) query.set('departmentIds', params.departmentIds)
       if (params.status) query.set('status', params.status)
       if (params.priority) query.set('priority', params.priority)
       if (params.sortBy) query.set('sortBy', params.sortBy)

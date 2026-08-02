@@ -12,13 +12,11 @@ import type {
  */
 export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Zoho Desk scopes
-  'Desk.tickets.ALL': 'View and manage tickets',
+  'Desk.tickets.READ': 'View tickets, threads, comments, and attachments',
+  'Desk.tickets.UPDATE': 'Update tickets and add comments',
   'Desk.contacts.READ': 'View contacts',
   'Desk.basic.READ': 'View basic account and organization data',
-  'Desk.search.READ': 'Search Zoho Desk data',
-  'Desk.webhooks.READ': 'View webhooks',
   'Desk.webhooks.CREATE': 'Create webhooks',
-  'Desk.webhooks.UPDATE': 'Update webhooks',
   'Desk.webhooks.DELETE': 'Delete webhooks',
   'aaaserver.profile.READ': 'View your Zoho profile',
   // Google scopes

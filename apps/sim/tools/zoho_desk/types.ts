@@ -14,7 +14,8 @@ export interface ZohoDeskBaseParams {
 export interface ZohoDeskListTicketsParams extends ZohoDeskBaseParams {
   from?: number
   limit?: number
-  departmentId?: string
+  /** Comma-separated department IDs. Zoho names this query param plural. */
+  departmentIds?: string
   status?: string
   priority?: string
   sortBy?: string
@@ -36,6 +37,9 @@ export interface ZohoDeskUpdateTicketParams extends ZohoDeskBaseParams {
   category?: string
   subCategory?: string
   dueDate?: string
+  description?: string
+  resolution?: string
+  classification?: string
   customFields?: Record<string, unknown>
 }
 
@@ -147,7 +151,11 @@ export const ZOHO_DESK_TICKET_PROPERTIES: Record<string, ToolOutputProperty> = {
   isEscalated: { type: 'boolean', description: 'Whether the ticket is escalated', optional: true },
   isOverDue: { type: 'boolean', description: 'Whether the ticket is overdue', optional: true },
   isSpam: { type: 'boolean', description: 'Whether the ticket is marked spam', optional: true },
-  customFields: { type: 'json', description: 'Custom field values', optional: true },
+  cf: {
+    type: 'json',
+    description: 'Custom field values, keyed by custom field API name',
+    optional: true,
+  },
 }
 
 export const ZOHO_DESK_COMMENT_PROPERTIES: Record<string, ToolOutputProperty> = {
@@ -161,6 +169,20 @@ export const ZOHO_DESK_COMMENT_PROPERTIES: Record<string, ToolOutputProperty> = 
   },
   isPublic: { type: 'boolean', description: 'Whether the comment is public', optional: true },
   commenterId: { type: 'string', description: 'Commenter ID', optional: true },
+  commenter: {
+    type: 'object',
+    description: 'Who wrote the comment',
+    optional: true,
+    properties: {
+      name: { type: 'string', description: 'Display name', optional: true },
+      firstName: { type: 'string', description: 'First name', optional: true },
+      lastName: { type: 'string', description: 'Last name', optional: true },
+      email: { type: 'string', description: 'Email address', optional: true },
+      type: { type: 'string', description: 'Commenter type (AGENT/END_USER)', optional: true },
+      roleName: { type: 'string', description: 'Role name', optional: true },
+      photoURL: { type: 'string', description: 'Avatar URL', optional: true, nullable: true },
+    },
+  },
   commentedTime: { type: 'string', description: 'Commented timestamp', optional: true },
   modifiedTime: {
     type: 'string',
@@ -214,7 +236,35 @@ export const ZOHO_DESK_THREAD_PROPERTIES: Record<string, ToolOutputProperty> = {
     nullable: true,
   },
   isForward: { type: 'boolean', description: 'Whether the thread is a forward', optional: true },
-  author: { type: 'json', description: 'Thread author', optional: true },
+  status: {
+    type: 'string',
+    description: 'Delivery status of an outgoing thread (SUCCESS/FAILED/DRAFT)',
+    optional: true,
+  },
+  isDescriptionThread: {
+    type: 'boolean',
+    description: "Whether this thread is the ticket's original description",
+    optional: true,
+  },
+  visibility: { type: 'string', description: 'Thread visibility (e.g. public)', optional: true },
+  canReply: {
+    type: 'boolean',
+    description: 'Whether the thread can be replied to',
+    optional: true,
+  },
+  author: {
+    type: 'object',
+    description: 'Who sent the thread',
+    optional: true,
+    properties: {
+      name: { type: 'string', description: 'Display name', optional: true },
+      firstName: { type: 'string', description: 'First name', optional: true },
+      lastName: { type: 'string', description: 'Last name', optional: true },
+      email: { type: 'string', description: 'Email address', optional: true },
+      type: { type: 'string', description: 'Author type (AGENT/END_USER)', optional: true },
+      photoURL: { type: 'string', description: 'Avatar URL', optional: true, nullable: true },
+    },
+  },
   attachments: {
     type: 'array',
     description: 'Thread attachments',
@@ -251,5 +301,9 @@ export const ZOHO_DESK_CONTACT_PROPERTIES: Record<string, ToolOutputProperty> = 
   country: { type: 'string', description: 'Country', optional: true, nullable: true },
   zip: { type: 'string', description: 'ZIP / postal code', optional: true, nullable: true },
   description: { type: 'string', description: 'Description', optional: true, nullable: true },
-  customFields: { type: 'json', description: 'Custom field values', optional: true },
+  cf: {
+    type: 'json',
+    description: 'Custom field values, keyed by custom field API name',
+    optional: true,
+  },
 }

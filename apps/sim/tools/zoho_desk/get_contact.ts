@@ -5,6 +5,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  requireZohoDeskId,
 } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskGetContactTool: ToolConfig<ZohoDeskGetContactParams, ZohoDeskResponse> = {
@@ -44,7 +45,7 @@ export const zohoDeskGetContactTool: ToolConfig<ZohoDeskGetContactParams, ZohoDe
 
   request: {
     url: (params) =>
-      `${getZohoDeskApiBase(params)}/contacts/${encodeURIComponent(params.contactId)}`,
+      `${getZohoDeskApiBase(params)}/contacts/${encodeURIComponent(requireZohoDeskId(params.contactId, 'Contact ID'))}`,
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),
   },

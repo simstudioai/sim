@@ -5,6 +5,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -51,7 +52,8 @@ export const zohoDeskAddCommentTool: ToolConfig<ZohoDeskAddCommentParams, ZohoDe
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Content type: plainText or html',
+      description:
+        "Content type: plainText or html. Defaults to plainText so agent-written text posts literally; pass 'html' to send markup (Zoho's own API default is html).",
     },
     isPublic: {
       type: 'boolean',
@@ -63,7 +65,7 @@ export const zohoDeskAddCommentTool: ToolConfig<ZohoDeskAddCommentParams, ZohoDe
 
   request: {
     url: (params) =>
-      `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(params.ticketId)}/comments`,
+      `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/comments`,
     method: 'POST',
     headers: (params) => buildZohoDeskHeaders(params),
     body: (params) => ({

@@ -5,13 +5,15 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskListThreadsTool: ToolConfig<ZohoDeskListThreadsParams, ZohoDeskResponse> = {
   id: 'zoho_desk_list_threads',
   name: 'Zoho Desk List Threads',
-  description: 'List conversation threads on a Zoho Desk ticket.',
+  description:
+    'List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default).',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'zoho-desk' },
@@ -45,13 +47,13 @@ export const zohoDeskListThreadsTool: ToolConfig<ZohoDeskListThreadsParams, Zoho
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination start index (1-based)',
+      description: 'Pagination start index (0-based)',
     },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of threads to return (max 100)',
+      description: 'Number of threads to return (1-200, default 100)',
     },
   },
 
@@ -61,7 +63,7 @@ export const zohoDeskListThreadsTool: ToolConfig<ZohoDeskListThreadsParams, Zoho
       if (params.from !== undefined) query.set('from', String(params.from))
       if (params.limit !== undefined) query.set('limit', String(params.limit))
       const qs = query.toString()
-      return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(params.ticketId)}/threads${qs ? `?${qs}` : ''}`
+      return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/threads${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),

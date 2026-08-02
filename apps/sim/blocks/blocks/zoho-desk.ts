@@ -189,6 +189,43 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'description',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Replace the ticket description',
+      condition: { field: 'operation', value: 'update_ticket' },
+      mode: 'advanced',
+    },
+    {
+      id: 'resolution',
+      title: 'Resolution',
+      type: 'long-input',
+      placeholder: 'Resolution notes',
+      condition: { field: 'operation', value: 'update_ticket' },
+      mode: 'advanced',
+    },
+    {
+      id: 'classification',
+      title: 'Classification',
+      type: 'dropdown',
+      options: [
+        { label: 'Problem', id: 'Problem' },
+        { label: 'Request', id: 'Request' },
+        { label: 'Question', id: 'Question' },
+        { label: 'Others', id: 'Others' },
+      ],
+      condition: { field: 'operation', value: 'update_ticket' },
+      mode: 'advanced',
+    },
+    {
+      id: 'departmentId',
+      title: 'Department ID',
+      type: 'short-input',
+      placeholder: 'Move ticket to this department',
+      condition: { field: 'operation', value: 'update_ticket' },
+      mode: 'advanced',
+    },
+    {
       id: 'category',
       title: 'Category',
       type: 'short-input',
@@ -247,10 +284,10 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     },
     // Shared filters / options
     {
-      id: 'departmentId',
-      title: 'Department ID',
+      id: 'departmentIds',
+      title: 'Department IDs',
       type: 'short-input',
-      placeholder: 'Filter by department',
+      placeholder: 'Comma-separated department IDs',
       condition: { field: 'operation', value: 'list_tickets' },
       mode: 'advanced',
     },
@@ -266,7 +303,7 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       id: 'sortBy',
       title: 'Sort By',
       type: 'short-input',
-      placeholder: 'e.g. createdTime or -modifiedTime',
+      placeholder: 'createdTime, customerResponseTime, or responseDueDate',
       condition: { field: 'operation', value: 'list_tickets' },
       mode: 'advanced',
     },
@@ -274,7 +311,7 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       id: 'from',
       title: 'From',
       type: 'short-input',
-      placeholder: 'Pagination start index',
+      placeholder: 'Start index (0-based)',
       condition: {
         field: 'operation',
         value: ['list_tickets', 'list_comments', 'list_threads'],
@@ -313,7 +350,14 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
         // Pull raw pagination out of the spread so invalid values never reach the
         // tool; only re-add them when Number() yields a finite value (a non-numeric
         // typo would otherwise become NaN and produce an invalid Zoho query param).
-        const { oauthCredential, from: rawFrom, limit: rawLimit, contentType, ...rest } = params
+        const {
+          oauthCredential,
+          from: rawFrom,
+          limit: rawLimit,
+          contentType,
+          isPublic,
+          ...rest
+        } = params
         const result: Record<string, unknown> = { ...rest, oauthCredential }
 
         // contentType is the comment's content type; its default would otherwise
@@ -324,16 +368,23 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
           result.contentType = contentType
         }
 
+        // Zoho documents from >= 0 and limit >= 1 as integers; a negative or
+        // fractional value reaches the API as an opaque provider error, so drop
+        // anything outside those bounds here rather than round-tripping it.
         if (rawFrom !== undefined && rawFrom !== '') {
           const from = Number(rawFrom)
-          if (Number.isFinite(from)) result.from = from
+          if (Number.isInteger(from) && from >= 0) result.from = from
         }
         if (rawLimit !== undefined && rawLimit !== '') {
           const limit = Number(rawLimit)
-          if (Number.isFinite(limit)) result.limit = limit
+          if (Number.isInteger(limit) && limit >= 1) result.limit = limit
         }
-        if (rest.isPublic !== undefined) {
-          result.isPublic = rest.isPublic === true || rest.isPublic === 'true'
+        // Gated for the same reason as contentType above: isPublic carries a
+        // defaultValue, so forwarding it unconditionally would serialize a
+        // comment-only field onto every other operation's params. Destructured
+        // out of `rest` so the default never reaches non-comment operations.
+        if (params.operation === 'add_comment' && isPublic !== undefined) {
+          result.isPublic = isPublic === true || isPublic === 'true'
         }
         if (typeof rest.customFields === 'string' && rest.customFields.trim()) {
           try {
@@ -360,7 +411,11 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     status: { type: 'string', description: 'Ticket status' },
     priority: { type: 'string', description: 'Ticket priority' },
     assigneeId: { type: 'string', description: 'Assignee (agent) ID' },
-    departmentId: { type: 'string', description: 'Department ID' },
+    description: { type: 'string', description: 'Ticket description' },
+    resolution: { type: 'string', description: 'Resolution notes' },
+    classification: { type: 'string', description: 'Ticket classification' },
+    departmentId: { type: 'string', description: 'Department ID to move a ticket to' },
+    departmentIds: { type: 'string', description: 'Department IDs to filter by (comma-separated)' },
     category: { type: 'string', description: 'Ticket category' },
     subCategory: { type: 'string', description: 'Ticket sub-category' },
     dueDate: { type: 'string', description: 'Ticket due date' },

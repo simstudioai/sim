@@ -1105,18 +1105,30 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       'zoho-desk': {
         name: 'Zoho Desk',
-        description: 'Manage Zoho Desk tickets, comments, threads, and contacts.',
+        description:
+          'Manage Zoho Desk tickets, comments, threads, and contacts. Requires a Zoho account in the US data center.',
         providerId: 'zoho-desk',
         icon: ZohoDeskIcon,
         baseProviderIcon: ZohoDeskIcon,
+        // Kept to exactly what the tools and the webhook trigger exercise:
+        // tickets (incl. threads/comments), contacts (get_contact), basic
+        // (list_organizations), webhook create/delete (the trigger provisions and
+        // tears down its own subscription), and profile (OAuth getUserInfo).
+        // Desk.search.READ, Desk.webhooks.READ and Desk.webhooks.UPDATE were
+        // requested but unused - no tool searches, and the provider never lists
+        // or edits a subscription.
         scopes: [
-          'Desk.tickets.ALL',
+          // READ + UPDATE rather than tickets.ALL: no tool creates or deletes a
+          // ticket, and ALL additionally grants ticket DELETE. Threads, comments
+          // and attachments live under the tickets module and are covered by
+          // these two. NOTE: Zoho publishes no scope line for the attachment
+          // content sub-path - verify attachment download against a live account
+          // before merge and widen here if it returns SCOPE_MISMATCH.
+          'Desk.tickets.READ',
+          'Desk.tickets.UPDATE',
           'Desk.contacts.READ',
           'Desk.basic.READ',
-          'Desk.search.READ',
-          'Desk.webhooks.READ',
           'Desk.webhooks.CREATE',
-          'Desk.webhooks.UPDATE',
           'Desk.webhooks.DELETE',
           'aaaserver.profile.READ',
         ],

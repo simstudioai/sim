@@ -28,7 +28,7 @@ const ZOHO_DESK_EVENT_OPTIONS = [
 ]
 
 const ZOHO_DESK_SETUP_INSTRUCTIONS = [
-  'Connect your Zoho Desk account above. Webhooks require a Zoho Desk edition of Professional or higher (Free and Standard cannot create webhooks).',
+  'Connect your Zoho Desk account above. Webhooks require a Zoho Desk edition of Professional or higher (Free and Standard cannot create webhooks). Accounts hosted in the US data center (accounts.zoho.com) are supported today; other regions (EU, IN, AU, JP) cannot be connected yet.',
   'Select your Organization from the dropdown (populated automatically from your connected Zoho Desk account).',
   'Choose the event to subscribe to. For "Ticket Updated" you can optionally list up to 5 ticket field API names to watch; previous field values are included in the payload. For "Ticket Thread Added" you can filter by direction (incoming/outgoing).',
   'Optionally restrict events to specific departments by entering comma-separated department IDs.',
@@ -83,7 +83,11 @@ export const zohoDeskWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
-      id: 'departmentIds',
+      // Deliberately distinct from the block's tool-mode `departmentIds` filter.
+      // `block.subBlocks` is keyed by id, so a shared id would let a value typed
+      // as a list_tickets filter silently become the webhook's department filter
+      // (and vice versa) when the block is switched between tool and trigger mode.
+      id: 'triggerDepartmentIds',
       title: 'Department IDs (optional)',
       type: 'short-input',
       placeholder: 'Comma-separated department IDs',

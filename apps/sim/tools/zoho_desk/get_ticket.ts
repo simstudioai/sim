@@ -6,6 +6,7 @@ import {
   deriveZohoContentText,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  requireZohoDeskId,
 } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskGetTicketTool: ToolConfig<ZohoDeskGetTicketParams, ZohoDeskResponse> = {
@@ -45,7 +46,8 @@ export const zohoDeskGetTicketTool: ToolConfig<ZohoDeskGetTicketParams, ZohoDesk
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated related data (contacts, assignee, departments, team, products)',
+      description:
+        'Comma-separated related data to embed. Allowed: contacts, products, assignee, departments, contract, isRead, team, skills',
     },
   },
 
@@ -54,7 +56,7 @@ export const zohoDeskGetTicketTool: ToolConfig<ZohoDeskGetTicketParams, ZohoDesk
       const query = new URLSearchParams()
       if (params.include) query.set('include', params.include)
       const qs = query.toString()
-      return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(params.ticketId)}${qs ? `?${qs}` : ''}`
+      return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),

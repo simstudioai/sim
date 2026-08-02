@@ -6,6 +6,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  requireZohoDeskId,
 } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, ZohoDeskResponse> = {
@@ -89,16 +90,35 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
       visibility: 'user-or-llm',
       description: 'Due date (ISO 8601)',
     },
+    description: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Ticket description',
+    },
+    resolution: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Resolution notes recorded on the ticket',
+    },
+    classification: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Ticket classification: Problem, Request, Question, or Others',
+    },
     customFields: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Custom field values as a JSON object',
+      description: 'Custom field values as a JSON object, keyed by custom field API name',
     },
   },
 
   request: {
-    url: (params) => `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(params.ticketId)}`,
+    url: (params) =>
+      `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}`,
     method: 'PATCH',
     headers: (params) => buildZohoDeskHeaders(params),
     body: (params) => {
@@ -111,7 +131,14 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
         category: params.category,
         subCategory: params.subCategory,
         dueDate: params.dueDate,
-        customFields: params.customFields,
+        description: params.description,
+        resolution: params.resolution,
+        classification: params.classification,
+        // Zoho's ticket PATCH names the custom-field object `cf`. `customFields`
+        // exists only as a deprecated alias on other Desk resources (e.g. events)
+        // and on the separate validate-field-updates endpoint - sending it here
+        // is silently ignored, so the update reports success without applying.
+        cf: params.customFields,
       })
       // Zoho rejects an empty PATCH; fail early with an actionable message
       // instead of surfacing an opaque Zoho error for a no-op update.

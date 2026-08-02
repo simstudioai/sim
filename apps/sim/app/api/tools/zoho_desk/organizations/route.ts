@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { zohoDeskListOrganizationsContract } from '@/lib/api/contracts/tools/zoho-desk'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { assertZohoUrl } from '@/tools/zoho_desk/host-allowlist'
 import { getZohoDeskApiBase, getZohoDeskErrorMessage } from '@/tools/zoho_desk/utils'
@@ -44,16 +45,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // The organizations endpoint is the one Desk call that does not require an
     // orgId header, so it can bootstrap the organization selector before a
     // portal has been chosen.
-    const response = await fetch(organizationsUrl.toString(), {
+    // Mirrors the attachment route: the initial host is allowlisted, but a
+    // Zoho-side redirect would otherwise be followed with the OAuth token
+    // attached and no IP pinning. secureFetchWithValidation pins the resolved
+    // IP, blocks private/reserved targets on every hop, and drops the token if
+    // a redirect leaves the original origin.
+    const response = await secureFetchWithValidation(organizationsUrl.toString(), {
       method: 'GET',
       headers: {
         Authorization: `Zoho-oauthtoken ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      signal: AbortSignal.timeout(15_000),
+      timeout: 15_000,
+      stripAuthOnRedirect: true,
     })
 
-    const data = await response.json().catch(() => ({}))
+    // secureFetchWithValidation types the body as `unknown`; Zoho wraps the list
+    // in `{ data: [...] }`, which is narrowed below before use.
+    const data: { data?: unknown } = await response
+      .json()
+      .then((body) => (body && typeof body === 'object' ? (body as { data?: unknown }) : {}))
+      .catch(() => ({}))
     if (!response.ok) {
       // Surface the failure instead of returning an empty 200, which would make
       // the org dropdown silently render empty on an auth/connectivity error.

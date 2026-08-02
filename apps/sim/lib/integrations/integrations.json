@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-01",
+  "updatedAt": "2026-08-02",
   "integrations": [
     {
       "type": "onepassword",
@@ -21824,7 +21824,7 @@
       "operations": [
         {
           "name": "List Tickets",
-          "description": "List tickets from a Zoho Desk organization with optional filters."
+          "description": "List tickets from a Zoho Desk organization with optional filters. Returns a list projection: description, resolution, statusType and classification are only available from Get Ticket."
         },
         {
           "name": "Get Ticket",
@@ -21844,7 +21844,7 @@
         },
         {
           "name": "List Threads",
-          "description": "List conversation threads on a Zoho Desk ticket."
+          "description": "List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default)."
         },
         {
           "name": "Get Thread",

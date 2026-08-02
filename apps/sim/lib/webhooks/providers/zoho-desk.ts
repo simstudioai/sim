@@ -17,6 +17,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 import { withDerivedContentText } from '@/tools/zoho_desk/utils'
 
 const logger = createLogger('WebhookProvider:ZohoDesk')
@@ -41,6 +42,26 @@ function getJwks(deskHost: string): ReturnType<typeof jose.createRemoteJWKSet> {
   return set
 }
 
+/**
+ * Anchor a Desk base URL to the Zoho apex allowlist before it is used to build a
+ * token-carrying request or a JWKS fetch. `providerConfig.apiDomain` is only
+ * written by `createSubscription`, but `SYSTEM_MANAGED_FIELDS` governs config
+ * *diffing*, not writability - it does not strip a caller-supplied `apiDomain`
+ * from an incoming providerConfig. Falling back to the US base on anything
+ * unrecognized keeps a hostile value from ever receiving the OAuth token or
+ * standing in as the JWKS issuer.
+ */
+function safeZohoDeskBase(candidate: unknown): string {
+  if (typeof candidate !== 'string' || !candidate) return DEFAULT_ZOHO_DESK_BASE
+  try {
+    const url = new URL(candidate)
+    if (url.protocol !== 'https:' || !isZohoHost(url.hostname)) return DEFAULT_ZOHO_DESK_BASE
+    return candidate.replace(/\/+$/, '')
+  } catch {
+    return DEFAULT_ZOHO_DESK_BASE
+  }
+}
+
 /** Read the persisted data-center Desk base URL from the credential's scope marker. */
 async function resolveZohoDeskApiDomain(accountId: string): Promise<string> {
   try {
@@ -51,7 +72,7 @@ async function resolveZohoDeskApiDomain(accountId: string): Promise<string> {
       .limit(1)
     const scope = rows[0]?.scope
     const match = typeof scope === 'string' ? scope.match(ZOHO_DESK_BASE_URL_REGEX) : null
-    return match?.[1] ?? DEFAULT_ZOHO_DESK_BASE
+    return safeZohoDeskBase(match?.[1])
   } catch (error) {
     logger.warn('Failed to resolve Zoho Desk api domain from credential', {
       message: toError(error).message,
@@ -185,11 +206,12 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       )
     }
 
+    // Already allowlist-anchored by resolveZohoDeskApiDomain -> safeZohoDeskBase.
     const apiDomain = await resolveZohoDeskApiDomain(owner.accountId)
     const notificationUrl = getNotificationUrl(webhookRecord)
 
     const filter: Record<string, unknown> = {}
-    const departmentIds = splitCsv(config.departmentIds)
+    const departmentIds = splitCsv(config.triggerDepartmentIds)
     if (departmentIds.length > 0) filter.departmentIds = departmentIds
     if (eventType === 'Ticket_Update') {
       filter.includePrevState = true
@@ -282,8 +304,9 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     }
 
     const apiDomain =
-      (typeof config.apiDomain === 'string' && config.apiDomain) ||
-      (await resolveZohoDeskApiDomain(owner.accountId))
+      typeof config.apiDomain === 'string' && config.apiDomain
+        ? safeZohoDeskBase(config.apiDomain)
+        : await resolveZohoDeskApiDomain(owner.accountId)
 
     const response = await fetch(`${apiDomain}/api/v1/webhooks/${externalId}`, {
       method: 'DELETE',
@@ -333,7 +356,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     // than defaulting to the US host and rejecting legitimate events.
     let apiDomain =
       typeof providerConfig.apiDomain === 'string' && providerConfig.apiDomain
-        ? providerConfig.apiDomain
+        ? safeZohoDeskBase(providerConfig.apiDomain)
         : ''
     if (!apiDomain) {
       const credentialId =

@@ -5,6 +5,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -51,7 +52,7 @@ export const zohoDeskGetThreadTool: ToolConfig<ZohoDeskGetThreadParams, ZohoDesk
 
   request: {
     url: (params) =>
-      `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(params.ticketId)}/threads/${encodeURIComponent(params.threadId)}`,
+      `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/threads/${encodeURIComponent(requireZohoDeskId(params.threadId, 'Thread ID'))}`,
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),
   },

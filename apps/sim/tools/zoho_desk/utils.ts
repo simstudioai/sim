@@ -1,4 +1,5 @@
 import { htmlToText } from 'html-to-text'
+import { isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 import type { ZohoDeskBaseParams } from '@/tools/zoho_desk/types'
 
 /** Default Zoho Desk REST host when no data-center-specific base was persisted. */
@@ -26,15 +27,24 @@ export function convertZohoHtmlToText(html: string): string {
 }
 
 /**
- * Derive a plain-text rendering of a Zoho Desk content value. Zoho tags every
- * content body with a `contentType` discriminator (`'html' | 'plainText'`); only
- * `'html'` is converted. A plain-text (or unrecognized) content value is
- * returned unchanged so callers can mirror it into a parallel text field. Returns
- * `undefined` when there is no string content to derive from.
+ * Derive a plain-text rendering of a Zoho Desk content value.
+ *
+ * Zoho is not consistent about how it spells the HTML discriminator: comment
+ * bodies come back as `contentType: 'html'` while thread bodies use the MIME
+ * form `contentType: 'text/html'`. A strict `=== 'html'` check therefore passes
+ * thread HTML straight through as "plain text". Match either spelling (and any
+ * other `text/html;charset=...` variant) case-insensitively.
+ *
+ * A plain-text (or unrecognized) content value is returned unchanged so callers
+ * can mirror it into a parallel text field. Returns `undefined` when there is no
+ * string content to derive from.
  */
 export function deriveZohoContentText(content: unknown, contentType: unknown): string | undefined {
   if (typeof content !== 'string') return undefined
-  return contentType === 'html' ? convertZohoHtmlToText(content) : content
+  if (typeof contentType !== 'string') return content
+  const normalized = contentType.trim().toLowerCase()
+  const isHtml = normalized === 'html' || normalized.startsWith('text/html')
+  return isHtml ? convertZohoHtmlToText(content) : content
 }
 
 /**
@@ -58,8 +68,19 @@ export function withDerivedContentText(resource: unknown): unknown {
  * always reach the correct data center instead of assuming `desk.zoho.com`.
  */
 export function getZohoDeskApiBase(params: Pick<ZohoDeskBaseParams, 'apiDomain'>): string {
-  const base = (params.apiDomain || DEFAULT_ZOHO_DESK_BASE).replace(/\/+$/, '')
-  return `${base}/api/v1`
+  const candidate = (params.apiDomain || DEFAULT_ZOHO_DESK_BASE).replace(/\/+$/, '')
+  // Anchor to the Zoho apex allowlist before this host receives the OAuth token.
+  // `apiDomain` is injected server-side from the credential and is hidden from
+  // the LLM tool schema, but the injection in tools/index.ts lets a pre-existing
+  // context value win over the credential-derived one - so validate rather than
+  // trust precedence, and fall back to the US base on anything unrecognized.
+  try {
+    const url = new URL(candidate)
+    if (url.protocol === 'https:' && isZohoHost(url.hostname)) return `${candidate}/api/v1`
+  } catch {
+    // fall through to the default base
+  }
+  return `${DEFAULT_ZOHO_DESK_BASE}/api/v1`
 }
 
 /**
@@ -74,6 +95,17 @@ export function resolveZohoAttachmentUrl(href: string, apiBase: string): URL {
   if (/^https?:\/\//i.test(href)) return new URL(href)
   const path = href.replace(/^\/+/, '').replace(/^api\/v1\//i, '')
   return new URL(`${apiBase.replace(/\/+$/, '')}/${path}`)
+}
+
+/**
+ * Trim an identifier destined for a URL path segment, rejecting a missing or
+ * whitespace-only value. A pasted trailing space would otherwise be encoded as
+ * `%20` and 404 against Zoho with no indication of the real cause.
+ */
+export function requireZohoDeskId(value: string | undefined, label: string): string {
+  const trimmed = value?.trim()
+  if (!trimmed) throw new Error(`${label} is required.`)
+  return trimmed
 }
 
 /** Build the auth + org headers required on every Zoho Desk API call. */
@@ -121,7 +153,7 @@ export function deriveAttachmentName(
   } catch {
     lastSegment = pathname.split('/').filter(Boolean).pop() ?? ''
   }
-  if (lastSegment && lastSegment.includes('.') && lastSegment.toLowerCase() !== 'content') {
+  if (lastSegment?.includes('.') && lastSegment.toLowerCase() !== 'content') {
     return lastSegment
   }
 

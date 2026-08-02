@@ -5,6 +5,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -45,13 +46,13 @@ export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, Zo
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination start index (1-based)',
+      description: 'Pagination start index (0-based)',
     },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of comments to return (max 100)',
+      description: 'Number of comments to return (1-100, default 50)',
     },
   },
 
@@ -61,7 +62,7 @@ export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, Zo
       if (params.from !== undefined) query.set('from', String(params.from))
       if (params.limit !== undefined) query.set('limit', String(params.limit))
       const qs = query.toString()
-      return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(params.ticketId)}/comments${qs ? `?${qs}` : ''}`
+      return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/comments${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),
