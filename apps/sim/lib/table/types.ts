@@ -353,8 +353,11 @@ export interface TableUpdateJobPayload {
  * on completion — the storage key of the generated file, served to the client via a presigned URL
  * and deleted by the janitor when the terminal job is pruned.
  */
+/** Serialization a table export produces. */
+export type TableExportFormat = 'csv' | 'json'
+
 export interface TableExportJobPayload {
-  format: 'csv' | 'json'
+  format: TableExportFormat
   resultKey?: string
 }
 

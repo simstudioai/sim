@@ -151,6 +151,21 @@ export async function listTableViews(
   return rows.map((row) => toTableView(row, columns))
 }
 
+/** One view by id, scoped to its table, or `null` when it doesn't exist there. */
+export async function getTableView(
+  viewId: string,
+  tableId: string,
+  columns: ColumnDefinition[]
+): Promise<TableView | null> {
+  const [row] = await db
+    .select()
+    .from(tableViews)
+    .where(and(eq(tableViews.id, viewId), eq(tableViews.tableId, tableId)))
+    .limit(1)
+
+  return row ? toTableView(row, columns) : null
+}
+
 function normalizeName(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) throw new TableViewValidationError('View name cannot be empty')

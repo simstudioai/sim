@@ -1,5 +1,7 @@
 import type { NextResponse } from 'next/server'
+import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { RowData, TableDefinition, TablePredicate, TableSchema } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
@@ -8,7 +10,13 @@ import {
 } from '@/lib/table/query-builder/validate'
 import { predicateToStorage } from '@/lib/table/select-values'
 import type { Filter } from '@/lib/table/types'
-import { normalizeColumn, rootErrorMessage, rowWriteErrorResponse } from '@/app/api/table/utils'
+import type { TableView } from '@/lib/table/views/service'
+import {
+  CSV_IMPORT_PROXY_BODY_CAP_BYTES,
+  normalizeColumn,
+  rootErrorMessage,
+  rowWriteErrorResponse,
+} from '@/app/api/table/utils'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 /**
@@ -54,9 +62,38 @@ export function toApiTable(table: TableDefinition) {
     },
     rowCount: table.rowCount,
     maxRows: table.maxRows,
+    folderId: table.folderId ?? null,
+    locks: table.locks,
     createdAt: toIso(table.createdAt),
     updatedAt: toIso(table.updatedAt),
   }
+}
+
+/**
+ * Normalized public view shape. Identical to the stored view except that the
+ * timestamps are ISO strings, matching every other v2 payload.
+ */
+export function toApiView(view: TableView) {
+  return {
+    id: view.id,
+    tableId: view.tableId,
+    name: view.name,
+    config: view.config,
+    isDefault: view.isDefault,
+    createdBy: view.createdBy,
+    createdAt: toIso(view.createdAt),
+    updatedAt: toIso(view.updatedAt),
+  }
+}
+
+/**
+ * Maps a stored column id (the JSONB key that `findRowMatches` reports) back to
+ * its display name, so cell references on the public wire are name-keyed like
+ * row `data`. Falls back to the id for a column that no longer exists.
+ */
+export function columnNameById(schema: TableSchema): (columnId: string) => string {
+  const nameById = new Map(schema.columns.map((column) => [getColumnId(column), column.name]))
+  return (columnId) => nameById.get(columnId) ?? columnId
 }
 
 /**
@@ -83,6 +120,35 @@ export function toApiRow(row: ApiRowInput, toNamedRow: (data: RowData) => RowDat
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
   }
+}
+
+/**
+ * Maps a {@link MultipartError} from the streaming CSV reader to the v2
+ * envelope. Mirrors v1's {@link multipartErrorResponse} — same classification,
+ * different envelope.
+ */
+export function v2MultipartError(error: MultipartError): NextResponse {
+  if (error.code === 'FILE_TOO_LARGE') {
+    return v2Error('PAYLOAD_TOO_LARGE', 'CSV import file exceeds maximum size')
+  }
+  return error.code === 'NO_FILE'
+    ? v2Error('BAD_REQUEST', 'CSV file is required')
+    : v2Error('BAD_REQUEST', `Invalid CSV upload: ${error.message}`)
+}
+
+/**
+ * 413 when a synchronous CSV upload would exceed the proxy's body cap; `null`
+ * otherwise. Next buffers the request body for the proxy and silently
+ * TRUNCATES it past the cap, so an unchecked oversize upload imports a partial
+ * file and reports success — the failure this exists to prevent.
+ */
+export function v2CsvBodyCapError(request: { headers: Headers }): NextResponse | null {
+  const contentLength = Number(request.headers.get('content-length') ?? 0)
+  if (contentLength <= CSV_IMPORT_PROXY_BODY_CAP_BYTES) return null
+  return v2Error(
+    'PAYLOAD_TOO_LARGE',
+    'File too large to import through the server. Upload it to workspace storage and use the async import instead.'
+  )
 }
 
 /**

@@ -1534,44 +1534,60 @@ export const deleteWorkflowGroupContract = defineRouteContract({
  *                cells on rows matching it (filtered "select all" Stop)
  *  - `row`     — every running/pending cell for a specific row (`rowId` required)
  */
-export const cancelTableRunsBodySchema = z
-  .object({
-    workspaceId: workspaceIdSchema,
-    scope: z.enum(['all', 'row']),
-    rowId: z.string().min(1).optional(),
-    filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
-    /** Scope-`all` only: rows deselected from the selection — their cells keep running. */
-    excludeRowIds: z
-      .array(z.string().min(1))
-      .max(
-        TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
-        `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
-      )
-      .optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.scope === 'row' && !value.rowId) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['rowId'],
-        message: 'rowId is required when scope is "row"',
-      })
-    }
-    if (value.scope === 'row' && value.filter) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['filter'],
-        message: 'filter only applies to scope "all"',
-      })
-    }
-    if (value.scope === 'row' && value.excludeRowIds) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['excludeRowIds'],
-        message: 'excludeRowIds only applies to scope "all"',
-      })
-    }
-  })
+/**
+ * Plain-object base for the cancel-runs body. Kept un-refined so callers (e.g.
+ * the v2 public contract, which narrows `filter` to the predicate grammar) can
+ * `.extend()` before applying {@link refineCancelTableRunsScope} — Zod forbids
+ * `.extend()` on a refined schema.
+ */
+export const cancelTableRunsBodyBaseSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  scope: z.enum(['all', 'row']),
+  rowId: z.string().min(1).optional(),
+  filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
+  /** Scope-`all` only: rows deselected from the selection — their cells keep running. */
+  excludeRowIds: z
+    .array(z.string().min(1))
+    .max(
+      TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
+      `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
+    )
+    .optional(),
+})
+
+/**
+ * `row` scope names exactly one row, so it requires `rowId` and rejects the
+ * two select-all-only narrowing fields rather than ignoring them — a caller
+ * that sends both has misunderstood the scope.
+ */
+export function refineCancelTableRunsScope(value: {
+  scope: 'all' | 'row'
+  rowId?: string
+  filter?: unknown
+  excludeRowIds?: string[]
+}): { path: string[]; message: string }[] {
+  if (value.scope !== 'row') return []
+  const issues: { path: string[]; message: string }[] = []
+  if (!value.rowId) {
+    issues.push({ path: ['rowId'], message: 'rowId is required when scope is "row"' })
+  }
+  if (value.filter) {
+    issues.push({ path: ['filter'], message: 'filter only applies to scope "all"' })
+  }
+  if (value.excludeRowIds) {
+    issues.push({
+      path: ['excludeRowIds'],
+      message: 'excludeRowIds only applies to scope "all"',
+    })
+  }
+  return issues
+}
+
+export const cancelTableRunsBodySchema = cancelTableRunsBodyBaseSchema.superRefine((value, ctx) => {
+  for (const issue of refineCancelTableRunsScope(value)) {
+    ctx.addIssue({ code: 'custom', ...issue })
+  }
+})
 
 export const cancelTableRunsContract = defineRouteContract({
   method: 'POST',
@@ -1635,32 +1651,47 @@ export const runLimitSchema = z.object({
     .max(1_000_000, 'max cannot exceed 1,000,000'),
 })
 
-export const runColumnBodySchema = z
-  .object({
-    workspaceId: workspaceIdSchema,
-    groupIds: z.array(z.string().min(1)).min(1),
-    runMode: z.enum(['all', 'incomplete']).default('all'),
-    rowIds: z.array(z.string().min(1)).min(1).optional(),
-    /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
-     *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
-    filter: bulkFilterSchema.optional(),
-    /** Select-all scope only: rows deselected from the selection — the dispatcher skips them. */
-    excludeRowIds: z
-      .array(z.string().min(1))
-      .max(
-        TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
-        `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
-      )
-      .optional(),
-    /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
-    limit: runLimitSchema.optional(),
-  })
-  .refine((data) => !(data.rowIds && data.filter), {
-    message: 'Provide either filter or rowIds, but not both',
-  })
-  .refine((data) => !(data.rowIds && data.excludeRowIds), {
-    message: 'excludeRowIds only applies to select-all scope (no rowIds)',
-  })
+/**
+ * Plain-object base for the run-column body. Kept un-refined so callers (e.g.
+ * the v2 public contract, which narrows `filter` to the predicate grammar) can
+ * `.extend()` before applying the mutex refines — Zod forbids `.extend()` on a
+ * refined schema.
+ */
+export const runColumnBodyBaseSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  groupIds: z.array(z.string().min(1)).min(1),
+  runMode: z.enum(['all', 'incomplete']).default('all'),
+  rowIds: z.array(z.string().min(1)).min(1).optional(),
+  /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
+   *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
+  filter: bulkFilterSchema.optional(),
+  /** Select-all scope only: rows deselected from the selection — the dispatcher skips them. */
+  excludeRowIds: z
+    .array(z.string().min(1))
+    .max(
+      TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
+      `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
+    )
+    .optional(),
+  /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
+  limit: runLimitSchema.optional(),
+})
+
+/** An explicit row set and a select-all filter are mutually exclusive scopes. */
+export const runColumnScopeMutexRefine = [
+  (data: { rowIds?: string[]; filter?: unknown }) => !(data.rowIds && data.filter),
+  { message: 'Provide either filter or rowIds, but not both' },
+] as const
+
+/** Deselections only mean something under select-all scope. */
+export const runColumnExcludeMutexRefine = [
+  (data: { rowIds?: string[]; excludeRowIds?: string[] }) => !(data.rowIds && data.excludeRowIds),
+  { message: 'excludeRowIds only applies to select-all scope (no rowIds)' },
+] as const
+
+export const runColumnBodySchema = runColumnBodyBaseSchema
+  .refine(...runColumnScopeMutexRefine)
+  .refine(...runColumnExcludeMutexRefine)
 
 export const runColumnContract = defineRouteContract({
   method: 'POST',
