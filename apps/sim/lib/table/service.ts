@@ -27,7 +27,7 @@ import {
   pickMetadata,
 } from '@/lib/table/column-types'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
-import { tableNotFound } from '@/lib/table/errors'
+import { TableRequestError, tableNotFound } from '@/lib/table/errors'
 import { appendTableEvent } from '@/lib/table/events'
 import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
 import { assertSchemaMutable, TableLockedError } from '@/lib/table/mutation-locks'
@@ -294,13 +294,13 @@ export async function createTable(
   // Validate table name
   const nameValidation = validateTableName(data.name)
   if (!nameValidation.valid) {
-    throw new Error(`Invalid table name: ${nameValidation.errors.join(', ')}`)
+    throw new TableRequestError(`Invalid table name: ${nameValidation.errors.join(', ')}`)
   }
 
   // Validate schema
   const schemaValidation = validateTableSchema(data.schema)
   if (!schemaValidation.valid) {
-    throw new Error(`Invalid schema: ${schemaValidation.errors.join(', ')}`)
+    throw new TableRequestError(`Invalid schema: ${schemaValidation.errors.join(', ')}`)
   }
 
   const tableId = `tbl_${generateId().replace(/-/g, '')}`
@@ -364,7 +364,7 @@ export async function createTable(
         )
 
       if (Number(existingCount) >= maxTables) {
-        throw new Error(`Workspace has reached maximum table limit (${maxTables})`)
+        throw new TableRequestError(`Workspace has reached maximum table limit (${maxTables})`)
       }
 
       const duplicateName = await trx
@@ -510,6 +510,63 @@ export function buildAddedColumn(
   }
 }
 
+/**
+ * Validates a batch of new columns and returns what to persist.
+ *
+ * Extracted and exported so the validation is testable without a transaction —
+ * the same reason `buildAddedColumn` is. Every failure here is caller-fixable,
+ * so each raises `TableRequestError` rather than a plain `Error`: the single
+ * -column path was migrated first, and while this one lagged, an invalid type
+ * or the column cap fell past the import route's substring list and surfaced as
+ * a 500 with the message swallowed.
+ */
+export function buildAddedColumns(
+  table: Pick<TableDefinition, 'schema'>,
+  columns: (ColumnTypeMetadata & {
+    id?: string
+    name: string
+    type: string
+    required?: boolean
+    unique?: boolean
+  })[]
+): TableSchema['columns'] {
+  const usedNames = new Set(table.schema.columns.map((c) => c.name.toLowerCase()))
+  const additions: TableSchema['columns'] = []
+
+  for (const column of columns) {
+    if (!NAME_PATTERN.test(column.name)) {
+      throw new TableRequestError(
+        `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
+      )
+    }
+    if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
+      throw new TableRequestError(
+        `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
+      )
+    }
+    if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
+      throw new TableRequestError(
+        `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
+      )
+    }
+    const lower = column.name.toLowerCase()
+    if (usedNames.has(lower)) {
+      throw new TableRequestError(`Column "${column.name}" already exists`)
+    }
+    usedNames.add(lower)
+    // Honor a caller-assigned id (the CSV append path pre-assigns so coercion
+    // and persistence agree); otherwise mint one.
+    additions.push(buildAddedColumn(column, column.id ?? generateColumnId()))
+  }
+
+  if (table.schema.columns.length + additions.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
+    throw new TableRequestError(
+      `Adding ${additions.length} column(s) would exceed maximum column limit (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE})`
+    )
+  }
+  return additions
+}
+
 export async function addTableColumnsWithTx(
   trx: DbTransaction,
   table: TableDefinition,
@@ -528,41 +585,7 @@ export async function addTableColumnsWithTx(
   // headers), so it must assert directly.
   assertSchemaMutable(table)
 
-  const usedNames = new Set(table.schema.columns.map((c) => c.name.toLowerCase()))
-  const additions: TableSchema['columns'] = []
-
-  for (const column of columns) {
-    if (!NAME_PATTERN.test(column.name)) {
-      throw new Error(
-        `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
-      )
-    }
-    if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
-      throw new Error(
-        `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
-      )
-    }
-    if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
-      throw new Error(
-        `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
-      )
-    }
-    const lower = column.name.toLowerCase()
-    if (usedNames.has(lower)) {
-      throw new Error(`Column "${column.name}" already exists`)
-    }
-    usedNames.add(lower)
-    // Honor a caller-assigned id (the CSV append path pre-assigns so coercion
-    // and persistence agree); otherwise mint one.
-    const id = column.id ?? generateColumnId()
-    additions.push(buildAddedColumn(column, id))
-  }
-
-  if (table.schema.columns.length + additions.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
-    throw new Error(
-      `Adding ${additions.length} column(s) would exceed maximum column limit (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE})`
-    )
-  }
+  const additions = buildAddedColumns(table, columns)
 
   // Spread `table.schema` first so workflow groups (and any future top-level
   // schema fields) survive a CSV import that only adds plain columns.
@@ -630,7 +653,7 @@ export async function renameTable(
 ): Promise<{ id: string; name: string }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
-    throw new Error(nameValidation.errors.join(', '))
+    throw new TableRequestError(nameValidation.errors.join(', '))
   }
 
   const now = new Date()
@@ -646,7 +669,7 @@ export async function renameTable(
       })
 
     if (result.length === 0) {
-      throw new Error(`Table ${tableId} not found`)
+      throw tableNotFound(`Table ${tableId} not found`)
     }
 
     const { createdBy, workspaceId } = result[0]
@@ -723,7 +746,7 @@ export async function moveTableToFolder(
     })
 
   if (result.length === 0) {
-    throw new Error(`Table ${tableId} not found`)
+    throw tableNotFound(`Table ${tableId} not found`)
   }
 
   const { name, createdBy } = result[0]
@@ -977,14 +1000,14 @@ export async function restoreTable(
   }
 
   if (!table.archivedAt) {
-    throw new Error('Table is not archived')
+    throw new TableRequestError('Table is not archived')
   }
 
   if (table.workspaceId) {
     const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
     const ws = await getWorkspaceWithOwner(table.workspaceId)
     if (!ws || ws.archivedAt) {
-      throw new Error('Cannot restore table into an archived workspace')
+      throw new TableRequestError('Cannot restore table into an archived workspace')
     }
   }
 

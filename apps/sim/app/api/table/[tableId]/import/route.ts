@@ -37,6 +37,7 @@ import {
   wouldExceedRowLimit,
 } from '@/lib/table'
 import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
+import { TableRequestError } from '@/lib/table/errors'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
 import { getUserSettings } from '@/lib/users/queries'
@@ -424,6 +425,15 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     const message = toError(error).message
     logger.error(`[${requestId}] CSV import into existing table failed:`, error)
+
+    // The table service says whether a failure is the caller's and what status
+    // it deserves. The substring list below still covers the CSV parser, which
+    // is not table-aware — but the service's own validation (an invalid column
+    // type, the column cap) matched none of those strings and was reported as a
+    // 500 with the message swallowed.
+    if (error instanceof TableRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
 
     const isClientError =
       message.includes('CSV file has no') ||

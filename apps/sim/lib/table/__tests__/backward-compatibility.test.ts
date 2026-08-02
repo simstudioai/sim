@@ -17,7 +17,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types'
+import { TABLE_LIMITS } from '@/lib/table/constants'
+import { TableRequestError, tableNotFound } from '@/lib/table/errors'
 import { coerceValue, inferColumnType } from '@/lib/table/import'
+import { buildAddedColumns } from '@/lib/table/service'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 import type { ColumnDefinition, Filter, JsonValue, Sort } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
@@ -255,5 +258,47 @@ describe('export is unchanged for pre-existing types', () => {
 
   it('resolves a select cell to its option NAME', () => {
     expect(COLUMN_TYPE_REGISTRY.select.formatForDisplay('o1', LEGACY_COLUMNS[6])).toBe('One')
+  })
+})
+
+describe('caller-fixable failures are typed, not string-matched', () => {
+  const table = { schema: { columns: [{ id: 'a', name: 'a', type: 'string' as const }] } }
+
+  it.each([
+    ['invalid name', { name: '1bad', type: 'string' }],
+    ['name too long', { name: 'a'.repeat(200), type: 'string' }],
+    ['invalid type', { name: 'ok', type: 'nonsense' }],
+    ['duplicate name', { name: 'a', type: 'string' }],
+  ])('raises TableRequestError(400) for %s', (_label, column) => {
+    // The bulk path kept throwing plain `Error` after the single-column path was
+    // migrated, so an invalid type or the column cap fell past the import
+    // route's substring list and became a 500 with the message swallowed.
+    // Asserting the TYPE is what stops the two drifting again.
+    let thrown: unknown
+    try {
+      buildAddedColumns(table as never, [column as never])
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown).toBeInstanceOf(TableRequestError)
+    expect((thrown as TableRequestError).status).toBe(400)
+  })
+
+  it('raises TableRequestError(400) when the column cap is exceeded', () => {
+    const many = Array.from({ length: TABLE_LIMITS.MAX_COLUMNS_PER_TABLE + 1 }, (_, i) => ({
+      name: `c${i}`,
+      type: 'string',
+    }))
+    expect(() => buildAddedColumns(table as never, many as never)).toThrow(TableRequestError)
+  })
+
+  it('keeps message text and Error-ness, so existing string matchers still work', () => {
+    // The migration changed the CLASS, never the message — other consumers
+    // (runners, the copilot tool, sibling routes) still match on text.
+    const notFound = tableNotFound('Table not found')
+    expect(notFound).toBeInstanceOf(Error)
+    expect(notFound.message).toBe('Table not found')
+    expect(notFound.status).toBe(404)
+    expect(new TableRequestError('anything').status).toBe(400)
   })
 })

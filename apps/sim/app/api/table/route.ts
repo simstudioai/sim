@@ -15,6 +15,7 @@ import {
   type TableSchema,
   type TableScope,
 } from '@/lib/table'
+import { TableRequestError } from '@/lib/table/errors'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { normalizeColumn } from '@/app/api/table/utils'
 
@@ -154,6 +155,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
   } catch (error) {
     if (error instanceof Error) {
+      // One typed check: the service says whether a failure is the caller's
+      // and what status it deserves.
+      if (error instanceof TableRequestError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
       if (error.message.includes('maximum table limit')) {
         return NextResponse.json({ error: error.message }, { status: 403 })
       }
