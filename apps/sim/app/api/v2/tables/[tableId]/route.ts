@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import {
   v2DeleteTableContract,
   v2GetTableContract,
@@ -32,6 +32,7 @@ import {
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
+import type { OrchestrationOutcome } from '@/app/api/v2/tables/utils'
 import {
   toApiTable,
   v2TableAccessError,
@@ -171,11 +172,16 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
     }
 
     // ── Apply ──
-    // `applied` tracks whether anything reached the database, so a failure
-    // partway through still signals open clients. Skipping the signal there
-    // would leave every viewer rendering state that has already changed.
-    let applied = false
-    let failure: NextResponse | null = null
+    // Every deterministic rejection is already behind us, so a failure here is
+    // a genuine fault (lost race, archived mid-request, database error) rather
+    // than a bad request. The three operations commit independently — a single
+    // transaction would have to span three shared service functions that also
+    // back the first-party route and two copilot tools, and would break their
+    // per-operation audits — so instead of pretending atomicity the response
+    // states exactly which operations landed. A caller that gets an error can
+    // then reconcile rather than having to re-read and diff.
+    const applied: ('locks' | 'name' | 'folderId')[] = []
+    let failure: { outcome: OrchestrationOutcome; fallback: string } | null = null
 
     if (validated.locks !== undefined) {
       const outcome = await performUpdateTableLocks({
@@ -185,11 +191,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
         requestId,
         request,
       })
-      if (outcome.success) {
-        applied = true
-      } else {
-        failure = v2TableOrchestrationError(outcome, 'Failed to update table locks')
-      }
+      if (outcome.success) applied.push('locks')
+      else failure = { outcome, fallback: 'Failed to update table locks' }
     }
 
     if (!failure && validated.name !== undefined) {
@@ -200,11 +203,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
         requestId,
         request,
       })
-      if (outcome.success) {
-        applied = true
-      } else {
-        failure = v2TableOrchestrationError(outcome, 'Failed to rename table')
-      }
+      if (outcome.success) applied.push('name')
+      else failure = { outcome, fallback: 'Failed to rename table' }
     }
 
     if (!failure && validated.folderId !== undefined) {
@@ -216,20 +216,29 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
         request,
       })
       if (outcome.success) {
-        applied = true
+        applied.push('folderId')
       } else {
         // The move re-asserts workspace and active state, so a miss means the
         // table was archived between `checkAccess` and the write.
-        failure = v2TableOrchestrationError(
-          outcome.errorCode === 'not_found' ? { ...outcome, error: 'Table not found' } : outcome,
-          'Failed to move table'
-        )
+        failure = {
+          outcome:
+            outcome.errorCode === 'not_found' ? { ...outcome, error: 'Table not found' } : outcome,
+          fallback: 'Failed to move table',
+        }
       }
     }
 
     // Live-collab: tell open viewers the definition changed so they refetch.
-    if (applied) signalTableSchemaChanged(tableId)
-    if (failure) return failure
+    if (applied.length > 0) signalTableSchemaChanged(tableId)
+    if (failure) {
+      return v2TableOrchestrationError(
+        failure.outcome,
+        failure.fallback,
+        // Omitted when nothing landed, so `details.applied` present always
+        // means "these changes are live despite the error".
+        applied.length > 0 ? { applied } : undefined
+      )
+    }
 
     // Re-read so the response reflects every applied change at once.
     const updated = await getTableById(tableId)

@@ -175,10 +175,14 @@ const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode
  */
 export function v2ErrorForOrchestration(
   code: OrchestrationErrorCode | undefined,
-  message: string
+  message: string,
+  /** Structured context for the failure — e.g. which lock rejected a write. */
+  details?: unknown
 ): NextResponse {
   const v2Code = code ? V2_CODE_BY_ORCHESTRATION_ERROR[code] : 'INTERNAL_ERROR'
-  return v2Error(v2Code, v2Code === 'INTERNAL_ERROR' ? 'Internal server error' : message)
+  return v2Error(v2Code, v2Code === 'INTERNAL_ERROR' ? 'Internal server error' : message, {
+    ...(details !== undefined ? { details } : {}),
+  })
 }
 
 /**

@@ -191,6 +191,13 @@ export function v2TableLockError(error: unknown): NextResponse | null {
   return null
 }
 
+/** The failure half of any `lib/table/orchestration` result. */
+export interface OrchestrationOutcome {
+  errorCode?: OrchestrationErrorCode
+  error?: string
+  lock?: TableLockKind
+}
+
 /**
  * Renders a `lib/table/orchestration` failure in the v2 envelope, naming the
  * lock when one caused it.
@@ -203,17 +210,22 @@ export function v2TableLockError(error: unknown): NextResponse | null {
  * orchestration result goes through this instead.
  */
 export function v2TableOrchestrationError(
-  outcome: { errorCode?: OrchestrationErrorCode; error?: string; lock?: TableLockKind },
-  fallback: string
+  outcome: OrchestrationOutcome,
+  fallback: string,
+  /** Merged into `details` — e.g. which operations of a composite write landed. */
+  extraDetails?: Record<string, unknown>
 ): NextResponse {
-  if (outcome.errorCode === 'locked') {
-    return v2Error('LOCKED', outcome.error ?? fallback, {
-      // Omitted rather than sent as null when the kind is unknown — a caller
-      // branching on `details.lock` should see absence, not a phantom value.
-      ...(outcome.lock ? { details: { lock: outcome.lock } } : {}),
-    })
+  // `lock` is omitted rather than sent as null when the kind is unknown — a
+  // caller branching on `details.lock` should see absence, not a phantom value.
+  const details = {
+    ...(outcome.errorCode === 'locked' && outcome.lock ? { lock: outcome.lock } : {}),
+    ...extraDetails,
   }
-  return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? fallback)
+  return v2ErrorForOrchestration(
+    outcome.errorCode,
+    outcome.error ?? fallback,
+    Object.keys(details).length > 0 ? details : undefined
+  )
 }
 
 /**

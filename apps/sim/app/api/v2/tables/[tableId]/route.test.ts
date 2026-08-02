@@ -282,6 +282,38 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
     expect(mockPerformRenameTable).not.toHaveBeenCalled()
   })
 
+  it('reports which operations landed when a later one fails', async () => {
+    // The three writes commit independently, so rather than pretending
+    // atomicity the error states what is already live — a caller can reconcile
+    // instead of re-reading and diffing.
+    mockPerformRenameTable.mockResolvedValue({ success: true })
+    mockPerformMoveTableToFolder.mockResolvedValue({
+      success: false,
+      errorCode: 'not_found',
+      error: 'gone',
+    })
+
+    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed', folderId: 'folder-1' })
+
+    expect(res.status).toBe(404)
+    expect((await res.json()).error.details).toEqual({ applied: ['name'] })
+  })
+
+  it('omits the applied list when the very first operation fails', async () => {
+    // `details.applied` present must always mean "these changes are live".
+    mockPerformRenameTable.mockResolvedValue({
+      success: false,
+      errorCode: 'conflict',
+      error: 'taken',
+    })
+
+    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed', folderId: 'folder-1' })
+
+    expect(res.status).toBe(409)
+    expect((await res.json()).error.details).toBeUndefined()
+    expect(mockPerformMoveTableToFolder).not.toHaveBeenCalled()
+  })
+
   it('still signals collaborators when a later operation fails after an earlier one landed', async () => {
     // A mid-write fault can't be rolled back across three transactions, so the
     // clients must at least be told to refetch what did apply.
