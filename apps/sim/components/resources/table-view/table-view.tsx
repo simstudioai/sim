@@ -127,7 +127,8 @@ export function TableView({ source }: TableViewProps) {
     <div className='flex h-full min-h-0 flex-col'>
       <div onScroll={handleScroll} className='min-h-0 flex-1 overflow-auto overscroll-contain'>
         <Table>
-          <TableHeader>
+          {/* Pinned so a long table keeps its column labels, as the grid does. */}
+          <TableHeader className='sticky top-0 z-10 bg-[var(--bg)]'>
             <TableRow>
               {displayColumns.map((column) => (
                 <TableHead key={column.key} className='whitespace-nowrap'>
@@ -155,8 +156,17 @@ export function TableView({ source }: TableViewProps) {
                      * an all-empty row would collapse to its padding. The floor lives
                      * on a wrapper rather than in `CellRender` so the grid is
                      * unaffected.
+                     *
+                     * `whitespace-nowrap` is load-bearing, not decoration: the
+                     * cell kinds already carry `overflow-clip text-ellipsis`,
+                     * but an ellipsis needs a single non-wrapping line to
+                     * appear. Without it those classes are inert, text wraps to
+                     * several lines, and rows grow unevenly — where the grid
+                     * gets the same rule from its own `CELL_CONTENT`.
+                     * `min-w-0` lets the flex container shrink below that
+                     * now-unwrapped content instead of forcing the column wide.
                      */}
-                    <span className='flex min-h-[20px] items-center'>
+                    <span className='flex min-h-[20px] min-w-0 items-center overflow-clip whitespace-nowrap'>
                       <CellContent
                         value={row.data[getColumnId(column)]}
                         column={column}
