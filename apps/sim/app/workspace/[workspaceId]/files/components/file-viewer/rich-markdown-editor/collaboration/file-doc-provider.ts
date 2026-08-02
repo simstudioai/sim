@@ -1,4 +1,8 @@
 import {
+  ROOM_ACCESS_REVOKED_EVENT,
+  type RoomAccessRevokedBroadcast,
+} from '@sim/realtime-protocol/events'
+import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
@@ -7,6 +11,7 @@ import {
   type JoinFileDocSuccess,
   toFileDocBytes,
 } from '@sim/realtime-protocol/file-doc'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
 import { ObservableV2 } from 'lib0/observable'
@@ -131,6 +136,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     socket.on(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     socket.on(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
     socket.on(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
+    socket.on(ROOM_ACCESS_REVOKED_EVENT, this.handleAccessRevoked)
     socket.on('connect', this.handleConnect)
     doc.on('update', this.handleDocUpdate)
     awareness.on('update', this.handleAwarenessUpdate)
@@ -229,6 +235,30 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       this.clearReadinessTimer()
     }
     this.emit('join-error', [data])
+  }
+
+  /**
+   * The server evicted this socket from the document because the user's workspace
+   * access was revoked or downgraded below `write` mid-session. Nothing sent from
+   * here would be applied any more, so take the same path as a non-retryable
+   * rejection: latch fatal (stop re-joining, stop applying inbound frames) and drop
+   * `synced`, so the editor falls back to the read-only view of the stored content
+   * instead of silently accepting keystrokes that go nowhere.
+   */
+  private handleAccessRevoked = (data: RoomAccessRevokedBroadcast) => {
+    if (data.room?.type !== ROOM_TYPES.WORKSPACE_FILE_DOC || data.room.id !== this.fileId) return
+    if (this.fatal || this.disposed) return
+    const error: JoinFileDocError = {
+      fileId: this.fileId,
+      error: data.message,
+      code: 'ACCESS_REVOKED',
+      retryable: false,
+    }
+    this.fatal = true
+    this.joinError = error
+    this.clearReadinessTimer()
+    this.setSynced(false)
+    this.emit('join-error', [error])
   }
 
   private handleMessage = (data: unknown) => {
@@ -362,6 +392,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.socket.off(FILE_DOC_EVENTS.MESSAGE, this.handleMessage)
     this.socket.off(FILE_DOC_EVENTS.JOIN_SUCCESS, this.handleJoinSuccess)
     this.socket.off(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
+    this.socket.off(ROOM_ACCESS_REVOKED_EVENT, this.handleAccessRevoked)
     this.socket.off('connect', this.handleConnect)
     this.doc.off('update', this.handleDocUpdate)
     this.doc.getMap(FILE_DOC_SEED.configMap).unobserve(this.handleConfigChange)

@@ -31,6 +31,7 @@ import {
   mapToThinkingLevel,
   supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
@@ -49,7 +50,6 @@ import {
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 import type { ExecutionState, GeminiProviderType, GeminiUsage } from './types'
 
 /**
@@ -133,7 +133,7 @@ async function executeToolCallsBatch(
       }
 
       const { toolParams, executionParams } = prepareToolExecution(tool, args, request)
-      const result = await executeTool(toolName, executionParams, {
+      const result = await executeProviderTool(toolName, executionParams, {
         signal: request.abortSignal,
       })
       const toolCallEndTime = Date.now()

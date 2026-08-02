@@ -6,6 +6,10 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { and, eq, isNull, ne } from 'drizzle-orm'
+import {
+  MAX_TABLE_SELECTION_CONTENT_LENGTH,
+  truncateSelectionText,
+} from '@/lib/copilot/chat/selection-context'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {
@@ -23,7 +27,10 @@ import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { getColumnId } from '@/lib/table/column-keys'
+import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
+import type { ColumnDefinition } from '@/lib/table/types'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getSkillById } from '@/lib/workflows/skills/operations'
@@ -41,7 +48,9 @@ type AgentContextType =
   | 'logs'
   | 'knowledge'
   | 'table'
+  | 'table_selection'
   | 'file'
+  | 'file_selection'
   | 'workflow_block'
   | 'docs'
   | 'folder'
@@ -189,6 +198,31 @@ export async function processContextsServer(
           content: result.content,
           path: result.path,
         }
+      }
+      if (ctx.kind === 'file_selection' && ctx.fileId && currentWorkspaceId) {
+        return await resolveFileSelectionResource(
+          ctx.fileId,
+          currentWorkspaceId,
+          ctx.text ?? '',
+          ctx.label,
+          ctx.startLine,
+          ctx.endLine
+        )
+      }
+      if (
+        ctx.kind === 'table_selection' &&
+        ctx.tableId &&
+        Array.isArray(ctx.rowIds) &&
+        ctx.rowIds.length > 0 &&
+        currentWorkspaceId
+      ) {
+        return await resolveTableSelectionResource(
+          ctx.tableId,
+          currentWorkspaceId,
+          ctx.rowIds,
+          ctx.columnIds,
+          ctx.label
+        )
       }
       if (ctx.kind === 'folder' && 'folderId' in ctx && ctx.folderId && currentWorkspaceId) {
         const result = await resolveFolderResource(ctx.folderId, currentWorkspaceId)
@@ -844,6 +878,141 @@ async function resolveFileResource(
     tag: '@active_resource',
     content: '',
     path: canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name }),
+  }
+}
+
+/**
+ * Picks a backtick fence long enough to wrap `content` without an embedded
+ * backtick run closing it early. Per CommonMark, a fenced block ends only on a
+ * run of at least as many backticks as the opener, so the fence is one longer
+ * than the longest run inside the content, floored at the standard three. Keeps
+ * a selection that itself contains a ``` code block from truncating the snippet.
+ */
+function codeFenceFor(content: string): string {
+  let longest = 0
+  for (const match of content.matchAll(/`+/g)) {
+    longest = Math.max(longest, match[0].length)
+  }
+  return '`'.repeat(Math.max(3, longest + 1))
+}
+
+/**
+ * Resolves a highlighted passage from a file into an inline, citable snippet.
+ * The selected text travels with the request (it is the user's own content), so
+ * the agent sees the exact bytes without re-reading; the canonical VFS path is
+ * still attached so the agent can open the full file for surrounding context.
+ */
+async function resolveFileSelectionResource(
+  fileId: string,
+  workspaceId: string,
+  text: string,
+  label: string,
+  startLine?: number,
+  endLine?: number
+): Promise<AgentContext | null> {
+  const record = await getWorkspaceFile(workspaceId, fileId)
+  if (!record) return null
+  const path = canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
+  const snippet = truncateSelectionText(text)
+  const lineRange =
+    startLine && endLine && endLine !== startLine
+      ? ` (lines ${startLine}-${endLine})`
+      : startLine
+        ? ` (line ${startLine})`
+        : ''
+  const fence = codeFenceFor(snippet)
+  const content = `Selected passage from ${record.name}${lineRange}:\n\n${fence}\n${snippet}\n${fence}`
+  return {
+    type: 'file_selection',
+    tag: label ? `@${label}` : '@',
+    content,
+    path,
+  }
+}
+
+/**
+ * Renders one cell for a markdown table row, escaping the delimiters.
+ */
+function renderTableCell(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  const cell = typeof value === 'string' ? value : JSON.stringify(value)
+  return cell.replace(/\|/g, '\\|').replace(/\n/g, ' ')
+}
+
+/**
+ * Resolves a table selection into an inline markdown table. Rows are re-fetched
+ * by id from the DB (never trusting client-sent cell values); when `columnIds`
+ * is present the projection is narrowed to that cell range, otherwise every
+ * column is included. Output is bounded by
+ * {@link MAX_TABLE_SELECTION_CONTENT_LENGTH}, not just the row and column caps.
+ */
+async function resolveTableSelectionResource(
+  tableId: string,
+  workspaceId: string,
+  rowIds: string[],
+  columnIds: string[] | undefined,
+  label: string
+): Promise<AgentContext | null> {
+  const table = await getTableById(tableId)
+  if (!table || table.workspaceId !== workspaceId) return null
+
+  const rows = await getRowsByIds(tableId, rowIds, workspaceId)
+  if (rows.length === 0) return null
+
+  const allColumns: ColumnDefinition[] = table.schema?.columns ?? []
+  // A cell range (`columnIds` present) narrows to those columns; whole-row
+  // selections use every column. If a cell range's columns no longer resolve
+  // (schema changed since the selection was made), keep the range scope empty
+  // and drop the resource — never silently expand a narrow selection into a
+  // full-table dump.
+  const hasColumnScope = Boolean(columnIds && columnIds.length > 0)
+  const columns = hasColumnScope
+    ? allColumns.filter((col) => columnIds?.includes(getColumnId(col)))
+    : allColumns
+  if (columns.length === 0) return null
+
+  const header = `| ${columns.map((c) => c.name).join(' | ')} |`
+  const divider = `| ${columns.map(() => '---').join(' | ')} |`
+  const scope = hasColumnScope ? 'cell range' : 'rows'
+  const describe = (size: string) =>
+    `Selected ${scope} from table "${table.name}" (${size}):\n\n${header}\n${divider}\n`
+
+  /**
+   * The size clause, e.g. `5 rows` or `189 rows of 500, 311 omitted for length`.
+   * Used for both the up-front reserve and the final prose, so the two can never
+   * describe the row count differently.
+   */
+  const sizeClause = (shownCount: number, omittedCount: number) => {
+    const shown = `${shownCount} ${shownCount === 1 ? 'row' : 'rows'}`
+    return omittedCount > 0
+      ? `${shown} of ${rows.length}, ${omittedCount} omitted for length`
+      : shown
+  }
+
+  // Spend the character budget row by row. Everything that is not a row — the
+  // prose, the table head, and every newline — is reserved up front, or the cap
+  // is silently overrun whenever the last row leaves less slack than the prefix
+  // needs. The real clause isn't known until packing finishes, so reserve its
+  // longest form: every row shown AND every row omitted maximizes both counts
+  // and forces the plural. A few characters of unused slack beats overshooting.
+  const lines: string[] = []
+  let remaining =
+    MAX_TABLE_SELECTION_CONTENT_LENGTH - describe(sizeClause(rows.length, rows.length)).length
+  for (const row of rows) {
+    const line = `| ${columns.map((col) => renderTableCell(row.data[getColumnId(col)])).join(' | ')} |`
+    // The first row always goes in, so a single oversized row still yields a
+    // table rather than an empty one.
+    if (lines.length > 0 && line.length + 1 > remaining) break
+    lines.push(line)
+    remaining -= line.length + 1
+  }
+
+  const content = `${describe(sizeClause(lines.length, rows.length - lines.length))}${lines.join('\n')}`
+  return {
+    type: 'table_selection',
+    tag: label ? `@${label}` : '@',
+    content,
+    path: canonicalTableVfsPath(table.name),
   }
 }
 

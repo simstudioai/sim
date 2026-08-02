@@ -8,6 +8,8 @@ import type { ToolInput } from '@/executor/handlers/agent/types'
 
 const logger = createLogger('CopilotMcpTools')
 
+type ResolvedSecretTraceProvenanceCallback = (provenance: unknown) => void
+
 function toMothershipMcpTool(tool: {
   serverId: string
   serverName?: string
@@ -51,11 +53,26 @@ function dedupeMcpTools(tools: ToolSchema[]): ToolSchema[] {
 async function discoverServerTools(
   userId: string,
   workspaceId: string,
-  serverId: string
+  serverId: string,
+  onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
 ): Promise<McpTool[]> {
+  let provenanceReported = false
   try {
     const { mcpService } = await import('@/lib/mcp/service')
-    return await mcpService.discoverServerTools(userId, serverId, workspaceId)
+    if (!onResolvedSecretTraceProvenance) {
+      return await mcpService.discoverServerTools(userId, serverId, workspaceId)
+    }
+
+    return await mcpService.discoverServerTools(
+      userId,
+      serverId,
+      workspaceId,
+      false,
+      (provenance) => {
+        provenanceReported = true
+        onResolvedSecretTraceProvenance(provenance)
+      }
+    )
   } catch (error) {
     logger.warn('Failed to resolve tagged MCP server tools', {
       serverId,
@@ -63,6 +80,15 @@ async function discoverServerTools(
       error: toError(error).message,
     })
     return []
+  } finally {
+    if (onResolvedSecretTraceProvenance && !provenanceReported) {
+      onResolvedSecretTraceProvenance({
+        version: 1,
+        complete: false,
+        entries: [],
+        scope: { userId, workspaceId },
+      })
+    }
   }
 }
 
@@ -73,14 +99,17 @@ async function discoverServerTools(
 export async function buildTaggedMcpToolSchemas(
   userId: string,
   workspaceId: string,
-  serverIds: string[]
+  serverIds: string[],
+  onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
 ): Promise<ToolSchema[]> {
   const uniqueServerIds = [...new Set(serverIds.filter(Boolean))]
   if (uniqueServerIds.length === 0) return []
 
   await validateMcpToolsAllowed(userId, workspaceId)
   const discovered = await Promise.all(
-    uniqueServerIds.map((serverId) => discoverServerTools(userId, workspaceId, serverId))
+    uniqueServerIds.map((serverId) =>
+      discoverServerTools(userId, workspaceId, serverId, onResolvedSecretTraceProvenance)
+    )
   )
   return dedupeMcpTools(discovered.flat().map(toMothershipMcpTool))
 }
@@ -93,7 +122,8 @@ export async function buildTaggedMcpToolSchemas(
 export async function buildSelectedMcpToolSchemas(
   userId: string,
   workspaceId: string,
-  selections: ToolInput[]
+  selections: ToolInput[],
+  onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
 ): Promise<ToolSchema[]> {
   const selected = selections.filter(
     (tool) =>
@@ -130,7 +160,12 @@ export async function buildSelectedMcpToolSchemas(
 
       let discovery = discoveredByServer.get(serverId)
       if (!discovery) {
-        discovery = discoverServerTools(userId, workspaceId, serverId)
+        discovery = discoverServerTools(
+          userId,
+          workspaceId,
+          serverId,
+          onResolvedSecretTraceProvenance
+        )
         discoveredByServer.set(serverId, discovery)
       }
       const match = (await discovery).find((tool) => tool.name === toolName)

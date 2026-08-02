@@ -12,6 +12,7 @@ const { mockValidateDatabaseHost, mockSecureFetchWithPinnedIP, mockValidateSqlWh
   }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
+  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
   validateDatabaseHost: mockValidateDatabaseHost,
   secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
   validateSqlWhereClause: mockValidateSqlWhereClause,

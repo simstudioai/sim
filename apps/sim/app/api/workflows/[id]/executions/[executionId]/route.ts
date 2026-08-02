@@ -9,6 +9,12 @@ import {
 } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  collectFunctionalBlockOutputs,
+  FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,
+  type FunctionalExecutionDataSource,
+  FunctionalOutputsUnavailableError,
+} from '@/lib/logs/execution/functional-outputs'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
@@ -18,32 +24,10 @@ const logger = createLogger('WorkflowExecutionStatusAPI')
 
 type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
-interface TraceSpanShape {
-  blockId?: string
-  output?: Record<string, unknown>
-  children?: TraceSpanShape[]
-}
-
-interface ExecutionDataShape {
+interface ExecutionDataShape extends FunctionalExecutionDataSource {
   finalOutput?: { error?: string } & Record<string, unknown>
   error?: { message?: string } | string
   completionFailure?: string
-  traceSpans?: TraceSpanShape[]
-}
-
-function collectBlockOutputs(spans: TraceSpanShape[] | undefined): Map<string, unknown> {
-  const map = new Map<string, unknown>()
-  const visit = (list?: TraceSpanShape[]): void => {
-    if (!list) return
-    for (const span of list) {
-      if (span.blockId && span.output !== undefined && !map.has(span.blockId)) {
-        map.set(span.blockId, span.output)
-      }
-      if (span.children) visit(span.children)
-    }
-  }
-  visit(spans)
-  return map
 }
 
 function resolvePath(value: unknown, path: string[]): unknown {
@@ -204,10 +188,23 @@ export const GET = withRouteHandler(
         ? (executionData.finalOutput ?? null)
         : null
 
-    const blockOutputs =
-      selectedOutputs.length > 0
-        ? pickSelectedOutputs(selectedOutputs, collectBlockOutputs(executionData?.traceSpans))
-        : null
+    let blockOutputs: Record<string, unknown> | null = null
+    if (selectedOutputs.length > 0) {
+      try {
+        blockOutputs = pickSelectedOutputs(
+          selectedOutputs,
+          collectFunctionalBlockOutputs(executionData)
+        )
+      } catch (error) {
+        if (error instanceof FunctionalOutputsUnavailableError) {
+          return NextResponse.json(
+            { error: FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE },
+            { status: 409 }
+          )
+        }
+        throw error
+      }
+    }
 
     const response: WorkflowExecutionStatusResponse = {
       executionId: logRow.executionId,

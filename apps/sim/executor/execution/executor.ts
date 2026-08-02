@@ -438,6 +438,7 @@ export class DAGExecutor {
       },
       startRunMetadata: this.contextExtensions.startRunMetadata,
       environmentVariables: this.environmentVariables,
+      resolvedSecretTraceRegistry: this.contextExtensions.resolvedSecretTraceRegistry,
       workflowVariables: this.workflowVariables,
       decisions: {
         router: snapshotState?.decisions?.router

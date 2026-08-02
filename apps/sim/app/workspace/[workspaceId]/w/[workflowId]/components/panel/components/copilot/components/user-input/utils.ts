@@ -190,6 +190,24 @@ type IntegrationContext = Extract<ChatContext, { kind: 'integration' }>
 type SlashCommandContext = Extract<ChatContext, { kind: 'slash_command' }>
 type SkillContext = Extract<ChatContext, { kind: 'skill' }>
 type McpContext = Extract<ChatContext, { kind: 'mcp' }>
+type FileSelectionContext = Extract<ChatContext, { kind: 'file_selection' }>
+type TableSelectionContext = Extract<ChatContext, { kind: 'table_selection' }>
+
+/**
+ * Set equality for two optional id lists.
+ *
+ * Deliberately order-insensitive: a table selection's row ids come from a Set
+ * whose iteration order follows click order, and the same rows picked in a
+ * different order — or via a cell range rather than the gutter — are the same
+ * selection. Comparing by index would call those distinct and add a duplicate
+ * ordinalized chip pointing at rows already referenced.
+ */
+function sameIds(a: string[] | undefined, b: string[] | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b || a.length !== b.length) return false
+  const inA = new Set(a)
+  return b.every((id) => inA.has(id))
+}
 
 /**
  * Checks if two contexts of the same kind are equal by their ID fields.
@@ -230,6 +248,32 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
     case 'file': {
       const ctx = context as FileContext
       return c.fileId === ctx.fileId
+    }
+    // Selection kinds scope to part of a resource, so equality is the selected
+    // range — not the file/table — or re-selecting a different passage of an
+    // already-referenced file would be swallowed as a duplicate.
+    case 'file_selection': {
+      const ctx = context as FileSelectionContext
+      // Location too, not just the text: the same line can occur twice in a file
+      // (a repeated import, a closing brace), and comparing text alone would
+      // treat the second highlight as a duplicate and drop its chip. Where the
+      // source has no line numbers — the rich-markdown editor — both are
+      // undefined and identical text is genuinely indistinguishable, so it
+      // correctly still dedupes.
+      return (
+        c.fileId === ctx.fileId &&
+        c.text === ctx.text &&
+        c.startLine === ctx.startLine &&
+        c.endLine === ctx.endLine
+      )
+    }
+    case 'table_selection': {
+      const ctx = context as TableSelectionContext
+      return (
+        c.tableId === ctx.tableId &&
+        sameIds(c.rowIds, ctx.rowIds) &&
+        sameIds(c.columnIds, ctx.columnIds)
+      )
     }
     case 'logs': {
       const ctx = context as LogsContext
@@ -298,4 +342,44 @@ export function isContextAlreadySelected(
 
     return areContextsEqual(c, context)
   })
+}
+
+/**
+ * Returns `label`, or the first free `label (n)` variant when it is already
+ * taken. Two genuinely different selections can legitimately describe
+ * themselves the same way — two 3-row picks from one table both read
+ * `Sales (3 rows)` — but the token system keys chips by their `@label`, so a
+ * collision would silently drop the second context. The ordinal keeps both
+ * chips alive and stays readable in the input, unlike an opaque hash.
+ *
+ * Only meaningful for programmatically inserted contexts; menu-driven picks
+ * name a distinct resource and dedupe correctly via
+ * {@link isContextAlreadySelected}.
+ */
+export function uniqueContextLabel(label: string, selectedContexts: ChatContext[]): string {
+  const taken = new Set(selectedContexts.map((c) => c.label))
+  if (!taken.has(label)) return label
+  for (let n = 2; ; n++) {
+    const candidate = `${label} (${n})`
+    if (!taken.has(candidate)) return candidate
+  }
+}
+
+/**
+ * Insert policy for a context pushed into the input programmatically — the
+ * highlight-to-chat action and the selection paste, neither of which goes
+ * through a typed `@`/`/` trigger.
+ *
+ * @returns `null` when the exact context is already attached (re-adding the same
+ * selection is a no-op), otherwise the context carrying a collision-free label.
+ */
+export function prepareContextForInsert(
+  context: ChatContext,
+  selectedContexts: ChatContext[]
+): ChatContext | null {
+  const isDuplicate = selectedContexts.some(
+    (c) => c.kind === context.kind && areContextsEqual(c, context)
+  )
+  if (isDuplicate) return null
+  return { ...context, label: uniqueContextLabel(context.label, selectedContexts) }
 }

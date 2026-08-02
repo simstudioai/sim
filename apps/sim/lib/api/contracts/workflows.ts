@@ -360,6 +360,8 @@ export const executeWorkflowBodySchema = z.object({
   includeToolCalls: z.boolean().optional().default(false),
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
+  /** Trusted server-side reuse of a prior execution's raw workflow input. */
+  inputFromExecutionId: executionIdSchema.optional(),
   isClientSession: z.boolean().optional(),
   includeFileBase64: z.boolean().optional().default(true),
   base64MaxBytes: z.number().int().positive().optional(),

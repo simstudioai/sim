@@ -15,7 +15,7 @@ import {
   pickLatestCompletedMarker,
   pickLatestStartedMarker,
 } from '@/lib/logs/execution/progress-markers'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 type LookupColumn = 'id' | 'executionId'
@@ -170,9 +170,14 @@ export async function fetchLogDetail({
 
     // Trace spans / heavy execution data may live in object storage; resolve the
     // pointer here (no-op for inline / pre-externalization rows).
-    const executionData = await materializeExecutionData(
+    const executionData = await materializeExecutionDataForDisplay(
       log.executionData as Record<string, unknown> | null,
-      { workspaceId, workflowId: log.workflowId, executionId: log.executionId }
+      {
+        workspaceId,
+        workflowId: log.workflowId,
+        executionId: log.executionId,
+        userId,
+      }
     )
 
     const liveMarkers =
@@ -248,7 +253,15 @@ export async function fetchLogDetail({
   const jobLog = jobRows[0]
   if (!jobLog) return null
 
-  const execData = (jobLog.executionData as Record<string, unknown> | null) ?? {}
+  const execData = await materializeExecutionDataForDisplay(
+    jobLog.executionData as Record<string, unknown> | null,
+    {
+      workspaceId,
+      workflowId: null,
+      executionId: jobLog.executionId,
+      userId,
+    }
+  )
   return {
     id: jobLog.id,
     workflowId: null,

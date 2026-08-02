@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Chip, ChipCopyInput, ChipLink, Send } from '@sim/emcn'
 import { ArrowLeft, Key } from '@sim/emcn/icons'
+import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -51,9 +52,12 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
           </Chip>
         )}
         {canEditValue && (
-          <Chip onClick={valueField.save} disabled={!valueField.isDirty || valueField.isSaving}>
-            {valueField.isSaving ? 'Saving...' : 'Save'}
-          </Chip>
+          <SaveDiscardChips
+            dirty={valueField.isDirty}
+            saving={valueField.isSaving}
+            onSave={valueField.save}
+            onDiscard={valueField.discard}
+          />
         )}
       </>
     ) : null

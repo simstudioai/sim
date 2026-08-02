@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -30,11 +30,21 @@ export function useCredentialDetailForm({
 
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [descriptionDraft, setDescriptionDraft] = useState('')
+  const [seededCredentialId, setSeededCredentialId] = useState<string | null>(null)
 
-  useEffect(() => {
-    setDisplayNameDraft(credential?.displayName ?? '')
-    setDescriptionDraft(credential?.description ?? '')
-  }, [credential?.id, credential?.displayName, credential?.description])
+  // Seed drafts when the credential first resolves (or the route id changes); a
+  // background refetch of the same credential must not clobber an in-progress
+  // edit — Discard is the one way to reset.
+  /** Applies a credential to both drafts — the one definition of "reset to server state". */
+  const seedDrafts = useCallback((source: WorkspaceCredential) => {
+    setDisplayNameDraft(source.displayName)
+    setDescriptionDraft(source.description ?? '')
+  }, [])
+
+  if (credential && credential.id !== seededCredentialId) {
+    setSeededCredentialId(credential.id)
+    seedDrafts(credential)
+  }
 
   const isDisplayNameDirty = credential ? displayNameDraft !== credential.displayName : false
   const isDescriptionDirty = credential
@@ -68,8 +78,13 @@ export function useCredentialDetailForm({
     isDescriptionDirty,
     displayNameDraft,
     descriptionDraft,
-    updateCredential,
+    updateCredential.mutateAsync,
+    updateCredential.isPending,
   ])
+
+  const discard = useCallback(() => {
+    if (credential) seedDrafts(credential)
+  }, [credential, seedDrafts])
 
   return {
     displayNameDraft,
@@ -78,6 +93,7 @@ export function useCredentialDetailForm({
     setDescriptionDraft,
     isDirty,
     save,
+    discard,
     isSaving: updateCredential.isPending,
     handleBackClick: guard.handleBackClick,
     showUnsavedAlert: guard.showUnsavedAlert,

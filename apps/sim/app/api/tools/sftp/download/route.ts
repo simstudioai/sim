@@ -6,9 +6,17 @@ import { sftpDownloadContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import { createSftpConnection, getSftp, isPathSafe, sanitizePath } from '@/app/api/tools/sftp/utils'
+import {
+  createSftpConnection,
+  getSftp,
+  isPathSafe,
+  MAX_SFTP_READ_BYTES,
+  readSftpFileCapped,
+  sanitizePath,
+} from '@/app/api/tools/sftp/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,30 +81,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       })
 
-      const maxSize = 50 * 1024 * 1024
-      if (stats.size > maxSize) {
+      if (stats.size > MAX_SFTP_READ_BYTES) {
         const sizeMB = (stats.size / (1024 * 1024)).toFixed(2)
         return NextResponse.json(
           { success: false, error: `File size (${sizeMB}MB) exceeds download limit of 50MB` },
-          { status: 400 }
+          { status: 413 }
         )
       }
 
       logger.info(`[${requestId}] Downloading file ${remotePath} (${stats.size} bytes)`)
 
-      const chunks: Buffer[] = []
-      await new Promise<void>((resolve, reject) => {
-        const readStream = sftp.createReadStream(remotePath)
-
-        readStream.on('data', (chunk: Buffer) => {
-          chunks.push(chunk)
-        })
-
-        readStream.on('end', () => resolve())
-        readStream.on('error', reject)
-      })
-
-      const buffer = Buffer.concat(chunks)
+      const buffer = await readSftpFileCapped(
+        sftp,
+        remotePath,
+        MAX_SFTP_READ_BYTES,
+        'SFTP download'
+      )
       const fileName = path.basename(remotePath)
       const extension = getFileExtension(fileName)
       const mimeType = getMimeTypeFromExtension(extension)
@@ -129,6 +129,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Unknown error occurred')
+
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn(`[${requestId}] SFTP download aborted: ${errorMessage}`)
+      return NextResponse.json({ success: false, error: errorMessage }, { status: 413 })
+    }
+
     logger.error(`[${requestId}] SFTP download failed:`, error)
 
     return NextResponse.json({ error: `SFTP download failed: ${errorMessage}` }, { status: 500 })

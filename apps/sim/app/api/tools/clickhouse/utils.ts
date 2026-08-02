@@ -1,4 +1,5 @@
 import {
+  MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
   validateDatabaseHost,
   validateSqlWhereClause,
@@ -96,6 +97,7 @@ async function clickhouseRequest(
     body: statement,
     timeout: REQUEST_TIMEOUT_MS,
     allowHttp: !config.secure,
+    maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
   })
 
   const text = await response.text()

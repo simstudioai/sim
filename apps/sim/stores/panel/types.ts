@@ -24,7 +24,45 @@ export type ChatContext =
   | { kind: 'workflow_block'; workflowId: string; blockId: string; label: string }
   | { kind: 'knowledge'; knowledgeId?: string; label: string }
   | { kind: 'table'; tableId: string; label: string }
+  | {
+      kind: 'table_selection'
+      tableId: string
+      label: string
+      /**
+       * Name of the table the selection came from. Carried explicitly rather
+       * than parsed back out of `label`, which is a display string the input may
+       * rewrite to keep chip tokens unique.
+       */
+      tableName: string
+      /** Materialized from the grid selection, including rows not yet paged in. */
+      rowIds: string[]
+      /**
+       * Ids of the selected columns. Present only for a spreadsheet-style cell
+       * range; absent when whole rows are selected.
+       */
+      columnIds?: string[]
+    }
   | { kind: 'file'; fileId: string; label: string }
+  | {
+      kind: 'file_selection'
+      fileId: string
+      label: string
+      /** Name of the file the selection came from. See `tableName` above. */
+      fileName: string
+      /**
+       * The literal selected text. Carried inline rather than re-read
+       * server-side because the editor may hold unsaved changes — re-reading
+       * would hand the agent different bytes than the user highlighted.
+       */
+      text: string
+      /**
+       * 1-based inclusive line range, present only when the source has real
+       * line numbers (Monaco). The rich-markdown editor's document model has no
+       * source lines, so it omits these rather than approximating them.
+       */
+      startLine?: number
+      endLine?: number
+    }
   | { kind: 'folder'; folderId: string; label: string }
   | { kind: 'filefolder'; fileFolderId: string; label: string }
   | { kind: 'scheduledtask'; scheduleId: string; label: string }

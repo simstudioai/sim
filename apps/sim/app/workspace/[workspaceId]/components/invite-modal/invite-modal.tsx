@@ -40,8 +40,7 @@ const MEMBERSHIP_OPTIONS = [
 
 type Membership = (typeof MEMBERSHIP_OPTIONS)[number]['value']
 
-const MEMBERSHIP_HINTS: Record<Membership, string> = {
-  member: 'Joins your organization. Adds a seat.',
+const MEMBERSHIP_HINTS: Partial<Record<Membership, string>> = {
   admin: 'Joins your organization and can manage it. Adds a seat.',
   external:
     'Access to the selected workspaces only — no seat. Only available for people already on a paid Sim plan.',
