@@ -59,12 +59,34 @@ function rejectUnknownKeys(
   if (unknownKey) throw new Error(`${fieldName} contains unsupported field "${unknownKey}"`)
 }
 
-function positiveNumber(value: unknown, fieldName: string): number {
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+function positiveQuickBooksAmount(
+  value: unknown,
+  fieldName: string
+): { decimal: Decimal; number: number } {
+  if (typeof value !== 'number' && typeof value !== 'string') {
     throw new Error(`${fieldName} must be a positive finite number`)
   }
-  return parsed
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') throw new Error(`${fieldName} must be a positive finite number`)
+
+  let decimal: Decimal
+  try {
+    decimal = new Decimal(normalized)
+  } catch {
+    throw new Error(`${fieldName} must be a positive finite number`)
+  }
+  if (!decimal.isFinite() || decimal.lte(0)) {
+    throw new Error(`${fieldName} must be a positive finite number`)
+  }
+  if (decimal.decimalPlaces() > 2) {
+    throw new Error(`${fieldName} cannot have more than two decimal places`)
+  }
+
+  const number = decimal.toNumber()
+  if (!Number.isFinite(number) || !new Decimal(number).equals(decimal)) {
+    throw new Error(`${fieldName} is outside the safely supported amount range`)
+  }
+  return { decimal, number }
 }
 
 function stringValue(value: unknown, fieldName: string): string {
@@ -97,6 +119,7 @@ export function parseQuickBooksJournalLines(
   if (!parsed) return undefined
   validateLineCount(parsed, fieldName, 2)
 
+  const decimalAmounts: Decimal[] = []
   const lines = parsed.map((rawLine, index) => {
     const itemName = `${fieldName}[${index}]`
     const line = requireObject(rawLine, itemName)
@@ -117,9 +140,11 @@ export function parseQuickBooksJournalLines(
     if ((entityType === undefined) !== (line.entityId === undefined)) {
       throw new Error(`${itemName}.entityType and entityId must be supplied together`)
     }
+    const amount = positiveQuickBooksAmount(line.amount, `${itemName}.amount`)
+    decimalAmounts.push(amount.decimal)
     return {
       postingType,
-      amount: positiveNumber(line.amount, `${itemName}.amount`),
+      amount: amount.number,
       accountId: stringValue(line.accountId, `${itemName}.accountId`),
       description: optionalStringValue(line.description, `${itemName}.description`),
       entityType,
@@ -130,12 +155,14 @@ export function parseQuickBooksJournalLines(
     }
   })
 
-  const debitTotal = lines
-    .filter((line) => line.postingType === 'debit')
-    .reduce((sum, line) => sum.plus(line.amount), new Decimal(0))
-  const creditTotal = lines
-    .filter((line) => line.postingType === 'credit')
-    .reduce((sum, line) => sum.plus(line.amount), new Decimal(0))
+  const debitTotal = lines.reduce(
+    (sum, line, index) => (line.postingType === 'debit' ? sum.plus(decimalAmounts[index]) : sum),
+    new Decimal(0)
+  )
+  const creditTotal = lines.reduce(
+    (sum, line, index) => (line.postingType === 'credit' ? sum.plus(decimalAmounts[index]) : sum),
+    new Decimal(0)
+  )
   if (!debitTotal.equals(creditTotal)) {
     throw new Error('Journal entry debit and credit totals must balance')
   }
@@ -182,7 +209,7 @@ export function parseQuickBooksDepositLines(
     const line = requireObject(rawLine, itemName)
     rejectUnknownKeys(line, DEPOSIT_LINE_KEYS, itemName)
     return {
-      amount: positiveNumber(line.amount, `${itemName}.amount`),
+      amount: positiveQuickBooksAmount(line.amount, `${itemName}.amount`).number,
       accountId: stringValue(line.accountId, `${itemName}.accountId`),
       description: optionalStringValue(line.description, `${itemName}.description`),
     }

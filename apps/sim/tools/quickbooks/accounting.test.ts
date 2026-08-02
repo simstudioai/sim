@@ -170,6 +170,18 @@ describe('QuickBooks accounting line validation', () => {
       parseQuickBooksJournalLines([{ ...journalLines[0], raw: true }, journalLines[1]])
     ).toThrow('unsupported field')
     expect(() =>
+      parseQuickBooksJournalLines([
+        { ...journalLines[0], amount: '0.10000000000000001' },
+        { ...journalLines[1], amount: '0.1' },
+      ])
+    ).toThrow('more than two decimal places')
+    expect(() =>
+      parseQuickBooksJournalLines([
+        { ...journalLines[0], amount: '90071992547409.91' },
+        { ...journalLines[1], amount: '90071992547409.91' },
+      ])
+    ).toThrow('safely supported amount range')
+    expect(() =>
       parseQuickBooksJournalLines(
         Array.from({ length: 102 }, (_, index) => ({
           postingType: index % 2 === 0 ? 'debit' : 'credit',
