@@ -7,6 +7,7 @@
  * - Edge cases and invalid inputs
  */
 
+import { ALL_SOCKET_OPERATIONS } from '@sim/realtime-protocol/constants'
 import {
   expectPermissionAllowed,
   expectPermissionDenied,
@@ -163,7 +164,7 @@ describe('checkRolePermission', () => {
       // Every operation reaching this gate is persisted, so a read-only member must
       // hold none of them — including the position updates that used to be granted
       // here on the mistaken premise that they were ephemeral cursor sync.
-      for (const operation of SOCKET_OPERATIONS) {
+      for (const operation of ALL_SOCKET_OPERATIONS) {
         const result = checkRolePermission('read', operation)
         expect(result.allowed).toBe(false)
         expect(result.reason).toContain('read')
@@ -211,28 +212,42 @@ describe('checkRolePermission', () => {
   })
 
   describe('permission hierarchy verification', () => {
-    it('should verify admin has same permissions as write', () => {
-      const adminOps = ROLE_ALLOWED_OPERATIONS.admin
-      const writeOps = ROLE_ALLOWED_OPERATIONS.write
+    // These assert the PRODUCTION ACL over the protocol's complete operation list.
+    // They used to compare the shared test fixture against itself, which certified
+    // whatever the fixture said — including, for a while, the read-role grants that
+    // let a read-only member persist block positions.
 
-      // Admin and write should have same operations
-      expect(adminOps).toEqual(writeOps)
-    })
-
-    it('should verify read is a subset of write permissions', () => {
-      const readOps = ROLE_ALLOWED_OPERATIONS.read
-      const writeOps = ROLE_ALLOWED_OPERATIONS.write
-
-      for (const op of readOps) {
-        expect(writeOps).toContain(op)
+    it('grants admin everything write has, plus the admin-only operations', () => {
+      for (const operation of ALL_SOCKET_OPERATIONS) {
+        if (checkRolePermission('write', operation).allowed) {
+          expect(checkRolePermission('admin', operation).allowed).toBe(true)
+        }
       }
+      // Strictly greater: at least one operation admin holds and write does not.
+      const adminOnly = ALL_SOCKET_OPERATIONS.filter(
+        (operation) =>
+          checkRolePermission('admin', operation).allowed &&
+          !checkRolePermission('write', operation).allowed
+      )
+      expect(adminOnly.length).toBeGreaterThan(0)
     })
 
-    it('should verify read has minimal permissions', () => {
-      const readOps = ROLE_ALLOWED_OPERATIONS.read
-      expect(readOps).toHaveLength(2)
-      expect(readOps).toContain('update-position')
-      expect(readOps).toContain('batch-update-positions')
+    it('grants read nothing, so it is trivially a subset of write', () => {
+      const readAllowed = ALL_SOCKET_OPERATIONS.filter(
+        (operation) => checkRolePermission('read', operation).allowed
+      )
+      expect(readAllowed).toEqual([])
+    })
+
+    it('keeps the shared fixture in step with the production ACL', () => {
+      // The fixture is a convenience mirror; drift between it and the real table is
+      // what made the stale read grants look intentional.
+      for (const operation of ALL_SOCKET_OPERATIONS) {
+        const fixtureAllows = ROLE_ALLOWED_OPERATIONS.read.includes(
+          operation as (typeof ROLE_ALLOWED_OPERATIONS.read)[number]
+        )
+        expect(fixtureAllows).toBe(checkRolePermission('read', operation).allowed)
+      }
     })
   })
 
