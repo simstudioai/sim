@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import {
   type ClientIpHeaderSource,
   parseTrustedProxies,
+  parseTrustForwardedHeaders,
   resolveClientIp,
   UNKNOWN_CLIENT_IP,
 } from '@sim/security/client-ip'
@@ -45,9 +46,7 @@ const trustedProxies = parseTrustedProxies(process.env.AUTH_TRUSTED_PROXIES)
  * as forensic evidence is worse than recording none, so a deployment that
  * declares it has no proxy in front gets `unknown` rather than a fabrication.
  */
-const trustForwardedHeaders = !/^(false|0|no|off)$/i.test(
-  (process.env.TRUST_PROXY_HEADERS ?? '').trim()
-)
+const trustForwardedHeaders = parseTrustForwardedHeaders(process.env.TRUST_PROXY_HEADERS)
 
 /**
  * An audit row's `ipAddress` is forensic evidence, so it must not be whatever

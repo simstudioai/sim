@@ -1,10 +1,11 @@
 import {
   type ClientIpHeaderSource,
   parseTrustedProxies,
+  parseTrustForwardedHeaders,
   resolveClientIp,
   UNKNOWN_CLIENT_IP,
 } from '@sim/security/client-ip'
-import { env, isFalsy } from '@/lib/core/config/env'
+import { env } from '@/lib/core/config/env'
 
 /**
  * Reverse-proxy hops trusted for forwarded-IP resolution, read from the same
@@ -27,7 +28,7 @@ const trustedProxies = parseTrustedProxies(env.AUTH_TRUSTED_PROXIES)
  * real address from it. Operators of such a deployment set
  * `TRUST_PROXY_HEADERS=false`, which makes {@link getClientIp} decline to guess.
  */
-const trustForwardedHeaders = !isFalsy(env.TRUST_PROXY_HEADERS)
+const trustForwardedHeaders = parseTrustForwardedHeaders(env.TRUST_PROXY_HEADERS)
 
 /**
  * Extract the client IP from a request for logging, audit trails, and — most

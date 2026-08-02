@@ -149,6 +149,25 @@ export function parseTrustedProxies(raw: string | null | undefined): TrustedProx
 }
 
 /**
+ * Reads the `TRUST_PROXY_HEADERS` setting: may `X-Forwarded-For` / `X-Real-IP`
+ * be believed at all?
+ *
+ * Every rule about *which* hop to read presumes a proxy wrote one of them. An
+ * app reachable directly sees a header authored entirely by the caller, and no
+ * parsing strategy recovers a real address from that — so this is a deployment
+ * fact the operator has to state, not something the code can detect.
+ *
+ * Defaults to `true` (a proxy is assumed) so an unset value never silently
+ * disables IP resolution. Accepts a boolean or the usual string spellings,
+ * because the value arrives parsed from the app's env module in one caller and
+ * raw from `process.env` in others.
+ */
+export function parseTrustForwardedHeaders(raw: string | boolean | null | undefined): boolean {
+  if (typeof raw === 'boolean') return raw
+  return !/^(false|0|no|off)$/i.test((raw ?? '').trim())
+}
+
+/**
  * Resolves the client IP behind a reverse proxy, safely enough to key a rate
  * limit on.
  *

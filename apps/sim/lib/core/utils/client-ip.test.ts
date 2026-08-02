@@ -16,11 +16,7 @@ const { mockEnv } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-  isFalsy: (value: string | boolean | number | undefined) =>
-    value === false || value === 'false' || value === 0 || value === '0',
-}))
+vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
 vi.unmock('@/lib/core/utils/client-ip')
 
 /**

@@ -3,6 +3,7 @@ import {
   canonicalizeIp,
   getAssertedOriginIp,
   parseTrustedProxies,
+  parseTrustForwardedHeaders,
   resolveClientIp,
   UNKNOWN_CLIENT_IP,
 } from './client-ip'
@@ -267,5 +268,33 @@ describe('parseTrustedProxies', () => {
   it('ignores surrounding whitespace', () => {
     const trusted = parseTrustedProxies('  198.51.100.0/24 ,  192.0.2.10  ')
     expect(trusted.cidrs).toHaveLength(2)
+  })
+})
+
+describe('parseTrustForwardedHeaders', () => {
+  it('defaults to trusting the headers when unset', () => {
+    // Unset must never silently disable IP resolution — that would turn every
+    // per-IP limit into one global bucket on an ordinary proxied deployment.
+    expect(parseTrustForwardedHeaders(undefined)).toBe(true)
+    expect(parseTrustForwardedHeaders(null)).toBe(true)
+    expect(parseTrustForwardedHeaders('')).toBe(true)
+    expect(parseTrustForwardedHeaders('   ')).toBe(true)
+  })
+
+  it('accepts the usual falsey spellings, case- and space-insensitively', () => {
+    for (const value of ['false', 'FALSE', ' False ', '0', 'no', 'off', 'OFF']) {
+      expect(parseTrustForwardedHeaders(value)).toBe(false)
+    }
+  })
+
+  it('accepts a real boolean, since one caller reads a parsed env', () => {
+    expect(parseTrustForwardedHeaders(false)).toBe(false)
+    expect(parseTrustForwardedHeaders(true)).toBe(true)
+  })
+
+  it('treats anything else as trusting', () => {
+    for (const value of ['true', 'yes', 'on', '1', 'anything']) {
+      expect(parseTrustForwardedHeaders(value)).toBe(true)
+    }
   })
 })

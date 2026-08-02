@@ -1,5 +1,10 @@
 import { openai } from '@ai-sdk/openai'
-import { parseTrustedProxies, resolveClientIp } from '@sim/security/client-ip'
+import {
+  parseTrustedProxies,
+  parseTrustForwardedHeaders,
+  resolveClientIp,
+  UNKNOWN_CLIENT_IP,
+} from '@sim/security/client-ip'
 import {
   convertToModelMessages,
   jsonSchema,
@@ -81,6 +86,15 @@ const rateLimitHits = new Map<string, { count: number; resetAt: number }>()
 const trustedProxies = parseTrustedProxies(process.env.AUTH_TRUSTED_PROXIES)
 
 /**
+ * Mirrors the main app's `TRUST_PROXY_HEADERS`. Every rule about which hop to
+ * read presumes a proxy wrote one of them; with nothing in front, the header is
+ * caller-authored and this limiter guards paid inference, so decline to guess
+ * and let all callers share one bucket. Defaults to true — the docs site is
+ * served behind an edge that sets the header.
+ */
+const trustForwardedHeaders = parseTrustForwardedHeaders(process.env.TRUST_PROXY_HEADERS)
+
+/**
  * Resolve the client IP from forwarding headers, falling back to a shared
  * bucket. Walks the chain right to left: the leftmost `X-Forwarded-For` entry is
  * caller-supplied, so keying this limit on it would let anyone rotate the header
@@ -88,6 +102,7 @@ const trustedProxies = parseTrustedProxies(process.env.AUTH_TRUSTED_PROXIES)
  * spend plus unbounded growth of `rateLimitHits`. See {@link resolveClientIp}.
  */
 function getClientIp(req: Request): string {
+  if (!trustForwardedHeaders) return UNKNOWN_CLIENT_IP
   return resolveClientIp(req, trustedProxies)
 }
 
