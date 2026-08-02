@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Workflows",
-    "description": "Version 2 of the Sim REST API for listing workflows, inspecting workflow detail, and managing deployments (deploy, undeploy, rollback).\n\nThe v2 surface standardizes on a single response family across every endpoint:\n- Single resource: `{ \"data\": T }`\n- List: `{ \"data\": T[], \"nextCursor\": string | null }`\n- Error: `{ \"error\": { \"code\": string, \"message\": string, \"details\"?: unknown } }`\n\nLists use an opaque cursor (Stripe/Slack-style): send `limit` and `cursor`, receive `{ data, nextCursor }`. Cursors are opaque tokens — pass back the `nextCursor` from the previous page verbatim and stop when it is `null`. Total counts are not returned on lists.\n\nRate-limit state is carried in the `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` response headers (not in the body). A throttled request returns `429` with a `Retry-After` header.\n\nAuthenticate every request with an API key in the `X-API-Key` header.",
+    "description": "Version 2 of the Sim REST API for managing workflows (create, list, inspect, update, delete), their deployment versions, and deployments (deploy, undeploy, rollback).\n\nThe v2 surface standardizes on a single response family across every endpoint:\n- Single resource: `{ \"data\": T }`\n- List: `{ \"data\": T[], \"nextCursor\": string | null }`\n- Error: `{ \"error\": { \"code\": string, \"message\": string, \"details\"?: unknown } }`\n\nLists use an opaque cursor (Stripe/Slack-style): send `limit` and `cursor`, receive `{ data, nextCursor }`. Cursors are opaque tokens — pass back the `nextCursor` from the previous page verbatim and stop when it is `null`. Total counts are not returned on lists.\n\nRate-limit state is carried in the `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` response headers (not in the body). A throttled request returns `429` with a `Retry-After` header.\n\nAuthenticate every request with an API key in the `X-API-Key` header.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -23,7 +23,7 @@
   "tags": [
     {
       "name": "Workflows",
-      "description": "List workflows, inspect workflow detail, and manage deployments (deploy, undeploy, rollback) on the v2 API."
+      "description": "Create, list, inspect, update, and delete workflows, enumerate their deployment versions, and manage deployments (deploy, undeploy, rollback) on the v2 API."
     }
   ],
   "security": [
@@ -188,6 +188,120 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "post": {
+        "operationId": "createWorkflowV2",
+        "summary": "Create Workflow",
+        "description": "Create an empty workflow in a workspace. The workflow is created with a default start block and no deployment, so it must be edited and deployed before it can be executed. Names must be unique within the target folder — a collision is reported as 409 rather than silently renamed.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/workflows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"name\": \"Customer Support Agent\"\n  }'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowBody"
+              },
+              "examples": {
+                "minimal": {
+                  "summary": "At the workspace root",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "Customer Support Agent"
+                  }
+                },
+                "inFolder": {
+                  "summary": "Inside a folder, with a description",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "Customer Support Agent",
+                    "description": "Routes incoming support tickets and drafts responses",
+                    "folderId": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created workflow.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WorkflowListItem"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                    "name": "Customer Support Agent",
+                    "description": "Routes incoming support tickets and drafts responses",
+                    "folderId": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91",
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "isDeployed": false,
+                    "deployedAt": null,
+                    "runCount": 0,
+                    "lastRunAt": null,
+                    "createdAt": "2026-06-29T21:30:00.000Z",
+                    "updatedAt": "2026-06-29T21:30:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "A workflow with the same name already exists in the target folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/api/v2/workflows/{id}": {
@@ -266,6 +380,397 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateWorkflowV2",
+        "summary": "Update Workflow",
+        "description": "Rename a workflow, change its description, or move it between folders. Omitted fields keep their stored values, and at least one field must be supplied. Editing the workflow's graph is not part of this endpoint — use import/export for that. Returns 404 when the workflow does not exist or you do not have write access to it (existence is not leaked).",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/workflows/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"Customer Support Agent v2\"\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkflowId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowBody"
+              },
+              "examples": {
+                "rename": {
+                  "summary": "Rename",
+                  "value": {
+                    "name": "Customer Support Agent v2"
+                  }
+                },
+                "moveToRoot": {
+                  "summary": "Move out of its folder to the workspace root",
+                  "value": {
+                    "folderId": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated workflow.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WorkflowListItem"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                    "name": "Customer Support Agent v2",
+                    "description": "Routes incoming support tickets and drafts responses",
+                    "folderId": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91",
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "isDeployed": false,
+                    "deployedAt": null,
+                    "runCount": 0,
+                    "lastRunAt": null,
+                    "createdAt": "2026-06-29T21:30:00.000Z",
+                    "updatedAt": "2026-06-30T08:12:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "A workflow with the target name already exists in the destination folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWorkflowV2",
+        "summary": "Delete Workflow",
+        "description": "Archive a workflow. The workflow moves to Recently Deleted rather than being dropped, so its execution logs stay attributable, and it stops being returned by the list and detail endpoints. The last remaining workflow in a workspace cannot be deleted (400).",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/workflows/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkflowId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow was archived.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DeleteWorkflowResult"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                    "deleted": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/versions": {
+      "get": {
+        "operationId": "listWorkflowVersionsV2",
+        "summary": "List Workflow Versions",
+        "description": "List a workflow's deployment versions, newest first. Every successful deploy appends a version; these are the version numbers `POST /api/v2/workflows/{id}/rollback` accepts. Results are cursor-paginated — follow `nextCursor` and stop when it is `null`.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/workflows/{id}/versions\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkflowId"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of versions to return per page. Must be between 1 and 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque pagination cursor returned from a previous request's `nextCursor` field. Omit for the first page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of deployment versions, newest first.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "description": "Deployment versions for the current page.",
+                      "items": {
+                        "$ref": "#/components/schemas/WorkflowVersion"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Opaque cursor for fetching the next page. `null` when there are no more results."
+                    }
+                  }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "d41a9f0c-7b25-4e18-9a3d-1c6f0b8e5d24",
+                      "version": 3,
+                      "name": "Adds escalation branch",
+                      "description": "Routes P1 tickets straight to on-call",
+                      "isActive": true,
+                      "createdAt": "2026-06-12T10:30:00.000Z",
+                      "deployedBy": "Ada Lovelace",
+                      "latestOperationStatus": "active"
+                    },
+                    {
+                      "id": "b70e2c81-4d93-4a17-8f52-93a1c7e0d6b8",
+                      "version": 2,
+                      "name": null,
+                      "description": null,
+                      "isActive": false,
+                      "createdAt": "2026-05-02T09:04:00.000Z",
+                      "deployedBy": "Ada Lovelace",
+                      "latestOperationStatus": null
+                    }
+                  ],
+                  "nextCursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/versions/{version}": {
+      "get": {
+        "operationId": "getWorkflowVersionV2",
+        "summary": "Get Workflow Version",
+        "description": "Fetch one deployment version and the workflow state it pins. Use this to inspect or diff a version before activating it with `POST /api/v2/workflows/{id}/rollback`.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/workflows/{id}/versions/{version}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkflowId"
+          },
+          {
+            "$ref": "#/components/parameters/VersionNumber"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested deployment version.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WorkflowVersionDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "d41a9f0c-7b25-4e18-9a3d-1c6f0b8e5d24",
+                    "version": 3,
+                    "name": "Adds escalation branch",
+                    "description": "Routes P1 tickets straight to on-call",
+                    "isActive": true,
+                    "createdAt": "2026-06-12T10:30:00.000Z",
+                    "state": {
+                      "blocks": {},
+                      "edges": [],
+                      "loops": {},
+                      "parallels": {}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1293,6 +1798,17 @@
           "type": "string",
           "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
         }
+      },
+      "VersionNumber": {
+        "name": "version",
+        "in": "path",
+        "required": true,
+        "description": "The deployment version number, as returned by the version list.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "example": 3
+        }
       }
     },
     "headers": {
@@ -1786,6 +2302,185 @@
           },
           "durationMs": {
             "type": "number"
+          }
+        }
+      },
+      "CreateWorkflowBody": {
+        "type": "object",
+        "description": "Request body for creating a workflow.",
+        "required": ["workspaceId", "name"],
+        "additionalProperties": false,
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace to create the workflow in. Requires write access.",
+            "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Workflow name. Must be unique within the target folder.",
+            "example": "Customer Support Agent"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 50000,
+            "nullable": true,
+            "description": "Optional description of what the workflow does.",
+            "example": "Routes incoming support tickets and drafts responses"
+          },
+          "folderId": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": true,
+            "description": "Folder to create the workflow in. Omit or send `null` to create it at the workspace root.",
+            "example": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
+          }
+        }
+      },
+      "UpdateWorkflowBody": {
+        "type": "object",
+        "description": "Request body for updating a workflow's metadata. Omitted fields keep their stored values; at least one field is required.",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "New workflow name. Must be unique within the destination folder.",
+            "example": "Customer Support Agent v2"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 50000,
+            "nullable": true,
+            "description": "New description. Send `null` to clear it.",
+            "example": "Routes incoming support tickets and drafts responses"
+          },
+          "folderId": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": true,
+            "description": "Destination folder. Send `null` to move the workflow to the workspace root.",
+            "example": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
+          }
+        }
+      },
+      "DeleteWorkflowResult": {
+        "type": "object",
+        "description": "Acknowledgement that a workflow was archived.",
+        "required": ["id", "deleted"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The archived workflow's identifier.",
+            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
+          },
+          "deleted": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "Always `true` on a successful archive."
+          }
+        }
+      },
+      "WorkflowVersion": {
+        "type": "object",
+        "description": "A deployment version of a workflow, as returned by the version list.",
+        "required": ["id", "version", "isActive", "createdAt"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier of the deployment version record.",
+            "example": "d41a9f0c-7b25-4e18-9a3d-1c6f0b8e5d24"
+          },
+          "version": {
+            "type": "integer",
+            "description": "Monotonically increasing version number. Pass this to the rollback endpoint.",
+            "example": 3
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional label given to the version at deploy time. `null` when unset.",
+            "example": "Adds escalation branch"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional release note for the version. `null` when unset.",
+            "example": "Routes P1 tickets straight to on-call"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether this version is the one currently serving executions.",
+            "example": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the version was created.",
+            "example": "2026-06-12T10:30:00.000Z"
+          },
+          "deployedBy": {
+            "type": "string",
+            "nullable": true,
+            "description": "Display name of the user who deployed the version. `null` when the deployer is no longer resolvable.",
+            "example": "Ada Lovelace"
+          },
+          "latestOperationStatus": {
+            "type": "string",
+            "nullable": true,
+            "enum": ["preparing", "activating", "active", "failed", "superseded"],
+            "description": "Lifecycle status of the workflow's current deploy attempt, present only on the version that attempt targets. `null` on every other version — a superseded attempt is history, not live state.",
+            "example": "active"
+          }
+        }
+      },
+      "WorkflowVersionDetail": {
+        "type": "object",
+        "description": "A deployment version together with the workflow state it pins.",
+        "required": ["id", "version", "name", "description", "isActive", "createdAt", "state"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier of the deployment version record.",
+            "example": "d41a9f0c-7b25-4e18-9a3d-1c6f0b8e5d24"
+          },
+          "version": {
+            "type": "integer",
+            "description": "Monotonically increasing version number. Pass this to the rollback endpoint.",
+            "example": 3
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional label given to the version at deploy time. `null` when unset.",
+            "example": "Adds escalation branch"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional release note for the version. `null` when unset.",
+            "example": "Routes P1 tickets straight to on-call"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether this version is the one currently serving executions.",
+            "example": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the version was created.",
+            "example": "2026-06-12T10:30:00.000Z"
+          },
+          "state": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The deployed workflow graph snapshot (blocks, edges, loops, parallels). This is the state that executes while the version is active, and the state a rollback restores."
           }
         }
       }

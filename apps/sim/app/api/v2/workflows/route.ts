@@ -1,6 +1,12 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertFolderInWorkspace,
+  assertFolderMutable,
+  FolderLockedError,
+  FolderNotFoundError,
+} from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -8,6 +14,7 @@ import type { NextRequest } from 'next/server'
 import {
   type V2WorkflowListItem,
   type V2WorkflowSortBy,
+  v2CreateWorkflowContract,
   v2ListWorkflowsContract,
 } from '@/lib/api/contracts/v2/workflows'
 import {
@@ -23,6 +30,7 @@ import {
 } from '@/lib/api/list-query'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { performCreateWorkflow } from '@/lib/workflows/orchestration'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
@@ -31,7 +39,9 @@ import {
   encodeSortedCursor,
   v2CursorList,
   v2CursorSortError,
+  v2Data,
   v2Error,
+  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
@@ -166,6 +176,81 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return v2CursorList(formatted, nextCursor, { rateLimit })
   } catch (error) {
     logger.error(`[${requestId}] Workflows fetch error`, {
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return v2Error('INTERNAL_ERROR', 'Internal server error')
+  }
+})
+
+/** POST /api/v2/workflows — Create an empty workflow in a workspace. */
+export const POST = withRouteHandler(async (request: NextRequest) => {
+  const requestId = generateId().slice(0, 8)
+
+  try {
+    const rateLimit = await checkRateLimit(request, 'workflows')
+    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+
+    const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
+    const parsed = await parseRequest(
+      v2CreateWorkflowContract,
+      request,
+      {},
+      { validationErrorResponse: v2ValidationError }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { workspaceId, name, description, folderId } = parsed.data.body
+
+    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    if (access) return v2WorkspaceAccessError(access)
+
+    /**
+     * Ownership before lock state: `assertFolderMutable` walks the folder's
+     * ancestor chain without filtering on workspace, so checking it first would
+     * let a caller distinguish a locked folder in someone else's workspace
+     * (423) from one that simply does not exist (400).
+     */
+    if (folderId) await assertFolderInWorkspace(folderId, workspaceId)
+    await assertFolderMutable(folderId ?? null)
+
+    const result = await performCreateWorkflow({
+      userId,
+      workspaceId,
+      name,
+      description,
+      folderId,
+      requestId,
+    })
+
+    if (!result.success || !result.workflow) {
+      return v2ErrorForOrchestration(result.errorCode, result.error ?? 'Failed to create workflow')
+    }
+
+    const created = result.workflow
+    const item: V2WorkflowListItem = {
+      id: created.id,
+      name: created.name,
+      description: created.description ?? null,
+      folderId: created.folderId ?? null,
+      workspaceId: created.workspaceId,
+      isDeployed: false,
+      deployedAt: null,
+      runCount: 0,
+      lastRunAt: null,
+      createdAt: created.createdAt.toISOString(),
+      updatedAt: created.updatedAt.toISOString(),
+    }
+
+    return v2Data(item, { rateLimit, status: 201 })
+  } catch (error) {
+    if (error instanceof FolderNotFoundError) return v2Error('BAD_REQUEST', error.message)
+    if (error instanceof FolderLockedError) return v2Error('LOCKED', error.message)
+
+    logger.error(`[${requestId}] Workflow create error`, {
       error: getErrorMessage(error, 'Unknown error'),
     })
     return v2Error('INTERNAL_ERROR', 'Internal server error')
