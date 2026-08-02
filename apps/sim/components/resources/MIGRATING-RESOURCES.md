@@ -13,7 +13,7 @@ This is the migration plan.
 | --- | --- | --- | --- |
 | **file** | `components/resources/file-view` | Files page, mothership panel, interface module, `/f/[token]` | Done. The reference implementation. |
 | **interface** | `components/resources/interface-view` | editor page, mothership panel, `/i/[token]` | Done. |
-| **table** | — | tables page only, **plus a hand-rolled copy** in the interface table module | Next, and the highest value. |
+| **table** | `components/resources/table-view` | interface module (workspace + share); tables page and mothership still mount the editing shell | Done for reading. The hand-rolled module copy is gone. |
 | **knowledge** | — | knowledge page, mothership panel | No public consumer yet. |
 | **log** | — | logs page, mothership panel, tables page | `LogDetailsContent` is already shared; it just leaks context. |
 | **schedule** | — | scheduled-tasks page, mothership panel | Smallest surface. |
@@ -112,7 +112,27 @@ fourteen authenticated mutation hooks.
 a pure `resolveCellRender()` returning a typed `CellRenderKind` union and a dumb `<CellRender/>`;
 `cells/cell-content.tsx` is only glue plus the inline editor. That split is the model for the rest.
 
-### Suggested sequencing — three PRs, not one
+### What actually happened
+
+PR 1 and PR 2 landed. Two corrections to the plan below, learned by doing it:
+
+- **`table-grid.tsx` never moved, and did not need to.** It reads `useParams()`,
+  `useUserPermissionsContext()` and ten mutation hooks — it *is* the shell. Only what
+  it renders moved out from under it: 18 files, ~3.4k lines, at ~100% rename
+  similarity. Splitting the grid was never a prerequisite for giving the view layer
+  an address.
+- **The move needed four unblocking changes first**, each worth landing alone:
+  `StatusBadge` out of `logs/utils` (it dragged the block registry into every table
+  cell), `ChatMessageContext` read from its definition, `RemoteTableSelection` lifted
+  out of the presence hook, and `CellContent` taking an `editor` slot instead of
+  importing `InlineEditor` — with no `sideEffects: false`, that static import shipped
+  the write path regardless of `isEditing`.
+
+Still open: PR 3 (a standalone `/t/[token]` surface), the mothership panel (still
+mounts the whole editing page — a product decision, not a refactor), and the row
+page-size split documented on `TABLE_VIEW_PAGE_SIZE`.
+
+### Original sequencing — three PRs, not one
 
 **PR 1 — move, no behaviour change.** Relocate the presentational subtree to
 `components/resources/table-view/`: `TableColGroup`, headers, `DataRow`, `cells/` (minus
@@ -130,8 +150,9 @@ schema, `/t/[token]` or a table module inside a shared interface.
 
 ### Watch out for
 
-- **`resolveCellRender` takes `currentWorkspaceId`** and emits a `sim-resource` chip for in-workspace
-  URLs. `SimResourceCell` then fetches workspace lists to resolve names. In share scope pass
+- **`resolveCellRender` takes `currentWorkspaceId`** — now asserted in
+  `table-view/cells/cell-render.test.ts`, which fails if the guard is removed. It emits a
+  `sim-resource` chip for in-workspace URLs. `SimResourceCell` then fetches workspace lists to resolve names. In share scope pass
   `undefined`: the resolver never emits that kind, the URL falls through to a plain favicon link, and
   no workspace-authenticated query is mounted. Assert this in a test — it is the security property.
 - **Row execution metadata** (`exec`) carries run ids, statuses and costs. The public rows contract
