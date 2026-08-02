@@ -116,9 +116,10 @@ describe('checkRolePermission', () => {
   })
 
   describe('read role', () => {
-    it('should only allow update-position for read role', () => {
+    it('should deny update-position for read role (it persists block coordinates)', () => {
       const result = checkRolePermission('read', 'update-position')
-      expectPermissionAllowed(result)
+      expectPermissionDenied(result, 'read')
+      expectPermissionDenied(result, 'update-position')
     })
 
     it('should deny batch-add-blocks operation for read role', () => {
@@ -137,9 +138,10 @@ describe('checkRolePermission', () => {
       expectPermissionDenied(result, 'read')
     })
 
-    it('should allow batch-update-positions operation for read role', () => {
+    it('should deny batch-update-positions for read role (it persists block coordinates)', () => {
       const result = checkRolePermission('read', 'batch-update-positions')
-      expectPermissionAllowed(result)
+      expectPermissionDenied(result, 'read')
+      expectPermissionDenied(result, 'batch-update-positions')
     })
 
     it('should deny replace-state operation for read role', () => {
@@ -157,11 +159,11 @@ describe('checkRolePermission', () => {
       expectPermissionDenied(result, 'read')
     })
 
-    it('should deny all write operations for read role', () => {
-      const readAllowedOps = ['update-position', 'batch-update-positions']
-      const writeOperations = SOCKET_OPERATIONS.filter((op) => !readAllowedOps.includes(op))
-
-      for (const operation of writeOperations) {
+    it('grants the read role NO operation at all', () => {
+      // Every operation reaching this gate is persisted, so a read-only member must
+      // hold none of them — including the position updates that used to be granted
+      // here on the mistaken premise that they were ephemeral cursor sync.
+      for (const operation of SOCKET_OPERATIONS) {
         const result = checkRolePermission('read', operation)
         expect(result.allowed).toBe(false)
         expect(result.reason).toContain('read')
@@ -244,7 +246,7 @@ describe('checkRolePermission', () => {
         readAllowed: false,
       },
       { operation: 'update', adminAllowed: true, writeAllowed: true, readAllowed: false },
-      { operation: 'update-position', adminAllowed: true, writeAllowed: true, readAllowed: true },
+      { operation: 'update-position', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'update-name', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'toggle-enabled', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'update-parent', adminAllowed: true, writeAllowed: true, readAllowed: false },
@@ -265,7 +267,7 @@ describe('checkRolePermission', () => {
         operation: 'batch-update-positions',
         adminAllowed: true,
         writeAllowed: true,
-        readAllowed: true,
+        readAllowed: false,
       },
       { operation: 'replace-state', adminAllowed: true, writeAllowed: true, readAllowed: false },
     ]
@@ -337,21 +339,32 @@ describe('checkWorkflowOperationPermission', () => {
     expect(result.reason).toMatch(/revoked/i)
   })
 
-  it('denies writes after a downgrade to read but still allows position updates', async () => {
+  it('denies every persisted operation after a downgrade to read, positions included', async () => {
     mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'read' })
 
     const denied = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'write')
     expect(denied.allowed).toBe(false)
     expect(denied.role).toBe('read')
 
-    const allowed = await checkWorkflowOperationPermission(
+    // A committed position update writes workflow_blocks, so a downgraded member
+    // loses it too — this used to be allowed and was the escalation path.
+    const position = await checkWorkflowOperationPermission(
       userId,
       workflowId,
       'update-position',
       'write'
     )
-    expect(allowed.allowed).toBe(true)
-    expect(allowed.role).toBe('read')
+    expect(position.allowed).toBe(false)
+    expect(position.role).toBe('read')
+
+    const batch = await checkWorkflowOperationPermission(
+      userId,
+      workflowId,
+      'batch-update-positions',
+      'write'
+    )
+    expect(batch.allowed).toBe(false)
+    expect(batch.role).toBe('read')
   })
 
   it('caches the role within the TTL to avoid a DB read on every operation', async () => {
