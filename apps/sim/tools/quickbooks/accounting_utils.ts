@@ -62,7 +62,7 @@ function rejectUnknownKeys(
 function positiveQuickBooksAmount(
   value: unknown,
   fieldName: string
-): { decimal: Decimal; number: number } {
+): { cents: bigint; number: number } {
   if (typeof value !== 'number' && typeof value !== 'string') {
     throw new Error(`${fieldName} must be a positive finite number`)
   }
@@ -82,11 +82,16 @@ function positiveQuickBooksAmount(
     throw new Error(`${fieldName} cannot have more than two decimal places`)
   }
 
+  const centsNumber = decimal.times(100).toNumber()
+  if (!Number.isSafeInteger(centsNumber)) {
+    throw new Error(`${fieldName} is outside the safely supported amount range`)
+  }
+
   const number = decimal.toNumber()
   if (!Number.isFinite(number) || !new Decimal(number).equals(decimal)) {
     throw new Error(`${fieldName} is outside the safely supported amount range`)
   }
-  return { decimal, number }
+  return { cents: BigInt(centsNumber), number }
 }
 
 function stringValue(value: unknown, fieldName: string): string {
@@ -119,7 +124,7 @@ export function parseQuickBooksJournalLines(
   if (!parsed) return undefined
   validateLineCount(parsed, fieldName, 2)
 
-  const decimalAmounts: Decimal[] = []
+  const centAmounts: bigint[] = []
   const lines = parsed.map((rawLine, index) => {
     const itemName = `${fieldName}[${index}]`
     const line = requireObject(rawLine, itemName)
@@ -141,7 +146,7 @@ export function parseQuickBooksJournalLines(
       throw new Error(`${itemName}.entityType and entityId must be supplied together`)
     }
     const amount = positiveQuickBooksAmount(line.amount, `${itemName}.amount`)
-    decimalAmounts.push(amount.decimal)
+    centAmounts.push(amount.cents)
     return {
       postingType,
       amount: amount.number,
@@ -156,14 +161,14 @@ export function parseQuickBooksJournalLines(
   })
 
   const debitTotal = lines.reduce(
-    (sum, line, index) => (line.postingType === 'debit' ? sum.plus(decimalAmounts[index]) : sum),
-    new Decimal(0)
+    (sum, line, index) => (line.postingType === 'debit' ? sum + centAmounts[index] : sum),
+    0n
   )
   const creditTotal = lines.reduce(
-    (sum, line, index) => (line.postingType === 'credit' ? sum.plus(decimalAmounts[index]) : sum),
-    new Decimal(0)
+    (sum, line, index) => (line.postingType === 'credit' ? sum + centAmounts[index] : sum),
+    0n
   )
-  if (!debitTotal.equals(creditTotal)) {
+  if (debitTotal !== creditTotal) {
     throw new Error('Journal entry debit and credit totals must balance')
   }
   return lines

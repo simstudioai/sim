@@ -182,6 +182,13 @@ describe('QuickBooks accounting line validation', () => {
       ])
     ).toThrow('safely supported amount range')
     expect(() =>
+      parseQuickBooksJournalLines([
+        { ...journalLines[0], amount: '1e30' },
+        { ...journalLines[0], amount: 1 },
+        { ...journalLines[1], amount: '1e30' },
+      ])
+    ).toThrow('safely supported amount range')
+    expect(() =>
       parseQuickBooksJournalLines(
         Array.from({ length: 102 }, (_, index) => ({
           postingType: index % 2 === 0 ? 'debit' : 'credit',
