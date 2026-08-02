@@ -58,6 +58,7 @@ import { vercelHandler } from '@/lib/webhooks/providers/vercel'
 import { webflowHandler } from '@/lib/webhooks/providers/webflow'
 import { whatsappHandler } from '@/lib/webhooks/providers/whatsapp'
 import { zendeskHandler } from '@/lib/webhooks/providers/zendesk'
+import { zohoDeskHandler } from '@/lib/webhooks/providers/zoho-desk'
 import { zoomHandler } from '@/lib/webhooks/providers/zoom'
 
 const logger = createLogger('WebhookProviderRegistry')
@@ -122,6 +123,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   webflow: webflowHandler,
   whatsapp: whatsappHandler,
   zendesk: zendeskHandler,
+  zoho_desk: zohoDeskHandler,
   zoom: zoomHandler,
 }
 

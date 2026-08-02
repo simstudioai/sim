@@ -59,7 +59,7 @@ if bytes and bytes > 0 then
     local user_next = redis.call('DECRBY', KEYS[4], bytes)
     if user_next <= 0 then
       redis.call('DEL', KEYS[4])
-    else
+    elseif redis.call('TTL', KEYS[4]) < 0 then
       redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
     end
   end
@@ -129,7 +129,7 @@ if #KEYS >= 4 then
       redis.call('DEL', KEYS[4])
     end
   end
-  if redis.call('EXISTS', KEYS[4]) == 1 then
+  if redis.call('EXISTS', KEYS[4]) == 1 and redis.call('TTL', KEYS[4]) < 0 then
     redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
   end
 end

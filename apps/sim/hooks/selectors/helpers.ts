@@ -5,6 +5,7 @@ export interface OAuthTokenBundle {
   accessToken: string
   cloudId?: string
   domain?: string
+  apiDomain?: string
 }
 
 /**
@@ -24,5 +25,6 @@ export async function fetchOAuthToken(
     accessToken: token.accessToken,
     cloudId: token.cloudId,
     domain: token.domain,
+    apiDomain: token.apiDomain,
   }
 }

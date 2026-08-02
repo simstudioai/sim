@@ -133,6 +133,8 @@ export const createCredentialBodySchema = z
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
+    /** Optional provider region selector (Zoho Desk data center). */
+    dataCenter: z.string().trim().min(1).max(32).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -207,6 +209,7 @@ export const updateCredentialByIdBodySchema = z
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
+    dataCenter: z.string().trim().min(1).max(32).optional(),
   })
   .strict()
   .refine(
@@ -220,7 +223,8 @@ export const updateCredentialByIdBodySchema = z
       data.domain !== undefined ||
       data.clientId !== undefined ||
       data.clientSecret !== undefined ||
-      data.orgId !== undefined,
+      data.orgId !== undefined ||
+      data.dataCenter !== undefined,
     {
       message: 'At least one field must be provided',
       path: ['displayName'],
