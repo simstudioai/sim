@@ -13,6 +13,10 @@ import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_VERSION, TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/copilot/constants'
 import {
+  type CopilotEnvironmentContext,
+  prepareCopilotEnvironmentContext,
+} from '@/lib/copilot/environment-context'
+import {
   COPILOT_BILLING_PROTOCOL,
   COPILOT_BILLING_PROTOCOL_HEADER,
 } from '@/lib/copilot/generated/billing-protocol-v1'
@@ -61,7 +65,6 @@ import {
   isCopilotToolPermissionsEnabled,
   isHosted,
 } from '@/lib/core/config/env-flags'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotLifecycle')
@@ -97,6 +100,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   executionContext?: ExecutionContext
   billingAttribution?: BillingAttributionSnapshot
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  environmentContext?: CopilotEnvironmentContext
 }
 
 /**
@@ -183,6 +187,7 @@ export async function runCopilotLifecycle(
       abortSignal: lifecycleOptions.abortSignal,
       billingAttribution: lifecycleOptions.billingAttribution,
       resolvedSecretTraceRegistry: lifecycleOptions.resolvedSecretTraceRegistry,
+      environmentContext: lifecycleOptions.environmentContext,
     }))
   const shouldUseHostedBillingProtocol = isHosted && isCopilotBillingAttributionV1Enabled
   if (
@@ -1000,6 +1005,7 @@ async function buildExecutionContext(
     abortSignal?: AbortSignal
     billingAttribution?: BillingAttributionSnapshot
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+    environmentContext?: CopilotEnvironmentContext
   }
 ): Promise<ExecutionContext> {
   const {
@@ -1012,6 +1018,7 @@ async function buildExecutionContext(
     abortSignal,
     billingAttribution,
     resolvedSecretTraceRegistry,
+    environmentContext,
   } = params
   const userTimezone =
     typeof requestPayload?.userTimezone === 'string' ? requestPayload.userTimezone : undefined
@@ -1024,15 +1031,17 @@ async function buildExecutionContext(
     execContext = await prepareExecutionContext(userId, workflowId, chatId, {
       workspaceId,
       billingAttribution,
+      environmentContext,
     })
   } else {
-    const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+    const activeEnvironmentContext =
+      environmentContext ?? (await prepareCopilotEnvironmentContext(userId, workspaceId))
     execContext = {
       userId,
       workflowId: '',
       workspaceId,
       chatId,
-      decryptedEnvVars,
+      ...activeEnvironmentContext,
       billingAttribution,
     }
   }

@@ -70,13 +70,14 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
+import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   prePersistClientExecutableToolCall,
   sseHandlers,
   subAgentHandlers,
 } from '@/lib/copilot/request/handlers'
 import type { ExecutionContext, StreamEvent, StreamingContext } from '@/lib/copilot/request/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('sse-handlers tool lifecycle', () => {
   let context: StreamingContext
@@ -429,6 +430,67 @@ describe('sse-handlers tool lifecycle', () => {
     const updated = context.toolCalls.get('tool-primitive')
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.success)
     expect(updated?.result?.output).toBe('done')
+  })
+
+  it('projects resolved Function secrets before every Copilot-visible result sink', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'SECRET',
+        plaintext: 'secret-value',
+        encryptedValue: 'encrypted-secret-value',
+      },
+    ])
+    registry.recordResolved('SECRET', 'secret-value')
+    execContext.resolvedSecretTraceRegistry = registry
+    executeTool.mockResolvedValueOnce({
+      success: true,
+      output: {
+        result: 'secret-value',
+        stdout: 'prefix secret-value',
+      },
+    })
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-function',
+          toolName: FunctionExecute.id,
+          arguments: { code: 'return {{SECRET}}' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await sleep(0)
+
+    const safeOutput = {
+      result: '{{SECRET}}',
+      stdout: 'prefix {{SECRET}}',
+    }
+    expect(completeAsyncToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolCallId: 'tool-function',
+        result: safeOutput,
+      })
+    )
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          toolCallId: 'tool-function',
+          output: safeOutput,
+        }),
+      })
+    )
+    expect(context.toolCalls.get('tool-function')?.result?.output).toEqual(safeOutput)
+    expect(JSON.stringify(completeAsyncToolCall.mock.calls)).not.toContain('secret-value')
+    expect(JSON.stringify(onEvent.mock.calls)).not.toContain('secret-value')
   })
 
   it('marks background client workflow tools delivered after synthetic result emission', async () => {

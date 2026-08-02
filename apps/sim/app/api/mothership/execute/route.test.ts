@@ -190,7 +190,9 @@ describe('mothership private trace provenance transport', () => {
   }
 
   function activateSecret(options: CopilotLifecycleOptions): void {
-    options.resolvedSecretTraceRegistry?.recordResolved('API_KEY', 'secret-value')
+    const registry =
+      options.environmentContext?.resolvedSecretTraceRegistry ?? options.resolvedSecretTraceRegistry
+    registry?.recordResolved('API_KEY', 'secret-value')
   }
 
   it('does not expose private provenance unless the internal caller requests it', async () => {
@@ -218,7 +220,7 @@ describe('mothership private trace provenance transport', () => {
     expect(mockGetPersonalAndWorkspaceEnv).not.toHaveBeenCalled()
     expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ resolvedSecretTraceRegistry: undefined })
+      expect.objectContaining({ environmentContext: undefined })
     )
   })
 
@@ -227,6 +229,7 @@ describe('mothership private trace provenance transport', () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         expect(options.resolvedSecretTraceRegistry?.isComplete()).toBe(false)
+        expect(options.environmentContext).toBeUndefined()
         return successResult()
       }
     )
@@ -258,9 +261,10 @@ describe('mothership private trace provenance transport', () => {
   it('fails provenance closed without changing a runtime value that rotated after catalog load', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
-        expect(
-          options.resolvedSecretTraceRegistry?.recordResolved('API_KEY', 'rotated-secret-value')
-        ).toBe(false)
+        const registry =
+          options.environmentContext?.resolvedSecretTraceRegistry ??
+          options.resolvedSecretTraceRegistry
+        expect(registry?.recordResolved('API_KEY', 'rotated-secret-value')).toBe(false)
         return { ...successResult(), content: 'rotated-secret-value' }
       }
     )
@@ -292,6 +296,11 @@ describe('mothership private trace provenance transport', () => {
   it('returns encrypted provenance on a marker-gated successful request', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
+        expect(options.environmentContext?.decryptedEnvVars).toEqual({
+          API_KEY: 'secret-value',
+        })
+        expect(options.environmentContext?.resolvedSecretTraceRegistry).toBeDefined()
+        expect(options.resolvedSecretTraceRegistry).toBeUndefined()
         activateSecret(options)
         return successResult()
       }
@@ -322,6 +331,7 @@ describe('mothership private trace provenance transport', () => {
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
     expect(JSON.stringify(body.__resolvedSecretTraceProvenance)).not.toContain('secret-value')
+    expect(mockGetPersonalAndWorkspaceEnv).toHaveBeenCalledTimes(1)
   })
 
   it('imports MCP schema-discovery provenance before starting the lifecycle', async () => {
@@ -344,7 +354,10 @@ describe('mothership private trace provenance transport', () => {
     )
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
-        expect(options.resolvedSecretTraceRegistry?.exportProvenance()).toEqual(provenance)
+        const registry =
+          options.environmentContext?.resolvedSecretTraceRegistry ??
+          options.resolvedSecretTraceRegistry
+        expect(registry?.exportProvenance()).toEqual(provenance)
         expect(JSON.stringify(payload)).not.toContain('encrypted-secret')
         expect(JSON.stringify(payload)).not.toContain('__resolvedSecretTraceProvenance')
         return successResult()
@@ -388,7 +401,10 @@ describe('mothership private trace provenance transport', () => {
     )
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
-        expect(options.resolvedSecretTraceRegistry?.isComplete()).toBe(false)
+        const registry =
+          options.environmentContext?.resolvedSecretTraceRegistry ??
+          options.resolvedSecretTraceRegistry
+        expect(registry?.isComplete()).toBe(false)
         return successResult()
       }
     )

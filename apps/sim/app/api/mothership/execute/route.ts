@@ -11,6 +11,10 @@ import { processContextsServer } from '@/lib/copilot/chat/process-contents'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import {
+  type CopilotEnvironmentContext,
+  createCopilotEnvironmentContext,
+} from '@/lib/copilot/environment-context'
+import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/copilot/generated/mothership-stream-v1'
@@ -33,7 +37,6 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 import {
   createIncompleteResolvedSecretTraceRegistry,
-  createResolvedSecretTraceRegistry,
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -135,6 +138,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   let messageId: string | undefined
   let requestId: string | undefined
   let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
+  let environmentContext: CopilotEnvironmentContext | undefined
   const includePrivateProvenance = requestsPrivateToolMetadata(
     req.headers,
     RESOLVED_SECRET_PROVENANCE_METADATA_V1
@@ -192,14 +196,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         const environment = await getPersonalAndWorkspaceEnv(userId, workspaceId, {
           workspaceAccess,
         })
-        resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
-          personalEncrypted: environment.personalEncrypted,
-          workspaceEncrypted: environment.workspaceEncrypted,
-          personalDecrypted: environment.personalDecrypted,
-          workspaceDecrypted: environment.workspaceDecrypted,
-          decryptionFailures: environment.decryptionFailures,
-          scope,
-        })
+        environmentContext = await createCopilotEnvironmentContext(userId, workspaceId, environment)
+        resolvedSecretTraceRegistry = environmentContext.resolvedSecretTraceRegistry
       } catch (error) {
         logger.warn('Failed to build Mothership trace secret catalog', {
           error: getErrorMessage(error),
@@ -376,7 +374,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         interactive: false,
         abortSignal: lifecycleAbortController.signal,
         billingAttribution,
-        resolvedSecretTraceRegistry,
+        environmentContext,
+        ...(!environmentContext && resolvedSecretTraceRegistry
+          ? { resolvedSecretTraceRegistry }
+          : {}),
         onEvent,
       })
 

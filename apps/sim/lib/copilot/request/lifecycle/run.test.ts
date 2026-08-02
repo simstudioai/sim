@@ -2,17 +2,10 @@
  * @vitest-environment node
  */
 
-import {
-  environmentUtilsMockFns,
-  resetEnvFlagsMock,
-  resetEnvironmentUtilsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-
-const mockGetEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
 
 afterAll(resetEnvironmentUtilsMock)
 
@@ -21,6 +14,7 @@ const {
   mockForceFailHungToolCall,
   mockGetMothershipBaseURL,
   mockGetMothershipSourceEnvHeaders,
+  mockPrepareCopilotEnvironmentContext,
   mockPrepareExecutionContext,
   mockRunStreamLoop,
   mockPendingToolWaitBudgetMs,
@@ -32,6 +26,7 @@ const {
   mockForceFailHungToolCall: vi.fn(),
   mockGetMothershipBaseURL: vi.fn(),
   mockGetMothershipSourceEnvHeaders: vi.fn(),
+  mockPrepareCopilotEnvironmentContext: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
   mockPendingToolWaitBudgetMs: vi.fn(() => 60_000),
@@ -108,6 +103,10 @@ vi.mock('@/lib/copilot/persistence/tool-permission/auto-allow', () => ({
   addChatAutoAllowedTool: vi.fn(),
 }))
 
+vi.mock('@/lib/copilot/environment-context', () => ({
+  prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
+}))
+
 vi.mock('@/lib/copilot/tools/handlers/context', () => ({
   prepareExecutionContext: mockPrepareExecutionContext,
 }))
@@ -147,6 +146,7 @@ describe('runCopilotLifecycle', () => {
     mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
+    mockPrepareCopilotEnvironmentContext.mockResolvedValue({ decryptedEnvVars: {} })
   })
 
   it('threads trace provenance through server execution context only', async () => {
@@ -482,7 +482,6 @@ describe('runCopilotLifecycle', () => {
 
   it('propagates payload userPermission into the generated execution context', async () => {
     let capturedExecContext: ExecutionContext | undefined
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
     mockRunStreamLoop.mockImplementationOnce(
       async (
         _fetchUrl: string,
@@ -529,7 +528,6 @@ describe('runCopilotLifecycle', () => {
     setEnvFlags({ isHosted: true })
     setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
     mockRunStreamLoop.mockImplementationOnce(
       async (
         _fetchUrl: string,
@@ -591,7 +589,6 @@ describe('runCopilotLifecycle', () => {
   it('runs legacy-v0 during Sim-first deployment without guessed billing aliases', async () => {
     setEnvFlags({ isHosted: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
 
     await runCopilotLifecycle(
       { message: 'hello', messageId: 'message-1' },
@@ -626,7 +623,6 @@ describe('runCopilotLifecycle', () => {
   it('runs modern hosted work without legacy compatibility storage', async () => {
     setEnvFlags({ isHosted: true })
     setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
 
     await runCopilotLifecycle(
       { message: 'hello', messageId: 'message-1' },
@@ -654,7 +650,6 @@ describe('runCopilotLifecycle', () => {
 
   it('does not emit trusted billing headers for a non-hosted lifecycle', async () => {
     mockEnv.COPILOT_API_KEY = 'user-or-self-hosted-key'
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
 
     await runCopilotLifecycle(
       { message: 'hello', messageId: 'message-1', billingRequestId: 'caller-controlled' },
@@ -685,7 +680,6 @@ describe('runCopilotLifecycle', () => {
 
   it('normalizes the initial request body with workspaceId from lifecycle options', async () => {
     let requestBody: Record<string, unknown> | undefined
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
     mockRunStreamLoop.mockImplementationOnce(
       async (_fetchUrl: string, fetchOptions: RequestInit): Promise<void> => {
         requestBody = JSON.parse(String(fetchOptions.body))

@@ -700,7 +700,10 @@ describe('executeTool Function', () => {
     expect(new Headers(requestInit?.headers).get('x-sim-request-private-tool-metadata')).toBe(
       'resolved-secret-names-v1'
     )
-    expect(result.output).not.toHaveProperty('__resolvedSecretNames')
+    expect(result.output).toEqual({
+      success: true,
+      output: { result: 'secret-value', stdout: '' },
+    })
     expect(registry.getActiveMatches()).toEqual([
       { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
     ])

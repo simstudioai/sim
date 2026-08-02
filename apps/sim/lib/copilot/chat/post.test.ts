@@ -14,11 +14,12 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
 const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
-const getEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
+const getEffectiveEnvironmentSnapshot = environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
 const {
   generateWorkspaceSnapshot,
@@ -134,7 +135,14 @@ describe('handleUnifiedChatPost', () => {
     })
     getUserEntityPermissions.mockResolvedValue('write')
     resolveBillingAttribution.mockResolvedValue(billingAttribution)
-    getEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'secret' })
+    getEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: { API_KEY: 'encrypted-secret' },
+      workspaceEncrypted: {},
+      personalDecrypted: { API_KEY: 'secret' },
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: [],
+    })
     generateWorkspaceSnapshot.mockResolvedValue({
       markdown: 'workspace context',
       snapshot: { workflows: [{ id: 'wf-1', name: 'Alpha', path: 'workflows/Alpha' }] },
@@ -197,6 +205,8 @@ describe('handleUnifiedChatPost', () => {
             workspaceId: 'ws-1',
             billingAttribution,
             requestMode: 'agent',
+            decryptedEnvVars: { API_KEY: 'secret' },
+            resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
           }),
         }),
       })
@@ -238,6 +248,8 @@ describe('handleUnifiedChatPost', () => {
             workspaceId: 'ws-1',
             billingAttribution,
             requestMode: 'agent',
+            decryptedEnvVars: { API_KEY: 'secret' },
+            resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
           }),
         }),
       })
