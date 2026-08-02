@@ -280,6 +280,97 @@ describe('zohoDeskHandler', () => {
       expect(result?.providerConfigUpdates).toMatchObject({ externalId: 'wh-123' })
       expect(result?.providerConfigUpdates).not.toHaveProperty('ignoreSourceId')
     })
+
+    /** Drives createSubscription and returns the JSON body sent to Zoho. */
+    async function captureSentBody(
+      providerConfig: Record<string, unknown>
+    ): Promise<Record<string, unknown>> {
+      vi.mocked(getCredentialOwner).mockResolvedValue({
+        accountId: 'acc-1',
+        userId: 'user-1',
+        // biome-ignore lint/suspicious/noExplicitAny: partial owner shape for the test
+      } as any)
+      vi.mocked(refreshAccessTokenIfNeeded).mockResolvedValue('zoho-token')
+
+      let sentBody: Record<string, unknown> = {}
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+        sentBody = JSON.parse(String((init as RequestInit).body))
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ id: 'wh-123' }),
+        } as unknown as Response
+      })
+
+      await zohoDeskHandler.createSubscription?.({
+        webhook: {
+          id: 'w1',
+          path: 'p1',
+          providerConfig: { credentialId: 'cred-1', orgId: '700123', ...providerConfig },
+        },
+        workflow: {},
+        userId: 'user-1',
+        requestId: 'test',
+        // biome-ignore lint/suspicious/noExplicitAny: request is unused on this path
+        request: {} as any,
+      })
+      return sentBody
+    }
+
+    // Zoho documents includePrevState on the Ticket/Contact/Agent/Task/Article
+    // update events but NOT on Ticket_Comment_Update, which lists only
+    // departmentIds. An `endsWith('_Update')` rule sent an undocumented filter
+    // key on that one event.
+    it.each(['Ticket_Update', 'Contact_Update', 'Agent_Update', 'Task_Update', 'Article_Update'])(
+      'sets includePrevState for %s',
+      async (eventType) => {
+        const body = await captureSentBody({ eventType })
+        expect((body.subscriptions as Record<string, unknown>)[eventType]).toMatchObject({
+          includePrevState: true,
+        })
+      }
+    )
+
+    it('does NOT set includePrevState for Ticket_Comment_Update', async () => {
+      // With a department filter the object exists, so this proves the key is
+      // absent rather than the whole filter being null for an unrelated reason.
+      const withDepts = await captureSentBody({
+        eventType: 'Ticket_Comment_Update',
+        triggerDepartmentIds: '111',
+      })
+      expect((withDepts.subscriptions as Record<string, unknown>).Ticket_Comment_Update).toEqual({
+        departmentIds: ['111'],
+      })
+
+      // And with no filters at all it collapses to null, not `{includePrevState:true}`.
+      const bare = await captureSentBody({ eventType: 'Ticket_Comment_Update' })
+      expect((bare.subscriptions as Record<string, unknown>).Ticket_Comment_Update).toBeNull()
+    })
+
+    // Zoho: events outside the ticket/task family "do not support filters.
+    // Therefore, pass the value as null in the API request."
+    it('drops departmentIds for an event whose filter does not accept it', async () => {
+      const body = await captureSentBody({
+        eventType: 'Contact_Add',
+        triggerDepartmentIds: '111,222',
+      })
+      expect((body.subscriptions as Record<string, unknown>).Contact_Add).toBeNull()
+    })
+
+    it('keeps departmentIds for an event whose filter accepts it', async () => {
+      const body = await captureSentBody({
+        eventType: 'Ticket_Add',
+        triggerDepartmentIds: '111,222',
+      })
+      expect((body.subscriptions as Record<string, unknown>).Ticket_Add).toEqual({
+        departmentIds: ['111', '222'],
+      })
+    })
+
+    it('sends null, not an empty object, when an event has no filters', async () => {
+      const body = await captureSentBody({ eventType: 'Ticket_Delete' })
+      expect((body.subscriptions as Record<string, unknown>).Ticket_Delete).toBeNull()
+    })
   })
 
   describe('mapZohoWebhookError', () => {
