@@ -16,12 +16,18 @@ import { shareTableSchema } from '@/resources/table-source'
  * Owned here rather than taken from the caller, so two hosts of this view cannot
  * key differently: `pageSize` is part of the infinite-rows query key.
  *
- * KNOWN GAP — this does *not* yet share a cache entry with the tables page,
- * which requests `TABLE_LIMITS.MAX_QUERY_LIMIT` (1000) because its grid drains
- * every row for client-side sort and filter. Opening a table and viewing it in a
- * panel therefore drains it twice. Unifying them is a real behaviour change on
- * one surface or the other — either the page fetches in 100s or a panel fetches
- * 1000 rows up front — so it is deliberately not smuggled into this move.
+ * Deliberately NOT the tables page's size, and the two should not be unified.
+ * `pageSize` is part of the infinite-rows key, so the page and this view keep
+ * separate row caches — which is correct, because they read differently. The
+ * page requests `TABLE_LIMITS.MAX_QUERY_LIMIT` (1000) so `ensureAllRowsLoaded`
+ * can drain a table for select-all, export and bulk delete in few round trips;
+ * a panel wants its first screen fast and never drains. Forcing one number
+ * would either make a chat panel fetch 1000 rows to show ten, or make every
+ * bulk operation ten times as many requests.
+ *
+ * The expensive shared half *is* shared: the schema is keyed on the table id
+ * alone (`tableKeys.detail`), so every surface showing a given table reads one
+ * entry for its columns.
  *
  * A share source uses {@link PUBLIC_TABLE_PAGE_SIZE} instead — the public
  * contract's hard `limit` ceiling, read from the contract rather than restated.

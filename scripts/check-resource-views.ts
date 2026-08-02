@@ -78,13 +78,19 @@ const RESOURCE_POLICY_BASELINE = {
    */
   wrapperMounts: 0,
   /**
-   * R1b — components whose NAME announces a per-consumer fork. 11 of the 12 are
-   * the mothership panel's `Embedded*` tab chrome for kinds that have no
-   * canonical view yet (workflow, folder, scheduled task, log, knowledge base);
-   * the last is a landing-page marketing mock. Every one drops off as its kind
-   * gets a real view.
+   * R1b — components whose NAME announces a per-consumer fork. All 11 are the
+   * mothership panel's `Embedded*` tab chrome.
+   *
+   * These do NOT all drop off as kinds get canonical views, which an earlier
+   * version of this note claimed: the `Embedded*Actions` members are tab chrome
+   * (open / export buttons), not views, and `EmbeddedFileActions` and
+   * `EmbeddedInterfaceActions` both outlived their kinds' migrations —
+   * `EmbeddedTableActions` outlived table's. Only the content components
+   * (`EmbeddedWorkflow`, `EmbeddedFolder`, `EmbeddedScheduledTask`,
+   * `EmbeddedLog`) go. Collapsing the five `*Actions` into one kind-keyed
+   * component is the real fix and is its own change.
    */
-  shadowNamedComponents: 12,
+  shadowNamedComponents: 11,
   /**
    * R2 — imports that reach past a unit barrel. At its floor: the three
    * legitimate deep imports are all `lazy()` code-split points, listed in

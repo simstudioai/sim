@@ -140,10 +140,15 @@ page-size split documented on `TABLE_VIEW_PAGE_SIZE`.
 `tables/[tableId]/`. Nothing renders differently. Land this alone so the diff is reviewable.
 
 **PR 2 — give it the axes.** `TableView` takes `{ source, grants, host }`. Rows and schema resolve
-from the source: workspace scope keeps the existing `tableKeys` factory deliberately — an open table
-and an interface's table module *should* hit one cache entry, and forking that doubles every fetch —
-while share scope reads a `(token, grantId)` route. Replace the interfaces mini-table with a mount
-and delete it.
+from the source: workspace scope keeps the existing `tableKeys` factory, while share scope reads a
+`(token, grantId)` route. Replace the interfaces mini-table with a mount and delete it.
+
+*Corrected while doing it:* this section used to claim the page and an embedded table "should hit one
+cache entry, and forking that doubles every fetch". Half right. The **schema** is keyed on the table
+id alone, so it genuinely is one entry everywhere. **Rows** are not, and should not be: `pageSize` is
+in the key, the page pulls 1000-row pages so `ensureAllRowsLoaded` can drain for select-all/export in
+few round trips, and a panel wants a fast first screen and never drains. One number would either make
+a chat panel fetch 1000 rows to show ten, or make every bulk operation ten times the requests.
 
 **PR 3 — public surface.** Token-scoped rows route, `ResourceSeedMap['table']` carrying the column
 schema, `/t/[token]` or a table module inside a shared interface.
