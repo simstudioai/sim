@@ -19,6 +19,7 @@ export { quickbooksReadAccountingTransactionsTool } from '@/tools/quickbooks/rea
 export { quickbooksReadMasterDataTool } from '@/tools/quickbooks/read_master_data'
 export { quickbooksReadPurchasingTransactionsTool } from '@/tools/quickbooks/read_purchasing_transactions'
 export { quickbooksReadSalesTransactionsTool } from '@/tools/quickbooks/read_sales_transactions'
+export { quickbooksRunFinancialReportTool } from '@/tools/quickbooks/run_financial_report'
 export * from '@/tools/quickbooks/types'
 export { quickbooksUpdateBillTool } from '@/tools/quickbooks/update_bill'
 export { quickbooksUpdateBillPaymentTool } from '@/tools/quickbooks/update_bill_payment'

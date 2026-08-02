@@ -351,11 +351,11 @@ describe('QuickBooks accounting block', () => {
     })
   })
 
-  it('exposes exactly 39 operations with tool/access parity', () => {
+  it('exposes exactly 40 operations with tool/access parity', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     const operationIds = (operation?.options ?? []).map((option) => option.id)
-    expect(operationIds).toHaveLength(39)
-    expect(new Set(operationIds).size).toBe(39)
+    expect(operationIds).toHaveLength(40)
+    expect(new Set(operationIds).size).toBe(40)
     expect(operationIds).toEqual(QuickBooksBlock.tools.access)
   })
 

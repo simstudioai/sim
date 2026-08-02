@@ -14564,8 +14564,8 @@
       "type": "quickbooks",
       "slug": "quickbooks",
       "name": "QuickBooks",
-      "description": "Manage QuickBooks Online company, sales, purchasing, payables, and accounting",
-      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, and general-accounting workflows.",
+      "description": "Manage QuickBooks Online company, sales, purchasing, payables, accounting, and reports",
+      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, general-accounting, and financial-reporting workflows.",
       "bgColor": "#2CA01C",
       "iconName": "QuickBooksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
@@ -14576,7 +14576,7 @@
         },
         {
           "name": "Read Master Data",
-          "description": "List or read one account, customer, vendor, item, or employee"
+          "description": "List or read one account, class, customer, department, employee, item, or vendor"
         },
         {
           "name": "Create Customer",
@@ -14725,9 +14725,13 @@
         {
           "name": "Update Deposit",
           "description": "Sparse-update deposit header fields using the current sync token and destination account"
+        },
+        {
+          "name": "Run Financial Report",
+          "description": "Run a fixed QuickBooks financial report with verified accountant-focused filters"
         }
       ],
-      "operationCount": 39,
+      "operationCount": 40,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

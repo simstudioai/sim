@@ -1,6 +1,6 @@
 ---
 title: QuickBooks
-description: Manage QuickBooks Online company, sales, purchasing, payables, and accounting
+description: Manage QuickBooks Online company, sales, purchasing, payables, accounting, and reports
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -19,13 +19,15 @@ QuickBooks updates are sparse: provide the record ID, its current `SyncToken`, a
 
 Sandbox credentials call only Intuit's sandbox API and are suitable for disposable test data. Production credentials call the production API and affect the selected live company.
 
-Reports and attachments are not exposed by this version of the block, so report date-range and attachment-size controls do not apply here.
+Run Financial Report exposes verified financial statements, aging, balance, sales, and expense reports while preserving QuickBooks' native columns and nested rows. Advanced controls appear only where QuickBooks supports them. Use Read Master Data to discover customer, vendor, account, item, class, and department IDs for report filters. Intuit recommends report periods of six months or less for performance, though Sim does not forbid longer accounting periods.
+
+Attachments are not exposed by this version of the block.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, and general-accounting workflows.
+Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, general-accounting, and financial-reporting workflows.
 
 
 
@@ -67,13 +69,13 @@ Get information about the connected QuickBooks Online company
 
 ### `quickbooks_read_master_data`
 
-List or read one account, customer, vendor, item, or employee
+List or read one account, class, customer, department, employee, item, or vendor
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `recordType` | string | Yes | Master-data entity to read: account, customer, vendor, item, or employee |
+| `recordType` | string | Yes | Master-data entity to read: account, class, customer, department, employee, item, or vendor |
 | `readMode` | string | Yes | Whether to list records or read one record by ID |
 | `recordId` | string | No | QuickBooks record ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
@@ -91,12 +93,12 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `MetaData` | json | Entity creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
-|   ↳ `Name` | string | Account or item name |
+|   ↳ `Name` | string | Account, item, class, or department name |
 |   ↳ `SubAccount` | boolean | Whether this is a subaccount |
-|   ↳ `ParentRef` | json | Parent account, item, or category reference |
+|   ↳ `ParentRef` | json | Parent account, item, class, or department reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account or item name |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account, item, class, or department name |
 |   ↳ `Classification` | string | Account classification |
 |   ↳ `AccountType` | string | Account type |
 |   ↳ `AccountSubType` | string | Account subtype |
@@ -136,6 +138,8 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `InvStartDate` | string | Inventory tracking start date |
 |   ↳ `PrimaryAddr` | json | Employee primary address |
 |   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `SubClass` | boolean | Whether the Class is nested under another Class |
+|   ↳ `SubDepartment` | boolean | Whether the Department is nested under another Department |
 | `items` | array | QuickBooks master-data records returned by a list read |
 |   ↳ `Id` | string | QuickBooks entity ID |
 |   ↳ `SyncToken` | string | Entity sync token |
@@ -143,12 +147,12 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `MetaData` | json | Entity creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
-|   ↳ `Name` | string | Account or item name |
+|   ↳ `Name` | string | Account, item, class, or department name |
 |   ↳ `SubAccount` | boolean | Whether this is a subaccount |
-|   ↳ `ParentRef` | json | Parent account, item, or category reference |
+|   ↳ `ParentRef` | json | Parent account, item, class, or department reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account or item name |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account, item, class, or department name |
 |   ↳ `Classification` | string | Account classification |
 |   ↳ `AccountType` | string | Account type |
 |   ↳ `AccountSubType` | string | Account subtype |
@@ -188,6 +192,8 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `InvStartDate` | string | Inventory tracking start date |
 |   ↳ `PrimaryAddr` | json | Employee primary address |
 |   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `SubClass` | boolean | Whether the Class is nested under another Class |
+|   ↳ `SubDepartment` | boolean | Whether the Department is nested under another Department |
 | `startPosition` | number | One-based position of the first record in this page |
 | `maxResults` | number | Actual number of records returned in this page |
 | `nextStartPosition` | number | Position to use when explicitly requesting the next page |
@@ -2509,3 +2515,61 @@ Sparse-update deposit header fields using the current sync token and destination
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### `quickbooks_run_financial_report`
+
+Run a fixed QuickBooks financial report with verified accountant-focused filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `reportType` | string | Yes | Fixed QuickBooks financial report to run |
+| `startDate` | string | No | Report start date in YYYY-MM-DD format; Intuit recommends periods of six months or less for performance |
+| `endDate` | string | No | Report end or as-of date in YYYY-MM-DD format |
+| `accountingMethod` | string | No | Use the QuickBooks default, cash basis, or accrual basis |
+| `summarizeBy` | string | No | Time period or business dimension used to summarize report columns |
+| `customerId` | string | No | Single QuickBooks customer ID filter |
+| `vendorId` | string | No | Single QuickBooks vendor ID filter |
+| `accountId` | string | No | Single QuickBooks account ID filter |
+| `itemId` | string | No | Single QuickBooks item ID filter |
+| `classId` | string | No | Single QuickBooks class ID filter |
+| `departmentId` | string | No | Single QuickBooks department ID filter |
+| `agingMethod` | string | No | Age open balances from the report date or current date |
+| `agingDays` | number | No | Positive number of days in each aging period |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reportType` | string | Financial report type that was run |
+| `header` | json | Native QuickBooks report header with name, periods, basis, currency, summarization, filters, and options |
+|   ↳ `Time` | string | QuickBooks report generation timestamp |
+|   ↳ `ReportName` | string | Native QuickBooks report name |
+|   ↳ `DateMacro` | string | QuickBooks date macro, when returned |
+|   ↳ `ReportBasis` | string | Cash or accrual basis |
+|   ↳ `StartPeriod` | string | Report start date |
+|   ↳ `EndPeriod` | string | Report end or as-of date |
+|   ↳ `SummarizeColumnsBy` | string | Dimension or time period used for report columns |
+|   ↳ `Currency` | string | Report currency |
+|   ↳ `Customer` | string | Applied customer filter |
+|   ↳ `Vendor` | string | Applied vendor filter |
+|   ↳ `Account` | string | Applied account filter |
+|   ↳ `Item` | string | Applied item filter |
+|   ↳ `Class` | string | Applied class filter |
+|   ↳ `Department` | string | Applied department filter |
+|   ↳ `Option` | array | Native QuickBooks report options, including no-data indicators when present |
+| `columns` | json | Native QuickBooks report column definitions |
+|   ↳ `Column` | array | Native report column definitions with titles, types, and metadata |
+|     ↳ `ColTitle` | string | Column title |
+|     ↳ `ColType` | string | QuickBooks column data type |
+|     ↳ `MetaData` | array | Native column metadata name/value entries |
+| `rows` | json | Native hierarchical QuickBooks report rows and section summaries |
+|   ↳ `Row` | array | Native hierarchical report rows; section rows may contain Header, nested Rows, and Summary, while data rows contain ColData values, IDs, and links |
+|     ↳ `type` | string | QuickBooks row type |
+|     ↳ `group` | string | QuickBooks section group |
+|     ↳ `Header` | json | Section header column data |
+|     ↳ `ColData` | array | Row values with optional operational IDs and links |
+|     ↳ `Rows` | json | Nested native QuickBooks report rows |
+|     ↳ `Summary` | json | Section summary column data |
+| `time` | string | QuickBooks response timestamp |

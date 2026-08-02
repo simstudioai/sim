@@ -15,13 +15,22 @@ import {
   parseQuickBooksInvoiceAllocations,
   parseQuickBooksSalesLines,
 } from '@/tools/quickbooks/sales_utils'
-import type { QuickBooksResponse } from '@/tools/quickbooks/types'
-import { parseQuickBooksAddress } from '@/tools/quickbooks/utils'
+import type { QuickBooksReportType, QuickBooksResponse } from '@/tools/quickbooks/types'
+import {
+  getQuickBooksReportTypesSupporting,
+  parseQuickBooksAddress,
+  QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES,
+  QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES,
+  QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES,
+  QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES,
+  type QuickBooksReportControl,
+} from '@/tools/quickbooks/utils'
 
 const MASTER_DATA_OPERATION = 'quickbooks_read_master_data'
 const SALES_READ_OPERATION = 'quickbooks_read_sales_transactions'
 const PURCHASING_READ_OPERATION = 'quickbooks_read_purchasing_transactions'
 const ACCOUNTING_READ_OPERATION = 'quickbooks_read_accounting_transactions'
+const REPORT_OPERATION = 'quickbooks_run_financial_report'
 const CUSTOMER_OPERATIONS = ['quickbooks_create_customer', 'quickbooks_update_customer'] as const
 const VENDOR_OPERATIONS = ['quickbooks_create_vendor', 'quickbooks_update_vendor'] as const
 const ITEM_OPERATIONS = ['quickbooks_create_item', 'quickbooks_update_item'] as const
@@ -147,8 +156,72 @@ const QUICKBOOKS_OPERATIONS = [
   SALES_READ_OPERATION,
   PURCHASING_READ_OPERATION,
   ACCOUNTING_READ_OPERATION,
+  REPORT_OPERATION,
   ...MUTATION_OPERATIONS,
 ] as const
+
+const REPORT_TIME_SUMMARY_OPTIONS = [
+  { label: 'QuickBooks Default', id: 'default' },
+  { label: 'Total', id: 'total' },
+  { label: 'Day', id: 'day' },
+  { label: 'Week', id: 'week' },
+  { label: 'Month', id: 'month' },
+  { label: 'Quarter', id: 'quarter' },
+  { label: 'Year', id: 'year' },
+] as const
+
+function reportControlCondition(control: QuickBooksReportControl) {
+  return {
+    field: 'operation',
+    value: REPORT_OPERATION,
+    and: { field: 'reportType', value: getQuickBooksReportTypesSupporting(control) },
+  }
+}
+
+function reportSupports(reportType: unknown, control: QuickBooksReportControl): boolean {
+  return getQuickBooksReportTypesSupporting(control).includes(reportType as QuickBooksReportType)
+}
+
+function reportSummarizeValue(params: Record<string, unknown>, reportType: unknown): unknown {
+  if (
+    QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES.includes(
+      reportType as (typeof QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES)[number]
+    )
+  ) {
+    return params.reportSummarizeBy ?? 'default'
+  }
+  if (
+    QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES.includes(
+      reportType as (typeof QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES)[number]
+    )
+  ) {
+    return params.reportCustomerSalesSummarizeBy ?? 'default'
+  }
+  if (
+    QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES.includes(
+      reportType as (typeof QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES)[number]
+    )
+  ) {
+    return params.reportVendorExpenseSummarizeBy ?? 'default'
+  }
+  if (
+    QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES.includes(
+      reportType as (typeof QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES)[number]
+    )
+  ) {
+    return params.reportTimeSummarizeBy ?? 'default'
+  }
+  return undefined
+}
+
+function parseOptionalPositiveInteger(value: unknown, fieldName: string): number | undefined {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return undefined
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${fieldName} must be a positive integer`)
+  }
+  return parsed
+}
 
 function parsePaginationInteger(
   value: unknown,
@@ -247,10 +320,11 @@ function parseConfirmation(value: unknown, fieldName: string): boolean {
 export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
   type: 'quickbooks',
   name: 'QuickBooks',
-  description: 'Manage QuickBooks Online company, sales, purchasing, payables, and accounting',
+  description:
+    'Manage QuickBooks Online company, sales, purchasing, payables, accounting, and reports',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, and general-accounting workflows.',
+    'Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, general-accounting, and financial-reporting workflows.',
   docsLink: 'https://docs.sim.ai/integrations/quickbooks',
   category: 'tools',
   integrationType: IntegrationType.Commerce,
@@ -307,6 +381,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Update Journal Entry', id: 'quickbooks_update_journal_entry' },
         { label: 'Create Deposit', id: 'quickbooks_create_deposit' },
         { label: 'Update Deposit', id: 'quickbooks_update_deposit' },
+        { label: 'Run Financial Report', id: 'quickbooks_run_financial_report' },
       ],
       value: () => 'quickbooks_get_company_info',
     },
@@ -326,7 +401,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Account', id: 'account' },
+        { label: 'Class', id: 'class' },
         { label: 'Customer', id: 'customer' },
+        { label: 'Department', id: 'department' },
         { label: 'Vendor', id: 'vendor' },
         { label: 'Item', id: 'item' },
         { label: 'Employee', id: 'employee' },
@@ -430,6 +507,208 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'QuickBooks transaction ID',
       condition: salesTransactionIdCondition,
       required: salesTransactionIdCondition,
+    },
+    {
+      id: 'reportType',
+      title: 'Report Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Balance Sheet', id: 'balance_sheet' },
+        { label: 'Profit and Loss', id: 'profit_and_loss' },
+        { label: 'Profit and Loss Detail', id: 'profit_and_loss_detail' },
+        { label: 'Trial Balance', id: 'trial_balance' },
+        { label: 'Statement of Cash Flows', id: 'cash_flow' },
+        { label: 'A/P Aging Summary', id: 'ap_aging_summary' },
+        { label: 'A/P Aging Detail', id: 'ap_aging_detail' },
+        { label: 'A/R Aging Summary', id: 'ar_aging_summary' },
+        { label: 'A/R Aging Detail', id: 'ar_aging_detail' },
+        { label: 'Vendor Balance Summary', id: 'vendor_balance' },
+        { label: 'Customer Balance Summary', id: 'customer_balance' },
+        { label: 'Sales by Customer Summary', id: 'sales_by_customer' },
+        { label: 'Sales by Product/Service Summary', id: 'sales_by_item' },
+        { label: 'Expenses by Vendor', id: 'expenses_by_vendor' },
+      ],
+      condition: { field: 'operation', value: REPORT_OPERATION },
+      required: { field: 'operation', value: REPORT_OPERATION },
+      value: () => 'profit_and_loss',
+    },
+    {
+      id: 'reportStartDate',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      description:
+        'Intuit recommends report periods of six months or less for performance, but longer periods remain supported.',
+      mode: 'advanced',
+      condition: reportControlCondition('startDate'),
+    },
+    {
+      id: 'reportEndDate',
+      title: 'End or Report Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      description: 'End date for range reports or as-of date for balance and aging reports.',
+      mode: 'advanced',
+      condition: reportControlCondition('endDate'),
+    },
+    {
+      id: 'reportAccountingMethod',
+      title: 'Accounting Method',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'Cash', id: 'cash' },
+        { label: 'Accrual', id: 'accrual' },
+      ],
+      mode: 'advanced',
+      condition: reportControlCondition('accountingMethod'),
+      value: () => 'default',
+    },
+    {
+      id: 'reportSummarizeBy',
+      title: 'Summarize Columns By',
+      type: 'dropdown',
+      options: [
+        ...REPORT_TIME_SUMMARY_OPTIONS,
+        { label: 'Customer', id: 'customer' },
+        { label: 'Vendor', id: 'vendor' },
+        { label: 'Product/Service', id: 'item' },
+        { label: 'Class', id: 'class' },
+        { label: 'Department', id: 'department' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: [...QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES] },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportCustomerSalesSummarizeBy',
+      title: 'Summarize Columns By',
+      type: 'dropdown',
+      options: [
+        ...REPORT_TIME_SUMMARY_OPTIONS,
+        { label: 'Customer', id: 'customer' },
+        { label: 'Product/Service', id: 'item' },
+        { label: 'Class', id: 'class' },
+        { label: 'Department', id: 'department' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: {
+          field: 'reportType',
+          value: [...QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES],
+        },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportVendorExpenseSummarizeBy',
+      title: 'Summarize Columns By',
+      type: 'dropdown',
+      options: [
+        ...REPORT_TIME_SUMMARY_OPTIONS,
+        { label: 'Customer', id: 'customer' },
+        { label: 'Vendor', id: 'vendor' },
+        { label: 'Class', id: 'class' },
+        { label: 'Department', id: 'department' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: {
+          field: 'reportType',
+          value: [...QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES],
+        },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportTimeSummarizeBy',
+      title: 'Summarize Columns By',
+      type: 'dropdown',
+      options: [...REPORT_TIME_SUMMARY_OPTIONS],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: [...QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES] },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportCustomerId',
+      title: 'Customer ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find a customer ID',
+      mode: 'advanced',
+      condition: reportControlCondition('customerId'),
+    },
+    {
+      id: 'reportVendorId',
+      title: 'Vendor ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find a vendor ID',
+      mode: 'advanced',
+      condition: reportControlCondition('vendorId'),
+    },
+    {
+      id: 'reportAccountId',
+      title: 'Account ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find an account ID',
+      mode: 'advanced',
+      condition: reportControlCondition('accountId'),
+    },
+    {
+      id: 'reportItemId',
+      title: 'Product/Service ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find an item ID',
+      mode: 'advanced',
+      condition: reportControlCondition('itemId'),
+    },
+    {
+      id: 'reportClassId',
+      title: 'Class ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find a class ID',
+      mode: 'advanced',
+      condition: reportControlCondition('classId'),
+    },
+    {
+      id: 'reportDepartmentId',
+      title: 'Department ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find a department ID',
+      mode: 'advanced',
+      condition: reportControlCondition('departmentId'),
+    },
+    {
+      id: 'reportAgingMethod',
+      title: 'Aging Method',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'Report Date', id: 'report_date' },
+        { label: 'Current Date', id: 'current' },
+      ],
+      mode: 'advanced',
+      condition: reportControlCondition('aging'),
+      value: () => 'default',
+    },
+    {
+      id: 'reportAgingDays',
+      title: 'Days per Aging Period',
+      type: 'short-input',
+      placeholder: '30',
+      mode: 'advanced',
+      condition: reportControlCondition('aging'),
     },
     {
       id: 'startPosition',
@@ -1147,6 +1426,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       'quickbooks_update_journal_entry',
       'quickbooks_create_deposit',
       'quickbooks_update_deposit',
+      'quickbooks_run_financial_report',
     ],
     config: {
       tool: (params) => {
@@ -1226,6 +1506,47 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             readMode: params.readMode,
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
+          }
+        }
+        if (operation === REPORT_OPERATION) {
+          const reportType = params.reportType
+          return {
+            credential: oauthCredentialValue,
+            reportType,
+            startDate: reportSupports(reportType, 'startDate')
+              ? optionalValue(params.reportStartDate)
+              : undefined,
+            endDate: optionalValue(params.reportEndDate),
+            accountingMethod: reportSupports(reportType, 'accountingMethod')
+              ? (params.reportAccountingMethod ?? 'default')
+              : undefined,
+            summarizeBy: reportSupports(reportType, 'summarizeBy')
+              ? reportSummarizeValue(params, reportType)
+              : undefined,
+            customerId: reportSupports(reportType, 'customerId')
+              ? optionalValue(params.reportCustomerId)
+              : undefined,
+            vendorId: reportSupports(reportType, 'vendorId')
+              ? optionalValue(params.reportVendorId)
+              : undefined,
+            accountId: reportSupports(reportType, 'accountId')
+              ? optionalValue(params.reportAccountId)
+              : undefined,
+            itemId: reportSupports(reportType, 'itemId')
+              ? optionalValue(params.reportItemId)
+              : undefined,
+            classId: reportSupports(reportType, 'classId')
+              ? optionalValue(params.reportClassId)
+              : undefined,
+            departmentId: reportSupports(reportType, 'departmentId')
+              ? optionalValue(params.reportDepartmentId)
+              : undefined,
+            agingMethod: reportSupports(reportType, 'aging')
+              ? (params.reportAgingMethod ?? 'default')
+              : undefined,
+            agingDays: reportSupports(reportType, 'aging')
+              ? parseOptionalPositiveInteger(params.reportAgingDays, 'agingDays')
+              : undefined,
           }
         }
         if (SALES_VOID_OPERATIONS.includes(operation as (typeof SALES_VOID_OPERATIONS)[number])) {
@@ -1484,6 +1805,31 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'string',
       description: 'Accounting transaction entity type',
     },
+    reportType: { type: 'string', description: 'Financial report type' },
+    reportStartDate: { type: 'string', description: 'Report start date' },
+    reportEndDate: { type: 'string', description: 'Report end or as-of date' },
+    reportAccountingMethod: { type: 'string', description: 'Cash or accrual report basis' },
+    reportSummarizeBy: { type: 'string', description: 'Report column summarization' },
+    reportCustomerSalesSummarizeBy: {
+      type: 'string',
+      description: 'Sales report column summarization',
+    },
+    reportVendorExpenseSummarizeBy: {
+      type: 'string',
+      description: 'Vendor expense report column summarization',
+    },
+    reportTimeSummarizeBy: {
+      type: 'string',
+      description: 'Time-based report column summarization',
+    },
+    reportCustomerId: { type: 'string', description: 'Customer report filter ID' },
+    reportVendorId: { type: 'string', description: 'Vendor report filter ID' },
+    reportAccountId: { type: 'string', description: 'Account report filter ID' },
+    reportItemId: { type: 'string', description: 'Product or service report filter ID' },
+    reportClassId: { type: 'string', description: 'Class report filter ID' },
+    reportDepartmentId: { type: 'string', description: 'Department report filter ID' },
+    reportAgingMethod: { type: 'string', description: 'Aging report calculation date' },
+    reportAgingDays: { type: 'number', description: 'Days in each aging period' },
     transactionId: { type: 'string', description: 'QuickBooks transaction ID' },
     startPosition: {
       type: 'number',
@@ -1582,6 +1928,26 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         field: 'operation',
         value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION, ACCOUNTING_READ_OPERATION],
       },
+    },
+    reportType: {
+      type: 'string',
+      description: 'Financial report type that was run',
+      condition: { field: 'operation', value: REPORT_OPERATION },
+    },
+    header: {
+      type: 'json',
+      description: 'Native QuickBooks report header, periods, basis, filters, and options',
+      condition: { field: 'operation', value: REPORT_OPERATION },
+    },
+    columns: {
+      type: 'json',
+      description: 'Native QuickBooks report column definitions',
+      condition: { field: 'operation', value: REPORT_OPERATION },
+    },
+    rows: {
+      type: 'json',
+      description: 'Native hierarchical QuickBooks report rows and summaries',
+      condition: { field: 'operation', value: REPORT_OPERATION },
     },
     item: {
       type: 'json',
@@ -1713,12 +2079,12 @@ export const QuickBooksBlockMeta = {
     },
     {
       icon: QuickBooksIcon,
-      title: 'QuickBooks master-data audit',
+      title: 'QuickBooks monthly and year-end reporting',
       prompt:
-        'Build a scheduled workflow that lists QuickBooks accounts, customers, vendors, items, and employees page by page and writes data-quality findings to a Sim table without changing records.',
+        'Build a scheduled workflow that runs monthly and year-end Balance Sheet, Profit and Loss, Trial Balance, and Cash Flow reports, preserves their native rows and summaries, and stores review results in a Sim table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
-      tags: ['finance', 'audit', 'data-quality'],
+      tags: ['finance', 'reporting', 'financial-close'],
     },
     {
       icon: QuickBooksIcon,
@@ -1751,19 +2117,19 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks journal adjustments and deposits',
       prompt:
-        'Build a controlled workflow that posts an explicitly approved, balanced QuickBooks journal entry or records a bounded deposit, stores the returned ID and sync token, and reads transfers for cash-movement review.',
+        'Build a controlled workflow that posts an explicitly approved, balanced QuickBooks journal entry or records a bounded deposit, then runs cash- and accrual-basis reports to support the accounting review.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'accounting', 'journal-entries'],
     },
     {
       icon: QuickBooksIcon,
-      title: 'QuickBooks purchase-order tracking',
+      title: 'QuickBooks receivables and payables aging',
       prompt:
-        'Create a workflow that receives an approved vendor, A/P account, and bounded expense lines, creates a QuickBooks purchase order, and later reads it by ID for status tracking.',
+        'Create a scheduled workflow that runs A/R and A/P aging summaries and details with approved aging controls, optionally filters by customer or vendor, and flags balances requiring accountant review without changing records.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
-      tags: ['finance', 'reporting', 'procurement'],
+      tags: ['finance', 'reporting', 'aging'],
     },
     {
       icon: QuickBooksIcon,
@@ -1776,12 +2142,12 @@ export const QuickBooksBlockMeta = {
     },
     {
       icon: QuickBooksIcon,
-      title: 'QuickBooks expenses and vendor credits',
+      title: 'QuickBooks customer, vendor, and expense analysis',
       prompt:
-        'Create a workflow that records approved cash, check, or credit-card expenses and separately records vendor credits without automatically applying credits or paying bills.',
+        'Create a workflow that runs customer and vendor balance reports, sales by customer or product/service, and expenses by vendor with supported account, class, or department filters for accountant review.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
-      tags: ['finance', 'expenses', 'payables'],
+      tags: ['finance', 'reporting', 'analysis'],
     },
   ],
   skills: [
@@ -1807,7 +2173,7 @@ export const QuickBooksBlockMeta = {
       name: 'record-quickbooks-accounting-adjustments',
       description: 'Post approved balanced journal entries, record deposits, and review transfers.',
       content:
-        '# Record QuickBooks Accounting Adjustments\n\n## Steps\n1. Read the approved account IDs from Master Data.\n2. For a journal entry, verify that positive debit and credit lines balance and require explicit posting confirmation; for a deposit, verify the destination and source account IDs.\n3. Store the returned `recordId` and `syncToken`; use Read Accounting Transactions to review journal entries, deposits, or read-only transfers.\n\n## Output\nReturn the native accounting transaction and identifiers. Do not claim to create transfers, replace transaction lines, or administer currencies.',
+        '# Record QuickBooks Accounting Adjustments\n\n## Steps\n1. Read the approved account IDs from Master Data.\n2. For a journal entry, verify that positive debit and credit lines balance and require explicit posting confirmation; for a deposit, verify the destination and source account IDs.\n3. Store the returned `recordId` and `syncToken`; use Read Accounting Transactions to review journal entries, deposits, or read-only transfers.\n4. Run an approved Trial Balance or financial statement on cash or accrual basis when an accountant requests post-adjustment review.\n\n## Output\nReturn the native accounting transaction and identifiers plus the native report hierarchy when requested. Do not claim to create transfers, replace transaction lines, or administer currencies.',
     },
     {
       name: 'prepare-quickbooks-estimates',
@@ -1826,14 +2192,14 @@ export const QuickBooksBlockMeta = {
       description:
         'Create standalone or PO-linked bills and record bounded payments to approved Bill IDs.',
       content:
-        '# Record QuickBooks Payables\n\n## Steps\n1. Validate the vendor, expense lines, and optional A/P account.\n2. For PO-linked billing, use Read Purchasing Transactions by ID and copy each approved Purchase Order `Line[].Id` into the matching Create Bill line with its PO ID.\n3. Use Create Bill, store its ID and sync token, and inspect `linkingSucceeded` and `missingLinks`; QuickBooks may create the Bill while omitting an invalid or unavailable link.\n4. When payment is separately approved, use Create Bill Payment with bounded Bill allocations whose amounts equal the payment total.\n\n## Output\nAlways return the created Bill ID and linkage result. Never imply that a missing link prevented Bill creation, and never create a payment implicitly.',
+        '# Record QuickBooks Payables\n\n## Steps\n1. Validate the vendor, expense lines, and optional A/P account.\n2. For PO-linked billing, use Read Purchasing Transactions by ID and copy each approved Purchase Order `Line[].Id` into the matching Create Bill line with its PO ID.\n3. Use Create Bill, store its ID and sync token, and inspect `linkingSucceeded` and `missingLinks`; QuickBooks may create the Bill while omitting an invalid or unavailable link.\n4. When payment is separately approved, use Create Bill Payment with bounded Bill allocations whose amounts equal the payment total.\n5. Run A/P Aging Summary or Detail with supported vendor, department, date, and aging controls for accountant review.\n\n## Output\nAlways return the created Bill ID and linkage result. Preserve the native aging report when requested. Never imply that a missing link prevented Bill creation, and never create a payment implicitly.',
     },
     {
-      name: 'record-quickbooks-purchases-and-vendor-credits',
+      name: 'analyze-quickbooks-financial-reports',
       description:
-        'Record bounded purchases and vendor credits without applying credits automatically.',
+        'Run verified financial, balance, aging, sales, and expense reports with supported filters.',
       content:
-        '# Record QuickBooks Purchases and Vendor Credits\n\n## Steps\n1. Validate the approved payment account, vendor, and bounded expense lines.\n2. Use Create Purchase or Expense for cash, check, or credit-card expenses, or Create Vendor Credit for an approved credit.\n3. Store the returned ID and sync token for supported header corrections.\n\n## Output\nReturn the native transaction and identifiers. Do not claim to apply credits, change transaction lines, or administer taxes.',
+        '# Analyze QuickBooks Financial Reports\n\n## Steps\n1. Choose a verified report and an accountant-approved date or as-of period.\n2. Use Read Master Data to discover customer, vendor, account, item, class, or department IDs required by supported filters.\n3. Run Financial Report with only the controls shown for that report; compare cash and accrual basis or time summaries when requested.\n4. Preserve the native Header, Columns, nested Rows, and summaries for review.\n\n## Output\nReturn the report hierarchy and applied report context. Do not claim to export spreadsheets, email reports, customize columns, schedule delivery in QuickBooks, or mutate accounting records from a report.',
     },
   ],
 } as const satisfies BlockMeta

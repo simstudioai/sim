@@ -21,6 +21,7 @@ import {
   quickbooksReadAccountingTransactionsTool,
   quickbooksReadPurchasingTransactionsTool,
   quickbooksReadSalesTransactionsTool,
+  quickbooksRunFinancialReportTool,
   quickbooksUpdateBillPaymentTool,
   quickbooksUpdateBillTool,
   quickbooksUpdateCreditMemoTool,
@@ -231,7 +232,9 @@ describe('QuickBooks response contracts', () => {
 
   it.each([
     ['Account', { Id: '1', Name: 'Checking' }],
+    ['Class', { Id: '8', Name: 'Sanitized Class' }],
     ['Customer', { Id: '2', DisplayName: 'Sanitized Customer' }],
+    ['Department', { Id: '9', Name: 'Sanitized Department' }],
     ['Vendor', { Id: '3', DisplayName: 'Sanitized Vendor' }],
     ['Item', { Id: '4', Name: 'Sanitized Service', Type: 'Service' }],
     ['Employee', { Id: '5', DisplayName: 'Sanitized Employee' }],
@@ -320,7 +323,9 @@ describe('QuickBooks master-data reader', () => {
 
   it.each([
     ['account', 'Account'],
+    ['class', 'Class'],
     ['customer', 'Customer'],
+    ['department', 'Department'],
     ['vendor', 'Vendor'],
     ['item', 'Item'],
     ['employee', 'Employee'],
@@ -901,6 +906,7 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksReadAccountingTransactionsTool,
     quickbooksReadPurchasingTransactionsTool,
     quickbooksReadSalesTransactionsTool,
+    quickbooksRunFinancialReportTool,
     quickbooksUpdateBillPaymentTool,
     quickbooksUpdateBillTool,
     quickbooksUpdateCreditMemoTool,
@@ -921,7 +927,7 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksVoidInvoiceTool,
   ]
 
-  it('declares exactly 39 bounded tools with hidden company credentials and no retries', () => {
+  it('declares exactly 40 bounded tools with hidden company credentials and no retries', () => {
     expect(tools.map((tool) => tool.id).sort()).toEqual([...QuickBooksBlock.tools.access].sort())
     for (const tool of tools) {
       expect(tool.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
@@ -932,7 +938,7 @@ describe('QuickBooks tool and block boundaries', () => {
     }
   })
 
-  it('exposes the 39 compact operations and unique subblock IDs', () => {
+  it('exposes the 40 compact operations and unique subblock IDs', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     expect(operation?.options).toEqual([
       { label: 'Get Company Info', id: 'quickbooks_get_company_info' },
@@ -980,6 +986,7 @@ describe('QuickBooks tool and block boundaries', () => {
       { label: 'Update Journal Entry', id: 'quickbooks_update_journal_entry' },
       { label: 'Create Deposit', id: 'quickbooks_create_deposit' },
       { label: 'Update Deposit', id: 'quickbooks_update_deposit' },
+      { label: 'Run Financial Report', id: 'quickbooks_run_financial_report' },
     ])
     const ids = QuickBooksBlock.subBlocks.map((subBlock) => subBlock.id)
     expect(new Set(ids).size).toBe(ids.length)
@@ -1257,9 +1264,9 @@ describe('QuickBooks tool and block boundaries', () => {
     }
 
     const neutralDescriptions = {
-      Name: 'Account or item name',
-      ParentRef: 'Parent account, item, or category reference',
-      FullyQualifiedName: 'Hierarchical qualified account or item name',
+      Name: 'Account, item, class, or department name',
+      ParentRef: 'Parent account, item, class, or department reference',
+      FullyQualifiedName: 'Hierarchical qualified account, item, class, or department name',
       CurrencyRef: 'Account, customer, or vendor currency reference',
       DisplayName: 'Customer, vendor, or employee display name',
       CompanyName: 'Customer or vendor company name',
