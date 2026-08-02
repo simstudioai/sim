@@ -1785,9 +1785,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 tableId: args.tableId,
                 columnName: colName,
                 newType: newType as (typeof COLUMN_TYPES)[number],
-                options,
-                multiple,
-                ...pickMetadata(metadataUpdates, genericMetadataKeys),
+                // Both key sets, exactly as the HTTP routes do. Passing
+                // `options`/`multiple` from the separately-normalized variables
+                // dropped an explicit clear: `normalizeSelectOptionsInput`
+                // answers `undefined` for a non-array, so an agent sending
+                // `options: null` reached the retype as "not mentioned" and the
+                // conversion carried the stale option set forward, where the
+                // route would have cleared it. `metadataUpdates` already holds
+                // the NORMALIZED options when any were supplied.
+                ...pickMetadata(metadataUpdates, [
+                  ...genericMetadataKeys,
+                  ...dedicatedMetadataKeys,
+                ]),
                 ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
               },
               requestId
