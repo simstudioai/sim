@@ -743,8 +743,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       title: 'Expense Lines (JSON)',
       type: 'code',
       language: 'json',
-      placeholder:
-        '[{"lineType":"account","amount":100,"accountId":"7","description":"Supplies","purchaseOrderId":"123","purchaseOrderLineId":"1"}]',
+      placeholder: '[{"lineType":"account","amount":100,"accountId":"7","description":"Supplies"}]',
       condition: {
         field: 'operation',
         value: [

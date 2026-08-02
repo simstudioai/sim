@@ -881,6 +881,16 @@ describe('QuickBooks BillPayment account compatibility', () => {
 })
 
 describe('QuickBooks purchasing block', () => {
+  it('keeps the shared purchasing-lines example valid for every supported operation', () => {
+    const subBlock = QuickBooksBlock.subBlocks.find(
+      (candidate) => candidate.id === 'purchasingLines'
+    )
+
+    expect(subBlock?.placeholder).not.toContain('purchaseOrderId')
+    expect(subBlock?.placeholder).not.toContain('purchaseOrderLineId')
+    expect(subBlock?.wandConfig?.prompt).toContain('For Create Bill only')
+  })
+
   it('does not force array-valued wand prompts through JSON-object generation', () => {
     for (const id of ['purchasingLines', 'billAllocations']) {
       const subBlock = QuickBooksBlock.subBlocks.find((candidate) => candidate.id === id)
