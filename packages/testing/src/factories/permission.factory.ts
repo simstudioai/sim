@@ -307,11 +307,18 @@ export type SocketOperation = (typeof SOCKET_OPERATIONS)[number]
 
 /**
  * Operations allowed for each role.
+ *
+ * A convenience mirror for fixtures — NOT the authority. The real ACL lives in
+ * `apps/realtime/src/middleware/permissions.ts`; assert against
+ * `checkRolePermission` rather than this table, or a drift between the two turns
+ * into a test that certifies whatever the fixture happens to say. (`read` listed
+ * the two position operations here while production had already granted them for
+ * real; both are persisted writes and neither role should hold them.)
  */
 export const ROLE_ALLOWED_OPERATIONS: Record<PermissionType, readonly SocketOperation[]> = {
   admin: SOCKET_OPERATIONS,
   write: SOCKET_OPERATIONS,
-  read: [BLOCK_OPERATIONS.UPDATE_POSITION, BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS],
+  read: [],
 }
 
 /**
