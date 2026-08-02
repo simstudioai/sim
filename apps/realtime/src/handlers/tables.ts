@@ -278,9 +278,31 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
 
       // Final re-check before the membership commit: a LEAVE or a newer JOIN enqueued during the
       // awaits above — including the access re-resolve — bumped the generation, or the socket
-      // disconnected. This is the LAST await before registering, so nothing can interleave
-      // between it and the commit.
+      // disconnected.
       if (superseded()) return
+
+      // The prior-room leave above is the one place this handler still awaits AFTER the
+      // authoritative access re-check (file-doc and the workspace-list rooms leave
+      // synchronously, so they have no such window). A sweep revocation landing in that
+      // window would otherwise let this join put a revoked socket back in the room, since
+      // `superseded()` only watches the join generation. A cache PEEK is the right
+      // instrument here and needs no await: the authoritative resolve moments ago wrote a
+      // fresh entry, so the only way this reads differently is a newer decision recorded
+      // since — exactly the revocation being guarded against. Synchronous, so nothing can
+      // interleave between it and the join below.
+      // `undefined` stays "unknown, not denied" here as everywhere else in this handler —
+      // only a definitively cached insufficient permission aborts a join the authoritative
+      // check just passed.
+      const finalCheck = peekRoomPermission(userId, room)
+      if (finalCheck !== undefined && !satisfiesRoomMembership(finalCheck, ROOM_TYPES.TABLE)) {
+        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+          tableId,
+          error: 'Access denied to table',
+          code: 'ACCESS_DENIED',
+          retryable: false,
+        })
+        return
+      }
 
       socket.join(roomName(room))
 

@@ -346,6 +346,33 @@ describe('setupTablesHandlers', () => {
     }
   })
 
+  it('aborts the join when a revocation lands during the prior-room leave', async () => {
+    // The prior-room leave is the only await left between the authoritative access
+    // re-check and the commit, so a sweep revocation recorded in that window must still
+    // stop the join — `superseded()` alone only watches the join generation.
+    const prior = { type: ROOM_TYPES.TABLE, id: 'table-prior-2' }
+    const target = { type: ROOM_TYPES.TABLE, id: 'table-target-2' }
+    const { socket, handlers } = createSocket({ id: 'socket-window', userId: 'user-window' })
+    const roomManager = createRoomManager({
+      getRoomForSocket: vi.fn().mockResolvedValue(prior),
+      removeUserFromRoom: vi.fn().mockImplementation(async () => {
+        // The sweep records the revocation while the prior-room leave is in flight.
+        commitRoomPermission('user-window', target, null, beginRoomPermissionRead())
+        return true
+      }),
+    })
+    setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+    await handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-target-2' })
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      TABLE_PRESENCE_EVENTS.JOIN_ERROR,
+      expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
+    )
+    expect(socket.join).not.toHaveBeenCalled()
+    expect(roomManager.addUserToRoom).not.toHaveBeenCalled()
+  })
+
   it('drops a malformed cell selection without storing or relaying it', async () => {
     const { socket, handlers, toEmit } = createSocket()
     const roomManager = createRoomManager({
