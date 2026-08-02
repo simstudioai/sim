@@ -707,12 +707,24 @@ export async function trackChatUpload(
             context: 'mothership',
             displayName: candidate,
           })
-          .where(eq(workspaceFiles.id, claimable.id))
+          .where(
+            and(
+              eq(workspaceFiles.id, claimable.id),
+              eq(workspaceFiles.userId, userId),
+              eq(workspaceFiles.workspaceId, workspaceId),
+              eq(workspaceFiles.context, 'mothership'),
+              isNull(workspaceFiles.deletedAt)
+            )
+          )
           .returning({ id: workspaceFiles.id })
 
         if (updated.length === 0) {
-          // The row was deleted or re-owned between the ownership check and the
-          // write. Fail closed rather than silently minting a new binding.
+          // The ownership lookup is a separate statement, so re-assert every
+          // predicate here — this UPDATE is the atomic check. A concurrent
+          // `materialize_file` flips the same row to context='workspace' and
+          // clears chatId; matching on id alone would drag that saved file back
+          // into chat scope, hiding it from the Files listing and re-exposing it
+          // to the chat-delete cascade.
           throw new WorkspaceFileKeyOwnershipError(s3Key)
         }
 
