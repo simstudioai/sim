@@ -313,7 +313,7 @@ than enforced.
 {{- define "sim.validateExternalSecretCoverage" -}}
 {{- if and .Values.externalSecrets .Values.externalSecrets.enabled -}}
 {{- $remoteRefs := default (dict) (default (dict) .Values.externalSecrets.remoteRefs).app -}}
-{{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" -}}
+{{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" "TRUST_PROXY_HEADERS" -}}
 {{- $appEnv := default (dict) .Values.app.env -}}
 {{/*
   Required-key coverage: these are non-optional at runtime. With ESO enabled
