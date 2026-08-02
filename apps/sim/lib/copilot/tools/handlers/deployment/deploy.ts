@@ -28,6 +28,11 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
+import {
+  getCopilotDeploymentIdempotencyKey,
+  getHistoricalDeploymentAttemptError,
+  getUnapprovedUndeployError,
+} from './context'
 
 function buildWorkflowApiEndpoint(baseUrl: string, workflowId: string): string {
   return `${baseUrl}/api/workflows/${workflowId}/execute`
@@ -135,6 +140,9 @@ export async function executeDeployApi(
     )
 
     if (action === 'undeploy') {
+      const approvalError = getUnapprovedUndeployError(context)
+      if (approvalError) return { success: false, error: approvalError }
+
       const result = await performFullUndeploy({ workflowId, userId: context.userId })
       if (!result.success) {
         return { success: false, error: result.error || 'Failed to undeploy workflow' }
@@ -190,10 +198,16 @@ export async function executeDeployApi(
       userId: context.userId,
       versionDescription,
       versionName,
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context),
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to deploy workflow' }
     }
+    const historicalAttemptError = getHistoricalDeploymentAttemptError(
+      result.latestDeploymentAttempt,
+      'deploy'
+    )
+    if (historicalAttemptError) return { success: false, error: historicalAttemptError }
 
     const baseUrl = getBaseUrl()
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
@@ -249,6 +263,9 @@ export async function executeDeployChat(
 
     const action = params.action === 'undeploy' ? 'undeploy' : 'deploy'
     if (action === 'undeploy') {
+      const approvalError = getUnapprovedUndeployError(context)
+      if (approvalError) return { success: false, error: approvalError }
+
       const baseUrl = getBaseUrl()
       const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
       const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
@@ -451,6 +468,7 @@ export async function executeDeployChat(
       includeThinking: resolvedIncludeThinking,
       includeToolCalls: resolvedIncludeToolCalls,
       workspaceId: workflowRecord.workspaceId,
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context),
     })
 
     if (!result.success) {
@@ -535,6 +553,10 @@ export async function executeDeployMcp(
     const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
+    }
+    if (params.action === 'undeploy') {
+      const approvalError = getUnapprovedUndeployError(context)
+      if (approvalError) return { success: false, error: approvalError }
     }
 
     const { workflow: workflowRecord } = await ensureWorkflowAccess(
@@ -827,10 +849,16 @@ export async function executeRedeploy(
       userId: context.userId,
       versionDescription,
       versionName,
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context),
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to redeploy workflow' }
     }
+    const historicalAttemptError = getHistoricalDeploymentAttemptError(
+      result.latestDeploymentAttempt,
+      'redeploy'
+    )
+    if (historicalAttemptError) return { success: false, error: historicalAttemptError }
     const baseUrl = getBaseUrl()
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)

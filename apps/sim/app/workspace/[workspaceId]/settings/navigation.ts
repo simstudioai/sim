@@ -16,12 +16,9 @@ export const isBillingEnabled = SETTINGS_NAVIGATION_BILLING_ENABLED
 
 export const sectionConfig: { key: NavigationSection; title: string }[] = [
   { key: 'account', title: 'Account' },
-  { key: 'tools', title: 'Tools' },
-  { key: 'subscription', title: 'Subscription' },
-  { key: 'system', title: 'System' },
-  { key: 'desktop', title: 'Desktop' },
-  { key: 'enterprise', title: 'Enterprise' },
-  { key: 'superuser', title: 'Superuser' },
+  { key: 'workspace', title: 'Workspace' },
+  { key: 'organization', title: 'Organization' },
+  { key: 'platform', title: 'Platform' },
 ]
 
 export const allNavigationItems: NavigationItem[] = buildUnifiedSettingsNavigation()

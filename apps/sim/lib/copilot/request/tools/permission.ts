@@ -43,6 +43,17 @@ function terminalOperationNeedsApproval(args: Record<string, unknown> | undefine
   return args?.operation === 'run'
 }
 
+/** Destructive deployment calls always require approval for the exact call. */
+function callRequiresFreshApproval(
+  toolName: string,
+  args: Record<string, unknown> | undefined
+): boolean {
+  return (
+    (toolName === 'deploy_api' || toolName === 'deploy_chat' || toolName === 'deploy_mcp') &&
+    args?.action === 'undeploy'
+  )
+}
+
 /**
  * A human can take as long as they like to answer, so the wait is bounded only
  * by the overall orchestration budget rather than a per-tool watchdog.
@@ -89,7 +100,9 @@ export function toolCallNeedsApproval(
     }
   }
 
-  return !context.toolPermissions.autoAllowed.has(toolName)
+  return (
+    callRequiresFreshApproval(toolName, args) || !context.toolPermissions.autoAllowed.has(toolName)
+  )
 }
 
 function skipOutput(toolName: string) {
@@ -300,6 +313,7 @@ export function runGatedToolExecution(
         return { status: MothershipStreamV1ToolOutcome.success, message: output.message }
       }
 
+      toolCall.userApproved = true
       await emitApprovedCall(toolCallId, toolName, executor, args, options)
 
       const execution = execute()

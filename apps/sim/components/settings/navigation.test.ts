@@ -191,7 +191,7 @@ describe('settings navigation boundaries', () => {
     expect(organizationSso?.docsLink).toBe(unifiedSso?.docsLink)
   })
 
-  it('keeps scope-specific labels only where the surface genuinely differs', () => {
+  it('uses scope-specific labels consistently across settings surfaces', () => {
     const organizationMembers = ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === 'members')
     const unifiedOrganization = buildUnifiedSettingsNavigation().find(
       ({ id }) => id === 'organization'
@@ -199,7 +199,37 @@ describe('settings navigation boundaries', () => {
 
     expect(organizationMembers?.label).toBe('Members')
     expect(organizationMembers?.description).toBe('Manage organization members, roles, and seats.')
-    expect(unifiedOrganization?.label).toBe('Organization')
+    expect(unifiedOrganization?.label).toBe('Members')
+  })
+
+  it('keeps self-host settings on their standalone account projection', () => {
+    expect(
+      SELFHOST_SETTINGS_ITEMS.map(({ id, label, description, group }) => ({
+        id,
+        label,
+        description,
+        group,
+      }))
+    ).toEqual([
+      {
+        id: 'general',
+        label: 'General',
+        description: 'Manage your profile, appearance, and preferences.',
+        group: 'account',
+      },
+      {
+        id: 'billing',
+        label: 'Subscription',
+        description: 'Manage your personal plan, usage, and invoices.',
+        group: 'account',
+      },
+      {
+        id: 'chat-keys',
+        label: 'Chat keys',
+        description: 'Manage the model-provider keys that power Chat.',
+        group: 'developer',
+      },
+    ])
   })
 
   it('builds canonical settings hrefs across all three planes', () => {

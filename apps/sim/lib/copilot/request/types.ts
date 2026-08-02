@@ -43,6 +43,8 @@ export interface ToolCallState {
    * for main-lane tool calls.
    */
   parentToolCallId?: string
+  /** Set only after the server-side permission gate approves this exact call. */
+  userApproved?: boolean
 }
 
 export type ToolCallResult<T = unknown> = ToolExecutionResult & {
