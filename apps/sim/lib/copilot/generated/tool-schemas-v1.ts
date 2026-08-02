@@ -3003,6 +3003,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  platform: {
+    parameters: {
+      properties: {
+        task: {
+          description: 'A task for the Platform agent.',
+          type: 'string',
+        },
+      },
+      required: ['task'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   promote_to_live: {
     parameters: {
       type: 'object',

@@ -65,6 +65,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   research: Search,
   scout: Search,
   search: Search,
+  platform: Library,
   context_compaction: Asterisk,
   open_resource: Eye,
   file: File,
