@@ -3151,7 +3151,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             cursor: {
               type: 'string',
               description:
-                'Opaque pagination cursor for query_rows (optional). Omit for the first page; to fetch the next page, pass back the nextCursor from the previous result verbatim. Cannot be combined with a fresh order — the cursor already encodes the paging position.',
+                'Opaque pagination cursor for query_rows (optional). Omit for the first page; to fetch the next page, pass back the nextCursor from the previous result\'s "more available" message verbatim. Cannot be combined with a fresh order — the cursor already encodes the paging position.',
             },
             filter: {
               type: 'object',
@@ -3161,7 +3161,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             limit: {
               type: 'number',
               description:
-                'Maximum rows per page for query_rows (optional). Omit to fetch the ENTIRE matching result in one response — the call fails if the result exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, a non-null nextCursor in the result means more rows exist (continue with cursor).',
+                'Maximum rows per page for query_rows (optional). Omit to fetch the ENTIRE matching result in one response — the call fails if the result exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, a page may end early at the byte budget with more remaining; a non-null nextCursor in the result means more rows exist (continue with cursor).',
             },
             order: {
               type: 'array',

@@ -1,6 +1,7 @@
 import type { CopilotToolPermissionDecision } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isExecutableToolPermissionDecision } from '@/lib/copilot/async-runs/lifecycle'
 import { getAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
 
@@ -26,7 +27,7 @@ export interface ToolPermissionEnvelope {
 
 /** Every allow variant runs the tool; they differ only in what gets remembered. */
 export function decisionAllowsExecution(decision: ToolPermissionDecision): boolean {
-  return decision !== TOOL_PERMISSION_DECISION.skip
+  return isExecutableToolPermissionDecision(decision)
 }
 
 /** True for the decisions that suppress future prompts for the same tool. */

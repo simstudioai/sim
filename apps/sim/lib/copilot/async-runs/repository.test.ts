@@ -7,8 +7,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   claimCompletedAsyncToolCall,
   claimPendingAsyncToolCall,
+  claimWorkflowToolExecution,
   completeAsyncToolCall,
   detachAsyncToolCall,
+  getClaimedWorkflowExecutionId,
+  recordToolPermissionDecision,
   replaceTerminalAsyncToolCallResult,
   upsertAsyncToolCall,
 } from './repository'
@@ -128,6 +131,74 @@ describe('async tool repository single-row semantics', () => {
     )
   })
 
+  it('atomically binds an eligible workflow tool to one execution', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'running',
+        claimedBy: 'workflow:execution-1',
+      },
+    ])
+
+    const result = await claimWorkflowToolExecution('workflow-tool', 'execution-1')
+
+    expect(result).toMatchObject({
+      toolCallId: 'workflow-tool',
+      claimedBy: 'workflow:execution-1',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      status: expect.anything(),
+      claimedBy: 'workflow:execution-1',
+      claimedAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+    })
+    expect(getClaimedWorkflowExecutionId(result?.claimedBy)).toBe('execution-1')
+  })
+
+  it('returns null when a workflow tool execution claim loses the race', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(claimWorkflowToolExecution('workflow-tool', 'execution-2')).resolves.toBeNull()
+  })
+
+  it('detaches a bound workflow waiter without releasing its execution claim', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'delivered',
+        claimedBy: 'workflow:execution-1',
+      },
+    ])
+
+    await detachAsyncToolCall('workflow-tool', { preserveClaim: true })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'delivered',
+        claimedBy: undefined,
+        claimedAt: undefined,
+      })
+    )
+  })
+
+  it('records an approved workflow decision without changing execution state', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'pending',
+        permissionDecision: 'allow',
+      },
+    ])
+
+    await recordToolPermissionDecision('workflow-tool', 'allow')
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      permissionDecision: 'allow',
+      permissionDecidedAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+    })
+  })
+
   it('replaces only terminal payload fields after trusted projection', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([
       {
@@ -157,25 +228,28 @@ describe('async tool repository single-row semantics', () => {
     expect(dbChainMockFns.where).toHaveBeenCalled()
   })
 
-  it('keeps the first finalized pending call identity immutable', async () => {
-    const pendingRow = {
-      runId: 'run-1',
-      toolCallId: 'tool-1',
-      toolName: 'function_execute',
-      args: { language: 'javascript', code: 'return {{FIRST_SECRET}}' },
-      status: 'pending',
+  it.each(['pending', 'running'] as const)(
+    'keeps the first finalized call identity immutable after it reaches %s',
+    async (status) => {
+      const existingRow = {
+        runId: 'run-1',
+        toolCallId: 'tool-1',
+        toolName: 'function_execute',
+        args: { language: 'javascript', code: 'return {{FIRST_SECRET}}' },
+        status,
+      }
+      dbChainMockFns.limit.mockResolvedValueOnce([existingRow])
+
+      const result = await upsertAsyncToolCall({
+        runId: 'run-1',
+        toolCallId: 'tool-1',
+        toolName: 'function_execute',
+        args: { language: 'javascript', code: 'return {{SECOND_SECRET}}' },
+        status: 'pending',
+      })
+
+      expect(result).toEqual(existingRow)
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
     }
-    dbChainMockFns.limit.mockResolvedValueOnce([pendingRow])
-
-    const result = await upsertAsyncToolCall({
-      runId: 'run-1',
-      toolCallId: 'tool-1',
-      toolName: 'function_execute',
-      args: { language: 'javascript', code: 'return {{SECOND_SECRET}}' },
-      status: 'pending',
-    })
-
-    expect(result).toEqual(pendingRow)
-    expect(dbChainMockFns.values).not.toHaveBeenCalled()
-  })
+  )
 })

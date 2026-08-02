@@ -28,6 +28,13 @@ export function resolveWorkflowToolTargetId(
   return typeof runWorkflowId === 'string' && runWorkflowId.length > 0 ? runWorkflowId : undefined
 }
 
+export function getWorkflowToolCompletionExecutionId(data: unknown): string | undefined {
+  if (!isPlainRecord(data)) return undefined
+  return typeof data.executionId === 'string' && data.executionId.length > 0
+    ? data.executionId
+    : undefined
+}
+
 export function getWorkflowToolCompletionMessage(status: AsyncConfirmationStatus): string {
   if (status === ASYNC_TOOL_CONFIRMATION_STATUS.success) {
     return 'Workflow execution completed.'

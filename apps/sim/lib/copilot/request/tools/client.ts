@@ -16,6 +16,7 @@ import {
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
   createStructuralWorkflowToolCompletionData,
+  getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
   getWorkflowToolConfirmationStatus,
 } from '@/lib/copilot/tools/workflow-tools'
@@ -83,25 +84,29 @@ export async function waitForClientToolCompletion({
 
   const genericMessage = getGenericCompletionMessage(completion.status)
   const binding = runId ? { toolCallId, runId, userId } : undefined
-  const registryWasComplete = registry?.isComplete() === true
+  const registryCanImport = registry !== undefined && !registry.isPermanentlyIncomplete()
   const finishPendingActivation = registry?.beginPendingActivation()
   let content: Awaited<ReturnType<typeof unsealClientToolCompletion>> = null
   try {
     const [sealedContent, sealedContext] =
-      binding && registry && registryWasComplete
+      binding && registry && registryCanImport
         ? await Promise.all([
             unsealClientToolCompletion(completion.data, binding),
             unsealClientToolContext(completion.data, binding, registry),
           ])
         : [null, null]
-    if (!registry || !registryWasComplete || !sealedContent || !sealedContext) {
-      registry?.markIncomplete()
-    } else {
-      const imported = await registry.importProvenance(sealedContext.provenance, { trusted: true })
-      if (!imported || !sealedContext.provenance.complete) {
+    if (registry && registryCanImport) {
+      if (!sealedContent || !sealedContext) {
         registry.markIncomplete()
       } else {
-        content = sealedContent
+        const imported = await registry.importProvenance(sealedContext.provenance, {
+          trusted: true,
+        })
+        if (!imported || !sealedContext.provenance.complete) {
+          registry.markIncomplete()
+        } else {
+          content = sealedContent
+        }
       }
     }
   } catch {
@@ -176,13 +181,6 @@ interface WaitForWorkflowToolCompletionOptions {
   registry?: ResolvedSecretTraceRegistry
 }
 
-function getCompletionExecutionId(completion: AsyncTerminalCompletionSnapshot): string | undefined {
-  if (!isPlainRecord(completion.data)) return undefined
-  return typeof completion.data.executionId === 'string' && completion.data.executionId.length > 0
-    ? completion.data.executionId
-    : undefined
-}
-
 function structuralWorkflowCompletion(
   status: AsyncTerminalCompletionSnapshot['status'],
   workflowId?: string,
@@ -217,14 +215,18 @@ export async function waitForWorkflowToolCompletion({
       return null
     }
 
-    const executionId = getCompletionExecutionId(completion)
-    if (
-      completion.status === ASYNC_TOOL_CONFIRMATION_STATUS.background ||
-      !workflowId ||
-      !executionId
-    ) {
+    const executionId = getWorkflowToolCompletionExecutionId(completion.data)
+    if (completion.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
       registry?.markIncomplete()
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
+    }
+    if (!workflowId || !executionId) {
+      registry?.markIncomplete()
+      const structuralStatus =
+        completion.status === MothershipStreamV1ToolOutcome.success
+          ? MothershipStreamV1ToolOutcome.error
+          : completion.status
+      return structuralWorkflowCompletion(structuralStatus, workflowId, executionId)
     }
 
     try {
@@ -238,12 +240,13 @@ export async function waitForWorkflowToolCompletion({
       })
     }
 
-    if (!trustedExecution || !trustedExecution.provenance.complete) {
+    if (!trustedExecution) {
       registry?.markIncomplete()
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
     }
 
-    if (!registry) {
+    if (!registry || registry.isPermanentlyIncomplete() || !trustedExecution.provenance.complete) {
+      if (!trustedExecution.provenance.complete) registry?.markIncomplete()
       return structuralWorkflowCompletion(
         getWorkflowToolConfirmationStatus(trustedExecution.status),
         workflowId,

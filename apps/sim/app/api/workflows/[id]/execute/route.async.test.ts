@@ -29,6 +29,7 @@ import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 const {
   mockAssertBillingAttributionSnapshot,
   mockClaimExecutionId,
+  mockClaimWorkflowToolExecution,
   mockEnqueue,
   mockExecuteWorkflowCore,
   mockGenerateId,
@@ -52,6 +53,7 @@ const {
     return value
   }),
   mockClaimExecutionId: vi.fn(),
+  mockClaimWorkflowToolExecution: vi.fn(),
   mockEnqueue: vi.fn().mockResolvedValue('job-123'),
   mockExecuteWorkflowCore: vi.fn(),
   mockGenerateId: vi.fn(() => 'execution-123'),
@@ -114,6 +116,7 @@ vi.mock('@/lib/workflows/executor/execution-id-claim', () => ({
 }))
 
 vi.mock('@/lib/copilot/async-runs/repository', () => ({
+  claimWorkflowToolExecution: mockClaimWorkflowToolExecution,
   getAsyncToolCall: mockGetAsyncToolCall,
   getRunSegment: mockGetRunSegment,
 }))
@@ -330,6 +333,10 @@ describe('workflow execute async route', () => {
       key: `workflow-execution-id:${executionId}`,
       token: `token-${executionId}`,
     }))
+    mockClaimWorkflowToolExecution.mockResolvedValue({
+      toolCallId: 'copilot-tool-1',
+      claimedBy: 'workflow:execution-123',
+    })
     mockHasDurableExecutionOwner.mockResolvedValue(false)
     mockGetAsyncToolCall.mockReset().mockResolvedValue({
       toolCallId: 'copilot-tool-1',
@@ -427,6 +434,7 @@ describe('workflow execute async route', () => {
 
     expect(response.status).toBe(200)
     expect(streamCompleted).toBe(false)
+    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
     expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).toHaveBeenCalledWith({
       executionId: 'execution-123',
       requestId: 'req-12345678',
@@ -444,7 +452,74 @@ describe('workflow execute async route', () => {
     expect(body).toContain('execution:completed')
   })
 
+  it('rejects a competing Copilot workflow execution before logging starts', async () => {
+    mockClaimWorkflowToolExecution.mockResolvedValueOnce(null)
+
+    const response = await POST(createBoundCopilotExecutionRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: 'Copilot workflow tool is already bound to another execution',
+    })
+    expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).not.toHaveBeenCalled()
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionIdClaim).toHaveBeenCalled()
+  })
+
+  it('binds a workflow execution after its page-hide confirmation detached the waiter', async () => {
+    mockGetAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'copilot-tool-1',
+      runId: 'copilot-run-1',
+      toolName: 'run_workflow',
+      args: { workflowId: 'workflow-1' },
+      status: 'delivered',
+      claimedBy: null,
+    })
+
+    const response = await POST(createBoundCopilotExecutionRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(200)
+    await response.text()
+    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
+  })
+
+  it('binds an approved pending workflow call created by the previous release', async () => {
+    mockGetAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'copilot-tool-1',
+      runId: 'copilot-run-1',
+      toolName: 'run_workflow',
+      args: { workflowId: 'workflow-1' },
+      status: 'pending',
+      permissionDecision: 'allow',
+      claimedBy: null,
+    })
+
+    const response = await POST(createBoundCopilotExecutionRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(200)
+    await response.text()
+    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith('copilot-tool-1', 'execution-123')
+  })
+
   it.each([
+    [
+      'pending tool row',
+      {
+        toolCallId: 'copilot-tool-1',
+        runId: 'copilot-run-1',
+        toolName: 'run_workflow',
+        args: { workflowId: 'workflow-1' },
+        status: 'pending',
+      },
+      { id: 'copilot-run-1', userId: 'session-user-1', workflowId: 'workflow-1' },
+    ],
     [
       'terminal tool row',
       {

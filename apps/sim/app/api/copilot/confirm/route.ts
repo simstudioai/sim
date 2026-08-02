@@ -10,11 +10,15 @@ import {
   ASYNC_TOOL_STATUS,
   type AsyncCompletionData,
   type AsyncConfirmationStatus,
+  isDeliveredAsyncStatus,
+  isTerminalAsyncStatus,
+  isWorkflowToolExecutionClaimable,
 } from '@/lib/copilot/async-runs/lifecycle'
 import {
   completeAsyncToolCall,
   detachAsyncToolCall,
   getAsyncToolCall,
+  getClaimedWorkflowExecutionId,
   getRunSegment,
 } from '@/lib/copilot/async-runs/repository'
 import { CopilotConfirmOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -35,11 +39,14 @@ import {
 } from '@/lib/copilot/request/tools/client-completion-seal.server'
 import {
   createStructuralWorkflowToolCompletionData,
+  getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
+  getWorkflowToolConfirmationStatus,
   isWorkflowToolName,
   resolveWorkflowToolTargetId,
 } from '@/lib/copilot/tools/workflow-tools'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getTrustedWorkflowToolExecution } from '@/lib/workflows/executor/execution-state'
 
 const logger = createLogger('CopilotConfirmAPI')
 
@@ -48,6 +55,14 @@ function getClientToolCompletionMessage(status: AsyncConfirmationStatus): string
   if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background) return 'Tool is running in background'
   if (status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled) return 'Tool cancelled'
   return 'Tool failed'
+}
+
+function createConfirmationResponse(
+  toolCallId: string,
+  status: AsyncConfirmationStatus,
+  message: string
+): NextResponse {
+  return NextResponse.json({ success: true, message, toolCallId, status })
 }
 
 /** Atomically finalize or detach a client tool before publishing its wakeup event. */
@@ -61,7 +76,9 @@ async function updateToolCallStatus(
   const toolCallId = existing.toolCallId
   try {
     if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
-      const detached = await detachAsyncToolCall(toolCallId)
+      const detached = executionId
+        ? await detachAsyncToolCall(toolCallId, { preserveClaim: true })
+        : await detachAsyncToolCall(toolCallId)
       if (!detached) return false
       publishToolConfirmation({
         toolCallId,
@@ -143,7 +160,13 @@ export const POST = withRouteHandler((req: NextRequest) => {
           }
         )
         if (!parsed.success) return parsed.response
-        const { toolCallId, executionId, status, message, data } = parsed.data.body
+        const {
+          toolCallId,
+          executionId: submittedExecutionId,
+          status,
+          message,
+          data,
+        } = parsed.data.body
         span.setAttributes({
           [TraceAttr.ToolCallId]: toolCallId,
           [TraceAttr.ToolConfirmationStatus]: status,
@@ -181,22 +204,142 @@ export const POST = withRouteHandler((req: NextRequest) => {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
 
+        const isWorkflowTool = isWorkflowToolName(existing.toolName || '')
+        const workflowId = isWorkflowTool
+          ? resolveWorkflowToolTargetId(existing.args, run.workflowId)
+          : undefined
+
+        if (isWorkflowTool && isTerminalAsyncStatus(existing.status)) {
+          const executionId = getWorkflowToolCompletionExecutionId(existing.result)
+          if (
+            executionId &&
+            submittedExecutionId !== undefined &&
+            submittedExecutionId !== executionId
+          ) {
+            span.setAttribute(
+              TraceAttr.CopilotConfirmOutcome,
+              CopilotConfirmOutcome.ToolCallNotFound
+            )
+            return createNotFoundResponse('Completed workflow execution not found')
+          }
+
+          const terminalStatus = getWorkflowToolConfirmationStatus(existing.status)
+          span.setAttributes({
+            [TraceAttr.ToolConfirmationStatus]: terminalStatus,
+            [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
+          })
+          return createConfirmationResponse(
+            toolCallId,
+            terminalStatus,
+            getWorkflowToolCompletionMessage(terminalStatus)
+          )
+        }
+
+        if (isWorkflowTool && isDeliveredAsyncStatus(existing.status)) {
+          const claimedExecutionId = getClaimedWorkflowExecutionId(existing.claimedBy)
+          if (
+            claimedExecutionId &&
+            submittedExecutionId !== undefined &&
+            submittedExecutionId !== claimedExecutionId
+          ) {
+            span.setAttribute(
+              TraceAttr.CopilotConfirmOutcome,
+              CopilotConfirmOutcome.ToolCallNotFound
+            )
+            return createNotFoundResponse('Bound workflow tool call not found')
+          }
+
+          span.setAttributes({
+            [TraceAttr.ToolConfirmationStatus]: ASYNC_TOOL_CONFIRMATION_STATUS.background,
+            [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
+          })
+          return createConfirmationResponse(
+            toolCallId,
+            ASYNC_TOOL_CONFIRMATION_STATUS.background,
+            getWorkflowToolCompletionMessage(ASYNC_TOOL_CONFIRMATION_STATUS.background)
+          )
+        }
+
+        const isUnboundTerminalWorkflowOutcome =
+          status === ASYNC_TOOL_CONFIRMATION_STATUS.error ||
+          status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
+        const isMutableClientToolCall = isWorkflowTool
+          ? isWorkflowToolExecutionClaimable(existing.status, existing.permissionDecision)
+          : existing.status === ASYNC_TOOL_STATUS.running
         if (
-          (isBrowserToolName(existing.toolName) || isTerminalToolName(existing.toolName)) &&
-          existing.status !== ASYNC_TOOL_STATUS.running
+          (isBrowserToolName(existing.toolName) ||
+            isTerminalToolName(existing.toolName) ||
+            isWorkflowTool) &&
+          !isMutableClientToolCall
         ) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
           return createNotFoundResponse('Running client tool call not found')
         }
 
-        const isWorkflowTool = isWorkflowToolName(existing.toolName || '')
-        const workflowId = isWorkflowTool
-          ? resolveWorkflowToolTargetId(existing.args, run.workflowId)
-          : undefined
+        let effectiveStatus = status
+        let executionId = submittedExecutionId
+
+        if (isWorkflowTool) {
+          const claimedExecutionId = getClaimedWorkflowExecutionId(existing.claimedBy)
+          const hasForeignClaim =
+            existing.claimedBy !== null && existing.claimedBy !== undefined && !claimedExecutionId
+
+          if (
+            hasForeignClaim ||
+            (claimedExecutionId &&
+              submittedExecutionId !== undefined &&
+              submittedExecutionId !== claimedExecutionId)
+          ) {
+            span.setAttribute(
+              TraceAttr.CopilotConfirmOutcome,
+              CopilotConfirmOutcome.ToolCallNotFound
+            )
+            return createNotFoundResponse('Bound workflow tool call not found')
+          }
+
+          const candidateExecutionId = claimedExecutionId ?? submittedExecutionId
+          const trustedExecution =
+            status !== ASYNC_TOOL_CONFIRMATION_STATUS.background &&
+            candidateExecutionId &&
+            workflowId
+              ? await getTrustedWorkflowToolExecution(candidateExecutionId, workflowId, toolCallId)
+              : null
+
+          if (claimedExecutionId) {
+            executionId = claimedExecutionId
+            if (status !== ASYNC_TOOL_CONFIRMATION_STATUS.background) {
+              if (trustedExecution) {
+                effectiveStatus = getWorkflowToolConfirmationStatus(trustedExecution.status)
+              } else if (!isUnboundTerminalWorkflowOutcome) {
+                span.setAttribute(
+                  TraceAttr.CopilotConfirmOutcome,
+                  CopilotConfirmOutcome.ToolCallNotFound
+                )
+                return createNotFoundResponse('Completed workflow execution not found')
+              }
+            }
+          } else if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
+            executionId = submittedExecutionId
+          } else if (trustedExecution) {
+            executionId = trustedExecution.executionId
+            effectiveStatus = getWorkflowToolConfirmationStatus(trustedExecution.status)
+          } else if (!isUnboundTerminalWorkflowOutcome) {
+            effectiveStatus = ASYNC_TOOL_CONFIRMATION_STATUS.error
+            executionId = undefined
+          } else {
+            executionId = undefined
+          }
+        }
+
+        span.setAttribute(TraceAttr.ToolConfirmationStatus, effectiveStatus)
         const projected = isWorkflowTool
           ? {
-              message: getWorkflowToolCompletionMessage(status),
-              data: createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
+              message: getWorkflowToolCompletionMessage(effectiveStatus),
+              data: createStructuralWorkflowToolCompletionData(
+                effectiveStatus,
+                workflowId,
+                executionId
+              ),
             }
           : {
               message: getClientToolCompletionMessage(status),
@@ -214,7 +357,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
 
         const updated = await updateToolCallStatus(
           existing,
-          status,
+          effectiveStatus,
           projected.message,
           projected.data,
           isWorkflowTool ? executionId : undefined
@@ -224,8 +367,8 @@ export const POST = withRouteHandler((req: NextRequest) => {
           logger.error(`[${tracker.requestId}] Failed to update tool call status`, {
             userId: authenticatedUserId,
             toolCallId,
-            status,
-            internalStatus: status,
+            status: effectiveStatus,
+            internalStatus: effectiveStatus,
             message: projected.message,
           })
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.UpdateFailed)
@@ -234,12 +377,11 @@ export const POST = withRouteHandler((req: NextRequest) => {
         }
 
         span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Delivered)
-        return NextResponse.json({
-          success: true,
-          message: projected.message || `Tool call ${toolCallId} has been ${status.toLowerCase()}`,
+        return createConfirmationResponse(
           toolCallId,
-          status,
-        })
+          effectiveStatus,
+          projected.message || `Tool call ${toolCallId} has been ${effectiveStatus.toLowerCase()}`
+        )
       } catch (error) {
         const duration = tracker.getDuration()
 

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import {
+  ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
   type AsyncCompletionEnvelope,
   type AsyncConfirmationState,
@@ -46,10 +47,10 @@ export async function getToolConfirmation(
   })
   if (!row) return null
   if (row.status === ASYNC_TOOL_STATUS.delivered) {
-    logger.warn('Delivered async tool rows are outside request confirmation flow', {
-      toolCallId,
-    })
-    return null
+    return {
+      status: ASYNC_TOOL_CONFIRMATION_STATUS.background,
+      timestamp: row.updatedAt?.toISOString?.(),
+    }
   }
   return {
     status:

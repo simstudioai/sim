@@ -19,8 +19,12 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { ASYNC_TOOL_STATUS } from '@/lib/copilot/async-runs/lifecycle'
-import { getAsyncToolCall, getRunSegment } from '@/lib/copilot/async-runs/repository'
+import { isWorkflowToolExecutionClaimable } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  claimWorkflowToolExecution,
+  getAsyncToolCall,
+  getRunSegment,
+} from '@/lib/copilot/async-runs/repository'
 import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
@@ -157,7 +161,7 @@ async function isValidCopilotWorkflowToolBinding(params: {
   if (
     !toolCall ||
     !isWorkflowToolName(toolCall.toolName) ||
-    (toolCall.status !== ASYNC_TOOL_STATUS.pending && toolCall.status !== ASYNC_TOOL_STATUS.running)
+    !isWorkflowToolExecutionClaimable(toolCall.status, toolCall.permissionDecision)
   ) {
     return false
   }
@@ -1146,6 +1150,16 @@ async function handleExecutePost(
         { error: 'Unable to allocate workflow execution identity' },
         { status: 503 }
       )
+    }
+
+    if (copilotToolCallId) {
+      const boundToolCall = await claimWorkflowToolExecution(copilotToolCallId, executionId)
+      if (!boundToolCall) {
+        return NextResponse.json(
+          { error: 'Copilot workflow tool is already bound to another execution' },
+          { status: 409 }
+        )
+      }
     }
 
     const loggingSession = new LoggingSession(

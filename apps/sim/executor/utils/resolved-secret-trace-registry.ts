@@ -544,6 +544,10 @@ export class ResolvedSecretTraceRegistry {
     return this.complete && this.pendingActivations === 0
   }
 
+  isPermanentlyIncomplete(): boolean {
+    return !this.complete
+  }
+
   markIncomplete(): void {
     this.complete = false
   }
