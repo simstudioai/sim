@@ -25,9 +25,18 @@ export const zohoDeskDepartmentsSelectorContract = definePostSelector(
   z.object({ departments: z.array(idNameSchema) })
 )
 
+export const zohoDeskAgentsSelectorContract = definePostSelector(
+  '/api/tools/zoho_desk/agents',
+  credentialWorkflowBodySchema.extend({ orgId: zohoDeskOrgIdSchema }),
+  z.object({ agents: z.array(idNameSchema) })
+)
+
 export type ZohoDeskOrganizationsSelectorResponse = ContractJsonResponse<
   typeof zohoDeskOrganizationsSelectorContract
 >
 export type ZohoDeskDepartmentsSelectorResponse = ContractJsonResponse<
   typeof zohoDeskDepartmentsSelectorContract
+>
+export type ZohoDeskAgentsSelectorResponse = ContractJsonResponse<
+  typeof zohoDeskAgentsSelectorContract
 >

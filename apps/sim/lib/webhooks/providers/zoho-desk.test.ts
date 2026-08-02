@@ -110,6 +110,22 @@ describe('zohoDeskHandler', () => {
       expect((error as Error)?.message).toMatch(/event type/i)
       expect(errorStatus(error)).toBe(400)
     })
+
+    it('accepts the manual organization field when the canonical orgId is absent', async () => {
+      // Reaching the event-type guard proves the organization guard passed, i.e.
+      // `manualOrgId` resolved. See resolveConfigOrgId: the deploy-time canonical
+      // collapse normally writes `orgId`, but drops it when the pair is pinned to
+      // basic mode while only the manual field carries a value.
+      const error = await captureCreateError({ manualOrgId: '700123' })
+      expect((error as Error)?.message).toMatch(/event type/i)
+      expect(errorStatus(error)).toBe(400)
+    })
+
+    it('prefers the collapsed canonical orgId over the manual field', async () => {
+      const error = await captureCreateError({ orgId: '', manualOrgId: '   ' })
+      expect((error as Error)?.message).toMatch(/Organization ID/i)
+      expect(errorStatus(error)).toBe(400)
+    })
   })
 
   describe('formatInput', () => {

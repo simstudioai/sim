@@ -28,6 +28,7 @@ export type SelectorKey =
   | 'trello.boards'
   | 'zoho_desk.organizations'
   | 'zoho_desk.departments'
+  | 'zoho_desk.agents'
   | 'zoom.meetings'
   | 'slack.channels'
   | 'slack.users'

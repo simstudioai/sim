@@ -108,6 +108,7 @@ import {
   webflowSitesSelectorContract,
 } from '@/lib/api/contracts/selectors/webflow'
 import {
+  zohoDeskAgentsSelectorContract,
   zohoDeskDepartmentsSelectorContract,
   zohoDeskOrganizationsSelectorContract,
 } from '@/lib/api/contracts/selectors/zoho-desk'
@@ -169,6 +170,7 @@ export const selectorContractsByPath = {
   '/api/tools/trello/boards': trelloBoardsSelectorContract,
   '/api/tools/zoho_desk/organizations': zohoDeskOrganizationsSelectorContract,
   '/api/tools/zoho_desk/departments': zohoDeskDepartmentsSelectorContract,
+  '/api/tools/zoho_desk/agents': zohoDeskAgentsSelectorContract,
   '/api/tools/zoom/meetings': zoomMeetingsSelectorContract,
   '/api/tools/slack/channels': slackChannelsSelectorContract,
   '/api/tools/slack/users': slackUsersSelectorContract,

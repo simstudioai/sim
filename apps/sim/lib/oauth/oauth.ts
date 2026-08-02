@@ -1113,8 +1113,9 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         baseProviderIcon: ZohoDeskIcon,
         // Kept to exactly what the tools and the webhook trigger exercise:
         // tickets (incl. threads/comments), contacts (get_contact), basic
-        // (list_organizations), webhook create/delete (the trigger provisions and
-        // tears down its own subscription), and profile (OAuth getUserInfo).
+        // (list_organizations), agents (the `assigneeId` picker lists agents),
+        // webhook create/delete (the trigger provisions and tears down its own
+        // subscription), and profile (OAuth getUserInfo).
         // Desk.search.READ, Desk.webhooks.READ and Desk.webhooks.UPDATE were
         // requested but unused - no tool searches, and the provider never lists
         // or edits a subscription.
@@ -1128,6 +1129,9 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Desk.tickets.READ',
           'Desk.tickets.UPDATE',
           'Desk.contacts.READ',
+          // READ only: the agent picker for `assigneeId` lists agents, and no
+          // tool creates, edits or deletes one.
+          'Desk.agents.READ',
           'Desk.basic.READ',
           'Desk.webhooks.CREATE',
           'Desk.webhooks.DELETE',

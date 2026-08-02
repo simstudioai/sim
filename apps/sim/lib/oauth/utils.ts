@@ -15,6 +15,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Desk.tickets.READ': 'View tickets, threads, comments, and attachments',
   'Desk.tickets.UPDATE': 'Update tickets and add comments',
   'Desk.contacts.READ': 'View contacts',
+  'Desk.agents.READ': 'View agents',
   'Desk.basic.READ': 'View basic account and organization data',
   'Desk.webhooks.CREATE': 'Create webhooks',
   'Desk.webhooks.DELETE': 'Delete webhooks',

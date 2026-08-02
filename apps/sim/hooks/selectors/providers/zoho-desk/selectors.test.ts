@@ -12,6 +12,7 @@ import type { SelectorQueryArgs } from '@/hooks/selectors/types'
 
 const organizations = getSelectorDefinition('zoho_desk.organizations')
 const departments = getSelectorDefinition('zoho_desk.departments')
+const agents = getSelectorDefinition('zoho_desk.agents')
 
 const orgArgs = (overrides: Partial<SelectorQueryArgs['context']> = {}): SelectorQueryArgs => ({
   key: 'zoho_desk.organizations',
@@ -20,6 +21,11 @@ const orgArgs = (overrides: Partial<SelectorQueryArgs['context']> = {}): Selecto
 
 const deptArgs = (overrides: Partial<SelectorQueryArgs['context']> = {}): SelectorQueryArgs => ({
   key: 'zoho_desk.departments',
+  context: { oauthCredential: 'cred-1', workflowId: 'wf-1', orgId: 'org-9', ...overrides },
+})
+
+const agentArgs = (overrides: Partial<SelectorQueryArgs['context']> = {}): SelectorQueryArgs => ({
+  key: 'zoho_desk.agents',
   context: { oauthCredential: 'cred-1', workflowId: 'wf-1', orgId: 'org-9', ...overrides },
 })
 
@@ -115,6 +121,67 @@ describe('zoho_desk.departments selector', () => {
   it('throws when the organization is missing rather than calling the route unscoped', async () => {
     await expect(departments.fetchList?.(deptArgs({ orgId: undefined }))).rejects.toThrow(
       /Missing organization ID/
+    )
+    expect(mockRequestJson).not.toHaveBeenCalled()
+  })
+})
+
+describe('zoho_desk.agents selector', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('stays disabled until both the credential and the organization are set', () => {
+    expect(agents.enabled?.(agentArgs())).toBe(true)
+    expect(agents.enabled?.(agentArgs({ orgId: undefined }))).toBe(false)
+    expect(agents.enabled?.(agentArgs({ oauthCredential: undefined }))).toBe(false)
+  })
+
+  it('keys the query by credential and organization so switching portals refetches', () => {
+    expect(agents.getQueryKey(agentArgs())).toEqual([
+      'selectors',
+      'zoho_desk.agents',
+      'cred-1',
+      'org-9',
+    ])
+    expect(agents.getQueryKey(agentArgs({ orgId: undefined }))).toEqual([
+      'selectors',
+      'zoho_desk.agents',
+      'cred-1',
+      'none',
+    ])
+  })
+
+  it('forwards the organization id and maps agents to options', async () => {
+    mockRequestJson.mockResolvedValue({
+      agents: [
+        { id: '1892000000056007', name: 'zyl case' },
+        { id: '1892000000042001', name: 'jade' },
+      ],
+    })
+
+    const options = await agents.fetchList?.(agentArgs())
+
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/api/tools/zoho_desk/agents' }),
+      expect.objectContaining({
+        body: { credential: 'cred-1', orgId: 'org-9', workflowId: 'wf-1' },
+      })
+    )
+    expect(options).toEqual([
+      { id: '1892000000056007', label: 'zyl case' },
+      { id: '1892000000042001', label: 'jade' },
+    ])
+  })
+
+  it('throws when the organization is missing rather than calling the route unscoped', async () => {
+    await expect(agents.fetchList?.(agentArgs({ orgId: undefined }))).rejects.toThrow(
+      /Missing organization ID/
+    )
+    expect(mockRequestJson).not.toHaveBeenCalled()
+  })
+
+  it('throws when the credential is missing rather than calling the route', async () => {
+    await expect(agents.fetchList?.(agentArgs({ oauthCredential: undefined }))).rejects.toThrow(
+      /Missing credential/
     )
     expect(mockRequestJson).not.toHaveBeenCalled()
   })

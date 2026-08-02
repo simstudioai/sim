@@ -63,6 +63,15 @@ export const zohoDeskWebhookTrigger: TriggerConfig = {
       canonicalParamId: 'oauthCredential',
     },
     {
+      // Intentionally the SAME id as the block's tool-mode `orgId` (unlike
+      // `triggerDepartmentIds` below). An organization is the portal the whole
+      // block talks to and means exactly the same thing in either mode, so one
+      // shared value is the correct behavior — switching the block between tool
+      // and trigger mode keeps the portal the user already picked. The platform
+      // supports this explicitly: `buildCanonicalIndex` refuses to let a
+      // `trigger`-mode subblock overwrite a basicId claimed by a non-trigger
+      // one, and `blocks.test.ts` blesses basic/trigger id sharing as "valid
+      // pattern 2".
       id: 'orgId',
       title: 'Organization',
       type: 'project-selector',
@@ -74,6 +83,24 @@ export const zohoDeskWebhookTrigger: TriggerConfig = {
       dependsOn: ['triggerCredentials'],
       required: true,
       mode: 'trigger',
+    },
+    {
+      // Deliberately REUSES the block's `manualOrgId` id rather than introducing
+      // a `triggerManualOrgId`. An organization id means the same thing in tool
+      // and trigger mode, and `buildCanonicalIndex` dedupes a repeated advanced
+      // id across the block/trigger spread — so sharing yields one advanced
+      // member for the `orgId` canonical group. A distinct id would instead
+      // produce advancedIds `['manualOrgId', 'triggerManualOrgId']`, and
+      // `getCanonicalValues` takes the first non-empty member, which would let a
+      // tool-mode value stand in for the trigger's organization.
+      id: 'manualOrgId',
+      title: 'Organization ID',
+      type: 'short-input',
+      placeholder: 'Enter organization ID',
+      description: 'Type an organization ID instead of picking one from the list.',
+      canonicalParamId: 'orgId',
+      required: true,
+      mode: 'trigger-advanced',
     },
     {
       id: 'eventType',

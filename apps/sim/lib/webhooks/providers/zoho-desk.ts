@@ -106,6 +106,31 @@ function splitCsv(value: unknown): string[] {
     .filter(Boolean)
 }
 
+/**
+ * Resolve the organization id out of a persisted `providerConfig`.
+ *
+ * The trigger exposes the organization as a canonical basic/advanced pair:
+ * `orgId` (the selector) and `manualOrgId` (free text). `buildProviderConfig`
+ * collapses that pair at deploy time and writes the ACTIVE member's value under
+ * the canonical key `orgId`, so that is the authoritative read and is checked
+ * first.
+ *
+ * `manualOrgId` is the explicit fallback because the collapse is strict about
+ * the resolved mode: when `block.data.canonicalModes` pins the group to `basic`
+ * while only the manual field carries a value, the collapse deletes the
+ * canonical key even though the deploy-time required-field check passes (the
+ * canonical group counts as satisfied by the manual member). Without this
+ * fallback that combination would deploy and then fail here with "Organization
+ * ID is required".
+ */
+function resolveConfigOrgId(config: Record<string, unknown>): string | undefined {
+  if (typeof config.orgId === 'string' && config.orgId.trim()) return config.orgId.trim()
+  if (typeof config.manualOrgId === 'string' && config.manualOrgId.trim()) {
+    return config.manualOrgId.trim()
+  }
+  return undefined
+}
+
 /** Error carrying an HTTP status so the deploy outbox can classify retryability. */
 function statusError(message: string, status: number): Error {
   const err = new Error(message) as Error & { status: number }
@@ -193,7 +218,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       unknown
     >
     const credentialId = typeof config.credentialId === 'string' ? config.credentialId : undefined
-    const orgId = typeof config.orgId === 'string' ? config.orgId : undefined
+    const orgId = resolveConfigOrgId(config)
     const eventType = typeof config.eventType === 'string' ? config.eventType : undefined
 
     // Missing configuration is permanent - carry a 4xx so the deploy outbox fails
@@ -303,7 +328,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       unknown
     >
     const externalId = typeof config.externalId === 'string' ? config.externalId : undefined
-    const orgId = typeof config.orgId === 'string' ? config.orgId : undefined
+    const orgId = resolveConfigOrgId(config)
     const credentialId = typeof config.credentialId === 'string' ? config.credentialId : undefined
 
     if (!externalId || !orgId) {
@@ -351,7 +376,10 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Missing Zoho Desk JWT', { status: 401 })
     }
 
-    const orgId = typeof providerConfig.orgId === 'string' ? providerConfig.orgId : ''
+    // Same canonical-then-manual resolution as create/delete, so the JWT issuer
+    // claim is bound to the organization the subscription was actually created
+    // against no matter which side of the pair supplied it.
+    const orgId = resolveConfigOrgId(providerConfig) ?? ''
     // `webhookId` was persisted on older rows; `externalId` is the canonical id.
     const webhookId =
       (typeof providerConfig.externalId === 'string' && providerConfig.externalId) ||

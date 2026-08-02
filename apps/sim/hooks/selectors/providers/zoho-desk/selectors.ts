@@ -58,7 +58,39 @@ export const zohoDeskSelectors = {
       }))
     },
   },
+  'zoho_desk.agents': {
+    key: 'zoho_desk.agents',
+    contracts: [selectorContracts.zohoDeskAgentsSelectorContract],
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'zoho_desk.agents',
+      context.oauthCredential ?? 'none',
+      context.orgId ?? 'none',
+    ],
+    // Same `orgId` header scoping as departments: the organization must be
+    // chosen before agents can be listed.
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.orgId),
+    fetchList: async ({ context, signal }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'zoho_desk.agents')
+      if (!context.orgId) {
+        throw new Error('Missing organization ID for zoho_desk.agents selector')
+      }
+      const data = await requestJson(selectorContracts.zohoDeskAgentsSelectorContract, {
+        body: {
+          credential: credentialId,
+          orgId: context.orgId,
+          workflowId: context.workflowId,
+        },
+        signal,
+      })
+      return (data.agents || []).map((agent) => ({
+        id: agent.id,
+        label: agent.name,
+      }))
+    },
+  },
 } satisfies Record<
-  Extract<SelectorKey, 'zoho_desk.organizations' | 'zoho_desk.departments'>,
+  Extract<SelectorKey, 'zoho_desk.organizations' | 'zoho_desk.departments' | 'zoho_desk.agents'>,
   SelectorDefinition
 >
