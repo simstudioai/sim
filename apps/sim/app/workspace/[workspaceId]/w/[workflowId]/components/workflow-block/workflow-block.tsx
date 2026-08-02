@@ -1,6 +1,6 @@
 import { type ComponentType, Fragment, memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { SubBlockRowView, WorkflowBlockView } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, SubBlockRowView, WorkflowBlockView } from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import {
   ArrowLeftRight,
@@ -263,8 +263,9 @@ const SENTENCE_TEXT_CHAR_PX = 6.3
 const SENTENCE_CHIP_CHAR_PX = 6.8
 /** Inline chip horizontal padding + surrounding gap (px). */
 const SENTENCE_CHIP_EXTRA_PX = 26
-/** Usable sentence width inside the card (px). */
-const SENTENCE_WRAP_WIDTH_PX = 224
+/** Usable sentence width inside the card: the 250px card less its `p-2`. */
+const SENTENCE_WRAP_WIDTH_PX =
+  BLOCK_DIMENSIONS.FIXED_WIDTH - BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING
 /** Chip text is truncated around this many characters by max-width. */
 const SENTENCE_CHIP_MAX_CHARS = 24
 /**

@@ -304,9 +304,14 @@ export interface WorkflowBlockViewProps {
   horizontalHandles: boolean
   shouldShowDefaultHandles: boolean
   /**
-   * Deterministic card height in px, used to scale the side connection tabs
-   * so a short card never wears a tab nearly as tall as itself. Omit to keep
-   * the full-size tabs (read-only contexts without computed dimensions).
+   * Predicted card height in px, from the deterministic-dimensions pass.
+   *
+   * Scales the side connection tabs so a short card never wears a tab nearly
+   * as tall as itself, and seeds the border's first paint so a card does not
+   * flash a default-sized outline. It does NOT size the card — the card sizes
+   * itself from its content and the border measures it — so a prediction that
+   * runs long or short changes nothing but auto-layout's spacing. Omit it in
+   * read-only contexts with no computed dimensions.
    */
   blockHeight?: number
   hasContentBelowHeader: boolean
@@ -727,15 +732,15 @@ export function WorkflowBlockView({
         className={cn(
           'workflow-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-2xl [&:active]:cursor-grabbing'
         )}
-        /* Never let the host fall below the shortest silhouette the border can
-           paint. `blockHeight` arrives from the deterministic-dimensions pass
-           and is already floored at MIN_PAINTED_HEIGHT, but it is absent on the
-           first frames — and with no floor the host collapses to its natural
-           content height (~25px for a header-only trigger). The border builds
-           its perimeter from `host.offsetHeight`, so that window paints a
-           sub-floor card: the action-menu tab is squashed and its icon row
-           spills onto the card. */
-        style={{ minHeight: Math.max(blockHeight ?? 0, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT) }}
+        /* The card is sized by its own content, floored at the shortest
+           silhouette the border can paint — below that the perimeter has no
+           straight run left, the action-menu tab squashes into the corner arcs
+           and its icons spill onto the card.
+           Deliberately NOT floored at `blockHeight`: that is a prediction of
+           this height for auto-layout, and padding the card up to it left a
+           band of dead space under the last row whenever the prediction ran
+           long, which it does for any card the estimate cannot model exactly. */
+        style={{ minHeight: BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT }}
       >
         <WorkflowBlockBorder
           nodeId={id}
@@ -808,15 +813,11 @@ export function WorkflowBlockView({
             'flex items-center justify-between px-2',
             hasContentBelowHeader && 'h-[40px]'
           )}
-          /* Header-only cards stretch the header to the full card so its
-             `items-center` centres the title and type tag. Floored for the
-             same reason the host is: without it the row collapses to its
-             natural height on the frames before `blockHeight` arrives and the
-             content pins to the top of the card. */
+          /* A header-only card is nothing but this row, so it carries the
+             card's floor itself and `items-center` centres the title and type
+             tag against the painted silhouette. */
           style={
-            !hasContentBelowHeader
-              ? { height: Math.max(blockHeight ?? 0, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT) }
-              : undefined
+            !hasContentBelowHeader ? { height: BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT } : undefined
           }
         >
           <div

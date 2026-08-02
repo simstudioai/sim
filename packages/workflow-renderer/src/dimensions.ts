@@ -83,10 +83,11 @@ export const HANDLE_POSITIONS = {
   /** Error knob center inset from the card's right edge. */
   ERROR_RIGHT_OFFSET: 30,
   /**
-   * Y of the first condition-row handle: 40px header + 1px divider +
-   * 8px content padding + half of the 20px row
+   * Y of the first condition-row handle: 40px header + 8px content padding +
+   * half of the 20px row. The 1px divider this used to include was removed
+   * from the card, which left every branch handle sitting a pixel low.
    */
-  CONDITION_START_Y: 59,
+  CONDITION_START_Y: 58,
   /** Row pitch: 20px row height (h-5) + 8px flex gap (gap-2) */
   CONDITION_ROW_HEIGHT: 28,
   /**

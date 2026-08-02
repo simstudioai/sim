@@ -854,7 +854,18 @@ export function WorkflowBlockBorder({
 }: WorkflowBlockBorderProps) {
   const clipId = `workflow-border-${useId().replaceAll(':', '')}`
   const svgRef = useRef<SVGSVGElement>(null)
-  const [size, setSize] = useState({ width: width ?? 250, height: height ?? 100 })
+  /*
+   * A non-positive seed falls back rather than clamping: `useBlockProperties`
+   * yields `block?.height ?? 0`, so a block missing from the store (diff
+   * preview, embedded canvas) seeds 0, and a zero-height perimeter degenerates
+   * — `radius` collapses to 0 and the card paints as a flat line. Any real
+   * height is kept as-is, including one below MIN_PAINTED_HEIGHT: the subflow
+   * Start pill is a deliberate 34px.
+   */
+  const [size, setSize] = useState({
+    width: width ?? 250,
+    height: height && height > 0 ? height : BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT,
+  })
   const [renderedPath, setRenderedPath] = useState<{
     d: string
     startS: number
@@ -901,41 +912,58 @@ export function WorkflowBlockBorder({
   onCursorHandleChangeRef.current = onCursorHandleChange
   onActionMenuReadyChangeRef.current = onActionMenuReadyChange
 
+  /*
+   * The silhouette is always measured off the host it is painted on, never
+   * taken from the caller's number.
+   *
+   * The SVG is sized `calc(100% + padding)` of the host but its viewBox is
+   * built from `size`, under `preserveAspectRatio='none'` — so any gap between
+   * the two silently rescales the whole outline, and the card's content spills
+   * past a border drawn for a different height. Card hosts size themselves from
+   * their content against a `minHeight`, and the deterministic estimate behind
+   * that number cannot model a wrapped summary line or an expanded MCP arg
+   * list, so the two do drift.
+   *
+   * `width`/`height` remain as the seed for the very first paint (see the
+   * `useState` above), which is what keeps a card from flashing a default-sized
+   * outline before layout settles. After that the DOM is the only authority.
+   */
   useLayoutEffect(() => {
-    if (height !== undefined) {
-      if (!Number.isFinite(height) || height <= 0) return
-      const nextWidth = width ?? 250
-      setSize((current) =>
-        current.width === nextWidth && Math.abs(current.height - height) < 0.5
-          ? current
-          : { width: nextWidth, height }
-      )
-      return
-    }
     const host = svgRef.current?.parentElement
     if (!host) return
     const update = () => {
       /* offsetWidth/Height, not getBoundingClientRect: the card sits inside
          the canvas' zoom transform and a scaled rect would drift the geometry. */
-      const width = host.offsetWidth
-      /* Clamped: below MIN_PAINTED_HEIGHT the perimeter has no straight run
-         left on the vertical edges and the action-menu tab collapses into the
-         corner arcs. The host carries the same floor; this keeps the geometry
-         correct even if a caller sizes one some other way. */
-      const nextHeight = Math.max(host.offsetHeight, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT)
-      if (Number.isFinite(width) && Number.isFinite(nextHeight) && width > 0 && nextHeight > 0) {
+      const nextWidth = host.offsetWidth
+      /* Taken as-is. The MIN_PAINTED_HEIGHT floor belongs to the block card,
+         which applies it to its own host — imposing it here would inflate the
+         silhouette of every deliberately shorter surface that shares this
+         border, starting with the 34px subflow Start pill. A zero height (a
+         detached or display:none host) is rejected by the guard below, leaving
+         the seed in place. */
+      const nextHeight = host.offsetHeight
+      if (
+        Number.isFinite(nextWidth) &&
+        Number.isFinite(nextHeight) &&
+        nextWidth > 0 &&
+        nextHeight > 0
+      ) {
         setSize((current) =>
-          current.width === width && current.height === nextHeight
+          current.width === nextWidth && current.height === nextHeight
             ? current
-            : { width, height: nextHeight }
+            : { width: nextWidth, height: nextHeight }
         )
       }
     }
     update()
+    /* Absent in jsdom and any non-DOM renderer. The synchronous `update()`
+       above already sized the outline off the host, so the card still paints
+       correctly — it just will not follow later content changes. */
+    if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(update)
     observer.observe(host)
     return () => observer.disconnect()
-  }, [height, width])
+  }, [])
 
   useLayoutEffect(() => {
     const perimeter = buildRoundedRectPerimeter(size.width, size.height, radius)

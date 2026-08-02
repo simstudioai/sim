@@ -190,6 +190,37 @@ describe('WorkflowBlockBorder mount', () => {
     expect(isActionMenuSwellReady(0, 1)).toBe(false)
   })
 
+  it('sizes the silhouette from the host it paints on, not the predicted height', () => {
+    /*
+     * The SVG is `calc(100% + padding)` of the host but its viewBox comes from
+     * this size, under `preserveAspectRatio='none'` — so a size taken from the
+     * caller's prediction rescales the whole outline the moment the card's real
+     * content disagrees with it, and the content spills past its own border.
+     * The prediction is only the first-paint seed.
+     */
+    const measured = { width: 250, height: 212 }
+    const wrapper = document.createElement('div')
+    for (const [prop, value] of Object.entries(measured)) {
+      Object.defineProperty(wrapper, prop === 'width' ? 'offsetWidth' : 'offsetHeight', {
+        configurable: true,
+        value,
+      })
+    }
+    document.body.appendChild(wrapper)
+    const root = createRoot(wrapper)
+    mountedRoots.add(root)
+    mountedHosts.add(wrapper)
+
+    act(() => {
+      root.render(<WorkflowBlockBorder ports={ports} hasRing={false} ringStyles='' height={136} />)
+    })
+
+    const viewBox = wrapper.querySelector('svg')?.getAttribute('viewBox')
+    /* viewBox is `-pad -pad (w + 2*pad) (h + 2*pad)`; the height term must come
+       from the measured 212, not the predicted 136. */
+    expect(viewBox?.split(' ').at(-1)).toBe(String(measured.height + 72))
+  })
+
   it('paints synchronously at mount without throwing', () => {
     const { host } = mount(
       <div style={{ width: 250, height: 136 }}>
