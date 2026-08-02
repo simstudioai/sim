@@ -64,6 +64,7 @@ vi.mock('@/main/terminal/session', () => ({
       setBusy: vi.fn(),
       refreshCwd: async () => {},
       takeReplaySnapshot: () => '',
+      clearScrollback: vi.fn(),
       tabState: (active: boolean) => ({
         terminalId,
         title: 'zsh',

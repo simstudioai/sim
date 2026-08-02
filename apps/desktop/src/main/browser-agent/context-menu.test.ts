@@ -44,6 +44,7 @@ function page(overrides: Partial<Page> = {}): Page {
 
 function handlers(): Handlers {
   return {
+    addToChat: vi.fn(),
     copy: vi.fn(),
     paste: vi.fn(),
     back: vi.fn(),
@@ -73,7 +74,7 @@ describe('buildAgentContextMenuTemplate', () => {
       'Reload',
       'Zoom In',
       'Zoom Out',
-      'Reset Zoom (100%)',
+      'Actual Size (100%)',
     ])
   })
 
@@ -103,6 +104,22 @@ describe('buildAgentContextMenuTemplate', () => {
       handlers()
     )
     expect(labels(readOnly)).not.toContain('Paste')
+  })
+
+  it('puts Add to chat first and preserves the exact nonblank selection', () => {
+    const handled = handlers()
+    const template = buildAgentContextMenuTemplate(
+      params({ selectionText: '  selected\ntext  ', linkURL: 'https://example.com/docs' }),
+      page(),
+      handled
+    )
+
+    expect(labels(template)[0]).toBe('Add to chat')
+    item(template, 'Add to chat')?.click?.({} as never, undefined as never, {} as never)
+    expect(handled.addToChat).toHaveBeenCalledWith('  selected\ntext  ')
+    expect(
+      labels(buildAgentContextMenuTemplate(params({ selectionText: ' \n ' }), page(), handlers()))
+    ).not.toContain('Add to chat')
   })
 
   it('offers link items for http(s) targets only', () => {
@@ -143,7 +160,7 @@ describe('buildAgentContextMenuTemplate', () => {
     // against Chromium's native scale (where this factor would read 110%).
     const twoUp = steppedZoomFactor(steppedZoomFactor(BASE_ZOOM_FACTOR, 1), 1)
     const stepped = buildAgentContextMenuTemplate(params(), page({ zoomFactor: twoUp }), handlers())
-    expect(item(stepped, 'Reset Zoom (121%)')?.enabled).toBe(true)
+    expect(item(stepped, 'Actual Size (121%)')?.enabled).toBe(true)
 
     const atMax = buildAgentContextMenuTemplate(params(), page({ zoomFactor: 3 }), handlers())
     expect(item(atMax, 'Zoom In')?.enabled).toBe(false)
@@ -154,7 +171,7 @@ describe('buildAgentContextMenuTemplate', () => {
 
     // Nothing to reset to at 100%.
     expect(
-      item(buildAgentContextMenuTemplate(params(), page(), handlers()), 'Reset Zoom (100%)')
+      item(buildAgentContextMenuTemplate(params(), page(), handlers()), 'Actual Size (100%)')
         ?.enabled
     ).toBe(false)
   })
@@ -171,7 +188,7 @@ describe('buildAgentContextMenuTemplate', () => {
       handled
     )
 
-    item(template, 'Reset Zoom (133%)')?.click?.({} as never, undefined as never, {} as never)
+    item(template, 'Actual Size (133%)')?.click?.({} as never, undefined as never, {} as never)
 
     expect(handled.setZoomFactor).toHaveBeenCalledWith(configuredDefault)
   })
@@ -202,6 +219,7 @@ describe('attachAgentContextMenu', () => {
     const contents = new WebContentsView().webContents
     vi.mocked(contents.navigationHistory.canGoBack).mockReturnValue(true)
     attachAgentContextMenu(contents, {
+      addToChat: vi.fn(),
       openTab: vi.fn(),
       defaultZoomFactor: () => BASE_ZOOM_FACTOR,
     })

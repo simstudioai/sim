@@ -283,6 +283,7 @@ interface ResourceTabsProps {
   chatId?: string
   resources: MothershipResource[]
   activeId: string | null
+  useFixedResourceToggle: boolean
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
   actions?: ReactNode
@@ -296,6 +297,7 @@ export function ResourceTabs({
   chatId,
   resources,
   activeId,
+  useFixedResourceToggle,
   previewMode,
   onCyclePreviewMode,
   actions,
@@ -599,28 +601,43 @@ export function ResourceTabs({
     dragStartIdx.current = null
   }, [stopAutoScroll])
 
+  const addResourceDropdown = (
+    <AddResourceDropdown
+      workspaceId={workspaceId}
+      existingKeys={existingKeys}
+      onAdd={handleAdd}
+      onOpenExisting={handleOpenExisting}
+      excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
+      onRequestOpen={onRequestAddResourceOpen}
+      onClose={onAddResourceClose}
+    />
+  )
+
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center border-[var(--border)] border-b px-4 py-[8.5px]',
+        'flex shrink-0 items-center border-[var(--border)] border-b py-[8.5px] pl-4',
+        useFixedResourceToggle ? 'pr-[54px]' : 'pr-4',
         RESOURCE_TAB_GAP_CLASS
       )}
     >
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={collapseResource}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Collapse resource view'
-          >
-            <PanelLeft className={cn(RESOURCE_TAB_ICON_CLASS, '-scale-x-100')} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Collapse</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      {!useFixedResourceToggle && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='subtle'
+              onClick={collapseResource}
+              className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+              aria-label='Collapse resource view'
+            >
+              <PanelLeft className={cn(RESOURCE_TAB_ICON_CLASS, '-scale-x-100')} />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Collapse</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
       <div className={cn('flex min-w-0 flex-1 items-center', RESOURCE_TAB_GAP_CLASS)}>
         <div
           ref={scrollNodeRef}
@@ -678,15 +695,13 @@ export function ResourceTabs({
         {/* Offered before the chat exists too: a resource opened while composing
             the first prompt is context for that prompt, and gating on a chat id
             meant the panel could be opened but not filled. */}
-        <AddResourceDropdown
-          workspaceId={workspaceId}
-          existingKeys={existingKeys}
-          onAdd={handleAdd}
-          onOpenExisting={handleOpenExisting}
-          excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
-          onRequestOpen={onRequestAddResourceOpen}
-          onClose={onAddResourceClose}
-        />
+        {useFixedResourceToggle ? (
+          <div className={cn('relative flex', resources.length === 0 && '-left-[6px]')}>
+            {addResourceDropdown}
+          </div>
+        ) : (
+          addResourceDropdown
+        )}
       </div>
       {(actions || (previewMode && onCyclePreviewMode)) && (
         <div className={cn('ml-auto flex shrink-0 items-center', RESOURCE_TAB_GAP_CLASS)}>

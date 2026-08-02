@@ -8,13 +8,13 @@ import {
   isBrowserToolName,
 } from '@sim/browser-protocol'
 import {
-  type BrowserZoomPercent,
   type DesktopAppearanceTheme,
   type DesktopNotificationPayload,
   type DesktopUpdateState,
   type DesktopWindowState,
-  isBrowserZoomPercent,
+  type DesktopZoomPercent,
   isDesktopAppearanceTheme,
+  isDesktopZoomPercent,
   isTerminalAppearanceTheme,
   type TerminalAppearanceTheme,
 } from '@sim/desktop-bridge'
@@ -643,8 +643,17 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       denied: null,
       handler: (zoom: unknown) =>
-        isBrowserZoomPercent(zoom)
-          ? deps.settings.setBrowserDefaultZoom(zoom as BrowserZoomPercent)
+        isDesktopZoomPercent(zoom)
+          ? deps.settings.setBrowserDefaultZoom(zoom as DesktopZoomPercent)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:set-terminal-default-zoom': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (zoom: unknown) =>
+        isDesktopZoomPercent(zoom)
+          ? deps.settings.setTerminalDefaultZoom(zoom as DesktopZoomPercent)
           : deps.settings.getPreferences(),
     },
     'desktop:settings:choose-browser-download-directory': {
@@ -1058,15 +1067,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
         if (!scope) return
         if (typeof raw !== 'object' || raw === null) return
-        const { query, findNext, forward } = raw as Record<string, unknown>
+        const { query, newSession, forward } = raw as Record<string, unknown>
         if (
           typeof query !== 'string' ||
-          typeof findNext !== 'boolean' ||
+          typeof newSession !== 'boolean' ||
           typeof forward !== 'boolean'
         ) {
           return
         }
-        withBrowserScope(scope, () => findInActiveTab({ query, findNext, forward }))
+        withBrowserScope(scope, () => findInActiveTab({ query, newSession, forward }))
       },
     },
     'browser-agent:stop-find': {
@@ -1152,9 +1161,23 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       passSender: true,
       handler: (sender, report) => {
         if (!isRecordLike(report)) return
-        const { origin, hasLoginForm } = report as { origin?: unknown; hasLoginForm?: unknown }
-        if (typeof origin !== 'string' || typeof hasLoginForm !== 'boolean') return
-        fillCoordinator()?.noteFormState(sender as WebContents, { origin, hasLoginForm })
+        const { origin, hasLoginForm, hasPasswordField } = report as {
+          origin?: unknown
+          hasLoginForm?: unknown
+          hasPasswordField?: unknown
+        }
+        if (
+          typeof origin !== 'string' ||
+          typeof hasLoginForm !== 'boolean' ||
+          (hasPasswordField !== undefined && typeof hasPasswordField !== 'boolean')
+        ) {
+          return
+        }
+        fillCoordinator()?.noteFormState(sender as WebContents, {
+          origin,
+          hasLoginForm,
+          ...(typeof hasPasswordField === 'boolean' ? { hasPasswordField } : {}),
+        })
       },
     },
     'browser-credentials:available': {
@@ -1168,6 +1191,19 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       denied: [],
       handler: () => listCredentials(),
+    },
+    'browser-credentials:list-fill-options': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      deviationReason:
+        'this list is derived from the active browser page, so unlike the read-only password manager list beside it there is nothing to inspect when the browser is off',
+      requires: 'browser',
+      passSender: true,
+      denied: [],
+      handler: (sender, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scope ? (fillCoordinator()?.listFillOptions(scope) ?? []) : []
+      },
     },
     // Hosts a previous import brought over, with the name and icon the source
     // browser gave each one and an aggregate count of how much it was used
@@ -1248,9 +1284,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       needsUserActivation: true,
       passSender: true,
       denied: false,
-      handler: (sender, anchor) => {
-        const window = deps.getWindowForContents(sender as WebContents)
-        if (!window || !isRecordLike(anchor)) return false
+      handler: (sender, anchor, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        const window = deps.getWindowForContents(contents)
+        if (!scope || !window || !isRecordLike(anchor)) return false
         const { x, y } = anchor as { x?: unknown; y?: unknown }
         if (
           typeof x !== 'number' ||
@@ -1260,7 +1298,22 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         ) {
           return false
         }
-        return fillCoordinator()?.showChooser(window, { x, y }) ?? false
+        return fillCoordinator()?.showChooser(window, { x, y }, scope) ?? false
+      },
+    },
+    'browser-credentials:fill-selected': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      deviationReason:
+        'it writes a saved credential into the active browser page, so it requires the browser surface plus a live user selection',
+      requires: 'browser',
+      needsUserActivation: true,
+      passSender: true,
+      denied: false,
+      handler: (sender, id, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scope || typeof id !== 'string' || !ID_PATTERN.test(id)) return false
+        return fillCoordinator()?.fillCredential(id, scope) ?? false
       },
     },
     'terminal:start': {
@@ -1377,6 +1430,19 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return scope && typeof terminalId === 'string'
           ? deps.terminal.getScrollback(scope, terminalId)
           : ''
+      },
+    },
+    'terminal:clear-scrollback': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      passSender: true,
+      denied: false,
+      handler: (sender, terminalId, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        return scope && typeof terminalId === 'string'
+          ? deps.terminal.clearScrollback(scope, terminalId)
+          : false
       },
     },
     'terminal:get-tabs': {

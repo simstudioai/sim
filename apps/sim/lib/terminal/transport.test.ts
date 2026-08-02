@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   applyCommandEvent,
+  clearScrollback,
   discardScope,
   disposeScope,
   getTabs,
@@ -10,6 +11,8 @@ const {
   nativeMigrateScope,
   onCommand,
   onData,
+  onDefaultZoomChanged,
+  onShortcutCommand,
   onTabs,
   onScopeSuspended,
   setTabs,
@@ -17,6 +20,7 @@ const {
   write,
 } = vi.hoisted(() => ({
   applyCommandEvent: vi.fn(),
+  clearScrollback: vi.fn(async () => true),
   discardScope: vi.fn(),
   disposeScope: vi.fn(async () => true),
   getTabs: vi.fn(async (scopeId?: string) => ({
@@ -29,6 +33,8 @@ const {
   nativeMigrateScope: vi.fn(),
   onCommand: vi.fn(),
   onData: vi.fn(() => vi.fn()),
+  onDefaultZoomChanged: vi.fn(() => vi.fn()),
+  onShortcutCommand: vi.fn(() => vi.fn()),
   onTabs: vi.fn(),
   onScopeSuspended: vi.fn(),
   setTabs: vi.fn(),
@@ -40,6 +46,7 @@ vi.mock('@/lib/desktop', () => ({
   getDesktopBridge: () => ({
     terminal: {
       closeTerminal: vi.fn(),
+      clearScrollback,
       dispose: vi.fn(),
       disposeScope,
       executeTool: vi.fn(),
@@ -48,6 +55,8 @@ vi.mock('@/lib/desktop', () => ({
       migrateScope: nativeMigrateScope,
       onCommand,
       onData,
+      onDefaultZoomChanged,
+      onShortcutCommand,
       onTabs,
       onScopeSuspended,
       openTerminal: vi.fn(),
@@ -76,10 +85,13 @@ vi.mock('@/stores/copilot-terminal/store', () => ({
 }))
 
 import {
+  clearTerminalScrollback,
   discardTerminalScope,
   initTerminalTransport,
   migrateTerminalScope,
   onTerminalData,
+  onTerminalDefaultZoomChanged,
+  onTerminalShortcutCommand,
   suspendTerminalScope,
   writeToTerminal,
 } from '@/lib/terminal/transport'
@@ -91,6 +103,7 @@ describe('terminal transport chat scopes', () => {
 
   beforeEach(() => {
     applyCommandEvent.mockClear()
+    clearScrollback.mockClear()
     discardScope.mockClear()
     disposeScope.mockClear()
     setTabs.mockClear()
@@ -165,6 +178,39 @@ describe('terminal transport chat scopes', () => {
     writeToTerminal('same-id', 'ls\r', 'chat-b')
 
     expect(write).toHaveBeenCalledWith('same-id', 'ls\r', 'chat-b')
+  })
+
+  it('clears retained terminal output in the explicit chat scope', async () => {
+    await expect(clearTerminalScrollback('same-id', 'chat-b')).resolves.toBe(true)
+
+    expect(clearScrollback).toHaveBeenCalledWith('same-id', 'chat-b')
+  })
+
+  it('routes focus commands only to the subscribed terminal scope', () => {
+    const callback = vi.fn()
+    onTerminalShortcutCommand(callback, 'chat-a', 'terminal-a')
+    const listener = onShortcutCommand.mock.calls.at(-1)?.[0] as (
+      command: 'clear',
+      scopeId?: string,
+      terminalId?: string
+    ) => void
+
+    listener('clear', 'chat-b', 'terminal-a')
+    listener('clear', 'chat-a', 'terminal-b')
+    listener('clear', 'chat-a', 'terminal-a')
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledWith('clear')
+  })
+
+  it('forwards device-wide terminal zoom baseline changes', () => {
+    const callback = vi.fn()
+    onTerminalDefaultZoomChanged(callback)
+    const listener = onDefaultZoomChanged.mock.calls.at(-1)?.[0] as (zoom: 125) => void
+
+    listener(125)
+
+    expect(callback).toHaveBeenCalledWith(125)
   })
 
   it('forgets an abandoned provisional terminal scope on both sides', async () => {

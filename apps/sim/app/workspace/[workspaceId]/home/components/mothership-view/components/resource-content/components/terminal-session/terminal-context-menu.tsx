@@ -13,12 +13,25 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Check, Clipboard, Duplicate, Palette, Plus, Trash, X } from '@sim/emcn/icons'
+import {
+  Check,
+  Clipboard,
+  Duplicate,
+  Palette,
+  Plus,
+  Send,
+  Settings,
+  Trash,
+  X,
+} from '@sim/emcn/icons'
+import { ResourceZoomMenuItems } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/resource-zoom-menu-items'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 interface TerminalContextMenuProps {
   isOpen: boolean
@@ -27,9 +40,14 @@ interface TerminalContextMenuProps {
   onClose: () => void
   /** Whether the terminal currently has a selection, gating Copy. */
   hasSelection: boolean
+  /** Adds the captured selection to the active chat composer. */
+  onAddToChat?: () => void
   onCopy: () => void
   onPaste: () => void
   onClear: () => void
+  onZoomIn: () => void
+  onZoomOut: () => void
+  onActualSize: () => void
   appearanceTheme: TerminalAppearanceTheme
   profiles: TerminalThemeProfile[]
   onAppearanceThemeChange?: (theme: TerminalAppearanceTheme) => void
@@ -60,9 +78,13 @@ export function TerminalContextMenu({
   menuRef,
   onClose,
   hasSelection,
+  onAddToChat,
   onCopy,
   onPaste,
   onClear,
+  onZoomIn,
+  onZoomOut,
+  onActualSize,
   appearanceTheme,
   profiles,
   onAppearanceThemeChange,
@@ -70,6 +92,7 @@ export function TerminalContextMenu({
   onNewTab,
   onCloseTerminal,
 }: TerminalContextMenuProps) {
+  const { navigateToSettings } = useSettingsNavigation()
   const run = (action: () => void) => () => {
     action()
     onClose()
@@ -90,6 +113,15 @@ export function TerminalContextMenu({
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
+        {onAddToChat && (
+          <>
+            <DropdownMenuItem onSelect={run(onAddToChat)}>
+              <Send />
+              Add to chat
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem disabled={!hasSelection} onSelect={run(onCopy)}>
           <Duplicate />
           Copy
@@ -101,6 +133,7 @@ export function TerminalContextMenu({
         <DropdownMenuItem onSelect={run(onClear)}>
           <Trash />
           Clear
+          <DropdownMenuShortcut>⌘R</DropdownMenuShortcut>
         </DropdownMenuItem>
         {onAppearanceThemeChange && (
           <DropdownMenuSub>
@@ -138,16 +171,33 @@ export function TerminalContextMenu({
 
         <DropdownMenuSeparator />
 
+        <ResourceZoomMenuItems
+          onZoomIn={run(onZoomIn)}
+          onZoomOut={run(onZoomOut)}
+          onActualSize={run(onActualSize)}
+        />
+
+        <DropdownMenuSeparator />
+
         <DropdownMenuItem onSelect={run(onNewTab)}>
           <Plus />
-          New tab
+          New Tab
+          <DropdownMenuShortcut>⌘T</DropdownMenuShortcut>
         </DropdownMenuItem>
         {onCloseTerminal && (
           <DropdownMenuItem onSelect={run(onCloseTerminal)}>
             <X />
-            Close terminal
+            Close Terminal
+            <DropdownMenuShortcut>⌘W</DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem onSelect={run(() => navigateToSettings({ section: 'terminal' }))}>
+          <Settings />
+          Terminal Settings
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -6,7 +6,7 @@ import type {
   BrowserChromeImportResult,
   BrowserCredentialMetadata,
   BrowserImportProfile,
-  BrowserZoomPercent,
+  DesktopZoomPercent,
 } from '@sim/desktop-bridge'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -236,7 +236,7 @@ const IMPORTED_BOTH: BrowserChromeImportResult = {
 interface BridgeOverrides {
   browserEnabled?: boolean
   browserTheme?: 'app' | 'light' | 'dark'
-  browserDefaultZoom?: BrowserZoomPercent
+  browserDefaultZoom?: DesktopZoomPercent
   browserDownloadDirectory?: string
   chosenBrowserDownloadDirectory?: string
   profiles?: BrowserImportProfile[]
@@ -275,7 +275,7 @@ function createBridge({
         ...preferences,
         browserTheme: theme,
       })),
-      setBrowserDefaultZoom: vi.fn(async (zoom: BrowserZoomPercent) => ({
+      setBrowserDefaultZoom: vi.fn(async (zoom: DesktopZoomPercent) => ({
         ...preferences,
         browserDefaultZoom: zoom,
       })),

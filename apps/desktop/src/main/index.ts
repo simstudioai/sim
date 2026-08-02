@@ -17,10 +17,9 @@ import {
 } from '@/main/browser-agent/panel'
 import {
   closeSession as closeAgentBrowserSession,
-  closeFocusedTab as closeFocusedBrowserTab,
+  handleFocusedShortcut as handleFocusedBrowserShortcut,
   isBrowserScopeSuspended,
   quiesceBrowserSessions,
-  reopenFocusedTab as reopenClosedBrowserTab,
   setBrowserDefaultZoom as setAgentBrowserDefaultZoom,
   setBrowserAppearanceTheme as setAgentBrowserTheme,
   setPanelFocused as setBrowserAgentPanelFocused,
@@ -453,6 +452,9 @@ function main(): void {
     },
     setBrowserTheme: setAgentBrowserTheme,
     setBrowserDefaultZoom: setAgentBrowserDefaultZoom,
+    setTerminalDefaultZoom: (zoom) => {
+      broadcast('terminal:default-zoom-changed', zoom)
+    },
     onBrowserThemeChanged: (theme) => {
       const win = getMainWindow()
       if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return
@@ -556,7 +558,10 @@ function main(): void {
         },
         onFillAvailability: (available, scopeId) => {
           if (scopeId) {
-            scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', { available })
+            scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', {
+              available,
+              scopeId,
+            })
           }
         },
         onDownloadsChanged: (state) => {
@@ -660,10 +665,9 @@ function main(): void {
       openSettings,
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
-      closeFocusedBrowserTab: (win) => closeFocusedBrowserTab(win),
-      reopenClosedBrowserTab: (win) => reopenClosedBrowserTab(win),
-      closeFocusedTerminal: (win) => terminal.closeFocusedTerminal(win),
-      reopenClosedTerminal: (win) => terminal.reopenClosedTerminal(win),
+      handleFocusedResourceShortcut: (win, shortcut) =>
+        terminal.handleFocusedShortcut(win, shortcut) ||
+        handleFocusedBrowserShortcut(shortcut, win),
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
       signOut: signOutFromMenu,
       checkForUpdates: () =>

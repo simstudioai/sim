@@ -50,9 +50,9 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
   }, [onClose, scopeId])
 
   /**
-   * `findNext: false` restarts the search and re-lights every match, which is
-   * what each keystroke means; stepping passes true so Chromium advances the
-   * active match instead of starting over at the top.
+   * Typing begins a new Chromium find session and re-lights every match;
+   * stepping continues that session so Chromium advances the active match
+   * instead of rescanning the page from the top.
    */
   const runFind = useCallback(
     (nextQuery: string, step: 'none' | 'forward' | 'back') => {
@@ -64,7 +64,7 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
       findInBrowserPage(
         {
           query: nextQuery,
-          findNext: step !== 'none',
+          newSession: step === 'none',
           forward: step !== 'back',
         },
         scopeId
@@ -85,7 +85,7 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
   )
 
   return (
-    <div className='w-[380px] max-w-[60%] flex-shrink-0'>
+    <div className='w-[clamp(170px,33%,280px)] min-w-0 flex-shrink'>
       <ChipInput
         ref={inputRef}
         type='text'

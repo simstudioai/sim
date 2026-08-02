@@ -11,6 +11,7 @@
  */
 import { statSync } from 'node:fs'
 import { homedir } from 'node:os'
+import type { TerminalShortcutCommand } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import {
   DEFAULT_RUN_WAIT_MS,
@@ -33,6 +34,7 @@ import {
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, WebContents } from 'electron'
+import { type FocusedResourceShortcut, zoomActionForShortcut } from '@/main/resource-shortcuts'
 import { elide, TerminalSession } from '@/main/terminal/session'
 import {
   activePane,
@@ -258,6 +260,14 @@ export class TerminalService {
     return this.sessions.get(terminalId)?.takeReplaySnapshot() ?? ''
   }
 
+  /** Clears retained output without disturbing the shell process itself. */
+  clearScrollback(terminalId: string): boolean {
+    const session = this.sessions.get(terminalId)
+    if (!session) return false
+    session.clearScrollback()
+    return true
+  }
+
   /** Opens an additional terminal and makes it active. */
   openTerminal(cwd?: string): TerminalTabsState {
     const active = this.activeId ? this.sessions.get(this.activeId) : null
@@ -363,24 +373,43 @@ export class TerminalService {
   }
 
   /**
-   * Reopens the most recently closed terminal, in the directory it was in.
+   * Claims one application-menu shortcut while this terminal owns focus.
    *
-   * A shell cannot be restored the way a browser tab can — its processes are
-   * gone and its scrollback with them — so this reopens where it was working,
-   * which is the part that is expensive for the user to retype.
+   * Main-owned tab operations happen here. Canvas operations are emitted back
+   * to the renderer that made the focus claim, so the same xterm action serves
+   * native accelerators and the terminal's own menu. Reopening creates a fresh
+   * shell in the last closed terminal's directory; a dead process itself cannot
+   * be restored.
    */
-  reopenClosedTerminal(ownerWindow: BrowserWindow | null): boolean {
+  handleFocusedShortcut(
+    shortcut: FocusedResourceShortcut,
+    ownerWindow: BrowserWindow | null,
+    emitRendererCommand: (command: TerminalShortcutCommand, terminalId: string) => void
+  ): boolean {
     if (!this.ownsInteraction(ownerWindow)) return false
-    if (this.recentlyClosedCwds.length === 0) return false
-    const cwd = this.recentlyClosedCwds.shift()
-    this.openTerminal(cwd || undefined)
-    return true
-  }
 
-  /** Closes the active terminal, but only while the panel owns interaction focus. */
-  closeFocusedTerminal(ownerWindow: BrowserWindow | null): boolean {
-    if (!this.ownsInteraction(ownerWindow) || !this.activeId) return false
-    this.closeTerminal(this.activeId)
+    switch (shortcut) {
+      case 'new-tab':
+        this.openTerminal()
+        return true
+      case 'reopen-closed-tab': {
+        const cwd = this.recentlyClosedCwds.shift()
+        if (cwd !== undefined) this.openTerminal(cwd || undefined)
+        return true
+      }
+      case 'close-tab':
+        if (this.activeId) this.closeTerminal(this.activeId)
+        return true
+      case 'reload-or-clear':
+        if (this.activeId) {
+          this.clearScrollback(this.activeId)
+          emitRendererCommand('clear', this.activeId)
+        }
+        return true
+    }
+
+    const zoomAction = zoomActionForShortcut(shortcut)
+    if (zoomAction && this.activeId) emitRendererCommand(`zoom-${zoomAction}`, this.activeId)
     return true
   }
 

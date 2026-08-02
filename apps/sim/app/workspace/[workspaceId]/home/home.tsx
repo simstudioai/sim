@@ -10,6 +10,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import { Button, cn } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
@@ -26,6 +27,7 @@ import {
   LandingWorkflowSeedStorage,
   MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
+import { isDesktopApp } from '@/lib/desktop'
 import {
   addMothershipContexts,
   MOTHERSHIP_SEND_MESSAGE_EVENT,
@@ -56,6 +58,8 @@ import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hoo
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
+const subscribeToDesktopApp = () => () => {}
+const getServerDesktopAppSnapshot = () => false
 
 /**
  * The resource preview panel pulls in the file-viewer stack (rich-markdown
@@ -78,6 +82,11 @@ interface HomeProps {
 
 export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps) {
   useOAuthReturnRouter()
+  const isDesktop = useSyncExternalStore(
+    subscribeToDesktopApp,
+    isDesktopApp,
+    getServerDesktopAppSnapshot
+  )
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
   /**
@@ -467,14 +476,12 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
 
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
-      <div className='relative flex h-full min-w-[320px] flex-1 flex-col'>
-        {/* Clears the expand button when the panel is closed and that button is
-            occupying the same corner. */}
+      <div className='relative flex h-full min-w-[240px] flex-1 flex-col'>
         {showEmptyState && (
           <div
             className={cn(
               'absolute top-[8.5px] z-10',
-              isResourceCollapsed ? 'right-[54px]' : 'right-[16px]'
+              isDesktop || isResourceCollapsed ? 'right-[54px]' : 'right-[16px]'
             )}
           >
             <CreditsChip />
@@ -569,6 +576,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
             resources={resources}
             activeResourceId={activeResourceId}
             isCollapsed={isResourceCollapsed}
+            useFixedResourceToggle={isDesktop}
             previewSession={previewSession}
             isAgentResponding={isSending}
             genericResourceData={genericResourceData ?? undefined}
@@ -578,19 +586,34 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         </Suspense>
       </MothershipResourcesProvider>
 
-      {isResourceCollapsed && (
-        <div className='absolute top-[8.5px] right-[16px]'>
+      {isDesktop ? (
+        <div className='absolute top-[6.5px] right-[16px] z-30'>
           <Button
             variant='ghost'
             size={null}
             type='button'
-            onClick={() => setIsResourceCollapsed(false)}
+            onClick={isResourceCollapsed ? () => setIsResourceCollapsed(false) : collapseResource}
             className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
-            aria-label='Expand resource view'
+            aria-label={isResourceCollapsed ? 'Expand resource view' : 'Collapse resource view'}
           >
-            <PanelLeft className='size-[16px] text-[var(--text-icon)]' />
+            <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
           </Button>
         </div>
+      ) : (
+        isResourceCollapsed && (
+          <div className='absolute top-[8.5px] right-[16px]'>
+            <Button
+              variant='ghost'
+              size={null}
+              type='button'
+              onClick={() => setIsResourceCollapsed(false)}
+              className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
+              aria-label='Expand resource view'
+            >
+              <PanelLeft className='size-[16px] text-[var(--text-icon)]' />
+            </Button>
+          </div>
+        )
       )}
     </div>
   )

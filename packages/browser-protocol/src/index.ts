@@ -175,12 +175,12 @@ export interface BrowserPageState {
 export interface BrowserFindRequest {
   query: string
   /**
-   * False starts a fresh search and highlights every match; true steps to the
-   * next/previous match of the search already running. Typing re-searches;
-   * Enter steps.
+   * True starts a fresh search and highlights every match; false steps to the
+   * next/previous match of the search already running. This deliberately names
+   * Electron's otherwise-confusing `findNext` option by what it actually does.
    */
-  findNext: boolean
-  /** Direction for a `findNext` step. Ignored when starting a fresh search. */
+  newSession: boolean
+  /** Direction for a follow-up step. Ignored when starting a fresh search. */
   forward: boolean
 }
 

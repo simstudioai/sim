@@ -12,8 +12,12 @@ import {
 } from 'react'
 import {
   type DesktopAppearanceTheme,
+  type DesktopZoomAction,
+  type DesktopZoomPercent,
+  resolveDesktopZoom,
   type TerminalAppearanceTheme,
   type TerminalSelectedProfile,
+  type TerminalShortcutCommand,
   type TerminalThemePalette,
   type TerminalThemeProfile,
   terminalProfileThemeId,
@@ -25,7 +29,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
-import { Terminal } from '@xterm/xterm'
+import { type IBufferRange, Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import '@xterm/xterm/css/xterm.css'
 import type { TerminalTabState, TerminalTabsState } from '@sim/terminal-protocol'
@@ -37,10 +41,14 @@ import {
   resolveDesktopAppearanceTheme,
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
+import { addMothershipContext } from '@/lib/mothership/events'
 import {
+  clearTerminalScrollback,
   closeTerminal,
   getTerminalScrollback,
   onTerminalData,
+  onTerminalDefaultZoomChanged,
+  onTerminalShortcutCommand,
   openTerminal,
   pasteIntoTerminal,
   reportTerminalFocused,
@@ -54,9 +62,12 @@ import { TerminalContextMenu } from '@/app/workspace/[workspaceId]/home/componen
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
+import type { ChatContext, TerminalTextSelection } from '@/stores/panel'
 
 const logger = createLogger('TerminalSession')
 const EMPTY_TERMINAL_TABS: TerminalTabsState = { tabs: [], activeTerminalId: null }
+const TERMINAL_BASE_FONT_SIZE = 12
+const TERMINAL_ZOOM_BOUNDS = { min: 50, max: 300 } as const
 
 /**
  * How long a command must run before the tab names it.
@@ -238,33 +249,84 @@ function attachWebglRenderer(terminal: Terminal): (() => void) | null {
  * zero-sized box and would resize the PTY to nonsense.
  */
 /**
- * Shortcuts a terminal answers itself, before xterm turns them into bytes for
- * the shell.
- *
- * Only the ones with no menu item: Cmd-W and Cmd-Shift-T are global menu
- * accelerators, so they never reach here and are handled in the main process
- * against the focused panel instead. Returning false stops xterm from also
- * sending the keystroke on to the pty, which would otherwise put a stray
- * control character in front of whatever the user was typing.
+ * Renderer fallbacks for shortcuts that predate the shared application menu.
+ * New desktop shells consume Cmd-T in the menu first; older shells still
+ * deliver it here, so continuously deployed renderers do not lose New Tab.
  */
-function handleTerminalShortcut(
+function handleTerminalLocalShortcut(
   event: KeyboardEvent,
-  terminal: Terminal,
-  scopeId: string
+  clear: () => void,
+  open: () => void
 ): boolean {
-  const primary = event.metaKey || (event.ctrlKey && !event.altKey)
-  if (event.type !== 'keydown' || !primary || event.shiftKey || event.altKey) return true
+  const mac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
+  const primary = event.metaKey || (!mac && event.ctrlKey && !event.altKey)
+  if (
+    event.type !== 'keydown' ||
+    event.repeat ||
+    event.isComposing ||
+    !primary ||
+    event.shiftKey ||
+    event.altKey
+  ) {
+    return true
+  }
   switch (event.key.toLowerCase()) {
-    case 't':
-      void openTerminal(undefined, scopeId)
-      return false
     case 'k':
-      // What Cmd-K means in every other macOS terminal: wipe the screen and
-      // the scrollback, leaving the prompt.
-      terminal.clear()
+      clear()
+      return false
+    case 't':
+      open()
       return false
     default:
       return true
+  }
+}
+
+/** Scales xterm's 12px actual size without constraining shortcut-created rungs. */
+export function terminalFontSizeForZoom(zoom: number): number {
+  return (TERMINAL_BASE_FONT_SIZE * zoom) / 100
+}
+
+export type TerminalSelectionSnapshot = TerminalTextSelection
+
+/**
+ * Turns xterm's selection into the snapshot stored on a terminal chat chip.
+ *
+ * Despite the public typings describing these cells as one-based, xterm 6's
+ * implementation exposes its normalized, zero-based buffer coordinates here.
+ * The end cell is exclusive, so a selection ending at column zero of a later
+ * row contains characters only through the preceding row.
+ */
+export function terminalSelectionSnapshot(
+  text: string,
+  position: IBufferRange | undefined
+): TerminalSelectionSnapshot | null {
+  if (!text || !position) return null
+
+  const startLine = position.start.y + 1
+  const endLine =
+    position.end.y > position.start.y && position.end.x === 0 ? position.end.y : position.end.y + 1
+
+  return { text, startLine, endLine: Math.max(startLine, endLine) }
+}
+
+/** Human-readable chip label for the selected terminal buffer rows. */
+export function terminalSelectionLabel(selection: TerminalSelectionSnapshot): string {
+  return selection.startLine === selection.endLine
+    ? `Terminal (L${selection.startLine})`
+    : `Terminal (L${selection.startLine}-${selection.endLine})`
+}
+
+function zoomActionForTerminalCommand(command: TerminalShortcutCommand): DesktopZoomAction | null {
+  switch (command) {
+    case 'zoom-in':
+      return 'in'
+    case 'zoom-out':
+      return 'out'
+    case 'zoom-reset':
+      return 'reset'
+    default:
+      return null
   }
 }
 
@@ -278,6 +340,7 @@ const TerminalView = memo(function TerminalView({
   profiles,
   onAppearanceThemeChange,
   appearanceThemePending,
+  defaultZoom,
 }: {
   terminalId: string
   active: boolean
@@ -288,6 +351,7 @@ const TerminalView = memo(function TerminalView({
   profiles: TerminalThemeProfile[]
   onAppearanceThemeChange?: (theme: TerminalAppearanceTheme) => void
   appearanceThemePending?: boolean
+  defaultZoom: DesktopZoomPercent
 }) {
   const { resolvedTheme } = useTheme()
   const profileThemeId = terminalProfileThemeId(appearanceTheme)
@@ -304,6 +368,7 @@ const TerminalView = memo(function TerminalView({
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const [currentZoom, setCurrentZoom] = useState<number>(defaultZoom)
   // Being the selected tab is not enough to be on screen: the whole panel is
   // hidden whenever another resource is open.
   const onscreen = active && visible
@@ -311,6 +376,37 @@ const TerminalView = memo(function TerminalView({
   onscreenRef.current = onscreen
   const showRef = useRef<(() => void) | null>(null)
   const hideRef = useRef<(() => void) | null>(null)
+
+  const clearVisibleScreen = useCallback(() => {
+    terminalRef.current?.clear()
+    terminalRef.current?.focus()
+  }, [])
+
+  const clearScreen = useCallback(() => {
+    void clearTerminalScrollback(terminalId, scopeId)
+    clearVisibleScreen()
+  }, [clearVisibleScreen, scopeId, terminalId])
+
+  const applyZoom = useCallback(
+    (action: DesktopZoomAction) => {
+      setCurrentZoom((current) =>
+        resolveDesktopZoom(current, action, defaultZoom, TERMINAL_ZOOM_BOUNDS)
+      )
+    },
+    [defaultZoom]
+  )
+
+  const shortcutHandlerRef = useRef<(command: TerminalShortcutCommand) => void>(() => {})
+  shortcutHandlerRef.current = (command) => {
+    if (command === 'clear') {
+      // The application-menu route already cleared the desktop-owned replay
+      // buffer before emitting this renderer command.
+      clearVisibleScreen()
+      return
+    }
+    const action = zoomActionForTerminalCommand(command)
+    if (action) applyZoom(action)
+  }
 
   useEffect(() => {
     const host = hostRef.current
@@ -320,7 +416,7 @@ const TerminalView = memo(function TerminalView({
     const terminal = new Terminal({
       allowProposedApi: true,
       cursorBlink: true,
-      fontSize: 12,
+      fontSize: terminalFontSizeForZoom(currentZoom),
       fontFamily:
         'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
       lineHeight: 1.35,
@@ -339,7 +435,9 @@ const TerminalView = memo(function TerminalView({
     terminalRef.current = terminal
     fitRef.current = fit
     terminal.attachCustomKeyEventHandler((event) =>
-      handleTerminalShortcut(event, terminal, scopeId)
+      handleTerminalLocalShortcut(event, clearScreen, () => {
+        void openTerminal(undefined, scopeId)
+      })
     )
 
     const disposeData = terminal.onData((data) => writeToTerminal(terminalId, data, scopeId))
@@ -497,6 +595,39 @@ const TerminalView = memo(function TerminalView({
     terminal.options.theme = terminalTheme
   }, [terminalTheme])
 
+  useEffect(() => {
+    setCurrentZoom(defaultZoom)
+  }, [defaultZoom])
+
+  useEffect(() => {
+    const terminal = terminalRef.current
+    const host = hostRef.current
+    if (!terminal || !host) return
+    terminal.options.fontSize = terminalFontSizeForZoom(currentZoom)
+    if (!onscreen) return
+    const frame = requestAnimationFrame(() => {
+      if (host.clientWidth <= 0 || host.clientHeight <= 0) return
+      try {
+        fitRef.current?.fit()
+        terminal.focus()
+      } catch {
+        // Panel still animating; the ResizeObserver refits.
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [currentZoom, onscreen])
+
+  useEffect(() => {
+    if (!onscreen) return
+    return onTerminalShortcutCommand(
+      (command) => {
+        shortcutHandlerRef.current(command)
+      },
+      scopeId,
+      terminalId
+    )
+  }, [onscreen, scopeId, terminalId])
+
   // A GPU renderer only for the terminal on screen.
   //
   // Every open terminal keeps its emulator alive so switching is instant, but
@@ -537,12 +668,16 @@ const TerminalView = memo(function TerminalView({
     handleContextMenu,
     closeMenu,
   } = useContextMenu()
-  // Read at open time so Copy reflects the selection the click landed on.
-  const [hasSelection, setHasSelection] = useState(false)
+  // Snapshot at open time: opening the dropdown moves focus away from xterm,
+  // but Add to chat must keep the exact text and rows the user right-clicked.
+  const [selectionSnapshot, setSelectionSnapshot] = useState<TerminalSelectionSnapshot | null>(null)
 
   const openMenu = useCallback(
     (event: React.MouseEvent) => {
-      setHasSelection(Boolean(terminalRef.current?.hasSelection()))
+      const terminal = terminalRef.current
+      setSelectionSnapshot(
+        terminalSelectionSnapshot(terminal?.getSelection() ?? '', terminal?.getSelectionPosition())
+      )
       // Suppresses Electron's native editable-field menu, which would
       // otherwise target xterm's offscreen input textarea.
       handleContextMenu(event)
@@ -551,9 +686,19 @@ const TerminalView = memo(function TerminalView({
   )
 
   const copySelection = useCallback(() => {
-    const selection = terminalRef.current?.getSelection()
-    if (selection) void navigator.clipboard.writeText(selection)
-  }, [])
+    if (selectionSnapshot) void navigator.clipboard.writeText(selectionSnapshot.text)
+  }, [selectionSnapshot])
+
+  const addSelectionToChat = useCallback(() => {
+    if (!selectionSnapshot) return
+    const context: ChatContext = {
+      kind: 'terminal_tab',
+      terminalId,
+      label: terminalSelectionLabel(selectionSnapshot),
+      selection: selectionSnapshot,
+    }
+    addMothershipContext(context)
+  }, [selectionSnapshot, terminalId])
 
   const pasteClipboard = useCallback(() => {
     void (async () => {
@@ -579,11 +724,6 @@ const TerminalView = memo(function TerminalView({
     })()
   }, [terminalId, scopeId])
 
-  const clearScreen = useCallback(() => {
-    terminalRef.current?.clear()
-    terminalRef.current?.focus()
-  }, [])
-
   const newTab = useCallback(() => {
     void openTerminal(undefined, scopeId)
   }, [scopeId])
@@ -608,17 +748,22 @@ const TerminalView = memo(function TerminalView({
       <div
         ref={hostRef}
         onContextMenu={openMenu}
-        className={cn('absolute inset-0 px-2 py-1', !active && 'hidden')}
+        className={cn('absolute inset-0 pt-[7px] pr-2 pb-1 pl-1.5', !active && 'hidden')}
+        style={{ backgroundColor: terminalTheme.background }}
       />
       <TerminalContextMenu
         isOpen={isMenuOpen}
         position={menuPosition}
         menuRef={menuRef}
         onClose={closeMenu}
-        hasSelection={hasSelection}
+        hasSelection={selectionSnapshot !== null}
+        onAddToChat={selectionSnapshot ? addSelectionToChat : undefined}
         onCopy={copySelection}
         onPaste={pasteClipboard}
         onClear={clearScreen}
+        onZoomIn={() => applyZoom('in')}
+        onZoomOut={() => applyZoom('out')}
+        onActualSize={() => applyZoom('reset')}
         appearanceTheme={appearanceTheme}
         profiles={profiles}
         onAppearanceThemeChange={onAppearanceThemeChange}
@@ -655,6 +800,7 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const [selectedProfile, setSelectedProfile] = useState<TerminalSelectedProfile>()
   const [profiles, setProfiles] = useState<TerminalThemeProfile[]>([])
   const [appearanceThemePending, setAppearanceThemePending] = useState(false)
+  const [defaultZoom, setDefaultZoom] = useState<DesktopZoomPercent>(100)
   // Scope activation happens after a navigation commits. Selecting this
   // panel's bucket directly avoids briefly rendering the previous chat's
   // terminal ids and then sending user actions for them under the new scope.
@@ -674,9 +820,21 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
       setAppearanceTheme(next.theme)
       setSelectedProfile(next.selectedProfile)
       setProfiles(next.profiles)
+      setDefaultZoom(next.defaultZoom)
     })
     return () => {
       active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const unsubscribe = onTerminalDefaultZoomChanged((zoom) => {
+      if (active) setDefaultZoom(zoom)
+    })
+    return () => {
+      active = false
+      unsubscribe()
     }
   }, [])
 
@@ -888,6 +1046,7 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
                 : undefined
             }
             appearanceThemePending={appearanceThemePending}
+            defaultZoom={defaultZoom}
           />
         ))}
         {startError && (

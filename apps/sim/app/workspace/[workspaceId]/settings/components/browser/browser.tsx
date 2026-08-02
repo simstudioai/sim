@@ -3,19 +3,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BROWSER_DATA_KINDS, type BrowserDataKind } from '@sim/browser-protocol'
 import {
-  BROWSER_ZOOM_PERCENTS,
   type BrowserCredentialMetadata,
-  type BrowserZoomPercent,
   type DesktopAppearanceTheme,
   type DesktopPreferences,
-  isBrowserZoomPercent,
+  type DesktopZoomPercent,
   isDesktopAppearanceTheme,
 } from '@sim/desktop-bridge'
-import { Chip, ChipConfirmModal, ChipSelect, Label, Switch, toast } from '@sim/emcn'
+import { Chip, ChipConfirmModal, Label, Switch, toast } from '@sim/emcn'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getDesktopBridge, setDesktopPreferencesSnapshot } from '@/lib/desktop'
 import { AppearanceThemeSelect } from '@/app/workspace/[workspaceId]/settings/components/appearance-theme-select'
 import { PasswordsView } from '@/app/workspace/[workspaceId]/settings/components/browser/components/passwords-view/passwords-view'
+import { DefaultZoomSelect } from '@/app/workspace/[workspaceId]/settings/components/default-zoom-select'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
@@ -55,11 +54,6 @@ const DATA_ROWS: DataRow[] = [
   },
 ]
 
-const BROWSER_ZOOM_OPTIONS = BROWSER_ZOOM_PERCENTS.map((zoom) => ({
-  label: `${zoom}%`,
-  value: String(zoom),
-}))
-
 export function Browser() {
   const params = useParams()
   const router = useRouter()
@@ -95,7 +89,7 @@ export function Browser() {
     }
   }, [])
 
-  const setDefaultZoom = useCallback(async (zoom: BrowserZoomPercent) => {
+  const setDefaultZoom = useCallback(async (zoom: DesktopZoomPercent) => {
     const setBrowserDefaultZoom = getDesktopBridge()?.settings?.setBrowserDefaultZoom
     if (!setBrowserDefaultZoom) return
     setZoomPending(true)
@@ -247,21 +241,11 @@ export function Browser() {
             {canSetDefaultZoom && (
               <div className='flex items-center justify-between gap-4'>
                 <Label>Default zoom</Label>
-                <div className='w-[240px] flex-shrink-0'>
-                  <ChipSelect
-                    aria-label='Default zoom'
-                    align='start'
-                    fullWidth
-                    dropdownWidth='trigger'
-                    value={String(preferences.browserDefaultZoom ?? 100)}
-                    onChange={(value) => {
-                      const zoom = Number.parseInt(value, 10)
-                      if (isBrowserZoomPercent(zoom)) void setDefaultZoom(zoom)
-                    }}
-                    disabled={zoomPending}
-                    options={BROWSER_ZOOM_OPTIONS}
-                  />
-                </div>
+                <DefaultZoomSelect
+                  value={preferences.browserDefaultZoom ?? 100}
+                  onChange={(zoom) => void setDefaultZoom(zoom)}
+                  disabled={zoomPending}
+                />
               </div>
             )}
 

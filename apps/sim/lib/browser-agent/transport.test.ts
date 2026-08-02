@@ -5,6 +5,8 @@ const {
   capturePanelSnapshot,
   discardScope,
   disposeScope,
+  fillCredential,
+  listFillOptions,
   markScopeSuspended,
   migrateStoreScope,
   nativeMigrateScope,
@@ -12,7 +14,9 @@ const {
   onSessionStatus,
   onTabsState,
   onCloseFind,
+  onAddToChat,
   onFindResult,
+  onFillAvailability,
   onFocusOmnibox,
   onOpenFind,
   onScopeSuspended,
@@ -26,6 +30,7 @@ const {
   setPanelOccluded,
   setSessionAlive,
   setTabPinned,
+  showCredentialChooser,
   showTabContextMenu,
   showToolbarMenu,
   setTheme,
@@ -36,6 +41,8 @@ const {
   capturePanelSnapshot: vi.fn(),
   discardScope: vi.fn(),
   disposeScope: vi.fn(async () => true),
+  fillCredential: vi.fn(async () => true),
+  listFillOptions: vi.fn(async () => []),
   markScopeSuspended: vi.fn(),
   migrateStoreScope: vi.fn(),
   nativeMigrateScope: vi.fn(),
@@ -43,7 +50,9 @@ const {
   onSessionStatus: vi.fn(),
   onTabsState: vi.fn(),
   onCloseFind: vi.fn(),
+  onAddToChat: vi.fn(),
   onFindResult: vi.fn(),
+  onFillAvailability: vi.fn(),
   onFocusOmnibox: vi.fn(),
   onOpenFind: vi.fn(),
   onScopeSuspended: vi.fn(),
@@ -57,6 +66,7 @@ const {
   setPanelOccluded: vi.fn(),
   setSessionAlive: vi.fn(),
   setTabPinned: vi.fn(),
+  showCredentialChooser: vi.fn(async () => true),
   showTabContextMenu: vi.fn(),
   showToolbarMenu: vi.fn(),
   setTheme: vi.fn(),
@@ -73,6 +83,7 @@ vi.mock('@/lib/desktop', () => ({
       getTabsState: vi.fn(async () => ({ tabs: [], activeTabId: null })),
       migrateScope: nativeMigrateScope,
       onCloseFind,
+      onAddToChat,
       onFindResult,
       onFocusOmnibox,
       onOpenFind,
@@ -92,6 +103,12 @@ vi.mock('@/lib/desktop', () => ({
       showTabContextMenu,
       showToolbarMenu,
       setTheme,
+    },
+    browserCredentials: {
+      fill: fillCredential,
+      listFillOptions,
+      onFillAvailability,
+      showChooser: showCredentialChooser,
     },
   }),
 }))
@@ -116,11 +133,15 @@ vi.mock('@/stores/browser-session/store', () => ({
 import {
   captureBrowserPanelSnapshot,
   discardBrowserScope,
+  fillBrowserCredential,
   initBrowserAgentTransport,
   isBrowserPanelOcclusionAvailable,
   isBrowserTabPinningAvailable,
   isBrowserTabReorderingAvailable,
+  loadBrowserFillOptions,
   migrateBrowserScope,
+  onBrowserAddToChat,
+  onBrowserFillAvailability,
   onBrowserFindClose,
   onBrowserFindOpen,
   onBrowserFindResult,
@@ -133,6 +154,7 @@ import {
   restoreBrowserScope,
   setBrowserPanelOccluded,
   setBrowserTabPinned,
+  showBrowserCredentialChooser,
   showBrowserTabContextMenu,
   showBrowserToolbarMenu,
   suspendBrowserScope,
@@ -159,6 +181,8 @@ describe('browser panel transport', () => {
     showTabContextMenu.mockClear()
     showToolbarMenu.mockClear()
     onToolbarCommand.mockClear()
+    onAddToChat.mockClear()
+    onFillAvailability.mockClear()
     setTheme.mockClear()
     discardScope.mockClear()
     disposeScope.mockClear()
@@ -243,6 +267,67 @@ describe('browser panel transport', () => {
     listener('browser-settings', 'chat-a')
     expect(callback).toHaveBeenCalledOnce()
     expect(callback).toHaveBeenCalledWith('browser-settings')
+  })
+
+  it('routes Add to chat payloads only to their owning browser scope', () => {
+    const callback = vi.fn()
+    onBrowserAddToChat(callback, 'chat-a')
+    const listener = onAddToChat.mock.calls[0][0] as (payload: {
+      text: string
+      tabId: string
+      scopeId: string
+    }) => void
+    listener({ text: 'wrong chat', tabId: '1', scopeId: 'chat-b' })
+    listener({ text: 'selected text', tabId: '2', scopeId: 'chat-a' })
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledWith({
+      text: 'selected text',
+      tabId: '2',
+      scopeId: 'chat-a',
+    })
+  })
+
+  it('subscribes to and filters fill availability for one browser scope', () => {
+    const callback = vi.fn()
+    onBrowserFillAvailability(callback, 'chat-a')
+    const listener = onFillAvailability.mock.calls[0][0] as (state: {
+      available: boolean
+      scopeId?: string
+    }) => void
+
+    listener({ available: true, scopeId: 'chat-b' })
+    listener({ available: true, scopeId: 'chat-a' })
+
+    expect(onFillAvailability).toHaveBeenCalledWith(expect.any(Function), 'chat-a')
+    expect(callback).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledWith(true)
+  })
+
+  it('loads and fills scoped credential choices through the desktop shell', async () => {
+    const options = [
+      {
+        id: 'credential-1',
+        origin: 'https://example.com',
+        username: 'ada@example.com',
+        createdAt: '',
+        updatedAt: '',
+        source: 'chrome' as const,
+      },
+    ]
+    listFillOptions.mockResolvedValue(options)
+
+    await expect(loadBrowserFillOptions('chat-a')).resolves.toEqual(options)
+    await expect(fillBrowserCredential('credential-1', 'chat-a')).resolves.toBe(true)
+
+    expect(listFillOptions).toHaveBeenCalledWith('chat-a')
+    expect(fillCredential).toHaveBeenCalledWith('credential-1', 'chat-a')
+  })
+
+  it('keeps the native credential fallback in the owning browser scope', () => {
+    showBrowserCredentialChooser({ x: 10, y: 20 }, 'chat-a')
+
+    expect(showCredentialChooser).toHaveBeenCalledWith({ x: 10, y: 20 }, 'chat-a')
   })
 
   it('forwards tab reordering only through shells that advertise support', () => {

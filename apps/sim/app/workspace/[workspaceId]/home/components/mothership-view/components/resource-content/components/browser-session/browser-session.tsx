@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BrowserPanelAnchor, BrowserTabState } from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
-import type { DesktopAppearanceTheme } from '@sim/desktop-bridge'
+import type {
+  BrowserAddToChatPayload,
+  BrowserCredentialMetadata,
+  DesktopAppearanceTheme,
+} from '@sim/desktop-bridge'
 import {
   Button,
   ChipInput,
@@ -21,13 +25,17 @@ import {
   PopoverContent,
   PopoverItem,
 } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Cursor, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
+import { ArrowLeft, ArrowRight, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
+import { Globe } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import {
+  fillBrowserCredential,
   isBrowserFindAvailable,
   isBrowserTabPinningAvailable,
   isBrowserTabReorderingAvailable,
+  loadBrowserFillOptions,
   loadBrowserSuggestionSources,
+  onBrowserAddToChat,
   onBrowserAppearanceThemeChanged,
   onBrowserFillAvailability,
   onBrowserFindClose,
@@ -47,6 +55,7 @@ import {
 import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { loadDesktopAppearanceTheme, resolveDesktopAppearanceTheme } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
+import { addMothershipContext } from '@/lib/mothership/events'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-downloads'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
@@ -62,15 +71,36 @@ import {
   rankSuggestions,
   type UrlSuggestion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/url-suggestions'
+import { ResourceZoomMenuItems } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/resource-zoom-menu-items'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { MOTHERSHIP_WIDTH } from '@/stores/constants'
+import type { ChatContext } from '@/stores/panel'
 
 /** Ties the omnibox to its listbox for assistive tech. */
 const SUGGESTIONS_LIST_ID = 'browser-url-suggestions'
 const EMPTY_BROWSER_TABS: BrowserTabState[] = []
 
 const suggestionRowId = (index: number) => `${SUGGESTIONS_LIST_ID}-${index}`
+
+/** Converts the native page selection into the browser-tab mention shown in chat. */
+export function browserSelectionContext({
+  text,
+  tabId,
+  url,
+  title,
+}: BrowserAddToChatPayload): Extract<ChatContext, { kind: 'browser_tab' }> {
+  return {
+    kind: 'browser_tab',
+    tabId,
+    label: 'Browser',
+    selection: {
+      text,
+      ...(url ? { url } : {}),
+      ...(title ? { title } : {}),
+    },
+  }
+}
 
 /**
  * The browser panel. The real agent-browser page is a native view the
@@ -110,6 +140,12 @@ export function selectFocusedOmniboxOnNextFrame(input: HTMLInputElement): number
       input.select()
     }
   })
+}
+
+/** Removes the selection left behind when focus moves into the native page view. */
+export function clearOmniboxSelection(input: HTMLInputElement): void {
+  const caret = input.selectionEnd ?? input.value.length
+  input.setSelectionRange(caret, caret)
 }
 
 /** Re-report unchanged bounds before the main-process visibility lease expires. */
@@ -234,10 +270,14 @@ export function BrowserSession({
   const [panelVisible, setPanelVisible] = useState(false)
   /** Whether the shell has a saved password for the page currently open. */
   const [fillAvailable, setFillAvailable] = useState(false)
+  /** Accounts the active page can accept, loaded only when its key menu opens. */
+  const [fillOptions, setFillOptions] = useState<BrowserCredentialMetadata[]>([])
   /** Hosts worth suggesting: signed into, holding a saved password, or imported. */
   const [suggestionCorpus, setSuggestionCorpus] = useState<UrlSuggestion[]>([])
   /** Null until the user arrows into the list, so Enter still means "go to what I typed". */
   const [activeSuggestion, setActiveSuggestion] = useState<number | null>(null)
+  /** Whether the user has asked to see suggestions for the current omnibox edit. */
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false)
   /** Whether the find bar is docked above the page. */
   const [findOpen, setFindOpen] = useState(false)
   const findSupported = isBrowserFindAvailable()
@@ -258,7 +298,12 @@ export function BrowserSession({
     return () => onOverlayControllerChange(null)
   }, [closeOverlay, onOverlayControllerChange, requestOverlay])
 
-  useEffect(() => onBrowserFillAvailability(setFillAvailable), [])
+  useEffect(() => onBrowserFillAvailability(setFillAvailable, scopeId), [scopeId])
+
+  useEffect(() => {
+    if (fillAvailable || activeOverlay !== 'credentials') return
+    void closeOverlay('credentials')
+  }, [activeOverlay, closeOverlay, fillAvailable])
 
   useEffect(() => {
     let active = true
@@ -290,6 +335,15 @@ export function BrowserSession({
         navigateToSettings({ section: 'browser' })
       }, scopeId),
     [navigateToSettings, scopeId]
+  )
+
+  useEffect(
+    () =>
+      onBrowserAddToChat(
+        (payload) => addMothershipContext(browserSelectionContext(payload)),
+        scopeId
+      ),
+    [scopeId]
   )
 
   // Reloaded whenever the panel comes back on screen, so an import or a fresh
@@ -336,6 +390,8 @@ export function BrowserSession({
   useEffect(() => {
     let focusRaf: number | null = null
     const unsubscribe = onBrowserOmniboxFocus((mode) => {
+      setSuggestionsVisible(false)
+      setActiveSuggestion(null)
       setUrlDraft(mode === 'clear' ? '' : pageUrlRef.current)
       if (focusRaf !== null) {
         cancelAnimationFrame(focusRaf)
@@ -353,6 +409,20 @@ export function BrowserSession({
       }
     }
   }, [scopeId])
+
+  // The page is a separate WebContentsView, so clicking it blurs this renderer
+  // without reliably blurring its active DOM input. Collapse the selection as
+  // the renderer hands focus to the native page.
+  useEffect(() => {
+    const handleWindowBlur = () => {
+      const input = urlInputRef.current
+      if (!input) return
+      clearOmniboxSelection(input)
+      input.blur()
+    }
+    window.addEventListener('blur', handleWindowBlur)
+    return () => window.removeEventListener('blur', handleWindowBlur)
+  }, [])
 
   /**
    * Opens the find bar, or re-selects it when it is already open — pressing
@@ -470,10 +540,15 @@ export function BrowserSession({
     }
 
     const handleGeometryChange = () => scheduleGeometryReport()
+    // A chat may be open in more than one app window. Reclaim the singleton
+    // native view as soon as this window receives OS focus instead of waiting
+    // for the next one-second lease heartbeat; menu shortcuts arrive sooner.
+    const handleWindowFocus = () => scheduleGeometryReport(true)
     const resizeObserver = new ResizeObserver(() => reportGeometry(false))
     resizeObserver.observe(host)
     window.addEventListener('resize', handleGeometryChange)
     window.addEventListener('scroll', handleGeometryChange, true)
+    window.addEventListener('focus', handleWindowFocus)
 
     const heartbeatTimer = window.setInterval(
       () => scheduleGeometryReport(true),
@@ -486,6 +561,7 @@ export function BrowserSession({
       resizeObserver.disconnect()
       window.removeEventListener('resize', handleGeometryChange)
       window.removeEventListener('scroll', handleGeometryChange, true)
+      window.removeEventListener('focus', handleWindowFocus)
       window.clearInterval(heartbeatTimer)
       if (rafId !== null) {
         cancelAnimationFrame(rafId)
@@ -495,13 +571,13 @@ export function BrowserSession({
   }, [visible, suspended, scopeId])
 
   /**
-   * Suggestions only exist while the omnibox is being edited. Reading them off
-   * `urlDraft` rather than a separate open flag means they cannot outlive the
-   * edit, so they never hang over a page the user has gone back to reading.
+   * Programmatic focus on a new tab keeps the omnibox ready for typing without
+   * opening this list. A pointer interaction or typed edit opts into suggestions.
    */
   const suggestions = useMemo(
-    () => (urlDraft === null ? [] : rankSuggestions(suggestionCorpus, urlDraft)),
-    [suggestionCorpus, urlDraft]
+    () =>
+      suggestionsVisible && urlDraft !== null ? rankSuggestions(suggestionCorpus, urlDraft) : [],
+    [suggestionCorpus, suggestionsVisible, urlDraft]
   )
 
   // The suggestion list is renderer UI that extends over the native page.
@@ -518,6 +594,7 @@ export function BrowserSession({
   const navigateTo = useCallback(
     (url: string) => {
       sendBrowserPanelAction('navigate', { url }, scopeId)
+      setSuggestionsVisible(false)
       setActiveSuggestion(null)
       urlInputRef.current?.blur()
     },
@@ -539,6 +616,8 @@ export function BrowserSession({
   }, [activeSuggestion, navigateTo, suggestions, urlDraft])
 
   const handleNewTab = useCallback(() => {
+    setSuggestionsVisible(false)
+    setActiveSuggestion(null)
     setUrlDraft('')
     sendBrowserPanelAction('new-tab', {}, scopeId)
     urlInputRef.current?.focus()
@@ -553,8 +632,19 @@ export function BrowserSession({
   const handleShowCredentials = useCallback(() => {
     const rect = fillButtonRef.current?.getBoundingClientRect()
     if (!rect) return
-    showBrowserCredentialChooser({ x: rect.left, y: rect.bottom })
-  }, [])
+    showBrowserCredentialChooser({ x: rect.left, y: rect.bottom }, scopeId)
+  }, [scopeId])
+
+  /** Swaps the native page for its captured frame before opening the emcn menu. */
+  const handleOpenCredentialMenu = useCallback(async () => {
+    const options = await loadBrowserFillOptions(scopeId)
+    if (options.length === 0) {
+      handleShowCredentials()
+      return
+    }
+    setFillOptions(options)
+    await requestOverlay('credentials', handleShowCredentials)
+  }, [handleShowCredentials, requestOverlay, scopeId])
 
   const handleShowNativeToolbarMenu = useCallback(() => {
     const rect = toolbarMenuButtonRef.current?.getBoundingClientRect()
@@ -564,6 +654,7 @@ export function BrowserSession({
 
   const handleSwitchTab = useCallback(
     (tabId: string) => {
+      setSuggestionsVisible(false)
       setUrlDraft(null)
       urlInputRef.current?.blur()
       sendBrowserPanelAction('switch-tab', { tabId }, scopeId)
@@ -573,6 +664,7 @@ export function BrowserSession({
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
+      setSuggestionsVisible(false)
       setUrlDraft(null)
       urlInputRef.current?.blur()
       sendBrowserPanelAction('close-tab', { tabId }, scopeId)
@@ -660,7 +752,10 @@ export function BrowserSession({
           <Popover
             open={suggestions.length > 0}
             onOpenChange={(open) => {
-              if (!open) setActiveSuggestion(null)
+              if (open) return
+              setSuggestionsVisible(false)
+              setActiveSuggestion(null)
+              urlInputRef.current?.blur()
             }}
             modal={false}
           >
@@ -681,7 +776,9 @@ export function BrowserSession({
                   aria-activedescendant={
                     activeSuggestion === null ? undefined : suggestionRowId(activeSuggestion)
                   }
+                  onPointerDown={() => setSuggestionsVisible(true)}
                   onChange={(event) => {
+                    setSuggestionsVisible(true)
                     setUrlDraft(event.target.value)
                     // The old highlight pointed at a row that may no longer be
                     // in the list, let alone in the same position.
@@ -691,7 +788,9 @@ export function BrowserSession({
                     setUrlDraft((current) => current ?? pageState?.url ?? '')
                     selectFocusedOmniboxOnNextFrame(event.currentTarget)
                   }}
-                  onBlur={() => {
+                  onBlur={(event) => {
+                    clearOmniboxSelection(event.currentTarget)
+                    setSuggestionsVisible(false)
                     setUrlDraft(null)
                     setActiveSuggestion(null)
                   }}
@@ -768,18 +867,40 @@ export function BrowserSession({
             <BrowserFindBar inputRef={findInputRef} onClose={closeFind} scopeId={scopeId} />
           )}
           {fillAvailable && (
-            <Button
-              ref={fillButtonRef}
-              type='button'
-              variant='ghost-secondary'
-              size='sm'
-              aria-label='Fill a saved password'
-              title='Fill a saved password'
-              className='size-[30px] flex-shrink-0 p-0'
-              onClick={handleShowCredentials}
+            <DropdownMenu
+              open={activeOverlay === 'credentials'}
+              modal={false}
+              onOpenChange={(open) => {
+                if (open) void handleOpenCredentialMenu()
+                else void closeOverlay('credentials')
+              }}
             >
-              <Key className='size-[14px]' />
-            </Button>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  ref={fillButtonRef}
+                  type='button'
+                  variant='ghost-secondary'
+                  size='sm'
+                  aria-label='Fill a saved password'
+                  title='Fill a saved password'
+                  className='size-[30px] flex-shrink-0 p-0'
+                >
+                  <Key className='size-[14px]' />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end' sideOffset={5} className='w-[240px]'>
+                {fillOptions.map((credential) => (
+                  <DropdownMenuItem
+                    key={credential.id}
+                    onSelect={() => void fillBrowserCredential(credential.id, scopeId)}
+                  >
+                    <span className='min-w-0 flex-1 truncate'>
+                      {credential.username || '(no username)'}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <BrowserDownloads
             scopeId={scopeId}
@@ -822,34 +943,23 @@ export function BrowserSession({
                 <DropdownMenuShortcut>⌘F</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() =>
+              <ResourceZoomMenuItems
+                onZoomIn={() =>
                   void closeOverlay('toolbar').then(() =>
                     sendBrowserPanelAction('zoom-in', {}, scopeId)
                   )
                 }
-              >
-                Zoom In
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() =>
+                onZoomOut={() =>
                   void closeOverlay('toolbar').then(() =>
                     sendBrowserPanelAction('zoom-out', {}, scopeId)
                   )
                 }
-              >
-                Zoom Out
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() =>
+                onActualSize={() =>
                   void closeOverlay('toolbar').then(() =>
                     sendBrowserPanelAction('zoom-reset', {}, scopeId)
                   )
                 }
-              >
-                Reset Zoom
-                <DropdownMenuShortcut>{panelSnapshot?.zoomPercent ?? 100}%</DropdownMenuShortcut>
-              </DropdownMenuItem>
+              />
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() =>
@@ -895,7 +1005,7 @@ export function BrowserSession({
         )}
         {!pageState && (
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-2'>
-            <Cursor className='size-[18px] text-[var(--text-tertiary)]' />
+            <Globe className='size-[18px] text-[var(--text-tertiary)]' />
             <p className='text-[var(--text-muted)] text-small'>
               Waiting for the browser session to start…
             </p>

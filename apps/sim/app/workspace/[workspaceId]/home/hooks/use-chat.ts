@@ -68,6 +68,7 @@ import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { canDisplayResource } from '@/lib/copilot/resources/availability'
 import {
   BROWSER_SESSION_RESOURCE_ID,
+  canonicalizeDesktopSessionResources,
   isEphemeralResource,
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
@@ -125,6 +126,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type {
   ChatMessage,
+  ChatMessageContext,
   ContentBlock,
   FileAttachmentForApi,
   GenericResourceData,
@@ -367,6 +369,28 @@ function isChatContext(value: unknown): value is ChatContext {
       return typeof value.skillId === 'string'
     case 'mcp':
       return typeof value.serverId === 'string'
+    case 'browser_tab':
+      return (
+        typeof value.tabId === 'string' &&
+        (value.selection === undefined ||
+          (isRecordLike(value.selection) &&
+            typeof value.selection.text === 'string' &&
+            (value.selection.url === undefined || typeof value.selection.url === 'string') &&
+            (value.selection.title === undefined || typeof value.selection.title === 'string')))
+      )
+    case 'terminal_tab':
+      return (
+        typeof value.terminalId === 'string' &&
+        (value.selection === undefined ||
+          (isRecordLike(value.selection) &&
+            typeof value.selection.text === 'string' &&
+            typeof value.selection.startLine === 'number' &&
+            typeof value.selection.endLine === 'number' &&
+            Number.isInteger(value.selection.startLine) &&
+            Number.isInteger(value.selection.endLine) &&
+            value.selection.startLine > 0 &&
+            value.selection.endLine >= value.selection.startLine))
+      )
     default:
       return false
   }
@@ -2116,7 +2140,12 @@ export function useChat(
 
     flushPendingResources(chatHistory.id)
 
-    const persistedResources = chatHistory.resources.filter((r) => r.id !== 'streaming-file')
+    // Older clients persisted each live browser page as a top-level resource
+    // during new-chat creation. Collapse those legacy rows into the one
+    // restorable Browser panel so page titles never appear beside Browser.
+    const persistedResources = canonicalizeDesktopSessionResources(
+      chatHistory.resources.filter((r) => r.id !== 'streaming-file')
+    )
     // A stored panel this client cannot open is kept out of the tab strip
     // rather than restored onto an error, but stays in the stored set so the
     // desktop app still gets it back.
@@ -3450,7 +3479,7 @@ export function useChat(
       if (queuedSendHandoff) {
         writeQueuedSendHandoff(queuedSendHandoff.chatId)
       }
-      const messageContexts = contexts?.map((c) => ({
+      const messageContexts: ChatMessageContext[] | undefined = contexts?.map((c) => ({
         kind: c.kind,
         label: c.label,
         ...('workflowId' in c && c.workflowId ? { workflowId: c.workflowId } : {}),
@@ -3475,6 +3504,11 @@ export function useChat(
               rowIds: c.rowIds,
               ...(c.columnIds ? { columnIds: c.columnIds } : {}),
             }
+          : {}),
+        ...(c.kind === 'browser_tab' ? { tabId: c.tabId } : {}),
+        ...(c.kind === 'terminal_tab' ? { terminalId: c.terminalId } : {}),
+        ...((c.kind === 'browser_tab' || c.kind === 'terminal_tab') && c.selection
+          ? { selection: { ...c.selection } }
           : {}),
       }))
       const cachedUserMsg: PersistedMessage = {

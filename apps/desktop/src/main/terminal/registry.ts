@@ -8,6 +8,7 @@ import type {
   TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import type { BrowserWindow, WebContents } from 'electron'
+import type { FocusedResourceShortcut } from '@/main/resource-shortcuts'
 import { TerminalService, type TerminalServiceOptions, type TerminalSink } from '@/main/terminal'
 
 /** Live terminal events tagged with the chat scope that owns their service. */
@@ -114,6 +115,12 @@ export class TerminalRegistry {
     return this.serviceFor(scope).getScrollback(terminalId)
   }
 
+  /** Clears only an existing live scope; a stale renderer must not create one. */
+  clearScrollback(scope: string, terminalId: string): boolean {
+    if (this.suspendedScopes.has(scope)) return false
+    return this.entries.get(scope)?.service.clearScrollback(terminalId) ?? false
+  }
+
   openTerminal(scope: string, cwd?: string): TerminalTabsState {
     return this.serviceFor(scope).openTerminal(cwd)
   }
@@ -197,22 +204,25 @@ export class TerminalRegistry {
     this.serviceFor(scope).setPanelFocused(focused, owner)
   }
 
-  /**
-   * Handles a menu accelerator, which has a window but no renderer chat scope.
-   */
-  closeFocusedTerminal(ownerWindow: BrowserWindow | null): boolean {
+  /** Handles a menu accelerator, which has a window but no renderer chat scope. */
+  handleFocusedShortcut(
+    ownerWindow: BrowserWindow | null,
+    shortcut: FocusedResourceShortcut
+  ): boolean {
     for (const entry of this.entries.values()) {
-      if (entry.service.closeFocusedTerminal(ownerWindow)) return true
-    }
-    return false
-  }
-
-  /**
-   * Handles a menu accelerator, which has a window but no renderer chat scope.
-   */
-  reopenClosedTerminal(ownerWindow: BrowserWindow | null): boolean {
-    for (const entry of this.entries.values()) {
-      if (entry.service.reopenClosedTerminal(ownerWindow)) return true
+      if (
+        entry.service.handleFocusedShortcut(shortcut, ownerWindow, (command, terminalId) => {
+          if (!ownerWindow || ownerWindow.webContents.isDestroyed()) return
+          ownerWindow.webContents.send(
+            'terminal:shortcut-command',
+            command,
+            entry.scope,
+            terminalId
+          )
+        })
+      ) {
+        return true
+      }
     }
     return false
   }

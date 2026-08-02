@@ -1,6 +1,8 @@
 import {
   type DesktopAppearanceTheme,
+  type DesktopZoomPercent,
   isDesktopAppearanceTheme,
+  isDesktopZoomPercent,
   isTerminalAppearanceTheme,
   isTerminalSelectedProfile,
   type TerminalAppearanceTheme,
@@ -15,6 +17,7 @@ export type ResolvedDesktopTheme = 'system' | 'light' | 'dark'
 
 export interface DesktopTerminalAppearance {
   theme: TerminalAppearanceTheme
+  defaultZoom: DesktopZoomPercent
   selectedProfile?: TerminalSelectedProfile
   profiles: TerminalThemeProfile[]
 }
@@ -51,9 +54,12 @@ export async function loadDesktopTerminalAppearance(): Promise<DesktopTerminalAp
       (!selectedId || selectedProfile?.id === selectedId)
         ? preferences.terminalTheme
         : 'app'
-    return { theme, ...(selectedProfile ? { selectedProfile } : {}), profiles }
+    const defaultZoom = isDesktopZoomPercent(preferences?.terminalDefaultZoom)
+      ? preferences.terminalDefaultZoom
+      : 100
+    return { theme, defaultZoom, ...(selectedProfile ? { selectedProfile } : {}), profiles }
   } catch {
-    return { theme: 'app', profiles: [] }
+    return { theme: 'app', defaultZoom: 100, profiles: [] }
   }
 }
 

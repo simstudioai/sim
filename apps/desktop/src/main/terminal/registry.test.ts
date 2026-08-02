@@ -77,6 +77,7 @@ vi.mock('@/main/terminal/session', () => ({
           active,
         }),
         takeReplaySnapshot: () => '',
+        clearScrollback: vi.fn(),
       }
     },
   },
@@ -347,5 +348,32 @@ describe('TerminalRegistry', () => {
     expect(terminals.suspendScope('chat-deleted')).toBe(false)
     expect(stubSessions[0].disposed).toBe(false)
     expect(terminals.peekTabs('chat-deleted').tabs).toHaveLength(1)
+  })
+
+  it('routes renderer shortcuts only to the focused terminal scope', () => {
+    const terminals = registry()
+    terminals.start('chat-A', { cols: 80, rows: 24 })
+    terminals.start('chat-B', { cols: 80, rows: 24 })
+    const listeners = new Map<string, (...args: unknown[]) => void>()
+    const send = vi.fn()
+    const contents = {
+      isDestroyed: () => false,
+      once: (event: string, callback: (...args: unknown[]) => void) =>
+        listeners.set(event, callback),
+      on: (event: string, callback: (...args: unknown[]) => void) => listeners.set(event, callback),
+      removeListener: (event: string) => listeners.delete(event),
+      send,
+    }
+    const ownerWindow = { webContents: contents }
+
+    terminals.setPanelFocused('chat-B', true, contents as never)
+
+    expect(terminals.handleFocusedShortcut(ownerWindow as never, 'reload-or-clear')).toBe(true)
+    expect(send).toHaveBeenCalledWith('terminal:shortcut-command', 'clear', 'chat-B', '1')
+    expect(terminals.handleFocusedShortcut(ownerWindow as never, 'zoom-in')).toBe(true)
+    expect(send).toHaveBeenLastCalledWith('terminal:shortcut-command', 'zoom-in', 'chat-B', '1')
+
+    terminals.setPanelFocused('chat-B', false, contents as never)
+    expect(terminals.handleFocusedShortcut(ownerWindow as never, 'reload-or-clear')).toBe(false)
   })
 })

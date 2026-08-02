@@ -59,6 +59,17 @@ const { mockCoordinator } = vi.hoisted(() => ({
     forget: vi.fn(),
     refreshAvailability: vi.fn(),
     showChooser: vi.fn(async () => true),
+    listFillOptions: vi.fn(async () => [
+      {
+        id: 'c1',
+        origin: 'https://example.com',
+        username: 'ada',
+        createdAt: '',
+        updatedAt: '',
+        source: 'chrome',
+      },
+    ]),
+    fillCredential: vi.fn(async () => true),
   },
 }))
 
@@ -229,6 +240,8 @@ describe('registerIpcHandlers', () => {
     vi.mocked(copyCredential).mockClear()
     mockCoordinator.noteFormState.mockClear()
     mockCoordinator.showChooser.mockClear()
+    mockCoordinator.listFillOptions.mockClear()
+    mockCoordinator.fillCredential.mockClear()
     deps = {
       appOrigin: () => APP,
       allowHttpLocalhost: () => false,
@@ -255,6 +268,7 @@ describe('registerIpcHandlers', () => {
         setPreference: vi.fn(),
         setAppearancePreference: vi.fn(),
         setBrowserDefaultZoom: vi.fn(),
+        setTerminalDefaultZoom: vi.fn(),
         selectTerminalProfile: vi.fn(),
         chooseBrowserDownloadDirectory: vi.fn(async () => ({
           notificationsEnabled: true,
@@ -429,6 +443,7 @@ describe('registerIpcHandlers', () => {
     const set = invoke.get('desktop:settings:set')
     const setAppearance = invoke.get('desktop:settings:set-appearance')
     const setBrowserDefaultZoom = invoke.get('desktop:settings:set-browser-default-zoom')
+    const setTerminalDefaultZoom = invoke.get('desktop:settings:set-terminal-default-zoom')
     const notify = invoke.get('desktop:settings:notify')
 
     expect(await get?.(evilEvent)).toBeNull()
@@ -460,6 +475,13 @@ describe('registerIpcHandlers', () => {
 
     await setBrowserDefaultZoom?.(appEvent, 125)
     expect(deps.settings.setBrowserDefaultZoom).toHaveBeenCalledWith(125)
+
+    await setTerminalDefaultZoom?.(evilEvent, 125)
+    await setTerminalDefaultZoom?.(appEvent, 123)
+    expect(deps.settings.setTerminalDefaultZoom).not.toHaveBeenCalled()
+
+    await setTerminalDefaultZoom?.(appEvent, 125)
+    expect(deps.settings.setTerminalDefaultZoom).toHaveBeenCalledWith(125)
 
     expect(await notify?.(evilEvent, { title: 'Done', body: 'Ready' })).toBe(false)
     expect(await notify?.(appEvent, { title: '', body: 'Ready' })).toBe(false)
@@ -1122,8 +1144,16 @@ describe('registerIpcHandlers', () => {
     expect(await invoke.get('browser-import:cookies')?.(activeAppEvent, 'Default')).toMatchObject({
       error: 'unknown',
     })
+    expect(
+      await invoke.get('browser-credentials:list-fill-options')?.(activeAppEvent, 'chat-a')
+    ).toEqual([])
+    expect(
+      await invoke.get('browser-credentials:fill-selected')?.(activeAppEvent, 'c1', 'chat-a')
+    ).toBe(false)
     expect(listChromeImportProfiles).not.toHaveBeenCalled()
     expect(importChromeCookies).not.toHaveBeenCalled()
+    expect(mockCoordinator.listFillOptions).not.toHaveBeenCalled()
+    expect(mockCoordinator.fillCredential).not.toHaveBeenCalled()
   })
 
   it('refuses a malformed profile id rather than importing the default profile', async () => {
@@ -1156,11 +1186,13 @@ describe('registerIpcHandlers', () => {
     expect(credentialChannels.sort()).toEqual([
       'browser-credentials:available',
       'browser-credentials:copy',
+      'browser-credentials:fill-selected',
       'browser-credentials:forget',
       'browser-credentials:forget-all',
       'browser-credentials:form-state',
       'browser-credentials:import',
       'browser-credentials:list',
+      'browser-credentials:list-fill-options',
       'browser-credentials:reveal',
       'browser-credentials:show-chooser',
     ])
@@ -1169,6 +1201,11 @@ describe('registerIpcHandlers', () => {
       Record<string, unknown>
     >
     expect(listed.every((credential) => !('password' in credential))).toBe(true)
+
+    const fillOptions = (await invoke.get('browser-credentials:list-fill-options')?.(
+      appEvent
+    )) as Array<Record<string, unknown>>
+    expect(fillOptions.every((credential) => !('password' in credential))).toBe(true)
   })
 
   it('requires origin and a live gesture before revealing or copying a password', async () => {
@@ -1211,7 +1248,11 @@ describe('registerIpcHandlers', () => {
   it('accepts login-form reports only from the built-in browseritself', async () => {
     const { on } = collectHandlers()
     const handler = on.get('browser-credentials:form-state')
-    const report = { origin: 'https://example.com', hasLoginForm: true }
+    const report = {
+      origin: 'https://example.com',
+      hasLoginForm: true,
+      hasPasswordField: false,
+    }
     const browserPageEvent = {
       senderFrame: { url: 'https://example.com/login' },
       sender: { isBrowserTab: true },
@@ -1238,6 +1279,11 @@ describe('registerIpcHandlers', () => {
     handler?.(browserPageEvent, 'nonsense')
     handler?.(browserPageEvent, { origin: 42, hasLoginForm: true })
     handler?.(browserPageEvent, { origin: 'https://x.test', hasLoginForm: 'yes' })
+    handler?.(browserPageEvent, {
+      origin: 'https://x.test',
+      hasLoginForm: true,
+      hasPasswordField: 'yes',
+    })
 
     expect(mockCoordinator.noteFormState).not.toHaveBeenCalled()
   })
@@ -1251,8 +1297,32 @@ describe('registerIpcHandlers', () => {
     expect(await handler?.(inactiveAppEvent, anchor)).toBe(false)
     expect(mockCoordinator.showChooser).not.toHaveBeenCalled()
 
-    expect(await handler?.(activeChooserEvent, anchor)).toBe(true)
-    expect(mockCoordinator.showChooser).toHaveBeenCalledWith(FAKE_WINDOW, anchor)
+    await invoke.get('browser-agent:activate-scope')?.(activeChooserEvent, 'chat-a')
+    expect(await handler?.(activeChooserEvent, anchor, 'chat-a')).toBe(true)
+    expect(mockCoordinator.showChooser).toHaveBeenCalledWith(FAKE_WINDOW, anchor, 'chat-a')
+  })
+
+  it('lists and fills only for the renderer-active browser scope', async () => {
+    const { invoke } = collectHandlers()
+    const list = invoke.get('browser-credentials:list-fill-options')
+    const fill = invoke.get('browser-credentials:fill-selected')
+
+    expect(await list?.(evilEvent, 'chat-a')).toEqual([])
+    expect(mockCoordinator.listFillOptions).not.toHaveBeenCalled()
+
+    await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-a')
+    expect(await list?.(activeAppEvent, 'chat-b')).toEqual([])
+    expect(await list?.(activeAppEvent, 'chat-a')).toEqual([
+      expect.objectContaining({ id: 'c1', username: 'ada' }),
+    ])
+    expect(mockCoordinator.listFillOptions).toHaveBeenCalledWith('chat-a')
+
+    expect(await fill?.(inactiveAppEvent, 'c1', 'chat-a')).toBe(false)
+    expect(await fill?.(activeAppEvent, 'not valid!', 'chat-a')).toBe(false)
+    expect(mockCoordinator.fillCredential).not.toHaveBeenCalled()
+
+    expect(await fill?.(activeAppEvent, 'c1', 'chat-a')).toBe(true)
+    expect(mockCoordinator.fillCredential).toHaveBeenCalledWith('c1', 'chat-a')
   })
 
   it('refuses a chooser anchor that is not a real point', async () => {
@@ -1306,6 +1376,18 @@ describe('registerIpcHandlers', () => {
 
     on.get('terminal:write')?.(appEvent, 't1', '\u001b[I', 'chat-b')
     expect(write).toHaveBeenCalledWith('chat-b', 't1', '\u001b[I')
+  })
+
+  it('clears retained terminal output only for an app-owned scope', async () => {
+    const { invoke } = collectHandlers()
+    const clearScrollback = vi.spyOn(deps.terminal, 'clearScrollback').mockReturnValue(true)
+    const handler = invoke.get('terminal:clear-scrollback')
+
+    await expect(handler?.(evilEvent, 't1', 'chat-b')).resolves.toBe(false)
+    await expect(handler?.(appEvent, 't1', 'chat-b')).resolves.toBe(true)
+
+    expect(clearScrollback).toHaveBeenCalledOnce()
+    expect(clearScrollback).toHaveBeenCalledWith('chat-b', 't1')
   })
 
   it('routes terminal scope events after activation and a valid provisional migration', async () => {

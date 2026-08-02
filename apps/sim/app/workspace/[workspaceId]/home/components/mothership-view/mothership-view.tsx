@@ -65,6 +65,7 @@ interface MothershipViewProps {
   resources: MothershipResource[]
   activeResourceId: string | null
   isCollapsed: boolean
+  useFixedResourceToggle: boolean
   className?: string
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
@@ -82,6 +83,7 @@ export const MothershipView = memo(
       resources,
       activeResourceId,
       isCollapsed,
+      useFixedResourceToggle,
       className,
       previewSession,
       isAgentResponding,
@@ -178,6 +180,7 @@ export const MothershipView = memo(
             chatId={chatId}
             resources={resources}
             activeId={active?.id ?? null}
+            useFixedResourceToggle={useFixedResourceToggle}
             actions={
               active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null
             }

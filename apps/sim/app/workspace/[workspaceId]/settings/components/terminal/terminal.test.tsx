@@ -3,6 +3,7 @@
  */
 import { act, type ReactNode } from 'react'
 import type {
+  DesktopZoomPercent,
   TerminalAppearanceTheme,
   TerminalSelectedProfile,
   TerminalThemeProfile,
@@ -20,6 +21,32 @@ const { mockBridge, mockRouter, mockSnapshot, mockToast } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  ChipSelect: ({
+    value,
+    onChange,
+    options,
+    disabled,
+    'aria-label': ariaLabel,
+  }: {
+    value?: string
+    onChange?: (value: string) => void
+    options?: Array<{ label: string; value: string }>
+    disabled?: boolean
+    'aria-label'?: string
+  }) => (
+    <select
+      aria-label={ariaLabel}
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange?.(event.currentTarget.value)}
+    >
+      {(options ?? []).map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
   Label: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Switch: ({ checked }: { checked: boolean }) => (
     <button type='button' role='switch' aria-checked={checked} />
@@ -141,7 +168,8 @@ const importedProfile = {
 
 function createBridge(
   theme: TerminalAppearanceTheme = 'app',
-  terminalProfile?: TerminalSelectedProfile
+  terminalProfile?: TerminalSelectedProfile,
+  terminalDefaultZoom: DesktopZoomPercent = 100
 ) {
   const preferences = {
     notificationsEnabled: true,
@@ -151,6 +179,7 @@ function createBridge(
     autoDownloadUpdates: true,
     terminalEnabled: true,
     terminalTheme: theme,
+    terminalDefaultZoom,
     ...(terminalProfile ? { terminalProfile } : {}),
   }
   return {
@@ -161,6 +190,10 @@ function createBridge(
       setTerminalTheme: vi.fn(async (next: TerminalAppearanceTheme) => ({
         ...preferences,
         terminalTheme: next,
+      })),
+      setTerminalDefaultZoom: vi.fn(async (zoom: DesktopZoomPercent) => ({
+        ...preferences,
+        terminalDefaultZoom: zoom,
       })),
     },
     terminalThemes: {
@@ -196,12 +229,16 @@ describe('Terminal settings', () => {
     vi.clearAllMocks()
   })
 
-  it('shows a persisted appearance selector', async () => {
+  it('consolidates terminal controls into the compact General section', async () => {
     await act(async () => {
       root.render(<Terminal />)
     })
 
-    expect(container.querySelector('section[aria-label="Appearance"]')).not.toBeNull()
+    expect(container.querySelector('section[aria-label="General"]')).not.toBeNull()
+    expect(container.querySelector('section[aria-label="Appearance"]')).toBeNull()
+    expect(container.querySelectorAll('section')).toHaveLength(1)
+    expect(container.textContent).not.toContain('Commands run on this machine')
+    expect(container.textContent).not.toContain('Choose Sim’s default palettes')
     const select = container.querySelector<HTMLSelectElement>('select[aria-label="Terminal theme"]')
     expect(select?.value).toBe('app')
     expect([...select!.options].map(({ text }) => text)).toEqual([
@@ -228,6 +265,29 @@ describe('Terminal settings', () => {
 
     expect(bridge.settings.setTerminalTheme).toHaveBeenCalledWith('light')
     expect(mockSnapshot).toHaveBeenCalledWith(expect.objectContaining({ terminalTheme: 'light' }))
+  })
+
+  it('persists the default terminal zoom with the shared zoom selector', async () => {
+    const bridge = createBridge('app', undefined, 100)
+    mockBridge.current = bridge
+    await act(async () => {
+      root.render(<Terminal />)
+    })
+
+    const select = container.querySelector<HTMLSelectElement>(
+      'select[aria-label="Terminal default zoom"]'
+    )
+    expect(select?.value).toBe('100')
+
+    await act(async () => {
+      if (!select) throw new Error('Missing terminal default zoom selector')
+      select.value = '125'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    expect(bridge.settings.setTerminalDefaultZoom).toHaveBeenCalledWith(125)
+    expect(mockSnapshot).toHaveBeenCalledWith(expect.objectContaining({ terminalDefaultZoom: 125 }))
+    expect(select.value).toBe('125')
   })
 
   it('selects a Terminal or iTerm2 profile directly from the theme picker', async () => {

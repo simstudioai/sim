@@ -15,6 +15,7 @@ import type {
   BrowserToolResponse,
 } from '@sim/browser-protocol'
 import type {
+  BrowserAddToChatPayload,
   BrowserChromeImportResult,
   BrowserCredentialConflictPolicy,
   BrowserCredentialMetadata,
@@ -25,7 +26,6 @@ import type {
   BrowserPasswordImportResult,
   BrowserSiteInfo,
   BrowserToolbarCommand,
-  BrowserZoomPercent,
   DesktopAppearanceTheme,
   DesktopCommand,
   DesktopNotificationPayload,
@@ -35,10 +35,12 @@ import type {
   DesktopPreferences,
   DesktopUpdateState,
   DesktopWindowState,
+  DesktopZoomPercent,
   LocalFilesystemRequest,
   LocalFilesystemResponse,
   SimDesktopApi,
   TerminalAppearanceTheme,
+  TerminalShortcutCommand,
   TerminalThemeProfile,
 } from '@sim/desktop-bridge'
 import {
@@ -53,6 +55,54 @@ import {
 import { contextBridge, ipcRenderer } from 'electron'
 
 const VERSION_ARG_PREFIX = '--sim-desktop-version='
+
+interface FillAvailabilitySubscription {
+  callback: (state: BrowserFillAvailability) => void
+  scopeId?: string
+}
+
+const fillAvailabilitySubscriptions = new Set<FillAvailabilitySubscription>()
+let latestFillAvailability: BrowserFillAvailability | null = null
+
+// Keep the latest scoped value in the always-live preload. Browser resources
+// mount after native scope activation, so a component-level listener alone can
+// miss the only availability edge that made the key affordance visible.
+ipcRenderer.on(
+  'browser-credentials:fill-availability',
+  (_event: unknown, state: BrowserFillAvailability) => {
+    if (!state || typeof state.available !== 'boolean') return
+    latestFillAvailability = state
+    for (const subscription of fillAvailabilitySubscriptions) {
+      if (
+        state.scopeId !== undefined &&
+        subscription.scopeId !== undefined &&
+        state.scopeId !== subscription.scopeId
+      ) {
+        continue
+      }
+      subscription.callback(state)
+    }
+  }
+)
+
+function subscribeFillAvailability(
+  callback: (state: BrowserFillAvailability) => void,
+  scopeId?: string
+): () => void {
+  const subscription: FillAvailabilitySubscription = { callback, scopeId }
+  fillAvailabilitySubscriptions.add(subscription)
+  if (
+    latestFillAvailability &&
+    (latestFillAvailability.scopeId === undefined ||
+      scopeId === undefined ||
+      latestFillAvailability.scopeId === scopeId)
+  ) {
+    callback(latestFillAvailability)
+  }
+  return () => {
+    fillAvailabilitySubscriptions.delete(subscription)
+  }
+}
 
 /**
  * The shell version injected by the main process as a preload argv flag (see
@@ -117,12 +167,14 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('desktop:settings:set', 'terminalEnabled', enabled),
     setBrowserTheme: (theme: DesktopAppearanceTheme): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-appearance', 'browserTheme', theme),
-    setBrowserDefaultZoom: (zoom: BrowserZoomPercent): Promise<DesktopPreferences> =>
+    setBrowserDefaultZoom: (zoom: DesktopZoomPercent): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-browser-default-zoom', zoom),
     chooseBrowserDownloadDirectory: (): Promise<DesktopPreferences | null> =>
       ipcRenderer.invoke('desktop:settings:choose-browser-download-directory'),
     setTerminalTheme: (theme: TerminalAppearanceTheme): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-appearance', 'terminalTheme', theme),
+    setTerminalDefaultZoom: (zoom: DesktopZoomPercent): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-terminal-default-zoom', zoom),
   },
   updates: {
     getState: (): Promise<DesktopUpdateState> => ipcRenderer.invoke('desktop:updates:get-state'),
@@ -265,6 +317,13 @@ const api: SimDesktopApi = {
         ipcRenderer.removeListener('browser-agent:toolbar-command', listener)
       }
     },
+    onAddToChat: (callback: (payload: BrowserAddToChatPayload) => void): (() => void) => {
+      const listener = (_event: unknown, payload: BrowserAddToChatPayload) => callback(payload)
+      ipcRenderer.on('browser-agent:add-to-chat', listener)
+      return () => {
+        ipcRenderer.removeListener('browser-agent:add-to-chat', listener)
+      }
+    },
     onAppearanceThemeChanged: (callback: (theme: DesktopAppearanceTheme) => void): (() => void) => {
       const listener = (_event: unknown, theme: DesktopAppearanceTheme) => callback(theme)
       ipcRenderer.on('browser-agent:appearance-theme-changed', listener)
@@ -321,10 +380,9 @@ const api: SimDesktopApi = {
         },
       }
     : {}),
-  // Note what is absent: there is no method that returns a password, and none
-  // that names a credential to fill. Filling is completed by a native menu in
-  // the main process, so the strongest thing a compromised renderer can do
-  // here is ask for that menu to open.
+  // Note what is absent: there is no fill path that returns a password. The
+  // renderer can name only an option from the latest active-page match list;
+  // the main process owns the short-lived authorization and the actual fill.
   browserCredentials: {
     isAvailable: (): Promise<boolean> => ipcRenderer.invoke('browser-credentials:available'),
     list: (): Promise<BrowserCredentialMetadata[]> =>
@@ -341,15 +399,13 @@ const api: SimDesktopApi = {
       policy?: BrowserCredentialConflictPolicy
     ): Promise<BrowserPasswordImportResult> =>
       ipcRenderer.invoke('browser-credentials:import', profileId, policy),
-    showChooser: (anchor: { x: number; y: number }): Promise<boolean> =>
-      ipcRenderer.invoke('browser-credentials:show-chooser', anchor),
-    onFillAvailability: (callback: (state: BrowserFillAvailability) => void): (() => void) => {
-      const listener = (_event: unknown, state: BrowserFillAvailability) => callback(state)
-      ipcRenderer.on('browser-credentials:fill-availability', listener)
-      return () => {
-        ipcRenderer.removeListener('browser-credentials:fill-availability', listener)
-      }
-    },
+    showChooser: (anchor: { x: number; y: number }, scopeId?: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-credentials:show-chooser', anchor, scopeId),
+    listFillOptions: (scopeId?: string): Promise<BrowserCredentialMetadata[]> =>
+      ipcRenderer.invoke('browser-credentials:list-fill-options', scopeId),
+    fill: (id: string, scopeId?: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-credentials:fill-selected', id, scopeId),
+    onFillAvailability: subscribeFillAvailability,
   },
   terminal: {
     start: async (options: TerminalStartOptions, scopeId?: string): Promise<TerminalTabsState> => {
@@ -421,6 +477,8 @@ const api: SimDesktopApi = {
     },
     getScrollback: (terminalId: string, scopeId?: string): Promise<string> =>
       ipcRenderer.invoke('terminal:scrollback', terminalId, scopeId),
+    clearScrollback: (terminalId: string, scopeId?: string): Promise<boolean> =>
+      ipcRenderer.invoke('terminal:clear-scrollback', terminalId, scopeId),
     setFocused: (focused: boolean, scopeId?: string): void => {
       ipcRenderer.send('terminal:focused', focused, scopeId)
     },
@@ -439,6 +497,27 @@ const api: SimDesktopApi = {
       ipcRenderer.on('terminal:command', listener)
       return () => {
         ipcRenderer.removeListener('terminal:command', listener)
+      }
+    },
+    onShortcutCommand: (
+      callback: (command: TerminalShortcutCommand, scopeId?: string, terminalId?: string) => void
+    ): (() => void) => {
+      const listener = (
+        _event: unknown,
+        command: TerminalShortcutCommand,
+        scopeId?: string,
+        terminalId?: string
+      ) => callback(command, scopeId, terminalId)
+      ipcRenderer.on('terminal:shortcut-command', listener)
+      return () => {
+        ipcRenderer.removeListener('terminal:shortcut-command', listener)
+      }
+    },
+    onDefaultZoomChanged: (callback: (zoom: DesktopZoomPercent) => void): (() => void) => {
+      const listener = (_event: unknown, zoom: DesktopZoomPercent) => callback(zoom)
+      ipcRenderer.on('terminal:default-zoom-changed', listener)
+      return () => {
+        ipcRenderer.removeListener('terminal:default-zoom-changed', listener)
       }
     },
     onScopeSuspended: (callback: (scopeId: string) => void): (() => void) => {

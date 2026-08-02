@@ -2,7 +2,6 @@ import type { ComponentType } from 'react'
 import {
   ClipboardList,
   Clock,
-  Cursor,
   Database,
   HexSimple,
   Key,
@@ -24,6 +23,7 @@ import {
   Wrench,
 } from '@sim/emcn/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
+import { Globe } from 'lucide-react'
 import { CodeIcon, McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
@@ -402,7 +402,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   },
   {
     label: 'Browser',
-    icon: Cursor,
+    icon: Globe,
     unified: {
       id: 'browser',
       description: 'Control the browser Chat drives and the data it keeps.',

@@ -68,6 +68,7 @@ describe('loadDesktopTerminalAppearance', () => {
           launchAtLogin: false,
           autoDownloadUpdates: true,
           terminalTheme: 'profile:iterm2:ocean',
+          terminalDefaultZoom: 125,
           terminalProfile: selectedProfile,
         })),
       },
@@ -80,8 +81,22 @@ describe('loadDesktopTerminalAppearance', () => {
 
     await expect(loadDesktopTerminalAppearance()).resolves.toEqual({
       theme: 'profile:iterm2:ocean',
+      defaultZoom: 125,
       selectedProfile,
       profiles: [{ ...selectedProfile, sourceLabel: 'iTerm2', isDefault: true }],
     })
+  })
+  it('falls back to actual size when the shell has no valid baseline', async () => {
+    mockBridge.current = {
+      settings: {
+        getPreferences: vi.fn(async () => ({
+          terminalDefaultZoom: 123,
+        })),
+      },
+    }
+
+    await expect(loadDesktopTerminalAppearance()).resolves.toMatchObject({ defaultZoom: 100 })
+    mockBridge.current = undefined
+    await expect(loadDesktopTerminalAppearance()).resolves.toMatchObject({ defaultZoom: 100 })
   })
 })

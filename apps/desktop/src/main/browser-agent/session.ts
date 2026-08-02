@@ -12,10 +12,11 @@ import type {
   BrowserTheme,
 } from '@sim/browser-protocol'
 import type {
+  BrowserAddToChatPayload,
   BrowserDownloadInfo,
   BrowserDownloadsState,
-  BrowserZoomPercent,
   DesktopAppearanceTheme,
+  DesktopZoomPercent,
 } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -36,7 +37,11 @@ import {
   shell,
   WebContentsView,
 } from 'electron'
-import { attachAgentContextMenu, BASE_ZOOM_FACTOR } from '@/main/browser-agent/context-menu'
+import {
+  attachAgentContextMenu,
+  BASE_ZOOM_FACTOR,
+  steppedZoomFactor,
+} from '@/main/browser-agent/context-menu'
 import type { BrowserCookieSignal } from '@/main/browser-agent/known-sessions'
 import {
   activatePanelScope,
@@ -57,6 +62,7 @@ import {
   subresourceNeedsResolution,
 } from '@/main/browser-agent/url-guard'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
+import { type FocusedResourceShortcut, zoomActionForShortcut } from '@/main/resource-shortcuts'
 
 const logger = createLogger('BrowserAgentSession')
 
@@ -113,8 +119,10 @@ export interface AgentSessionEvents {
   /**
    * A tab navigated, including in-page. Anything bound to the previous
    * document — notably a pending credential fill — must be invalidated.
+   * `sameDocument` lets the credential preload republish state that survived
+   * the navigation instead of waiting for a full reload.
    */
-  onTabNavigated: (contents: WebContents) => void
+  onTabNavigated: (contents: WebContents, sameDocument: boolean) => void
   /** A tab's WebContents is going away, so per-tab state can be dropped. */
   onTabClosed: (contents: WebContents) => void
   /** The active tab changed (new tab, switch, close). */
@@ -193,6 +201,7 @@ interface BrowserScopeState {
   focusedBrowserClearTimer: ReturnType<typeof setTimeout> | null
   automationActive: boolean
   findingTabId: string | null
+  findingRequestId: number | null
 }
 
 function createBrowserScopeState(): BrowserScopeState {
@@ -209,6 +218,7 @@ function createBrowserScopeState(): BrowserScopeState {
     focusedBrowserClearTimer: null,
     automationActive: false,
     findingTabId: null,
+    findingRequestId: null,
   }
 }
 
@@ -310,7 +320,7 @@ let legacyPinnedFallbackPersistedFor: string | null = null
 let browserTheme: BrowserTheme = 'system'
 let browserAppTheme: BrowserTheme = 'system'
 let browserAppearanceTheme: DesktopAppearanceTheme = 'app'
-let browserDefaultZoom: BrowserZoomPercent = 100
+let browserDefaultZoom: DesktopZoomPercent = 100
 const activeDownloadPaths = new Set<string>()
 type TrackedBrowserDownload = BrowserDownloadInfo & { savePath: string }
 type BrowserFinishedDownload = Omit<TrackedBrowserDownload, 'state'> & {
@@ -1059,6 +1069,26 @@ function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
   win.webContents.send('browser-agent:focus-omnibox', mode, getBrowserScopeId())
 }
 
+/** Hands one page selection to the exact app window and chat hosting its tab. */
+function addPageSelectionToChat(contents: WebContents, text: string): void {
+  if (!text.trim() || getBrowserScopeId() !== getActiveBrowserScopeId()) return
+  const tab = tabs.find((entry) => entry.view.webContents === contents)
+  const win = panelWindow()
+  if (!tab || !win || win.isDestroyed()) return
+
+  const currentUrl = contents.getURL()
+  const title = contents.getTitle().trim()
+  const payload: BrowserAddToChatPayload = {
+    text,
+    tabId: tab.id,
+    scopeId: getBrowserScopeId(),
+    ...(/^https?:\/\//i.test(currentUrl) ? { url: currentUrl } : {}),
+    ...(title ? { title } : {}),
+  }
+  win.webContents.focus()
+  win.webContents.send('browser-agent:add-to-chat', payload)
+}
+
 /**
  * Opens the renderer's find bar and moves keyboard focus to it. The bar is
  * docked browser chrome rather than an overlay on the page, so the native page
@@ -1090,7 +1120,10 @@ function stopFindOnTab(tabId: string | null): void {
   if (tab && !tab.view.webContents.isDestroyed()) {
     tab.view.webContents.stopFindInPage('clearSelection')
   }
-  if (currentScope.findingTabId === tabId) currentScope.findingTabId = null
+  if (currentScope.findingTabId === tabId) {
+    currentScope.findingTabId = null
+    currentScope.findingRequestId = null
+  }
 }
 
 /**
@@ -1127,9 +1160,11 @@ export function findInActiveTab(request: BrowserFindRequest): void {
     stopFindOnTab(currentScope.findingTabId)
   }
   currentScope.findingTabId = tab.id
-  tab.view.webContents.findInPage(request.query, {
+  currentScope.findingRequestId = tab.view.webContents.findInPage(request.query, {
     forward: request.forward,
-    findNext: request.findNext,
+    // Electron's name is misleading: true begins a new finding session, while
+    // false advances the session already running.
+    findNext: request.newSession,
   })
 }
 
@@ -1206,6 +1241,7 @@ function createTabView(): WebContentsView {
   registerAgentWebContents(contents)
   configureAgentPartition(contents.session)
   attachAgentContextMenu(contents, {
+    addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
     openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url)),
     defaultZoomFactor: getBrowserDefaultZoomFactor,
   })
@@ -1249,6 +1285,13 @@ function createTabView(): WebContentsView {
   contents.setWindowOpenHandler((details) => {
     withBrowserScope(scopeId, () => openTabWithUrl(details.url))
     return { action: 'deny' }
+  })
+
+  // A page can call window.resizeTo/window.moveTo, and Electron otherwise
+  // applies that request to the BrowserWindow which owns this view. Controlled
+  // pages must never be able to move or resize the Sim desktop window.
+  contents.on('content-bounds-updated', (event) => {
+    event.preventDefault()
   })
 
   // Pages may hold navigation hostage with beforeunload dialogs nobody can
@@ -1303,6 +1346,7 @@ function createTabView(): WebContentsView {
       if (
         !tab ||
         tab.id !== currentScope.findingTabId ||
+        result.requestId !== currentScope.findingRequestId ||
         getBrowserScopeId() !== getActiveBrowserScopeId()
       ) {
         return
@@ -1338,21 +1382,31 @@ function createTabView(): WebContentsView {
       persistBrowserSession()
     })
   )
-  contents.on('did-navigate-in-page', bindToBrowserScope(scopeId, persistBrowserSession))
+  contents.on(
+    'did-navigate-in-page',
+    bindToBrowserScope(scopeId, (_event, _url, isMainFrame) => {
+      if (isMainFrame) persistBrowserSession()
+    })
+  )
   // Both document loads and same-document route changes invalidate anything
   // bound to the previous page: a single-page app can replace a login form
   // with another site's UI without ever loading a new document.
   contents.on(
     'did-start-navigation',
-    bindToBrowserScope(scopeId, () => events?.onTabNavigated(contents))
+    bindToBrowserScope(scopeId, (details) => {
+      if (!details.isMainFrame) return
+      events?.onTabNavigated(contents, false)
+    })
   )
   contents.on(
     'did-navigate',
-    bindToBrowserScope(scopeId, () => events?.onTabNavigated(contents))
+    bindToBrowserScope(scopeId, () => events?.onTabNavigated(contents, false))
   )
   contents.on(
     'did-navigate-in-page',
-    bindToBrowserScope(scopeId, () => events?.onTabNavigated(contents))
+    bindToBrowserScope(scopeId, (_event, _url, isMainFrame) => {
+      if (isMainFrame) events?.onTabNavigated(contents, true)
+    })
   )
   contents.on(
     'destroyed',
@@ -1452,7 +1506,7 @@ export function getBrowserDefaultZoomFactor(): number {
 }
 
 /** Applies and retains the default zoom for every current and future tab. */
-export function setBrowserDefaultZoom(zoom: BrowserZoomPercent): void {
+export function setBrowserDefaultZoom(zoom: DesktopZoomPercent): void {
   browserDefaultZoom = zoom
   const factor = getBrowserDefaultZoomFactor()
   for (const scopeId of browserScopeStates.keys()) {
@@ -1845,38 +1899,58 @@ export function showTabContextMenu(tabId: string): void {
   ]).popup()
 }
 
-/**
- * Closes the active tab when the browser resource currently owns the user's
- * interaction context. Application menu accelerators run before a
- * WebContentsView's `before-input-event`, so Mod+W must route through this
- * function instead of Electron's global close role. Returns false when focus
- * belongs to the rest of the app.
- */
-export function closeFocusedTab(ownerWindow?: BrowserWindow | null): boolean {
-  if (!panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) return false
-  const focusedTab = tabs.find(
-    (tab) =>
-      !tab.view.webContents.isDestroyed() &&
-      (tab.id === currentScope.focusedBrowserTabId || tab.view.webContents.isFocused())
+/** The live page whose browser surface owns a menu accelerator. */
+function focusedTabForShortcut(ownerWindow?: BrowserWindow | null): AgentTab | null {
+  if (!panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) return null
+  return (
+    tabs.find(
+      (tab) =>
+        !tab.view.webContents.isDestroyed() &&
+        (tab.id === currentScope.focusedBrowserTabId || tab.view.webContents.isFocused())
+    ) ?? null
   )
-  if (!focusedTab) return false
-  closeTabFromUser(focusedTab.id)
-  return true
 }
 
-/** Reopens the latest closed tab only while the browser owns interaction focus. */
-export function reopenFocusedTab(ownerWindow?: BrowserWindow | null): boolean {
-  if (!panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) return false
-  const browserFocused = tabs.some(
-    (tab) =>
-      !tab.view.webContents.isDestroyed() &&
-      (tab.id === currentScope.focusedBrowserTabId || tab.view.webContents.isFocused())
-  )
-  if (!browserFocused) return false
+/**
+ * Claims a global resource shortcut only while this browser owns interaction.
+ *
+ * Returning true means the Browser claimed the keystroke, not necessarily
+ * that state changed. In particular, an empty reopen history is still handled
+ * here so Cmd-Shift-T cannot leak through to another resource.
+ */
+export function handleFocusedShortcut(
+  shortcut: FocusedResourceShortcut,
+  ownerWindow?: BrowserWindow | null
+): boolean {
+  const focusedTab = focusedTabForShortcut(ownerWindow)
+  if (!focusedTab) return false
 
-  const reopened = reopenClosedTab()
-  if (!reopened) return false
-  reopened.view.webContents.focus()
+  switch (shortcut) {
+    case 'new-tab':
+      addTab()
+      focusRendererOmnibox('clear')
+      return true
+    case 'reopen-closed-tab': {
+      const reopened = reopenClosedTab()
+      reopened?.view.webContents.focus()
+      return true
+    }
+    case 'close-tab':
+      closeTabFromUser(focusedTab.id)
+      return true
+    case 'reload-or-clear':
+      focusedTab.view.webContents.reload()
+      return true
+  }
+
+  const zoomAction = zoomActionForShortcut(shortcut)
+  if (!zoomAction) return true
+  const contents = focusedTab.view.webContents
+  const factor =
+    zoomAction === 'reset'
+      ? getBrowserDefaultZoomFactor()
+      : steppedZoomFactor(contents.getZoomFactor(), zoomAction === 'in' ? 1 : -1)
+  contents.setZoomFactor(factor)
   return true
 }
 
@@ -2057,7 +2131,7 @@ export function listTabs(): BrowserTabState[] {
       tabId: tab.id,
       title: tab.view.webContents.getTitle(),
       url: tab.pendingRestoreUrl || tab.view.webContents.getURL(),
-      loading: tab.view.webContents.isLoading(),
+      loading: tab.view.webContents.isLoadingMainFrame(),
       active: tab.id === currentScope.activeTabId,
       pinned: tab.pinned,
     }))

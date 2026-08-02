@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import type {
-  BrowserZoomPercent,
+  DesktopZoomPercent,
   TerminalAppearanceTheme,
   TerminalSelectedProfile,
 } from '@sim/desktop-bridge'
@@ -109,11 +109,13 @@ export interface DesktopSettings {
   /** Device-wide browser page appearance; `app` follows Sim. */
   browserTheme?: 'app' | 'light' | 'dark'
   /** Device-wide default zoom for built-in browser pages. */
-  browserDefaultZoom?: BrowserZoomPercent
+  browserDefaultZoom?: DesktopZoomPercent
   /** Folder where the built-in browser saves downloaded files. */
   browserDownloadDirectory?: string
   /** Device-wide terminal canvas appearance; `app` follows Sim. */
   terminalTheme?: TerminalAppearanceTheme
+  /** Device-wide default zoom for built-in terminal canvases. */
+  terminalDefaultZoom?: DesktopZoomPercent
   terminalProfile?: TerminalSelectedProfile
   /**
    * Where the agent terminal last was. A shell that always reopened in the

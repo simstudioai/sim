@@ -6,7 +6,10 @@ import { TerminalService } from '@/main/terminal'
 
 /** Stub sessions by terminal id, populated by the mock below. */
 const { stubSessions } = vi.hoisted(() => ({
-  stubSessions: new Map<string, { setBusy(busy: boolean): void; exit(): void }>(),
+  stubSessions: new Map<
+    string,
+    { setBusy(busy: boolean): void; exit(): void; clearScrollback(): void }
+  >(),
 }))
 
 /**
@@ -75,6 +78,7 @@ vi.mock('@/main/terminal/session', async () => {
             active,
           }),
           takeReplaySnapshot: () => '',
+          clearScrollback: vi.fn(),
           readScrollback: () => ({
             output: 'Do you want to proceed? [y/N]',
             cwd: state.cwd,
@@ -150,7 +154,16 @@ describe('closing terminals', () => {
   })
 })
 
-type OwnerWindow = Parameters<TerminalService['closeFocusedTerminal']>[0]
+type OwnerWindow = Parameters<TerminalService['handleFocusedShortcut']>[1]
+
+function runShortcut(
+  terminal: TerminalService,
+  shortcut: Parameters<TerminalService['handleFocusedShortcut']>[0],
+  ownerWindow: OwnerWindow,
+  emit = vi.fn()
+): boolean {
+  return terminal.handleFocusedShortcut(shortcut, ownerWindow, emit)
+}
 
 /**
  * A stand-in for one app window and the renderer inside it.
@@ -185,8 +198,8 @@ describe('focus-gated shortcuts', () => {
     terminal.start({ cols: 80, rows: 24 })
     const renderer = rendererStub()
 
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(false)
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
+    expect(runShortcut(terminal, 'close-tab', renderer.window)).toBe(false)
+    expect(runShortcut(terminal, 'reopen-closed-tab', renderer.window)).toBe(false)
   })
 
   it('closes the active terminal once the panel has focus', () => {
@@ -196,22 +209,46 @@ describe('focus-gated shortcuts', () => {
     const renderer = rendererStub()
     terminal.setPanelFocused(true, renderer.contents)
 
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(true)
+    expect(runShortcut(terminal, 'close-tab', renderer.window)).toBe(true)
     expect(terminal.getTabs().tabs).toHaveLength(1)
   })
 
-  it('reopens a closed terminal, and has nothing to reopen before one closes', () => {
+  it('opens tabs in main and sends canvas commands to the focused renderer', () => {
+    const terminal = service()
+    terminal.start({ cols: 80, rows: 24 })
+    const renderer = rendererStub()
+    const emit = vi.fn()
+    terminal.setPanelFocused(true, renderer.contents)
+
+    expect(runShortcut(terminal, 'new-tab', renderer.window, emit)).toBe(true)
+    expect(terminal.getTabs().tabs).toHaveLength(2)
+    expect(emit).not.toHaveBeenCalled()
+
+    expect(runShortcut(terminal, 'reload-or-clear', renderer.window, emit)).toBe(true)
+    expect(
+      stubSessions.get(terminal.getTabs().activeTerminalId as string)?.clearScrollback
+    ).toHaveBeenCalledOnce()
+    expect(emit).toHaveBeenLastCalledWith('clear', terminal.getTabs().activeTerminalId)
+    expect(runShortcut(terminal, 'zoom-in', renderer.window, emit)).toBe(true)
+    expect(emit).toHaveBeenLastCalledWith('zoom-in', terminal.getTabs().activeTerminalId)
+    expect(runShortcut(terminal, 'zoom-out', renderer.window, emit)).toBe(true)
+    expect(emit).toHaveBeenLastCalledWith('zoom-out', terminal.getTabs().activeTerminalId)
+    expect(runShortcut(terminal, 'zoom-reset', renderer.window, emit)).toBe(true)
+    expect(emit).toHaveBeenLastCalledWith('zoom-reset', terminal.getTabs().activeTerminalId)
+  })
+
+  it('claims reopen even with no history, then reopens the latest closed terminal', () => {
     const terminal = service()
     terminal.start({ cols: 80, rows: 24 })
     const renderer = rendererStub()
     terminal.setPanelFocused(true, renderer.contents)
 
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
+    expect(runShortcut(terminal, 'reopen-closed-tab', renderer.window)).toBe(true)
 
     const second = terminal.openTerminal()
     terminal.closeTerminal(second.activeTerminalId as string)
 
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(true)
+    expect(runShortcut(terminal, 'reopen-closed-tab', renderer.window)).toBe(true)
     expect(terminal.getTabs().tabs).toHaveLength(2)
   })
 
@@ -225,7 +262,7 @@ describe('focus-gated shortcuts', () => {
 
     terminal.closeTerminal(started.activeTerminalId as string)
 
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
+    expect(runShortcut(terminal, 'reopen-closed-tab', renderer.window)).toBe(true)
     expect(terminal.getTabs().tabs).toHaveLength(1)
   })
 
@@ -241,7 +278,7 @@ describe('focus-gated shortcuts', () => {
 
     renderer.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
 
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(false)
+    expect(runShortcut(terminal, 'close-tab', renderer.window)).toBe(false)
     expect(terminal.getTabs().tabs).toHaveLength(2)
   })
 
@@ -254,7 +291,7 @@ describe('focus-gated shortcuts', () => {
 
     renderer.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true })
 
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(true)
+    expect(runShortcut(terminal, 'close-tab', renderer.window)).toBe(true)
   })
 
   it('answers only the window whose renderer holds the claim', () => {
@@ -264,11 +301,11 @@ describe('focus-gated shortcuts', () => {
     const renderer = rendererStub()
     terminal.setPanelFocused(true, renderer.contents)
 
-    expect(terminal.closeFocusedTerminal(rendererStub().window)).toBe(false)
+    expect(runShortcut(terminal, 'close-tab', rendererStub().window)).toBe(false)
     // And null — no window at all cannot be the window a claim answers for.
-    expect(terminal.closeFocusedTerminal(null)).toBe(false)
+    expect(runShortcut(terminal, 'close-tab', null)).toBe(false)
 
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(true)
+    expect(runShortcut(terminal, 'close-tab', renderer.window)).toBe(true)
   })
 
   it('opens and reopens more than eight terminals', () => {
@@ -281,7 +318,7 @@ describe('focus-gated shortcuts', () => {
     terminal.closeTerminal(closed.activeTerminalId as string)
     while (terminal.getTabs().tabs.length < 12) terminal.openTerminal()
 
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(true)
+    expect(runShortcut(terminal, 'reopen-closed-tab', renderer.window)).toBe(true)
     const reopened = terminal.getTabs()
     expect(reopened.tabs).toHaveLength(13)
     expect(
@@ -303,7 +340,7 @@ describe('focus-gated shortcuts', () => {
 
     terminal.setPanelFocused(false, other.contents)
 
-    expect(terminal.closeFocusedTerminal(holder.window)).toBe(true)
+    expect(runShortcut(terminal, 'close-tab', holder.window)).toBe(true)
   })
 
   it('honours a blur from the renderer that does hold the claim', () => {
@@ -315,7 +352,7 @@ describe('focus-gated shortcuts', () => {
 
     terminal.setPanelFocused(false, holder.contents)
 
-    expect(terminal.closeFocusedTerminal(holder.window)).toBe(false)
+    expect(runShortcut(terminal, 'close-tab', holder.window)).toBe(false)
   })
 
   it('drops the focus claim when the whole service is disposed', () => {
@@ -329,7 +366,7 @@ describe('focus-gated shortcuts', () => {
     // rather than passing on the "no active terminal" arm.
     terminal.start({ cols: 80, rows: 24 })
 
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(false)
+    expect(runShortcut(terminal, 'close-tab', renderer.window)).toBe(false)
   })
 })
 

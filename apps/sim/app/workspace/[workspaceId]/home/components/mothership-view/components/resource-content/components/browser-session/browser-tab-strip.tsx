@@ -60,7 +60,7 @@ function BrowserTabIcon({ tab }: { tab: BrowserTabState }) {
       key={hostname}
       src={faviconUrl(hostname, 32)}
       alt=''
-      className='size-[12px] shrink-0 rounded-[3px]'
+      className='size-[12px] shrink-0 scale-[1.333] rounded-[3px]'
       onError={(event) => {
         event.currentTarget.style.display = 'none'
       }}

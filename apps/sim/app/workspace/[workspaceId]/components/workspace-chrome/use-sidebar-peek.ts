@@ -194,10 +194,24 @@ export function useSidebarPeek(enabled: boolean, dismissed = false): SidebarPeek
       // bottom edge and the card's top edge. Poppers are matched by DOM instead —
       // they can be anchored anywhere on screen.
       const target = event.target instanceof Element ? event.target : null
+      // Almost every move while the user is interacting with the sidebar lands on
+      // a descendant of one of these stable wrappers. Resolve that case without a
+      // layout read: measuring after each row's :hover style change forced the
+      // browser to synchronously flush styles and made the highlight trail the pointer.
+      if (
+        (target && cardRef.current?.contains(target)) ||
+        (target && triggerRef.current?.contains(target)) ||
+        target?.closest(POPPER_SELECTOR)
+      ) {
+        clearTimer(closeTimerRef)
+        return
+      }
+
+      // Geometry remains the fallback for the small gap between the title-bar
+      // trigger and card, and for a one-frame-stale target during subtree changes.
       const inside =
         containsPoint(cardRef.current, event.clientX, event.clientY, PEEK_GAP_TOLERANCE_PX) ||
-        containsPoint(triggerRef.current, event.clientX, event.clientY, PEEK_GAP_TOLERANCE_PX) ||
-        Boolean(target?.closest(POPPER_SELECTOR))
+        containsPoint(triggerRef.current, event.clientX, event.clientY, PEEK_GAP_TOLERANCE_PX)
       if (inside) {
         clearTimer(closeTimerRef)
         return

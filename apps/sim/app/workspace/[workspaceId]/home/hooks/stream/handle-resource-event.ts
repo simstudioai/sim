@@ -4,6 +4,7 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { canonicalizeDesktopSessionResource } from '@/lib/copilot/resources/types'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   hasRenderableFilePreviewContent,
@@ -44,10 +45,15 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   } = ctx.deps
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
-  const resource = payload.resource
+  const resource = canonicalizeDesktopSessionResource({
+    type: payload.resource.type as MothershipResourceType,
+    id: payload.resource.id,
+    title:
+      typeof payload.resource.title === 'string' ? payload.resource.title : payload.resource.id,
+  })
 
   if (payload.op === MothershipStreamV1ResourceOp.remove) {
-    const resourceType = resource.type as MothershipResourceType
+    const resourceType = resource.type
     removeResource(resourceType, resource.id)
     if (resourceType === 'workflow') {
       removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)
@@ -57,11 +63,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     return
   }
 
-  const nextResource = {
-    type: resource.type as MothershipResourceType,
-    id: resource.id,
-    title: typeof resource.title === 'string' ? resource.title : resource.id,
-  }
+  const nextResource = resource
   const completedPreviewHandoff =
     nextResource.type === 'file'
       ? completedPreviewResourceHandoffRef.current.get(nextResource.id)

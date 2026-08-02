@@ -46,6 +46,7 @@ function makeService() {
   const setTerminalEnabled = vi.fn()
   const setBrowserTheme = vi.fn()
   const setBrowserDefaultZoom = vi.fn()
+  const setTerminalDefaultZoom = vi.fn()
   const onBrowserThemeChanged = vi.fn()
   const chooseBrowserDownloadDirectory = vi.fn(async () => '/tmp/custom-downloads')
   const service = createDesktopSettingsService({
@@ -58,6 +59,7 @@ function makeService() {
     setTerminalEnabled,
     setBrowserTheme,
     setBrowserDefaultZoom,
+    setTerminalDefaultZoom,
     onBrowserThemeChanged,
     getDefaultBrowserDownloadDirectory: () => '/tmp/Downloads',
     chooseBrowserDownloadDirectory,
@@ -72,6 +74,7 @@ function makeService() {
     setTerminalEnabled,
     setBrowserTheme,
     setBrowserDefaultZoom,
+    setTerminalDefaultZoom,
     onBrowserThemeChanged,
     chooseBrowserDownloadDirectory,
     service,
@@ -170,6 +173,27 @@ describe('desktop settings service', () => {
     service.applySystemPreferences()
 
     expect(setBrowserDefaultZoom).toHaveBeenCalledWith(150)
+  })
+
+  it('persists and applies the default terminal zoom', () => {
+    const { config, service, setTerminalDefaultZoom } = makeService()
+
+    expect(service.getPreferences().terminalDefaultZoom).toBe(100)
+
+    const preferences = service.setTerminalDefaultZoom(125)
+
+    expect(config.get('terminalDefaultZoom')).toBe(125)
+    expect(setTerminalDefaultZoom).toHaveBeenCalledWith(125)
+    expect(preferences.terminalDefaultZoom).toBe(125)
+  })
+
+  it('applies the stored terminal zoom at startup', () => {
+    const { config, service, setTerminalDefaultZoom } = makeService()
+    config.set('terminalDefaultZoom', 150)
+
+    service.applySystemPreferences()
+
+    expect(setTerminalDefaultZoom).toHaveBeenCalledWith(150)
   })
 
   it('defaults browser downloads to Downloads and persists a chosen folder', async () => {

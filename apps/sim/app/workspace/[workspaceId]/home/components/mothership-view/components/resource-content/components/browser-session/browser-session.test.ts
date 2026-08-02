@@ -3,11 +3,36 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
+  browserSelectionContext,
+  clearOmniboxSelection,
   resolveUrlBarInput,
   selectFocusedOmniboxOnNextFrame,
   shouldRemoveBrowserResource,
   shouldReportBrowserBounds,
-} from './browser-session'
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
+
+describe('browserSelectionContext', () => {
+  it('keeps the exact selected text in a browser-tab mention', () => {
+    expect(
+      browserSelectionContext({
+        text: '  selected\ntext  ',
+        tabId: 'tab-1',
+        url: 'https://example.com/docs',
+        title: '  Example   docs  ',
+        scopeId: 'chat-1',
+      })
+    ).toEqual({
+      kind: 'browser_tab',
+      tabId: 'tab-1',
+      label: 'Browser',
+      selection: {
+        text: '  selected\ntext  ',
+        url: 'https://example.com/docs',
+        title: '  Example   docs  ',
+      },
+    })
+  })
+})
 
 describe('resolveUrlBarInput', () => {
   it('passes explicit schemes through untouched', () => {
@@ -66,6 +91,19 @@ describe('selectFocusedOmniboxOnNextFrame', () => {
 
     requestFrame.mockRestore()
     input.remove()
+  })
+})
+
+describe('clearOmniboxSelection', () => {
+  it('collapses a highlighted URL to a caret at the end of the selection', () => {
+    const input = document.createElement('input')
+    input.value = 'https://sim.ai'
+    input.setSelectionRange(0, input.value.length)
+
+    clearOmniboxSelection(input)
+
+    expect(input.selectionStart).toBe(input.value.length)
+    expect(input.selectionEnd).toBe(input.value.length)
   })
 })
 

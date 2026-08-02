@@ -28,6 +28,7 @@ import type {
   BrowserToolName,
 } from '@sim/browser-protocol'
 import type {
+  BrowserAddToChatPayload,
   BrowserCredentialMetadata,
   BrowserDownloadsState,
   BrowserSiteInfo,
@@ -308,6 +309,18 @@ export function onBrowserToolbarCommand(
   )
 }
 
+/** Routes selected page text only to the browser panel for its owning chat. */
+export function onBrowserAddToChat(
+  callback: (payload: BrowserAddToChatPayload) => void,
+  scopeId = activeScopeId
+): () => void {
+  return (
+    bridge()?.onAddToChat?.((payload) => {
+      if (payload.scopeId === scopeId) callback(payload)
+    }) ?? (() => {})
+  )
+}
+
 /** Reveals a completed download without opening the downloaded file. */
 export function showBrowserDownloadInFolder(
   downloadId: string,
@@ -321,11 +334,38 @@ export function showBrowserDownloadInFolder(
  * A bare boolean by design — the page learns nothing about which accounts
  * exist, and the chooser itself is a native shell surface.
  */
-export function onBrowserFillAvailability(callback: (available: boolean) => void): () => void {
+export function onBrowserFillAvailability(
+  callback: (available: boolean) => void,
+  scopeId = activeScopeId
+): () => void {
   return (
-    getDesktopBridge()?.browserCredentials?.onFillAvailability?.(({ available }) =>
-      callback(available)
+    getDesktopBridge()?.browserCredentials?.onFillAvailability?.(
+      ({ available, scopeId: eventScope }) => {
+        if (eventScope === undefined || eventScope === scopeId) callback(available)
+      },
+      scopeId
     ) ?? (() => {})
+  )
+}
+
+/** Saved accounts that the active scoped page can accept right now. */
+export function loadBrowserFillOptions(
+  scopeId = activeScopeId
+): Promise<BrowserCredentialMetadata[]> {
+  return (
+    getDesktopBridge()
+      ?.browserCredentials?.listFillOptions?.(scopeId)
+      .catch(() => []) ?? Promise.resolve([])
+  )
+}
+
+/** Fills one user-selected saved account into the active scoped page. */
+export function fillBrowserCredential(
+  credentialId: string,
+  scopeId = activeScopeId
+): Promise<boolean> {
+  return (
+    getDesktopBridge()?.browserCredentials?.fill?.(credentialId, scopeId) ?? Promise.resolve(false)
   )
 }
 
@@ -334,8 +374,11 @@ export function onBrowserFillAvailability(callback: (available: boolean) => void
  * Must be called straight from a click: the shell requires a live user gesture,
  * and it performs the fill itself rather than handing anything back here.
  */
-export function showBrowserCredentialChooser(anchor: { x: number; y: number }): void {
-  void getDesktopBridge()?.browserCredentials?.showChooser?.(anchor)
+export function showBrowserCredentialChooser(
+  anchor: { x: number; y: number },
+  scopeId = activeScopeId
+): void {
+  void getDesktopBridge()?.browserCredentials?.showChooser?.(anchor, scopeId)
 }
 
 /**

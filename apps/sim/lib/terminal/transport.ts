@@ -9,7 +9,11 @@
  * `terminalCapable` to the copilot — in a regular web browser there is no
  * bridge and the terminal tools are never offered.
  */
-import type { SimDesktopTerminalApi } from '@sim/desktop-bridge'
+import type {
+  DesktopZoomPercent,
+  SimDesktopTerminalApi,
+  TerminalShortcutCommand,
+} from '@sim/desktop-bridge'
 import type {
   TerminalOperation,
   TerminalStartOptions,
@@ -170,6 +174,28 @@ export function reportTerminalFocused(focused: boolean, scopeId = activeScopeId)
   bridge()?.setFocused?.(focused, scopeId)
 }
 
+/** Subscribes to menu shortcuts routed to one focused terminal scope. */
+export function onTerminalShortcutCommand(
+  callback: (command: TerminalShortcutCommand) => void,
+  scopeId = activeScopeId,
+  terminalId?: string
+): () => void {
+  return (
+    bridge()?.onShortcutCommand?.((command, eventScopeId, eventTerminalId) => {
+      if (eventScopeId !== undefined && eventScopeId !== scopeId) return
+      if (eventTerminalId !== undefined && eventTerminalId !== terminalId) return
+      callback(command)
+    }) ?? (() => {})
+  )
+}
+
+/** Subscribes to device-wide terminal default-zoom changes. */
+export function onTerminalDefaultZoomChanged(
+  callback: (zoom: DesktopZoomPercent) => void
+): () => void {
+  return bridge()?.onDefaultZoomChanged?.(callback) ?? (() => {})
+}
+
 /** Tells a waiting handoff that the user is done in the terminal. */
 export function finishTerminalHandoff(terminalId: string, scopeId = activeScopeId): void {
   bridge()?.finishHandoff?.(terminalId, scopeId)
@@ -180,6 +206,14 @@ export async function getTerminalScrollback(
   scopeId = activeScopeId
 ): Promise<string> {
   return (await bridge()?.getScrollback(terminalId, scopeId)) ?? ''
+}
+
+/** Forgets the desktop-owned replay buffer after the local xterm is cleared. */
+export async function clearTerminalScrollback(
+  terminalId: string,
+  scopeId = activeScopeId
+): Promise<boolean> {
+  return (await bridge()?.clearScrollback?.(terminalId, scopeId)) ?? false
 }
 
 export async function startTerminalSession(

@@ -20,6 +20,32 @@ function dispatchClaimable<T>(name: string, detail: T): boolean {
  */
 export const MOTHERSHIP_SEND_MESSAGE_EVENT = 'mothership-send-message'
 
+/** Custom-event name used to insert a structured context into the active chat input. */
+export const MOTHERSHIP_ADD_CONTEXT_EVENT = 'mothership-add-context'
+
+export interface MothershipAddContextDetail {
+  context: ChatContext
+}
+
+/**
+ * Inserts one structured context into the mounted Mothership composer.
+ *
+ * Producers dispatch through this helper so browser/terminal selections use
+ * the same context-token path as resources chosen from the input itself.
+ *
+ * @returns `true` when a mounted composer claimed the context.
+ */
+export function addMothershipContext(context: ChatContext): boolean {
+  const consumed = !window.dispatchEvent(
+    new CustomEvent<MothershipAddContextDetail>(MOTHERSHIP_ADD_CONTEXT_EVENT, {
+      detail: { context },
+      cancelable: true,
+    })
+  )
+  logger.info('Dispatched mothership context event', { kind: context.kind, consumed })
+  return consumed
+}
+
 export interface MothershipSendMessageDetail {
   message: string
   /** Structured contexts to attach — e.g. a `logs` mention tagging a run. */

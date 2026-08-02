@@ -1,12 +1,12 @@
 import { isAbsolute } from 'node:path'
 import {
-  type BrowserZoomPercent,
   type DesktopAppearanceTheme,
   type DesktopNotificationPayload,
   type DesktopPreferenceKey,
   type DesktopPreferences,
-  isBrowserZoomPercent,
+  type DesktopZoomPercent,
   isDesktopAppearanceTheme,
+  isDesktopZoomPercent,
   isTerminalAppearanceTheme,
   isTerminalSelectedProfile,
   type TerminalAppearanceTheme,
@@ -65,7 +65,8 @@ export interface DesktopSettingsService {
     key: DesktopAppearanceSettingKey,
     value: DesktopAppearanceTheme | TerminalAppearanceTheme
   ): DesktopPreferences
-  setBrowserDefaultZoom(zoom: BrowserZoomPercent): DesktopPreferences
+  setBrowserDefaultZoom(zoom: DesktopZoomPercent): DesktopPreferences
+  setTerminalDefaultZoom(zoom: DesktopZoomPercent): DesktopPreferences
   selectTerminalProfile(profile: TerminalThemeProfile): DesktopPreferences
   chooseBrowserDownloadDirectory(): Promise<DesktopPreferences | null>
   notify(payload: DesktopNotificationPayload): boolean
@@ -86,7 +87,9 @@ interface DesktopSettingsServiceDeps {
   /** Repaints current browser tabs when their persisted appearance changes. */
   setBrowserTheme: (theme: DesktopAppearanceTheme) => void
   /** Applies a new default zoom to current and future browser tabs. */
-  setBrowserDefaultZoom: (zoom: BrowserZoomPercent) => void
+  setBrowserDefaultZoom: (zoom: DesktopZoomPercent) => void
+  /** Applies a new default zoom to current and future terminal tabs. */
+  setTerminalDefaultZoom: (zoom: DesktopZoomPercent) => void
   /** Notifies renderer chrome after a user-initiated browser appearance change. */
   onBrowserThemeChanged?: (theme: DesktopAppearanceTheme) => void
   /** Returns the OS Downloads folder used when no custom location is stored. */
@@ -101,6 +104,7 @@ function readPreferences(
 ): DesktopPreferences {
   const browserTheme = config.get('browserTheme')
   const browserDefaultZoom = config.get('browserDefaultZoom')
+  const terminalDefaultZoom = config.get('terminalDefaultZoom')
   const storedBrowserDownloadDirectory = config.get('browserDownloadDirectory')
   const storedTerminalTheme = config.get('terminalTheme')
   const storedTerminalProfile = config.get('terminalProfile')
@@ -125,13 +129,14 @@ function readPreferences(
     browserEnabled: config.get('browserEnabled') ?? true,
     terminalEnabled: config.get('terminalEnabled') ?? true,
     browserTheme: isDesktopAppearanceTheme(browserTheme) ? browserTheme : 'app',
-    browserDefaultZoom: isBrowserZoomPercent(browserDefaultZoom) ? browserDefaultZoom : 100,
+    browserDefaultZoom: isDesktopZoomPercent(browserDefaultZoom) ? browserDefaultZoom : 100,
     browserDownloadDirectory:
       typeof storedBrowserDownloadDirectory === 'string' &&
       isAbsolute(storedBrowserDownloadDirectory)
         ? storedBrowserDownloadDirectory
         : defaultBrowserDownloadDirectory,
     terminalTheme: isTerminalAppearanceTheme(terminalTheme) ? terminalTheme : 'app',
+    terminalDefaultZoom: isDesktopZoomPercent(terminalDefaultZoom) ? terminalDefaultZoom : 100,
     ...(terminalProfile ? { terminalProfile } : {}),
   }
 }
@@ -210,10 +215,17 @@ export function createDesktopSettingsService(
       return read()
     },
     setBrowserDefaultZoom(zoom) {
-      if (!isBrowserZoomPercent(zoom)) return read()
+      if (!isDesktopZoomPercent(zoom)) return read()
       deps.config.set('browserDefaultZoom', zoom)
       deps.config.flush()
       deps.setBrowserDefaultZoom(zoom)
+      return read()
+    },
+    setTerminalDefaultZoom(zoom) {
+      if (!isDesktopZoomPercent(zoom)) return read()
+      deps.config.set('terminalDefaultZoom', zoom)
+      deps.config.flush()
+      deps.setTerminalDefaultZoom(zoom)
       return read()
     },
     selectTerminalProfile(profile) {
@@ -264,6 +276,7 @@ export function createDesktopSettingsService(
       deps.setAutoDownloadUpdates(preferences.autoDownloadUpdates)
       deps.setBrowserTheme(preferences.browserTheme ?? 'app')
       deps.setBrowserDefaultZoom(preferences.browserDefaultZoom ?? 100)
+      deps.setTerminalDefaultZoom(preferences.terminalDefaultZoom ?? 100)
     },
   }
 }

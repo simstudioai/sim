@@ -11,7 +11,13 @@ import {
 const SNAPSHOT_DECODE_TIMEOUT_MS = 3_000
 const SNAPSHOT_PAINT_TIMEOUT_MS = 1_000
 
-export type BrowserPanelOverlay = 'downloads' | 'resources' | 'suggestions' | 'tab' | 'toolbar'
+export type BrowserPanelOverlay =
+  | 'credentials'
+  | 'downloads'
+  | 'resources'
+  | 'suggestions'
+  | 'tab'
+  | 'toolbar'
 
 export interface BrowserPanelOverlayController {
   requestOverlay: (overlay: BrowserPanelOverlay, fallback: () => void) => Promise<void>

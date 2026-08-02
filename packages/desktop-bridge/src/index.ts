@@ -91,6 +91,11 @@ export interface SimDesktopTerminalApi {
    */
   getScrollback(terminalId: string, scopeId?: string): Promise<string>
   /**
+   * Forget retained output for one terminal. Optional so a newer renderer can
+   * still clear its local xterm when hosted by an older desktop shell.
+   */
+  clearScrollback?(terminalId: string, scopeId?: string): Promise<boolean>
+  /**
    * Reports whether the terminal panel owns keyboard focus, so global menu
    * accelerators can tell a Cmd-W meant for a terminal from one meant for the
    * window.
@@ -104,6 +109,12 @@ export interface SimDesktopTerminalApi {
   onTabs?(callback: (state: TerminalTabsState) => void): () => void
   /** Subscribe to command start/end, used for agent attribution in the panel. */
   onCommand?(callback: (event: TerminalCommandEvent) => void): () => void
+  /** Subscribe to focus-routed terminal commands from desktop menu accelerators. */
+  onShortcutCommand?(
+    callback: (command: TerminalShortcutCommand, scopeId?: string, terminalId?: string) => void
+  ): () => void
+  /** Subscribe when the device-wide terminal zoom baseline changes. */
+  onDefaultZoomChanged?(callback: (zoom: DesktopZoomPercent) => void): () => void
   /** Subscribe when a task's live PTYs are stopped but its restart descriptor is retained. */
   onScopeSuspended?(callback: (scopeId: string) => void): () => void
 }
@@ -167,7 +178,7 @@ export interface SimDesktopBrowserAgentApi {
   /** Capture the current page before opening renderer-owned UI above it. */
   capturePanelSnapshot?(scopeId?: string): Promise<BrowserPanelSnapshot | null>
   /** Hide/reveal the native page only after its replacement frame has painted. */
-  setPanelOccluded?(occluded: boolean, scopeId?: string): Promise<boolean> | undefined
+  setPanelOccluded?(occluded: boolean, scopeId?: string): Promise<boolean> | ReturnType<() => void>
   /**
    * Report whether renderer-owned browser chrome currently owns the user's
    * interaction context. Optional for compatibility with older desktop builds.
@@ -242,6 +253,8 @@ export interface SimDesktopBrowserAgentApi {
   onToolbarCommand?(
     callback: (command: BrowserToolbarCommand, scopeId?: string) => void
   ): () => void
+  /** Subscribe when selected page text is attached to the owning chat input. */
+  onAddToChat?(callback: (payload: BrowserAddToChatPayload) => void): () => void
   /** Subscribe when the device-level browser appearance preference changes. */
   onAppearanceThemeChanged?(callback: (theme: DesktopAppearanceTheme) => void): () => void
   /**
@@ -278,6 +291,16 @@ export interface BrowserDownloadsState {
 
 /** Renderer navigation requested by the native browser toolbar menu. */
 export type BrowserToolbarCommand = 'browser-settings' | 'passwords' | 'import' | 'clear-data'
+
+/** Selected text and live page identity handed from the native browser to Sim. */
+export interface BrowserAddToChatPayload {
+  text: string
+  tabId: string
+  /** Current public web address. Omitted for non-http(s) pages. */
+  url?: string
+  title?: string
+  scopeId: string
+}
 
 /**
  * One browser profile found on this device.
@@ -437,12 +460,15 @@ export interface BrowserCredentialMetadata {
  * Whether the active browser tab is showing a login form that Sim holds a
  * credential for — just enough to decide whether to offer the fill affordance.
  *
- * Intentionally a bare boolean. The renderer learns nothing about which
- * accounts exist, and the chooser itself is a native main-process surface, so
- * no credential identifier crosses this bridge on the fill path at all.
+ * Intentionally carries only the boolean and its opaque chat scope. Matching
+ * accounts are requested separately and only in response to opening the
+ * chooser, while password plaintext never crosses this bridge on the fill
+ * path.
  */
 export interface BrowserFillAvailability {
   available: boolean
+  /** Chat scope owning the page whose availability was measured. */
+  scopeId?: string
 }
 
 /**
@@ -452,9 +478,8 @@ export interface BrowserFillAvailability {
  * Optional so newer web deployments keep working against shells that lack it,
  * and absent where secure storage is unavailable — there is no plaintext
  * fallback. The agent has no path to any of it: management calls require the
- * Sim app origin, filling additionally requires a real user gesture and is
- * completed by a native menu the renderer cannot drive, and no browser tool
- * maps to these channels.
+ * Sim app origin, filling additionally requires a real user gesture, and no
+ * browser tool maps to these channels.
  */
 export interface SimDesktopBrowserCredentialsApi {
   /** False when OS-backed encryption is unavailable and passwords are disabled. */
@@ -496,9 +521,22 @@ export interface SimDesktopBrowserCredentialsApi {
    * window. Requires a user gesture. The shell performs the fill itself when
    * the user picks an account — no password or credential id comes back here.
    */
-  showChooser(anchor: { x: number; y: number }): Promise<boolean>
-  /** Subscribe to whether the active tab can be filled. */
-  onFillAvailability(callback: (state: BrowserFillAvailability) => void): () => void
+  showChooser(anchor: { x: number; y: number }, scopeId?: string): Promise<boolean>
+  /**
+   * Password-free options for the active scoped login form. Optional for
+   * compatibility with shells that only provide the native chooser.
+   */
+  listFillOptions?(scopeId?: string): Promise<BrowserCredentialMetadata[]>
+  /**
+   * Fill one option from the latest scoped list. Requires a live user gesture;
+   * the password stays in the shell and resolves only whether a fill occurred.
+   */
+  fill?(id: string, scopeId?: string): Promise<boolean>
+  /** Subscribe to whether the active tab can be filled. Replays the latest scoped value. */
+  onFillAvailability(
+    callback: (state: BrowserFillAvailability) => void,
+    scopeId?: string
+  ): () => void
 }
 
 export interface LocalFilesystemMount {
@@ -750,21 +788,47 @@ export interface DesktopPreferences {
    */
   browserTheme?: DesktopAppearanceTheme
   /** Default page zoom used by current and future built-in browser tabs. */
-  browserDefaultZoom?: BrowserZoomPercent
+  browserDefaultZoom?: DesktopZoomPercent
   /** Folder where the built-in browser saves downloads on this device. */
   browserDownloadDirectory?: string
   /** Appearance used by terminal canvases on this device. */
   terminalTheme?: TerminalAppearanceTheme
+  /** Default canvas zoom used by current and future built-in terminal tabs. */
+  terminalDefaultZoom?: DesktopZoomPercent
   /** Cached colors for the selected Terminal.app or iTerm2 profile. */
   terminalProfile?: TerminalSelectedProfile
 }
 
-export const BROWSER_ZOOM_PERCENTS = [67, 75, 80, 90, 100, 110, 125, 150, 175, 200] as const
+export const DESKTOP_ZOOM_PERCENTS = [67, 75, 80, 90, 100, 110, 125, 150, 175, 200] as const
 
-export type BrowserZoomPercent = (typeof BROWSER_ZOOM_PERCENTS)[number]
+export type DesktopZoomPercent = (typeof DESKTOP_ZOOM_PERCENTS)[number]
 
-export function isBrowserZoomPercent(value: unknown): value is BrowserZoomPercent {
-  return typeof value === 'number' && (BROWSER_ZOOM_PERCENTS as readonly number[]).includes(value)
+export function isDesktopZoomPercent(value: unknown): value is DesktopZoomPercent {
+  return typeof value === 'number' && (DESKTOP_ZOOM_PERCENTS as readonly number[]).includes(value)
+}
+
+export type DesktopZoomAction = 'in' | 'out' | 'reset'
+
+export type TerminalShortcutCommand = 'clear' | `zoom-${DesktopZoomAction}`
+
+const DESKTOP_ZOOM_STEP_RATIO = 1.1
+
+/**
+ * Resolves a focus-routed zoom command on any numeric scale. Browser pages
+ * pass Chromium factors, while terminals pass percentage scales; sharing the
+ * ladder keeps their shortcuts consistent without coupling either surface to
+ * the other's units.
+ */
+export function resolveDesktopZoom(
+  current: number,
+  action: DesktopZoomAction,
+  defaultZoom: number,
+  bounds: Readonly<{ min: number; max: number }>
+): number {
+  if (action === 'reset') return defaultZoom
+  const base = Number.isFinite(current) && current > 0 ? current : defaultZoom
+  const next = action === 'in' ? base * DESKTOP_ZOOM_STEP_RATIO : base / DESKTOP_ZOOM_STEP_RATIO
+  return Math.min(bounds.max, Math.max(bounds.min, next))
 }
 
 export const DESKTOP_APPEARANCE_THEMES = ['app', 'light', 'dark'] as const
@@ -818,6 +882,7 @@ export type DesktopPreferenceKey = Exclude<
   | 'browserDefaultZoom'
   | 'browserDownloadDirectory'
   | 'terminalTheme'
+  | 'terminalDefaultZoom'
   | 'terminalProfile'
 >
 
@@ -861,11 +926,13 @@ export interface SimDesktopSettingsApi {
    */
   setBrowserTheme?(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
   /** Sets the default page zoom for current and future browser tabs. */
-  setBrowserDefaultZoom?(zoom: BrowserZoomPercent): Promise<DesktopPreferences>
+  setBrowserDefaultZoom?(zoom: DesktopZoomPercent): Promise<DesktopPreferences>
   /** Shows a native folder picker and persists the selected browser download location. */
   chooseBrowserDownloadDirectory?(): Promise<DesktopPreferences | null>
   /** Overrides the terminal canvas appearance. Optional, like {@link setBrowserTheme}. */
   setTerminalTheme?(theme: TerminalAppearanceTheme): Promise<DesktopPreferences>
+  /** Sets the default canvas zoom for current and future terminal tabs. */
+  setTerminalDefaultZoom?(zoom: DesktopZoomPercent): Promise<DesktopPreferences>
 }
 
 export interface SimDesktopTerminalThemesApi {
