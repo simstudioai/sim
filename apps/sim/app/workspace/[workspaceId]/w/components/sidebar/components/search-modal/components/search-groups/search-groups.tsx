@@ -17,6 +17,7 @@ import {
 import type {
   ActionItem,
   FileItem,
+  FolderedItem,
   IntegrationSearchItem,
   PageItem,
   TaskItem,
@@ -343,8 +344,8 @@ function createIconGroup(
     items,
     onSelect,
   }: {
-    items: TaskItem[]
-    onSelect: (item: TaskItem) => void
+    items: FolderedItem[]
+    onSelect: (item: FolderedItem) => void
   }) {
     if (items.length === 0) return null
     return (
@@ -352,10 +353,11 @@ function createIconGroup(
         {items.map((item) => (
           <MemoizedIconItem
             key={item.id}
-            value={`${item.name} ${prefix}-${item.id}`}
+            value={`${item.name} ${item.folderPath?.join(' / ') ?? ''} ${prefix}-${item.id}`}
             onSelect={() => onSelect(item)}
             name={item.name}
             icon={icon}
+            folderPath={item.folderPath}
           />
         ))}
       </Command.Group>

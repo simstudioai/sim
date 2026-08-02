@@ -44,7 +44,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
-import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
+import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -111,6 +111,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
+import type { WorkflowFolder } from '@/stores/folders/types'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
@@ -124,6 +125,8 @@ const logger = createLogger('Sidebar')
  * invalidate every memo downstream of it.
  */
 const EMPTY_CHATS: MothershipChatMetadata[] = []
+/** Stable identity while a folder list loads, so the search-row memos don't churn. */
+const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
 
 const SLACK_COMMUNITY_URL =
   'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA'
@@ -538,7 +541,17 @@ export const Sidebar = memo(function Sidebar({
   })
 
   useFolders(workspaceId)
-  const { data: folderMap = {} } = useFolderMap(workspaceId)
+  const { data: folderMap = EMPTY_FOLDER_MAP } = useFolderMap(workspaceId)
+  // Tables and knowledge bases keep their folders in the generic folder tree,
+  // keyed by resource type, so each needs its own map to resolve a path.
+  const { data: tableFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
+    permissionConfig.hideTablesTab ? undefined : workspaceId,
+    'table'
+  )
+  const { data: knowledgeBaseFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
+    permissionConfig.hideKnowledgeBaseTab ? undefined : workspaceId,
+    'knowledge_base'
+  )
   const updateWorkflowMutation = useUpdateWorkflow()
 
   const folderTree = useMemo(
@@ -712,18 +725,13 @@ export const Sidebar = memo(function Sidebar({
 
   const searchModalWorkflows = useMemo(
     () =>
-      regularWorkflows.map((workflow) => {
-        const folderPath = workflow.folderId
-          ? getFolderPath(folderMap, workflow.folderId).map((folder) => folder.name)
-          : []
-        return {
-          id: workflow.id,
-          name: workflow.name,
-          href: `/workspace/${workspaceId}/w/${workflow.id}`,
-          folderPath: folderPath.length > 0 ? folderPath : undefined,
-          isCurrent: workflow.id === workflowId,
-        }
-      }),
+      regularWorkflows.map((workflow) => ({
+        id: workflow.id,
+        name: workflow.name,
+        href: `/workspace/${workspaceId}/w/${workflow.id}`,
+        folderPath: getFolderPathNames(folderMap, workflow.folderId),
+        isCurrent: workflow.id === workflowId,
+      })),
     [regularWorkflows, folderMap, workspaceId, workflowId]
   )
 
@@ -872,8 +880,9 @@ export const Sidebar = memo(function Sidebar({
             id: t.id,
             name: t.name,
             href: `/workspace/${workspaceId}/tables/${t.id}`,
+            folderPath: getFolderPathNames(tableFolderMap, t.folderId),
           })),
-    [fetchedTables, workspaceId, permissionConfig.hideTablesTab]
+    [fetchedTables, tableFolderMap, workspaceId, permissionConfig.hideTablesTab]
   )
 
   const searchModalFiles = useMemo(
@@ -897,8 +906,14 @@ export const Sidebar = memo(function Sidebar({
             id: kb.id,
             name: kb.name,
             href: `/workspace/${workspaceId}/knowledge/${kb.id}`,
+            folderPath: getFolderPathNames(knowledgeBaseFolderMap, kb.folderId),
           })),
-    [fetchedKnowledgeBases, workspaceId, permissionConfig.hideKnowledgeBaseTab]
+    [
+      fetchedKnowledgeBases,
+      knowledgeBaseFolderMap,
+      workspaceId,
+      permissionConfig.hideKnowledgeBaseTab,
+    ]
   )
 
   const chatIds = useMemo(() => chats.map((t) => t.id), [chats])
