@@ -28,6 +28,7 @@ import { generateRestoreName, restoreWithUniqueName } from '@/lib/core/utils/res
 import {
   createEmptyLayout,
   createInterfaceModule,
+  MAX_INTERFACE_DESCRIPTION_LENGTH,
   MAX_INTERFACE_NAME_LENGTH,
 } from '@/lib/interfaces/constants'
 import { moveModuleToCell, overlappingModules } from '@/lib/interfaces/geometry'
@@ -154,6 +155,25 @@ function assertValidName(name: string): void {
 }
 
 /**
+ * Bounds a description here rather than only at the HTTP contract.
+ *
+ * The contract is not the only writer: the copilot's `user_interface` tool calls
+ * this service directly, so a cap that lives solely in the boundary schema is a
+ * cap the tool does not have. An unbounded description is persisted, then
+ * re-serialized into every subsequent `get`/`list` response and into the
+ * copilot's VFS metadata on every turn — so it is recurring context cost, not
+ * just row bloat. Mirrors {@link assertValidName}, which was already here for
+ * exactly this reason.
+ */
+function assertValidDescription(description: string | null): void {
+  if (description !== null && description.length > MAX_INTERFACE_DESCRIPTION_LENGTH) {
+    throw new Error(
+      `Interface description exceeds maximum length (${MAX_INTERFACE_DESCRIPTION_LENGTH} characters)`
+    )
+  }
+}
+
+/**
  * Lists interfaces in a workspace, ordered by creation time.
  */
 export async function listInterfaces(
@@ -210,6 +230,7 @@ export async function getInterfaceById(
  */
 export async function createInterface(data: CreateInterfaceData): Promise<InterfaceDefinition> {
   assertValidName(data.name)
+  assertValidDescription(data.description ?? null)
 
   const now = new Date()
   try {
@@ -276,6 +297,8 @@ export async function updateInterfaceDescription(
   id: string,
   description: string | null
 ): Promise<InterfaceDefinition> {
+  assertValidDescription(description)
+
   const [row] = await db
     .update(workspaceInterface)
     .set({ description, updatedAt: new Date() })
