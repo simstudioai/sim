@@ -127,7 +127,7 @@ export const quickbooksReadMasterDataTool: ToolConfig<
 > = {
   id: 'quickbooks_read_master_data',
   name: 'QuickBooks Read Master Data',
-  description: 'List or read one account, customer, vendor, item, or employee',
+  description: 'List or read one account, class, customer, department, employee, item, or vendor',
   version: '1.0.0',
   params: {
     accessToken: {
@@ -146,7 +146,8 @@ export const quickbooksReadMasterDataTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Master-data entity to read: account, customer, vendor, item, or employee',
+      description:
+        'Master-data entity to read: account, class, customer, department, employee, item, or vendor',
     },
     readMode: {
       type: 'string',

@@ -52,6 +52,34 @@ export interface QuickBooksAccount {
   [key: string]: unknown
 }
 
+export interface QuickBooksClass {
+  Id: string
+  SyncToken?: string
+  Name?: string
+  SubClass?: boolean
+  ParentRef?: QuickBooksReference
+  FullyQualifiedName?: string
+  Active?: boolean
+  MetaData?: QuickBooksMetaData
+  domain?: string
+  sparse?: boolean
+  [key: string]: unknown
+}
+
+export interface QuickBooksDepartment {
+  Id: string
+  SyncToken?: string
+  Name?: string
+  SubDepartment?: boolean
+  ParentRef?: QuickBooksReference
+  FullyQualifiedName?: string
+  Active?: boolean
+  MetaData?: QuickBooksMetaData
+  domain?: string
+  sparse?: boolean
+  [key: string]: unknown
+}
+
 export interface QuickBooksCustomer {
   Id: string
   SyncToken?: string
@@ -248,13 +276,22 @@ export interface QuickBooksAuthParams {
   realmId: string
 }
 
-export type QuickBooksMasterDataRecordType = 'account' | 'customer' | 'vendor' | 'item' | 'employee'
+export type QuickBooksMasterDataRecordType =
+  | 'account'
+  | 'class'
+  | 'customer'
+  | 'department'
+  | 'employee'
+  | 'item'
+  | 'vendor'
 
 export type QuickBooksMasterDataReadMode = 'list' | 'by_id'
 
 export type QuickBooksMasterDataRecord =
   | QuickBooksAccount
+  | QuickBooksClass
   | QuickBooksCustomer
+  | QuickBooksDepartment
   | QuickBooksVendor
   | QuickBooksItem
   | QuickBooksEmployee
@@ -311,6 +348,131 @@ export interface QuickBooksReadAccountingTransactionsParams extends QuickBooksAu
   transactionId?: string
   startPosition?: number
   maxResults?: number
+}
+
+export type QuickBooksReportType =
+  | 'balance_sheet'
+  | 'profit_and_loss'
+  | 'profit_and_loss_detail'
+  | 'trial_balance'
+  | 'cash_flow'
+  | 'ap_aging_summary'
+  | 'ap_aging_detail'
+  | 'ar_aging_summary'
+  | 'ar_aging_detail'
+  | 'vendor_balance'
+  | 'customer_balance'
+  | 'sales_by_customer'
+  | 'sales_by_item'
+  | 'expenses_by_vendor'
+
+export type QuickBooksAccountingMethod = 'default' | 'cash' | 'accrual'
+
+export type QuickBooksReportSummarizeBy =
+  | 'default'
+  | 'total'
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'quarter'
+  | 'year'
+  | 'customer'
+  | 'vendor'
+  | 'item'
+  | 'class'
+  | 'department'
+
+export type QuickBooksAgingMethod = 'default' | 'report_date' | 'current'
+
+export interface QuickBooksRunFinancialReportParams extends QuickBooksAuthParams {
+  reportType: QuickBooksReportType
+  startDate?: string
+  endDate?: string
+  accountingMethod?: QuickBooksAccountingMethod
+  summarizeBy?: QuickBooksReportSummarizeBy
+  customerId?: string
+  vendorId?: string
+  accountId?: string
+  itemId?: string
+  classId?: string
+  departmentId?: string
+  agingMethod?: QuickBooksAgingMethod
+  agingDays?: number
+}
+
+export interface QuickBooksReportOption {
+  Name?: string
+  Value?: string
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportHeader {
+  Time?: string
+  ReportName?: string
+  DateMacro?: string
+  ReportBasis?: string
+  StartPeriod?: string
+  EndPeriod?: string
+  SummarizeColumnsBy?: string
+  Currency?: string
+  Customer?: string
+  Vendor?: string
+  Account?: string
+  Item?: string
+  Class?: string
+  Department?: string
+  Option?: QuickBooksReportOption[]
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportColumnMetaData {
+  Name?: string
+  Value?: string
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportColumn {
+  ColTitle?: string
+  ColType?: string
+  MetaData?: QuickBooksReportColumnMetaData[]
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportColumns {
+  Column?: QuickBooksReportColumn[]
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportColumnData {
+  value?: string
+  id?: string
+  href?: string
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportRowSummary {
+  ColData?: QuickBooksReportColumnData[]
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportRowHeader {
+  ColData?: QuickBooksReportColumnData[]
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportRow {
+  type?: string
+  group?: string
+  Header?: QuickBooksReportRowHeader
+  ColData?: QuickBooksReportColumnData[]
+  Rows?: QuickBooksReportRows
+  Summary?: QuickBooksReportRowSummary
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportRows {
+  Row?: QuickBooksReportRow[]
+  [key: string]: unknown
 }
 
 export type QuickBooksJournalPostingType = 'debit' | 'credit'
@@ -742,6 +904,16 @@ export interface QuickBooksReadAccountingTransactionsResponse extends ToolRespon
   }
 }
 
+export interface QuickBooksRunFinancialReportResponse extends ToolResponse {
+  output: {
+    reportType: QuickBooksReportType
+    header: QuickBooksReportHeader
+    columns: QuickBooksReportColumns
+    rows: QuickBooksReportRows
+    time: string | null
+  }
+}
+
 export interface QuickBooksMutationResponse<T extends { Id: string; SyncToken?: string }>
   extends ToolResponse {
   output: {
@@ -780,6 +952,7 @@ export type QuickBooksResponse =
   | QuickBooksReadSalesTransactionsResponse
   | QuickBooksReadPurchasingTransactionsResponse
   | QuickBooksReadAccountingTransactionsResponse
+  | QuickBooksRunFinancialReportResponse
   | QuickBooksMutationResponse<QuickBooksCustomer | QuickBooksVendor | QuickBooksItem>
   | QuickBooksMutationResponse<QuickBooksSalesTransaction>
   | QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
@@ -1062,16 +1235,20 @@ export const QUICKBOOKS_MASTER_DATA_PROPERTIES: Record<string, OutputProperty> =
   ...QUICKBOOKS_VENDOR_PROPERTIES,
   ...QUICKBOOKS_ITEM_PROPERTIES,
   ...QUICKBOOKS_EMPLOYEE_PROPERTIES,
-  Name: { type: 'string', description: 'Account or item name', optional: true },
+  Name: {
+    type: 'string',
+    description: 'Account, item, class, or department name',
+    optional: true,
+  },
   ParentRef: {
     type: 'json',
-    description: 'Parent account, item, or category reference',
+    description: 'Parent account, item, class, or department reference',
     optional: true,
     properties: QUICKBOOKS_REFERENCE_PROPERTIES,
   },
   FullyQualifiedName: {
     type: 'string',
-    description: 'Hierarchical qualified account or item name',
+    description: 'Hierarchical qualified account, item, class, or department name',
     optional: true,
   },
   CurrencyRef: {
@@ -1114,6 +1291,97 @@ export const QUICKBOOKS_MASTER_DATA_PROPERTIES: Record<string, OutputProperty> =
     type: 'number',
     description: 'Customer or vendor balance',
     optional: true,
+  },
+  SubClass: {
+    type: 'boolean',
+    description: 'Whether the Class is nested under another Class',
+    optional: true,
+  },
+  SubDepartment: {
+    type: 'boolean',
+    description: 'Whether the Department is nested under another Department',
+    optional: true,
+  },
+}
+
+export const QUICKBOOKS_REPORT_HEADER_PROPERTIES: Record<string, OutputProperty> = {
+  Time: { type: 'string', description: 'QuickBooks report generation timestamp', optional: true },
+  ReportName: { type: 'string', description: 'Native QuickBooks report name', optional: true },
+  DateMacro: {
+    type: 'string',
+    description: 'QuickBooks date macro, when returned',
+    optional: true,
+  },
+  ReportBasis: { type: 'string', description: 'Cash or accrual basis', optional: true },
+  StartPeriod: { type: 'string', description: 'Report start date', optional: true },
+  EndPeriod: { type: 'string', description: 'Report end or as-of date', optional: true },
+  SummarizeColumnsBy: {
+    type: 'string',
+    description: 'Dimension or time period used for report columns',
+    optional: true,
+  },
+  Currency: { type: 'string', description: 'Report currency', optional: true },
+  Customer: { type: 'string', description: 'Applied customer filter', optional: true },
+  Vendor: { type: 'string', description: 'Applied vendor filter', optional: true },
+  Account: { type: 'string', description: 'Applied account filter', optional: true },
+  Item: { type: 'string', description: 'Applied item filter', optional: true },
+  Class: { type: 'string', description: 'Applied class filter', optional: true },
+  Department: { type: 'string', description: 'Applied department filter', optional: true },
+  Option: {
+    type: 'array',
+    description: 'Native QuickBooks report options, including no-data indicators when present',
+    optional: true,
+    items: { type: 'json' },
+  },
+}
+
+export const QUICKBOOKS_REPORT_COLUMNS_PROPERTIES: Record<string, OutputProperty> = {
+  Column: {
+    type: 'array',
+    description: 'Native report column definitions with titles, types, and metadata',
+    optional: true,
+    items: {
+      type: 'json',
+      properties: {
+        ColTitle: { type: 'string', description: 'Column title', optional: true },
+        ColType: { type: 'string', description: 'QuickBooks column data type', optional: true },
+        MetaData: {
+          type: 'array',
+          description: 'Native column metadata name/value entries',
+          optional: true,
+          items: { type: 'json' },
+        },
+      },
+    },
+  },
+}
+
+export const QUICKBOOKS_REPORT_ROWS_PROPERTIES: Record<string, OutputProperty> = {
+  Row: {
+    type: 'array',
+    description:
+      'Native hierarchical report rows; section rows may contain Header, nested Rows, and Summary, while data rows contain ColData values, IDs, and links',
+    optional: true,
+    items: {
+      type: 'json',
+      properties: {
+        type: { type: 'string', description: 'QuickBooks row type', optional: true },
+        group: { type: 'string', description: 'QuickBooks section group', optional: true },
+        Header: { type: 'json', description: 'Section header column data', optional: true },
+        ColData: {
+          type: 'array',
+          description: 'Row values with optional operational IDs and links',
+          optional: true,
+          items: { type: 'json' },
+        },
+        Rows: {
+          type: 'json',
+          description: 'Nested native QuickBooks report rows',
+          optional: true,
+        },
+        Summary: { type: 'json', description: 'Section summary column data', optional: true },
+      },
+    },
   },
 }
 
