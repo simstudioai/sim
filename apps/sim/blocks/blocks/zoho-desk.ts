@@ -405,6 +405,7 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
           limit: rawLimit,
           contentType,
           isPublic,
+          customFields: rawCustomFields,
           departmentIds: rawDepartmentIds,
           ...rest
         } = params
@@ -453,11 +454,23 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
         if (params.operation === 'add_comment' && isPublic !== undefined) {
           result.isPublic = isPublic === true || isPublic === 'true'
         }
-        if (typeof rest.customFields === 'string' && rest.customFields.trim()) {
-          try {
-            result.customFields = JSON.parse(rest.customFields)
-          } catch {
-            throw new Error('Invalid JSON provided for custom fields')
+        // Gated to update_ticket for the same reason as contentType and isPublic
+        // above: the subBlock keeps its value when the operation changes, so
+        // stale (or half-typed) JSON left behind after switching away from
+        // Update Ticket would otherwise fail every unrelated operation with
+        // "Invalid JSON provided for custom fields" - on runs that never send it.
+        if (params.operation === 'update_ticket' && rawCustomFields !== undefined) {
+          if (typeof rawCustomFields === 'string') {
+            if (rawCustomFields.trim()) {
+              try {
+                result.customFields = JSON.parse(rawCustomFields)
+              } catch {
+                throw new Error('Invalid JSON provided for custom fields')
+              }
+            }
+          } else if (rawCustomFields !== null) {
+            // Already an object when an agent supplies it directly.
+            result.customFields = rawCustomFields
           }
         }
         return result
