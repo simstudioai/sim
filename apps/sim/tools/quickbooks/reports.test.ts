@@ -385,6 +385,29 @@ describe('QuickBooks report block behavior', () => {
     })
   })
 
+  it('omits blank report filters serialized as null by the editor', () => {
+    const params = QuickBooksBlock.tools.config!.params!({
+      operation: 'quickbooks_run_financial_report',
+      oauthCredential: 'credential-id',
+      reportType: 'ap_aging_summary',
+      reportEndDate: '2026-08-02',
+      reportVendorId: null,
+      reportDepartmentId: null,
+      reportAgingMethod: 'report_date',
+      reportAgingDays: '30',
+    })
+
+    expect(params.vendorId).toBeUndefined()
+    expect(params.departmentId).toBeUndefined()
+
+    const url = buildQuickBooksReportUrl({
+      ...authParams,
+      ...params,
+    } as QuickBooksRunFinancialReportParams)
+    expect(url.searchParams.has('vendor')).toBe(false)
+    expect(url.searchParams.has('department')).toBe(false)
+  })
+
   it('keeps support arrays consistent with the block conditions', () => {
     expect(getQuickBooksReportTypesSupporting('aging')).toEqual([
       'ap_aging_detail',
