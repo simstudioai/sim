@@ -1,13 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { zohoDeskListOrganizationsContract } from '@/lib/api/contracts/tools/zoho-desk'
+import { zohoDeskOrganizationsSelectorContract } from '@/lib/api/contracts/selectors'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { resolveZohoDeskSelectorCredential } from '@/app/api/tools/zoho_desk/selector-credential'
 import { assertZohoUrl } from '@/tools/zoho_desk/host-allowlist'
-import { getZohoDeskApiBase, getZohoDeskErrorMessage } from '@/tools/zoho_desk/utils'
+import { getZohoDeskErrorMessage } from '@/tools/zoho_desk/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,26 +20,29 @@ interface ZohoOrganization {
   portalName?: string
 }
 
+/** Backs the `zoho_desk.organizations` selector. */
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-  if (!authResult.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const requestId = generateRequestId()
 
-  const parsed = await parseRequest(zohoDeskListOrganizationsContract, request, {})
+  const parsed = await parseRequest(zohoDeskOrganizationsSelectorContract, request, {})
   if (!parsed.success) return parsed.response
-  const { accessToken, apiDomain } = parsed.data.body
+  const { credential, workflowId } = parsed.data.body
 
-  // apiDomain is client-supplied, so anchor the outbound host to a Zoho apex
-  // before attaching the OAuth token - otherwise a caller could point the server
-  // at an arbitrary origin and leak the token.
+  const resolved = await resolveZohoDeskSelectorCredential(request, {
+    credentialId: credential,
+    workflowId,
+    requestId,
+  })
+  if (!resolved.ok) return resolved.response
+  const { accessToken, apiBase } = resolved.credential
+
+  // apiBase is already anchored by getZohoDeskApiBase; assert again so the URL
+  // that finally receives the OAuth token is validated at the point of use.
   let organizationsUrl: URL
   try {
-    organizationsUrl = assertZohoUrl(
-      `${getZohoDeskApiBase({ apiDomain: apiDomain ?? undefined })}/organizations`
-    )
+    organizationsUrl = assertZohoUrl(`${apiBase}/organizations`)
   } catch {
-    return NextResponse.json({ error: 'apiDomain must be an https Zoho host' }, { status: 400 })
+    return NextResponse.json({ error: 'Credential resolved to a non-Zoho host' }, { status: 400 })
   }
 
   try {
@@ -84,8 +88,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       .filter((org) => org.id !== undefined && org.id !== null)
       .map((org) => ({
         id: String(org.id),
-        companyName: org.companyName ?? null,
-        portalName: org.portalName ?? null,
+        name: org.companyName || org.portalName || String(org.id),
       }))
 
     return NextResponse.json({ organizations })

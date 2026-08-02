@@ -6,28 +6,6 @@ const zohoAccessTokenSchema = z.string().min(1, 'Access token is required')
 const zohoApiDomainSchema = z.string().optional().nullable()
 const zohoOrgIdSchema = z.string().min(1, 'Organization ID is required')
 
-export const zohoDeskListOrganizationsBodySchema = z.object({
-  accessToken: zohoAccessTokenSchema,
-  apiDomain: zohoApiDomainSchema,
-})
-
-export const zohoDeskOrganizationSchema = z.object({
-  id: z.string(),
-  companyName: z.string().optional().nullable(),
-  portalName: z.string().optional().nullable(),
-})
-
-export const zohoDeskListOrganizationsResponseSchema = z.object({
-  organizations: z.array(zohoDeskOrganizationSchema),
-})
-
-export const zohoDeskListOrganizationsContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/zoho_desk/organizations',
-  body: zohoDeskListOrganizationsBodySchema,
-  response: { mode: 'json', schema: zohoDeskListOrganizationsResponseSchema },
-})
-
 export const zohoDeskGetAttachmentBodySchema = z.object({
   accessToken: zohoAccessTokenSchema,
   apiDomain: zohoApiDomainSchema,
@@ -59,12 +37,6 @@ export const zohoDeskGetAttachmentContract = defineRouteContract({
   response: { mode: 'json', schema: zohoDeskGetAttachmentResponseSchema },
 })
 
-export type ZohoDeskListOrganizationsBody = ContractBodyInput<
-  typeof zohoDeskListOrganizationsContract
->
-export type ZohoDeskListOrganizationsResponse = ContractJsonResponse<
-  typeof zohoDeskListOrganizationsContract
->
 export type ZohoDeskGetAttachmentBody = ContractBodyInput<typeof zohoDeskGetAttachmentContract>
 export type ZohoDeskGetAttachmentResponse = ContractJsonResponse<
   typeof zohoDeskGetAttachmentContract

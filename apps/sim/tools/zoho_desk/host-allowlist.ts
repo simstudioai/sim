@@ -92,6 +92,36 @@ export function deriveZohoDeskBaseFromApiDomain(apiDomain?: string): string {
 }
 
 /**
+ * Marker under which the OAuth token exchange persists the data-center-scoped
+ * Desk REST base inside the credential's stored scope string.
+ *
+ * The trailing pattern stops at a comma or whitespace: better-auth persists
+ * Zoho's scopes comma-joined (no spaces), so a greedy `\S+` would swallow the
+ * whole scope list into the host. The Desk base URL itself never contains a
+ * comma or a space.
+ */
+const ZOHO_DESK_BASE_URL_MARKER = /__zoho_domain__:([^\s,]+)/
+
+/**
+ * Read the persisted data-center Desk base out of an OAuth credential's scope
+ * string, returning it only when it is a token-safe https Zoho host. Callers
+ * that get `undefined` fall back to {@link DEFAULT_ZOHO_DESK_BASE} rather than
+ * letting an unrecognized value receive the OAuth token.
+ */
+export function extractZohoDeskBaseFromScope(scope: string | null | undefined): string | undefined {
+  if (typeof scope !== 'string') return undefined
+  const candidate = scope.match(ZOHO_DESK_BASE_URL_MARKER)?.[1]
+  if (!candidate) return undefined
+  try {
+    const url = new URL(candidate)
+    if (url.protocol !== 'https:' || !isZohoHost(url.hostname)) return undefined
+    return candidate.replace(/\/+$/, '')
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Assert that a URL is a token-safe Zoho target: it must be `https:` and its host
  * must be a Zoho apex or subdomain. Returns the parsed URL, or throws (the caller
  * maps that to a 400) - used by every route that sends the OAuth token to a host

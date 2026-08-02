@@ -26,6 +26,8 @@ export type SelectorKey =
   | 'pipedrive.pipelines'
   | 'sharepoint.lists'
   | 'trello.boards'
+  | 'zoho_desk.organizations'
+  | 'zoho_desk.departments'
   | 'zoom.meetings'
   | 'slack.channels'
   | 'slack.users'
@@ -101,6 +103,8 @@ export interface SelectorContext {
   logGroupName?: string
   mcpServerId?: string
   tableId?: string
+  /** Zoho Desk organization (portal) id — the `orgId` header every Desk call but `/organizations` requires. */
+  orgId?: string
 }
 
 export interface SelectorQueryArgs {

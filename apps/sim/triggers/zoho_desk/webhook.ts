@@ -1,6 +1,5 @@
 import { ZohoDeskIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import { fetchZohoDeskOrganizationOptions } from '@/blocks/blocks/zoho-desk-org-options'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -59,16 +58,19 @@ export const zohoDeskWebhookTrigger: TriggerConfig = {
       requiredScopes: getScopesForService('zoho-desk'),
       required: true,
       mode: 'trigger',
+      // Maps the trigger's credential onto the `oauthCredential` canonical id so
+      // the organization selector below resolves it into its SelectorContext.
+      canonicalParamId: 'oauthCredential',
     },
     {
       id: 'orgId',
       title: 'Organization',
-      type: 'combobox',
-      placeholder: 'Select or enter an organization ID',
+      type: 'project-selector',
+      placeholder: 'Select an organization',
       description: 'The Zoho Desk organization (portal) to subscribe in.',
-      options: [],
-      fetchOptions: fetchZohoDeskOrganizationOptions,
-      commandSearchable: true,
+      canonicalParamId: 'orgId',
+      serviceId: 'zoho-desk',
+      selectorKey: 'zoho_desk.organizations',
       dependsOn: ['triggerCredentials'],
       required: true,
       mode: 'trigger',
