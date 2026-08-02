@@ -225,16 +225,6 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
       // Server-authenticated avatar for the presence roster.
       const avatarUrl = await resolveAvatarUrl(socket, userId)
 
-      // Leave a previously-joined table room if switching tables. No generation guard is needed
-      // around this: serialization guarantees no concurrent op committed to a different room
-      // during the lookup, so `currentRoom` is the socket's genuine prior room, safe to leave.
-      const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
-      if (currentRoom && currentRoom.id !== tableId) {
-        socket.leave(roomName(currentRoom))
-        await roomManager.removeUserFromRoom(currentRoom, socket.id)
-        await roomManager.broadcastPresenceUpdate(currentRoom)
-      }
-
       // Reclaim presence orphaned by an ungraceful disconnect (no `disconnecting`
       // event fires on a pod crash; the room hashes have no TTL). Returns the roster it
       // read so the same-tab dedup below reuses it instead of issuing a second read.
@@ -271,6 +261,19 @@ export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IR
           retryable: false,
         })
         return
+      }
+
+      // Only now that the join is certain to proceed, leave a previously-joined table room
+      // if switching. Deliberately AFTER the access re-check: a denial there aborts the
+      // join, and leaving first would silently drop the client from a prior table it may
+      // still be allowed to occupy. No generation guard is needed around this —
+      // serialization guarantees no concurrent op committed to a different room during the
+      // lookup, so `currentRoom` is the socket's genuine prior room, safe to leave.
+      const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
+      if (currentRoom && currentRoom.id !== tableId) {
+        socket.leave(roomName(currentRoom))
+        await roomManager.removeUserFromRoom(currentRoom, socket.id)
+        await roomManager.broadcastPresenceUpdate(currentRoom)
       }
 
       // Final re-check before the membership commit: a LEAVE or a newer JOIN enqueued during the

@@ -3,6 +3,7 @@
  */
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { TABLE_PRESENCE_EVENTS } from '@sim/realtime-protocol/table-presence'
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
 
@@ -292,6 +293,55 @@ describe('setupTablesHandlers', () => {
       expect(owed).toEqual([{ socketId: 'socket-defer', roomId: 'table-defer' }])
     } finally {
       setEvictionCleanupSink(null)
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the prior table room when a switch is denied at the access re-check', async () => {
+    // A denied switch must not silently drop the client from a table it may still be
+    // allowed to occupy, so the prior room is left only once the join is certain.
+    vi.useFakeTimers()
+    try {
+      const prior = { type: ROOM_TYPES.TABLE, id: 'table-prior' }
+      const { socket, handlers } = createSocket({ id: 'socket-switch', userId: 'user-switch' })
+      const roomManager = createRoomManager({
+        getRoomForSocket: vi.fn().mockResolvedValue(prior),
+      })
+      setupTablesHandlers(socket as unknown as SetupArg, roomManager)
+
+      let call = 0
+      mockAuthorizeRoom.mockImplementation(async () => {
+        call += 1
+        if (call === 1) {
+          // A later-started read drops this join's own decision, and the join stalls past
+          // the TTL so that decision is expired by re-check time — forcing the re-resolve
+          // down its database path below.
+          commitRoomPermission(
+            'user-switch',
+            { type: ROOM_TYPES.TABLE, id: 'table-target' },
+            'admin',
+            beginRoomPermissionRead()
+          )
+          await sleep(31_000)
+          return { allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' }
+        }
+        // The authoritative current answer: access is gone.
+        return { allowed: false, status: 403, workspaceId: 'ws-1', workspacePermission: null }
+      })
+
+      const joining = handlers[TABLE_PRESENCE_EVENTS.JOIN]({ tableId: 'table-target' })
+      await vi.advanceTimersByTimeAsync(31_000)
+      await joining
+
+      expect(socket.emit).toHaveBeenCalledWith(
+        TABLE_PRESENCE_EVENTS.JOIN_ERROR,
+        expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
+      )
+      // Neither joined the target nor abandoned the prior room.
+      expect(socket.join).not.toHaveBeenCalled()
+      expect(socket.leave).not.toHaveBeenCalled()
+      expect(roomManager.removeUserFromRoom).not.toHaveBeenCalled()
+    } finally {
       vi.useRealTimers()
     }
   })
