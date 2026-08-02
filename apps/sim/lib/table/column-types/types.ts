@@ -216,6 +216,24 @@ export interface ColumnTypeDefinition {
   readonly supportsUnique: boolean
 
   /**
+   * Whether `coerce` CANONICALIZES a value rather than passing it through — an
+   * email lower-cased, a phone stripped to digits, an amount parsed out of
+   * `$1,234.56`, a date normalized.
+   *
+   * A filter value must be read the same way the cell value was, or the two
+   * never meet: a stored `ada@example.com` is not found by an equality filter
+   * for `Ada@Example.com`, and a stored `+442071234567` is not found by
+   * `020 1234 5678`. JSONB containment compares the canonical forms, so the
+   * filter has to produce one.
+   *
+   * Deliberately its own field rather than inferred from {@link jsonbCast}.
+   * That inference was the first attempt and it was wrong in both directions:
+   * `email` and `phone` canonicalize but compare as TEXT, so they were skipped
+   * and their filters silently matched nothing.
+   */
+  readonly canonicalizesValues: boolean
+
+  /**
    * Whether this type's values have an ordering, i.e. whether `>`/`<` and a
    * sort mean anything on them. False only for `boolean` and `json`, whose
    * range filters are rejected outright.

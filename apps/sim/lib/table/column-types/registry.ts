@@ -204,11 +204,14 @@ export function metadataKeysIn(updates: ColumnMetadataPatch): {
 }
 
 /**
- * A metadata patch with its clears dropped, for the conversion path.
+ * A metadata patch with its clears dropped, for the paths that build a column
+ * from scratch rather than editing one.
  *
- * On a retype, "remove this key" and "never had this key" are the same thing —
- * the converted column is rebuilt from the target type's owned keys — so a
- * `null` is simply not carried across.
+ * Creating a column and validating a prospective one have nothing to remove, so
+ * a `null` is simply not carried. The RETYPE path deliberately does not use
+ * this: `buildConvertedColumn` carries un-supplied keys forward from the old
+ * column, so a stripped `null` there reads as "not mentioned" and silently
+ * restores the value the caller just cleared.
  */
 export function metadataWithoutClears(patch: ColumnMetadataPatch): ColumnTypeMetadata {
   const resolved: ColumnTypeMetadata = {}

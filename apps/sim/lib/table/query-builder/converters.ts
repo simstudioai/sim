@@ -274,19 +274,22 @@ function parseValue(value: string, operator: string, column?: ColumnDefinition):
 /**
  * Reads a filter value the way the COLUMN would read a cell value.
  *
- * Only for columns with a `jsonbCast`, i.e. those whose stored value is not
- * text: the SQL builder applies that cast to the operand, so a value the
- * generic `parseScalar` leaves as a string is rejected outright. Those are also
- * exactly the types whose values are written in a formatted shape — a user
- * filtering a Percent column types `50%`, a Duration column `1h`, a Currency
- * column `$1,234.56`, and `Number()` returns NaN for all three.
+ * Gated on `canonicalizesValues`, not on `jsonbCast`. The cast only says how the
+ * comparison is performed; the question here is whether the STORED form differs
+ * from what the user typed. It does for every type that transforms on write:
+ * a Currency column stores `1234.56` for `$1,234.56` and a Percent `50` for
+ * `50%` (both of which `Number()` reads as NaN, so the operand met a numeric
+ * cast as a string and the filter was rejected), and an Email column stores
+ * `ada@example.com` for `Ada@Example.com` and a Phone `+442071234567` for
+ * `020 1234 5678` (both of which compare as TEXT, so the filter was accepted
+ * and then quietly matched nothing).
  *
- * Text-cast types keep `parseScalar`: on a `string` column a filter for `"123"`
- * must stay the string `"123"`, because JSONB containment distinguishes it from
- * the number.
+ * Pass-through types keep `parseScalar`: on a `string` column a filter for
+ * `"123"` keeps its long-standing coercion, and an opaque option id is handled
+ * before this is reached.
  */
 function parseFilterScalar(value: string, column?: ColumnDefinition): JsonValue {
-  if (!column || columnTypeOf(column).jsonbCast === null) return parseScalar(value)
+  if (!column || !columnTypeOf(column).canonicalizesValues) return parseScalar(value)
   const coerced = columnTypeOf(column).coerce(value, column)
   // An unparseable value falls through unchanged so the SQL builder reports it
   // against the operand the user actually typed.

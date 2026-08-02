@@ -19,6 +19,7 @@ import {
   ownersOfMetadataKey,
   pickMetadata,
 } from '@/lib/table/column-types'
+import { buildConvertedColumn } from '@/lib/table/columns/service'
 import { coerceValue } from '@/lib/table/import'
 import { filterRulesToFilter, prunePredicateForColumns } from '@/lib/table/query-builder/converters'
 import type { ColumnDefinition } from '@/lib/table/types'
@@ -321,6 +322,90 @@ describe('review-round-4 regressions', () => {
     // A `contains` left behind by a multi -> single toggle must still go.
     const predicate = { all: [{ field: 'c', op: 'contains' as const, value: 'opt_1' }] }
     expect(prunePredicateForColumns(predicate, [selectColumn])).toBeNull()
+  })
+})
+
+describe('review-round-7 regressions', () => {
+  it('normalizes a contact filter value so it can match the stored form', () => {
+    // Email/Phone canonicalize on write but compare as TEXT, so the earlier
+    // `jsonbCast !== null` gate skipped them: the filter was accepted and then
+    // matched nothing, because JSONB containment saw `Ada@Example.com` against
+    // a stored `ada@example.com`.
+    const eq = (value: string, col: ColumnDefinition) =>
+      filterRulesToFilter(
+        [{ id: 'r1', logicalOperator: 'and' as const, column: 'c', operator: 'eq', value }],
+        [{ ...col, id: 'c' }]
+      )
+    expect(eq('Ada@Example.COM', column('email'))).toEqual({ c: 'ada@example.com' })
+    expect(eq('+44 20 7123 4567', column('phone'))).toEqual({ c: '+442071234567' })
+    expect(eq('(555) 123-4567', column('phone'))).toEqual({ c: '5551234567' })
+  })
+
+  it('leaves a pass-through type on its existing filter coercion', () => {
+    const eq = (value: string, col: ColumnDefinition) =>
+      filterRulesToFilter(
+        [{ id: 'r1', logicalOperator: 'and' as const, column: 'c', operator: 'eq', value }],
+        [{ ...col, id: 'c' }]
+      )
+    expect(eq('123', column('string'))).toEqual({ c: 123 })
+    expect(eq('1', column('select', { options: [{ id: '1', name: 'One' }] }))).toEqual({ c: '1' })
+  })
+
+  it('declares canonicalization only where coerce actually transforms', () => {
+    // The property stated directly: a canonicalizing type turns a valid
+    // non-canonical input into something DIFFERENT, and a pass-through type
+    // returns it unchanged. Asserting the behaviour rather than the flag is
+    // what stops the two drifting.
+    const transforms: Array<[ColumnDefinition['type'], string, JsonValue]> = [
+      ['email', 'Ada@Example.COM', 'ada@example.com'],
+      ['phone', '(555) 123-4567', '5551234567'],
+      ['currency', '$1,234.56', 1234.56],
+      ['number', '42', 42],
+      ['percent', '50%', 50],
+      ['date', '01/15/2024', '2024-01-15'],
+    ]
+    for (const [type, input, expected] of transforms) {
+      expect(COLUMN_TYPE_REGISTRY[type].canonicalizesValues, type).toBe(true)
+      const result = COLUMN_TYPE_REGISTRY[type].coerce(input, column(type))
+      expect(result.ok && result.value, `${type} <- ${input}`).toEqual(expected)
+    }
+
+    for (const type of ['string', 'json'] as const) {
+      expect(COLUMN_TYPE_REGISTRY[type].canonicalizesValues, type).toBe(false)
+    }
+    // A pass-through type hands the value straight back.
+    const passed = COLUMN_TYPE_REGISTRY.string.coerce('Ada@Example.COM', column('string'))
+    expect(passed.ok && passed.value).toBe('Ada@Example.COM')
+  })
+
+  it('keeps an explicit metadata clear through a type conversion', () => {
+    // `buildConvertedColumn` carries UN-SUPPLIED keys forward from the old
+    // column, so an explicit clear must be distinguishable from silence. When
+    // the route stripped the null first, this read as "not mentioned" and
+    // restored the precision the user had just cleared.
+    const from: ColumnDefinition = { name: 'c', type: 'percent', precision: 2 }
+    const cleared = buildConvertedColumn(
+      from,
+      { tableId: 't', columnName: 'c', newType: 'number', precision: null },
+      { isSelectType: false, targetMultiple: false }
+    )
+    expect(cleared.precision).toBeUndefined()
+
+    // Silence still carries the old value across the conversion.
+    const carried = buildConvertedColumn(
+      from,
+      { tableId: 't', columnName: 'c', newType: 'number' },
+      { isSelectType: false, targetMultiple: false }
+    )
+    expect(carried.precision).toBe(2)
+
+    // And an explicit new value still wins.
+    const replaced = buildConvertedColumn(
+      from,
+      { tableId: 't', columnName: 'c', newType: 'number', precision: 4 },
+      { isSelectType: false, targetMultiple: false }
+    )
+    expect(replaced.precision).toBe(4)
   })
 })
 

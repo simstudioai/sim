@@ -62,6 +62,7 @@ export const phoneColumnType: ColumnTypeDefinition = {
   // Stored as text: a phone number is an identifier, not a quantity. Casting to
   // numeric would drop the leading `+` and any leading zero.
   jsonbCast: null,
+  canonicalizesValues: true,
   orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,

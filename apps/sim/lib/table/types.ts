@@ -860,7 +860,7 @@ export type ColumnMetadataPatch = {
   [K in TypeSpecificColumnKey]?: ColumnDefinition[K] | null
 }
 
-export interface UpdateColumnTypeData extends ColumnTypeMetadata {
+export interface UpdateColumnTypeData extends ColumnMetadataPatch {
   tableId: string
   columnName: string
   /**

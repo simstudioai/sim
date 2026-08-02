@@ -8,6 +8,7 @@ export const numberColumnType: ColumnTypeDefinition = {
   label: 'Number',
   icon: TypeNumber,
   jsonbCast: 'numeric',
+  canonicalizesValues: true,
   orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,

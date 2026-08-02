@@ -7,6 +7,7 @@ export const jsonColumnType: ColumnTypeDefinition = {
   label: 'JSON',
   icon: TypeJson,
   jsonbCast: null,
+  canonicalizesValues: false,
   orderable: false,
   storesOpaqueIds: false,
   supportsUnique: true,

@@ -25,6 +25,7 @@ export const percentColumnType: ColumnTypeDefinition = {
   label: 'Percent',
   icon: TypePercent,
   jsonbCast: 'numeric',
+  canonicalizesValues: true,
   orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,

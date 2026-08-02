@@ -14,6 +14,7 @@ export const currencyColumnType: ColumnTypeDefinition = {
   label: 'Currency',
   icon: TypeCurrency,
   jsonbCast: 'numeric',
+  canonicalizesValues: true,
   orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,

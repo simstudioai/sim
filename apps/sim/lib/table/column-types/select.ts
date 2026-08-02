@@ -63,6 +63,7 @@ export const selectColumnType: ColumnTypeDefinition = {
   icon: TagIcon,
   // Cells hold opaque option ids; comparison is by id, never by cast.
   jsonbCast: null,
+  canonicalizesValues: false,
   orderable: true,
   storesOpaqueIds: true,
   supportsUnique: false,

@@ -619,7 +619,7 @@ export function applyPendingRename(
  * then only what the TARGET type declares it owns carried forward, then that
  * type's own defaults stamped on.
  */
-function buildConvertedColumn(
+export function buildConvertedColumn(
   column: ColumnDefinition,
   data: UpdateColumnTypeData,
   { isSelectType, targetMultiple }: { isSelectType: boolean; targetMultiple: boolean }
@@ -642,7 +642,7 @@ function buildConvertedColumn(
     return {
       ...withConstraints,
       type: data.newType,
-      options: data.options ?? column.options,
+      options: data.options ?? column.options ?? undefined,
       ...(targetMultiple ? { multiple: true } : {}),
       // Select columns carry no unique constraint: it would compare the stored
       // option id, capping each option at one row table-wide, and the UI hides
@@ -662,8 +662,14 @@ function buildConvertedColumn(
   const carried: ColumnDefinition = { ...withConstraints, type: data.newType }
   for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
     if (!owned.has(key)) continue
-    const value = data[key] ?? column[key]
-    if (value !== undefined) Object.assign(carried, { [key]: value })
+    // Three states, not two. `undefined` means the request did not mention the
+    // key, so the column's existing value carries across the conversion.
+    // `null` means it was explicitly CLEARED, and must not fall back — a `??`
+    // here silently restored the old value, so clearing decimal places in the
+    // same save as a type change kept the previous setting.
+    const supplied = data[key]
+    const value = supplied === undefined ? column[key] : supplied
+    if (value !== undefined && value !== null) Object.assign(carried, { [key]: value })
   }
   return { ...carried, ...definition.defaultMetadata?.(carried) }
 }

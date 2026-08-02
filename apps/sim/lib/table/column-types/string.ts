@@ -7,6 +7,7 @@ export const stringColumnType: ColumnTypeDefinition = {
   label: 'Text',
   icon: TypeText,
   jsonbCast: null,
+  canonicalizesValues: false,
   orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,

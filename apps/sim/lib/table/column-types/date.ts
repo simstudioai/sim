@@ -46,6 +46,7 @@ export const dateColumnType: ColumnTypeDefinition = {
   label: 'Date',
   icon: CalendarIcon,
   jsonbCast: 'timestamptz',
+  canonicalizesValues: true,
   orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,

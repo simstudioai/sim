@@ -20,12 +20,7 @@ import {
   updateColumnType,
 } from '@/lib/table'
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
-import {
-  columnTypeById,
-  metadataKeysIn,
-  metadataWithoutClears,
-  pickMetadata,
-} from '@/lib/table/column-types'
+import { columnTypeById, metadataKeysIn, pickMetadata } from '@/lib/table/column-types'
 import { validateMetadataUpdate } from '@/lib/table/columns/metadata'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
@@ -220,10 +215,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
           newType: updates.type as NonNullable<typeof updates.type>,
           // Every type-specific key the payload carries, whichever writer would
           // own it standalone: a conversion applies its target's metadata in the
-          // same transaction rather than leaving it to a second write.
-          ...metadataWithoutClears(
-            pickMetadata(updates, [...genericMetadataKeys, ...dedicatedMetadataKeys])
-          ),
+          // same transaction rather than leaving it to a second write. Clears
+          // are forwarded as `null` — stripping them here made
+          // `buildConvertedColumn` fall back to the pre-conversion value.
+          ...pickMetadata(updates, [...genericMetadataKeys, ...dedicatedMetadataKeys]),
           // Forwarded so the conversion validates against the constraint this
           // same request is about to set, not the column's current one.
           ...(updates.required !== undefined ? { required: updates.required } : {}),
