@@ -735,13 +735,13 @@ export const QuickBooksBlockMeta = {
       name: 'onboard-quickbooks-customers',
       description: 'Create approved QuickBooks customers and retain their IDs and sync tokens.',
       content:
-        '# Onboard QuickBooks Customers\n\n## Steps\n1. Validate the approved customer identity and contact details.\n2. Use Customers: Create with a unique display name.\n3. Store the returned `recordId` and `syncToken` for later updates.\n\n## Output\nReturn the created customer, ID, and sync token. Report duplicate-name faults for human review.',
+        '# Onboard QuickBooks Customers\n\n## Steps\n1. Validate the approved customer identity and contact details.\n2. Use Create Customer with a unique display name.\n3. Store the returned `recordId` and `syncToken` for later updates.\n\n## Output\nReturn the created customer, ID, and sync token. Report duplicate-name faults for human review.',
     },
     {
       name: 'onboard-quickbooks-vendors',
       description: 'Create approved QuickBooks vendors with bounded contact and 1099 fields.',
       content:
-        '# Onboard QuickBooks Vendors\n\n## Steps\n1. Validate the approved vendor identity, contact, address, and optional 1099 status.\n2. Use Vendors: Create.\n3. Store the returned `recordId` and `syncToken`.\n\n## Output\nReturn the created vendor and identifiers. Do not claim to merge vendors or administer tax identifiers.',
+        '# Onboard QuickBooks Vendors\n\n## Steps\n1. Validate the approved vendor identity, contact, address, and optional 1099 status.\n2. Use Create Vendor.\n3. Store the returned `recordId` and `syncToken`.\n\n## Output\nReturn the created vendor and identifiers. Do not claim to merge vendors or administer tax identifiers.',
     },
     {
       name: 'maintain-products-and-services',
@@ -753,7 +753,7 @@ export const QuickBooksBlockMeta = {
       name: 'audit-quickbooks-master-data',
       description: 'Review QuickBooks master-data pages for incomplete or inconsistent records.',
       content:
-        '# Audit QuickBooks Master Data\n\n## Steps\n1. Use Master Data: Read in List mode for the required record types.\n2. Continue only with explicit `nextStartPosition` values while `hasMore` is true.\n3. Report incomplete or inconsistent records with their QuickBooks IDs.\n\n## Output\nReturn a read-only audit with source IDs and supporting values.',
+        '# Audit QuickBooks Master Data\n\n## Steps\n1. Use Read Master Data in List mode for the required record types.\n2. Continue only with explicit `nextStartPosition` values while `hasMore` is true.\n3. Report incomplete or inconsistent records with their QuickBooks IDs.\n\n## Output\nReturn a read-only audit with source IDs and supporting values.',
     },
     {
       name: 'reconcile-pos-to-bills',
