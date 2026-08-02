@@ -11,11 +11,6 @@ const TERMINAL_ERRORS = new Set<string>([
   'bad_client_secret',
   'invalid_client_id',
   'invalid_client',
-  // Zoho's code for a revoked or otherwise unusable refresh token (it reserves
-  // `invalid_client` for a wrong client id/secret). Without this a revoked Zoho
-  // credential is never dead-flagged and every execution retries a refresh that
-  // can never succeed.
-  'invalid_code',
   'bad_redirect_uri',
   'token_revoked',
 ])
