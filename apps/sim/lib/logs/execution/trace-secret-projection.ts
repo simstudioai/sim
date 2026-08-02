@@ -19,18 +19,18 @@ import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
 import type { ToolCall, TraceSpan } from '@/lib/logs/types'
 import type { IterationToolCall, ProviderTimingSegment } from '@/executor/types'
-import type {
-  ResolvedSecretTraceMatch,
-  ResolvedSecretTraceRegistry,
-} from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  containsResolvedSecret,
+  createResolvedSecretMatcher,
+  projectResolvedSecretContent,
+  type ResolvedSecretMatcher,
+} from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('TraceSecretProjection')
 const REF_CONCURRENCY = 4
 const MAX_CONTENT_NODES = 100_000
 const MAX_CONTENT_DEPTH = 100
-const MAX_MATCHER_NODES = 250_000
-const MAX_SECRET_LITERAL_LENGTH = 64 * 1024
-const MAX_MATCH_EVENTS = 1_000_000
 const MAX_LARGE_VALUES = 1_024
 const MAX_LARGE_VALUE_CHAIN_DEPTH = 32
 const MAX_LARGE_MANIFEST_CHUNKS = MAX_LARGE_VALUES
@@ -65,25 +65,8 @@ const LARGE_ARRAY_MANIFEST_KEYS = new Set([
 ])
 const LARGE_ARRAY_MANIFEST_CHUNK_KEYS = new Set(['ref', 'count', 'byteSize'])
 
-interface SecretReplacement {
-  plaintext: string
-  replacement: string
-}
-
-interface SecretTrieNode {
-  children: Map<string, SecretTrieNode>
-  failure?: SecretTrieNode
-  outputLink?: SecretTrieNode
-  replacement?: SecretReplacement
-}
-
-interface SecretMatcher {
-  root: SecretTrieNode
-  maxPatternLength: number
-}
-
 interface ProjectionContext {
-  matcher: SecretMatcher
+  matcher: ResolvedSecretMatcher
   store: LargeValueStoreContext
   allowLargeValueWrites: boolean
   safeLargeValues: WeakSet<object>
@@ -113,13 +96,8 @@ interface TraversalState {
   ancestors: WeakSet<object>
 }
 
-interface SanitizationTraversalState extends TraversalState {
-  outputBytes: number
-  maxBytes: number
-}
-
 interface PlaintextInvariantContext {
-  matcher: SecretMatcher
+  matcher: ResolvedSecretMatcher
   safeLargeValues: WeakSet<object>
   /** Valid refs are trusted only after the full projector has already rewritten them. */
   allowVerifiedLargeValues?: boolean
@@ -150,95 +128,8 @@ class TraceSecretProjectionError extends Error {
   }
 }
 
-function compareStrings(left: string, right: string): number {
-  if (left < right) return -1
-  if (left > right) return 1
-  return 0
-}
-
-function normalizeReplacements(matches: readonly ResolvedSecretTraceMatch[]): SecretReplacement[] {
-  const replacementByPlaintext = new Map<string, string>()
-
-  for (const match of matches) {
-    if (!match.plaintext) continue
-    const current = replacementByPlaintext.get(match.plaintext)
-    if (current === undefined || compareStrings(match.replacement, current) < 0) {
-      replacementByPlaintext.set(match.plaintext, match.replacement)
-    }
-  }
-
-  const provisional = [...replacementByPlaintext.keys()]
-    .map((plaintext) => {
-      const requested = replacementByPlaintext.get(plaintext) ?? ''
-      return { plaintext, replacement: requested }
-    })
-    .sort(
-      (left, right) =>
-        right.plaintext.length - left.plaintext.length ||
-        compareStrings(left.replacement, right.replacement) ||
-        compareStrings(left.plaintext, right.plaintext)
-    )
-
-  const detector = createSecretMatcher(
-    provisional.map(({ plaintext }) => ({ plaintext, replacement: '' }))
-  )
-  return provisional.map(({ plaintext, replacement }) => ({
-    plaintext,
-    replacement: containsSecret(replacement, detector) ? '' : replacement,
-  }))
-}
-
-function createSecretMatcher(replacements: readonly SecretReplacement[]): SecretMatcher {
-  const root: SecretTrieNode = { children: new Map<string, SecretTrieNode>() }
-  root.failure = root
-  let nodeCount = 1
-  let maxPatternLength = 0
-  for (const replacement of replacements) {
-    if (replacement.plaintext.length > MAX_SECRET_LITERAL_LENGTH) {
-      throw new TraceSecretProjectionError('Secret literal exceeds the matcher size limit')
-    }
-    maxPatternLength = Math.max(maxPatternLength, replacement.plaintext.length)
-    let node = root
-    for (let index = 0; index < replacement.plaintext.length; index += 1) {
-      const character = replacement.plaintext[index]
-      let child = node.children.get(character)
-      if (!child) {
-        child = { children: new Map<string, SecretTrieNode>() }
-        node.children.set(character, child)
-        nodeCount += 1
-        if (nodeCount > MAX_MATCHER_NODES) {
-          throw new TraceSecretProjectionError('Secret matcher node limit exceeded')
-        }
-      }
-      node = child
-    }
-    node.replacement = replacement
-  }
-
-  const queue: SecretTrieNode[] = []
-  for (const child of root.children.values()) {
-    child.failure = root
-    queue.push(child)
-  }
-  for (let cursor = 0; cursor < queue.length; cursor += 1) {
-    const node = queue[cursor]
-    for (const [character, child] of node.children) {
-      let fallback = node.failure ?? root
-      while (fallback !== root && !fallback.children.has(character)) {
-        fallback = fallback.failure ?? root
-      }
-      const transition = fallback.children.get(character)
-      child.failure = transition && transition !== child ? transition : root
-      child.outputLink = child.failure.replacement ? child.failure : child.failure.outputLink
-      queue.push(child)
-    }
-  }
-
-  return { root, maxPatternLength }
-}
-
 function createProjectionContext(
-  matcher: SecretMatcher,
+  matcher: ResolvedSecretMatcher,
   store: LargeValueStoreContext,
   allowLargeValueWrites: boolean
 ): ProjectionContext {
@@ -258,108 +149,6 @@ function createProjectionContext(
     storedLargeValueBytes: 0,
     storedLargeValueCount: 0,
   }
-}
-
-function advanceMatcher(
-  matcher: SecretMatcher,
-  node: SecretTrieNode,
-  character: string
-): SecretTrieNode {
-  let current = node
-  while (current !== matcher.root && !current.children.has(character)) {
-    current = current.failure ?? matcher.root
-  }
-  return current.children.get(character) ?? matcher.root
-}
-
-function containsSecret(value: string, matcher: SecretMatcher): boolean {
-  let node = matcher.root
-  for (let index = 0; index < value.length; index += 1) {
-    node = advanceMatcher(matcher, node, value[index])
-    if (node.replacement || node.outputLink) return true
-  }
-  return false
-}
-
-function sanitizeString(
-  value: string,
-  matcher: SecretMatcher,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
-): string {
-  if (maxBytes < 0) {
-    throw new TraceSecretProjectionError('Sanitized trace string exceeds the size limit')
-  }
-  if (Buffer.byteLength(value, 'utf8') > maxBytes) {
-    throw new TraceSecretProjectionError('Trace string exceeds the size limit')
-  }
-  if (matcher.maxPatternLength === 0 || value.length === 0) return value
-
-  let emitCursor = 0
-  let literalStart = 0
-  let outputBytes = 0
-  let matchEvents = 0
-  const chunks: string[] = []
-  const windowSize = matcher.maxPatternLength
-  const slotStarts = new Int32Array(windowSize)
-  const slotEnds = new Int32Array(windowSize)
-  slotStarts.fill(-1)
-  const slotReplacements = new Array<string | undefined>(windowSize)
-
-  const append = (chunk: string): void => {
-    if (!chunk) return
-    outputBytes += Buffer.byteLength(chunk, 'utf8')
-    if (outputBytes > maxBytes) {
-      throw new TraceSecretProjectionError('Sanitized trace string exceeds the size limit')
-    }
-    const lastIndex = chunks.length - 1
-    if (lastIndex >= 0 && chunks[lastIndex].length + chunk.length <= 64 * 1024) {
-      chunks[lastIndex] += chunk
-    } else {
-      chunks.push(chunk)
-    }
-  }
-
-  const finalizeThrough = (limit: number): void => {
-    while (emitCursor <= limit && emitCursor < value.length) {
-      const slot = emitCursor % windowSize
-      if (slotStarts[slot] === emitCursor && slotReplacements[slot] !== undefined) {
-        append(value.slice(literalStart, emitCursor))
-        append(slotReplacements[slot] ?? '')
-        emitCursor = slotEnds[slot]
-        literalStart = emitCursor
-      } else {
-        emitCursor += 1
-      }
-    }
-  }
-
-  let node = matcher.root
-  for (let index = 0; index < value.length; index += 1) {
-    node = advanceMatcher(matcher, node, value[index])
-    let outputNode: SecretTrieNode | undefined = node.replacement ? node : node.outputLink
-    while (outputNode?.replacement) {
-      matchEvents += 1
-      if (matchEvents > MAX_MATCH_EVENTS) {
-        throw new TraceSecretProjectionError('Secret matcher event limit exceeded')
-      }
-      const start = index - outputNode.replacement.plaintext.length + 1
-      if (start >= emitCursor) {
-        const slot = start % windowSize
-        const end = index + 1
-        if (slotStarts[slot] !== start || end > slotEnds[slot]) {
-          slotStarts[slot] = start
-          slotEnds[slot] = end
-          slotReplacements[slot] = outputNode.replacement.replacement
-        }
-      }
-      outputNode = outputNode.outputLink
-    }
-    finalizeThrough(index - matcher.maxPatternLength + 1)
-  }
-
-  finalizeThrough(value.length - 1)
-  append(value.slice(literalStart))
-  return chunks.join('')
 }
 
 function visitNode(state: TraversalState, depth: number): void {
@@ -591,75 +380,6 @@ function getLargeValueCandidate(value: unknown): LargeValueCandidate | undefined
   return value as LargeArrayManifest
 }
 
-function sanitizeInlineValue(
-  value: unknown,
-  matcher: SecretMatcher,
-  safeLargeValues: WeakSet<object>,
-  state: SanitizationTraversalState,
-  depth = 0
-): unknown {
-  visitNode(state, depth)
-  if (typeof value === 'string') {
-    const sanitized = sanitizeString(value, matcher, state.maxBytes - state.outputBytes)
-    state.outputBytes += Buffer.byteLength(sanitized, 'utf8')
-    return sanitized
-  }
-  if (value === null || typeof value === 'number' || typeof value === 'boolean') {
-    const rendered = String(value)
-    if (!containsSecret(rendered, matcher)) return value
-    const sanitized = sanitizeString(rendered, matcher, state.maxBytes - state.outputBytes)
-    state.outputBytes += Buffer.byteLength(sanitized, 'utf8')
-    return sanitized
-  }
-  if (value === undefined) return value
-  if (typeof value !== 'object') {
-    throw new TraceSecretProjectionError('Unsupported trace content value')
-  }
-  const largeValue = getLargeValueCandidate(value)
-  if (largeValue) {
-    if (!safeLargeValues.has(value as object)) {
-      throw new TraceSecretProjectionError('Trace content contains an unverified large value')
-    }
-    return value
-  }
-  if (!Array.isArray(value) && !isPlainRecord(value)) {
-    throw new TraceSecretProjectionError('Unsupported trace content object')
-  }
-
-  enterObject(value, state)
-  try {
-    if (Array.isArray(value)) {
-      assertArrayFitsTraversal(value, state)
-      const sanitized = new Array<unknown>(value.length)
-      for (const [index, item] of arrayDataEntries(value)) {
-        sanitized[index] = sanitizeInlineValue(item, matcher, safeLargeValues, state, depth + 1)
-      }
-      return sanitized
-    }
-
-    const prototype = Object.getPrototypeOf(value)
-    const sanitized = Object.create(prototype) as Record<string, unknown>
-    const sanitizedKeys = new Set<string>()
-    for (const [key, item] of enumerableDataEntries(value)) {
-      const sanitizedKey = sanitizeString(key, matcher, state.maxBytes - state.outputBytes)
-      state.outputBytes += Buffer.byteLength(sanitizedKey, 'utf8')
-      if (sanitizedKeys.has(sanitizedKey)) {
-        throw new TraceSecretProjectionError('Secret replacement caused an object-key collision')
-      }
-      sanitizedKeys.add(sanitizedKey)
-      Object.defineProperty(sanitized, sanitizedKey, {
-        value: sanitizeInlineValue(item, matcher, safeLargeValues, state, depth + 1),
-        enumerable: true,
-        configurable: true,
-        writable: true,
-      })
-    }
-    return sanitized
-  } finally {
-    leaveObject(value, state)
-  }
-}
-
 function collectLargeValues(
   value: unknown,
   refs: object[],
@@ -840,12 +560,13 @@ async function sanitizeMaterializedValue(
   withinRefWorker = false
 ): Promise<unknown> {
   const withSafeRefs = await replaceLargeValues(value, context, path, withinRefWorker)
-  return sanitizeInlineValue(withSafeRefs, context.matcher, context.safeLargeValues, {
-    nodes: 0,
-    ancestors: new WeakSet<object>(),
-    outputBytes: 0,
-    maxBytes,
+  const projection = projectResolvedSecretContent(withSafeRefs, context.matcher, maxBytes, {
+    isOpaqueSafeObject: (candidate) => context.safeLargeValues.has(candidate),
   })
+  if (!projection.safe) {
+    throw new TraceSecretProjectionError('Trace content could not be sanitized')
+  }
+  return projection.value
 }
 
 async function storeSanitizedLargeValue(
@@ -1473,13 +1194,13 @@ function assertNoPlaintext(
 ): void {
   visitNode(state, depth)
   if (typeof value === 'string') {
-    if (containsSecret(value, context.matcher)) {
+    if (containsResolvedSecret(value, context.matcher)) {
       throw new TraceSecretProjectionError('Sanitized trace content still contains a secret')
     }
     return
   }
   if (value === null || typeof value === 'number' || typeof value === 'boolean') {
-    if (containsSecret(String(value), context.matcher)) {
+    if (containsResolvedSecret(String(value), context.matcher)) {
       throw new TraceSecretProjectionError('Sanitized trace primitive still contains a secret')
     }
     return
@@ -1519,7 +1240,7 @@ function assertNoPlaintext(
       return
     }
     for (const [key, item] of enumerableDataEntries(value)) {
-      if (containsSecret(key, context.matcher)) {
+      if (containsResolvedSecret(key, context.matcher)) {
         throw new TraceSecretProjectionError('Sanitized trace key still contains a secret')
       }
       assertNoPlaintext(item, context, state, depth + 1)
@@ -1746,7 +1467,7 @@ async function verifyPostTransformLargeValues(
 
 async function assertPostTransformTraceSpansAreSafe(
   traceSpans: TraceSpan[],
-  matcher: SecretMatcher,
+  matcher: ResolvedSecretMatcher,
   store: LargeValueStoreContext
 ): Promise<void> {
   const projection = createProjectionContext(matcher, store, false)
@@ -1788,14 +1509,10 @@ export async function enforceTraceSpanSecretInvariant(
   try {
     if (!options.registry?.isComplete()) return structuralOnlyTraceSpans(traceSpans)
 
-    const replacements = normalizeReplacements(options.registry.getActiveMatches())
-    if (replacements.length === 0) return traceSpans
+    const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches())
+    if (!matcher) return traceSpans
 
-    await assertPostTransformTraceSpansAreSafe(
-      traceSpans,
-      createSecretMatcher(replacements),
-      options.store
-    )
+    await assertPostTransformTraceSpansAreSafe(traceSpans, matcher, options.store)
     return traceSpans
   } catch {
     logger.warn('Trace secret invariant failed; retaining structural spans only')
@@ -1816,11 +1533,11 @@ export async function projectTraceSpansForSecrets(
   }
 
   try {
-    const replacements = normalizeReplacements(options.registry.getActiveMatches())
-    if (replacements.length === 0) return cloneTraceSpansForProjection(traceSpans)
+    const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches())
+    if (!matcher) return cloneTraceSpansForProjection(traceSpans)
 
     const context = createProjectionContext(
-      createSecretMatcher(replacements),
+      matcher,
       options.store,
       options.allowLargeValueWrites !== false
     )

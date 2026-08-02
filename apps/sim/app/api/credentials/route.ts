@@ -270,7 +270,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const credentials = rows.map(({ memberRole, ...rest }) => ({
       ...rest,
       role:
-        isWorkspaceAdmin && isSharedCredentialType(rest.type) ? 'admin' : (memberRole ?? 'member'),
+        (rest.type === 'env_personal' && rest.envOwnerUserId === session.user.id) ||
+        (isWorkspaceAdmin && isSharedCredentialType(rest.type))
+          ? 'admin'
+          : (memberRole ?? 'member'),
     }))
 
     return NextResponse.json({ credentials })

@@ -16,6 +16,7 @@ interface TaskContextMenuProps {
   onClose: () => void
   /** The right-clicked task; its status decides which actions render. */
   task: ScheduledTask | null
+  canEdit: boolean
   onEdit: () => void
   /** Opens a new-task modal pre-filled from this task. */
   onDuplicate: () => void
@@ -37,6 +38,7 @@ export function TaskContextMenu({
   position,
   onClose,
   task,
+  canEdit,
   onEdit,
   onDuplicate,
   onPause,
@@ -72,10 +74,12 @@ export function TaskContextMenu({
       >
         {isUpcoming ? (
           <>
-            <DropdownMenuItem onSelect={onEdit}>
-              <Pencil />
-              Edit
-            </DropdownMenuItem>
+            {canEdit && (
+              <DropdownMenuItem onSelect={onEdit}>
+                <Pencil />
+                Edit
+              </DropdownMenuItem>
+            )}
             {canPauseResume &&
               (task?.disabled ? (
                 <DropdownMenuItem onSelect={onResume}>

@@ -21,7 +21,10 @@ import {
 } from '@/lib/api/contracts'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
-import { fetchWorkspaceCredentialList } from '@/hooks/queries/utils/fetch-workspace-credentials'
+import {
+  fetchWorkspaceCredentialList,
+  WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
+} from '@/hooks/queries/utils/fetch-workspace-credentials'
 
 /**
  * Key prefix for OAuth credential queries.
@@ -29,7 +32,6 @@ import { fetchWorkspaceCredentialList } from '@/hooks/queries/utils/fetch-worksp
  */
 const OAUTH_CREDENTIALS_KEY = ['oauthCredentials'] as const
 
-export const WORKSPACE_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
 export const WORKSPACE_CREDENTIAL_DETAIL_STALE_TIME = 60 * 1000
 export const WORKSPACE_CREDENTIAL_MEMBER_LIST_STALE_TIME = 30 * 1000
 

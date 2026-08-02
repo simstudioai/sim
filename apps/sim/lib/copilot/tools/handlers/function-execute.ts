@@ -1,4 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { applySecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
+import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
+import {
+  CopilotCodeSecretAccessError,
+  type MaterializedCopilotCodeSecrets,
+  materializeCopilotCodeSecrets,
+} from '@/lib/copilot/tools/secret-mount-materializer.server'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -23,8 +30,9 @@ import {
   hasCloudStorage,
 } from '@/lib/uploads/core/storage-service'
 import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
+import { extractCodeSecretNames } from '@/executor/utils/code-secret-references'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool as executeAppTool } from '@/tools'
-import type { ToolExecutionContext, ToolExecutionResult } from '../../tool-executor/types'
 
 const logger = createLogger('CopilotFunctionExecute')
 
@@ -451,67 +459,112 @@ export async function resolveInputFiles(
   return sandboxFiles
 }
 
+async function importMountedProvenance(
+  source: ResolvedSecretTraceRegistry,
+  target: ResolvedSecretTraceRegistry | undefined
+): Promise<void> {
+  if (!target) return
+
+  try {
+    const imported = await target.importProvenance(source.exportProvenance(), { trusted: true })
+    if (!imported) target.markIncomplete()
+  } catch {
+    target.markIncomplete()
+  }
+}
+
 export async function executeFunctionExecute(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
   const enrichedParams = { ...params }
+  const requestedNames = applySecretMountPolicy(
+    extractCodeSecretNames(params.code, params.language),
+    context.secretMountPolicy
+  )
+  const completePendingActivation =
+    requestedNames.length > 0
+      ? context.resolvedSecretTraceRegistry?.beginPendingActivation()
+      : undefined
+  let mountedRegistry: ResolvedSecretTraceRegistry | undefined
 
-  if (context.decryptedEnvVars && Object.keys(context.decryptedEnvVars).length > 0) {
-    enrichedParams.envVars = {
-      ...context.decryptedEnvVars,
-      ...((enrichedParams.envVars as Record<string, string>) || {}),
+  try {
+    const secretActorUserId =
+      context.secretActorUserId === undefined ? context.userId : context.secretActorUserId
+    let mounted: MaterializedCopilotCodeSecrets = { envVars: {}, catalogEntries: [] }
+    if (requestedNames.length > 0) {
+      if (!secretActorUserId) {
+        throw new CopilotCodeSecretAccessError('Secret access is unavailable for this Copilot run')
+      }
+      if (!context.workspaceId) {
+        throw new CopilotCodeSecretAccessError(
+          'A workspace is required to mount secrets into Copilot code'
+        )
+      }
+      mounted = await materializeCopilotCodeSecrets({
+        actorUserId: secretActorUserId,
+        workspaceId: context.workspaceId,
+        requestedNames,
+      })
     }
-  }
+    mountedRegistry = new ResolvedSecretTraceRegistry(mounted.catalogEntries, {
+      userId: secretActorUserId ?? context.userId,
+      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+    })
 
-  if (context.workspaceId) {
-    const inputs = enrichedParams.inputs as
-      | {
-          files?: CanonicalFileInput[]
-          directories?: CanonicalDirectoryInput[]
-          tables?: CanonicalTableInput[]
+    enrichedParams.envVars = mounted.envVars
+    enrichedParams.secretScope = 'selected'
+    enrichedParams.mountedSecrets = requestedNames
+
+    if (context.workspaceId) {
+      const inputs = enrichedParams.inputs as
+        | {
+            files?: CanonicalFileInput[]
+            directories?: CanonicalDirectoryInput[]
+            tables?: CanonicalTableInput[]
+          }
+        | undefined
+      const inputFiles = [
+        ...((enrichedParams.inputFiles as unknown[] | undefined) ?? []),
+        ...(inputs?.files ?? []),
+      ]
+      const inputDirectories = inputs?.directories ?? []
+      const inputTables = [
+        ...((enrichedParams.inputTables as unknown[] | undefined) ?? []),
+        ...(inputs?.tables ?? []),
+      ]
+
+      if (inputFiles?.length || inputTables?.length || inputDirectories.length) {
+        const resolved = await resolveInputFiles(
+          context.workspaceId,
+          inputFiles,
+          inputTables,
+          inputDirectories
+        )
+        if (resolved.length > 0) {
+          const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
+          enrichedParams._sandboxFiles = [...existing, ...resolved]
         }
-      | undefined
-    const inputFiles = [
-      ...((enrichedParams.inputFiles as unknown[] | undefined) ?? []),
-      ...(inputs?.files ?? []),
-    ]
-    const inputDirectories = inputs?.directories ?? []
-    const inputTables = [
-      ...((enrichedParams.inputTables as unknown[] | undefined) ?? []),
-      ...(inputs?.tables ?? []),
-    ]
-
-    if (inputFiles?.length || inputTables?.length || inputDirectories.length) {
-      const resolved = await resolveInputFiles(
-        context.workspaceId,
-        inputFiles,
-        inputTables,
-        inputDirectories
-      )
-      if (resolved.length > 0) {
-        const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
-        enrichedParams._sandboxFiles = [...existing, ...resolved]
       }
     }
-  }
 
-  enrichedParams._context = {
-    ...(typeof enrichedParams._context === 'object' && enrichedParams._context !== null
-      ? (enrichedParams._context as object)
-      : {}),
-    userId: context.userId,
-    workflowId: context.workflowId,
-    workspaceId: context.workspaceId,
-    chatId: context.chatId,
-    executionId: context.executionId,
-    runId: context.runId,
-    enforceCredentialAccess: true,
-  }
+    enrichedParams._context = {
+      userId: context.userId,
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      chatId: context.chatId,
+      executionId: context.executionId,
+      runId: context.runId,
+      enforceCredentialAccess: true,
+    }
 
-  return context.resolvedSecretTraceRegistry
-    ? executeAppTool('function_execute', enrichedParams, {
-        resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
-      })
-    : executeAppTool('function_execute', enrichedParams)
+    return await executeAppTool('function_execute', enrichedParams, {
+      resolvedSecretTraceRegistry: mountedRegistry,
+    })
+  } finally {
+    if (mountedRegistry) {
+      await importMountedProvenance(mountedRegistry, context.resolvedSecretTraceRegistry)
+    }
+    completePendingActivation?.()
+  }
 }

@@ -39,6 +39,8 @@ export interface AsyncExecutionCorrelation {
   requestId: string
   source: AsyncExecutionCorrelationSource
   workflowId: string
+  /** Server-validated binding for a browser-routed Copilot workflow tool execution. */
+  copilotToolCallId?: string
   triggerType?: string
   webhookId?: string
   scheduleId?: string

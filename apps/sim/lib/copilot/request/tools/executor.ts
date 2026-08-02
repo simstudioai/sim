@@ -53,6 +53,7 @@ import {
   setTerminalToolCallState,
 } from '@/lib/copilot/request/tool-call-state'
 import { maybeWriteOutputToFile } from '@/lib/copilot/request/tools/files'
+import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import {
   maybeWriteOutputToTable,
@@ -558,6 +559,10 @@ async function executeToolAndReportInner(
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
+      const copilotResult = projectToolResultForCopilot(
+        result,
+        execContext.resolvedSecretTraceRegistry
+      )
       markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
       await completeAsyncToolCall({
@@ -579,7 +584,7 @@ async function executeToolAndReportInner(
       })
       endToolSpan('cancelled', {
         cancelReason: 'abort_during_execution',
-        error: result.success === false ? result.error : undefined,
+        error: copilotResult.success === false ? copilotResult.error : undefined,
       })
       return cancelledCompletion('Request aborted during tool execution')
     }
@@ -655,17 +660,22 @@ async function executeToolAndReportInner(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_csv' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
+    const copilotResult = projectToolResultForCopilot(
+      result,
+      execContext.resolvedSecretTraceRegistry
+    )
+
     toolSpan.attributes = {
       ...toolSpan.attributes,
-      ...summarizeToolResultForSpan(result),
+      ...summarizeToolResultForSpan(copilotResult),
     }
 
     setTerminalToolCallState(toolCall, {
-      status: result.success
+      status: copilotResult.success
         ? MothershipStreamV1ToolOutcome.success
         : MothershipStreamV1ToolOutcome.error,
-      ...(hasOutputValue(result) ? { output: result.output } : {}),
-      ...(result.success ? {} : { error: result.error || 'Tool failed' }),
+      ...(hasOutputValue(copilotResult) ? { output: copilotResult.output } : {}),
+      ...(copilotResult.success ? {} : { error: copilotResult.error || 'Tool failed' }),
     })
 
     if (result.success) {
@@ -688,7 +698,7 @@ async function executeToolAndReportInner(
       logger.warn('Tool execution failed', {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
-        error: result.error,
+        error: copilotResult.error,
         params: toolCall.params,
       })
     }
@@ -741,7 +751,7 @@ async function executeToolAndReportInner(
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         success: result.success,
-        output: result.output,
+        output: copilotResult.output,
         ...(result.success
           ? { status: MothershipStreamV1ToolOutcome.success }
           : { status: MothershipStreamV1ToolOutcome.error }),
@@ -760,6 +770,7 @@ async function executeToolAndReportInner(
         toolCall.name,
         toolCall.params,
         result,
+        copilotResult,
         execContext.chatId,
         options?.onEvent,
         () => abortRequested(context, execContext, options)
@@ -776,6 +787,11 @@ async function executeToolAndReportInner(
     })
   } catch (error) {
     const thrownMessage = toError(error).message
+    const copilotError = projectToolResultForCopilot(
+      { success: false, error: thrownMessage },
+      execContext.resolvedSecretTraceRegistry
+    )
+    const safeThrownMessage = copilotError.error || 'Tool failed'
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
@@ -798,13 +814,13 @@ async function executeToolAndReportInner(
       })
       endToolSpan('cancelled', {
         cancelReason: 'abort_during_execution_catch',
-        error: thrownMessage,
+        error: safeThrownMessage,
       })
       return cancelledCompletion('Request aborted during tool execution')
     }
     setTerminalToolCallState(toolCall, {
       status: MothershipStreamV1ToolOutcome.error,
-      error: thrownMessage,
+      error: safeThrownMessage,
     })
 
     logger.error('Tool execution threw', {
@@ -848,7 +864,7 @@ async function executeToolAndReportInner(
       },
     }
     await options?.onEvent?.(errorEvent)
-    endToolSpan('error', { error: thrownMessage })
+    endToolSpan('error', { error: safeThrownMessage })
     return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.error,
       message: toolCall.error,

@@ -40,6 +40,8 @@ export interface SerializedBlock {
   enabled: boolean
   /** Canonical mode overrides from block.data (used by agent handler for tool param resolution) */
   canonicalModes?: Record<string, 'basic' | 'advanced'>
+  /** Server-only lifecycle input ids omitted from execution-log projections. */
+  privateInputIds?: string[]
 }
 
 export interface SerializedLoop {

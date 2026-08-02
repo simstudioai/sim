@@ -2,11 +2,13 @@
  * @vitest-environment node
  */
 
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
+const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
+  getToolEntry: vi.fn(),
   isKnownTool: vi.fn(),
   isSimExecuted: vi.fn(),
   isClientExecuted: vi.fn(),
@@ -17,6 +19,7 @@ const { executeAppTool } = vi.hoisted(() => ({
 }))
 
 vi.mock('./router', () => ({
+  getToolEntry,
   isKnownTool,
   isSimExecuted,
   isClientExecuted,
@@ -28,10 +31,87 @@ vi.mock('@/tools', () => ({
 
 import { clearHandlers, executeTool, registerHandler } from './executor'
 
+const toolExecutorLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'ToolExecutor')
+]?.value
+
 describe('copilot tool executor fallback', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearHandlers()
+    getToolEntry.mockReturnValue(undefined)
+  })
+
+  it('enforces catalog-required permissions before dispatch and fails closed when absent', async () => {
+    getToolEntry.mockReturnValue({ requiredPermission: 'write' })
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    const handler = vi.fn().mockResolvedValue({ success: true })
+    registerHandler('function_execute', handler)
+
+    await expect(
+      executeTool('function_execute', { code: 'return 1' }, { userId: 'user-1', workflowId: '' })
+    ).resolves.toEqual({
+      success: false,
+      error:
+        "Permission denied: function_execute requires write access. You have 'none' permission.",
+    })
+    await expect(
+      executeTool(
+        'function_execute',
+        { code: 'return 1' },
+        { userId: 'user-1', workflowId: '', userPermission: 'read' }
+      )
+    ).resolves.toEqual({
+      success: false,
+      error:
+        "Permission denied: function_execute requires write access. You have 'read' permission.",
+    })
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('dispatches catalog-protected tools when the current permission satisfies the requirement', async () => {
+    getToolEntry.mockReturnValue({ requiredPermission: 'write' })
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    const handler = vi.fn().mockResolvedValue({ success: true, output: 'ok' })
+    registerHandler('function_execute', handler)
+
+    await expect(
+      executeTool(
+        'function_execute',
+        { code: 'return 1' },
+        { userId: 'user-1', workflowId: '', userPermission: 'write' }
+      )
+    ).resolves.toEqual({ success: true, output: 'ok' })
+    expect(handler).toHaveBeenCalledOnce()
+  })
+
+  it('projects resolved secrets before logging registered handler failures', async () => {
+    const secret = 'mounted-secret-value'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-secret' },
+    ])
+    registry.recordResolved('API_KEY', secret)
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    registerHandler('throwing_tool', async () => {
+      throw new Error(`Provider reflected ${secret}`)
+    })
+
+    await expect(
+      executeTool('throwing_tool', {}, { userId: 'user-1', resolvedSecretTraceRegistry: registry })
+    ).resolves.toEqual({ success: false, error: `Provider reflected ${secret}` })
+
+    expect(toolExecutorLogger?.error).toHaveBeenCalledWith('Tool execution failed', {
+      toolId: 'throwing_tool',
+      error: 'Provider reflected {{API_KEY}}',
+      abortSignalAborted: false,
+    })
+    expect(JSON.stringify(toolExecutorLogger?.error.mock.calls)).not.toContain(secret)
   })
 
   it('falls back to app tool executor for dynamic sim tools', async () => {
