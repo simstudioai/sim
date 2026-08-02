@@ -75,12 +75,14 @@ export const GET = withRouteHandler(
         return v2Error('BAD_REQUEST', 'Invalid cursor')
       }
 
-      const { versions: rows } = await listWorkflowVersions(id)
+      // One extra row is the has-more probe, matching the other v2 cursor lists.
+      const { versions: rows } = await listWorkflowVersions(id, {
+        limit: limit + 1,
+        afterVersion: after?.version,
+      })
 
-      const remaining = after ? rows.filter((row) => row.version < after.version) : rows
-
-      const hasMore = remaining.length > limit
-      const page = remaining.slice(0, limit)
+      const hasMore = rows.length > limit
+      const page = rows.slice(0, limit)
 
       const data: V2WorkflowVersion[] = page.map((row) => ({
         id: row.id,

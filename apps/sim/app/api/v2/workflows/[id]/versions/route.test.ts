@@ -74,6 +74,12 @@ function buildVersion(version: number, overrides: Record<string, unknown> = {}) 
   }
 }
 
+const ALL_VERSIONS = [
+  buildVersion(3, { isActive: true, name: 'Escalation branch', latestOperationStatus: 'active' }),
+  buildVersion(2),
+  buildVersion(1),
+]
+
 const routeContext = () => ({ params: Promise.resolve({ id: 'wf-1' }) })
 const callGet = (query = '') =>
   GET(
@@ -87,17 +93,21 @@ describe('GET /api/v2/workflows/[id]/versions', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockGetActiveWorkflowRecord.mockResolvedValue(WORKFLOW_RECORD)
-    mockListWorkflowVersions.mockResolvedValue({
-      versions: [
-        buildVersion(3, {
-          isActive: true,
-          name: 'Escalation branch',
-          latestOperationStatus: 'active',
-        }),
-        buildVersion(2),
-        buildVersion(1),
-      ],
-    })
+    /**
+     * Stands in for the keyset query the helper now runs, so the route's
+     * has-more probe and cursor round-trip are exercised against realistic
+     * `limit`/`afterVersion` behavior rather than a fixed array.
+     */
+    mockListWorkflowVersions.mockImplementation(
+      async (_workflowId: string, options: { limit?: number; afterVersion?: number } = {}) => {
+        let versions = ALL_VERSIONS
+        if (options.afterVersion !== undefined) {
+          versions = versions.filter((row) => row.version < options.afterVersion!)
+        }
+        if (options.limit !== undefined) versions = versions.slice(0, options.limit)
+        return { versions }
+      }
+    )
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
@@ -157,7 +167,25 @@ describe('GET /api/v2/workflows/[id]/versions', () => {
       latestOperationStatus: 'active',
     })
     expect(body.data[0]).not.toHaveProperty('createdBy')
-    expect(mockListWorkflowVersions).toHaveBeenCalledWith('wf-1')
+    // Paging is pushed into the helper — the route never reads the full set.
+    expect(mockListWorkflowVersions).toHaveBeenCalledWith('wf-1', {
+      limit: 51,
+      afterVersion: undefined,
+    })
+  })
+
+  it('bounds the read to one page plus the has-more probe', async () => {
+    await callGet('?limit=2')
+    expect(mockListWorkflowVersions).toHaveBeenCalledWith('wf-1', {
+      limit: 3,
+      afterVersion: undefined,
+    })
+  })
+
+  it('pushes the cursor down to the helper as a keyset bound', async () => {
+    const cursor = Buffer.from(JSON.stringify({ version: 3 })).toString('base64')
+    await callGet(`?limit=2&cursor=${encodeURIComponent(cursor)}`)
+    expect(mockListWorkflowVersions).toHaveBeenCalledWith('wf-1', { limit: 3, afterVersion: 3 })
   })
 
   it('400s a structurally invalid cursor instead of silently truncating the list', async () => {

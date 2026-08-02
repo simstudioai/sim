@@ -43,71 +43,72 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-/** GET /api/v2/workflows/[id] — Fetch one workflow with its variables and trigger inputs. */
-export const GET = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const requestId = generateId().slice(0, 8)
+export const GET = withRouteHandler(
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const requestId = generateId().slice(0, 8)
 
-  try {
-    const rateLimit = await checkRateLimit(request, 'workflow-detail')
-    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+    try {
+      const rateLimit = await checkRateLimit(request, 'workflow-detail')
+      if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
 
-    const userId = rateLimit.userId!
+      const userId = rateLimit.userId!
 
-    const gate = await v2ApiGateError(userId)
-    if (gate) return gate
+      const gate = await v2ApiGateError(userId)
+      if (gate) return gate
 
-    const parsed = await parseRequest(v2GetWorkflowContract, request, context, {
-      validationErrorResponse: v2ValidationError,
-    })
-    if (!parsed.success) return parsed.response
-
-    const { id } = parsed.data.params
-
-    const workflowData = await getActiveWorkflowRecord(id)
-    if (!workflowData?.workspaceId) return v2Error('NOT_FOUND', 'Workflow not found')
-
-    // Mask an authorization failure as 404 so existence is not leaked.
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workflowData.workspaceId)
-    if (access) return v2Error('NOT_FOUND', 'Workflow not found')
-
-    const blockRows = await db
-      .select({
-        id: workflowBlocks.id,
-        type: workflowBlocks.type,
-        subBlocks: workflowBlocks.subBlocks,
+      const parsed = await parseRequest(v2GetWorkflowContract, request, context, {
+        validationErrorResponse: v2ValidationError,
       })
-      .from(workflowBlocks)
-      .where(eq(workflowBlocks.workflowId, id))
+      if (!parsed.success) return parsed.response
 
-    const blocksRecord = Object.fromEntries(
-      blockRows.map((block) => [block.id, { type: block.type, subBlocks: block.subBlocks }])
-    )
-    const inputs = extractInputFieldsFromBlocks(blocksRecord)
+      const { id } = parsed.data.params
 
-    const detail: V2WorkflowDetail = {
-      id: workflowData.id,
-      name: workflowData.name,
-      description: workflowData.description,
-      folderId: workflowData.folderId,
-      workspaceId: workflowData.workspaceId,
-      isDeployed: workflowData.isDeployed,
-      deployedAt: workflowData.deployedAt?.toISOString() ?? null,
-      runCount: workflowData.runCount,
-      lastRunAt: workflowData.lastRunAt?.toISOString() ?? null,
-      variables: (workflowData.variables as Record<string, unknown> | null) ?? {},
-      inputs,
-      createdAt: workflowData.createdAt.toISOString(),
-      updatedAt: workflowData.updatedAt.toISOString(),
+      const workflowData = await getActiveWorkflowRecord(id)
+      if (!workflowData?.workspaceId) return v2Error('NOT_FOUND', 'Workflow not found')
+
+      // Mask an authorization failure as 404 so existence is not leaked.
+      const access = await resolveWorkspaceAccess(rateLimit, userId, workflowData.workspaceId)
+      if (access) return v2Error('NOT_FOUND', 'Workflow not found')
+
+      const blockRows = await db
+        .select({
+          id: workflowBlocks.id,
+          type: workflowBlocks.type,
+          subBlocks: workflowBlocks.subBlocks,
+        })
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.workflowId, id))
+
+      const blocksRecord = Object.fromEntries(
+        blockRows.map((block) => [block.id, { type: block.type, subBlocks: block.subBlocks }])
+      )
+      const inputs = extractInputFieldsFromBlocks(blocksRecord)
+
+      const detail: V2WorkflowDetail = {
+        id: workflowData.id,
+        name: workflowData.name,
+        description: workflowData.description,
+        folderId: workflowData.folderId,
+        workspaceId: workflowData.workspaceId,
+        isDeployed: workflowData.isDeployed,
+        deployedAt: workflowData.deployedAt?.toISOString() ?? null,
+        runCount: workflowData.runCount,
+        lastRunAt: workflowData.lastRunAt?.toISOString() ?? null,
+        variables: (workflowData.variables as Record<string, unknown> | null) ?? {},
+        inputs,
+        createdAt: workflowData.createdAt.toISOString(),
+        updatedAt: workflowData.updatedAt.toISOString(),
+      }
+
+      return v2Data(detail, { rateLimit })
+    } catch (error) {
+      logger.error(`[${requestId}] Workflow details fetch error`, {
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      return v2Error('INTERNAL_ERROR', 'Internal server error')
     }
-
-    return v2Data(detail, { rateLimit })
-  } catch (error) {
-    logger.error(`[${requestId}] Workflow details fetch error`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
   }
-})
+)
 
 /** PATCH /api/v2/workflows/[id] — Rename, re-describe, or move a workflow. */
 export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
