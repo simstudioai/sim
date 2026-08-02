@@ -3349,7 +3349,8 @@ export const Platform: ToolCatalogEntry = {
   parameters: {
     properties: {
       task: {
-        description: 'A task for the Platform agent.',
+        description:
+          "A fully self-contained question about Sim — the platform agent sees none of this conversation, so include every name, id, constraint, and prior finding it needs. Example: 'what is the minimum schedule-trigger interval, and does it differ by plan?' or 'does the agent block persist memory across runs?'.",
         type: 'string',
       },
     },
