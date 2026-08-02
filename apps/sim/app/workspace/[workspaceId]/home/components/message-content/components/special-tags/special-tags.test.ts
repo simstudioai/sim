@@ -14,6 +14,7 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: vi.fn(() => ({ data: null, isPending: false })),
 }))
 
+import { scalingRatioOver4x } from '@/components/chat/scaling-test-helpers'
 import type { ContentSegment, IndexOfCache } from '@/components/chat/special-tags/parse'
 import {
   memoizedIndexOf,
@@ -21,7 +22,6 @@ import {
   parseSpecialTags,
   SPECIAL_TAG_NAMES,
 } from '@/components/chat/special-tags/parse'
-import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
 
 /**
  * What a reader actually sees: the renderer concatenates adjacent text segments

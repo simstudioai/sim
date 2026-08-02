@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { sanitizeChatDisplayContent } from '@/components/chat/chat-content/chat-sanitize'
-import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
+import { scalingRatioOver4x } from '@/components/chat/scaling-test-helpers'
 
 describe('sanitizeChatDisplayContent', () => {
   it('unwraps workspace resource tags from inline code spans', () => {
