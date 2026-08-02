@@ -17,6 +17,7 @@ import {
   writeWorkspaceFileByPath,
 } from '@/lib/copilot/vfs/resource-writer'
 import { isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
+import { setRecordValue } from '@/lib/core/utils/records'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
@@ -580,7 +581,7 @@ function scopeEnvironmentVariables(
   const scoped: Record<string, string> = {}
   const missing: string[] = []
   for (const name of allowed) {
-    if (name in envVars) scoped[name] = envVars[name]
+    if (Object.hasOwn(envVars, name)) setRecordValue(scoped, name, envVars[name])
     else missing.push(name)
   }
   if (missing.length > 0) {
@@ -608,19 +609,19 @@ function resolveEnvironmentVariables(
   const resolverVars: Record<string, string> = {}
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
-      resolverVars[key] = String(value)
+      setRecordValue(resolverVars, key, String(value))
     }
   })
   Object.entries(envVars).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
-      resolverVars[key] = value
+      setRecordValue(resolverVars, key, value)
     }
   })
 
   while ((match = regex.exec(code)) !== null) {
     const varName = match[1].trim()
 
-    if (!(varName in resolverVars)) {
+    if (!Object.hasOwn(resolverVars, varName)) {
       continue
     }
 

@@ -7,6 +7,7 @@ import {
   MAX_SECRET_MOUNT_NAMES,
 } from '@/lib/copilot/secret-mount-policy'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { setRecordValue } from '@/lib/core/utils/records'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import type { ResolvedSecretTraceCatalogEntry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -70,7 +71,7 @@ function encryptedVariables(row: { variables: unknown } | undefined): Record<str
     return {}
   const result: Record<string, string> = {}
   for (const [name, value] of Object.entries(row.variables)) {
-    if (typeof value === 'string') result[name] = value
+    if (typeof value === 'string') setRecordValue(result, name, value)
   }
   return result
 }

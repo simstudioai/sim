@@ -112,6 +112,20 @@ describe('materializeCopilotCodeSecrets', () => {
     })
   })
 
+  it('mounts an own __proto__ secret as data without mutating record prototypes', async () => {
+    queueSources({ personal: Object.fromEntries([['__proto__', 'personal-cipher']]) })
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['__proto__'],
+    })
+
+    expect(Object.hasOwn(result.envVars, '__proto__')).toBe(true)
+    expect(result.envVars.__proto__).toBe('plain:personal-cipher')
+    expect(Object.getPrototypeOf(result.envVars)).toBe(Object.prototype)
+  })
+
   it('casts stored JSON values before using JSONB operators', async () => {
     queueSources({ personal: { API_KEY: 'personal-cipher' } })
 

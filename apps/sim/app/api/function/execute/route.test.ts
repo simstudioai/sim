@@ -935,6 +935,26 @@ describe('Function Execute API Route', () => {
       expect((await response.json()).__resolvedSecretNames).toEqual(['ALLOWED'])
     })
 
+    it('resolves a selected __proto__ secret as an own environment key', async () => {
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return "{{__proto__}}"',
+            envVars: Object.fromEntries([['__proto__', 'secret-value']]),
+            secretScope: 'selected',
+            mountedSecrets: ['__proto__'],
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+          }
+        )
+      )
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).__resolvedSecretNames).toEqual(['__proto__'])
+    })
+
     it.concurrent('should resolve tag variables with <tag_name> syntax', async () => {
       const req = createMockRequest('POST', {
         code: 'return <email>',
