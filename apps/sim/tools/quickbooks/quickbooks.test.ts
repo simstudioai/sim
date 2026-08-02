@@ -1275,4 +1275,24 @@ describe('QuickBooks tool and block boundaries', () => {
       expect(section).toContain(description)
     }
   })
+
+  it('documents the identifiers needed to link Purchase Order lines to Bills', () => {
+    const docs = readFileSync(
+      new URL('../../../docs/content/docs/en/integrations/quickbooks.mdx', import.meta.url),
+      'utf8'
+    )
+    const purchasingReadSection = docs
+      .split('### `quickbooks_read_purchasing_transactions`')[1]
+      ?.split('### `quickbooks_create_purchase_order`')[0]
+    const createBillSection = docs
+      .split('### `quickbooks_create_bill`')[1]
+      ?.split('### `quickbooks_update_bill`')[0]
+
+    expect(purchasingReadSection).toBeDefined()
+    expect(purchasingReadSection).toContain('`Id`')
+    expect(purchasingReadSection).toContain('`TxnLineId`')
+    expect(createBillSection).toBeDefined()
+    expect(createBillSection).toContain('`purchaseOrderId`')
+    expect(createBillSection).toContain('`purchaseOrderLineId`')
+  })
 })

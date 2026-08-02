@@ -1180,7 +1180,7 @@ export const QUICKBOOKS_SALES_TRANSACTION_PROPERTIES: Record<string, OutputPrope
   },
 }
 
-const QUICKBOOKS_LINKED_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
+export const QUICKBOOKS_LINKED_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
   TxnId: { type: 'string', description: 'Linked QuickBooks transaction ID', optional: true },
   TxnType: { type: 'string', description: 'Linked QuickBooks transaction type', optional: true },
   TxnLineId: {
@@ -1190,7 +1190,7 @@ const QUICKBOOKS_LINKED_TRANSACTION_PROPERTIES: Record<string, OutputProperty> =
   },
 }
 
-const QUICKBOOKS_PURCHASING_LINE_PROPERTIES: Record<string, OutputProperty> = {
+export const QUICKBOOKS_PURCHASING_LINE_PROPERTIES: Record<string, OutputProperty> = {
   Id: { type: 'string', description: 'QuickBooks transaction line ID', optional: true },
   LineNum: { type: 'number', description: 'QuickBooks transaction line number', optional: true },
   Description: { type: 'string', description: 'Transaction line description', optional: true },
@@ -1348,7 +1348,7 @@ export const QUICKBOOKS_MUTATION_OUTPUTS: Record<string, OutputProperty> = {
   },
 }
 
-const QUICKBOOKS_BILL_LINK_INPUT_PROPERTIES: Record<string, OutputProperty> = {
+export const QUICKBOOKS_BILL_LINK_INPUT_PROPERTIES: Record<string, OutputProperty> = {
   purchaseOrderId: { type: 'string', description: 'Requested Purchase Order ID' },
   purchaseOrderLineId: { type: 'string', description: 'Requested Purchase Order line ID' },
 }
