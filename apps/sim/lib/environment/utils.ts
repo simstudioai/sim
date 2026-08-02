@@ -24,10 +24,21 @@ const WORKSPACE_ENV_LOCK_TIMEOUT_MS = 5_000
 const EFFECTIVE_ENVIRONMENT_CACHE_TTL_MS = 2_000
 const EFFECTIVE_ENVIRONMENT_CACHE_MAX_ENTRIES = 1_000
 
+type WorkspaceEnvDenialReason = 'not-secret-admin' | 'write-access-required'
+
+/** Mirrors the messages the workspace environment route returns for the same denials. */
+const WORKSPACE_ENV_DENIAL_MESSAGES: Record<WorkspaceEnvDenialReason, string> = {
+  'not-secret-admin': 'You must be an admin of these secrets to edit them',
+  'write-access-required': 'Write access is required to add new secrets',
+}
+
 /** Thrown when the acting user may not write one of the requested env keys. */
 export class WorkspaceEnvAccessError extends Error {
-  constructor(readonly keys: string[]) {
-    super('You must be an admin of these secrets to edit them')
+  constructor(
+    readonly reason: WorkspaceEnvDenialReason,
+    readonly keys: string[]
+  ) {
+    super(WORKSPACE_ENV_DENIAL_MESSAGES[reason])
     this.name = 'WorkspaceEnvAccessError'
   }
 }
@@ -365,7 +376,7 @@ export async function upsertWorkspaceEnvVars(
       reason: 'not-secret-admin',
       keys: forbidden,
     })
-    throw new WorkspaceEnvAccessError(forbidden)
+    throw new WorkspaceEnvAccessError('not-secret-admin', forbidden)
   }
   const addingNew = updatedKeys.some((key) => !knownKeys.has(key))
   if (addingNew && permission !== 'admin' && permission !== 'write') {
@@ -375,7 +386,10 @@ export async function upsertWorkspaceEnvVars(
       reason: 'write-access-required',
       keys: updatedKeys.filter((key) => !knownKeys.has(key)),
     })
-    throw new WorkspaceEnvAccessError(updatedKeys.filter((key) => !knownKeys.has(key)))
+    throw new WorkspaceEnvAccessError(
+      'write-access-required',
+      updatedKeys.filter((key) => !knownKeys.has(key))
+    )
   }
 
   const newlyEncrypted: Record<string, string> = {}

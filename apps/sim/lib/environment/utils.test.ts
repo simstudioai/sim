@@ -61,10 +61,15 @@ describe('upsertWorkspaceEnvVars', () => {
       knownKeys: new Set(['STRIPE_KEY']),
     })
 
-    await expect(
-      upsertWorkspaceEnvVars('ws-1', { STRIPE_KEY: 'rotated' }, 'user-1')
-    ).rejects.toBeInstanceOf(WorkspaceEnvAccessError)
+    const error = await upsertWorkspaceEnvVars('ws-1', { STRIPE_KEY: 'rotated' }, 'user-1').catch(
+      (e) => e
+    )
 
+    expect(error).toBeInstanceOf(WorkspaceEnvAccessError)
+    expect(error).toMatchObject({
+      reason: 'not-secret-admin',
+      message: 'You must be an admin of these secrets to edit them',
+    })
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
@@ -76,10 +81,17 @@ describe('upsertWorkspaceEnvVars', () => {
       knownKeys: new Set<string>(),
     })
 
-    await expect(
-      upsertWorkspaceEnvVars('ws-1', { NEW_KEY: 'value' }, 'user-1')
-    ).rejects.toBeInstanceOf(WorkspaceEnvAccessError)
+    const error = await upsertWorkspaceEnvVars('ws-1', { NEW_KEY: 'value' }, 'user-1').catch(
+      (e) => e
+    )
 
+    expect(error).toBeInstanceOf(WorkspaceEnvAccessError)
+    // Distinct from the secret-admin denial: the route answers this case with a
+    // write-access message, and the agent surfaces whatever we throw verbatim.
+    expect(error).toMatchObject({
+      reason: 'write-access-required',
+      message: 'Write access is required to add new secrets',
+    })
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 
