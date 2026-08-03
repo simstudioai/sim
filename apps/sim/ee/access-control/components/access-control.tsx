@@ -14,7 +14,7 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowRight, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
@@ -31,6 +31,10 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { GroupDetail } from '@/ee/access-control/components/group-detail'
@@ -252,37 +256,27 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
               No groups found matching "{searchTerm}"
             </SettingsEmptyState>
           ) : (
-            <div className='-mx-2 flex flex-col gap-y-0.5'>
+            <div className={RESOURCE_LIST_STACK}>
               {filteredGroups.map((group) => (
-                <button
+                <SettingsResourceRow
                   key={group.id}
-                  type='button'
+                  title={group.name}
+                  description={
+                    group.isDefault
+                      ? 'Everyone in the organization'
+                      : `${
+                          group.memberCount === 0
+                            ? 'All members'
+                            : `${group.memberCount} member${group.memberCount === 1 ? '' : 's'}`
+                        } · ${group.workspaces.length} workspace${
+                          group.workspaces.length === 1 ? '' : 's'
+                        }`
+                  }
+                  badge={group.isDefault ? <ChipTag variant='gray'>Default</ChipTag> : undefined}
                   onClick={() => openGroupDetail(group.id)}
-                  className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-                >
-                  <div className='flex min-w-0 flex-1 flex-col'>
-                    <div className='flex items-center gap-2'>
-                      <span className='truncate text-[var(--text-body)] text-sm'>{group.name}</span>
-                      {group.isDefault && (
-                        <ChipTag variant='gray' className='flex-shrink-0'>
-                          Default
-                        </ChipTag>
-                      )}
-                    </div>
-                    <span className='truncate text-[var(--text-muted)] text-caption'>
-                      {group.isDefault
-                        ? 'Everyone in the organization'
-                        : `${
-                            group.memberCount === 0
-                              ? 'All members'
-                              : `${group.memberCount} member${group.memberCount === 1 ? '' : 's'}`
-                          } · ${group.workspaces.length} workspace${
-                            group.workspaces.length === 1 ? '' : 's'
-                          }`}
-                    </span>
-                  </div>
-                  <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-                </button>
+                  clickLabel={`Open ${group.name}`}
+                  navigable
+                />
               ))}
             </div>
           )}

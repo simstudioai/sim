@@ -15,7 +15,10 @@ import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/l
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 function getMounts(response: LocalFilesystemResponse): LocalFilesystemMount[] | null {
@@ -297,7 +300,7 @@ export function Desktop() {
               No folder access granted. Chat can only read folders you add here.
             </SettingsEmptyState>
           ) : (
-            <div className='flex flex-col gap-2'>
+            <div className={RESOURCE_LIST_STACK}>
               {mounts.map((mount) => (
                 <SettingsResourceRow
                   key={mount.id}
@@ -306,24 +309,24 @@ export function Desktop() {
                   title={mount.name}
                   onClick={() => void revealFolder(mount)}
                   clickLabel={`Show ${mount.name} in the file manager`}
+                  badge={
+                    !mount.remembered ? (
+                      <span className='text-[var(--text-muted)] text-caption'>
+                        Until app restarts
+                      </span>
+                    ) : undefined
+                  }
                   trailing={
-                    <div className='flex flex-shrink-0 items-center gap-2'>
-                      {!mount.remembered && (
-                        <span className='text-[var(--text-muted)] text-caption'>
-                          Until app restarts
-                        </span>
-                      )}
-                      <RowActionsMenu
-                        label={`${mount.name} actions`}
-                        actions={[
-                          {
-                            label: 'Revoke access',
-                            destructive: true,
-                            onSelect: () => setMountToForget(mount),
-                          },
-                        ]}
-                      />
-                    </div>
+                    <RowActionsMenu
+                      label={`${mount.name} actions`}
+                      actions={[
+                        {
+                          label: 'Revoke access',
+                          destructive: true,
+                          onSelect: () => setMountToForget(mount),
+                        },
+                      ]}
+                    />
                   }
                 />
               ))}

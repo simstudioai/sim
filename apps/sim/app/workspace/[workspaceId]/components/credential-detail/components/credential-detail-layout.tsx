@@ -21,10 +21,10 @@ export function CredentialDetailLayout({ back, actions, children }: CredentialDe
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className={cn(PAGE_HEADER_BAR, 'justify-between')}>
         {back}
-        {actions ? <div className='flex items-center'>{actions}</div> : null}
+        {actions ? <div className='flex h-[30px] items-center gap-1'>{actions}</div> : null}
       </div>
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>{children}</div>
+        <div className='mx-auto flex w-full max-w-[48rem] flex-col gap-7 pb-6'>{children}</div>
       </div>
     </div>
   )

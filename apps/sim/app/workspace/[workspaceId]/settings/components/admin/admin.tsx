@@ -302,8 +302,8 @@ export function Admin() {
           <>
             <div className='flex items-center justify-between gap-3'>
               <div className='flex flex-col gap-1'>
-                <Label className='text-[var(--text-primary)] text-sm'>Mothership Environment</Label>
-                <p className='text-[var(--text-secondary)] text-xs'>
+                <Label>Mothership Environment</Label>
+                <p className='text-[var(--text-secondary)] text-caption'>
                   Default uses the configured Sim agent URL.
                 </p>
               </div>
