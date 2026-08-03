@@ -20,8 +20,3 @@ export function getClientIp(request: { headers: { get(name: string): string | nu
     'unknown'
   )
 }
-
-/**
- * No-operation function for use as default callback
- */
-export const noop = () => {}
