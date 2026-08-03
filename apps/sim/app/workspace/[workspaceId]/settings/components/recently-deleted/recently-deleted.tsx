@@ -398,7 +398,11 @@ export function RecentlyDeleted() {
           cmp = a.deletedAt.getTime() - b.deletedAt.getTime()
           break
       }
-      return sortDirection === 'asc' ? cmp : -cmp
+      if (cmp !== 0) return sortDirection === 'asc' ? cmp : -cmp
+      // Ties fall back to A→Z regardless of direction, matching the foldered
+      // resource lists — otherwise rows tied on type or deletion time land in
+      // the arbitrary order the resource families were collected in.
+      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
     })
 
     const itemIds = new Set(items.map((item) => item.id))
