@@ -1,6 +1,7 @@
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
 import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
+import { sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 import { buildQuickBooksCreateBillPaymentBody } from '@/tools/quickbooks/purchasing_utils'
 import type {
   QuickBooksAccount,
@@ -39,7 +40,7 @@ async function getQuickBooksDirectExecutionError(
   const errorInfo = {
     status: response.status,
     statusText: response.statusText,
-    data,
+    data: sanitizeQuickBooksFaultData(data),
     headers: response.headers,
   }
   return Object.assign(

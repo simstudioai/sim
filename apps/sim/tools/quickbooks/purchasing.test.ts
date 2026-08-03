@@ -593,6 +593,54 @@ describe('QuickBooks BillPayment account compatibility', () => {
     )
   })
 
+  it('allowlists QuickBooks fault data from direct execution errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            Fault: {
+              Error: [
+                {
+                  code: '3200',
+                  Message: 'Authentication failed',
+                  Detail: 'Reconnect the credential',
+                  secret: 'must-not-leak',
+                },
+              ],
+              privateMetadata: 'must-not-leak',
+            },
+            undocumentedRootField: 'must-not-leak',
+          },
+          { status: 401 }
+        )
+      )
+    )
+
+    let caught: unknown
+    try {
+      await quickbooksCreateBillPaymentTool.directExecution!(params)
+    } catch (error) {
+      caught = error
+    }
+
+    expect(caught).toBeInstanceOf(Error)
+    expect((caught as Error & { data?: unknown }).data).toEqual({
+      Fault: {
+        Error: [
+          {
+            code: '3200',
+            Message: 'Authentication failed',
+            Detail: 'Reconnect the credential',
+          },
+        ],
+      },
+    })
+    expect(JSON.stringify((caught as Error & { data?: unknown }).data)).not.toContain(
+      'must-not-leak'
+    )
+  })
+
   it('propagates cancellation and does not create a payment', async () => {
     const controller = new AbortController()
     const fetchMock = vi.fn().mockImplementationOnce(() => {
