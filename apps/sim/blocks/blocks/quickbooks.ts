@@ -38,10 +38,12 @@ const READ_ATTACHMENTS_OPERATION = 'quickbooks_read_attachments'
 const ADD_ATTACHMENT_OPERATION = 'quickbooks_add_attachment'
 const DOWNLOAD_ATTACHMENT_OPERATION = 'quickbooks_download_attachment'
 const CUSTOMER_OPERATIONS = ['quickbooks_create_customer', 'quickbooks_update_customer'] as const
+const EMPLOYEE_OPERATIONS = ['quickbooks_create_employee', 'quickbooks_update_employee'] as const
 const VENDOR_OPERATIONS = ['quickbooks_create_vendor', 'quickbooks_update_vendor'] as const
 const ITEM_OPERATIONS = ['quickbooks_create_item', 'quickbooks_update_item'] as const
 const MASTER_DATA_CREATE_OPERATIONS = [
   'quickbooks_create_customer',
+  'quickbooks_create_employee',
   'quickbooks_create_item',
   'quickbooks_create_vendor',
 ] as const
@@ -98,6 +100,7 @@ const SALES_VOID_OPERATIONS = [
 ] as const
 const MASTER_DATA_UPDATE_OPERATIONS = [
   'quickbooks_update_customer',
+  'quickbooks_update_employee',
   'quickbooks_update_item',
   'quickbooks_update_vendor',
 ] as const
@@ -134,6 +137,7 @@ const UPDATE_OPERATIONS = [
 ] as const
 const MUTATION_OPERATIONS = [
   ...CUSTOMER_OPERATIONS,
+  ...EMPLOYEE_OPERATIONS,
   ...ITEM_OPERATIONS,
   ...VENDOR_OPERATIONS,
   ...SALES_MUTATION_OPERATIONS,
@@ -379,6 +383,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Read Master Data', id: 'quickbooks_read_master_data' },
         { label: 'Create Customer', id: 'quickbooks_create_customer' },
         { label: 'Update Customer', id: 'quickbooks_update_customer' },
+        { label: 'Create Employee', id: 'quickbooks_create_employee' },
+        { label: 'Update Employee', id: 'quickbooks_update_employee' },
         { label: 'Create Vendor', id: 'quickbooks_create_vendor' },
         { label: 'Update Vendor', id: 'quickbooks_update_vendor' },
         { label: 'Create Item', id: 'quickbooks_create_item' },
@@ -445,6 +451,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Invoice', id: 'invoice' },
+        { label: 'Customer Payment', id: 'payment' },
         { label: 'Estimate', id: 'estimate' },
         { label: 'Sales Receipt', id: 'sales_receipt' },
         { label: 'Credit Memo', id: 'credit_memo' },
@@ -707,6 +714,73 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       },
     },
     {
+      id: 'readActiveStatus',
+      title: 'Active Status',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'Active', id: 'active' },
+        { label: 'Inactive', id: 'inactive' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: MASTER_DATA_OPERATION,
+        and: { field: 'readMode', value: 'list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'readStartDate',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION, ACCOUNTING_READ_OPERATION],
+        and: { field: 'readMode', value: 'list' },
+      },
+    },
+    {
+      id: 'readEndDate',
+      title: 'End Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION, ACCOUNTING_READ_OPERATION],
+        and: { field: 'readMode', value: 'list' },
+      },
+    },
+    {
+      id: 'readCustomerId',
+      title: 'Customer ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find a customer ID',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: SALES_READ_OPERATION,
+        and: { field: 'readMode', value: 'list' },
+      },
+    },
+    {
+      id: 'readVendorId',
+      title: 'Vendor ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find a vendor ID',
+      description:
+        'Supported for purchase orders, bills, bill payments, and vendor credits. Purchase/Expense filtering is not exposed because its reference contract differs.',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: PURCHASING_READ_OPERATION,
+        and: { field: 'readMode', value: 'list' },
+      },
+    },
+    {
       id: 'transactionType',
       title: 'Transaction Type',
       type: 'dropdown',
@@ -777,6 +851,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Sales by Customer Summary', id: 'sales_by_customer' },
         { label: 'Sales by Product/Service Summary', id: 'sales_by_item' },
         { label: 'Expenses by Vendor', id: 'expenses_by_vendor' },
+        { label: 'Transaction List', id: 'transaction_list' },
       ],
       condition: { field: 'operation', value: REPORT_OPERATION },
       required: { field: 'operation', value: REPORT_OPERATION },
@@ -961,6 +1036,165 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       condition: reportControlCondition('aging'),
     },
     {
+      id: 'reportTransactionType',
+      title: 'Transaction Type',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: 'default' },
+        { label: 'Bill', id: 'bill' },
+        { label: 'Bill Payment (Check)', id: 'bill_payment_check' },
+        { label: 'Bill Payment (Credit Card)', id: 'bill_payment_credit_card' },
+        { label: 'Cash Purchase', id: 'cash_purchase' },
+        { label: 'Check', id: 'check' },
+        { label: 'Credit Card Charge', id: 'credit_card_charge' },
+        { label: 'Credit Card Credit', id: 'credit_card_credit' },
+        { label: 'Credit Memo', id: 'credit_memo' },
+        { label: 'Deposit', id: 'deposit' },
+        { label: 'Estimate', id: 'estimate' },
+        { label: 'Invoice', id: 'invoice' },
+        { label: 'Journal Entry', id: 'journal_entry' },
+        { label: 'Customer Payment', id: 'payment' },
+        { label: 'Purchase Order', id: 'purchase_order' },
+        { label: 'Sales Receipt', id: 'sales_receipt' },
+        { label: 'Transfer', id: 'transfer' },
+        { label: 'Vendor Credit', id: 'vendor_credit' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportGroupBy',
+      title: 'Group By',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'Account', id: 'account' },
+        { label: 'Customer', id: 'customer' },
+        { label: 'Day', id: 'day' },
+        { label: 'Department', id: 'department' },
+        { label: 'Employee', id: 'employee' },
+        { label: 'Month', id: 'month' },
+        { label: 'Name', id: 'name' },
+        { label: 'None', id: 'none' },
+        { label: 'Payment Method', id: 'payment_method' },
+        { label: 'Quarter', id: 'quarter' },
+        { label: 'Transaction Type', id: 'transaction_type' },
+        { label: 'Vendor', id: 'vendor' },
+        { label: 'Week', id: 'week' },
+        { label: 'Year', id: 'year' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportAccountsPayablePaid',
+      title: 'A/P Paid Status',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'All', id: 'all' },
+        { label: 'Paid', id: 'paid' },
+        { label: 'Unpaid', id: 'unpaid' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportAccountsReceivablePaid',
+      title: 'A/R Paid Status',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'All', id: 'all' },
+        { label: 'Paid', id: 'paid' },
+        { label: 'Unpaid', id: 'unpaid' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportClearedStatus',
+      title: 'Cleared Status',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'Cleared', id: 'cleared' },
+        { label: 'Uncleared', id: 'uncleared' },
+        { label: 'Reconciled', id: 'reconciled' },
+        { label: 'Deposited', id: 'deposited' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportDocumentNumber',
+      title: 'Document Number',
+      type: 'short-input',
+      placeholder: 'Exact QuickBooks document number',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+    },
+    {
+      id: 'reportSourceAccountType',
+      title: 'Source Account Type',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'Accounts Payable', id: 'accounts_payable' },
+        { label: 'Accounts Receivable', id: 'accounts_receivable' },
+        { label: 'Bank', id: 'bank' },
+        { label: 'Cost of Goods Sold', id: 'cost_of_goods_sold' },
+        { label: 'Credit Card', id: 'credit_card' },
+        { label: 'Equity', id: 'equity' },
+        { label: 'Expense', id: 'expense' },
+        { label: 'Fixed Asset', id: 'fixed_asset' },
+        { label: 'Income', id: 'income' },
+        { label: 'Long-term Liability', id: 'long_term_liability' },
+        { label: 'Non-posting', id: 'non_posting' },
+        { label: 'Other Asset', id: 'other_asset' },
+        { label: 'Other Current Asset', id: 'other_current_asset' },
+        { label: 'Other Current Liability', id: 'other_current_liability' },
+        { label: 'Other Expense', id: 'other_expense' },
+        { label: 'Other Income', id: 'other_income' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
       id: 'startPosition',
       title: 'Start Position',
       type: 'short-input',
@@ -1024,6 +1258,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       required: { field: 'operation', value: 'quickbooks_update_item' },
     },
     {
+      id: 'employeeId',
+      title: 'Employee ID',
+      type: 'short-input',
+      placeholder: 'QuickBooks employee ID',
+      condition: { field: 'operation', value: 'quickbooks_update_employee' },
+      required: { field: 'operation', value: 'quickbooks_update_employee' },
+    },
+    {
       id: 'syncToken',
       title: 'Sync Token',
       type: 'short-input',
@@ -1038,11 +1280,15 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'Unique display name',
       condition: {
         field: 'operation',
-        value: [...CUSTOMER_OPERATIONS, ...VENDOR_OPERATIONS],
+        value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
       required: {
         field: 'operation',
-        value: ['quickbooks_create_customer', 'quickbooks_create_vendor'],
+        value: [
+          'quickbooks_create_customer',
+          'quickbooks_create_employee',
+          'quickbooks_create_vendor',
+        ],
       },
     },
     {
@@ -1062,7 +1308,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'Given name',
       condition: {
         field: 'operation',
-        value: [...CUSTOMER_OPERATIONS, ...VENDOR_OPERATIONS],
+        value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
     },
     {
@@ -1072,7 +1318,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'Family name',
       condition: {
         field: 'operation',
-        value: [...CUSTOMER_OPERATIONS, ...VENDOR_OPERATIONS],
+        value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
     },
     {
@@ -1082,7 +1328,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'name@example.com',
       condition: {
         field: 'operation',
-        value: [...CUSTOMER_OPERATIONS, ...VENDOR_OPERATIONS],
+        value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
     },
     {
@@ -1092,7 +1338,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'Phone number',
       condition: {
         field: 'operation',
-        value: [...CUSTOMER_OPERATIONS, ...VENDOR_OPERATIONS],
+        value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
     },
     {
@@ -1131,12 +1377,44 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       },
     },
     {
+      id: 'primaryAddress',
+      title: 'Primary Address (JSON)',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '{"line1":"123 Main St","city":"San Francisco","countrySubDivisionCode":"CA","postalCode":"94105"}',
+      condition: { field: 'operation', value: [...EMPLOYEE_OPERATIONS] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a QuickBooks address JSON object using only line1, line2, city, countrySubDivisionCode, postalCode, and country. Return ONLY the JSON object.',
+        generationType: 'json-object',
+      },
+    },
+    {
       id: 'printOnCheckName',
       title: 'Print on Check Name',
       type: 'short-input',
       placeholder: 'Name printed on checks',
-      condition: { field: 'operation', value: [...VENDOR_OPERATIONS] },
+      condition: {
+        field: 'operation',
+        value: [...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
+      },
       mode: 'advanced',
+    },
+    {
+      id: 'billableTime',
+      title: 'Billable Time',
+      type: 'dropdown',
+      options: [
+        { label: 'Not specified', id: 'not_specified' },
+        { label: 'Yes', id: 'yes' },
+        { label: 'No', id: 'no' },
+      ],
+      condition: { field: 'operation', value: [...EMPLOYEE_OPERATIONS] },
+      mode: 'advanced',
+      value: () => 'not_specified',
     },
     {
       id: 'accountNumber',
@@ -1641,6 +1919,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       'quickbooks_read_master_data',
       'quickbooks_create_customer',
       'quickbooks_update_customer',
+      'quickbooks_create_employee',
+      'quickbooks_update_employee',
       'quickbooks_create_vendor',
       'quickbooks_update_vendor',
       'quickbooks_create_item',
@@ -1770,6 +2050,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             credential: oauthCredentialValue,
             recordType: params.recordType,
             readMode: params.readMode,
+            activeStatus: params.readActiveStatus ?? 'default',
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -1787,6 +2068,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             credential: oauthCredentialValue,
             transactionType: params.transactionType,
             readMode: params.readMode,
+            startDate: optionalValue(params.readStartDate),
+            endDate: optionalValue(params.readEndDate),
+            customerId: optionalValue(params.readCustomerId),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -1804,6 +2088,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             credential: oauthCredentialValue,
             transactionType: params.purchasingTransactionType,
             readMode: params.readMode,
+            startDate: optionalValue(params.readStartDate),
+            endDate: optionalValue(params.readEndDate),
+            vendorId: optionalValue(params.readVendorId),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -1821,6 +2108,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             credential: oauthCredentialValue,
             transactionType: params.accountingTransactionType,
             readMode: params.readMode,
+            startDate: optionalValue(params.readStartDate),
+            endDate: optionalValue(params.readEndDate),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -1864,6 +2153,34 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             agingDays: reportSupports(reportType, 'aging')
               ? parseOptionalPositiveInteger(params.reportAgingDays, 'agingDays')
               : undefined,
+            transactionType:
+              reportType === 'transaction_list' && params.reportTransactionType !== 'default'
+                ? params.reportTransactionType
+                : undefined,
+            groupBy:
+              reportType === 'transaction_list' && params.reportGroupBy !== 'default'
+                ? params.reportGroupBy
+                : undefined,
+            accountsPayablePaid:
+              reportType === 'transaction_list' && params.reportAccountsPayablePaid !== 'default'
+                ? params.reportAccountsPayablePaid
+                : undefined,
+            accountsReceivablePaid:
+              reportType === 'transaction_list' && params.reportAccountsReceivablePaid !== 'default'
+                ? params.reportAccountsReceivablePaid
+                : undefined,
+            clearedStatus:
+              reportType === 'transaction_list' && params.reportClearedStatus !== 'default'
+                ? params.reportClearedStatus
+                : undefined,
+            documentNumber:
+              reportType === 'transaction_list'
+                ? optionalValue(params.reportDocumentNumber)
+                : undefined,
+            sourceAccountType:
+              reportType === 'transaction_list' && params.reportSourceAccountType !== 'default'
+                ? params.reportSourceAccountType
+                : undefined,
           }
         }
         if (SALES_VOID_OPERATIONS.includes(operation as (typeof SALES_VOID_OPERATIONS)[number])) {
@@ -2060,6 +2377,27 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
+        if (
+          operation === 'quickbooks_create_employee' ||
+          operation === 'quickbooks_update_employee'
+        ) {
+          const isCreate = operation === 'quickbooks_create_employee'
+          return {
+            credential: oauthCredentialValue,
+            employeeId: isCreate ? undefined : optionalValue(params.employeeId),
+            syncToken: isCreate ? undefined : optionalValue(params.syncToken),
+            displayName: optionalValue(params.displayName),
+            givenName: optionalValue(params.givenName),
+            familyName: optionalValue(params.familyName),
+            primaryEmail: optionalValue(params.primaryEmail),
+            primaryPhone: optionalValue(params.primaryPhone),
+            primaryAddress: parseQuickBooksAddress(params.primaryAddress, 'primaryAddress'),
+            printOnCheckName: optionalValue(params.printOnCheckName),
+            billableTime: parseTriStateBoolean(params.billableTime, 'billableTime'),
+            activeStatus: params.activeStatus ?? 'unchanged',
+            requestId: isCreate ? optionalValue(params.requestId) : undefined,
+          }
+        }
         if (operation === 'quickbooks_create_vendor' || operation === 'quickbooks_update_vendor') {
           const isCreate = operation === 'quickbooks_create_vendor'
           return {
@@ -2147,6 +2485,21 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     reportDepartmentId: { type: 'string', description: 'Department report filter ID' },
     reportAgingMethod: { type: 'string', description: 'Aging report calculation date' },
     reportAgingDays: { type: 'number', description: 'Days in each aging period' },
+    reportTransactionType: { type: 'string', description: 'Transaction List type filter' },
+    reportGroupBy: { type: 'string', description: 'Transaction List grouping' },
+    reportAccountsPayablePaid: { type: 'string', description: 'Transaction List A/P status' },
+    reportAccountsReceivablePaid: { type: 'string', description: 'Transaction List A/R status' },
+    reportClearedStatus: { type: 'string', description: 'Transaction List cleared status' },
+    reportDocumentNumber: { type: 'string', description: 'Transaction List document number' },
+    reportSourceAccountType: {
+      type: 'string',
+      description: 'Transaction List source account type',
+    },
+    readActiveStatus: { type: 'string', description: 'Master-data active-status filter' },
+    readStartDate: { type: 'string', description: 'Transaction list start date' },
+    readEndDate: { type: 'string', description: 'Transaction list end date' },
+    readCustomerId: { type: 'string', description: 'Sales list customer filter' },
+    readVendorId: { type: 'string', description: 'Purchasing list vendor filter' },
     transactionId: { type: 'string', description: 'QuickBooks transaction ID' },
     startPosition: {
       type: 'number',
@@ -2159,17 +2512,20 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     customerId: { type: 'string', description: 'QuickBooks customer ID' },
     vendorId: { type: 'string', description: 'QuickBooks vendor ID' },
     itemId: { type: 'string', description: 'Item ID for an update' },
+    employeeId: { type: 'string', description: 'Employee ID for an update' },
     syncToken: { type: 'string', description: 'Current entity sync token' },
-    displayName: { type: 'string', description: 'Customer or vendor display name' },
+    displayName: { type: 'string', description: 'Customer, employee, or vendor display name' },
     companyName: { type: 'string', description: 'Customer or vendor company name' },
-    givenName: { type: 'string', description: 'Customer or vendor given name' },
-    familyName: { type: 'string', description: 'Customer or vendor family name' },
+    givenName: { type: 'string', description: 'Customer, employee, or vendor given name' },
+    familyName: { type: 'string', description: 'Customer, employee, or vendor family name' },
     primaryEmail: { type: 'string', description: 'Primary email address' },
     primaryPhone: { type: 'string', description: 'Primary phone number' },
     billingAddress: { type: 'json', description: 'Allowlisted billing address object' },
     shippingAddress: { type: 'json', description: 'Allowlisted shipping address object' },
+    primaryAddress: { type: 'json', description: 'Allowlisted employee address object' },
     taxable: { type: 'boolean', description: 'Optional taxable value' },
-    printOnCheckName: { type: 'string', description: 'Vendor name printed on checks' },
+    printOnCheckName: { type: 'string', description: 'Employee or vendor name printed on checks' },
+    billableTime: { type: 'boolean', description: 'Optional employee billable-time value' },
     accountNumber: { type: 'string', description: 'Vendor account number' },
     vendor1099: { type: 'boolean', description: 'Optional vendor 1099 value' },
     name: { type: 'string', description: 'Item name' },
@@ -2491,7 +2847,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks catalogue maintenance',
       prompt:
-        'Build a workflow that reads QuickBooks accounts, creates approved Service or Non-inventory items, or updates exposed item fields without changing item types.',
+        'Build a workflow that reads filtered QuickBooks master data, creates approved non-payroll employees or Service and Non-inventory items, and safely updates exposed fields while retaining returned IDs and sync tokens.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'catalogue', 'operations'],
@@ -2563,7 +2919,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks customer, vendor, and expense analysis',
       prompt:
-        'Create a workflow that runs customer and vendor balance reports, sales by customer or product/service, and expenses by vendor with supported account, class, or department filters for accountant review.',
+        'Create a workflow that runs customer and vendor balance reports, expenses by vendor, or the Transaction List with bounded date, entity, paid-status, cleared-status, document-number, grouping, and source-account filters for accountant review.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'reporting', 'analysis'],
