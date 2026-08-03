@@ -13,11 +13,11 @@ import {
   optionalQuickBooksString,
   quickBooksReference,
   requiredQuickBooksString,
+  validateQuickBooksDate,
 } from '@/tools/quickbooks/utils'
 
 const MAX_SALES_LINES = 100
 const MAX_PAYMENT_ALLOCATIONS = 100
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const ITEM_LINE_KEYS = new Set([
   'lineType',
   'amount',
@@ -86,20 +86,6 @@ function optionalStringValue(value: unknown, fieldName: string): string | undefi
   if (value === undefined) return undefined
   if (typeof value !== 'string') throw new Error(`${fieldName} must be a string`)
   return optionalQuickBooksString(value)
-}
-
-export function validateQuickBooksDate(
-  value: string | undefined,
-  fieldName: string
-): string | undefined {
-  const normalized = optionalQuickBooksString(value)
-  if (!normalized) return undefined
-  if (!DATE_PATTERN.test(normalized)) throw new Error(`${fieldName} must use YYYY-MM-DD`)
-  const date = new Date(`${normalized}T00:00:00Z`)
-  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== normalized) {
-    throw new Error(`${fieldName} must be a valid date`)
-  }
-  return normalized
 }
 
 export function parseQuickBooksSalesLines(

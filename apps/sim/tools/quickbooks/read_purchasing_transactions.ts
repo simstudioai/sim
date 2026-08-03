@@ -1,30 +1,29 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
-  QuickBooksReadSalesTransactionsParams,
-  QuickBooksReadSalesTransactionsResponse,
-  QuickBooksSalesTransaction,
+  QuickBooksPurchasingTransaction,
+  QuickBooksReadPurchasingTransactionsParams,
+  QuickBooksReadPurchasingTransactionsResponse,
 } from '@/tools/quickbooks/types'
-import { QUICKBOOKS_SALES_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/types'
+import { QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/types'
 import {
   assertQuickBooksListOnlyFilters,
   buildQuickBooksEntityUrl,
-  buildQuickBooksSalesQueryUrl,
-  getQuickBooksSalesEntity,
+  buildQuickBooksPurchasingQueryUrl,
+  getQuickBooksPurchasingEntity,
   getQuickBooksToolHeaders,
   transformQuickBooksEntityResponse,
   transformQuickBooksListResponse,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const quickbooksReadSalesTransactionsTool: ToolConfig<
-  QuickBooksReadSalesTransactionsParams,
-  QuickBooksReadSalesTransactionsResponse
+export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
+  QuickBooksReadPurchasingTransactionsParams,
+  QuickBooksReadPurchasingTransactionsResponse
 > = {
-  id: 'quickbooks_read_sales_transactions',
-  name: 'QuickBooks Read Sales Transactions',
-  description:
-    'List or read one estimate, invoice, sales receipt, payment, credit memo, or refund receipt',
+  id: 'quickbooks_read_purchasing_transactions',
+  name: 'QuickBooks Read Purchasing Transactions',
+  description: 'List or read one purchase order, bill, bill payment, vendor credit, or purchase',
   version: '1.0.0',
   params: {
     accessToken: {
@@ -43,7 +42,7 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Sales transaction type to read',
+      description: 'Purchasing transaction type to read',
     },
     readMode: {
       type: 'string',
@@ -83,11 +82,11 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'List transactions on or before this date in YYYY-MM-DD format',
     },
-    customerId: {
+    vendorId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'List transactions for one QuickBooks customer ID',
+      description: 'List transactions for one supported QuickBooks vendor ID',
     },
   },
   oauth: {
@@ -98,26 +97,25 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
     url: (params) => {
-      const config = getQuickBooksSalesEntity(params.transactionType)
+      const config = getQuickBooksPurchasingEntity(params.transactionType)
       if (params.readMode === 'list') {
-        return buildQuickBooksSalesQueryUrl(params).toString()
+        return buildQuickBooksPurchasingQueryUrl(params).toString()
       }
       if (params.readMode === 'by_id') {
         assertQuickBooksListOnlyFilters(params.readMode, {
           startDate: params.startDate,
           endDate: params.endDate,
-          customerId: params.customerId,
+          vendorId: params.vendorId,
         })
-        if (!params.transactionId?.trim()) {
+        if (!params.transactionId?.trim())
           throw new Error('QuickBooks transaction ID is required for by-ID reads')
-        }
         return buildQuickBooksEntityUrl(
           params.realmId,
           config.resource,
           params.transactionId
         ).toString()
       }
-      throw new Error(`Unsupported QuickBooks sales read mode: ${String(params.readMode)}`)
+      throw new Error(`Unsupported QuickBooks purchasing read mode: ${String(params.readMode)}`)
     },
     method: 'GET',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken),
@@ -125,10 +123,10 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
     maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
-    if (!params) throw new Error('QuickBooks sales transaction parameters are required')
-    const config = getQuickBooksSalesEntity(params.transactionType)
+    if (!params) throw new Error('QuickBooks purchasing transaction parameters are required')
+    const config = getQuickBooksPurchasingEntity(params.transactionType)
     if (params.readMode === 'list') {
-      const result = await transformQuickBooksListResponse<QuickBooksSalesTransaction>(
+      const result = await transformQuickBooksListResponse<QuickBooksPurchasingTransaction>(
         response,
         {
           ...params,
@@ -143,7 +141,7 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
       }
     }
     if (params.readMode === 'by_id') {
-      const result = await transformQuickBooksEntityResponse<QuickBooksSalesTransaction>(
+      const result = await transformQuickBooksEntityResponse<QuickBooksPurchasingTransaction>(
         response,
         config.entity
       )
@@ -152,21 +150,21 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
         output: { transactionType: params.transactionType, item: result.item, time: result.time },
       }
     }
-    throw new Error(`Unsupported QuickBooks sales read mode: ${String(params.readMode)}`)
+    throw new Error(`Unsupported QuickBooks purchasing read mode: ${String(params.readMode)}`)
   },
   outputs: {
-    transactionType: { type: 'string', description: 'Sales transaction type returned' },
+    transactionType: { type: 'string', description: 'Purchasing transaction type returned' },
     item: {
       type: 'json',
-      description: 'Single native QuickBooks sales transaction',
+      description: 'Single native QuickBooks purchasing transaction',
       optional: true,
-      properties: QUICKBOOKS_SALES_TRANSACTION_PROPERTIES,
+      properties: QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES,
     },
     items: {
       type: 'array',
-      description: 'Native QuickBooks sales transactions',
+      description: 'Native QuickBooks purchasing transactions',
       optional: true,
-      items: { type: 'json', properties: QUICKBOOKS_SALES_TRANSACTION_PROPERTIES },
+      items: { type: 'json', properties: QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES },
     },
     startPosition: {
       type: 'number',
