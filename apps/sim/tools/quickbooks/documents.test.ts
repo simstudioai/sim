@@ -188,6 +188,28 @@ describe('QuickBooks attachment metadata reads', () => {
     })
   })
 
+  it('surfaces sanitized faults from successful upload envelopes', async () => {
+    const response = Response.json({
+      AttachableResponse: [
+        {
+          Fault: {
+            Error: [
+              {
+                Message: 'Invalid Uploaded File',
+                Detail: 'The uploaded file is invalid',
+                code: '6041',
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    await expect(parseQuickBooksAttachableResponse(response)).rejects.toThrow(
+      '6041: Invalid Uploaded File: The uploaded file is invalid'
+    )
+  })
+
   it('rejects unsupported targets and modes before fetch', () => {
     expect(() =>
       requestUrl({ ...auth, readMode: 'list', targetType: 'unknown' as never, targetId: '1' })
@@ -201,8 +223,21 @@ describe('QuickBooks document validation and block parity', () => {
     expect(sanitizeQuickBooksFileName('../unsafe/receipt?.pdf', 'fallback.pdf')).toBe(
       'receipt_.pdf'
     )
+    expect(sanitizeQuickBooksFileName(undefined, '..')).toBe('quickbooks-file')
+    expect(sanitizeQuickBooksFileName('\u0000', '../../safe-fallback.pdf')).toBe(
+      'safe-fallback.pdf'
+    )
     expect(validateQuickBooksAttachmentFileType('receipt.pdf', 'application/pdf')).toBe(
       'application/pdf'
+    )
+    expect(() => validateQuickBooksAttachmentFileType('scan.tiff', 'image/tiff')).toThrow(
+      'does not support'
+    )
+    expect(() => validateQuickBooksAttachmentFileType('note.rtf', 'application/rtf')).toThrow(
+      'does not support'
+    )
+    expect(() => validateQuickBooksAttachmentFileType('data.xml', 'application/xml')).toThrow(
+      'does not support'
     )
     expect(() =>
       validateQuickBooksAttachmentFileType('script.exe', 'application/octet-stream')
@@ -224,6 +259,10 @@ describe('QuickBooks document validation and block parity', () => {
     expect(operation?.options?.map((option) => option.id).sort()).toEqual(
       [...(QuickBooksBlock.tools?.access ?? [])].sort()
     )
+    expect(QuickBooksBlock.outputs?.record.condition).toEqual({
+      field: 'operation',
+      value: expect.arrayContaining(['quickbooks_email_transaction']),
+    })
     const fileBlocks = QuickBooksBlock.subBlocks.filter(
       (block) => block.canonicalParamId === 'attachmentFile'
     )

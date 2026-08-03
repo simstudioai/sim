@@ -47,13 +47,12 @@ const QUICKBOOKS_FILE_TYPES: Record<string, readonly string[]> = {
   ods: ['application/vnd.oasis.opendocument.spreadsheet'],
   pdf: ['application/pdf'],
   png: ['image/png'],
-  rtf: ['application/rtf', 'text/rtf'],
+  rtf: ['text/rtf'],
   tif: ['image/tiff'],
-  tiff: ['image/tiff'],
   txt: ['text/plain'],
   xls: ['application/vnd.ms-excel'],
   xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-  xml: ['application/xml', 'text/xml'],
+  xml: ['text/xml'],
 }
 
 export function getQuickBooksDocumentTransaction(type: QuickBooksDocumentTransactionType) {
@@ -79,15 +78,17 @@ export function validateQuickBooksRecipient(recipient?: string): string | undefi
 }
 
 export function sanitizeQuickBooksFileName(value: string | undefined, fallback: string): string {
-  const raw = value?.trim() || fallback
-  const leaf = raw.split(/[\\/]/).pop() || fallback
-  const sanitized = leaf
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .replace(/[^\w.() -]/g, '_')
-    .trim()
-  const bounded = sanitized.slice(0, 180)
-  if (!bounded || bounded === '.' || bounded === '..') return fallback
-  return bounded
+  const sanitize = (candidate: string): string | undefined => {
+    const leaf = candidate.trim().split(/[\\/]/).pop() ?? ''
+    const bounded = leaf
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+      .replace(/[^\w.() -]/g, '_')
+      .trim()
+      .slice(0, 180)
+    return bounded && bounded !== '.' && bounded !== '..' ? bounded : undefined
+  }
+
+  return (value ? sanitize(value) : undefined) ?? sanitize(fallback) ?? 'quickbooks-file'
 }
 
 export function validateQuickBooksAttachmentFileType(fileName: string, mimeType: string): string {
@@ -123,6 +124,13 @@ export async function parseQuickBooksAttachableResponse(
     response,
     'QuickBooks Attachable response'
   )
+  const nestedFault = data.AttachableResponse?.find((entry) => entry.Fault)?.Fault
+  const sanitizedFault = sanitizeQuickBooksFaultData({ Fault: nestedFault })
+  if (sanitizedFault) {
+    throw new Error(
+      `QuickBooks attachment upload failed: ${formatQuickBooksFaultDetail(sanitizedFault)}`
+    )
+  }
   const attachment = data.Attachable ?? data.AttachableResponse?.[0]?.Attachable
   if (!attachment || typeof attachment !== 'object' || Array.isArray(attachment)) {
     throw new Error('QuickBooks Attachable response is missing a valid attachment')

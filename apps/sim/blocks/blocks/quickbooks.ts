@@ -2344,8 +2344,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     record: {
       type: 'json',
       description:
-        'Created, updated, or voided master-data, sales, purchasing, or accounting record with native QuickBooks fields',
-      condition: { field: 'operation', value: [...MUTATION_OPERATIONS] },
+        'Created, updated, voided, or emailed record with native QuickBooks fields when QuickBooks returns one',
+      condition: {
+        field: 'operation',
+        value: [...MUTATION_OPERATIONS, EMAIL_TRANSACTION_OPERATION],
+      },
     },
     recordId: {
       type: 'string',
