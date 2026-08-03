@@ -858,9 +858,9 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'get_page_contents': {
       const urls = stringArrayArg(args, 'urls')
-      if (urls.length === 1) return `Getting ${urls[0]}`
-      if (urls.length > 1) return `Getting ${urls.length} pages`
-      return 'Getting page contents'
+      if (urls.length === 1) return `Fetching ${urls[0]}`
+      if (urls.length > 1) return `Fetching ${urls.length} pages`
+      return 'Fetching page contents'
     }
     case 'manage_custom_tool': {
       const schema = args?.schema
@@ -975,6 +975,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Executing: 'Executed',
   Extracting: 'Extracted',
   Fading: 'Faded',
+  Fetching: 'Fetched',
   Finding: 'Found',
   Gathering: 'Gathered',
   Generating: 'Generated',

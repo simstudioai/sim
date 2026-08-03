@@ -98,6 +98,15 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     ).toBeLessThanOrEqual('Searching Sim docs for ""'.length + 60 + '...'.length)
   })
 
+  it('uses fetch wording for page-content retrieval', () => {
+    const title = getToolDisplayTitle('get_page_contents', {
+      urls: ['https://example.com', 'https://example.org'],
+    })
+
+    expect(title).toBe('Fetching 2 pages')
+    expect(getToolStatusDisplayTitle(title, 'success')).toBe('Fetched 2 pages')
+  })
+
   it('falls back to running code for function_execute without a title', () => {
     expect(getToolDisplayTitle('function_execute')).toBe('Running code')
     expect(getToolDisplayTitle('function_execute', { title: 'Crunching numbers' })).toBe(
