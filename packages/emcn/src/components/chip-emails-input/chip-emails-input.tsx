@@ -1,39 +1,26 @@
 'use client'
 
 import * as React from 'react'
-import { normalizeEmail } from '@sim/utils/string'
+import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { TagInput, type TagItem } from '../tag-input/tag-input'
 
-/**
- * Generic RFC 5322 email syntax gate. This is deliberately format-only —
- * app-specific policy (disposable domains, MX/DNS, membership rules) is the
- * consumer's concern and flows through the `validate` prop, keeping that logic
- * in the app rather than the design system.
- */
-const EMAIL_SYNTAX_REGEX =
-  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
-
-/**
- * Bare `@domain.tld` pattern, accepted only when the consumer opts in via
- * `allowDomains` — for allowlists that grant access to a whole domain.
- */
-const EMAIL_DOMAIN_SYNTAX_REGEX =
-  /^@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/
-
-function isValidEmailSyntax(email: string, allowDomains: boolean): boolean {
-  if (email.length > 254) return false
-  return EMAIL_SYNTAX_REGEX.test(email) || (allowDomains && EMAIL_DOMAIN_SYNTAX_REGEX.test(email))
-}
+const ENTER_PREFIX = 'enter'
 
 /**
  * Derives the post-first-chip placeholder from the initial placeholder so
  * consumers don't have to spell both. Tries an `'Enter <noun>s'` →
  * `'Add <noun>'` singularize; falls back to a generic `'Add another'`.
+ *
+ * Deliberately string ops rather than a regex — `/^Enter\s+(.+?)s?$/` has
+ * polynomial backtracking on whitespace-heavy input (CodeQL js/redos).
  */
 function derivePlaceholderWithTags(placeholder: string): string {
-  const match = placeholder.match(/^Enter\s+(.+?)s?$/i)
-  if (match) return `Add ${match[1]}`
-  return 'Add another'
+  const rest = placeholder.slice(ENTER_PREFIX.length)
+  const noun = rest.trim()
+  const startsWithEnter = placeholder.slice(0, ENTER_PREFIX.length).toLowerCase() === ENTER_PREFIX
+  if (!startsWithEnter || rest === noun || !noun) return 'Add another'
+  const singular = noun.toLowerCase().endsWith('s') ? noun.slice(0, -1) : noun
+  return `Add ${singular}`
 }
 
 export interface ChipEmailsInputProps {

@@ -730,20 +730,31 @@ function renderChipModalControl(
  * server-side submit failure).
  */
 function ChipModalEmailsControl({
-  type: _type,
-  title: _title,
-  required: _required,
-  hint: _hint,
-  flush: _flush,
-  className: _className,
+  value,
+  onChange,
+  validate,
+  allowDomains,
+  placeholder,
+  placeholderWithTags,
+  autoFocus,
+  disabled,
   error,
   errorId,
   id,
-  ...emailsProps
 }: ChipModalEmailsFieldProps & { id: string; errorId: string }) {
   return (
     <>
-      <ChipEmailsInput id={id} {...emailsProps} />
+      <ChipEmailsInput
+        id={id}
+        value={value}
+        onChange={onChange}
+        validate={validate}
+        allowDomains={allowDomains}
+        placeholder={placeholder}
+        placeholderWithTags={placeholderWithTags}
+        autoFocus={autoFocus}
+        disabled={disabled}
+      />
       {error && (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
           {error}

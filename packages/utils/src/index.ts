@@ -34,6 +34,7 @@ export type { BackoffOptions } from './retry.js'
 export { backoffWithJitter, parseRetryAfter } from './retry.js'
 export { normalizeSSODomain } from './sso-domain.js'
 export {
+  isValidEmailSyntax,
   normalizeEmail,
   sanitizeForJsonb,
   sanitizeValueForJsonb,
