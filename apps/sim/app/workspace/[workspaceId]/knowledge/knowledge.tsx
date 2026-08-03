@@ -57,7 +57,7 @@ import {
   knowledgeSortParams,
   knowledgeUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/search-params'
-import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/sort'
+import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/filter'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
