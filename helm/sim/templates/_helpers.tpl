@@ -85,6 +85,11 @@ Realtime selector labels
 app.kubernetes.io/component: realtime
 {{- end }}
 
+{{- define "sim.redis.selectorLabels" -}}
+{{ include "sim.selectorLabels" . }}
+app.kubernetes.io/component: redis
+{{- end }}
+
 {{/*
 PostgreSQL specific labels
 */}}
@@ -457,6 +462,44 @@ PII (Presidio) service URL
 {{- else }}
 {{- .Values.app.env.PII_URL | default "http://localhost:5001" }}
 {{- end }}
+{{- end }}
+
+{{/*
+Whether the chart owns Redis for this release.
+
+False when the operator is supplying REDIS_URL out-of-band — either explicitly in
+app.env, or through a pre-created Secret / External Secrets, where the chart
+cannot see the value. In those modes emitting a computed REDIS_URL as a container
+`env` would shadow the operator's value (env beats envFrom), silently rerouting a
+managed Redis to an empty in-cluster one on upgrade. Deploying an unused Redis pod
+alongside it would be wrong too, so both are skipped.
+
+To use the bundled Redis while running a secret manager, set
+app.env.REDIS_URL to the in-cluster address explicitly — it is not a secret.
+*/}}
+{{- define "sim.chartManagesRedis" -}}
+{{- $externalUrl := .Values.app.env.REDIS_URL | default "" -}}
+{{- $secretMode := or
+      (and .Values.app.secrets .Values.app.secrets.existingSecret .Values.app.secrets.existingSecret.enabled)
+      .Values.externalSecrets.enabled -}}
+{{- if and .Values.redis.enabled (not $externalUrl) (not $secretMode) -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+Redis URL used as a chart-computed container env. Only emitted when the chart
+owns Redis (see sim.chartManagesRedis) or when app.env.REDIS_URL is set
+explicitly. Empty otherwise, so a Secret-supplied value flows through envFrom
+untouched.
+*/}}
+{{- define "sim.redisUrl" -}}
+{{- $external := .Values.app.env.REDIS_URL | default "" -}}
+{{- if $external -}}
+{{- $external -}}
+{{- else if (include "sim.chartManagesRedis" .) -}}
+{{- printf "redis://%s-redis:6379" (include "sim.fullname" .) -}}
+{{- end -}}
 {{- end }}
 
 {{/*

@@ -1,0 +1,216 @@
+---
+title: Backup & Restore
+description: What to back up, how to restore it, and the one secret that makes a backup useless if you lose it
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { FAQ } from '@/components/ui/faq'
+
+## What to back up
+
+Three things, and all three are needed for a working restore:
+
+| # | What | Why |
+|---|---|---|
+| 1 | **PostgreSQL** | Workflows, runs, logs, users, organizations, credentials, knowledge base embeddings, table data |
+| 2 | **Object storage buckets** | Uploaded files, knowledge base source documents, execution outputs, avatars, logos |
+| 3 | **Secrets** — `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` above all | `ENCRYPTION_KEY` is the only one whose loss makes restored data unreadable. `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, and `CRON_SECRET` can be regenerated — doing so invalidates existing sessions and requires updating the cron caller, but loses no data |
+
+<Callout type="error">
+  **`ENCRYPTION_KEY` is the one that ruins restores.** It encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets at rest. Restoring the database with a different key produces an app that starts, logs in, and loads workflows — but none of that data can be decrypted, and there is no recovery path. Store it in a secret manager, back it up separately from the database, and verify you can retrieve it *before* you need it.
+</Callout>
+
+`API_ENCRYPTION_KEY` plays the same role for user-generated Sim API keys. Integration OAuth tokens are **not** covered by either key — they are stored in the `account` table without application-level encryption, so protect the database itself accordingly. Redis needs no backup: it holds only caches and in-flight coordination.
+
+## Backing up PostgreSQL
+
+<Tabs items={['Managed Postgres', 'In-cluster / Docker']}>
+  <Tab value="Managed Postgres">
+
+Preferred for production. Use the provider's native tooling:
+
+- **AWS RDS / Aurora** — automated backups plus point-in-time recovery; set the retention window to your RPO.
+- **GCP Cloud SQL** — automated backups plus PITR (`--enable-point-in-time-recovery`).
+- **Azure Database for PostgreSQL** — automated backups plus PITR.
+
+Set retention deliberately (7–35 days is typical), enable deletion protection, and confirm backups are stored in a different failure domain from the instance.
+
+Take a manual snapshot immediately before every upgrade — see [Upgrades](/platform/self-hosting/upgrades).
+
+  </Tab>
+  <Tab value="In-cluster / Docker">
+
+For the bundled Postgres, take logical dumps on a schedule and ship them off the node.
+
+<Callout type="warn">
+  **The database name differs by deployment.** Docker Compose creates `simstudio` (`POSTGRES_DB`), while the Helm chart's bundled Postgres creates `sim` (`postgresql.auth.database`). The cloud example values files (`values-aws.yaml`, `values-gcp.yaml`, `values-azure.yaml`) override it back to `simstudio`. Confirm yours before scripting a backup:
+
+  ```bash
+  kubectl exec -n simstudio statefulset/sim-postgresql -- psql -U postgres -lqt | cut -d'|' -f1
+  ```
+</Callout>
+
+```bash
+# Docker Compose (database: simstudio)
+docker compose -f docker-compose.prod.yml exec -T db \
+  pg_dump -U postgres -Fc simstudio > "sim-$(date +%F).dump"
+
+# Kubernetes, bundled Postgres (database: sim by default)
+kubectl exec -n simstudio statefulset/sim-postgresql -- \
+  pg_dump -U postgres -Fc sim > "sim-$(date +%F).dump"
+```
+
+`-Fc` (custom format) is worth using — it restores in parallel and lets you restore selectively.
+
+Then copy the dump somewhere durable and off-host:
+
+```bash
+aws s3 cp "sim-$(date +%F).dump" s3://myorg-sim-backups/postgres/
+```
+
+<Callout type="warn">
+  A dump sitting on the same node as the database is not a backup. Ship it to object storage or a separate backup system, and set a lifecycle policy so it does not grow unbounded.
+</Callout>
+
+For a stronger in-cluster story, run a PVC-snapshot tool (Velero with a CSI snapshotter, or your cloud's volume snapshots) **in addition to** logical dumps — snapshots restore faster, dumps survive version changes.
+
+  </Tab>
+</Tabs>
+
+## Backing up object storage
+
+Buckets are the second half of the dataset. A database restore paired with an empty bucket gives you workflows that reference files that no longer exist.
+
+- **Enable versioning** on every bucket. This is the single highest-value setting — it protects against accidental deletion and ransomware, and costs little.
+- **Enable a lifecycle policy** to expire noncurrent versions after a retention window that matches your database retention.
+- For cross-region durability, enable replication (S3 Cross-Region Replication, GCS dual-region/turbo replication, Azure GRS).
+
+```bash
+# AWS — versioning on every bucket
+for name in workspace-files knowledge-base execution-files chat-files \
+            copilot-files profile-pictures og-images workspace-logos; do
+  aws s3api put-bucket-versioning --bucket "myorg-sim-$name" \
+    --versioning-configuration Status=Enabled
+done
+```
+
+```bash
+# GCS
+for name in workspace-files knowledge-base execution-files chat-files \
+            copilot-files profile-pictures og-images workspace-logos; do
+  gcloud storage buckets update "gs://myorg-sim-$name" --versioning
+done
+```
+
+If you run local-disk storage, files are written inside the app container and **neither the Compose stack nor the Helm chart mounts a volume there** — they are destroyed when the container is recreated, so there is nothing meaningful to back up. Move to object storage before storing anything you care about. See [Object Storage](/platform/self-hosting/object-storage).
+
+## Backing up secrets
+
+Whatever holds your secrets is now part of your disaster-recovery scope.
+
+- **External Secrets Operator / Vault / cloud secret manager** — confirm the backing store is itself backed up, and that you can read it during an outage of the cluster it serves.
+- **Sealed Secrets / SOPS** — back up the sealing key or the age/PGP private key. Losing it is equivalent to losing the secrets.
+- **Plain Kubernetes Secrets** — export them and store them in a secret manager. A namespace deletion takes them with it.
+
+```bash
+kubectl get secret -n simstudio sim-app-secrets -o yaml > sim-app-secrets.yaml
+```
+
+Treat that file as highly sensitive — it contains every application secret in base64.
+
+## Restoring
+
+<Steps>
+
+<Step>
+
+### Stop writes
+
+Scale the application to zero so nothing writes during the restore. Leave the database running.
+
+```bash
+kubectl scale -n simstudio deploy/sim-app deploy/sim-realtime --replicas=0
+kubectl get cronjobs -n simstudio -o name | xargs -r -n1 \
+  kubectl -n simstudio patch -p '{"spec":{"suspend":true}}'
+```
+
+```bash
+docker compose -f docker-compose.prod.yml stop simstudio realtime
+```
+
+</Step>
+
+<Step>
+
+### Restore the database
+
+```bash
+# Custom-format dump — use your deployment's database name
+pg_restore -U postgres -d sim --clean --if-exists -j 4 sim-2026-08-01.dump
+
+# Plain SQL dump (Docker Compose)
+docker compose -f docker-compose.prod.yml exec -T db \
+  psql -U postgres simstudio < backup.sql
+```
+
+For managed Postgres, restore to a **new instance** from the snapshot or PITR target, then repoint `DATABASE_URL` — restoring in place over a live instance is harder to undo.
+
+</Step>
+
+<Step>
+
+### Confirm the secrets match the backup
+
+Before starting the app, verify `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` are the values that were in use when the backup was taken. This is the step people skip and regret.
+
+```bash
+kubectl get secret -n simstudio sim-app-secrets \
+  -o jsonpath='{.data.ENCRYPTION_KEY}' | base64 -d; echo
+```
+
+</Step>
+
+<Step>
+
+### Restore object storage if needed
+
+If the buckets were lost rather than the database, restore from versioning or replication. If both were lost, restore both to the **same point in time** — a database that references files newer than the bucket restore will show missing-file errors.
+
+</Step>
+
+<Step>
+
+### Start and verify
+
+```bash
+kubectl scale -n simstudio deploy/sim-app deploy/sim-realtime --replicas=2
+kubectl get cronjobs -n simstudio -o name | xargs -r -n1 \
+  kubectl -n simstudio patch -p '{"spec":{"suspend":false}}'
+```
+
+Then run the full [verification checklist](/platform/self-hosting/verify). Pay particular attention to running a workflow that reads a workspace environment variable or uses a stored provider API key — decrypting one of those is what proves `ENCRYPTION_KEY` is correct. Integration OAuth tokens are not encrypted with it, so an integration call alone does not test it.
+
+</Step>
+
+</Steps>
+
+## Practice the restore
+
+A backup you have never restored is a hypothesis. Restore into a scratch namespace or a second Compose project at least once per quarter, and time it — that number is your real RTO.
+
+Minimum drill:
+
+1. Restore the latest dump into a fresh database.
+2. Point a scratch deployment at it with the **production** `ENCRYPTION_KEY`.
+3. Log in, then run a workflow that reads a workspace environment variable or a stored provider key.
+4. Upload a file and download it back.
+5. Tear it down.
+
+<FAQ items={[
+  { question: "What happens if I lose ENCRYPTION_KEY?", answer: "Everything encrypted with it — workspace environment variables, stored provider API keys, MCP OAuth credentials, deployment and chat secrets — becomes permanently unreadable. The app still works and the data still restores, but users must re-enter those values. There is no recovery mechanism. Back it up separately from the database."},
+  { question: "Does helm uninstall delete my data?", answer: "No. PersistentVolumeClaims survive helm uninstall, so the bundled Postgres data remains. Deleting the PVCs (or the namespace) is what destroys it. Use a StorageClass with reclaimPolicy: Retain on database volumes for an extra layer."},
+  { question: "How often should I back up?", answer: "Match it to how much work you are willing to lose. Managed Postgres with PITR gives you a recovery point measured in minutes; nightly logical dumps give you up to a day. Most teams run PITR plus a nightly dump shipped off-site."},
+  { question: "Can I restore a backup onto a newer version of Sim?", answer: "Yes — restore the database, then let the migrations init container bring the schema forward. Restoring a newer backup onto an older app version is not supported; migrations are forward-only." },
+]} />

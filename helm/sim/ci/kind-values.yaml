@@ -37,3 +37,12 @@ postgresql:
       memory: 1Gi
   persistence:
     size: 2Gi
+
+redis:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
