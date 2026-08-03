@@ -9,8 +9,6 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  TagInput,
-  type TagItem,
 } from '@sim/emcn'
 import { Send } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
@@ -18,7 +16,7 @@ import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
 import { useFileShare, useUpsertFileShare } from '@/hooks/queries/public-shares'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -42,15 +40,12 @@ const ACCESS_LABELS: Record<AccessMode, string> = {
   sso: 'SSO',
 }
 
+/** Stable identity so the emails field's reconcile effect no-ops while unset. */
+const EMPTY_EMAILS: string[] = []
+
 function savedMode(share: ShareRecord | null): AccessMode {
   if (!share?.isActive) return 'private'
   return share.authType
-}
-
-/** True when an entry is a valid email or an `@domain` pattern. */
-function isValidEmailEntry(value: string): boolean {
-  const normalized = value.trim().toLowerCase()
-  return normalized.startsWith('@') || quickValidateEmail(normalized).isValid
 }
 
 export function ShareModal({
@@ -83,7 +78,7 @@ export function ShareModal({
   const [draftEmails, setDraftEmails] = useState<string[] | null>(null)
   const effectiveMode = draftMode ?? savedAccessMode
   const effectiveActive = effectiveMode !== 'private'
-  const effectiveEmails = draftEmails ?? saved?.allowedEmails ?? []
+  const effectiveEmails = draftEmails ?? saved?.allowedEmails ?? EMPTY_EMAILS
 
   // Org access-control may restrict which auth modes are allowed (`null` = all).
   // The route is the source of truth; this just hides disallowed options.
@@ -167,19 +162,6 @@ export function ShareModal({
     })
   }
 
-  const addEmail = (value: string): boolean => {
-    const normalized = value.trim().toLowerCase()
-    if (!normalized || effectiveEmails.includes(normalized) || !isValidEmailEntry(normalized)) {
-      return false
-    }
-    setDraftEmails([...effectiveEmails, normalized])
-    return true
-  }
-
-  const removeEmail = (_value: string, index: number) => {
-    setDraftEmails(effectiveEmails.filter((_, i) => i !== index))
-  }
-
   const accessHint = (() => {
     if (modeDisallowed) return 'This sharing method is disabled by an administrator.'
     if (enableBlockedByPolicy)
@@ -195,8 +177,6 @@ export function ShareModal({
       ? 'Save to make this file accessible to anyone with the link.'
       : 'Anyone with the link can view and download this file.'
   })()
-
-  const emailItems: TagItem[] = effectiveEmails.map((value) => ({ value, isValid: true }))
 
   return (
     <ChipModal open={open} onOpenChange={handleClose} size='sm' srTitle={`Share ${fileName}`}>
@@ -236,18 +216,15 @@ export function ShareModal({
         ) : null}
         {effectiveMode === 'email' || effectiveMode === 'sso' ? (
           <ChipModalField
-            type='custom'
+            type='emails'
             title='Allowed emails'
-            hint='Add specific emails or whole domains (@example.com).'
-          >
-            <TagInput
-              items={emailItems}
-              onAdd={addEmail}
-              onRemove={removeEmail}
-              placeholder='Enter emails or domains'
-              placeholderWithTags='Add email'
-            />
-          </ChipModalField>
+            value={effectiveEmails}
+            onChange={setDraftEmails}
+            validate={validateAllowlistEntry}
+            allowDomains
+            placeholder='Enter emails or domains'
+            placeholderWithTags='Add email or domain'
+          />
         ) : null}
         {effectiveMode !== 'private' && shareUrl ? (
           <ChipModalField type='copy' title='Link' value={shareUrl} copyLabel='Copy link' />

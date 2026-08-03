@@ -133,3 +133,17 @@ export function quickValidateEmail(email: string): EmailValidationResult {
     checks,
   }
 }
+
+/**
+ * App-level policy for a single access-allowlist entry, applied on top of the
+ * syntax gate in `ChipEmailsInput`. A bare `@domain` entry carries no local
+ * part, so the address-level checks (disposable providers, suspicious patterns)
+ * only apply to full addresses.
+ *
+ * @returns the rejection reason, or `null` when the entry is accepted.
+ */
+export function validateAllowlistEntry(entry: string): string | null {
+  if (entry.startsWith('@')) return null
+  const result = quickValidateEmail(entry)
+  return result.isValid ? null : (result.reason ?? 'Invalid email')
+}
