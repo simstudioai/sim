@@ -176,13 +176,18 @@ export function addQuickBooksRequestId(url: URL, requestId?: string): URL {
   return url
 }
 
-export async function parseQuickBooksJson<T>(response: Response, label: string): Promise<T> {
+export async function parseQuickBooksJson<T>(
+  response: Response,
+  label: string,
+  signal?: AbortSignal
+): Promise<T> {
   if (!response.ok) {
     throw new Error(`QuickBooks request failed with HTTP ${response.status}`)
   }
   const data = await readResponseJsonWithLimit<T>(response, {
     maxBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
     label,
+    signal,
   })
   const faultData = sanitizeQuickBooksFaultData(data)
   if (faultData) {
@@ -242,10 +247,15 @@ export async function transformQuickBooksListResponse<T>(
 
 export async function transformQuickBooksEntityResponse<
   T extends { Id: string; SyncToken?: string },
->(response: Response, entity: QuickBooksQueryEntity): Promise<{ item: T; time: string | null }> {
+>(
+  response: Response,
+  entity: QuickBooksQueryEntity,
+  signal?: AbortSignal
+): Promise<{ item: T; time: string | null }> {
   const data = await parseQuickBooksJson<Record<string, unknown> & { time?: string }>(
     response,
-    `QuickBooks ${entity} response`
+    `QuickBooks ${entity} response`,
+    signal
   )
   const candidate = data[entity]
   if (!candidate) {
@@ -262,9 +272,10 @@ export async function transformQuickBooksMutationResponse<
 >(
   response: Response,
   entity: QuickBooksQueryEntity,
-  sanitize: (item: T) => T = (item) => item
+  sanitize: (item: T) => T = (item) => item,
+  signal?: AbortSignal
 ): Promise<QuickBooksMutationResponse<T>> {
-  const parsed = await transformQuickBooksEntityResponse<T>(response, entity)
+  const parsed = await transformQuickBooksEntityResponse<T>(response, entity, signal)
   const item = sanitize(parsed.item)
   const recordId = typeof item.Id === 'string' ? item.Id.trim() : ''
   const syncToken = typeof item.SyncToken === 'string' ? item.SyncToken.trim() : ''

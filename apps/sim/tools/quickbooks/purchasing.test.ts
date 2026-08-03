@@ -1,5 +1,5 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
   quickbooksCreateBillPaymentTool,
@@ -52,7 +52,10 @@ const itemLine = {
 }
 
 beforeEach(() => setEnv({ QUICKBOOKS_ENV: 'sandbox' }))
-afterEach(resetEnvMock)
+afterEach(() => {
+  vi.unstubAllGlobals()
+  resetEnvMock()
+})
 
 describe('QuickBooks purchasing reader', () => {
   const listParams: QuickBooksReadPurchasingTransactionsParams = {
@@ -444,6 +447,135 @@ describe('QuickBooks purchasing mutation bodies', () => {
         .pathname
     ).toBe(`/v3/company/123456789/${resource}`)
     expect(tool.request.retry).toEqual({ enabled: false })
+  })
+})
+
+describe('QuickBooks BillPayment account compatibility', () => {
+  const params: QuickBooksCreateBillPaymentParams = {
+    ...authParams,
+    vendorId: '30',
+    totalAmount: 25,
+    paymentType: 'check',
+    paymentAccountId: '35',
+    billAllocations: [{ billId: '12', amount: 25 }],
+    requestId: 'sanitized-request-id',
+  }
+
+  function accountResponse(account: Record<string, unknown>): Response {
+    return Response.json({ Account: account, time: 'test-time' })
+  }
+
+  function billPaymentResponse(payType: 'Check' | 'CreditCard'): Response {
+    return Response.json({
+      BillPayment: { Id: '44', SyncToken: '0', PayType: payType },
+      time: 'test-time',
+    })
+  }
+
+  it.each([
+    ['check', 'Bank', 'Check'],
+    ['credit_card', 'Credit Card', 'CreditCard'],
+  ] as const)(
+    'validates the account before creating a %s payment',
+    async (paymentType, accountType, payType) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          accountResponse({ Id: '35', SyncToken: '0', Active: true, AccountType: accountType })
+        )
+        .mockResolvedValueOnce(billPaymentResponse(payType))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        quickbooksCreateBillPaymentTool.directExecution!({ ...params, paymentType })
+      ).resolves.toMatchObject({
+        success: true,
+        output: { recordId: '44', record: { PayType: payType } },
+      })
+
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(new URL(fetchMock.mock.calls[0][0] as URL).pathname).toBe(
+        '/v3/company/123456789/account/35'
+      )
+      const mutationUrl = new URL(fetchMock.mock.calls[1][0] as URL)
+      expect(mutationUrl.pathname).toBe('/v3/company/123456789/billpayment')
+      expect(mutationUrl.searchParams.get('requestid')).toBe('sanitized-request-id')
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({
+        PayType: payType,
+      })
+    }
+  )
+
+  it.each([
+    ['check', 'Credit Card', 'Bank'],
+    ['credit_card', 'Bank', 'Credit Card'],
+  ] as const)(
+    'rejects a %s payment when the account is %s without mutating',
+    async (paymentType, accountType, expectedType) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(
+          accountResponse({ Id: '35', SyncToken: '0', Active: true, AccountType: accountType })
+        )
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        quickbooksCreateBillPaymentTool.directExecution!({ ...params, paymentType })
+      ).rejects.toThrow(`require a QuickBooks ${expectedType} account`)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('rejects inactive and mismatched account records without mutating', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        accountResponse({ Id: '35', SyncToken: '0', Active: false, AccountType: 'Bank' })
+      )
+      .mockResolvedValueOnce(
+        accountResponse({ Id: '99', SyncToken: '0', Active: true, AccountType: 'Bank' })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(quickbooksCreateBillPaymentTool.directExecution!(params)).rejects.toThrow(
+      'payment account is inactive'
+    )
+    await expect(quickbooksCreateBillPaymentTool.directExecution!(params)).rejects.toThrow(
+      'different payment account'
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves bounded QuickBooks fault guidance from the account preflight', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(
+            { Fault: { Error: [{ code: '3200', Message: 'Authentication failed' }] } },
+            { status: 401, headers: { intuit_tid: 'tracking-id' } }
+          )
+        )
+    )
+
+    await expect(quickbooksCreateBillPaymentTool.directExecution!(params)).rejects.toThrow(
+      'Reconnect the QuickBooks credential'
+    )
+  })
+
+  it('propagates cancellation and does not create a payment', async () => {
+    const controller = new AbortController()
+    const fetchMock = vi.fn().mockImplementationOnce(() => {
+      controller.abort(new Error('cancelled'))
+      return accountResponse({ Id: '35', SyncToken: '0', Active: true, AccountType: 'Bank' })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      quickbooksCreateBillPaymentTool.directExecution!(params, controller.signal)
+    ).rejects.toThrow('cancelled')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
 
