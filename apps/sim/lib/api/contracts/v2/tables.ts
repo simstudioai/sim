@@ -945,8 +945,12 @@ export type V2ImportAsyncData = z.output<typeof v2ImportAsyncDataSchema>
 
 /**
  * Starts a background import of a file already uploaded to workspace storage
- * (`POST /api/v2/files` returns the `key`). Import is the only way in — there is
- * no synchronous upload endpoint, so no request-body size cliff.
+ * (`POST /api/v2/files` returns the `key`).
+ *
+ * The upload step is still a synchronous multipart request capped at 100 MB, so
+ * the byte limit moved rather than vanished — but it now fails loudly on an
+ * explicit size check instead of relying on a proxy cap that truncates, and the
+ * table write itself is a job that can be watched and cancelled.
  *
  * Returns immediately. A table carries at most one write job, so progress is
  * read off the table itself (`GET /api/v2/tables/[tableId]` → `job`) rather than
