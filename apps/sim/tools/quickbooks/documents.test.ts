@@ -69,6 +69,10 @@ describe('QuickBooks document tools', () => {
     expect(() => requestUrl({ ...base, recipient: 'a@example.com\r\nBcc:x@example.com' })).toThrow(
       'one valid email'
     )
+    expect(() => requestUrl({ ...base, transactionType: 'payment' })).toThrow(
+      'recipient is required when emailing a QuickBooks Customer Payment'
+    )
+    expect(new URL(requestUrl(base)).searchParams.has('sendTo')).toBe(false)
   })
 
   it('preserves a verified native record from a successful email response', async () => {
@@ -369,6 +373,13 @@ describe('QuickBooks document validation and block parity', () => {
       'attachmentFileReference',
     ])
     expect(fileBlocks.every((block) => block.required !== undefined)).toBe(true)
+    const recipient = QuickBooksBlock.subBlocks.find((block) => block.id === 'recipientOverride')
+    expect(recipient?.mode).toBeUndefined()
+    expect(recipient?.required).toEqual({
+      field: 'operation',
+      value: 'quickbooks_email_transaction',
+      and: { field: 'documentTransactionType', value: 'payment' },
+    })
   })
 
   it('maps document params after dynamic references resolve', () => {

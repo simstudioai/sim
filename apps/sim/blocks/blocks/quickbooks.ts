@@ -496,11 +496,17 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     },
     {
       id: 'recipientOverride',
-      title: 'Recipient Override',
+      title: 'Recipient',
       type: 'short-input',
-      placeholder: 'Optional single email address',
+      placeholder: 'Required for Customer Payments; otherwise optional',
       condition: { field: 'operation', value: EMAIL_TRANSACTION_OPERATION },
-      mode: 'advanced',
+      required: {
+        field: 'operation',
+        value: EMAIL_TRANSACTION_OPERATION,
+        and: { field: 'documentTransactionType', value: 'payment' },
+      },
+      description:
+        'Required for Customer Payments. For other transactions, leave blank to use the email stored in QuickBooks or provide one override address.',
     },
     {
       id: 'documentFileName',
