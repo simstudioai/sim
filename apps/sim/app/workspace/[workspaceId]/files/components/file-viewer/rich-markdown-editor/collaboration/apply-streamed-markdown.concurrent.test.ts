@@ -183,24 +183,32 @@ describe('two-writer: peer edits while the agent streams', () => {
     // peer survival here is CRDT-dependent — reported above, not hard-asserted.
   })
 
-  it('FULL REWRITE: agent replaces the whole doc while the peer edits the middle — no duplication', () => {
+  it('FULL REWRITE: peer edits original content that the agent then deletes in a full rewrite', () => {
     const { A, B } = seededPair('# Title\n\nAlpha\n\nBeta\n\nGamma')
     const session = beginAgentStream(A.editor)!
 
+    // Peer edits Beta WHILE it still exists — genuinely concurrent with the impending rewrite.
+    // (Asserting the insert landed guards against a false-green where the target was already gone.)
+    expect(peerInsertNear(B.editor, 'Beta', 'PEER ')).toBe(true)
+    // Agent replaces the WHOLE doc across two frames, deleting Alpha/Beta/Gamma.
     applyAgentStreamFrame(A.editor, session, '# Report\n\nOne\n\nTwo')
-    peerInsertNear(B.editor, 'Beta', 'PEER ')
     applyAgentStreamFrame(A.editor, session, '# Report\n\nOne\n\nTwo\n\nThree')
     endAgentStream(session)
 
     const textA = A.editor.state.doc.textContent
     console.log(`\n[FULL-REWRITE] A: ${JSON.stringify(textA)}`)
     console.log(
-      `[FULL-REWRITE] converged=${fragStr(A.doc) === fragStr(B.doc)} oneCount=${count(textA, 'One')} threeCount=${count(textA, 'Three')} emptyParas=${emptyParas(A.editor)}`
+      `[FULL-REWRITE] converged=${fragStr(A.doc) === fragStr(B.doc)} peerCount=${count(textA, 'PEER ')} oneCount=${count(textA, 'One')} threeCount=${count(textA, 'Three')} emptyParas=${emptyParas(A.editor)}`
     )
 
     expect(fragStr(A.doc)).toBe(fragStr(B.doc)) // convergence
-    expect(count(textA, 'Three')).toBe(1) // agent content not duplicated by the concurrent merge
-    expect(count(textA, 'One')).toBe(1)
-    expect(emptyParas(A.editor)).toBe(0)
+    expect(count(textA, 'One')).toBe(1) // agent content not duplicated by the concurrent merge
+    expect(count(textA, 'Three')).toBe(1)
+    expect(emptyParas(A.editor)).toBe(0) // no stray empties from a delete/insert conflict
+    // The peer's insert is NOT lost when the rewrite deletes its surrounding paragraph: Yjs preserves
+    // the inserted text and reattaches it to the nearest surviving anchor (it relocates into the
+    // rewritten content rather than vanishing). What matters is that it survives exactly once — never
+    // duplicated, never silently dropped.
+    expect(count(textA, 'PEER ')).toBe(1)
   })
 })
