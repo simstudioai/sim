@@ -217,6 +217,44 @@ describe('hosted-key VFS metadata', () => {
     expect(schema.inputs.apiKey).toBeDefined()
     expect(schema.toolAuth.search.mode).toBe('hosted_or_byok')
   })
+
+  it('omits server-only lifecycle inputs from block schemas', () => {
+    const block = {
+      type: 'mothership',
+      name: 'Sim Chat',
+      description: 'Talk to Sim',
+      category: 'blocks',
+      bgColor: '#000000',
+      icon: () => null,
+      subBlocks: [
+        { id: 'prompt', title: 'Prompt', type: 'long-input' },
+        {
+          id: 'secretScope',
+          title: 'Secret access',
+          type: 'dropdown',
+          hideFromCopilot: true,
+        },
+        {
+          id: 'mountedSecrets',
+          title: 'Secrets',
+          type: 'dropdown',
+          hideFromCopilot: true,
+        },
+      ],
+      tools: { access: [] },
+      inputs: {
+        prompt: { type: 'string' },
+        secretScope: { type: 'string' },
+        mountedSecrets: { type: 'json' },
+      },
+      outputs: {},
+    } as unknown as BlockConfig
+
+    const schema = JSON.parse(serializeBlockSchema(block))
+
+    expect(schema.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual(['prompt'])
+    expect(schema.inputs).toEqual({ prompt: { type: 'string' } })
+  })
 })
 
 describe('serializeKBMeta', () => {

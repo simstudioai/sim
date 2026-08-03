@@ -32,6 +32,7 @@ import { generateWorkspaceSnapshot } from '@/lib/copilot/chat/workspace-context'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
+import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import {
   CopilotChatFinalizeOutcome,
   CopilotChatPersistOutcome,
@@ -52,7 +53,6 @@ import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
@@ -561,8 +561,8 @@ async function buildInitialExecutionContext(params: {
     }
   }
 
-  const [decryptedEnvVars, billingAttribution] = await Promise.all([
-    getEffectiveDecryptedEnv(userId, workspaceId),
+  const [environmentContext, billingAttribution] = await Promise.all([
+    prepareCopilotEnvironmentContext(userId, workspaceId),
     workspaceId
       ? resolveBillingAttribution({ actorUserId: userId, workspaceId })
       : Promise.resolve(undefined),
@@ -572,7 +572,7 @@ async function buildInitialExecutionContext(params: {
     workflowId: workflowId ?? '',
     workspaceId,
     chatId,
-    decryptedEnvVars,
+    ...environmentContext,
     billingAttribution,
     messageId,
     userTimezone,

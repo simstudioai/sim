@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { getVoiceSettingsContract } from '@/lib/api/contracts/common'
 import { speechTokenContract } from '@/lib/api/contracts/media/speech'
 import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
 import {
@@ -13,10 +12,9 @@ import {
   MAX_SESSION_MS,
   SAMPLE_RATE,
 } from '@/lib/speech/config'
+import { useVoiceSettings } from '@/hooks/queries/voice'
 
 const logger = createLogger('useSpeechToText')
-
-export type PermissionState = 'prompt' | 'granted' | 'denied'
 
 interface UseSpeechToTextProps {
   onTranscript: (text: string) => void
@@ -25,7 +23,6 @@ interface UseSpeechToTextProps {
    * whether it was a per-member cap (which only an org admin can raise).
    */
   onUsageLimitExceeded?: (message?: string, isMemberLimit?: boolean) => void
-  language?: string
   /** Attributes the voice-input cost to this workspace for per-member usage. */
   workspaceId?: string
 }
@@ -33,7 +30,6 @@ interface UseSpeechToTextProps {
 interface UseSpeechToTextReturn {
   isListening: boolean
   isSupported: boolean
-  permissionState: PermissionState
   toggleListening: () => void
   resetTranscript: () => void
 }
@@ -41,16 +37,24 @@ interface UseSpeechToTextReturn {
 export function useSpeechToText({
   onTranscript,
   onUsageLimitExceeded,
-  language,
   workspaceId,
 }: UseSpeechToTextProps): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false)
-  const [isSupported, setIsSupported] = useState(false)
-  const [permissionState, setPermissionState] = useState<PermissionState>('prompt')
+  /**
+   * Gate the capability request on the browser APIs streaming needs, so clients
+   * that could not use STT anyway never issue it.
+   */
+  const browserSupportsAudioCapture =
+    typeof window !== 'undefined' &&
+    typeof AudioContext !== 'undefined' &&
+    typeof WebSocket !== 'undefined' &&
+    typeof navigator?.mediaDevices?.getUserMedia === 'function'
+
+  const { data: sttAvailable } = useVoiceSettings({ enabled: browserSupportsAudioCapture })
+  const isSupported = browserSupportsAudioCapture && sttAvailable === true
 
   const onTranscriptRef = useRef(onTranscript)
   const onUsageLimitExceededRef = useRef(onUsageLimitExceeded)
-  const languageRef = useRef(language)
   const workspaceIdRef = useRef(workspaceId)
   const mountedRef = useRef(true)
   const startingRef = useRef(false)
@@ -69,29 +73,7 @@ export function useSpeechToText({
 
   onTranscriptRef.current = onTranscript
   onUsageLimitExceededRef.current = onUsageLimitExceeded
-  languageRef.current = language
   workspaceIdRef.current = workspaceId
-
-  useEffect(() => {
-    const browserOk =
-      typeof window !== 'undefined' &&
-      typeof AudioContext !== 'undefined' &&
-      typeof WebSocket !== 'undefined' &&
-      typeof navigator?.mediaDevices?.getUserMedia === 'function'
-
-    if (!browserOk) {
-      setIsSupported(false)
-      return
-    }
-
-    requestJson(getVoiceSettingsContract, {})
-      .then((data) => {
-        if (mountedRef.current) setIsSupported(data.sttAvailable === true)
-      })
-      .catch(() => {
-        if (mountedRef.current) setIsSupported(false)
-      })
-  }, [])
 
   const flushAudioBuffer = useCallback(() => {
     const ws = wsRef.current
@@ -206,7 +188,6 @@ export function useSpeechToText({
         return false
       }
 
-      setPermissionState('granted')
       streamRef.current = stream
 
       const params = new URLSearchParams({
@@ -216,9 +197,6 @@ export function useSpeechToText({
         commit_strategy: 'vad',
         vad_silence_threshold_secs: '1.0',
       })
-      if (languageRef.current) {
-        params.set('language_code', languageRef.current)
-      }
 
       const ws = new WebSocket(`${ELEVENLABS_WS_URL}?${params.toString()}`)
       wsRef.current = ws
@@ -305,9 +283,6 @@ export function useSpeechToText({
     } catch (error) {
       logger.error('Failed to start speech streaming', error)
       cleanup()
-      if (error instanceof DOMException && error.name === 'NotAllowedError') {
-        setPermissionState('denied')
-      }
       return false
     } finally {
       startingRef.current = false
@@ -396,7 +371,6 @@ export function useSpeechToText({
   return {
     isListening,
     isSupported,
-    permissionState,
     toggleListening,
     resetTranscript,
   }

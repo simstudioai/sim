@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Calendar, Plus } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
+import { useSession } from '@/lib/auth/auth-client'
 import type { ResourceAction } from '@/app/workspace/[workspaceId]/components'
 import { Resource } from '@/app/workspace/[workspaceId]/components'
 import { ScheduleCalendar } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-calendar'
@@ -23,6 +24,7 @@ import { useTimezone } from '@/hooks/queries/general-settings'
 
 export function ScheduledTasks() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: session } = useSession()
   const timezone = useTimezone()
   const calendar = useCalendar(timezone)
 
@@ -32,9 +34,12 @@ export function ScheduledTasks() {
   )
   const tasks = useScheduledTasks({ workspaceId, rangeStart: range.start, rangeEnd: range.end })
 
-  /** Pending tasks open the editable TaskModal; running/finished open the record. */
-  const editTask = tasks.selectedTask?.status === 'pending' ? tasks.selectedTask : null
-  const recordTask = tasks.selectedTask?.status !== 'pending' ? tasks.selectedTask : null
+  /** Only the execution actor may edit task contents; every other view is read-only. */
+  const selectedTaskIsEditable =
+    tasks.selectedTask?.status === 'pending' &&
+    tasks.selectedTask.sourceUserId === session?.user?.id
+  const editTask = selectedTaskIsEditable ? tasks.selectedTask : null
+  const recordTask = tasks.selectedTask && !selectedTaskIsEditable ? tasks.selectedTask : null
   const editSeed = editTask ? tasks.editSeedFor(editTask) : null
 
   const {
@@ -183,6 +188,7 @@ export function ScheduledTasks() {
         position={taskContextMenuPosition}
         onClose={closeTaskContextMenu}
         task={contextTask}
+        canEdit={contextTask?.sourceUserId === session?.user?.id}
         onEdit={openContextTask}
         onDuplicate={handleDuplicate}
         onPause={handlePauseContextTask}

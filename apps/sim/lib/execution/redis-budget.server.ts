@@ -12,6 +12,22 @@ const MAX_EXECUTION_REDIS_BYTES = 64 * 1024 * 1024
 const MAX_USER_REDIS_BYTES = 256 * 1024 * 1024
 const REDIS_BUDGET_TTL_SECONDS = 60 * 60
 
+/**
+ * Execution and user budget keys expire differently on purpose.
+ *
+ * An execution key accounts for data that is refreshed on the same schedule as
+ * the key itself, so sliding its TTL on every write keeps the counter and the
+ * bytes it represents in step.
+ *
+ * A user key aggregates across every execution that user runs. Sliding its TTL
+ * on each write keeps it alive indefinitely for any user who stays active,
+ * while the per-execution data it accounts for keeps expiring underneath it —
+ * so the counter accrues bytes Redis has already dropped and eventually pins
+ * the user at their ceiling until they go a full TTL without writing. User
+ * keys therefore get a fixed window: the TTL is set when the key is created
+ * and never extended.
+ */
+
 const RESERVE_REDIS_BYTES_SCRIPT = `
 local bytes = tonumber(ARGV[1])
 local execution_limit = tonumber(ARGV[2])
@@ -32,7 +48,9 @@ redis.call('INCRBY', KEYS[1], bytes)
 redis.call('EXPIRE', KEYS[1], ttl_seconds)
 if #KEYS >= 2 then
   redis.call('INCRBY', KEYS[2], bytes)
-  redis.call('EXPIRE', KEYS[2], ttl_seconds)
+  if redis.call('TTL', KEYS[2]) < 0 then
+    redis.call('EXPIRE', KEYS[2], ttl_seconds)
+  end
 end
 return {1, 'ok', execution_current + bytes, user_current + bytes}
 `

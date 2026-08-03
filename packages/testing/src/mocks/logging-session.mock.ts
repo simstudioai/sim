@@ -5,7 +5,8 @@ import { vi } from 'vitest'
  * `@/lib/logs/execution/logging-session`. Every instance method is backed by a
  * shared `vi.fn()` so tests that construct multiple sessions observe identical
  * mock state. `mockSafeStart` defaults to `true` because callers branch on the
- * boolean result. All other methods resolve to `undefined`.
+ * boolean result. Projection methods return their input; other methods resolve
+ * to `undefined`.
  *
  * @example
  * ```ts
@@ -24,6 +25,10 @@ export const loggingSessionMockFns = {
   mockSafeStart: vi.fn().mockResolvedValue(true),
   mockWaitForCompletion: vi.fn().mockResolvedValue(undefined),
   mockWaitForPostExecution: vi.fn().mockResolvedValue(undefined),
+  mockSetTrustedExecutionCorrelation: vi.fn(),
+  mockProjectBlockLogsForDisplay: vi.fn(async (logs: unknown) => logs),
+  mockProjectDisplayContent: vi.fn(async (content: unknown) => content),
+  mockProjectLiveDisplayText: vi.fn(async (_field: string, value: string) => ({ value })),
   mockSafeComplete: vi.fn().mockResolvedValue(undefined),
   mockSafeCompleteWithError: vi.fn().mockResolvedValue(undefined),
   mockSafeCompleteWithCancellation: vi.fn().mockResolvedValue(undefined),
@@ -47,6 +52,10 @@ function buildLoggingSessionInstance() {
     safeStart: loggingSessionMockFns.mockSafeStart,
     waitForCompletion: loggingSessionMockFns.mockWaitForCompletion,
     waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
+    setTrustedExecutionCorrelation: loggingSessionMockFns.mockSetTrustedExecutionCorrelation,
+    projectBlockLogsForDisplay: loggingSessionMockFns.mockProjectBlockLogsForDisplay,
+    projectDisplayContent: loggingSessionMockFns.mockProjectDisplayContent,
+    projectLiveDisplayText: loggingSessionMockFns.mockProjectLiveDisplayText,
     safeComplete: loggingSessionMockFns.mockSafeComplete,
     safeCompleteWithError: loggingSessionMockFns.mockSafeCompleteWithError,
     safeCompleteWithCancellation: loggingSessionMockFns.mockSafeCompleteWithCancellation,

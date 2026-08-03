@@ -161,7 +161,12 @@ vi.mock(
 )
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
-  SettingsPanel: ({ children }: { children: ReactNode }) => <main>{children}</main>,
+  SettingsPanel: ({ children, description }: { children: ReactNode; description?: string }) => (
+    <main>
+      {description && <p>{description}</p>}
+      {children}
+    </main>
+  ),
 }))
 
 vi.mock(
@@ -259,7 +264,13 @@ describe('Billing payer scope', () => {
 
   it('uses the target organization DTO for annual, canceled, credit, cap, and link state', async () => {
     await act(async () => {
-      root.render(<Billing scope='organization' organizationId='org-target' />)
+      root.render(
+        <Billing
+          scope='organization'
+          organizationId='org-target'
+          governingWorkspaceName='Production'
+        />
+      )
     })
 
     expect(mockUseSubscriptionData).toHaveBeenCalledWith(
@@ -270,6 +281,9 @@ describe('Billing payer scope', () => {
       container.querySelector('a[href="/workspace/organization-workspace/upgrade"]')?.textContent
     ).toBe('Explore organization plans')
     expect(container.textContent).toContain('Organization Max for Teams plan')
+    expect(container.textContent).toContain(
+      'Target organization’s subscription governs Production.'
+    )
     expect(container.textContent).toContain('billed annually')
     expect(container.textContent).toContain('Access until')
     expect(container.textContent).toContain('Subscription canceled')
@@ -293,13 +307,35 @@ describe('Billing payer scope', () => {
 
   it('uses a guaranteed personal payer workspace for account upgrades', async () => {
     await act(async () => {
-      root.render(<Billing scope='account' />)
+      root.render(<Billing scope='account' governingWorkspaceName='Personal workspace' />)
     })
 
     expect(
       container.querySelector('a[href="/workspace/personal-workspace/upgrade"]')?.textContent
     ).toBe('Explore personal plans')
     expect(container.textContent).toContain('Personal Pro plan')
+    expect(container.textContent).toContain(
+      'Your personal subscription governs Personal workspace.'
+    )
+  })
+
+  it('does not show a governing subscription description for a free personal workspace', async () => {
+    mockPersonalQuery.current = {
+      data: {
+        success: true,
+        context: 'user',
+        data: { ...PERSONAL_DATA, plan: 'free', status: 'active' },
+      },
+      isLoading: false,
+      refetch: vi.fn(),
+    }
+
+    await act(async () => {
+      root.render(<Billing scope='account' governingWorkspaceName='Free workspace' />)
+    })
+
+    expect(container.textContent).toContain('Personal Free plan')
+    expect(container.querySelector('main > p')).toBeNull()
   })
 
   it('renders an explicit free organization state without subscription controls', async () => {
@@ -319,12 +355,19 @@ describe('Billing payer scope', () => {
     }
 
     await act(async () => {
-      root.render(<Billing scope='organization' organizationId='org-target' />)
+      root.render(
+        <Billing
+          scope='organization'
+          organizationId='org-target'
+          governingWorkspaceName='Free organization workspace'
+        />
+      )
     })
 
     expect(container.textContent).toContain('Organization Free plan')
     expect(container.textContent).toContain('No active organization subscription')
     expect(container.textContent).not.toContain('Payment method')
+    expect(container.querySelector('main > p')).toBeNull()
   })
 
   it('renders lapsed organization plans as ended rather than active', async () => {
@@ -342,12 +385,19 @@ describe('Billing payer scope', () => {
     }
 
     await act(async () => {
-      root.render(<Billing scope='organization' organizationId='org-target' />)
+      root.render(
+        <Billing
+          scope='organization'
+          organizationId='org-target'
+          governingWorkspaceName='Lapsed organization workspace'
+        />
+      )
     })
 
     expect(container.textContent).toContain('Organization Max for Teams plan ended')
     expect(container.textContent).toContain('Choose a new plan for this organization')
     expect(container.textContent).not.toContain('Cancel subscription')
+    expect(container.querySelector('main > p')).toBeNull()
     expect(
       container.querySelector('a[href="/workspace/organization-workspace/upgrade"]')?.textContent
     ).toBe('Explore organization plans')

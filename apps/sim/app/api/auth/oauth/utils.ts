@@ -355,6 +355,11 @@ export interface ServiceAccountTokenResult {
   /** Salesforce only — the org's instance URL the token must be used against. */
   instanceUrl?: string
   /**
+   * Zoho Desk only — the data-center-scoped Desk REST base the token must be
+   * used against, forwarded to tools as their `apiDomain` param.
+   */
+  apiDomain?: string
+  /**
    * Set when the token must be sent in an `x-api-token` header instead of
    * `Authorization: Bearer` (e.g. Pipedrive personal API tokens). Absent means
    * Bearer; OAuth credentials never carry it.
@@ -397,6 +402,8 @@ interface CachedClientCredentialToken {
   secretFingerprint: string
   /** Salesforce only — the instance URL returned alongside the minted token. */
   instanceUrl?: string
+  /** Zoho Desk only — the Desk REST base derived from the token's api_domain. */
+  apiDomain?: string
 }
 
 interface FailedClientCredentialMint {
@@ -488,7 +495,11 @@ async function resolveClientCredentialAccountToken(
       cached.secretFingerprint === secretFingerprint &&
       cached.expiresAtMs - Date.now() > CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS
     ) {
-      return { accessToken: cached.accessToken, instanceUrl: cached.instanceUrl }
+      return {
+        accessToken: cached.accessToken,
+        instanceUrl: cached.instanceUrl,
+        apiDomain: cached.apiDomain,
+      }
     }
 
     const failed = clientCredentialMintFailureCache.get(credentialId)
@@ -514,6 +525,7 @@ async function resolveClientCredentialAccountToken(
           clientId: blob.clientId,
           clientSecret: blob.clientSecret,
           orgId: blob.orgId,
+          dataCenter: blob.dataCenter,
         },
         { skipIdentity: true }
       )
@@ -522,8 +534,13 @@ async function resolveClientCredentialAccountToken(
         expiresAtMs: Date.now() + mint.expiresInSeconds * 1000,
         secretFingerprint,
         instanceUrl: mint.instanceUrl,
+        apiDomain: mint.apiDomain,
       })
-      return { accessToken: mint.accessToken, instanceUrl: mint.instanceUrl }
+      return {
+        accessToken: mint.accessToken,
+        instanceUrl: mint.instanceUrl,
+        apiDomain: mint.apiDomain,
+      }
     } catch (error) {
       clientCredentialMintFailureCache.set(credentialId, {
         error,

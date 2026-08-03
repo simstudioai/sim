@@ -56,6 +56,7 @@ import {
   WebflowIcon,
   WordpressIcon,
   xIcon,
+  ZohoDeskIcon,
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
@@ -1114,6 +1115,48 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'salesforce',
   },
+  'zoho-desk': {
+    name: 'Zoho Desk',
+    icon: ZohoDeskIcon,
+    services: {
+      'zoho-desk': {
+        name: 'Zoho Desk',
+        description:
+          'Manage Zoho Desk tickets, comments, threads, and contacts. Connecting with OAuth requires a Zoho account in the US data center; a Self Client also supports the EU, IN, and AU data centers.',
+        providerId: 'zoho-desk',
+        serviceAccountProviderId: 'zoho-desk-service-account',
+        icon: ZohoDeskIcon,
+        baseProviderIcon: ZohoDeskIcon,
+        // Kept to exactly what the tools and the webhook trigger exercise:
+        // tickets (incl. threads/comments), contacts (get_contact), basic
+        // (list_organizations), agents (the `assigneeId` picker lists agents),
+        // webhook create/delete (the trigger provisions and tears down its own
+        // subscription), and profile (OAuth getUserInfo).
+        // Desk.search.READ, Desk.webhooks.READ and Desk.webhooks.UPDATE were
+        // requested but unused - no tool searches, and the provider never lists
+        // or edits a subscription.
+        scopes: [
+          // READ + UPDATE rather than tickets.ALL: no tool creates or deletes a
+          // ticket, and ALL additionally grants ticket DELETE. Threads, comments
+          // and attachments live under the tickets module and are covered by
+          // these two. NOTE: Zoho publishes no scope line for the attachment
+          // content sub-path - verify attachment download against a live account
+          // before merge and widen here if it returns SCOPE_MISMATCH.
+          'Desk.tickets.READ',
+          'Desk.tickets.UPDATE',
+          'Desk.contacts.READ',
+          // READ only: the agent picker for `assigneeId` lists agents, and no
+          // tool creates, edits or deletes one.
+          'Desk.agents.READ',
+          'Desk.basic.READ',
+          'Desk.webhooks.CREATE',
+          'Desk.webhooks.DELETE',
+          'aaaserver.profile.READ',
+        ],
+      },
+    },
+    defaultService: 'zoho-desk',
+  },
   zoom: {
     name: 'Zoom',
     icon: ZoomIcon,
@@ -1637,6 +1680,21 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: false,
       }
     }
+    case 'zoho-desk': {
+      // Zoho's refresh_token grant returns a new access token but no new refresh
+      // token, so rotation stays off (the existing refresh token is preserved).
+      // The refresh must target the accounts server; a US/multi-DC-enabled client
+      // uses accounts.zoho.com. Data residency for API calls is honored separately
+      // via the persisted Desk base URL derived from the token response api_domain.
+      const { clientId, clientSecret } = getCredentials(env.ZOHO_CLIENT_ID, env.ZOHO_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://accounts.zoho.com/oauth/v2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
+      }
+    }
     default:
       throw new Error(`Unsupported provider: ${provider}`)
   }
@@ -1896,9 +1954,11 @@ export async function refreshOAuthToken(
       Number.isFinite(parsedExpiresIn) && parsedExpiresIn > 0 ? parsedExpiresIn : 3600
 
     if (!accessToken) {
+      // Log only the shape, never `data` itself - on a partial success it can
+      // carry live tokens.
       logger.warn('No access token found in refresh response', {
         providerId,
-        tokenEndpoint: config.tokenEndpoint,
+        responseKeys: Object.keys(data ?? {}),
       })
       return { ok: false, message: 'No access token in refresh response' }
     }

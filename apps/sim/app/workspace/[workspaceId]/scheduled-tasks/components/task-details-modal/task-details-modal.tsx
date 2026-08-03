@@ -39,8 +39,8 @@ interface TaskDetailsModalProps {
 }
 
 /**
- * Read-only record modal for tasks that are running or already finished —
- * pending tasks open the edit `TaskModal` instead. Three plaintext fields:
+ * Read-only record modal for tasks that are running, finished, or owned by
+ * another execution actor. Three plaintext fields:
  * Status and the run time as copy fields, the prompt as a view-only chip editor.
  */
 export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {

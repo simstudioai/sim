@@ -138,6 +138,7 @@ vi.mock('../access', () => ({
   getDefaultWorkspaceId: vi.fn(),
 }))
 
+import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { applyCreateWorkflowOutputToContext } from '@/lib/copilot/request/tools/workflow-context'
 import { performUpdateWorkflow } from '@/lib/workflows/orchestration'
 import { listFolders, verifyFolderWorkspace } from '@/lib/workflows/utils'
@@ -714,6 +715,61 @@ describe('Copilot workflow execution billing attribution', () => {
     ])
     expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
     expect(JSON.stringify(result)).not.toContain('encrypted-secret')
+  })
+
+  it('fails concurrent tool-result projection closed until child provenance is imported', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    const context: ExecutionContext = {
+      ...executionContext,
+      resolvedSecretTraceRegistry: registry,
+    }
+    let resolveExecution!: (value: unknown) => void
+    let markExecutionStarted!: () => void
+    const executionStarted = new Promise<void>((resolve) => {
+      markExecutionStarted = resolve
+    })
+    executeWorkflowMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveExecution = resolve
+          markExecutionStarted()
+        })
+    )
+
+    const execution = executeRunWorkflow(
+      { workflowId: 'workflow-1', useMockPayload: true },
+      context
+    )
+    await executionStarted
+
+    expect(registry.isComplete()).toBe(false)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { value: 'secret-value' } }, registry)
+    ).not.toHaveProperty('output')
+
+    resolveExecution({
+      success: true,
+      output: { value: 'secret-value' },
+      logs: [],
+      metadata: { executionId: 'new-execution-1' },
+      executionState: {
+        resolvedSecretTraceProvenance: {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        },
+      },
+    })
+
+    await expect(execution).resolves.toMatchObject({ success: true })
+    expect(registry.isComplete()).toBe(true)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { value: 'secret-value' } }, registry)
+    ).toMatchObject({ output: { value: '{{API_KEY}}' } })
   })
 
   it('marks provenance incomplete when child execution returns no trusted state', async () => {

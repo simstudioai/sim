@@ -61,10 +61,14 @@ import {
   Resource,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import type {
+  MoveOptionNode,
+  SortableResource,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import {
   parseMoveOptionValue,
   ROOT_MOVE_OPTION_VALUE,
+  sortResources,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
@@ -124,7 +128,17 @@ type FileResourceItem =
   | { kind: 'file'; id: string; file: WorkspaceFileRecord }
   | { kind: 'folder'; id: string; folder: WorkspaceFileFolderApi }
 
+/** One row of the merged folder+file list, before it becomes a `ResourceRow`. */
+type FileListEntry =
+  | { kind: 'folder'; folder: WorkspaceFileFolderApi }
+  | { kind: 'file'; file: WorkspaceFileRecord }
+
 const logger = createLogger('Files')
+
+const FOLDER_ICON = <Folder className='size-[14px]' />
+
+/** Folders' value in the `type` column — also their sort key when that column is active. */
+const FOLDER_TYPE_LABEL = 'Folder' as const
 
 /**
  * Debounce window for `search` URL writes and filtering; the input itself stays
@@ -298,13 +312,13 @@ export function Files() {
   )
   const debouncedSearchTerm = useDebounce(urlSearchTerm, FILES_SEARCH_DEBOUNCE_MS)
 
-  /**
-   * `sort`/`dir` are nullable in the URL because "no active sort" is distinct
-   * from an explicit updated/desc selection: with no sort, files fall back to
-   * updated/desc but folders to name/asc, while an explicit sort orders both
-   * sections by the chosen column.
-   */
-  const { activeSort, onSort, onClear } = useUrlSort(filesSortParams, filesFilterUrlKeys)
+  const {
+    sort: sortColumn,
+    dir: sortDirection,
+    activeSort,
+    onSort,
+    onClear,
+  } = useUrlSort(filesSortParams, filesFilterUrlKeys)
 
   const setTypeFilter = useCallback(
     (next: string[]) => setFileFilters({ type: next }),
@@ -463,34 +477,10 @@ export function Files() {
   const visibleFolders = useMemo(() => {
     const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
     const needle = debouncedSearchTerm.trim().toLowerCase()
-    const searched = needle
+    return needle
       ? siblings.filter((folder) => folder.name.toLowerCase().includes(needle))
       : siblings
-    const col = activeSort?.column ?? 'name'
-    const dir = activeSort?.direction ?? 'asc'
-    // Decorate-sort: compute each key + pinned flag once (O(N)) rather than parsing dates per comparison.
-    const decorated = searched.map((folder) => ({
-      folder,
-      pinned: pinnedFolderIds.has(folder.id),
-      key:
-        col === 'updated'
-          ? new Date(folder.updatedAt).getTime()
-          : col === 'created'
-            ? new Date(folder.createdAt).getTime()
-            : folder.name,
-    }))
-    decorated.sort((a, b) => {
-      // Pinned folders float to the top of every sort/direction — pinning is a
-      // user-declared priority, not another sort key to be inverted by `desc`.
-      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-      const cmp =
-        typeof a.key === 'number' && typeof b.key === 'number'
-          ? a.key - b.key
-          : String(a.key).localeCompare(String(b.key))
-      return dir === 'asc' ? cmp : -cmp
-    })
-    return decorated.map((d) => d.folder)
-  }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
+  }, [folders, currentFolderId, debouncedSearchTerm])
 
   const filteredFiles = useMemo(() => {
     const needle = debouncedSearchTerm.trim().toLowerCase()
@@ -525,102 +515,129 @@ export function Files() {
       result = result.filter((f) => uploadedByFilter.includes(f.uploadedBy))
     }
 
-    const col = activeSort?.column ?? 'updated'
-    const dir = activeSort?.direction ?? 'desc'
-    // Decorate-sort: compute each row's sort key + pinned flag ONCE (O(N)), then compare precomputed
-    // keys — the comparator ran per-comparison work (Date parsing, `formatFileType`, member lookups) at
-    // O(N log N). Stable sort + pinned-primary ordering are preserved.
-    const decorated = result.map((f) => ({
-      f,
-      pinned: pinnedFileIds.has(f.id),
-      key:
-        col === 'size'
-          ? f.size
-          : col === 'type'
-            ? formatFileType(f.type, f.name)
-            : col === 'created'
-              ? new Date(f.uploadedAt).getTime()
-              : col === 'updated'
-                ? new Date(f.updatedAt).getTime()
-                : col === 'owner'
-                  ? (membersById.get(f.uploadedBy)?.name ?? '')
-                  : f.name,
-    }))
-    decorated.sort((a, b) => {
-      // Pinned files float to the top of every sort/direction — pinning is a
-      // user-declared priority, not another sort key to be inverted by `desc`.
-      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-      const cmp =
-        typeof a.key === 'number' && typeof b.key === 'number'
-          ? a.key - b.key
-          : String(a.key).localeCompare(String(b.key))
-      return dir === 'asc' ? cmp : -cmp
-    })
-    return decorated.map((d) => d.f)
+    return result
+  }, [files, currentFolderId, debouncedSearchTerm, typeFilter, sizeFilter, uploadedByFilter])
+
+  /**
+   * Folders and files sort as ONE list — a folder never outranks a file it ties with, so a
+   * pinned file reaches the top of the list rather than the top of the file section.
+   *
+   * Decorate-sort: each row's key + pinned flag is computed ONCE (O(N)) so the comparator
+   * never re-runs Date parsing, `formatFileType`, or member lookups per comparison. Every
+   * Files column has a folder equivalent (folders carry a size roll-up and sort as type
+   * "Folder"), so no entry needs a null key here.
+   */
+  const sortedEntries = useMemo(() => {
+    const entries: SortableResource<FileListEntry>[] = []
+
+    for (const folder of visibleFolders) {
+      entries.push({
+        item: { kind: 'folder', folder },
+        pinned: pinnedFolderIds.has(folder.id),
+        name: folder.name,
+        key:
+          sortColumn === 'size'
+            ? (folderSizeMap.get(folder.id) ?? 0)
+            : sortColumn === 'type'
+              ? FOLDER_TYPE_LABEL
+              : sortColumn === 'created'
+                ? new Date(folder.createdAt).getTime()
+                : sortColumn === 'updated'
+                  ? new Date(folder.updatedAt).getTime()
+                  : sortColumn === 'owner'
+                    ? (membersById.get(folder.userId)?.name ?? null)
+                    : folder.name,
+      })
+    }
+
+    for (const file of filteredFiles) {
+      entries.push({
+        item: { kind: 'file', file },
+        pinned: pinnedFileIds.has(file.id),
+        name: file.name,
+        key:
+          sortColumn === 'size'
+            ? file.size
+            : sortColumn === 'type'
+              ? formatFileType(file.type, file.name)
+              : sortColumn === 'created'
+                ? new Date(file.uploadedAt).getTime()
+                : sortColumn === 'updated'
+                  ? new Date(file.updatedAt).getTime()
+                  : sortColumn === 'owner'
+                    ? (membersById.get(file.uploadedBy)?.name ?? null)
+                    : file.name,
+      })
+    }
+
+    return sortResources(entries, sortDirection)
   }, [
-    files,
-    currentFolderId,
-    debouncedSearchTerm,
-    typeFilter,
-    sizeFilter,
-    uploadedByFilter,
-    activeSort,
+    visibleFolders,
+    filteredFiles,
+    sortColumn,
+    sortDirection,
     membersById,
+    folderSizeMap,
+    pinnedFolderIds,
     pinnedFileIds,
   ])
 
-  const baseRows: ResourceRow[] = useMemo(() => {
-    const folderRows = visibleFolders.map((folder) => ({
-      id: folderRowId(folder.id),
-      cells: {
-        name: {
-          icon: <Folder className='size-[14px]' />,
-          label: folder.name,
-          pinned: pinnedFolderIds.has(folder.id),
-        },
-        size: {
-          label:
-            (folderSizeMap.get(folder.id) ?? 0) > 0
-              ? formatFileSize(folderSizeMap.get(folder.id)!, { includeBytes: true })
-              : EMPTY_CELL_PLACEHOLDER,
-        },
-        type: {
-          icon: <Folder className='size-[14px]' />,
-          label: 'Folder',
-        },
-        created: timeCell(folder.createdAt),
-        owner: ownerCell(folder.userId, membersById),
-        updated: timeCell(folder.updatedAt),
-      },
-    }))
+  const baseRows: ResourceRow[] = useMemo(
+    () =>
+      sortedEntries.map(({ item, pinned }): ResourceRow => {
+        if (item.kind === 'folder') {
+          const { folder } = item
+          const totalSize = folderSizeMap.get(folder.id) ?? 0
+          return {
+            id: folderRowId(folder.id),
+            cells: {
+              name: {
+                icon: FOLDER_ICON,
+                label: folder.name,
+                pinned,
+              },
+              size: {
+                label:
+                  totalSize > 0
+                    ? formatFileSize(totalSize, { includeBytes: true })
+                    : EMPTY_CELL_PLACEHOLDER,
+              },
+              type: {
+                icon: FOLDER_ICON,
+                label: FOLDER_TYPE_LABEL,
+              },
+              created: timeCell(folder.createdAt),
+              owner: ownerCell(folder.userId, membersById),
+              updated: timeCell(folder.updatedAt),
+            },
+          }
+        }
 
-    const fileRows = filteredFiles.map((file) => {
-      const Icon = getDocumentIcon(file.type || '', file.name)
-      const row: ResourceRow = {
-        id: fileRowId(file.id),
-        cells: {
-          name: {
-            icon: <Icon className='size-[14px]' />,
-            label: file.name,
-            pinned: pinnedFileIds.has(file.id),
+        const { file } = item
+        const Icon = getDocumentIcon(file.type || '', file.name)
+        return {
+          id: fileRowId(file.id),
+          cells: {
+            name: {
+              icon: <Icon className='size-[14px]' />,
+              label: file.name,
+              pinned,
+            },
+            size: {
+              label: formatFileSize(file.size, { includeBytes: true }),
+            },
+            type: {
+              icon: <Icon className='size-[14px]' />,
+              label: formatFileType(file.type, file.name),
+            },
+            created: timeCell(file.uploadedAt),
+            owner: ownerCell(file.uploadedBy, membersById),
+            updated: timeCell(file.updatedAt),
           },
-          size: {
-            label: formatFileSize(file.size, { includeBytes: true }),
-          },
-          type: {
-            icon: <Icon className='size-[14px]' />,
-            label: formatFileType(file.type, file.name),
-          },
-          created: timeCell(file.uploadedAt),
-          owner: ownerCell(file.uploadedBy, membersById),
-          updated: timeCell(file.updatedAt),
-        },
-      }
-      return row
-    })
-
-    return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, membersById, folderSizeMap, pinnedFolderIds, pinnedFileIds])
+        }
+      }),
+    [sortedEntries, membersById, folderSizeMap]
+  )
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
@@ -1634,6 +1651,7 @@ export function Files() {
               onSelect: handleShareSelected,
             },
             {
+              id: 'delete',
               text: 'Delete',
               icon: Trash,
               onSelect: handleDeleteSelected,

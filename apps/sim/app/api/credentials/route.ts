@@ -270,7 +270,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const credentials = rows.map(({ memberRole, ...rest }) => ({
       ...rest,
       role:
-        isWorkspaceAdmin && isSharedCredentialType(rest.type) ? 'admin' : (memberRole ?? 'member'),
+        (rest.type === 'env_personal' && rest.envOwnerUserId === session.user.id) ||
+        (isWorkspaceAdmin && isSharedCredentialType(rest.type))
+          ? 'admin'
+          : (memberRole ?? 'member'),
     }))
 
     return NextResponse.json({ credentials })
@@ -318,6 +321,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       clientId,
       clientSecret,
       orgId,
+      dataCenter,
     } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
@@ -378,6 +382,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           clientId,
           clientSecret,
           orgId,
+          dataCenter,
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null
@@ -649,9 +654,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resourceName: resolvedDisplayName,
       description: `Created ${type} credential "${resolvedDisplayName}"`,
       metadata: {
+        // Provider metadata spreads first so this route's own keys stay
+        // authoritative and can never be shadowed, matching the update path in
+        // `lib/credentials/orchestration`.
+        ...extraAuditMetadata,
         credentialType: type,
         providerId: resolvedProviderId,
-        ...extraAuditMetadata,
       },
       request,
     })

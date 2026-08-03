@@ -756,6 +756,8 @@ export const workflowSchedule = pgTable(
     sourceWorkspaceId: text('source_workspace_id').references(() => workspace.id, {
       onDelete: 'cascade',
     }),
+    secretScope: text('secret_scope').notNull().default('all'),
+    mountedSecrets: jsonb('mounted_secrets').$type<string[]>().notNull().default([]),
     jobHistory: jsonb('job_history').$type<Array<{ timestamp: string; summary: string }>>(),
     /** `@`-mentioned resources / `/`-invoked skills captured with the prompt, resolved into the agent run at fire time. */
     contexts: jsonb('contexts').$type<Array<Record<string, unknown>>>(),
@@ -1595,6 +1597,8 @@ export const workspace = pgTable(
     inboxEnabled: boolean('inbox_enabled').notNull().default(false),
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
+    inboxSecretScope: text('inbox_secret_scope').notNull().default('all'),
+    inboxMountedSecrets: jsonb('inbox_mounted_secrets').$type<string[]>().notNull().default([]),
     archivedAt: timestamp('archived_at'),
     organizationAssignedAt: timestamp('organization_assigned_at'),
     forkedFromWorkspaceId: text('forked_from_workspace_id').references(
@@ -3370,6 +3374,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'knowledge-base',
   'voice-input',
   'enrichment',
+  'voice-output',
 ])
 
 export const usageLog = pgTable(

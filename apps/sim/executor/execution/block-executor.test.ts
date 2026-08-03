@@ -440,6 +440,72 @@ describe('BlockExecutor', () => {
     expect(output).not.toEqual({ content: '' })
   })
 
+  it('keeps Sim Chat secret policy in runtime inputs and out of trace inputs', async () => {
+    const block = createBlock()
+    block.id = 'mothership-block-1'
+    block.metadata = { id: BlockType.MOTHERSHIP, name: 'Sim Chat' }
+    block.config = {
+      tool: BlockType.MOTHERSHIP,
+      params: {
+        prompt: 'Run the task',
+        secretScope: 'selected',
+        mountedSecrets: ['OPENAI_API_KEY'],
+      },
+    }
+    block.privateInputIds = ['secretScope', 'mountedSecrets']
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (_ctx, _block, inputs) => {
+        expect(inputs).toMatchObject({
+          prompt: 'Run the task',
+          secretScope: 'selected',
+          mountedSecrets: ['OPENAI_API_KEY'],
+        })
+        return { content: 'done' }
+      },
+    }
+    const executor = new BlockExecutor(
+      [handler],
+      resolver,
+      {
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        metadata: {
+          requestId: 'request-1',
+          executionId: 'execution-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          triggerType: 'manual',
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        },
+      },
+      state
+    )
+    const ctx = createContext(state)
+
+    await executor.execute(ctx, createNode(block), block)
+
+    expect(ctx.blockLogs[0]?.input).toEqual({ prompt: 'Run the task' })
+    const { traceSpans } = buildTraceSpans({
+      success: true,
+      output: { content: 'done' },
+      logs: ctx.blockLogs,
+    })
+    expect(traceSpans[0]?.input).toEqual({ prompt: 'Run the task' })
+  })
+
   it('projects a resolved secret out of Function syntax-error TraceSpans only', async () => {
     const secret = 'function-secret-literal-7f3a91'
     const block = createBlock()

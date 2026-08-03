@@ -928,6 +928,7 @@ interface WorkflowExecutionOptions {
   stopAfterBlockId?: string
   abortSignal?: AbortSignal
   preserveExecutionOnTerminal?: boolean
+  copilotToolCallId?: string
   /** For run_from_block / run_block: start from a specific block using cached state */
   runFromBlock?: {
     startBlockId: string
@@ -997,6 +998,7 @@ export async function executeWorkflowWithFullLogging(
     useDraftState: options.useDraftState ?? true,
     isClientSession: true,
     ...(options.executionId ? { executionId: options.executionId } : {}),
+    ...(options.copilotToolCallId ? { copilotToolCallId: options.copilotToolCallId } : {}),
     ...(options.triggerBlockId ? { triggerBlockId: options.triggerBlockId } : {}),
     ...(options.stopAfterBlockId ? { stopAfterBlockId: options.stopAfterBlockId } : {}),
     ...(options.runFromBlock

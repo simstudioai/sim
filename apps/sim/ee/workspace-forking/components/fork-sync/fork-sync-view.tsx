@@ -12,7 +12,7 @@ import {
   Label,
   Tooltip,
 } from '@sim/emcn'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight } from '@sim/emcn/icons'
 import type {
   ForkCopyableUnmapped,
   ForkDependentReconfig,

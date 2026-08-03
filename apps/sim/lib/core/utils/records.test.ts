@@ -29,6 +29,14 @@ describe('record normalization utilities', () => {
     expect(normalizeStringRecord([])).toEqual({})
   })
 
+  it('preserves own __proto__ keys without changing the record prototype', () => {
+    const normalized = normalizeStringRecord(Object.fromEntries([['__proto__', 'secret-value']]))
+
+    expect(Object.hasOwn(normalized, '__proto__')).toBe(true)
+    expect(normalized.__proto__).toBe('secret-value')
+    expect(Object.getPrototypeOf(normalized)).toBe(Object.prototype)
+  })
+
   it('normalizes record maps by dropping malformed entries', () => {
     expect(
       normalizeRecordMap({

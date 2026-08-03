@@ -816,6 +816,34 @@ describe('Function Execute API Route', () => {
       expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
     })
 
+    it('does not report a reference when validation rejects before code resolution', async () => {
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return {{API_KEY}}',
+            envVars: { API_KEY: 'secret-value' },
+            outputs: {
+              files: Array.from({ length: 21 }, (_, index) => ({
+                path: `files/output-${index}.json`,
+                sandboxPath: `/home/user/output-${index}.json`,
+              })),
+            },
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+          }
+        )
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('Too many sandbox output files requested')
+      expect(data.__resolvedSecretNames).toEqual([])
+      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+    })
+
     it('reports only successful references sourced from scoped environment variables', async () => {
       const envResponse = await POST(
         createMockRequest(
@@ -905,6 +933,26 @@ describe('Function Execute API Route', () => {
       )
 
       expect((await response.json()).__resolvedSecretNames).toEqual(['ALLOWED'])
+    })
+
+    it('resolves a selected __proto__ secret as an own environment key', async () => {
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return "{{__proto__}}"',
+            envVars: Object.fromEntries([['__proto__', 'secret-value']]),
+            secretScope: 'selected',
+            mountedSecrets: ['__proto__'],
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+          }
+        )
+      )
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).__resolvedSecretNames).toEqual(['__proto__'])
     })
 
     it.concurrent('should resolve tag variables with <tag_name> syntax', async () => {

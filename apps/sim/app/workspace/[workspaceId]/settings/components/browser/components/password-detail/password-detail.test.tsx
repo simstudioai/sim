@@ -14,6 +14,8 @@ const { mockBridge, mockToast } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  /** `password-detail` composes the shared tile classes with `cn`. */
+  cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
   ArrowLeft: () => <span />,
   Button: ({
     children,

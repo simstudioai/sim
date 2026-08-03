@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { isLoopbackIp, isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('InputValidation')
 
@@ -1235,6 +1236,31 @@ export function validatePaginationCursor(
 const CALLBACK_URL_SERVER_BASE = 'https://callback-url-validator.invalid'
 
 /**
+ * Origin a callback URL is resolved and compared against.
+ *
+ * The browser uses its own origin. Server-side there is no `window`, so it uses
+ * the deployment's configured origin — which is what the browser will compare
+ * against once it hydrates. Using a sentinel here instead made the server reject
+ * every absolute URL, including the same-origin ones this function documents as
+ * valid, so a component deriving a callback URL during render produced one
+ * destination in the SSR markup and a different one after hydration.
+ *
+ * Falls back to the sentinel when the app URL is unset or unparseable, which
+ * keeps the server fail-closed: every absolute URL is rejected, as before.
+ */
+function getCallbackValidationOrigin(): string {
+  if (typeof window !== 'undefined') {
+    return window.location.origin
+  }
+
+  try {
+    return new URL(getBaseUrl()).origin
+  } catch {
+    return CALLBACK_URL_SERVER_BASE
+  }
+}
+
+/**
  * Validates a callback URL to prevent open redirect attacks.
  *
  * Accepts:
@@ -1263,7 +1289,7 @@ export function validateCallbackUrl(url: string): boolean {
   try {
     if (typeof url !== 'string' || url.length === 0) return false
 
-    const base = typeof window === 'undefined' ? CALLBACK_URL_SERVER_BASE : window.location.origin
+    const base = getCallbackValidationOrigin()
     const parsed = new URL(url, base)
     return parsed.origin === base
   } catch (error) {

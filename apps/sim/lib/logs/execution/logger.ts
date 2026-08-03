@@ -491,6 +491,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         ...(executionData.billingAttribution
           ? { billingAttribution: executionData.billingAttribution }
           : {}),
+        ...(executionData.correlation ? { correlation: executionData.correlation } : {}),
         hasTraceSpans: executionData.hasTraceSpans,
         traceSpanCount: executionData.traceSpanCount,
         tokens: executionData.tokens,

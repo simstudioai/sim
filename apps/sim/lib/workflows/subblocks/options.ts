@@ -1,7 +1,13 @@
+import { selectRawMountableSecretNames } from '@/lib/credentials/secret-mount-options'
 import { fetchWorkspaceEnvironment } from '@/lib/environment/api'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { environmentKeys, WORKSPACE_ENVIRONMENT_STALE_TIME } from '@/hooks/queries/environment'
 import { getSandboxListQueryOptions, type SandboxListResponse } from '@/hooks/queries/sandboxes'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import {
+  fetchWorkspaceCredentialList,
+  WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
+} from '@/hooks/queries/utils/fetch-workspace-credentials'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -68,6 +74,21 @@ export async function fetchWorkspaceSecretNameOptions(): Promise<SubBlockOption[
     ...Object.keys(environment?.personal ?? {}),
   ])
   return [...names].sort().map((name) => ({ id: name, label: name }))
+}
+
+/** Loads only secret names the current actor may mount as plaintext into Copilot code. */
+export async function fetchWorkspaceRawSecretNameOptions(): Promise<SubBlockOption[]> {
+  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
+  if (!workspaceId) return []
+
+  const credentials = await getQueryClient().fetchQuery({
+    queryKey: workspaceCredentialKeys.list(workspaceId),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      fetchWorkspaceCredentialList(workspaceId, signal),
+    staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
+  })
+
+  return selectRawMountableSecretNames(credentials).map((name) => ({ id: name, label: name }))
 }
 
 /**

@@ -241,7 +241,13 @@ export const PATCH = withRouteHandler(
         }
       }
 
-      if (encryptedPassword) {
+      /**
+       * Only store a new password when the chat ends up password-protected.
+       * Applying it unconditionally re-armed the secret that the branch above
+       * just cleared, so `PATCH { authType: 'email', password }` persisted an
+       * encrypted password on an email-gated chat.
+       */
+      if (encryptedPassword && (authType ?? existingChat[0].authType) === 'password') {
         updateData.password = encryptedPassword
       }
 

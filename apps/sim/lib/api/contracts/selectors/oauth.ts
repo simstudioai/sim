@@ -11,6 +11,7 @@ const oauthTokenResponseSchema = z
     cloudId: z.string().optional(),
     domain: z.string().optional(),
     realmId: z.string().optional(),
+    apiDomain: z.string().optional(),
   })
   .passthrough()
 

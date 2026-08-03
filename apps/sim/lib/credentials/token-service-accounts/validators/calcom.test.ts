@@ -36,8 +36,8 @@ describe('validateCalcomServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'sim-bot',
-      auditMetadata: { calcomUserId: '42' },
-      storedMetadata: { userId: '42', email: 'bot@example.com' },
+      principal: { kind: 'user', id: '42', label: 'sim-bot' },
+      auditMetadata: {},
     })
     expect(mockFetch).toHaveBeenCalledWith('https://api.cal.com/v2/me', {
       headers: {

@@ -37,8 +37,9 @@ describe('validateAirtableServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'svc@example.com',
-      auditMetadata: { airtableUserId: 'usrABC123' },
-      storedMetadata: { userId: 'usrABC123', scopes: 'data.records:read' },
+      principal: { kind: 'user', id: 'usrABC123', label: 'svc@example.com' },
+      auditMetadata: {},
+      storedMetadata: { scopes: 'data.records:read' },
     })
     expect(mockFetch).toHaveBeenCalledWith('https://api.airtable.com/v0/meta/whoami', {
       headers: {
@@ -55,8 +56,9 @@ describe('validateAirtableServiceAccount', () => {
     const result = await validateAirtableServiceAccount({ apiToken: 'pat456.secret' })
 
     expect(result.displayName).toBe('Airtable user usrXYZ789')
-    expect(result.auditMetadata).toEqual({ airtableUserId: 'usrXYZ789' })
-    expect(result.storedMetadata).toEqual({ userId: 'usrXYZ789' })
+    expect(result.principal).toEqual({ kind: 'user', id: 'usrXYZ789' })
+    expect(result.auditMetadata).toEqual({})
+    expect(result.storedMetadata).toEqual({})
   })
 
   it('throws invalid_credentials on 401', async () => {

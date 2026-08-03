@@ -39,8 +39,9 @@ describe('validateLinearServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'Acme',
+      principal: { kind: 'user', id: 'viewer-1', label: 'jane@acme.com' },
       auditMetadata: { linearOrganizationId: 'org-1' },
-      storedMetadata: { viewerId: 'viewer-1', organizationId: 'org-1' },
+      storedMetadata: { organizationId: 'org-1' },
     })
 
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit]

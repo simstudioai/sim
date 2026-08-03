@@ -85,7 +85,9 @@ if net_bytes > 0 then
   redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
   if #KEYS >= 5 then
     redis.call('INCRBY', KEYS[5], net_bytes)
-    redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
+    if redis.call('TTL', KEYS[5]) < 0 then
+      redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
+    end
   end
 elseif net_bytes < 0 then
   local release_bytes = -net_bytes
@@ -99,7 +101,7 @@ elseif net_bytes < 0 then
     local user_next = redis.call('DECRBY', KEYS[5], release_bytes)
     if user_next <= 0 then
       redis.call('DEL', KEYS[5])
-    else
+    elseif redis.call('TTL', KEYS[5]) < 0 then
       redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
     end
   end
@@ -107,7 +109,7 @@ else
   if redis.call('EXISTS', KEYS[4]) == 1 then
     redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
   end
-  if #KEYS >= 5 and redis.call('EXISTS', KEYS[5]) == 1 then
+  if #KEYS >= 5 and redis.call('EXISTS', KEYS[5]) == 1 and redis.call('TTL', KEYS[5]) < 0 then
     redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
   end
 end
@@ -148,7 +150,7 @@ if retained_bytes > 0 then
     local user_next = redis.call('DECRBY', KEYS[4], retained_bytes)
     if user_next <= 0 then
       redis.call('DEL', KEYS[4])
-    else
+    elseif redis.call('TTL', KEYS[4]) < 0 then
       redis.call('EXPIRE', KEYS[4], tonumber(ARGV[4]))
     end
   end

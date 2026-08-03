@@ -18,7 +18,7 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { ArrowRight, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
@@ -45,6 +45,10 @@ import {
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import {
@@ -512,8 +516,8 @@ function PolicyDetail({
           ...(canRemove
             ? [
                 {
+                  id: 'delete',
                   text: 'Remove override',
-                  variant: 'destructive',
                   onSelect: () => setShowRemoveConfirm(true),
                   disabled: isSaving,
                 } satisfies SettingsAction,
@@ -994,42 +998,24 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
           ]}
         >
           <SettingsSection label='Retention policies'>
-            <div className='-mx-2 flex flex-col gap-y-0.5'>
-              <button
-                type='button'
+            <div className={RESOURCE_LIST_STACK}>
+              <SettingsResourceRow
+                title='Organization'
+                description={orgRowSummary()}
+                badge={<ChipTag variant='gray'>Default</ChipTag>}
                 onClick={openEditOrg}
-                className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-              >
-                <div className='flex min-w-0 flex-1 flex-col'>
-                  <div className='flex items-center gap-2'>
-                    <span className='truncate text-[var(--text-body)] text-sm'>Organization</span>
-                    <ChipTag variant='gray' className='flex-shrink-0'>
-                      Default
-                    </ChipTag>
-                  </div>
-                  <span className='truncate text-[var(--text-muted)] text-caption'>
-                    {orgRowSummary()}
-                  </span>
-                </div>
-                <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-              </button>
+                clickLabel='Open organization retention policy'
+                navigable
+              />
               {overrideWorkspaceIds.map((workspaceId) => (
-                <button
+                <SettingsResourceRow
                   key={workspaceId}
-                  type='button'
+                  title={workspaceName(workspaceId)}
+                  description={overrideRowSummary(workspaceId)}
                   onClick={() => openEditOverride(workspaceId)}
-                  className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-                >
-                  <div className='flex min-w-0 flex-1 flex-col'>
-                    <span className='truncate text-[var(--text-body)] text-sm'>
-                      {workspaceName(workspaceId)}
-                    </span>
-                    <span className='truncate text-[var(--text-muted)] text-caption'>
-                      {overrideRowSummary(workspaceId)}
-                    </span>
-                  </div>
-                  <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-                </button>
+                  clickLabel={`Open ${workspaceName(workspaceId)} retention override`}
+                  navigable
+                />
               ))}
             </div>
           </SettingsSection>

@@ -20,14 +20,13 @@ export const TRACE_STORE_REF_KEY = 'traceStoreRef'
 
 /**
  * The only metadata kept inline on the slim row (everything else lives in the
- * externalized object). These two describe trace presence/count and uniquely
- * survive object expiry — so a reader can still report "trace data expired (N
- * spans)" after retention without an object fetch. All other fields
+ * externalized object). Trace presence/count survives object expiry for log
+ * diagnostics, while correlation preserves the server-issued binding used to
+ * authenticate terminal Copilot workflow-tool executions. All other fields
  * (environment, trigger, tokens, models, truncation flags, and of course the
- * heavy payloads) are in the stored object and recovered on materialize, so
- * keeping them inline too would just be duplication.
+ * heavy payloads) are recovered from the stored object.
  */
-const INLINE_MARKER_KEYS = ['hasTraceSpans', 'traceSpanCount'] as const
+const INLINE_MARKER_KEYS = ['hasTraceSpans', 'traceSpanCount', 'correlation'] as const
 
 /**
  * Read-path context. Resolves an externalized payload by storage key, authorized

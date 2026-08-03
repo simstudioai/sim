@@ -11,6 +11,8 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
+  Label,
   Tooltip,
   useCopyToClipboard,
 } from '@sim/emcn'
@@ -24,7 +26,16 @@ import {
   useInboxSenders,
   useRemoveInboxSender,
   useUpdateInboxAddress,
+  useUpdateInboxSecretPolicy,
 } from '@/hooks/queries/inbox'
+import { useRawMountableSecretOptions } from '@/hooks/queries/secret-mount-options'
+
+const SECRET_SCOPE_OPTIONS = [
+  { value: 'all', label: 'All secrets' },
+  { value: 'selected', label: 'Selected secrets' },
+]
+
+const DROPDOWN_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
 
 export function InboxSettingsTab() {
   const params = useParams()
@@ -33,6 +44,7 @@ export function InboxSettingsTab() {
   const { data: config } = useInboxConfig(workspaceId)
   const { data: sendersData, isLoading: sendersLoading } = useInboxSenders(workspaceId)
   const updateAddress = useUpdateInboxAddress()
+  const updateSecretPolicy = useUpdateInboxSecretPolicy()
   const addSender = useAddInboxSender()
   const removeSender = useRemoveInboxSender()
 
@@ -47,6 +59,11 @@ export function InboxSettingsTab() {
 
   const [removeSenderError, setRemoveSenderError] = useState<string | null>(null)
   const { copied: copiedAddress, copy } = useCopyToClipboard()
+  const { options: secretOptions, isPending: secretOptionsPending } =
+    useRawMountableSecretOptions(workspaceId)
+
+  const secretScope = config?.secretScope ?? 'all'
+  const mountedSecrets = config?.mountedSecrets ?? []
 
   const handleCopyAddress = useCallback(() => {
     if (config?.address) void copy(config.address)
@@ -226,6 +243,60 @@ export function InboxSettingsTab() {
             >
               Add sender
             </Chip>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection label='Secrets'>
+          <div className='flex flex-col gap-4'>
+            <div className='flex items-center justify-between'>
+              <Label>Secret access</Label>
+              <div className={DROPDOWN_TRIGGER_CLASS}>
+                <ChipSelect
+                  aria-label='Secret access'
+                  align='start'
+                  fullWidth
+                  dropdownWidth='trigger'
+                  value={secretScope}
+                  onChange={(value) =>
+                    updateSecretPolicy.mutate({
+                      workspaceId,
+                      secretScope: value === 'selected' ? 'selected' : 'all',
+                      mountedSecrets,
+                    })
+                  }
+                  options={SECRET_SCOPE_OPTIONS}
+                  disabled={updateSecretPolicy.isPending}
+                />
+              </div>
+            </div>
+
+            {secretScope === 'selected' && (
+              <div className='flex items-center justify-between gap-4'>
+                <Label>Secrets</Label>
+                <div className={DROPDOWN_TRIGGER_CLASS}>
+                  <ChipSelect
+                    aria-label='Secrets'
+                    align='start'
+                    fullWidth
+                    dropdownWidth='trigger'
+                    multiSelect
+                    searchable
+                    searchPlaceholder='Search secrets'
+                    placeholder='Select secrets'
+                    options={secretOptions}
+                    multiSelectValues={mountedSecrets}
+                    onMultiSelectChange={(values) =>
+                      updateSecretPolicy.mutate({
+                        workspaceId,
+                        secretScope: 'selected',
+                        mountedSecrets: values,
+                      })
+                    }
+                    disabled={secretOptionsPending || updateSecretPolicy.isPending}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </SettingsSection>
       </div>

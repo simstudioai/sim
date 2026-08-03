@@ -160,7 +160,7 @@ export class BlockExecutor {
       }
 
       if (blockLog) {
-        blockLog.input = this.sanitizeInputsForLog(inputsForLog, block.metadata?.id)
+        blockLog.input = this.sanitizeInputsForLog(inputsForLog, block)
       }
     } catch (error) {
       cleanupSelfReference?.()
@@ -300,7 +300,7 @@ export class BlockExecutor {
           ctx,
           node,
           block,
-          this.sanitizeInputsForLog(inputsForLog, block.metadata?.id),
+          this.sanitizeInputsForLog(inputsForLog, block),
           displayOutput,
           duration,
           blockLog.startedAt,
@@ -413,7 +413,7 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.error = undefined
-        blockLog.input = this.sanitizeInputsForLog(input, block.metadata?.id)
+        blockLog.input = this.sanitizeInputsForLog(input, block)
         blockLog.output = filterOutputForLog(block.metadata?.id || '', softOutput, { block })
       }
 
@@ -428,7 +428,7 @@ export class BlockExecutor {
           ctx,
           node,
           block,
-          this.sanitizeInputsForLog(input, block.metadata?.id),
+          this.sanitizeInputsForLog(input, block),
           filterOutputForLog(block.metadata?.id || '', softOutput, { block }),
           duration,
           blockLog.startedAt,
@@ -480,7 +480,7 @@ export class BlockExecutor {
       blockLog.durationMs = duration
       blockLog.success = false
       blockLog.error = errorMessage
-      blockLog.input = this.sanitizeInputsForLog(input, block.metadata?.id)
+      blockLog.input = this.sanitizeInputsForLog(input, block)
       blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
 
       if (ChildWorkflowError.isChildWorkflowError(error) && error.childTraceSpans.length > 0) {
@@ -507,7 +507,7 @@ export class BlockExecutor {
         ctx,
         node,
         block,
-        this.sanitizeInputsForLog(input, block.metadata?.id),
+        this.sanitizeInputsForLog(input, block),
         displayOutput,
         duration,
         blockLog.startedAt,
@@ -631,8 +631,10 @@ export class BlockExecutor {
    */
   private sanitizeInputsForLog(
     inputs: Record<string, any>,
-    blockType?: string
+    block?: SerializedBlock
   ): Record<string, any> {
+    const blockType = block?.metadata?.id
+    const privateInputIds = new Set(block?.privateInputIds ?? [])
     // Custom (deploy-as-block) blocks run via an internal `workflow_executor`; the
     // baked `workflowId`/`inputMapping` wrapper is plumbing. Log the mapped input
     // field values (the inputMapping contents) instead.
@@ -658,7 +660,8 @@ export class BlockExecutor {
         SYSTEM_SUBBLOCK_IDS.includes(key) ||
         key === 'triggerMode' ||
         key === FUNCTION_BLOCK_CONTEXT_VARS_KEY ||
-        key === FUNCTION_BLOCK_DISPLAY_CODE_KEY
+        key === FUNCTION_BLOCK_DISPLAY_CODE_KEY ||
+        privateInputIds.has(key)
       ) {
         continue
       }

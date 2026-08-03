@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { ChipLink } from '@sim/emcn'
-import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { ChipLink, cn } from '@sim/emcn'
+import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 interface IntegrationTabsHeaderProps {
   active: 'integrations' | 'skills'
@@ -26,7 +26,7 @@ export function IntegrationTabsHeader({
       <ChipLink href={`/workspace/${workspaceId}/skills`} active={active === 'skills'}>
         Skills
       </ChipLink>
-      {rightSlot && <div className='ml-auto flex items-center'>{rightSlot}</div>}
+      {rightSlot && <div className={cn('ml-auto', HEADER_ACTION_CLUSTER)}>{rightSlot}</div>}
     </div>
   )
 }

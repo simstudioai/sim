@@ -205,12 +205,21 @@ export const PUT = withRouteHandler(
           time: validatedBody.time,
           endsAt: validatedBody.endsAt,
           contexts: validatedBody.contexts,
+          secretScope: validatedBody.secretScope,
+          mountedSecrets: validatedBody.mountedSecrets,
           request,
         })
         if (!updateResult.success) {
           return NextResponse.json(
             { error: updateResult.error || 'Failed to update schedule' },
-            { status: updateResult.errorCode === 'validation' ? 400 : 500 }
+            {
+              status:
+                updateResult.errorCode === 'forbidden'
+                  ? 403
+                  : updateResult.errorCode === 'validation'
+                    ? 400
+                    : 500,
+            }
           )
         }
 
