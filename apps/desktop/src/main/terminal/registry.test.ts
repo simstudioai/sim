@@ -300,8 +300,9 @@ describe('TerminalRegistry', () => {
       disposeScope: vi.fn(),
     }
     const terminals = new TerminalRegistry(persistence)
+    const rememberedCwd = tmpdir()
     terminals.start('chat-deleted', { cols: 80, rows: 24 })
-    terminals.openTerminal('chat-deleted', '/private/tmp')
+    terminals.openTerminal('chat-deleted', rememberedCwd)
     terminals.switchTerminal('chat-deleted', '1')
     const originalSessions = [...stubSessions]
     const initialCwd = originalSessions[0].cwd
@@ -312,7 +313,7 @@ describe('TerminalRegistry', () => {
     expect(originalSessions.every((session) => session.disposed)).toBe(true)
     expect(persistence.save).toHaveBeenCalledWith('chat-deleted', {
       v: 1,
-      tabs: [{ cwd: initialCwd }, { cwd: '/private/tmp' }],
+      tabs: [{ cwd: initialCwd }, { cwd: rememberedCwd }],
       activeIndex: 0,
     })
     expect(persistence.disposeScope).not.toHaveBeenCalled()
@@ -334,7 +335,7 @@ describe('TerminalRegistry', () => {
     terminals.activateScope('chat-deleted')
     const restored = terminals.start('chat-deleted', { cols: 100, rows: 30 })
     expect(stubSessions).toHaveLength(4)
-    expect(stubSessions.slice(2).map(({ cwd }) => cwd)).toEqual([initialCwd, '/private/tmp'])
+    expect(stubSessions.slice(2).map(({ cwd }) => cwd)).toEqual([initialCwd, rememberedCwd])
     expect(restored.activeTerminalId).toBe('1')
   })
 
