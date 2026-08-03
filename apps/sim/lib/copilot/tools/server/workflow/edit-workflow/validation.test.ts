@@ -243,6 +243,7 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
   getHostedModels: mockGetHostedModels,
 }))
 

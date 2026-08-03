@@ -23,6 +23,7 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -223,7 +224,7 @@ export const sakanaProvider: ProviderConfig = {
 
       if (
         typeof originalToolChoice === 'object' &&
-        currentResponse.choices[0]?.message?.tool_calls
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
       ) {
         const toolCallsResponse = currentResponse.choices[0].message.tool_calls
         const result = trackForcedToolUsage(
@@ -244,7 +245,8 @@ export const sakanaProvider: ProviderConfig = {
             content = currentResponse.choices[0].message.content
           }
 
-          const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+          const toolCallsInResponse =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
@@ -419,7 +421,7 @@ export const sakanaProvider: ProviderConfig = {
 
           if (
             typeof nextPayload.tool_choice === 'object' &&
-            currentResponse.choices[0]?.message?.tool_calls
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
           ) {
             const toolCallsResponse = currentResponse.choices[0].message.tool_calls
             const result = trackForcedToolUsage(
@@ -461,7 +463,8 @@ export const sakanaProvider: ProviderConfig = {
         }
 
         if (iterationCount === MAX_TOOL_ITERATIONS) {
-          const cappedToolCalls = currentResponse.choices[0]?.message?.tool_calls
+          const cappedToolCalls =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             currentResponse,
@@ -510,7 +513,7 @@ export const sakanaProvider: ProviderConfig = {
             enrichLastModelSegmentFromChatCompletions(
               timeSegments,
               currentResponse,
-              currentResponse.choices[0]?.message?.tool_calls,
+              currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
               { model: request.model, provider: 'sakana' }
             )
             iterationCount++
@@ -564,7 +567,7 @@ export const sakanaProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'sakana' }
         )
       }

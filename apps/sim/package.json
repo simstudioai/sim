@@ -200,7 +200,7 @@
     "nodemailer": "9.0.1",
     "nuqs": "2.8.9",
     "officeparser": "^5.2.0",
-    "openai": "^4.91.1",
+    "openai": "7.0.0",
     "pdf-lib": "1.17.1",
     "pdfjs-dist": "5.4.296",
     "postgres": "^3.4.5",

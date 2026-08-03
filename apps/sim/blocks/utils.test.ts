@@ -45,6 +45,7 @@ vi.mock('@/providers/models', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
   getProviderFromModel: vi.fn(() => 'openai'),
 }))
 

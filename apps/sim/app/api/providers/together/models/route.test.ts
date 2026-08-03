@@ -19,6 +19,7 @@ const {
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
   filterBlacklistedModels: mockFilterBlacklistedModels,
   isProviderBlacklisted: mockIsProviderBlacklisted,
 }))

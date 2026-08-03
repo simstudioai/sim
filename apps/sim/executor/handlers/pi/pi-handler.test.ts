@@ -77,6 +77,7 @@ vi.mock('@/providers/pi-providers', () => ({
   resolvePiModelId: mockResolvePiModelId,
 }))
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
   getProviderFromModel: mockGetProviderFromModel,
 }))
 vi.mock('@/blocks/utils', () => ({

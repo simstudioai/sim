@@ -66,6 +66,7 @@ vi.mock('@/lib/permission-groups/types', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
   getProviderFromModel: mockGetProviderFromModel,
 }))
 

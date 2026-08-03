@@ -29,6 +29,7 @@ import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   enforceStrictSchema,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -275,7 +276,7 @@ export const kimiProvider: ProviderConfig = {
 
       if (
         typeof originalToolChoice === 'object' &&
-        currentResponse.choices[0]?.message?.tool_calls
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
       ) {
         const toolCallsResponse = currentResponse.choices[0].message.tool_calls
         const result = trackForcedToolUsage(
@@ -296,7 +297,8 @@ export const kimiProvider: ProviderConfig = {
             content = currentResponse.choices[0].message.content
           }
 
-          const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+          const toolCallsInResponse =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
@@ -465,7 +467,7 @@ export const kimiProvider: ProviderConfig = {
 
           if (
             typeof nextPayload.tool_choice === 'object' &&
-            currentResponse.choices[0]?.message?.tool_calls
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
           ) {
             const toolCallsResponse = currentResponse.choices[0].message.tool_calls
             const result = trackForcedToolUsage(
@@ -507,7 +509,8 @@ export const kimiProvider: ProviderConfig = {
         }
 
         if (iterationCount === MAX_TOOL_ITERATIONS) {
-          const cappedToolCalls = currentResponse.choices[0]?.message?.tool_calls
+          const cappedToolCalls =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             currentResponse,
@@ -552,7 +555,7 @@ export const kimiProvider: ProviderConfig = {
             enrichLastModelSegmentFromChatCompletions(
               timeSegments,
               currentResponse,
-              currentResponse.choices[0]?.message?.tool_calls,
+              currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
               { model: request.model, provider: 'kimi' }
             )
             iterationCount++

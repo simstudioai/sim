@@ -59,6 +59,7 @@ vi.mock('@/providers/ollama/utils', () => ({
   },
 }))
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
   calculateCost: () => ({ input: 0, output: 0, total: 0, pricing: null }),
   generateSchemaInstructions: () => 'SCHEMA_INSTRUCTIONS',
   prepareToolExecution: (_tool: unknown, args: Record<string, unknown>) => ({

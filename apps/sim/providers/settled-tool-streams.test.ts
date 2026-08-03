@@ -69,6 +69,7 @@ vi.mock('@/providers/trace-enrichment', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
   calculateCost: vi.fn(() => ({ input: 1, output: 2, total: 3 })),
   enforceStrictSchema: vi.fn((schema) => schema),
   generateSchemaInstructions: vi.fn(() => 'SCHEMA_INSTRUCTIONS'),

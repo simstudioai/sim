@@ -36,7 +36,12 @@ interface ChatCompletionLike {
 
 interface ChatCompletionToolCallLike {
   id: string
-  function: { name: string; arguments: string }
+  /**
+   * Absent on the `custom` tool-call variant the SDK's `ChatCompletionMessageToolCall` union
+   * gained in v5. Sim only ever declares function tools, so a custom call should never arrive —
+   * but the response type permits one, and a trace enricher must not throw on it.
+   */
+  function?: { name: string; arguments: string }
 }
 
 /**
@@ -110,7 +115,7 @@ export function enrichLastModelSegment(
  * Parses a tool call's `function.arguments` JSON string into an object, or
  * returns the raw string if it is not valid JSON.
  */
-function parseToolCallArguments(rawArguments: string): Record<string, unknown> | string {
+function parseToolCallArguments(rawArguments = ''): Record<string, unknown> | string {
   try {
     const parsed = JSON.parse(rawArguments)
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -180,8 +185,8 @@ export function enrichLastModelSegmentFromChatCompletions(
 
   const toolCalls: IterationToolCall[] = (toolCallsInResponse ?? []).map((tc) => ({
     id: tc.id,
-    name: tc.function.name,
-    arguments: parseToolCallArguments(tc.function.arguments),
+    name: tc.function?.name ?? '',
+    arguments: parseToolCallArguments(tc.function?.arguments),
   }))
 
   const usage = response.usage

@@ -1246,6 +1246,23 @@ export function prepareToolsWithUsageControl(
  * @param usedForcedTools Array of tool IDs that have already been used
  * @returns Object containing tracking information and next tool choice
  */
+/**
+ * Narrows the SDK's `ChatCompletionMessageToolCall` union to its function variant.
+ *
+ * v5 of the `openai` SDK widened that union with a `custom` tool call carrying no `function`
+ * field, so every `.function` access needs narrowing first. Sim only ever declares function
+ * tools, so a custom call should not arrive.
+ *
+ * Deliberately tests for the `function` payload rather than `type === 'function'`: many
+ * OpenAI-compatible vendors omit `type` on tool calls entirely, and discriminating on it would
+ * silently drop every tool call those providers return.
+ */
+export function isFunctionToolCall(
+  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall
+): toolCall is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall {
+  return 'function' in toolCall && toolCall.function != null
+}
+
 export function trackForcedToolUsage(
   toolCallsResponse: any[] | undefined,
   originalToolChoice: any,
@@ -1562,7 +1579,10 @@ export function checkForForcedToolUsageOpenAI(
   let hasUsedForcedTool = false
   let updatedUsedForcedTools = [...usedForcedTools]
 
-  if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
+  if (
+    typeof toolChoice === 'object' &&
+    response.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
+  ) {
     const toolCallsResponse = response.choices[0].message.tool_calls
     const result = trackForcedToolUsage(
       toolCallsResponse,

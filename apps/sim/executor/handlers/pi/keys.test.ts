@@ -18,6 +18,7 @@ vi.mock('@/lib/api-key/byok', () => ({
   getBYOKKey: mockGetBYOKKey,
 }))
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
   calculateCost: mockCalculateCost,
   shouldBillModelUsage: mockShouldBill,
 }))

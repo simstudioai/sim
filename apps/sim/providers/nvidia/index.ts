@@ -24,6 +24,7 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -226,7 +227,7 @@ export const nvidiaProvider: ProviderConfig = {
 
       if (
         typeof originalToolChoice === 'object' &&
-        currentResponse.choices[0]?.message?.tool_calls
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
       ) {
         const toolCallsResponse = currentResponse.choices[0].message.tool_calls
         const result = trackForcedToolUsage(
@@ -247,7 +248,8 @@ export const nvidiaProvider: ProviderConfig = {
             content = currentResponse.choices[0].message.content
           }
 
-          const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+          const toolCallsInResponse =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
@@ -416,7 +418,7 @@ export const nvidiaProvider: ProviderConfig = {
 
           if (
             typeof nextPayload.tool_choice === 'object' &&
-            currentResponse.choices[0]?.message?.tool_calls
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
           ) {
             const toolCallsResponse = currentResponse.choices[0].message.tool_calls
             const result = trackForcedToolUsage(
@@ -458,7 +460,8 @@ export const nvidiaProvider: ProviderConfig = {
         }
 
         if (iterationCount === MAX_TOOL_ITERATIONS) {
-          const cappedToolCalls = currentResponse.choices[0]?.message?.tool_calls
+          const cappedToolCalls =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             currentResponse,
@@ -507,7 +510,7 @@ export const nvidiaProvider: ProviderConfig = {
             enrichLastModelSegmentFromChatCompletions(
               timeSegments,
               currentResponse,
-              currentResponse.choices[0]?.message?.tool_calls,
+              currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
               { model: request.model, provider: 'nvidia' }
             )
             iterationCount++
@@ -559,7 +562,7 @@ export const nvidiaProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'nvidia' }
         )
       }
