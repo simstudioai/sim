@@ -336,7 +336,7 @@ function providerProblems(inspection: ProviderInspection): string {
     .join('; ')
 }
 
-function configurationError(
+export function getCapabilityConfigurationError(
   definition: FallbackCapabilityDefinition | SelectedCapabilityDefinition,
   inspections: readonly ProviderInspection[]
 ): EnvCapabilityConfigurationError | null {
@@ -391,17 +391,13 @@ export function resolveSelectedCapability<const TDefinition extends SelectedCapa
     return { providerId: definition.defaultProvider, providers }
   }
 
-  const error = configurationError(definition, providers)
+  const ready = providers.filter((provider) => provider.state === 'ready')
+  if (ready.length > 0) return { providerId: ready[0].id, providers }
+
+  const error = getCapabilityConfigurationError(definition, providers)
   if (error) throw error
 
-  const ready = providers.filter((provider) => provider.state === 'ready')
-  if (ready.length > 1) {
-    throw new EnvCapabilityConfigurationError(
-      definition.id,
-      `${definition.label} has multiple configured providers (${ready.map((provider) => provider.id).join(', ')}). Set ${definition.selectorKey} explicitly.`
-    )
-  }
-  return { providerId: ready[0]?.id ?? definition.defaultProvider, providers }
+  return { providerId: definition.defaultProvider, providers }
 }
 
 export function resolveFallbackCapability<const TDefinition extends FallbackCapabilityDefinition>(
@@ -409,12 +405,14 @@ export function resolveFallbackCapability<const TDefinition extends FallbackCapa
   values: EnvCapabilityValues
 ): FallbackCapabilityResolution<ProviderId<TDefinition>> {
   const providers = definition.providers.map((provider) => inspectProvider(provider, values))
-  const error = configurationError(definition, providers)
-  if (error) throw error
-
   const providerIds = providers
     .filter((provider) => provider.state === 'ready')
     .map((provider) => provider.id) as ProviderId<TDefinition>[]
+
+  if (providerIds.length === 0) {
+    const error = getCapabilityConfigurationError(definition, providers)
+    if (error) throw error
+  }
 
   return { configured: providerIds.length > 0, providerIds, providers }
 }
@@ -501,7 +499,6 @@ export const EMAIL_CAPABILITY = defineFallbackCapability({
       label: 'SMTP',
       activation: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'],
       requires: allOf(envField('SMTP_HOST'), envField('SMTP_PORT', { format: 'port' })),
-      pairedFields: [['SMTP_USER', 'SMTP_PASS']],
       setupFields: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'],
     },
     {
@@ -594,7 +591,8 @@ export const STORAGE_CAPABILITY = defineSelectedCapability({
 
 export type SandboxProviderCapabilityId = 'e2b' | 'daytona'
 
-export function resolveSandboxProviderId(values: EnvCapabilityValues): SandboxProviderCapabilityId {
+/** Selects the legacy sandbox provider without requiring credentials until it is used. */
+export function selectSandboxProviderId(values: EnvCapabilityValues): SandboxProviderCapabilityId {
   const configured = hasValue(values, 'SANDBOX_PROVIDER')
     ? String(readValue(values, 'SANDBOX_PROVIDER')).toLowerCase()
     : 'e2b'
@@ -604,6 +602,11 @@ export function resolveSandboxProviderId(values: EnvCapabilityValues): SandboxPr
       `Unknown SANDBOX_PROVIDER "${readValue(values, 'SANDBOX_PROVIDER')}" (expected e2b or daytona)`
     )
   }
+  return configured
+}
+
+export function resolveSandboxProviderId(values: EnvCapabilityValues): SandboxProviderCapabilityId {
+  const configured = selectSandboxProviderId(values)
   if (configured === 'daytona') {
     const missing = ['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'].filter(
       (key) => !hasValue(values, key)
@@ -704,10 +707,40 @@ export function resolveOcrProvider(
 
   const azureFields = ['OCR_AZURE_API_KEY', 'OCR_AZURE_ENDPOINT', 'OCR_AZURE_MODEL_NAME'] as const
   const present = azureFields.filter((key) => hasValue(values, key))
-  if (
+  const invalidAzureEndpoint =
     hasValue(values, 'OCR_AZURE_ENDPOINT') &&
     !isValidEnvCapabilityFieldValue('http-url', readValue(values, 'OCR_AZURE_ENDPOINT'))
-  ) {
+
+  if (selected === 'azure-mistral') {
+    if (invalidAzureEndpoint) {
+      throw new EnvCapabilityConfigurationError(
+        'knowledge',
+        'OCR_AZURE_ENDPOINT must be a valid HTTP(S) URL. Run bun run setup knowledge.'
+      )
+    }
+    if (present.length !== azureFields.length) {
+      const missing = azureFields.filter((key) => !hasValue(values, key))
+      throw new EnvCapabilityConfigurationError(
+        'knowledge',
+        `OCR_PROVIDER selects Azure Mistral but ${missing.join(', ')} is missing. Run bun run setup knowledge.`
+      )
+    }
+    return 'azure-mistral'
+  }
+
+  if (present.length === azureFields.length) {
+    if (invalidAzureEndpoint) {
+      throw new EnvCapabilityConfigurationError(
+        'knowledge',
+        'OCR_AZURE_ENDPOINT must be a valid HTTP(S) URL. Run bun run setup knowledge.'
+      )
+    }
+    return 'azure-mistral'
+  }
+
+  if (hasValue(values, 'MISTRAL_API_KEY')) return 'mistral'
+
+  if (invalidAzureEndpoint) {
     throw new EnvCapabilityConfigurationError(
       'knowledge',
       'OCR_AZURE_ENDPOINT must be a valid HTTP(S) URL. Run bun run setup knowledge.'
@@ -720,15 +753,6 @@ export function resolveOcrProvider(
       `Azure Mistral OCR is partially configured — missing ${missing.join(', ')}. Run bun run setup knowledge.`
     )
   }
-  if (selected === 'azure-mistral' && present.length !== azureFields.length) {
-    const missing = azureFields.filter((key) => !hasValue(values, key))
-    throw new EnvCapabilityConfigurationError(
-      'knowledge',
-      `OCR_PROVIDER selects Azure Mistral but ${missing.join(', ')} is missing. Run bun run setup knowledge.`
-    )
-  }
-  if (present.length === azureFields.length) return 'azure-mistral'
-  if (hasValue(values, 'MISTRAL_API_KEY')) return 'mistral'
   return 'local'
 }
 
@@ -842,6 +866,15 @@ export const DEPLOYMENT_CONFIGURATION_KEYS: readonly string[] = [
 ]
 
 export type OAuthClientCapabilityId = keyof typeof OAUTH_CLIENT_CAPABILITIES
+export type OAuthClientCapabilityField<TCapabilityId extends OAuthClientCapabilityId> =
+  (typeof OAUTH_CLIENT_CAPABILITIES)[TCapabilityId][number]
+
+export interface ConfiguredOAuthClient<TField extends string = string> {
+  state: 'ready'
+  missingFields: readonly []
+  setupCommand: string
+  values: Readonly<Record<TField, string>>
+}
 
 const GOOGLE_OAUTH_SERVICES = new Set([
   'gmail',
@@ -892,6 +925,12 @@ export interface OAuthClientCapabilityInspection {
   setupCommand: string
 }
 
+function readOAuthClientFieldValue(values: EnvCapabilityValues, key: string): string | null {
+  const value = readValue(values, key)
+  if (typeof value !== 'string' || !hasValue(values, key)) return null
+  return value
+}
+
 export function inspectOAuthClientCapability(
   providerId: string,
   values: EnvCapabilityValues
@@ -906,24 +945,62 @@ export function inspectOAuthClientCapability(
     }
   }
 
-  const present = fields.filter((key) => hasValue(values, key))
+  const present = fields.filter((key) => readOAuthClientFieldValue(values, key) !== null)
   return {
     state: present.length === 0 ? 'absent' : present.length === fields.length ? 'ready' : 'partial',
-    missingFields: fields.filter((key) => !hasValue(values, key)),
+    missingFields: fields.filter((key) => readOAuthClientFieldValue(values, key) === null),
     setupCommand: `bun run setup integration ${providerId}`,
   }
 }
 
-export function resolveOAuthClientCapability(
+export function requireOAuthClientCapability<const TCapabilityId extends OAuthClientCapabilityId>(
+  providerId: TCapabilityId,
+  values: EnvCapabilityValues
+): ConfiguredOAuthClient<OAuthClientCapabilityField<TCapabilityId>>
+export function requireOAuthClientCapability(
   providerId: string,
   values: EnvCapabilityValues
-): OAuthClientCapabilityInspection {
+): ConfiguredOAuthClient
+export function requireOAuthClientCapability(
+  providerId: string,
+  values: EnvCapabilityValues
+): ConfiguredOAuthClient {
   const inspection = inspectOAuthClientCapability(providerId, values)
-  if (inspection.state === 'partial' || inspection.state === 'invalid') {
+  if (inspection.state !== 'ready') {
+    const detail =
+      inspection.state === 'partial' || inspection.state === 'invalid'
+        ? ` is partially configured — missing ${inspection.missingFields.join(', ')}`
+        : ' is not configured'
     throw new EnvCapabilityConfigurationError(
       'oauth',
-      `OAuth client ${providerId} is partially configured — missing ${inspection.missingFields.join(', ')}. Run ${inspection.setupCommand}.`
+      `OAuth client ${providerId}${detail}. Run ${inspection.setupCommand}.`
     )
   }
-  return inspection
+
+  const fields = getOAuthClientCapabilityFields(providerId)
+  if (!fields) {
+    throw new EnvCapabilityConfigurationError(
+      'oauth',
+      `OAuth client ${providerId} has no capability definition. Run ${inspection.setupCommand}.`
+    )
+  }
+
+  const configuredValues: Record<string, string> = {}
+  for (const field of fields) {
+    const value = readOAuthClientFieldValue(values, field)
+    if (value === null) {
+      throw new EnvCapabilityConfigurationError(
+        'oauth',
+        `OAuth client ${providerId} has an invalid ${field}. Run ${inspection.setupCommand}.`
+      )
+    }
+    configuredValues[field] = value
+  }
+
+  return {
+    ...inspection,
+    state: 'ready',
+    missingFields: [],
+    values: configuredValues,
+  }
 }

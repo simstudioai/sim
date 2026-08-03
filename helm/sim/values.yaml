@@ -270,9 +270,9 @@ app:
     # hidden in the Knowledge block UI.
     NEXT_PUBLIC_COHERE_CONFIGURED: ""                     # Set to "true" to hide the Cohere API Key field on the Knowledge block
 
-    # File storage provider. One of: local, s3, azure, gcs.
-    # Set this explicitly when configuring any cloud storage provider.
-    STORAGE_PROVIDER: ""                                  # Empty preserves legacy single-provider inference
+    # Optional file storage override. One of: local, s3, azure, gcs.
+    # Empty preserves legacy Azure → S3 → GCS → local precedence.
+    STORAGE_PROVIDER: ""
 
     # AWS S3 Cloud Storage Configuration (optional - for file storage)
     AWS_REGION: ""                                        # AWS region (e.g., "us-east-1")

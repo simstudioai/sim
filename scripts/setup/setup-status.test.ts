@@ -62,6 +62,24 @@ describe('setup status', () => {
     expect(output).not.toContain('partial-client')
   })
 
+  it('warns about an incomplete email fallback without failing a configured provider', () => {
+    const report = buildSetupStatusReport(
+      source({
+        ...CORE_VALUES,
+        RESEND_API_KEY: 'resend-super-secret',
+        SMTP_HOST: 'localhost',
+      })
+    )
+    const output = renderSetupStatusReport(report)
+
+    expect(report.failed).toBe(false)
+    expect(report.capabilityStatus?.features.email.state).toBe('configured')
+    expect(output).toContain('Email delivery: Resend')
+    expect(output).toContain('SMTP_PORT')
+    expect(output).toContain('configure: bun run setup email')
+    expect(output).not.toContain('resend-super-secret')
+  })
+
   it('marks an unreadable effective source unknown instead of missing', () => {
     const unknown: ConfigurationSource = {
       kind: 'helm',

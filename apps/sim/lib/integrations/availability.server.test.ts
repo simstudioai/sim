@@ -11,6 +11,7 @@ import {
   type IntegrationAvailability,
   isOAuthServiceAllowedByIntegrationTypes,
   resolveIntegrationAvailability,
+  resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import { SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID } from '@/lib/integrations/service-account-metadata'
@@ -72,6 +73,42 @@ describe('integration availability', () => {
       missingFields: ['SLACK_CLIENT_SECRET'],
       setupCommand: 'bun run setup integration slack',
     })
+  })
+
+  it('projects a revealed preview service-account path as limited', () => {
+    const unavailableSlack = availabilityFor('slack')
+    const misconfiguredSlack = availabilityFor('slack', { SLACK_CLIENT_ID: 'client' })
+    const revealed = {
+      revealed: new Set(['slack_v2']),
+      disabled: new Set<string>(),
+      previewTagged: new Set(['slack_v2']),
+    }
+
+    expect(resolveIntegrationAvailabilityStateForVisibility(unavailableSlack, null)).toBe(
+      'unavailable'
+    )
+    expect(resolveIntegrationAvailabilityStateForVisibility(unavailableSlack, revealed)).toBe(
+      'limited'
+    )
+    expect(resolveIntegrationAvailabilityStateForVisibility(misconfiguredSlack, revealed)).toBe(
+      'limited'
+    )
+  })
+
+  it('keeps preview service accounts unavailable when their block is kill-switched', () => {
+    const unavailableSlack = availabilityFor('slack')
+    const disabled = {
+      revealed: new Set(['slack_v2']),
+      disabled: new Set(['slack_v2']),
+      previewTagged: new Set(['slack_v2']),
+    }
+
+    expect(resolveIntegrationAvailabilityStateForVisibility(unavailableSlack, disabled)).toBe(
+      'unavailable'
+    )
+    expect(resolveIntegrationAvailabilityStateForVisibility(availabilityFor('x'), disabled)).toBe(
+      'unavailable'
+    )
   })
 
   it('requires the deployment Trello API key for OAuth and pasted member tokens', () => {

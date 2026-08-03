@@ -5,11 +5,14 @@
  */
 import { env } from '@/lib/core/config/env'
 import {
-  EnvCapabilityConfigurationError,
+  type ConfiguredOAuthClient,
   type FallbackCapabilityDefinition,
+  inspectOAuthClientCapability,
+  type OAuthClientCapabilityField,
+  type OAuthClientCapabilityId,
+  requireOAuthClientCapability,
   resolveAsyncJobsProvider,
   resolveCacheProvider,
-  resolveOAuthClientCapability,
   resolveSandboxProviderId,
   resolveSelectedCapability,
   STORAGE_CAPABILITY,
@@ -34,18 +37,15 @@ export function getConfiguredCacheProvider() {
 }
 
 export function inspectConfiguredOAuthClient(serviceId: string) {
-  return resolveOAuthClientCapability(serviceId, env)
+  return inspectOAuthClientCapability(serviceId, env)
 }
 
-export function requireConfiguredOAuthClient(serviceId: string) {
-  const inspection = inspectConfiguredOAuthClient(serviceId)
-  if (inspection.state !== 'ready') {
-    throw new EnvCapabilityConfigurationError(
-      'oauth',
-      `OAuth client ${serviceId} is not configured. Run ${inspection.setupCommand}.`
-    )
-  }
-  return inspection
+export function requireConfiguredOAuthClient<const TCapabilityId extends OAuthClientCapabilityId>(
+  serviceId: TCapabilityId
+): ConfiguredOAuthClient<OAuthClientCapabilityField<TCapabilityId>>
+export function requireConfiguredOAuthClient(serviceId: string): ConfiguredOAuthClient
+export function requireConfiguredOAuthClient(serviceId: string): ConfiguredOAuthClient {
+  return requireOAuthClientCapability(serviceId, env)
 }
 
 export function wireServerFallback<

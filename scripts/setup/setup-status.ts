@@ -110,6 +110,9 @@ function featureDetail(feature: FeatureStatus): string {
 }
 
 function featureGlyph(feature: FeatureStatus): string {
+  if (feature.issue && (feature.state === 'configured' || feature.state === 'default')) {
+    return glyph.warn
+  }
   if (feature.issue || feature.state === 'partial' || feature.state === 'invalid') return glyph.fail
   if (feature.state === 'missing') return glyph.skip
   return glyph.pass

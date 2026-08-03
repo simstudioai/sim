@@ -8,6 +8,7 @@ import {
   EMAIL_CAPABILITY,
   EnvCapabilityConfigurationError,
   type EnvCapabilityValues,
+  getCapabilityConfigurationError,
   hasEnvCapabilityValue,
   inspectOAuthClientCapability,
   inspectProvider,
@@ -189,7 +190,9 @@ function inspectEmail(values: EnvCapabilityValues): EmailCapabilityStatus {
     .filter((provider) => provider.state === 'ready')
     .map((provider) => provider.id)
   const brokenState = brokenProviderState(providers)
-  const state = brokenState ?? (providerIds.length > 0 ? 'configured' : 'missing')
+  const state = providerIds.length > 0 ? 'configured' : (brokenState ?? 'missing')
+  const configurationError =
+    resolution.error ?? getCapabilityConfigurationError(EMAIL_CAPABILITY, providers)
 
   return {
     ...featureMetadata('email'),
@@ -197,7 +200,7 @@ function inspectEmail(values: EnvCapabilityValues): EmailCapabilityStatus {
     state,
     providerIds,
     providers,
-    ...(resolution.error ? { issue: issue(brokenState ?? 'invalid', resolution.error) } : {}),
+    ...(configurationError ? { issue: issue(brokenState ?? 'invalid', configurationError) } : {}),
   }
 }
 

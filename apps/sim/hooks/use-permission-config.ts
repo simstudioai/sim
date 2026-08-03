@@ -10,12 +10,17 @@ import {
   type IntegrationAvailabilityResponse,
 } from '@/lib/api/contracts/common'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isDeploymentGatedIntegrationType } from '@/lib/integrations/availability'
+import {
+  isDeploymentGatedIntegrationType,
+  resolveIntegrationAvailabilityStateForVisibility,
+} from '@/lib/integrations/availability'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
 } from '@/lib/permission-groups/types'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
+import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 
 export interface PermissionConfigResult {
@@ -59,6 +64,7 @@ function intersectAllowlists(a: string[] | null, b: string[] | null): string[] |
 export function usePermissionConfig(): PermissionConfigResult {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
+  const blockOverlayVersion = useCustomBlockOverlayVersion()
 
   const { data: permissionData, isLoading: isPermissionLoading } =
     useUserPermissionConfig(workspaceId)
@@ -81,16 +87,18 @@ export function usePermissionConfig(): PermissionConfigResult {
     return intersectAllowlists(config.allowedIntegrations, envAllowlist)
   }, [config.allowedIntegrations, envAllowlistData])
 
-  const integrationAvailability = useMemo(
-    () =>
-      new Map(
-        (envAllowlistData?.integrationAvailability ?? []).map((availability) => [
-          availability.type.toLowerCase(),
-          availability,
-        ])
-      ),
-    [envAllowlistData?.integrationAvailability]
-  )
+  const integrationAvailability = useMemo(() => {
+    const visibility = overlayVisibility()
+    return new Map(
+      (envAllowlistData?.integrationAvailability ?? []).map((availability) => [
+        availability.type.toLowerCase(),
+        {
+          ...availability,
+          state: resolveIntegrationAvailabilityStateForVisibility(availability, visibility),
+        },
+      ])
+    )
+  }, [envAllowlistData?.integrationAvailability, blockOverlayVersion])
 
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {

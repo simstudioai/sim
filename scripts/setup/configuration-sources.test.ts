@@ -4,7 +4,8 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'bun:test'
 import {
   type ConfigurationCommandRunner,
-  discoverConfigurationSources,
+  type ConfigurationSourceDiscoveryOptions,
+  discoverConfigurationSources as discoverConfigurationSourcesFromEnvironment,
   parseComposeFileEnvironment,
   resolveKubernetesContainerEnvironment,
 } from './configuration-sources.ts'
@@ -19,6 +20,10 @@ function temporaryDirectory(): string {
 
 function commandResult(status: number, stdout = '') {
   return { status, stdout, stderr: '' }
+}
+
+function discoverConfigurationSources(options: ConfigurationSourceDiscoveryOptions) {
+  return discoverConfigurationSourcesFromEnvironment({ processEnvironment: {}, ...options })
 }
 
 afterEach(() => {
@@ -227,18 +232,14 @@ describe('discoverConfigurationSources', () => {
     const appDirectory = path.join(root, 'apps/sim')
     mkdirSync(appDirectory, { recursive: true })
     writeFileSync(path.join(appDirectory, '.env'), 'SLACK_CLIENT_SECRET=file-secret\n')
-    const original = process.env.SLACK_CLIENT_ID
-    process.env.SLACK_CLIENT_ID = 'process-client-id'
+    const sources = discoverConfigurationSources({
+      root,
+      runner: () => commandResult(1),
+      processEnvironment: { SLACK_CLIENT_ID: 'process-client-id' },
+    })
 
-    try {
-      const sources = discoverConfigurationSources({ root, runner: () => commandResult(1) })
-
-      expect(sources[0].values?.get('SLACK_CLIENT_ID')).toBe('process-client-id')
-      expect(sources[0].managedByCurrentCheckout).toBe(false)
-    } finally {
-      if (original === undefined) Reflect.deleteProperty(process.env, 'SLACK_CLIENT_ID')
-      else process.env.SLACK_CLIENT_ID = original
-    }
+    expect(sources[0].values?.get('SLACK_CLIENT_ID')).toBe('process-client-id')
+    expect(sources[0].managedByCurrentCheckout).toBe(false)
   })
 
   it('reports missing files in the split development configuration', () => {

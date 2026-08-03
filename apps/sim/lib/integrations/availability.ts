@@ -1,10 +1,13 @@
+import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import type { EnvCapabilityValues } from '@/lib/core/config/env-capabilities'
 import {
   inspectOAuthClientCapability,
   resolveOAuthClientCapabilityId,
 } from '@/lib/core/config/env-capabilities'
+import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import { getServiceAccountMetadata } from '@/lib/integrations/service-account-metadata'
+import { isHiddenUnder } from '@/blocks/visibility/context'
 
 export type IntegrationAvailabilityState = 'ready' | 'limited' | 'unavailable' | 'misconfigured'
 
@@ -34,11 +37,23 @@ const deploymentGatedIntegrationTypes = new Set(
     .map((integration) => integration.type.toLowerCase())
 )
 const integrationTypesByOAuthServiceId = new Map<string, readonly string[]>()
+const previewServiceAccountGatesByIntegrationType = new Map<string, string>()
 for (const integration of integrations) {
   if (integration.authType !== 'oauth' || !integration.oauthServiceId) continue
   const serviceId = integration.oauthServiceId.toLowerCase()
   const current = integrationTypesByOAuthServiceId.get(serviceId) ?? []
-  integrationTypesByOAuthServiceId.set(serviceId, [...current, integration.type.toLowerCase()])
+  const integrationType = integration.type.toLowerCase()
+  integrationTypesByOAuthServiceId.set(serviceId, [...current, integrationType])
+
+  const serviceAccount = getServiceAccountMetadata(serviceId)
+  if (serviceAccount?.deploymentRequirement !== 'preview-gated') continue
+  const gatingBlockType = getServiceAccountGatingBlockType(serviceAccount.providerId)
+  if (!gatingBlockType) {
+    throw new Error(
+      `Preview-gated service account ${serviceAccount.providerId} has no gating block type`
+    )
+  }
+  previewServiceAccountGatesByIntegrationType.set(integrationType, gatingBlockType)
 }
 
 export function isDeploymentGatedIntegrationType(blockType: string): boolean {
@@ -61,6 +76,32 @@ export function isOAuthServiceAllowedByIntegrationTypes(
     integrationTypes.length === 0 ||
     integrationTypes.some((blockType) => allowedIntegrationTypes.has(blockType))
   )
+}
+
+interface IntegrationAvailabilitySummary {
+  type: string
+  state: IntegrationAvailabilityState
+  oauthAvailable: boolean
+}
+
+/**
+ * Projects deployment availability through the current viewer's block gate.
+ * A revealed preview service-account path makes an OAuth-unavailable
+ * integration limited rather than unavailable; the OAuth path itself remains
+ * disabled. The shared hidden predicate keeps preview and kill-switch behavior
+ * identical to every other block discovery surface.
+ */
+export function resolveIntegrationAvailabilityStateForVisibility(
+  availability: IntegrationAvailabilitySummary,
+  visibility: BlockVisibilityState | null
+): IntegrationAvailabilityState {
+  const gatingBlockType = previewServiceAccountGatesByIntegrationType.get(
+    availability.type.toLowerCase()
+  )
+  if (!gatingBlockType || isHiddenUnder(visibility, { type: gatingBlockType, preview: true })) {
+    return availability.state
+  }
+  return availability.oauthAvailable ? 'ready' : 'limited'
 }
 
 function resolveOAuthIntegrationAvailability(

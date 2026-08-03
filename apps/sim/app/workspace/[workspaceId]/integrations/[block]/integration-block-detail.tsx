@@ -13,7 +13,6 @@ import {
   resolveCredentialDisplay,
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
-import { getServiceAccountMetadata } from '@/lib/integrations/service-account-metadata'
 import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { RESOURCE_TILE_BASE } from '@/app/workspace/[workspaceId]/components/resource-tile'
@@ -98,14 +97,8 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     serviceName: oauthService?.serviceName,
     serviceIcon: oauthService?.serviceIcon,
   })
-  const serviceAccountMetadata = integration.oauthServiceId
-    ? getServiceAccountMetadata(integration.oauthServiceId)
-    : undefined
   const serviceAccountDeploymentAvailable =
-    availability?.state === 'ready' ||
-    availability?.state === 'limited' ||
-    (availability?.state === 'unavailable' &&
-      serviceAccountMetadata?.deploymentRequirement === 'preview-gated')
+    availability?.state === 'ready' || availability?.state === 'limited'
   const hasServiceAccount =
     serviceAccountDeploymentAvailable &&
     Boolean(serviceAccountTarget) &&

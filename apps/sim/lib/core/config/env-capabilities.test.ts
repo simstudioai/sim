@@ -6,14 +6,15 @@ import {
   inspectOAuthClientCapability,
   inspectProvider,
   LLM_KEY_POOLS,
+  requireOAuthClientCapability,
   resolveCacheProvider,
   resolveFallbackCapability,
-  resolveOAuthClientCapability,
   resolveOAuthClientCapabilityId,
   resolveOcrProvider,
   resolveSandboxProviderId,
   resolveSelectedCapability,
   STORAGE_CAPABILITY,
+  selectSandboxProviderId,
   wireFallback,
 } from '@/lib/core/config/env-capabilities'
 import integrationsJson from '@/lib/integrations/integrations.json'
@@ -52,6 +53,28 @@ describe('env capabilities', () => {
     ).toThrow(/invalid SMTP_PORT/)
   })
 
+  it('ignores an incomplete fallback provider when another provider is ready', () => {
+    const resolution = resolveFallbackCapability(EMAIL_CAPABILITY, {
+      RESEND_API_KEY: 're_test',
+      SMTP_HOST: 'localhost',
+    })
+
+    expect(resolution.providerIds).toEqual(['resend'])
+    expect(resolution.providers.find((provider) => provider.id === 'smtp')).toMatchObject({
+      state: 'partial',
+    })
+  })
+
+  it('preserves anonymous SMTP when only one optional auth field is set', () => {
+    expect(
+      resolveFallbackCapability(EMAIL_CAPABILITY, {
+        SMTP_HOST: 'localhost',
+        SMTP_PORT: '1025',
+        SMTP_USER: 'unused-for-anonymous-relay',
+      }).providerIds
+    ).toEqual(['smtp'])
+  })
+
   it('executes fallback providers in resolved order', async () => {
     const resend = { send: vi.fn().mockRejectedValue(new Error('resend down')) }
     const ses = { send: vi.fn().mockResolvedValue('sent') }
@@ -83,7 +106,7 @@ describe('env capabilities', () => {
   })
 
   it('fails fast when an OAuth client is partially configured', () => {
-    expect(() => resolveOAuthClientCapability('slack', { SLACK_CLIENT_ID: 'client' })).toThrow(
+    expect(() => requireOAuthClientCapability('slack', { SLACK_CLIENT_ID: 'client' })).toThrow(
       /SLACK_CLIENT_SECRET/
     )
   })
@@ -131,21 +154,32 @@ describe('env capabilities', () => {
     ).toBe('gcs')
   })
 
-  it('requires an explicit storage selector when multiple backends are configured', () => {
+  it('preserves legacy storage precedence when multiple backends are configured', () => {
     const values = {
+      AZURE_CONNECTION_STRING: 'UseDevelopmentStorage=true',
+      AZURE_STORAGE_CONTAINER_NAME: 'azure-files',
       AWS_REGION: 'us-east-1',
       S3_BUCKET_NAME: 'files',
       GCS_BUCKET_NAME: 'gcs-files',
     }
-    expect(() => resolveSelectedCapability(STORAGE_CAPABILITY, values)).toThrow(
-      /multiple configured providers/
-    )
+    expect(resolveSelectedCapability(STORAGE_CAPABILITY, values).providerId).toBe('azure')
     expect(
       resolveSelectedCapability(STORAGE_CAPABILITY, {
         ...values,
         STORAGE_PROVIDER: 'gcs',
       }).providerId
     ).toBe('gcs')
+  })
+
+  it('uses the first ready legacy storage provider despite an incomplete higher priority one', () => {
+    expect(
+      resolveSelectedCapability(STORAGE_CAPABILITY, {
+        AZURE_STORAGE_CONTAINER_NAME: 'incomplete-azure',
+        AWS_REGION: 'us-east-1',
+        S3_BUCKET_NAME: 'files',
+        GCS_BUCKET_NAME: 'gcs-files',
+      }).providerId
+    ).toBe('s3')
   })
 
   it('validates an optional S3-compatible endpoint', () => {
@@ -198,6 +232,14 @@ describe('env capabilities', () => {
     ).toThrow(/explicit, non-floating name:tag/)
   })
 
+  it('preserves legacy sandbox selection before strict backend validation', () => {
+    expect(selectSandboxProviderId({ SANDBOX_PROVIDER: 'daytona' })).toBe('daytona')
+    expect(selectSandboxProviderId({ E2B_ENABLED: 'true' })).toBe('e2b')
+    expect(() => selectSandboxProviderId({ SANDBOX_PROVIDER: 'unknown' })).toThrow(
+      /Unknown SANDBOX_PROVIDER/
+    )
+  })
+
   it('tracks setup-owned Daytona and S3 options as deployment configuration', () => {
     expect(DEPLOYMENT_CONFIGURATION_KEYS).toContain('DAYTONA_SHELL_SNAPSHOT_ID')
     expect(DEPLOYMENT_CONFIGURATION_KEYS).toContain('S3_FORCE_PATH_STYLE')
@@ -223,6 +265,15 @@ describe('env capabilities', () => {
     expect(resolveOcrProvider({ OCR_PROVIDER: 'local', MISTRAL_API_KEY: 'mistral-key' })).toBe(
       'local'
     )
+  })
+
+  it('preserves legacy Mistral inference when Azure OCR is incomplete', () => {
+    expect(
+      resolveOcrProvider({
+        OCR_AZURE_ENDPOINT: 'https://ocr.example.com',
+        MISTRAL_API_KEY: 'mistral-key',
+      })
+    ).toBe('mistral')
   })
 
   it('rejects a non-HTTP Azure OCR endpoint', () => {

@@ -13,7 +13,6 @@ import {
 } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
 import {
   blockTypeToIconMap,
   formatIntegrationType,
@@ -21,7 +20,6 @@ import {
   type Integration,
   resolveCredentialDisplay,
 } from '@/lib/integrations'
-import { getServiceAccountMetadata } from '@/lib/integrations/service-account-metadata'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -36,8 +34,6 @@ import {
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
-import { overlayVisibility } from '@/blocks/visibility/context'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -65,31 +61,6 @@ const ALL_CATEGORY_SECTIONS: readonly { label: string; integrations: Integration
     integrations: [...items].sort((a, b) => a.name.localeCompare(b.name)),
   })).sort((a, b) => a.label.localeCompare(b.label))
 })()
-
-/** Resolves preview-gated service-account paths revealed for the current viewer. */
-function useRevealedServiceAccountIntegrationTypes(): ReadonlySet<string> {
-  const overlayVersion = useCustomBlockOverlayVersion()
-  return useMemo(() => {
-    const visibility = overlayVisibility()
-    return new Set(
-      INTEGRATIONS.flatMap((integration) => {
-        if (!integration.oauthServiceId) return []
-        const metadata = getServiceAccountMetadata(integration.oauthServiceId)
-        if (metadata?.deploymentRequirement !== 'preview-gated') return []
-        const gatingBlockType = getServiceAccountGatingBlockType(metadata.providerId)
-        if (!gatingBlockType) {
-          throw new Error(
-            `Preview-gated service account ${metadata.providerId} has no gating block type`
-          )
-        }
-        return visibility?.revealed.has(gatingBlockType) &&
-          !visibility.disabled.has(gatingBlockType)
-          ? [integration.type.toLowerCase()]
-          : []
-      })
-    )
-  }, [overlayVersion])
-}
 
 interface IntegrationItemProps {
   blockType: string
@@ -167,7 +138,6 @@ export function Integrations() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
   const { integrationAvailability } = usePermissionConfig()
-  const revealedServiceAccountIntegrationTypes = useRevealedServiceAccountIntegrationTypes()
 
   const [{ category: selectedCategory, search: urlSearchTerm }, setIntegrationFilters] =
     useQueryStates(integrationsParsers, integrationsUrlKeys)
@@ -379,9 +349,6 @@ export function Integrations() {
                   const availability = integrationAvailability.get(integration.type.toLowerCase())
                   const deploymentUnavailable =
                     availability?.state === 'unavailable' || availability?.state === 'misconfigured'
-                  const previewServiceAccountAvailable = revealedServiceAccountIntegrationTypes.has(
-                    integration.type.toLowerCase()
-                  )
                   return (
                     <IntegrationItem
                       key={integration.type}
@@ -391,11 +358,7 @@ export function Integrations() {
                       name={integration.name}
                       description={integration.description}
                       icon={Icon}
-                      unavailable={
-                        integration.authType === 'oauth' &&
-                        !previewServiceAccountAvailable &&
-                        deploymentUnavailable
-                      }
+                      unavailable={integration.authType === 'oauth' && deploymentUnavailable}
                     />
                   )
                 })}

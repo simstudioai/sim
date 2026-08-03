@@ -289,15 +289,16 @@ async function parseDocument(
 }> {
   const isPDF = mimeType === 'application/pdf'
   const mistralApiKey = await getMistralApiKey(workspaceId)
-  const ocrProvider = resolveOcrProvider({
-    OCR_PROVIDER: env.OCR_PROVIDER,
-    OCR_AZURE_API_KEY: env.OCR_AZURE_API_KEY,
-    OCR_AZURE_ENDPOINT: env.OCR_AZURE_ENDPOINT,
-    OCR_AZURE_MODEL_NAME: env.OCR_AZURE_MODEL_NAME,
-    MISTRAL_API_KEY: mistralApiKey,
-  })
 
   if (isPDF) {
+    const ocrProvider = resolveOcrProvider({
+      OCR_PROVIDER: env.OCR_PROVIDER,
+      OCR_AZURE_API_KEY: env.OCR_AZURE_API_KEY,
+      OCR_AZURE_ENDPOINT: env.OCR_AZURE_ENDPOINT,
+      OCR_AZURE_MODEL_NAME: env.OCR_AZURE_MODEL_NAME,
+      MISTRAL_API_KEY: mistralApiKey,
+    })
+
     if (ocrProvider === 'azure-mistral') {
       logger.info(`Using Azure Mistral OCR: ${filename}`)
       return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId)

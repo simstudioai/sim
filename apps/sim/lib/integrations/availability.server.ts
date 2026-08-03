@@ -1,6 +1,6 @@
 import { env } from '@/lib/core/config/env'
 import {
-  resolveOAuthClientCapability,
+  inspectOAuthClientCapability,
   resolveOAuthClientCapabilityId,
 } from '@/lib/core/config/env-capabilities'
 import { resolveIntegrationAvailability } from '@/lib/integrations/availability'
@@ -41,7 +41,7 @@ export function isOAuthServiceDeploymentAvailable(serviceId: string): boolean {
   if (cached !== undefined) return cached
   const capabilityId = resolveOAuthClientCapabilityId(normalized)
   const available = capabilityId
-    ? resolveOAuthClientCapability(capabilityId, env).state === 'ready'
+    ? inspectOAuthClientCapability(capabilityId, env).state === 'ready'
     : true
   oauthServiceAvailability.set(normalized, available)
   return available

@@ -35,6 +35,7 @@ export type ConfigurationCommandRunner = (
 export interface ConfigurationSourceDiscoveryOptions {
   root?: string
   runner?: ConfigurationCommandRunner
+  processEnvironment?: Readonly<NodeJS.ProcessEnv>
 }
 
 export type KubernetesResourceKind = 'secret' | 'configmap'
@@ -215,14 +216,19 @@ function restoreProcessEnvironment(original: NodeJS.ProcessEnv): void {
   Object.assign(process.env, original)
 }
 
-function loadDevelopmentEnvironment(appDirectory: string): {
+function loadDevelopmentEnvironment(
+  appDirectory: string,
+  processEnvironment: Readonly<NodeJS.ProcessEnv>
+): {
   values: Map<string, string>
   loadedFiles: string[]
   hasProcessOverrides: boolean
 } {
   const originalEnvironment = { ...process.env }
+  const configuredEnvironment = { ...processEnvironment }
   let loadFailed = false
   try {
+    restoreProcessEnvironment(configuredEnvironment)
     process.env.NODE_ENV = 'development'
     const result = loadEnvConfig(
       appDirectory,
@@ -245,11 +251,11 @@ function loadDevelopmentEnvironment(appDirectory: string): {
       if (loadedValue !== undefined) values.set(key, loadedValue)
     }
     for (const key of DEPLOYMENT_CONFIGURATION_KEYS) {
-      const processValue = originalEnvironment[key]
+      const processValue = configuredEnvironment[key]
       if (processValue !== undefined) values.set(key, processValue)
     }
     const hasProcessOverrides = DEPLOYMENT_CONFIGURATION_KEYS.some(
-      (key) => originalEnvironment[key] !== undefined
+      (key) => configuredEnvironment[key] !== undefined
     )
     return {
       values,
@@ -536,7 +542,10 @@ function preparedComposeSource(root: string, managed: boolean): ConfigurationSou
   }
 }
 
-function localSources(root: string): {
+function localSources(
+  root: string,
+  processEnvironment: Readonly<NodeJS.ProcessEnv>
+): {
   sources: ConfigurationSource[]
   setupSplitExists: boolean
   prepared: ConfigurationSource | null
@@ -554,7 +563,7 @@ function localSources(root: string): {
     DEVELOPMENT_ENV_FILES.some((file) => existsSync(path.join(appDirectory, file)))
   const sources: ConfigurationSource[] = []
   if (developmentExists) {
-    const development = loadDevelopmentEnvironment(appDirectory)
+    const development = loadDevelopmentEnvironment(appDirectory, processEnvironment)
     const hasHigherPrecedenceFile = development.loadedFiles.some(
       (file) => canonicalPath(file) !== canonicalPath(simEnv)
     )
@@ -1035,7 +1044,7 @@ export function discoverConfigurationSources(
 ): ConfigurationSource[] {
   const root = path.resolve(options.root ?? ROOT)
   const runner = options.runner ?? defaultRunner
-  const local = localSources(root)
+  const local = localSources(root, options.processEnvironment ?? process.env)
   const compose = discoverComposeProjects(runner, root)
   const rootPath = canonicalPath(root)
   const currentRootProjects = compose.projects.filter((project) => {
