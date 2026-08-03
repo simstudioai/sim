@@ -765,9 +765,12 @@ export function createExecutionEventWriter(
   let flushTimer: ReturnType<typeof setTimeout> | null = null
   let consecutiveFlushFailures = 0
   /**
-   * Bytes this execution has successfully buffered. Counted gross rather than
-   * net of ring-buffer pruning, so it reaches the pressure mark early — erring
-   * toward offloading sooner is the safe direction.
+   * Bytes this execution has produced, counted as each event is compacted
+   * rather than once a flush succeeds. A burst can be compacted long before the
+   * scheduled flush runs, so flush-time accounting would let the very batch that
+   * exhausts the budget through at the loose ceiling. Counted gross of
+   * ring-buffer pruning too, so the mark is reached early — erring toward
+   * offloading sooner is the safe direction.
    */
   let bufferedBytes = 0
 
@@ -947,7 +950,6 @@ export function createExecutionEventWriter(
       }
       consecutiveFlushFailures = 0
       lastResourceLimitError = null
-      bufferedBytes += batchBytes
       if (chunkTerminalStatus) pendingTerminalStatus = undefined
       return true
     } catch (error) {
@@ -1032,6 +1034,7 @@ export function createExecutionEventWriter(
       valueThresholdBytes: getValueThresholdBytes(),
     })
     const entry: ExecutionEventEntry = { eventId, executionId, event: compactEvent }
+    bufferedBytes += getJsonSize(entry) ?? 0
     pending.push(entry)
     if (pending.length >= FLUSH_MAX_BATCH) {
       await flushPending()
@@ -1079,6 +1082,7 @@ export function createExecutionEventWriter(
         valueThresholdBytes: getValueThresholdBytes(),
       })
       const entry: ExecutionEventEntry = { eventId, executionId, event: compactEvent }
+      bufferedBytes += getJsonSize(entry) ?? 0
       pending.push(entry)
       let ok = false
       try {
@@ -1091,9 +1095,16 @@ export function createExecutionEventWriter(
           // budget rejection specifically: a transient Redis error leaves the batch
           // queued for retry, and clearing it here would turn that into data loss.
           const remaining = pending.filter((pendingEntry) => pendingEntry !== entry)
+          // Drain what is queued ahead of the terminal event first. Terminal
+          // status is the reader's end-of-run signal: stamping it while lower
+          // event ids are still queued strands them behind a stream the reader
+          // has already drained and closed.
+          if (remaining.length > 0) {
+            pending = remaining
+            await flushPending(false)
+          }
           pending = [entry]
           ok = await flushPending(false)
-          pending = pending.concat(remaining)
         }
       } catch (error) {
         discardTerminalEntry(entry)

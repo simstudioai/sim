@@ -671,6 +671,77 @@ describe('execution event buffer', () => {
     expect(persisted).not.toContain(payload)
   })
 
+  /**
+   * Terminal status is the reader's end-of-run signal: once it lands, a
+   * reconnecting client drains what is in Redis and closes. Stamping it while
+   * lower event ids are still queued strands those events behind a stream the
+   * reader has already finished with.
+   *
+   * Needs a backlog past the single-write cap so chunking leaves a remainder
+   * behind the terminal entry — the only shape where that ordering can invert.
+   */
+  it('does not stamp terminal status while earlier events are still queued', async () => {
+    mockRedis.incrby.mockResolvedValue(100000)
+    const idsAtStamp: number[] = []
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (!isFlushScript(script)) return [1, 'ok', 0, 0]
+      const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)
+      // Reject any multi-entry batch, forcing the terminal-alone retry path.
+      if (zaddArgs.length > 2) return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+      for (let i = 0; i < zaddArgs.length; i += 2) {
+        persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
+      }
+      if (terminalStatus && idsAtStamp.length === 0) {
+        idsAtStamp.push(...persistedEntries.map((e) => e.eventId))
+      }
+      return [1, 1, 0]
+    })
+
+    // ~3MB per event, so three of them exceed the 8MiB single-write cap and the
+    // chunk boundary leaves a remainder queued behind the terminal entry.
+    const payload = 'x'.repeat(1_500_000)
+    const writer = createExecutionEventWriter('exec-1', {
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+    })
+    for (let i = 0; i < 3; i++) {
+      await writer.write(makeEvent(payload)).catch(() => {})
+    }
+    await writer.writeTerminal(makeEvent('terminal'), 'complete').catch(() => {})
+    await writer.close().catch(() => {})
+
+    const terminalId = Math.max(...persistedEntries.map((e) => e.eventId))
+    const strandedAtStamp = persistedEntries
+      .map((e) => e.eventId)
+      .filter((id) => id < terminalId && !idsAtStamp.includes(id))
+    expect(strandedAtStamp).toEqual([])
+  })
+
+  /**
+   * Pressure has to be measured as events are produced, not once a flush
+   * succeeds. A burst is compacted long before the scheduled flush runs, so
+   * flush-time accounting would let the very batch that exhausts the budget
+   * through at the loose ceiling and drop it instead of offloading it.
+   */
+  it('engages pressure within a burst that has not flushed yet', async () => {
+    mockRedis.incrby.mockResolvedValue(100000)
+    const payload = 'x'.repeat(2 * 1024 * 1024)
+
+    const writer = createExecutionEventWriter('exec-1', {
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+    })
+    // No flush between writes: everything stays pending while the burst builds.
+    for (let i = 0; i < 20; i++) {
+      await writer.write(makeEvent(payload)).catch(() => {})
+    }
+    await writer.flush().catch(() => {})
+
+    // The later events in the burst must have been offloaded, not left inline.
+    const persisted = JSON.stringify(persistedEntries)
+    expect(persisted).toContain(LARGE_VALUE_REF_MARKER)
+  })
+
   it('preserves requested UserFile base64 when buffering terminal events', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     const base64 = Buffer.from('hello').toString('base64')
