@@ -237,6 +237,7 @@ describe('QuickBooks financial report responses', () => {
     const result = await quickbooksRunFinancialReportTool.transformResponse!(
       Response.json({
         Header: {
+          Time: 'test-time',
           ReportName: 'ProfitAndLoss',
           ReportBasis: 'Accrual',
           Currency: 'USD',
@@ -253,7 +254,6 @@ describe('QuickBooks financial report responses', () => {
             },
           ],
         },
-        time: 'test-time',
       }),
       params
     )

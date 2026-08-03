@@ -400,7 +400,6 @@ interface QuickBooksReportEnvelope {
   Header?: QuickBooksReportHeader
   Columns?: QuickBooksReportColumns
   Rows?: QuickBooksReportRows
-  time?: string
 }
 
 function assertQuickBooksReportSection<T>(value: unknown, section: string): T {
@@ -418,14 +417,15 @@ export async function transformQuickBooksReportResponse(
     response,
     `QuickBooks ${reportType} report response`
   )
+  const header = assertQuickBooksReportSection<QuickBooksReportHeader>(data.Header, 'Header')
   return {
     success: true,
     output: {
       reportType,
-      header: assertQuickBooksReportSection<QuickBooksReportHeader>(data.Header, 'Header'),
+      header,
       columns: assertQuickBooksReportSection<QuickBooksReportColumns>(data.Columns, 'Columns'),
       rows: assertQuickBooksReportSection<QuickBooksReportRows>(data.Rows, 'Rows'),
-      time: typeof data.time === 'string' ? data.time : null,
+      time: typeof header.Time === 'string' ? header.Time : null,
     },
   }
 }
