@@ -11,13 +11,18 @@ const EDGE_THRESHOLD = 360
 const MIN_FRAME_MS = 16
 
 /**
- * How much of the gap between the smoothed and the instantaneous pointer velocity
- * is closed per pointer event. This is what softens the velocity flourish — the
- * transform itself is never handed to a CSS transition, because a compositor-
- * interpolated fractional scale forces the tooltip's rasterized text to be
- * resampled, which reads as a blur until the interpolation settles.
+ * Exponential time constant for smoothing the pointer velocity that drives the
+ * flourish, in ms. The flourish is deliberately never handed to a CSS transition:
+ * Chrome only re-rasters a layer at its new scale when the scale changes via
+ * script, not when a declarative animation interpolates it, so a transitioned
+ * fractional scale leaves the tooltip's text resampled from a stale bitmap until
+ * the animation settles — which is what read as a blur on every appear.
+ *
+ * Smoothing here replaces the smoothing that transition used to provide. ~3x the
+ * time constant is where the value has effectively settled, so 50ms reproduces
+ * the feel of the 150ms ease-out it stands in for.
  */
-const VELOCITY_SMOOTHING = 0.35
+const VELOCITY_TIME_CONSTANT_MS = 50
 
 /**
  * Resolved position and motion of a floating tooltip. `x`/`y` are whole-pixel
@@ -146,14 +151,19 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
         if (!canShowRef.current(event.currentTarget)) return
         const now = performance.now()
         const previous = lastPointerRef.current
-        const elapsed = previous ? Math.max(now - previous.time, MIN_FRAME_MS) : MIN_FRAME_MS
-        const instantX = previous ? ((event.clientX - previous.x) / elapsed) * MIN_FRAME_MS : 0
-        const instantY = previous ? ((event.clientY - previous.y) / elapsed) * MIN_FRAME_MS : 0
+        const delta = previous ? Math.max(now - previous.time, 1) : MIN_FRAME_MS
+        const perFrame = Math.max(delta, MIN_FRAME_MS)
+        const instantX = previous ? ((event.clientX - previous.x) / perFrame) * MIN_FRAME_MS : 0
+        const instantY = previous ? ((event.clientY - previous.y) / perFrame) * MIN_FRAME_MS : 0
 
+        /**
+         * Derived from the real elapsed time rather than applied per event, so a
+         * 120Hz pointer and a 60Hz one settle over the same wall-clock duration.
+         */
+        const smoothing = 1 - Math.exp(-delta / VELOCITY_TIME_CONSTANT_MS)
         const velocity = velocityRef.current
-        velocity.x += (instantX - velocity.x) * VELOCITY_SMOOTHING
-        velocity.magnitude +=
-          (Math.hypot(instantX, instantY) - velocity.magnitude) * VELOCITY_SMOOTHING
+        velocity.x += (instantX - velocity.x) * smoothing
+        velocity.magnitude += (Math.hypot(instantX, instantY) - velocity.magnitude) * smoothing
 
         lastPointerRef.current = { x: event.clientX, y: event.clientY, time: now }
         apply(event.clientX, event.clientY, {
