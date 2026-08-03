@@ -69,15 +69,14 @@ export async function validateAttioServiceAccount(
     })
   }
 
-  // An Attio workspace access token is not bound to a member, so the workspace
-  // is the finest identity the token can ever report.
+  const storedMetadata: Record<string, string> = { workspaceId: self.workspace_id }
+  if (self.workspace_slug) {
+    storedMetadata.workspaceSlug = self.workspace_slug
+  }
+
   return {
     displayName: self.workspace_name || 'Attio workspace',
-    principal: {
-      kind: 'tenant',
-      id: self.workspace_id,
-      ...(self.workspace_slug ? { label: self.workspace_slug } : {}),
-    },
-    auditMetadata: {},
+    auditMetadata: { attioWorkspaceId: self.workspace_id },
+    storedMetadata,
   }
 }

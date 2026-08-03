@@ -1,4 +1,3 @@
-import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -57,17 +56,14 @@ export async function validateNotionServiceAccount(
   }
 
   const workspaceName = me.bot?.workspace_name || undefined
-  const storedMetadata: Record<string, string> = {}
+  const storedMetadata: Record<string, string> = { botId: me.id }
   if (workspaceName) {
     storedMetadata.workspaceName = workspaceName
   }
 
   return {
     displayName: me.name || workspaceName || 'Notion integration',
-    // The integration authenticates as its own bot user, which is the actor
-    // recorded on every page/database change it makes.
-    principal: userPrincipal(me.id, me.name),
-    auditMetadata: {},
+    auditMetadata: { notionBotId: me.id },
     storedMetadata,
   }
 }

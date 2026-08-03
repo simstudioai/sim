@@ -1,4 +1,3 @@
-import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -66,11 +65,9 @@ export async function validateClickupServiceAccount(
     })
   }
 
-  const label = user.username || user.email
-
   return {
     displayName: user.username || user.email || 'ClickUp account',
-    principal: userPrincipal(String(user.id), label),
-    auditMetadata: {},
+    auditMetadata: { clickupUserId: String(user.id) },
+    storedMetadata: { userId: String(user.id) },
   }
 }

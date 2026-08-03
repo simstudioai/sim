@@ -74,8 +74,7 @@ describe('mintZoomServiceAccountToken', () => {
       grantedScopes: ['meeting:read:meeting:admin', 'user:read:user:admin'],
       identity: {
         displayName: 'Zoom account AbCdEf123',
-        principal: { kind: 'tenant', id: 'AbCdEf123' },
-        auditMetadata: { zoomClientId: 'zoom-cid' },
+        auditMetadata: { zoomAccountId: 'AbCdEf123', zoomClientId: 'zoom-cid' },
         storedMetadata: {
           apiUrl: 'https://api.zoom.us',
           grantedScopes: 'meeting:read:meeting:admin user:read:user:admin',

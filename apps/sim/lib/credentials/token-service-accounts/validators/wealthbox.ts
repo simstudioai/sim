@@ -1,4 +1,3 @@
-import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -95,11 +94,12 @@ export async function validateWealthboxServiceAccount(
   const userId = typeof me.current_user?.id === 'number' ? String(me.current_user.id) : undefined
   const email = me.email || me.current_user?.email
 
-  // `/v1/me` omits `current_user` for some token types; without it Wealthbox
-  // reports no identifier of any kind on this response.
-  return {
-    displayName,
-    principal: userId ? userPrincipal(userId, email) : null,
-    auditMetadata: {},
-  }
+  const auditMetadata: Record<string, string> = {}
+  if (userId) auditMetadata.wealthboxUserId = userId
+
+  const storedMetadata: Record<string, string> = {}
+  if (userId) storedMetadata.userId = userId
+  if (email) storedMetadata.email = email
+
+  return { displayName, auditMetadata, storedMetadata }
 }

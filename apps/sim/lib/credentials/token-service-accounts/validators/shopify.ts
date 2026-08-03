@@ -141,16 +141,13 @@ export async function validateShopifyServiceAccount(
       : undefined
   const canonicalDomain = apiDomain && SHOPIFY_HOST_REGEX.test(apiDomain) ? apiDomain : domain
 
-  // A custom-app Admin API token belongs to the app, not to a staff member, so
-  // the store is the finest identity it can ever report.
+  const storedMetadata: Record<string, string> = { shopDomain: canonicalDomain }
+  if (shopName) storedMetadata.shopName = shopName
+
   return {
     displayName: shopName ?? canonicalDomain,
-    principal: {
-      kind: 'tenant',
-      id: canonicalDomain,
-      ...(shopName ? { label: shopName } : {}),
-    },
-    auditMetadata: {},
+    auditMetadata: { shopifyShopDomain: canonicalDomain },
+    storedMetadata,
     normalizedDomain: canonicalDomain,
   }
 }

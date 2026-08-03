@@ -1,4 +1,3 @@
-import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -116,7 +115,7 @@ export async function validateMondayServiceAccount(
 
   const userId = String(me.id)
   const accountId = account?.id != null ? String(account.id) : ''
-  const storedMetadata: Record<string, string> = { accountId }
+  const storedMetadata: Record<string, string> = { accountId, userId }
   if (account?.slug) {
     storedMetadata.accountSlug = account.slug
   }
@@ -124,11 +123,9 @@ export async function validateMondayServiceAccount(
   if (accountId) {
     auditMetadata.mondayAccountId = accountId
   }
-  const label = me.email || me.name
 
   return {
     displayName: account?.name || me.name || me.email || `monday user ${userId}`,
-    principal: userPrincipal(userId, label),
     auditMetadata,
     storedMetadata,
   }

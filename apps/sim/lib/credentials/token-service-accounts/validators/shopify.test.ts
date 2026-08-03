@@ -44,8 +44,8 @@ describe('validateShopifyServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'Acme Store',
-      principal: { kind: 'tenant', id: 'acme-store.myshopify.com', label: 'Acme Store' },
-      auditMetadata: {},
+      auditMetadata: { shopifyShopDomain: 'acme-store.myshopify.com' },
+      storedMetadata: { shopDomain: 'acme-store.myshopify.com', shopName: 'Acme Store' },
       normalizedDomain: 'acme-store.myshopify.com',
     })
     expect(mockFetch).toHaveBeenCalledWith(

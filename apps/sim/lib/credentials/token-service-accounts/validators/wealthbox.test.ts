@@ -43,8 +43,8 @@ describe('validateWealthboxServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'Bill Jones',
-      principal: { kind: 'user', id: '42', label: 'bill@example.com' },
-      auditMetadata: {},
+      auditMetadata: { wealthboxUserId: '42' },
+      storedMetadata: { userId: '42', email: 'bill@example.com' },
     })
 
     expect(mockFetch).toHaveBeenCalledTimes(1)

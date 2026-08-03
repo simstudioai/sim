@@ -10,14 +10,11 @@ import {
   fetchProvider,
   isTransientProviderStatus,
   parseProviderJson,
-  providerFailureReason,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const logger = createLogger('BoxServiceAccountMinter')
-
-const IDENTITY_STEP = 'box_identity'
 
 const BOX_TOKEN_URL = 'https://api.box.com/oauth2/token'
 const BOX_CURRENT_USER_URL = 'https://api.box.com/2.0/users/me'
@@ -27,14 +24,7 @@ interface BoxTokenResponse {
   expires_in?: number
 }
 
-/**
- * `id`, `name`, and `login` are all in the standard field set `GET /2.0/users/me`
- * returns without a `fields` parameter, so capturing the Service Account's user
- * id costs no extra request.
- * @see https://developer.box.com/reference/get-users-me/
- */
 interface BoxCurrentUserResponse {
-  id?: string
   name?: string
   login?: string
 }
@@ -67,67 +57,52 @@ function boxErrorHint(body: string): string | undefined {
 
 /**
  * Best-effort identity lookup for the app's Service Account user. A failure
- * never fails the mint — the credential degrades to an Enterprise-ID-derived
- * display name with a `lookup_failed` principal, so the audit record shows the
- * identity was not captured rather than implying none exists.
+ * never fails the mint — the caller falls back to an Enterprise-ID-derived
+ * display name.
  */
 async function fetchBoxServiceAccountIdentity(
   accessToken: string,
   orgId: string
 ): Promise<ClientCredentialAccountIdentity> {
-  /**
-   * `label` keeps whatever human name the lookup did return. A response can
-   * carry `name`/`login` but no `id` — the principal is then unusable, but the
-   * label still beats the Enterprise-ID fallback, so only the principal
-   * degrades and the credential does not silently lose its name.
-   */
-  const degraded = (reason: string, label?: string): ClientCredentialAccountIdentity => ({
-    displayName: label ?? `Box enterprise ${orgId}`,
-    principal: { kind: 'lookup_failed', reason },
+  const fallback: ClientCredentialAccountIdentity = {
+    displayName: `Box enterprise ${orgId}`,
     auditMetadata: { boxEnterpriseId: orgId },
-    storedMetadata: { enterpriseId: orgId },
-  })
+  }
   try {
     const res = await fetchProvider(
       BOX_CURRENT_USER_URL,
       { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
-      IDENTITY_STEP
+      'box_identity'
     )
     if (!res.ok) {
       logger.warn('Box service-account identity lookup failed', {
-        step: IDENTITY_STEP,
+        step: 'box_identity',
         status: res.status,
         enterpriseId: orgId,
       })
-      return degraded(`HTTP ${res.status}`)
+      return fallback
     }
-    const user = await parseProviderJson<BoxCurrentUserResponse>(res, IDENTITY_STEP)
-    const id = typeof user.id === 'string' && user.id ? user.id : undefined
+    const user = await parseProviderJson<BoxCurrentUserResponse>(res, 'box_identity')
     const login = typeof user.login === 'string' && user.login ? user.login : undefined
     const name = typeof user.name === 'string' && user.name ? user.name : undefined
-    if (!id) {
-      logger.warn('Box service-account identity response carried no user id', {
-        step: IDENTITY_STEP,
-        status: res.status,
-        enterpriseId: orgId,
-      })
-      return degraded('response missing user id', name ?? login)
-    }
     return {
-      displayName: name ?? login ?? `Box enterprise ${orgId}`,
-      // The Service Account is a real Box user; `enterpriseId` is shared by
-      // every app in the enterprise and so is kept as separate context.
-      principal: { kind: 'user', id, ...(login ? { label: login } : {}) },
-      auditMetadata: { boxEnterpriseId: orgId },
-      storedMetadata: { enterpriseId: orgId },
+      displayName: name ?? login ?? fallback.displayName,
+      auditMetadata: {
+        boxEnterpriseId: orgId,
+        ...(login ? { boxServiceAccountLogin: login } : {}),
+      },
+      storedMetadata: {
+        enterpriseId: orgId,
+        ...(login ? { serviceAccountLogin: login } : {}),
+      },
     }
   } catch (error) {
     logger.warn('Box service-account identity lookup threw', {
-      step: IDENTITY_STEP,
+      step: 'box_identity',
       enterpriseId: orgId,
       error: getErrorMessage(error),
     })
-    return degraded(providerFailureReason(error))
+    return fallback
   }
 }
 

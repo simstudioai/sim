@@ -46,8 +46,8 @@ describe('validateTrelloServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'Sim Bot',
-      principal: { kind: 'user', id: 'abc123', label: 'simbot' },
-      auditMetadata: {},
+      auditMetadata: { trelloMemberId: 'abc123' },
+      storedMetadata: { memberId: 'abc123', username: 'simbot' },
     })
 
     const [url] = mockFetch.mock.calls[0]

@@ -1,4 +1,3 @@
-import { tenantPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -52,10 +51,9 @@ export async function validateWebflowServiceAccount(
 
   const displayName = site.displayName || site.shortName || 'Webflow site'
 
-  // A site API token is bound to a site, never to a Webflow user.
   return {
     displayName,
-    principal: tenantPrincipal(site.id, displayName),
-    auditMetadata: {},
+    auditMetadata: { webflowSiteId: site.id },
+    storedMetadata: { siteId: site.id, siteName: displayName },
   }
 }

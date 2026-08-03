@@ -1,4 +1,3 @@
-import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -63,7 +62,7 @@ export async function validatePipedriveServiceAccount(
   const companyDomain =
     typeof user.company_domain === 'string' && user.company_domain ? user.company_domain : undefined
 
-  const storedMetadata: Record<string, string> = {}
+  const storedMetadata: Record<string, string> = { userId: String(user.id) }
   if (companyId) storedMetadata.companyId = companyId
   if (companyDomain) storedMetadata.companyDomain = companyDomain
 
@@ -77,7 +76,6 @@ export async function validatePipedriveServiceAccount(
 
   return {
     displayName,
-    principal: userPrincipal(String(user.id), userName),
     auditMetadata: companyId ? { pipedriveCompanyId: companyId } : {},
     storedMetadata,
   }

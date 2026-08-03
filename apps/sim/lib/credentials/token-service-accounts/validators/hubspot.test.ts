@@ -74,9 +74,8 @@ describe('validateHubspotServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'HubSpot portal 12345',
-      principal: { kind: 'user', id: '111' },
       auditMetadata: { hubspotHubId: '12345' },
-      storedMetadata: { hubId: '12345', appId: '222' },
+      storedMetadata: { hubId: '12345', appId: '222', userId: '111' },
     })
 
     expect(mockFetch).toHaveBeenCalledTimes(1)
@@ -92,8 +91,8 @@ describe('validateHubspotServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'HubSpot portal 123',
-      principal: { kind: 'tenant', id: '123' },
-      auditMetadata: {},
+      auditMetadata: { hubspotHubId: '123' },
+      storedMetadata: { hubId: '123' },
     })
 
     expect(mockFetch).toHaveBeenCalledTimes(2)
@@ -128,8 +127,8 @@ describe('validateHubspotServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'HubSpot private app',
-      principal: null,
       auditMetadata: {},
+      storedMetadata: {},
     })
 
     expect(mockFetch).toHaveBeenCalledTimes(2)

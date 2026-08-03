@@ -1,4 +1,3 @@
-import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -48,15 +47,14 @@ export async function validateAirtableServiceAccount(
     })
   }
 
-  const storedMetadata: Record<string, string> = {}
+  const storedMetadata: Record<string, string> = { userId: whoami.id }
   if (whoami.scopes) {
     storedMetadata.scopes = whoami.scopes.join(' ')
   }
 
   return {
     displayName: whoami.email ?? `Airtable user ${whoami.id}`,
-    principal: userPrincipal(whoami.id, whoami.email),
-    auditMetadata: {},
+    auditMetadata: { airtableUserId: whoami.id },
     storedMetadata,
   }
 }

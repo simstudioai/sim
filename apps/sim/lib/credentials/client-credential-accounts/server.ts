@@ -11,7 +11,6 @@ import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
-import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 
 /** Raw fields a client-credential minter receives (already trimmed). */
 export interface ClientCredentialAccountFields {
@@ -34,21 +33,11 @@ export interface ClientCredentialAccountFields {
 export interface ClientCredentialAccountIdentity {
   /** Default display name when the user didn't provide one. */
   displayName: string
-  /**
-   * Identity the minted token acts as, or `null` when the provider exposes
-   * none. Required (never optional) so a new minter cannot be written without
-   * deciding. `verifyAndBuildServiceAccountSecret` mirrors it into both
-   * `auditMetadata` and `storedMetadata`, so minters must not repeat it.
-   */
-  principal: ServiceAccountPrincipal | null
-  /**
-   * Non-secret identifiers recorded in the audit log that are NOT the
-   * principal (e.g. the enterprise id behind a service-account user).
-   */
+  /** Non-secret identifiers recorded in the audit log (e.g. account/enterprise id). */
   auditMetadata: Record<string, string>
   /**
    * Non-secret metadata persisted inside the encrypted blob alongside the
-   * credentials (e.g. regional API host, granted scopes) for debugging.
+   * credentials (e.g. regional API host, service-account login) for debugging.
    */
   storedMetadata?: Record<string, string>
 }

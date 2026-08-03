@@ -38,9 +38,8 @@ describe('validateMondayServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'Acme',
-      principal: { kind: 'user', id: '12345', label: 'jane@example.com' },
       auditMetadata: { mondayAccountId: '987' },
-      storedMetadata: { accountId: '987', accountSlug: 'acme' },
+      storedMetadata: { accountId: '987', accountSlug: 'acme', userId: '12345' },
     })
     expect(mockFetch).toHaveBeenCalledWith('https://api.monday.com/v2', {
       method: 'POST',
@@ -160,6 +159,6 @@ describe('validateMondayServiceAccount', () => {
     )
     const result = await validateMondayServiceAccount({ apiToken: 'token' })
     expect(result.displayName).toBe('Acme')
-    expect(result.principal).toEqual({ kind: 'user', id: '77', label: 'Bot User' })
+    expect(result.storedMetadata?.userId).toBe('77')
   })
 })

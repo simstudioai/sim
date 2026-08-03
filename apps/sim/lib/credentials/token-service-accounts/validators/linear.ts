@@ -1,4 +1,3 @@
-import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -128,17 +127,15 @@ export async function validateLinearServiceAccount(
   }
 
   const organization = payload.data?.organization
-  const storedMetadata: Record<string, string> = {}
+  const storedMetadata: Record<string, string> = { viewerId: viewer.id }
   const auditMetadata: Record<string, string> = {}
   if (organization?.id) {
     storedMetadata.organizationId = organization.id
     auditMetadata.linearOrganizationId = organization.id
   }
-  const label = viewer.email || viewer.name || undefined
 
   return {
     displayName: organization?.name || viewer.name || viewer.email || 'Linear workspace',
-    principal: userPrincipal(viewer.id, label),
     auditMetadata,
     storedMetadata,
   }

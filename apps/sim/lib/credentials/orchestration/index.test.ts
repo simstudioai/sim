@@ -108,7 +108,7 @@ describe('performUpdateCredential — service-account secret rotation', () => {
       providerId: 'google-service-account',
       encryptedServiceAccountKey: 'new-cipher',
       displayName: NEW_EMAIL,
-      auditMetadata: { principalKind: 'user', principalId: NEW_EMAIL },
+      auditMetadata: { googleClientEmail: NEW_EMAIL },
     })
   })
 
@@ -213,8 +213,7 @@ describe('performUpdateCredential — service-account secret rotation', () => {
 
     expect(auditMetadata()).toMatchObject({
       credentialType: 'service_account',
-      principalKind: 'user',
-      principalId: NEW_EMAIL,
+      googleClientEmail: NEW_EMAIL,
     })
     expect(auditMetadata().updatedFields).toEqual(
       expect.arrayContaining(['displayName', 'encryptedServiceAccountKey'])
