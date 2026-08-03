@@ -140,6 +140,14 @@ describe('POST /api/proxy/tts/stream — spend controls', () => {
     expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 
+  it('rejects an oversized body before buffering it', async () => {
+    const res = await POST(createMockRequest('POST', validBody({ padding: 'x'.repeat(32 * 1024) })))
+
+    expect(res.status).toBe(413)
+    expect(global.fetch).not.toHaveBeenCalled()
+    expect(mockRecordUsage).not.toHaveBeenCalled()
+  })
+
   it('rejects a voice outside the allowlist so the caller cannot pick a premium voice', async () => {
     const res = await POST(
       createMockRequest('POST', validBody({ voiceId: '21m00Tcm4TlvDq8ikWAM' }))
@@ -203,12 +211,31 @@ describe('POST /api/proxy/tts/stream — attribution', () => {
     expect(mockRecordUsage.mock.calls[0][0].entries[0]).toMatchObject({
       category: 'fixed',
       source: 'voice-output',
-      cost: 0.1,
+      cost: 0.05,
     })
-    expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledWith({
-      type: 'organization',
-      id: 'org-1',
-    })
+  })
+
+  it('gives each call a unique source reference so equal-length calls are not deduplicated', async () => {
+    const text = 'Same length text.'
+
+    queueTableRows(schemaMock.chat, [publicChatRow])
+    await POST(createMockRequest('POST', validBody({ text })))
+    queueTableRows(schemaMock.chat, [publicChatRow])
+    await POST(createMockRequest('POST', validBody({ text })))
+
+    expect(mockRecordUsage).toHaveBeenCalledTimes(2)
+    const first = mockRecordUsage.mock.calls[0][0].entries[0].sourceReference
+    const second = mockRecordUsage.mock.calls[1][0].entries[0].sourceReference
+    expect(first).toBeDefined()
+    expect(first).not.toBe(second)
+  })
+
+  it('does not run per-request threshold settlement on the realtime path', async () => {
+    queueTableRows(schemaMock.chat, [publicChatRow])
+
+    await POST(createMockRequest('POST', validBody()))
+
+    expect(mockCheckAndBillPayerOverageThreshold).not.toHaveBeenCalled()
   })
 
   it('falls back to the chat owner when the workflow has no workspace', async () => {

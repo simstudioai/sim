@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -13,7 +14,6 @@ import {
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
-import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -27,8 +27,14 @@ const rateLimiter = new RateLimiter()
 
 /**
  * Public chats hand their id to every visitor, so the id alone cannot gate
- * spend on the platform ElevenLabs key. Two buckets bound the two abuse shapes:
- * one caller hammering many chats, and many callers hammering one chat.
+ * spend on the platform ElevenLabs key.
+ *
+ * The per-IP bucket only filters naive floods: `getClientIp` trusts the
+ * leftmost `X-Forwarded-For` value, which the caller controls, so a deliberate
+ * attacker rotates past it. The per-chat bucket is the load-bearing control —
+ * it is keyed on server-held state and bounds total spend per chat regardless
+ * of how many source addresses the traffic claims to come from.
+ *
  * Deployed chat synthesizes sentence by sentence, so a real conversation issues
  * several requests per answer — hence the generous burst.
  */
@@ -45,11 +51,19 @@ const TTS_CHAT_RATE_LIMIT = {
 } as const
 
 /**
- * Platform ElevenLabs rate for the Flash v2.5 model, in USD per 1,000
- * characters. Synthesis is billed to the chat's workspace payer so the spend is
- * attributable and counts against that plan's usage limit.
+ * Published ElevenLabs API rate for Flash/Turbo text-to-speech, in USD per
+ * 1,000 characters. This is the vendor cost; `getCostMultiplier()` applies the
+ * platform markup, matching how other metered sources are priced.
  */
-const TTS_COST_PER_1K_CHARS = 0.1
+const TTS_COST_PER_1K_CHARS = 0.05
+
+/**
+ * The body carries at most `MAX_TTS_TEXT_LENGTH` characters of text plus two
+ * short ids, so a tight cap keeps an anonymous caller from making the route
+ * buffer a large payload before validation runs. Without it the shared default
+ * is 50 MB.
+ */
+const MAX_TTS_BODY_BYTES = 16 * 1024
 
 interface ChatAuthResult {
   valid: boolean
@@ -132,6 +146,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       request,
       {},
       {
+        maxBodyBytes: MAX_TTS_BODY_BYTES,
         invalidJsonResponse: () => new NextResponse('Invalid request body', { status: 400 }),
         validationErrorResponse: (error) => {
           if (error.issues.some((issue) => issue.path[0] === 'chatId')) {
@@ -224,6 +239,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     /**
      * Meter once ElevenLabs has accepted the request — the characters are billed
      * to us at that point regardless of whether the client drains the stream.
+     *
+     * `sourceReference` must be unique per call. `usage_log.event_key` is
+     * unique and inserts conflict-do-nothing, and the key is derived from the
+     * entry's stable fields — without this, two synthesis calls of equal length
+     * in the same workspace would collide and the second would silently go
+     * unbilled. Each call is a separate charge from ElevenLabs, so each needs
+     * its own row rather than being deduplicated.
+     *
+     * No threshold settlement here: it runs per metered event elsewhere and is
+     * far too heavy for a per-sentence realtime path. The workflow execution
+     * that produced this text already settles the payer.
      */
     if (actorUserId) {
       try {
@@ -237,12 +263,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               source: 'voice-output',
               description: `Voice output (${text.length} characters)`,
               cost: (text.length / 1000) * TTS_COST_PER_1K_CHARS * getCostMultiplier(),
+              sourceReference: `voice-output:${chatId}:${randomUUID()}`,
             },
           ],
         })
-        if (billingAttribution) {
-          await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
-        }
       } catch (err) {
         logger.warn('Failed to record voice output usage, continuing:', err)
       }
