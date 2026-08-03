@@ -17,7 +17,10 @@ vi.mock('@/lib/workspaces/utils', () => ({
   listUserWorkspaces: listUserWorkspacesMock,
 }))
 
-import { executeGetBlockOutputs, executeListUserWorkspaces } from './queries'
+import {
+  executeGetBlockOutputs,
+  executeListUserWorkspaces,
+} from '@/lib/copilot/tools/handlers/workflow/queries'
 
 describe('executeListUserWorkspaces', () => {
   beforeEach(() => {
