@@ -1,7 +1,50 @@
+import { readFileSync } from 'node:fs'
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { evaluateOutputCondition } from '@/lib/workflows/blocks/block-outputs'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
+import {
+  quickbooksAddAttachmentTool,
+  quickbooksCreateBillPaymentTool,
+  quickbooksCreateBillTool,
+  quickbooksCreateCreditMemoTool,
+  quickbooksCreateCustomerPaymentTool,
+  quickbooksCreateDepositTool,
+  quickbooksCreateEmployeeTool,
+  quickbooksCreateEstimateTool,
+  quickbooksCreateInvoiceTool,
+  quickbooksCreateJournalEntryTool,
+  quickbooksCreatePurchaseOrderTool,
+  quickbooksCreatePurchaseTool,
+  quickbooksCreateRefundReceiptTool,
+  quickbooksCreateSalesReceiptTool,
+  quickbooksCreateVendorCreditTool,
+  quickbooksDownloadAttachmentTool,
+  quickbooksDownloadTransactionPdfTool,
+  quickbooksEmailTransactionTool,
+  quickbooksReadAccountingTransactionsTool,
+  quickbooksReadAttachmentsTool,
+  quickbooksReadPurchasingTransactionsTool,
+  quickbooksReadSalesTransactionsTool,
+  quickbooksRunFinancialReportTool,
+  quickbooksUpdateBillPaymentTool,
+  quickbooksUpdateBillTool,
+  quickbooksUpdateCreditMemoTool,
+  quickbooksUpdateCustomerPaymentTool,
+  quickbooksUpdateDepositTool,
+  quickbooksUpdateEmployeeTool,
+  quickbooksUpdateEstimateTool,
+  quickbooksUpdateInvoiceTool,
+  quickbooksUpdateJournalEntryTool,
+  quickbooksUpdatePurchaseOrderTool,
+  quickbooksUpdatePurchaseTool,
+  quickbooksUpdateRefundReceiptTool,
+  quickbooksUpdateSalesReceiptTool,
+  quickbooksUpdateVendorCreditTool,
+  quickbooksVoidCustomerPaymentTool,
+  quickbooksVoidInvoiceTool,
+} from '@/tools/quickbooks'
 import {
   fetchValidatedQuickBooksCompanyInfo,
   getQuickBooksEnvironment,
@@ -12,8 +55,6 @@ import { quickbooksCreateCustomerTool } from '@/tools/quickbooks/create_customer
 import { quickbooksCreateItemTool } from '@/tools/quickbooks/create_item'
 import { quickbooksCreateVendorTool } from '@/tools/quickbooks/create_vendor'
 import { quickbooksGetCompanyInfoTool } from '@/tools/quickbooks/get_company_info'
-import { quickbooksListBillsTool } from '@/tools/quickbooks/list_bills'
-import { quickbooksListPurchaseOrdersTool } from '@/tools/quickbooks/list_purchase_orders'
 import { quickbooksReadMasterDataTool } from '@/tools/quickbooks/read_master_data'
 import type {
   QuickBooksCreateCustomerParams,
@@ -24,11 +65,13 @@ import type {
   QuickBooksUpdateItemParams,
   QuickBooksUpdateVendorParams,
 } from '@/tools/quickbooks/types'
+import { QUICKBOOKS_MASTER_DATA_PROPERTIES } from '@/tools/quickbooks/types'
 import { quickbooksUpdateCustomerTool } from '@/tools/quickbooks/update_customer'
 import { quickbooksUpdateItemTool } from '@/tools/quickbooks/update_item'
 import { quickbooksUpdateVendorTool } from '@/tools/quickbooks/update_vendor'
 import {
   buildQuickBooksEntityUrl,
+  buildQuickBooksMasterDataQueryUrl,
   buildQuickBooksQueryUrl,
   parseQuickBooksAddress,
   transformQuickBooksListResponse,
@@ -86,6 +129,20 @@ describe('QuickBooks request construction', () => {
     expect(entityUrl.searchParams.get('minorversion')).toBe('75')
   })
 
+  it('adds only the typed master-data active filter', () => {
+    const url = buildQuickBooksMasterDataQueryUrl({
+      ...authParams,
+      recordType: 'employee',
+      readMode: 'list',
+      activeStatus: 'inactive',
+      startPosition: 1,
+      maxResults: 25,
+    })
+    expect(url.searchParams.get('query')).toBe(
+      'SELECT * FROM Employee WHERE Active = false STARTPOSITION 1 MAXRESULTS 25'
+    )
+  })
+
   it.each([
     [0, 25],
     [-1, 25],
@@ -134,6 +191,37 @@ describe('QuickBooks response contracts', () => {
     }
   })
 
+  it.each([
+    [{}, 'company Id'],
+    [[], 'valid CompanyInfo object'],
+    [{ Id: '' }, 'company Id'],
+    [{ Id: '   ' }, 'company Id'],
+  ])('rejects malformed CompanyInfo during OAuth validation', async (companyInfo, message) => {
+    const originalFetch = global.fetch
+    global.fetch = async () => Response.json({ CompanyInfo: companyInfo })
+
+    try {
+      await expect(
+        fetchValidatedQuickBooksCompanyInfo('access-token', '123456789')
+      ).rejects.toThrow(message)
+    } finally {
+      global.fetch = originalFetch
+    }
+  })
+
+  it.each([
+    [{}, 'company Id'],
+    [[], 'valid CompanyInfo object'],
+    [{ Id: '' }, 'company Id'],
+  ])('rejects malformed CompanyInfo tool responses', async (companyInfo, message) => {
+    await expect(
+      quickbooksGetCompanyInfoTool.transformResponse!(
+        Response.json({ CompanyInfo: companyInfo }),
+        authParams
+      )
+    ).rejects.toThrow(message)
+  })
+
   it('preserves sanitized fault guidance for failed company validation', async () => {
     const originalFetch = global.fetch
     global.fetch = async () =>
@@ -166,7 +254,9 @@ describe('QuickBooks response contracts', () => {
 
   it.each([
     ['Account', { Id: '1', Name: 'Checking' }],
+    ['Class', { Id: '8', Name: 'Sanitized Class' }],
     ['Customer', { Id: '2', DisplayName: 'Sanitized Customer' }],
+    ['Department', { Id: '9', Name: 'Sanitized Department' }],
     ['Vendor', { Id: '3', DisplayName: 'Sanitized Vendor' }],
     ['Item', { Id: '4', Name: 'Sanitized Service', Type: 'Service' }],
     ['Employee', { Id: '5', DisplayName: 'Sanitized Employee' }],
@@ -255,7 +345,9 @@ describe('QuickBooks master-data reader', () => {
 
   it.each([
     ['account', 'Account'],
+    ['class', 'Class'],
     ['customer', 'Customer'],
+    ['department', 'Department'],
     ['vendor', 'Vendor'],
     ['item', 'Item'],
     ['employee', 'Employee'],
@@ -485,6 +577,44 @@ describe('QuickBooks customer and vendor mutations', () => {
       ShipAddr: address,
       Taxable: false,
     })
+  })
+
+  it('adds bounded idempotency request IDs to all master-data creates', () => {
+    const customerUrl = quickbooksCreateCustomerTool.request.url as (
+      params: QuickBooksCreateCustomerParams
+    ) => string
+    const vendorUrl = quickbooksCreateVendorTool.request.url as (
+      params: QuickBooksCreateVendorParams
+    ) => string
+    const itemUrl = quickbooksCreateItemTool.request.url as (
+      params: QuickBooksCreateItemParams
+    ) => string
+
+    expect(
+      new URL(
+        customerUrl({ ...authParams, displayName: 'Customer', requestId: 'customer-request' })
+      ).searchParams.get('requestid')
+    ).toBe('customer-request')
+    expect(
+      new URL(
+        vendorUrl({ ...authParams, displayName: 'Vendor', requestId: 'vendor-request' })
+      ).searchParams.get('requestid')
+    ).toBe('vendor-request')
+    expect(
+      new URL(
+        itemUrl({
+          ...authParams,
+          name: 'Item',
+          itemType: 'service',
+          incomeAccountId: '79',
+          requestId: 'item-request',
+        })
+      ).searchParams.get('requestid')
+    ).toBe('item-request')
+
+    expect(() =>
+      customerUrl({ ...authParams, displayName: 'Customer', requestId: 'x'.repeat(51) })
+    ).toThrow('cannot exceed 50 characters')
   })
 
   it('builds sparse customer updates and rejects an empty update', () => {
@@ -777,42 +907,127 @@ describe('QuickBooks item mutations', () => {
 
 describe('QuickBooks tool and block boundaries', () => {
   const tools = [
+    quickbooksAddAttachmentTool,
+    quickbooksCreateBillPaymentTool,
+    quickbooksCreateBillTool,
+    quickbooksCreateCreditMemoTool,
     quickbooksCreateCustomerTool,
+    quickbooksCreateCustomerPaymentTool,
+    quickbooksCreateDepositTool,
+    quickbooksCreateEmployeeTool,
+    quickbooksCreateEstimateTool,
     quickbooksCreateItemTool,
+    quickbooksCreateInvoiceTool,
+    quickbooksCreateJournalEntryTool,
+    quickbooksCreatePurchaseOrderTool,
+    quickbooksCreatePurchaseTool,
+    quickbooksCreateRefundReceiptTool,
+    quickbooksCreateSalesReceiptTool,
     quickbooksCreateVendorTool,
+    quickbooksCreateVendorCreditTool,
+    quickbooksDownloadAttachmentTool,
+    quickbooksDownloadTransactionPdfTool,
+    quickbooksEmailTransactionTool,
     quickbooksGetCompanyInfoTool,
-    quickbooksListBillsTool,
-    quickbooksListPurchaseOrdersTool,
     quickbooksReadMasterDataTool,
+    quickbooksReadAccountingTransactionsTool,
+    quickbooksReadAttachmentsTool,
+    quickbooksReadPurchasingTransactionsTool,
+    quickbooksReadSalesTransactionsTool,
+    quickbooksRunFinancialReportTool,
+    quickbooksUpdateBillPaymentTool,
+    quickbooksUpdateBillTool,
+    quickbooksUpdateCreditMemoTool,
     quickbooksUpdateCustomerTool,
+    quickbooksUpdateCustomerPaymentTool,
+    quickbooksUpdateDepositTool,
+    quickbooksUpdateEmployeeTool,
+    quickbooksUpdateEstimateTool,
     quickbooksUpdateItemTool,
+    quickbooksUpdateInvoiceTool,
+    quickbooksUpdateJournalEntryTool,
+    quickbooksUpdatePurchaseOrderTool,
+    quickbooksUpdatePurchaseTool,
+    quickbooksUpdateRefundReceiptTool,
+    quickbooksUpdateSalesReceiptTool,
     quickbooksUpdateVendorTool,
+    quickbooksUpdateVendorCreditTool,
+    quickbooksVoidCustomerPaymentTool,
+    quickbooksVoidInvoiceTool,
   ]
 
-  it('declares exactly ten bounded tools with hidden company credentials and no retries', () => {
+  it('declares exactly 47 bounded tools with hidden company credentials and no retries', () => {
     expect(tools.map((tool) => tool.id).sort()).toEqual([...QuickBooksBlock.tools.access].sort())
     for (const tool of tools) {
       expect(tool.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
       expect(tool.params.realmId).toMatchObject({ required: true, visibility: 'hidden' })
-      expect(tool.request.retry).toEqual({ enabled: false })
-      expect(tool.request.maxResponseBytes).toBe(QUICKBOOKS_MAX_RESPONSE_BYTES)
+      if (typeof tool.request.url !== 'string') {
+        expect(tool.request.retry).toEqual({ enabled: false })
+        expect(tool.request.maxResponseBytes).toBe(QUICKBOOKS_MAX_RESPONSE_BYTES)
+      }
       expect(tool.postProcess).toBeUndefined()
     }
   })
 
-  it('exposes the ten compact operations and unique subblock IDs', () => {
+  it('exposes the 47 compact operations and unique subblock IDs', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     expect(operation?.options).toEqual([
       { label: 'Get Company Info', id: 'quickbooks_get_company_info' },
       { label: 'Read Master Data', id: 'quickbooks_read_master_data' },
       { label: 'Create Customer', id: 'quickbooks_create_customer' },
       { label: 'Update Customer', id: 'quickbooks_update_customer' },
+      { label: 'Create Employee', id: 'quickbooks_create_employee' },
+      { label: 'Update Employee', id: 'quickbooks_update_employee' },
       { label: 'Create Vendor', id: 'quickbooks_create_vendor' },
       { label: 'Update Vendor', id: 'quickbooks_update_vendor' },
       { label: 'Create Item', id: 'quickbooks_create_item' },
       { label: 'Update Item', id: 'quickbooks_update_item' },
-      { label: 'List Purchase Orders', id: 'quickbooks_list_purchase_orders' },
-      { label: 'List Bills', id: 'quickbooks_list_bills' },
+      { label: 'Read Sales Transactions', id: 'quickbooks_read_sales_transactions' },
+      { label: 'Create Estimate', id: 'quickbooks_create_estimate' },
+      { label: 'Update Estimate', id: 'quickbooks_update_estimate' },
+      { label: 'Create Invoice', id: 'quickbooks_create_invoice' },
+      { label: 'Update Invoice', id: 'quickbooks_update_invoice' },
+      { label: 'Void Invoice', id: 'quickbooks_void_invoice' },
+      { label: 'Create Sales Receipt', id: 'quickbooks_create_sales_receipt' },
+      { label: 'Update Sales Receipt', id: 'quickbooks_update_sales_receipt' },
+      { label: 'Create Customer Payment', id: 'quickbooks_create_customer_payment' },
+      { label: 'Update Customer Payment', id: 'quickbooks_update_customer_payment' },
+      { label: 'Void Customer Payment', id: 'quickbooks_void_customer_payment' },
+      { label: 'Create Credit Memo', id: 'quickbooks_create_credit_memo' },
+      { label: 'Update Credit Memo', id: 'quickbooks_update_credit_memo' },
+      { label: 'Create Refund Receipt', id: 'quickbooks_create_refund_receipt' },
+      { label: 'Update Refund Receipt', id: 'quickbooks_update_refund_receipt' },
+      {
+        label: 'Read Purchasing Transactions',
+        id: 'quickbooks_read_purchasing_transactions',
+      },
+      { label: 'Create Purchase Order', id: 'quickbooks_create_purchase_order' },
+      { label: 'Update Purchase Order', id: 'quickbooks_update_purchase_order' },
+      { label: 'Create Bill', id: 'quickbooks_create_bill' },
+      { label: 'Update Bill', id: 'quickbooks_update_bill' },
+      { label: 'Create Bill Payment', id: 'quickbooks_create_bill_payment' },
+      { label: 'Update Bill Payment', id: 'quickbooks_update_bill_payment' },
+      { label: 'Create Vendor Credit', id: 'quickbooks_create_vendor_credit' },
+      { label: 'Update Vendor Credit', id: 'quickbooks_update_vendor_credit' },
+      { label: 'Create Purchase or Expense', id: 'quickbooks_create_purchase' },
+      { label: 'Update Purchase or Expense', id: 'quickbooks_update_purchase' },
+      {
+        label: 'Read Accounting Transactions',
+        id: 'quickbooks_read_accounting_transactions',
+      },
+      { label: 'Create Journal Entry', id: 'quickbooks_create_journal_entry' },
+      { label: 'Update Journal Entry', id: 'quickbooks_update_journal_entry' },
+      { label: 'Create Deposit', id: 'quickbooks_create_deposit' },
+      { label: 'Update Deposit', id: 'quickbooks_update_deposit' },
+      { label: 'Run Financial Report', id: 'quickbooks_run_financial_report' },
+      { label: 'Email Transaction', id: 'quickbooks_email_transaction' },
+      {
+        label: 'Download Transaction PDF',
+        id: 'quickbooks_download_transaction_pdf',
+      },
+      { label: 'Read Attachments', id: 'quickbooks_read_attachments' },
+      { label: 'Add Attachment', id: 'quickbooks_add_attachment' },
+      { label: 'Download Attachment', id: 'quickbooks_download_attachment' },
     ])
     const ids = QuickBooksBlock.subBlocks.map((subBlock) => subBlock.id)
     expect(new Set(ids).size).toBe(ids.length)
@@ -862,12 +1077,14 @@ describe('QuickBooks tool and block boundaries', () => {
         displayName: 'Sanitized Customer',
         billingAddress: '{"line1":"123 Main St"}',
         taxable: 'no',
+        requestId: 'customer-request',
       })
     ).toMatchObject({
       credential: 'credential-id',
       displayName: 'Sanitized Customer',
       billingAddress: { Line1: '123 Main St' },
       taxable: false,
+      requestId: 'customer-request',
     })
 
     expect(
@@ -945,16 +1162,16 @@ describe('QuickBooks tool and block boundaries', () => {
     ).toBe(false)
     expect(
       evaluateSubBlockCondition(subBlocks.startPosition.condition, {
-        operation: 'quickbooks_list_purchase_orders',
-        readMode: 'by_id',
+        operation: 'quickbooks_read_purchasing_transactions',
+        readMode: 'list',
       })
     ).toBe(true)
     expect(
       evaluateSubBlockCondition(subBlocks.maxResults.condition, {
-        operation: 'quickbooks_list_bills',
+        operation: 'quickbooks_read_purchasing_transactions',
         readMode: 'by_id',
       })
-    ).toBe(true)
+    ).toBe(false)
     expect(
       typeof subBlocks.startPosition.condition === 'function'
         ? subBlocks.startPosition.condition()
@@ -963,25 +1180,170 @@ describe('QuickBooks tool and block boundaries', () => {
       field: 'operation',
       value: [
         'quickbooks_read_master_data',
-        'quickbooks_list_purchase_orders',
-        'quickbooks_list_bills',
+        'quickbooks_read_sales_transactions',
+        'quickbooks_read_purchasing_transactions',
+        'quickbooks_read_accounting_transactions',
+        'quickbooks_read_attachments',
+      ],
+    })
+    expect(
+      typeof subBlocks.transactionId.condition === 'function'
+        ? subBlocks.transactionId.condition()
+        : subBlocks.transactionId.condition
+    ).toEqual({
+      field: 'operation',
+      value: [
+        'quickbooks_read_sales_transactions',
+        'quickbooks_read_purchasing_transactions',
+        'quickbooks_read_accounting_transactions',
+        'quickbooks_update_estimate',
+        'quickbooks_update_invoice',
+        'quickbooks_update_sales_receipt',
+        'quickbooks_update_credit_memo',
+        'quickbooks_update_refund_receipt',
+        'quickbooks_update_customer_payment',
+        'quickbooks_void_invoice',
+        'quickbooks_void_customer_payment',
+        'quickbooks_update_purchase_order',
+        'quickbooks_update_bill',
+        'quickbooks_update_bill_payment',
+        'quickbooks_update_vendor_credit',
+        'quickbooks_update_purchase',
+        'quickbooks_update_journal_entry',
+        'quickbooks_update_deposit',
       ],
     })
     expect(QuickBooksBlock.outputs.items.condition).toEqual({
       field: 'operation',
       value: [
         'quickbooks_read_master_data',
-        'quickbooks_list_purchase_orders',
-        'quickbooks_list_bills',
+        'quickbooks_read_sales_transactions',
+        'quickbooks_read_purchasing_transactions',
+        'quickbooks_read_accounting_transactions',
+        'quickbooks_read_attachments',
       ],
+      and: { field: 'readMode', value: 'list' },
     })
+    const listOutputCondition = QuickBooksBlock.outputs.items.condition!
+    expect(
+      evaluateOutputCondition(listOutputCondition, {
+        operation: { value: 'quickbooks_read_sales_transactions' },
+        readMode: { value: 'by_id' },
+      })
+    ).toBe(false)
+    expect(
+      evaluateOutputCondition(listOutputCondition, {
+        operation: { value: 'quickbooks_read_sales_transactions' },
+        readMode: { value: 'list' },
+      })
+    ).toBe(true)
+    expect(
+      evaluateOutputCondition(listOutputCondition, {
+        operation: { value: 'quickbooks_read_purchasing_transactions' },
+        readMode: { value: 'list' },
+      })
+    ).toBe(true)
     expect(subBlocks.syncToken.condition).toEqual({
       field: 'operation',
-      value: ['quickbooks_update_customer', 'quickbooks_update_item', 'quickbooks_update_vendor'],
+      value: [
+        'quickbooks_update_customer',
+        'quickbooks_update_employee',
+        'quickbooks_update_item',
+        'quickbooks_update_vendor',
+        'quickbooks_update_estimate',
+        'quickbooks_update_invoice',
+        'quickbooks_update_sales_receipt',
+        'quickbooks_update_credit_memo',
+        'quickbooks_update_refund_receipt',
+        'quickbooks_update_customer_payment',
+        'quickbooks_void_invoice',
+        'quickbooks_void_customer_payment',
+        'quickbooks_update_purchase_order',
+        'quickbooks_update_bill',
+        'quickbooks_update_bill_payment',
+        'quickbooks_update_vendor_credit',
+        'quickbooks_update_purchase',
+        'quickbooks_update_journal_entry',
+        'quickbooks_update_deposit',
+      ],
     })
     expect(subBlocks.itemType.condition).toEqual({
       field: 'operation',
       value: 'quickbooks_create_item',
     })
+    expect(
+      evaluateSubBlockCondition(subBlocks.requestId.condition, {
+        operation: 'quickbooks_create_customer',
+      })
+    ).toBe(true)
+    expect(
+      evaluateSubBlockCondition(subBlocks.requestId.condition, {
+        operation: 'quickbooks_update_customer',
+      })
+    ).toBe(false)
+  })
+
+  it('documents master-data identity, sync, pagination, and time outputs', () => {
+    const docs = readFileSync(
+      new URL('../../../docs/content/docs/en/integrations/quickbooks.mdx', import.meta.url),
+      'utf8'
+    )
+    const section = docs
+      .split('### `quickbooks_read_master_data`')[1]
+      ?.split('### `quickbooks_create_customer`')[0]
+
+    expect(section).toBeDefined()
+    for (const output of [
+      'Id',
+      'SyncToken',
+      'Active',
+      'MetaData',
+      'startPosition',
+      'maxResults',
+      'nextStartPosition',
+      'hasMore',
+      'time',
+    ]) {
+      expect(section).toContain(`\`${output}\``)
+    }
+
+    const neutralDescriptions = {
+      Name: 'Account, item, class, or department name',
+      ParentRef: 'Parent account, item, class, or department reference',
+      FullyQualifiedName: 'Hierarchical qualified account, item, class, or department name',
+      CurrencyRef: 'Account, customer, or vendor currency reference',
+      DisplayName: 'Customer, vendor, or employee display name',
+      CompanyName: 'Customer or vendor company name',
+      Taxable: 'Taxable status for the customer or item',
+      PrimaryEmailAddr: 'Customer, vendor, or employee primary email address',
+      PrimaryPhone: 'Customer, vendor, or employee primary phone number',
+      BillAddr: 'Customer or vendor billing address',
+      Balance: 'Customer or vendor balance',
+    } as const
+
+    for (const [field, description] of Object.entries(neutralDescriptions)) {
+      expect(QUICKBOOKS_MASTER_DATA_PROPERTIES[field]?.description).toBe(description)
+      expect(section).toContain(description)
+    }
+  })
+
+  it('documents the identifiers needed to link Purchase Order lines to Bills', () => {
+    const docs = readFileSync(
+      new URL('../../../docs/content/docs/en/integrations/quickbooks.mdx', import.meta.url),
+      'utf8'
+    )
+    const purchasingReadSection = docs
+      .split('### `quickbooks_read_purchasing_transactions`')[1]
+      ?.split('### `quickbooks_create_purchase_order`')[0]
+    const createBillSection = docs
+      .split('### `quickbooks_create_bill`')[1]
+      ?.split('### `quickbooks_update_bill`')[0]
+
+    expect(purchasingReadSection).toBeDefined()
+    expect(purchasingReadSection).toContain('`Id`')
+    expect(purchasingReadSection).toContain('`TxnLineId`')
+    expect(createBillSection).toBeDefined()
+    expect(createBillSection).toContain('`purchaseOrderId`')
+    expect(createBillSection).toContain('`purchaseOrderLineId`')
   })
 })

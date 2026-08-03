@@ -8,6 +8,7 @@ import type {
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_MUTATION_OUTPUTS, QUICKBOOKS_VENDOR_PROPERTIES } from '@/tools/quickbooks/types'
 import {
+  addQuickBooksRequestId,
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
   optionalQuickBooksString,
@@ -101,6 +102,12 @@ export const quickbooksCreateVendorTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Whether the vendor is tracked for 1099 reporting',
     },
+    requestId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional Intuit idempotency request ID, up to 50 characters',
+    },
   },
   oauth: {
     required: true,
@@ -109,7 +116,11 @@ export const quickbooksCreateVendorTool: ToolConfig<
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'vendor').toString(),
+    url: (params) =>
+      addQuickBooksRequestId(
+        buildQuickBooksEntityUrl(params.realmId, 'vendor'),
+        params.requestId
+      ).toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) =>

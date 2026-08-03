@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-02",
+  "updatedAt": "2026-08-03",
   "integrations": [
     {
       "type": "onepassword",
@@ -14564,8 +14564,8 @@
       "type": "quickbooks",
       "slug": "quickbooks",
       "name": "QuickBooks",
-      "description": "Read and manage QuickBooks Online company and master data",
-      "longDescription": "Connect one QuickBooks Online company to read company, master-data, purchase-order, and bill records and to create or update customers, vendors, and basic products or services.",
+      "description": "Manage QuickBooks Online company, transactions, reports, emails, PDFs, and attachments",
+      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.",
       "bgColor": "#2CA01C",
       "iconName": "QuickBooksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
@@ -14576,7 +14576,7 @@
         },
         {
           "name": "Read Master Data",
-          "description": "List or read one account, customer, vendor, item, or employee"
+          "description": "List or read one account, class, customer, department, employee, item, or vendor"
         },
         {
           "name": "Create Customer",
@@ -14585,6 +14585,14 @@
         {
           "name": "Update Customer",
           "description": "Sparse-update a customer in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Create Employee",
+          "description": "Create a non-payroll employee profile in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Employee",
+          "description": "Sparse-update a non-payroll employee profile in the connected QuickBooks Online company"
         },
         {
           "name": "Create Vendor",
@@ -14603,15 +14611,155 @@
           "description": "Sparse-update supported fields on an item without changing its type"
         },
         {
-          "name": "List Purchase Orders",
-          "description": "List purchase orders in the connected QuickBooks Online company"
+          "name": "Read Sales Transactions",
+          "description": "List or read one estimate, invoice, sales receipt, payment, credit memo, or refund receipt"
         },
         {
-          "name": "List Bills",
-          "description": "List bills in the connected QuickBooks Online company"
+          "name": "Create Estimate",
+          "description": "Create an estimate with bounded item and description lines"
+        },
+        {
+          "name": "Update Estimate",
+          "description": "Sparse-update an estimate using its current sync token"
+        },
+        {
+          "name": "Create Invoice",
+          "description": "Create an invoice without emailing or collecting payment"
+        },
+        {
+          "name": "Update Invoice",
+          "description": "Sparse-update an invoice using its current sync token"
+        },
+        {
+          "name": "Void Invoice",
+          "description": "Void an invoice after explicit confirmation"
+        },
+        {
+          "name": "Create Sales Receipt",
+          "description": "Create a sales receipt for a completed customer sale"
+        },
+        {
+          "name": "Update Sales Receipt",
+          "description": "Sparse-update a sales receipt using its current sync token"
+        },
+        {
+          "name": "Create Customer Payment",
+          "description": "Record a customer payment with optional bounded invoice allocations"
+        },
+        {
+          "name": "Update Customer Payment",
+          "description": "Sparse-update a customer payment using its current sync token"
+        },
+        {
+          "name": "Void Customer Payment",
+          "description": "Void a customer payment after explicit confirmation"
+        },
+        {
+          "name": "Create Credit Memo",
+          "description": "Create a customer credit memo with bounded sales lines"
+        },
+        {
+          "name": "Update Credit Memo",
+          "description": "Sparse-update a credit memo using its current sync token"
+        },
+        {
+          "name": "Create Refund Receipt",
+          "description": "Create a customer refund receipt against a required deposit account"
+        },
+        {
+          "name": "Update Refund Receipt",
+          "description": "Sparse-update a refund receipt using its current sync token"
+        },
+        {
+          "name": "Read Purchasing Transactions",
+          "description": "List or read one purchase order, bill, bill payment, vendor credit, or purchase"
+        },
+        {
+          "name": "Create Purchase Order",
+          "description": "Create a purchase order with bounded expense lines"
+        },
+        {
+          "name": "Update Purchase Order",
+          "description": "Sparse-update purchase-order header fields using the current sync token"
+        },
+        {
+          "name": "Create Bill",
+          "description": "Create a vendor bill with optional Purchase Order line links without paying it"
+        },
+        {
+          "name": "Update Bill",
+          "description": "Sparse-update bill header fields using its vendor and current sync token"
+        },
+        {
+          "name": "Create Bill Payment",
+          "description": "Record a check or credit-card payment allocated to one or more bills"
+        },
+        {
+          "name": "Update Bill Payment",
+          "description": "Sparse-update BillPayment date or note without changing allocations or payment accounts"
+        },
+        {
+          "name": "Create Vendor Credit",
+          "description": "Create a vendor credit without applying it to a bill"
+        },
+        {
+          "name": "Update Vendor Credit",
+          "description": "Sparse-update vendor-credit header fields using its vendor and current sync token"
+        },
+        {
+          "name": "Create Purchase or Expense",
+          "description": "Record a cash, check, or credit-card purchase with bounded expense lines"
+        },
+        {
+          "name": "Update Purchase or Expense",
+          "description": "Sparse-update purchase header fields without changing lines or payment accounts"
+        },
+        {
+          "name": "Read Accounting Transactions",
+          "description": "List or read one journal entry, deposit, or transfer"
+        },
+        {
+          "name": "Create Journal Entry",
+          "description": "Post a balanced journal entry after explicit confirmation"
+        },
+        {
+          "name": "Update Journal Entry",
+          "description": "Sparse-update journal-entry header fields after explicit confirmation"
+        },
+        {
+          "name": "Create Deposit",
+          "description": "Create a deposit with bounded account lines"
+        },
+        {
+          "name": "Update Deposit",
+          "description": "Sparse-update deposit header fields using the current sync token and destination account"
+        },
+        {
+          "name": "Run Financial Report",
+          "description": "Run a fixed QuickBooks financial report with verified accountant-focused filters"
+        },
+        {
+          "name": "Email Transaction",
+          "description": "Send a supported QuickBooks transaction by email. This causes an external email and Intuit limits sandbox email delivery."
+        },
+        {
+          "name": "Download Transaction PDF",
+          "description": "Download a supported QuickBooks transaction as a bounded PDF file"
+        },
+        {
+          "name": "Read Attachments",
+          "description": "List attachment metadata for a fixed QuickBooks entity or read one attachment by ID"
+        },
+        {
+          "name": "Add Attachment",
+          "description": "Attach one supported file or one note to a fixed QuickBooks entity"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a QuickBooks file attachment through its short-lived URL"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 47,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

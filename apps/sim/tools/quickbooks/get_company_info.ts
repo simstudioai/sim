@@ -1,5 +1,6 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
+  assertQuickBooksCompanyInfo,
   buildQuickBooksCompanyUrl,
   normalizeQuickBooksRealmId,
   QUICKBOOKS_MAX_RESPONSE_BYTES,
@@ -65,13 +66,11 @@ export const quickbooksGetCompanyInfoTool: ToolConfig<
       response,
       'QuickBooks CompanyInfo response'
     )
-    if (!data.CompanyInfo || typeof data.CompanyInfo !== 'object') {
-      throw new Error('QuickBooks CompanyInfo response is missing CompanyInfo')
-    }
+    const company = assertQuickBooksCompanyInfo<QuickBooksCompanyInfo>(data.CompanyInfo)
     return {
       success: true,
       output: {
-        company: data.CompanyInfo,
+        company,
         time: typeof data.time === 'string' ? data.time : null,
       },
     }
