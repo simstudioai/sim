@@ -39,9 +39,6 @@ interface ChatRequestPayload {
   files?: ChatRequestFile[]
 }
 
-/**
- * Converts a File object to a base64 data URL
- */
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -53,7 +50,6 @@ function fileToBase64(file: File): Promise<string> {
 
 export default function ChatClient({ identifier }: { identifier: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -164,7 +160,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   }, [chatConfig, authRequired])
 
   const handleSendMessage = async (
-    messageParam?: string,
+    messageToSend: string,
     files?: Array<{
       id: string
       name: string
@@ -174,7 +170,6 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       dataUrl?: string
     }>
   ) => {
-    const messageToSend = messageParam ?? inputValue
     if ((!messageToSend.trim() && (!files || files.length === 0)) || isLoading) return
 
     logger.info('Sending message:', {
@@ -201,7 +196,6 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     }
 
     setMessages((prev) => [...prev, userMessage])
-    setInputValue('')
     setIsLoading(true)
 
     setTimeout(() => {
@@ -322,10 +316,8 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   return (
     <div className='light desktop-title-bar-page fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
       <DesktopTitleBarLane />
-      {/* Header component */}
       <ChatHeader chatConfig={chatConfig} starCount={starCount} />
 
-      {/* Message Container component */}
       <ChatMessageContainer
         messages={displayMessages}
         isLoading={isLoading}
@@ -337,7 +329,6 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         chatConfig={chatConfig}
       />
 
-      {/* Input area (free-standing at the bottom) */}
       <div className='relative p-3 pb-4 md:p-4 md:pb-6'>
         <div className='relative mx-auto max-w-3xl md:max-w-[748px]'>
           <ChatInput

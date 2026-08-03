@@ -146,7 +146,6 @@ export function useChatStreaming() {
     logger.info('[useChatStreaming] handleStreamedResponse called')
     setIsStreamingResponse(true)
 
-    // Prefer a shared controller from the caller (fetch + reader). Otherwise create one.
     if (streamingOptions?.abortController) {
       abortControllerRef.current = streamingOptions.abortController
     } else if (!abortControllerRef.current) {
@@ -181,7 +180,6 @@ export function useChatStreaming() {
       accumulatedToolCallsRef.current = snapshotToolCalls(toolCallOrder, toolCallsMap) ?? []
     }
 
-    const messageIdMap = new Map<string, string>()
     const messageId = generateId()
 
     const UI_BATCH_MAX_MS = 50
@@ -328,9 +326,6 @@ export function useChatStreaming() {
           }
 
           if (isChatThinkingFrame(json)) {
-            if (!messageIdMap.has(json.blockId)) {
-              messageIdMap.set(json.blockId, messageId)
-            }
             accumulatedThinking += json.data
             accumulatedThinkingRef.current = accumulatedThinking
             isThinkingStreaming = true
@@ -341,9 +336,6 @@ export function useChatStreaming() {
 
           if (isChatToolFrame(json)) {
             const { blockId } = json
-            if (!messageIdMap.has(blockId)) {
-              messageIdMap.set(blockId, messageId)
-            }
             // Tools starting means the turn's thinking phase is over — settle
             // the thinking chrome (it re-opens if more thinking streams later).
             if (json.phase === 'start' && isThinkingStreaming) {
@@ -546,9 +538,6 @@ export function useChatStreaming() {
           // Answer text only — never append thinking/tool/unknown chunk frames blindly.
           if (isChatChunkFrame(json)) {
             const { blockId, chunk: contentChunk } = json
-            if (!messageIdMap.has(blockId)) {
-              messageIdMap.set(blockId, messageId)
-            }
 
             // First answer chunk settles thinking chrome (still visible, no longer “live”).
             if (isThinkingStreaming) {
@@ -652,7 +641,6 @@ export function useChatStreaming() {
 
   return {
     isStreamingResponse,
-    setIsStreamingResponse,
     abortControllerRef,
     stopStreaming,
     handleStreamedResponse,

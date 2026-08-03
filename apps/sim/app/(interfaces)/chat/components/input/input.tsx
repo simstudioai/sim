@@ -134,7 +134,6 @@ export const ChatInput: React.FC<{
     <Tooltip.Provider>
       <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-[var(--bg)] to-transparent px-4 pb-4 md:px-0 md:pb-4'>
         <div className='w-full max-w-3xl md:max-w-[748px]'>
-          {/* Error Messages */}
           {uploadErrors.length > 0 && (
             <div className='mb-3 flex flex-col gap-2'>
               {uploadErrors.map((error, idx) => (
@@ -145,7 +144,6 @@ export const ChatInput: React.FC<{
             </div>
           )}
 
-          {/* Input container */}
           <div
             role='group'
             aria-label='Chat message input'
@@ -180,7 +178,6 @@ export const ChatInput: React.FC<{
               if (!isStreaming) handleFileSelect(e.dataTransfer.files)
             }}
           >
-            {/* File thumbnails */}
             {attachedFiles.length > 0 && (
               <div className='mb-1.5 flex flex-wrap gap-1.5'>
                 {attachedFiles.map((file) => (
@@ -221,7 +218,6 @@ export const ChatInput: React.FC<{
               </div>
             )}
 
-            {/* Textarea */}
             <textarea
               ref={textareaRef}
               value={inputValue}
@@ -232,9 +228,7 @@ export const ChatInput: React.FC<{
               className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[15px] text-[var(--text-primary)] leading-[24px] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
             />
 
-            {/* Bottom row */}
             <div className='flex items-center justify-between'>
-              {/* Left: attach */}
               <div>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -266,7 +260,6 @@ export const ChatInput: React.FC<{
                 />
               </div>
 
-              {/* Right: send */}
               <div className='flex items-center gap-1.5'>
                 {isStreaming ? (
                   <Button
