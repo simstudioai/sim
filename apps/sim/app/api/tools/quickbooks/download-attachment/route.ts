@@ -90,6 +90,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const validation = await validateUrlWithDNS(temporaryUrl, 'QuickBooks attachment URL')
     if (!validation.isValid || !validation.resolvedIP)
       throw new Error(validation.error || 'QuickBooks attachment URL is invalid')
+    request.signal.throwIfAborted()
 
     const downloadResponse = await secureFetchWithPinnedIP(temporaryUrl, validation.resolvedIP, {
       method: 'GET',

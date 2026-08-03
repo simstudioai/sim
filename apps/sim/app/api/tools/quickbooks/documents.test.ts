@@ -553,6 +553,27 @@ describe('QuickBooks document API routes', () => {
     expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 
+  it('does not begin the pinned attachment fetch when cancellation arrives during DNS validation', async () => {
+    const controller = new AbortController()
+    const request = createAbortableRequest({ ...auth, attachmentId: '15' }, controller.signal)
+    mockFetch.mockResolvedValueOnce(new Response('https://intuit-download.example/receipt.pdf'))
+    mockValidateUrlWithDNS.mockImplementationOnce(async () => {
+      controller.abort()
+      return {
+        isValid: true,
+        resolvedIP: '203.0.113.8',
+        originalHostname: 'intuit-download.example',
+      }
+    })
+
+    const response = await downloadAttachment(request)
+
+    expect(response.status).toBe(500)
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
+  })
+
   it('does not begin an attachment mutation when cancellation arrives after file loading', async () => {
     const controller = new AbortController()
     const request = createAbortableRequest(
