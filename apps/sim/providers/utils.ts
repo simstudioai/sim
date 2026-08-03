@@ -1236,17 +1236,6 @@ export function prepareToolsWithUsageControl(
 }
 
 /**
- * Checks if a forced tool has been used in a response and manages the tool_choice accordingly
- *
- * @param toolCallsResponse Array of tool calls in the response
- * @param originalToolChoice The original tool_choice setting used in the request
- * @param logger Logger instance to use for logging
- * @param provider Optional provider ID to adjust format for specific providers
- * @param forcedTools Array of all tool IDs that should be forced in sequence
- * @param usedForcedTools Array of tool IDs that have already been used
- * @returns Object containing tracking information and next tool choice
- */
-/**
  * Narrows the SDK's `ChatCompletionMessageToolCall` union to its function variant.
  *
  * v5 of the `openai` SDK widened that union with a `custom` tool call carrying no `function`
@@ -1263,6 +1252,17 @@ export function isFunctionToolCall(
   return 'function' in toolCall && toolCall.function != null
 }
 
+/**
+ * Checks if a forced tool has been used in a response and manages the tool_choice accordingly
+ *
+ * @param toolCallsResponse Array of tool calls in the response
+ * @param originalToolChoice The original tool_choice setting used in the request
+ * @param logger Logger instance to use for logging
+ * @param provider Optional provider ID to adjust format for specific providers
+ * @param forcedTools Array of all tool IDs that should be forced in sequence
+ * @param usedForcedTools Array of tool IDs that have already been used
+ * @returns Object containing tracking information and next tool choice
+ */
 export function trackForcedToolUsage(
   toolCallsResponse: any[] | undefined,
   originalToolChoice: any,
@@ -1579,11 +1579,8 @@ export function checkForForcedToolUsageOpenAI(
   let hasUsedForcedTool = false
   let updatedUsedForcedTools = [...usedForcedTools]
 
-  if (
-    typeof toolChoice === 'object' &&
-    response.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
-  ) {
-    const toolCallsResponse = response.choices[0].message.tool_calls
+  const toolCallsResponse = response.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
+  if (typeof toolChoice === 'object' && toolCallsResponse?.length) {
     const result = trackForcedToolUsage(
       toolCallsResponse,
       toolChoice,

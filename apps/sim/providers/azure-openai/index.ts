@@ -13,10 +13,6 @@ import type {
   ChatCompletionToolChoiceOption,
 } from 'openai/resources/chat/completions'
 import type { ReasoningEffort } from 'openai/resources/shared'
-
-/** `verbosity` narrowed from `string` to a literal union in openai v5. */
-type ChatCompletionVerbosity = NonNullable<ChatCompletionCreateParams['verbosity']>
-
 import { env } from '@/lib/core/config/env'
 import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
@@ -54,6 +50,9 @@ import {
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
+
+/** `verbosity` narrowed from `string` to a literal union in openai v5. */
+type ChatCompletionVerbosity = NonNullable<ChatCompletionCreateParams['verbosity']>
 
 const logger = createLogger('AzureOpenAIProvider')
 

@@ -310,8 +310,8 @@ describe('provider large-file capability', () => {
       INLINE_ATTACHMENT_THRESHOLD_BYTES
     )
     expect(getProviderAttachmentMaxBytes('azure-openai')).toBe(INLINE_ATTACHMENT_THRESHOLD_BYTES)
-    /** Bedrock Converse caps an image at 3.75MB — below the inline cap, so it needs its own entry. */
-    expect(getProviderAttachmentMaxBytes('bedrock')).toBe(3_750_000)
+    /** Bedrock Converse caps a document at 4.5MB — below the inline cap, so it needs its own entry. */
+    expect(getProviderAttachmentMaxBytes('bedrock')).toBe(4_500_000)
   })
 
   it('routes only oversized files on capable providers to the large-file path', () => {

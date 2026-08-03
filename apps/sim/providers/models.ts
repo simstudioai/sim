@@ -3506,11 +3506,16 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   bedrock: {
     id: 'bedrock',
     /**
-     * Converse caps an image at 3.75 MB and a document at 4.5 MB; the lower bound is the safe
-     * single ceiling. There is no large-file path: the only non-inline source is `s3Location`,
-     * which takes an `s3://` URI read with the caller's IAM role, not a presigned HTTPS URL.
+     * Converse caps an image at 3.75 MB and a document at 4.5 MB. A single `maxBytes` cannot
+     * express both, so it carries the higher (document) bound: clamping to 3.75 MB would reject
+     * 3.75-4.5 MB documents that Converse accepts today, whereas at 4.5 MB every size that works
+     * now still works and only the genuinely-too-large are rejected early. Oversized images in
+     * that band still surface as a Bedrock API error, exactly as they do without this entry.
+     *
+     * There is no large-file path: the only non-inline Converse source is `s3Location`, which
+     * takes an `s3://` URI read with the caller's IAM role, not a presigned HTTPS URL.
      */
-    fileAttachment: { maxBytes: 3_750_000, strategy: 'inline' },
+    fileAttachment: { maxBytes: 4_500_000, strategy: 'inline' },
     name: 'AWS Bedrock',
     description: 'AWS Bedrock foundation models',
     defaultModel: 'bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0',
