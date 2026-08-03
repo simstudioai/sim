@@ -56,6 +56,18 @@ describe('orderHeaderActions', () => {
     expect(rendered(actions)).toEqual(['Edit server', 'Delete', 'Add workflows'])
   })
 
+  it('places Delete by its id, not by where the caller listed it', () => {
+    // A page with no primary action still must not leave Delete in the slot a
+    // primary would occupy — files detail is exactly this shape.
+    const actions: SettingsAction[] = [
+      { id: 'delete', text: 'Delete', onSelect: noop },
+      { text: 'Download', onSelect: noop },
+      { text: 'Share', onSelect: noop },
+    ]
+
+    expect(rendered(actions)).toEqual(['Download', 'Share', 'Delete'])
+  })
+
   it('preserves caller order within a band', () => {
     const actions: SettingsAction[] = [
       { text: 'Refresh', onSelect: noop },

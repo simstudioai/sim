@@ -14,7 +14,7 @@ import {
   useState,
 } from 'react'
 import { Chip, ChipInput, ChipLink, cn, Search, Tooltip } from '@sim/emcn'
-import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
@@ -191,8 +191,12 @@ export function SettingsActionChips({ actions }: { actions: SettingsAction[] }) 
 }
 
 /**
- * Every detail header reads left→right as
+ * Every header reads left→right as
  * `[secondary actions] → [Delete] → [Discard] → [Save]`.
+ *
+ * Delete is placed by its `id`, not by where the caller happened to put it, so a
+ * page with no primary action still can't leave a destructive chip in the slot a
+ * primary would occupy.
  *
  * The shell enforces it rather than trusting callsites, because the natural way
  * to write the array — spreading {@link saveDiscardActions} first, then adding a
@@ -208,8 +212,9 @@ export function orderHeaderActions(
   actions: SettingsAction[] | undefined
 ): { action: SettingsAction; index: number }[] {
   const rank = (action: SettingsAction) => {
-    if (action.variant === 'primary') return 2
-    if (action.id === 'discard') return 1
+    if (action.variant === 'primary') return 3
+    if (action.id === 'discard') return 2
+    if (action.id === 'delete') return 1
     return 0
   }
   return (actions ?? [])
@@ -233,7 +238,7 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
         ) : (
           <div />
         )}
-        <div className='flex h-[30px] items-center gap-1'>
+        <div className={HEADER_ACTION_CLUSTER}>
           {docsLink && (
             <ChipLink href={docsLink} target='_blank' rel='noopener noreferrer'>
               Docs

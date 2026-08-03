@@ -5,7 +5,7 @@ import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import {
   blockTypeToIconMap,
@@ -146,7 +146,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
         <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
           Integrations
         </ChipLink>
-        <div className='ml-auto flex items-center'>
+        <div className={cn('ml-auto', HEADER_ACTION_CLUSTER)}>
           {oauthService ? (
             hasServiceAccount ? (
               <ChipDropdown
