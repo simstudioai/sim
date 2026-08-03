@@ -25,31 +25,26 @@ function normalizeBaseUrl(url: string): string {
  * Returns the base URL of the application from NEXT_PUBLIC_APP_URL
  * This ensures webhooks, callbacks, and other integrations always use the correct public URL
  *
- * In the browser, falls back to the page's own origin when the injected env is
- * unavailable. Client-side callers only ever want a URL back to the app they are
- * already served from, so the origin is a correct answer — and a throw here
- * during render tears down the whole page through the error boundary. Server-side
- * callers (webhooks, callbacks, emails) have no origin to fall back to and must
- * still fail loudly on a misconfigured deployment.
+ * Deliberately has no browser fallback to `window.location.origin`. The value is
+ * injected before hydration by `<PublicEnvScript>`, so an empty read means the
+ * deployment is misconfigured — and a same-origin guess would hide that. It also
+ * would not be safe to guess: an opaque origin (a sandboxed iframe, and `/chat/*`
+ * is embeddable) serializes to the string `'null'`, which is truthy and would
+ * silently produce `null/api/...` at every call site.
  *
  * @returns The base URL string (e.g., 'http://localhost:3000' or 'https://example.com')
- * @throws Error if NEXT_PUBLIC_APP_URL is not configured and no browser origin exists
+ * @throws Error if NEXT_PUBLIC_APP_URL is not configured
  */
 export function getBaseUrl(): string {
   const baseUrl = getEnv('NEXT_PUBLIC_APP_URL')?.trim()
 
-  if (baseUrl) {
-    return normalizeBaseUrl(baseUrl)
+  if (!baseUrl) {
+    throw new Error(
+      'NEXT_PUBLIC_APP_URL must be configured for webhooks and callbacks to work correctly'
+    )
   }
 
-  const browserOrigin = getBrowserOrigin()
-  if (browserOrigin) {
-    return browserOrigin
-  }
-
-  throw new Error(
-    'NEXT_PUBLIC_APP_URL must be configured for webhooks and callbacks to work correctly'
-  )
+  return normalizeBaseUrl(baseUrl)
 }
 
 /**
