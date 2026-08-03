@@ -53,10 +53,14 @@ const COMPONENTS = {
   ),
 
   ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
-    <ul className='mt-1 mb-1 space-y-1 pl-6 font-sans text-[var(--text-primary)]'>{children}</ul>
+    <ul className='mt-1 mb-1 list-disc space-y-1 pl-6 font-sans text-[var(--text-primary)]'>
+      {children}
+    </ul>
   ),
   ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
-    <ol className='mt-1 mb-1 space-y-1 pl-6 font-sans text-[var(--text-primary)]'>{children}</ol>
+    <ol className='mt-1 mb-1 list-decimal space-y-1 pl-6 font-sans text-[var(--text-primary)]'>
+      {children}
+    </ol>
   ),
   li: ({ children }: React.LiHTMLAttributes<HTMLLIElement>) => (
     <li className='list-item font-sans text-[var(--text-primary)]'>{children}</li>
