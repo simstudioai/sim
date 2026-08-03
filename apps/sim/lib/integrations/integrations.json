@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-02",
+  "updatedAt": "2026-08-03",
   "integrations": [
     {
       "type": "onepassword",
@@ -14564,8 +14564,8 @@
       "type": "quickbooks",
       "slug": "quickbooks",
       "name": "QuickBooks",
-      "description": "Manage QuickBooks Online company, sales, purchasing, payables, and accounting",
-      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, and general-accounting workflows.",
+      "description": "Manage QuickBooks Online company, transactions, reports, emails, PDFs, and attachments",
+      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.",
       "bgColor": "#2CA01C",
       "iconName": "QuickBooksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
@@ -14576,7 +14576,7 @@
         },
         {
           "name": "Read Master Data",
-          "description": "List or read one account, customer, vendor, item, or employee"
+          "description": "List or read one account, class, customer, department, employee, item, or vendor"
         },
         {
           "name": "Create Customer",
@@ -14585,6 +14585,14 @@
         {
           "name": "Update Customer",
           "description": "Sparse-update a customer in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Create Employee",
+          "description": "Create a non-payroll employee profile in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Employee",
+          "description": "Sparse-update a non-payroll employee profile in the connected QuickBooks Online company"
         },
         {
           "name": "Create Vendor",
@@ -14725,9 +14733,33 @@
         {
           "name": "Update Deposit",
           "description": "Sparse-update deposit header fields using the current sync token and destination account"
+        },
+        {
+          "name": "Run Financial Report",
+          "description": "Run a fixed QuickBooks financial report with verified accountant-focused filters"
+        },
+        {
+          "name": "Email Transaction",
+          "description": "Send a supported QuickBooks transaction by email. This causes an external email and Intuit limits sandbox email delivery."
+        },
+        {
+          "name": "Download Transaction PDF",
+          "description": "Download a supported QuickBooks transaction as a bounded PDF file"
+        },
+        {
+          "name": "Read Attachments",
+          "description": "List attachment metadata for a fixed QuickBooks entity or read one attachment by ID"
+        },
+        {
+          "name": "Add Attachment",
+          "description": "Attach one supported file or one note to a fixed QuickBooks entity"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a QuickBooks file attachment through its short-lived URL"
         }
       ],
-      "operationCount": 39,
+      "operationCount": 47,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

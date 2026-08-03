@@ -7,8 +7,9 @@ import type {
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/types'
 import {
+  assertQuickBooksListOnlyFilters,
   buildQuickBooksEntityUrl,
-  buildQuickBooksQueryUrl,
+  buildQuickBooksPurchasingQueryUrl,
   getQuickBooksPurchasingEntity,
   getQuickBooksToolHeaders,
   transformQuickBooksEntityResponse,
@@ -69,6 +70,24 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
       default: 25,
       description: 'Number of list records to request (1–100)',
     },
+    startDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'List transactions on or after this date in YYYY-MM-DD format',
+    },
+    endDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'List transactions on or before this date in YYYY-MM-DD format',
+    },
+    vendorId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'List transactions for one supported QuickBooks vendor ID',
+    },
   },
   oauth: {
     required: true,
@@ -80,14 +99,14 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
     url: (params) => {
       const config = getQuickBooksPurchasingEntity(params.transactionType)
       if (params.readMode === 'list') {
-        return buildQuickBooksQueryUrl(
-          params.realmId,
-          config.entity,
-          params.startPosition ?? 1,
-          params.maxResults ?? 25
-        ).toString()
+        return buildQuickBooksPurchasingQueryUrl(params).toString()
       }
       if (params.readMode === 'by_id') {
+        assertQuickBooksListOnlyFilters(params.readMode, {
+          startDate: params.startDate,
+          endDate: params.endDate,
+          vendorId: params.vendorId,
+        })
         if (!params.transactionId?.trim())
           throw new Error('QuickBooks transaction ID is required for by-ID reads')
         return buildQuickBooksEntityUrl(

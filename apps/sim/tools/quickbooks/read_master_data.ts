@@ -1,7 +1,6 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
-  QuickBooksAddress,
   QuickBooksCustomer,
   QuickBooksEmployee,
   QuickBooksMasterDataRecord,
@@ -11,111 +10,26 @@ import type {
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_MASTER_DATA_PROPERTIES } from '@/tools/quickbooks/types'
 import {
+  assertQuickBooksListOnlyFilters,
   buildQuickBooksEntityUrl,
-  buildQuickBooksQueryUrl,
+  buildQuickBooksMasterDataQueryUrl,
   getQuickBooksMasterDataEntity,
   getQuickBooksToolHeaders,
   sanitizeQuickBooksCustomer,
+  sanitizeQuickBooksEmployee,
   sanitizeQuickBooksVendor,
   transformQuickBooksEntityResponse,
   transformQuickBooksListResponse,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
 
-function optionalString(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined
-}
-
-function optionalBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined
-}
-
-function sanitizeEmployeeAddress(value: unknown): QuickBooksAddress | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
-  const source = value as Record<string, unknown>
-  const address: QuickBooksAddress = {}
-  for (const key of [
-    'Id',
-    'Line1',
-    'Line2',
-    'Line3',
-    'Line4',
-    'Line5',
-    'City',
-    'Country',
-    'CountrySubDivisionCode',
-    'PostalCode',
-    'Lat',
-    'Long',
-  ] as const) {
-    const field = optionalString(source[key])
-    if (field !== undefined) address[key] = field
-  }
-  return Object.keys(address).length > 0 ? address : undefined
-}
-
-function sanitizeEmployee(value: QuickBooksMasterDataRecord): QuickBooksEmployee {
-  const source = value as Record<string, unknown>
-  const id = optionalString(source.Id)?.trim()
-  if (!id) throw new Error('QuickBooks Employee response is missing Id')
-
-  const employee: QuickBooksEmployee = { Id: id }
-  for (const key of [
-    'SyncToken',
-    'DisplayName',
-    'GivenName',
-    'MiddleName',
-    'FamilyName',
-    'Suffix',
-    'Title',
-    'PrintOnCheckName',
-  ] as const) {
-    const field = optionalString(source[key])
-    if (field !== undefined) employee[key] = field
-  }
-  for (const key of ['Active', 'BillableTime', 'sparse'] as const) {
-    const field = optionalBoolean(source[key])
-    if (field !== undefined) employee[key] = field
-  }
-
-  const primaryPhone = source.PrimaryPhone
-  if (primaryPhone && typeof primaryPhone === 'object' && !Array.isArray(primaryPhone)) {
-    const freeFormNumber = optionalString((primaryPhone as Record<string, unknown>).FreeFormNumber)
-    if (freeFormNumber !== undefined) employee.PrimaryPhone = { FreeFormNumber: freeFormNumber }
-  }
-  const mobile = source.Mobile
-  if (mobile && typeof mobile === 'object' && !Array.isArray(mobile)) {
-    const freeFormNumber = optionalString((mobile as Record<string, unknown>).FreeFormNumber)
-    if (freeFormNumber !== undefined) employee.Mobile = { FreeFormNumber: freeFormNumber }
-  }
-  const primaryEmail = source.PrimaryEmailAddr
-  if (primaryEmail && typeof primaryEmail === 'object' && !Array.isArray(primaryEmail)) {
-    const address = optionalString((primaryEmail as Record<string, unknown>).Address)
-    if (address !== undefined) employee.PrimaryEmailAddr = { Address: address }
-  }
-
-  employee.PrimaryAddr = sanitizeEmployeeAddress(source.PrimaryAddr)
-  const metadata = source.MetaData
-  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
-    const metadataSource = metadata as Record<string, unknown>
-    const createTime = optionalString(metadataSource.CreateTime)
-    const lastUpdatedTime = optionalString(metadataSource.LastUpdatedTime)
-    if (createTime !== undefined || lastUpdatedTime !== undefined) {
-      employee.MetaData = {
-        ...(createTime !== undefined ? { CreateTime: createTime } : {}),
-        ...(lastUpdatedTime !== undefined ? { LastUpdatedTime: lastUpdatedTime } : {}),
-      }
-    }
-  }
-
-  return employee
-}
-
 function sanitizeMasterDataRecord(
   recordType: QuickBooksReadMasterDataParams['recordType'],
   value: QuickBooksMasterDataRecord
 ): QuickBooksMasterDataRecord {
-  if (recordType === 'employee') return sanitizeEmployee(value)
+  if (recordType === 'employee') {
+    return sanitizeQuickBooksEmployee(value as QuickBooksEmployee)
+  }
   if (recordType === 'customer') return sanitizeQuickBooksCustomer(value as QuickBooksCustomer)
   if (recordType === 'vendor') return sanitizeQuickBooksVendor(value as QuickBooksVendor)
   return value
@@ -127,7 +41,7 @@ export const quickbooksReadMasterDataTool: ToolConfig<
 > = {
   id: 'quickbooks_read_master_data',
   name: 'QuickBooks Read Master Data',
-  description: 'List or read one account, customer, vendor, item, or employee',
+  description: 'List or read one account, class, customer, department, employee, item, or vendor',
   version: '1.0.0',
   params: {
     accessToken: {
@@ -146,7 +60,8 @@ export const quickbooksReadMasterDataTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Master-data entity to read: account, customer, vendor, item, or employee',
+      description:
+        'Master-data entity to read: account, class, customer, department, employee, item, or vendor',
     },
     readMode: {
       type: 'string',
@@ -174,6 +89,13 @@ export const quickbooksReadMasterDataTool: ToolConfig<
       default: 25,
       description: 'Number of list records to request (1–100)',
     },
+    activeStatus: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      default: 'default',
+      description: 'List records using the QuickBooks default, active, or inactive status',
+    },
   },
   oauth: {
     required: true,
@@ -185,14 +107,10 @@ export const quickbooksReadMasterDataTool: ToolConfig<
     url: (params) => {
       const config = getQuickBooksMasterDataEntity(params.recordType)
       if (params.readMode === 'list') {
-        return buildQuickBooksQueryUrl(
-          params.realmId,
-          config.entity,
-          params.startPosition ?? 1,
-          params.maxResults ?? 25
-        ).toString()
+        return buildQuickBooksMasterDataQueryUrl(params).toString()
       }
       if (params.readMode === 'by_id') {
+        assertQuickBooksListOnlyFilters(params.readMode, { activeStatus: params.activeStatus })
         if (!params.recordId?.trim()) {
           throw new Error('QuickBooks record ID is required for by-ID reads')
         }

@@ -16,15 +16,18 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   getProxyUrl: () => undefined,
 }))
 
+import { resolveHostAddresses } from '@sim/security/dns'
 import {
   DEFAULT_MAX_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
 } from '@/lib/core/security/input-validation.server'
 
 const servers: http.Server[] = []
+const mockResolveHostAddresses = vi.mocked(resolveHostAddresses)
 
 afterEach(() => {
   for (const server of servers.splice(0)) server.close()
+  vi.clearAllMocks()
 })
 
 /** Starts a throwaway loopback server and returns its origin. */
@@ -36,6 +39,49 @@ async function startServer(handler: http.RequestListener): Promise<string> {
 }
 
 describe('secureFetchWithPinnedIP response cap', () => {
+  it('does not open a request when the signal is already aborted', async () => {
+    let requests = 0
+    const origin = await startServer((_req, res) => {
+      requests += 1
+      res.end('unexpected')
+    })
+    const controller = new AbortController()
+    controller.abort(new Error('cancelled'))
+
+    await expect(
+      secureFetchWithPinnedIP(origin, '127.0.0.1', {
+        allowHttp: true,
+        signal: controller.signal,
+      })
+    ).rejects.toThrow('cancelled')
+    expect(requests).toBe(0)
+  })
+
+  it('does not follow a redirect when cancellation arrives during redirect DNS validation', async () => {
+    let targetRequests = 0
+    const targetOrigin = await startServer((_req, res) => {
+      targetRequests += 1
+      res.end('unexpected')
+    })
+    const redirectOrigin = await startServer((_req, res) => {
+      res.writeHead(302, { Location: targetOrigin.replace('127.0.0.1', 'localhost') })
+      res.end()
+    })
+    const controller = new AbortController()
+    mockResolveHostAddresses.mockImplementationOnce(async () => {
+      controller.abort(new Error('cancelled during redirect DNS'))
+      return { addresses: ['127.0.0.1'], preferred: '127.0.0.1' }
+    })
+
+    await expect(
+      secureFetchWithPinnedIP(redirectOrigin, '127.0.0.1', {
+        allowHttp: true,
+        signal: controller.signal,
+      })
+    ).rejects.toThrow('cancelled during redirect DNS')
+    expect(targetRequests).toBe(0)
+  })
+
   it('rejects a body that exceeds an explicit cap instead of buffering it', async () => {
     const origin = await startServer((_req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/octet-stream' })

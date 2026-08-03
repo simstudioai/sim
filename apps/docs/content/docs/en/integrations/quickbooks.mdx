@@ -1,6 +1,6 @@
 ---
 title: QuickBooks
-description: Manage QuickBooks Online company, sales, purchasing, payables, and accounting
+description: Manage QuickBooks Online company, transactions, reports, emails, PDFs, and attachments
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -19,13 +19,15 @@ QuickBooks updates are sparse: provide the record ID, its current `SyncToken`, a
 
 Sandbox credentials call only Intuit's sandbox API and are suitable for disposable test data. Production credentials call the production API and affect the selected live company.
 
-Reports and attachments are not exposed by this version of the block, so report date-range and attachment-size controls do not apply here.
+Run Financial Report exposes verified financial statements, aging, balance, sales, and expense reports while preserving QuickBooks' native columns and nested rows. Advanced controls appear only where QuickBooks supports them. Use Read Master Data to discover customer, vendor, account, item, class, and department IDs for report filters. Intuit recommends report periods of six months or less for performance, though Sim does not forbid longer accounting periods.
+
+Document actions can read attachment metadata, add one File or Note attachment, download an attachment file, and download supported transactions as PDFs. Downloaded files are stored as Sim files for downstream blocks. Attachment deletion, bulk upload/download, and bulk email remain outside this version of the block.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, and general-accounting workflows.
+Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.
 
 
 
@@ -67,17 +69,18 @@ Get information about the connected QuickBooks Online company
 
 ### `quickbooks_read_master_data`
 
-List or read one account, customer, vendor, item, or employee
+List or read one account, class, customer, department, employee, item, or vendor
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `recordType` | string | Yes | Master-data entity to read: account, customer, vendor, item, or employee |
+| `recordType` | string | Yes | Master-data entity to read: account, class, customer, department, employee, item, or vendor |
 | `readMode` | string | Yes | Whether to list records or read one record by ID |
 | `recordId` | string | No | QuickBooks record ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
 | `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `activeStatus` | string | No | List records using the QuickBooks default, active, or inactive status |
 
 #### Output
 
@@ -91,12 +94,12 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `MetaData` | json | Entity creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
-|   ↳ `Name` | string | Account or item name |
+|   ↳ `Name` | string | Account, item, class, or department name |
 |   ↳ `SubAccount` | boolean | Whether this is a subaccount |
-|   ↳ `ParentRef` | json | Parent account, item, or category reference |
+|   ↳ `ParentRef` | json | Parent account, item, class, or department reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account or item name |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account, item, class, or department name |
 |   ↳ `Classification` | string | Account classification |
 |   ↳ `AccountType` | string | Account type |
 |   ↳ `AccountSubType` | string | Account subtype |
@@ -114,7 +117,7 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `BillAddr` | json | Customer or vendor billing address |
 |   ↳ `ShipAddr` | json | Customer shipping address |
 |   ↳ `Balance` | number | Customer or vendor balance |
-|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `PrintOnCheckName` | string | Vendor or employee name printed on checks |
 |   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
 |   ↳ `AcctNum` | string | Vendor account number |
 |   ↳ `Description` | string | Item sales description |
@@ -136,6 +139,10 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `InvStartDate` | string | Inventory tracking start date |
 |   ↳ `PrimaryAddr` | json | Employee primary address |
 |   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+|   ↳ `SubClass` | boolean | Whether the Class is nested under another Class |
+|   ↳ `SubDepartment` | boolean | Whether the Department is nested under another Department |
 | `items` | array | QuickBooks master-data records returned by a list read |
 |   ↳ `Id` | string | QuickBooks entity ID |
 |   ↳ `SyncToken` | string | Entity sync token |
@@ -143,12 +150,12 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `MetaData` | json | Entity creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
-|   ↳ `Name` | string | Account or item name |
+|   ↳ `Name` | string | Account, item, class, or department name |
 |   ↳ `SubAccount` | boolean | Whether this is a subaccount |
-|   ↳ `ParentRef` | json | Parent account, item, or category reference |
+|   ↳ `ParentRef` | json | Parent account, item, class, or department reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account or item name |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account, item, class, or department name |
 |   ↳ `Classification` | string | Account classification |
 |   ↳ `AccountType` | string | Account type |
 |   ↳ `AccountSubType` | string | Account subtype |
@@ -166,7 +173,7 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `BillAddr` | json | Customer or vendor billing address |
 |   ↳ `ShipAddr` | json | Customer shipping address |
 |   ↳ `Balance` | number | Customer or vendor balance |
-|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `PrintOnCheckName` | string | Vendor or employee name printed on checks |
 |   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
 |   ↳ `AcctNum` | string | Vendor account number |
 |   ↳ `Description` | string | Item sales description |
@@ -188,6 +195,10 @@ List or read one account, customer, vendor, item, or employee
 |   ↳ `InvStartDate` | string | Inventory tracking start date |
 |   ↳ `PrimaryAddr` | json | Employee primary address |
 |   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+|   ↳ `SubClass` | boolean | Whether the Class is nested under another Class |
+|   ↳ `SubDepartment` | boolean | Whether the Department is nested under another Department |
 | `startPosition` | number | One-based position of the first record in this page |
 | `maxResults` | number | Actual number of records returned in this page |
 | `nextStartPosition` | number | Position to use when explicitly requesting the next page |
@@ -289,6 +300,94 @@ Sparse-update a customer in the connected QuickBooks Online company
 |   ↳ `CurrencyRef` | json | Customer currency reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
+
+### `quickbooks_create_employee`
+
+Create a non-payroll employee profile in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Yes | Unique employee display name |
+| `givenName` | string | No | Employee given name |
+| `familyName` | string | No | Employee family name |
+| `primaryEmail` | string | No | Employee primary email address |
+| `primaryPhone` | string | No | Employee primary phone number |
+| `primaryAddress` | json | No | Employee primary address |
+| `printOnCheckName` | string | No | Employee name printed on checks |
+| `billableTime` | boolean | No | Whether employee time is billable |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created QuickBooks Employee record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `DisplayName` | string | Employee display name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `PrintOnCheckName` | string | Employee name printed on checks |
+|   ↳ `PrimaryEmailAddr` | json | Employee primary email address |
+|   ↳ `PrimaryPhone` | json | Employee primary phone number |
+|   ↳ `PrimaryAddr` | json | Employee primary address |
+|   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+
+### `quickbooks_update_employee`
+
+Sparse-update a non-payroll employee profile in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | ID of the employee to update |
+| `syncToken` | string | Yes | Current employee sync token |
+| `displayName` | string | No | Replacement employee display name |
+| `givenName` | string | No | Replacement employee given name |
+| `familyName` | string | No | Replacement employee family name |
+| `primaryEmail` | string | No | Replacement employee primary email address |
+| `primaryPhone` | string | No | Replacement employee primary phone number |
+| `primaryAddress` | json | No | Replacement employee primary address |
+| `printOnCheckName` | string | No | Replacement employee name printed on checks |
+| `billableTime` | boolean | No | Whether employee time is billable |
+| `activeStatus` | string | No | Employee status change: unchanged, active, or inactive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated QuickBooks Employee record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `DisplayName` | string | Employee display name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `PrintOnCheckName` | string | Employee name printed on checks |
+|   ↳ `PrimaryEmailAddr` | json | Employee primary email address |
+|   ↳ `PrimaryPhone` | json | Employee primary phone number |
+|   ↳ `PrimaryAddr` | json | Employee primary address |
+|   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
 
 ### `quickbooks_create_vendor`
 
@@ -518,6 +617,9 @@ List or read one estimate, invoice, sales receipt, payment, credit memo, or refu
 | `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
 | `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
+| `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
+| `customerId` | string | No | List transactions for one QuickBooks customer ID |
 
 #### Output
 
@@ -1411,6 +1513,9 @@ List or read one purchase order, bill, bill payment, vendor credit, or purchase
 | `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
 | `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
+| `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
+| `vendorId` | string | No | List transactions for one supported QuickBooks vendor ID |
 
 #### Output
 
@@ -2276,6 +2381,8 @@ List or read one journal entry, deposit, or transfer
 | `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
 | `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
+| `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
 
 #### Output
 
@@ -2509,3 +2616,300 @@ Sparse-update deposit header fields using the current sync token and destination
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### `quickbooks_run_financial_report`
+
+Run a fixed QuickBooks financial report with verified accountant-focused filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `reportType` | string | Yes | Fixed QuickBooks financial report to run |
+| `startDate` | string | No | Report start date in YYYY-MM-DD format; Intuit recommends periods of six months or less for performance |
+| `endDate` | string | No | Report end or as-of date in YYYY-MM-DD format |
+| `accountingMethod` | string | No | Use the QuickBooks default, cash basis, or accrual basis |
+| `summarizeBy` | string | No | Time period or business dimension used to summarize report columns |
+| `customerId` | string | No | Single QuickBooks customer ID filter |
+| `vendorId` | string | No | Single QuickBooks vendor ID filter |
+| `accountId` | string | No | Single QuickBooks account ID filter |
+| `itemId` | string | No | Single QuickBooks item ID filter |
+| `classId` | string | No | Single QuickBooks class ID filter |
+| `departmentId` | string | No | Single QuickBooks department ID filter |
+| `agingMethod` | string | No | Age open balances from the report date or current date |
+| `agingDays` | number | No | Positive number of days in each aging period |
+| `transactionType` | string | No | Transaction type filter for Transaction List |
+| `groupBy` | string | No | Grouping dimension for Transaction List |
+| `accountsPayablePaid` | string | No | Accounts-payable paid status for Transaction List |
+| `accountsReceivablePaid` | string | No | Accounts-receivable paid status for Transaction List |
+| `clearedStatus` | string | No | Cleared status filter for Transaction List |
+| `documentNumber` | string | No | Document number filter for Transaction List |
+| `sourceAccountType` | string | No | Source account type filter for Transaction List |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reportType` | string | Financial report type that was run |
+| `header` | json | Native QuickBooks report header with name, periods, basis, currency, summarization, filters, and options |
+|   ↳ `Time` | string | QuickBooks report generation timestamp |
+|   ↳ `ReportName` | string | Native QuickBooks report name |
+|   ↳ `DateMacro` | string | QuickBooks date macro, when returned |
+|   ↳ `ReportBasis` | string | Cash or accrual basis |
+|   ↳ `StartPeriod` | string | Report start date |
+|   ↳ `EndPeriod` | string | Report end or as-of date |
+|   ↳ `SummarizeColumnsBy` | string | Dimension or time period used for report columns |
+|   ↳ `Currency` | string | Report currency |
+|   ↳ `Customer` | string | Applied customer filter |
+|   ↳ `Vendor` | string | Applied vendor filter |
+|   ↳ `Account` | string | Applied account filter |
+|   ↳ `Item` | string | Applied item filter |
+|   ↳ `Class` | string | Applied class filter |
+|   ↳ `Department` | string | Applied department filter |
+|   ↳ `Option` | array | Native QuickBooks report options, including no-data indicators when present |
+| `columns` | json | Native QuickBooks report column definitions |
+|   ↳ `Column` | array | Native report column definitions with titles, types, and metadata |
+|     ↳ `ColTitle` | string | Column title |
+|     ↳ `ColType` | string | QuickBooks column data type |
+|     ↳ `MetaData` | array | Native column metadata name/value entries |
+| `rows` | json | Native hierarchical QuickBooks report rows and section summaries |
+|   ↳ `Row` | array | Native hierarchical report rows; section rows may contain Header, nested Rows, and Summary, while data rows contain ColData values, IDs, and links |
+|     ↳ `type` | string | QuickBooks row type |
+|     ↳ `group` | string | QuickBooks section group |
+|     ↳ `Header` | json | Section header column data |
+|     ↳ `ColData` | array | Row values with optional operational IDs and links |
+|     ↳ `Rows` | json | Nested native QuickBooks report rows |
+|     ↳ `Summary` | json | Section summary column data |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_email_transaction`
+
+Send a supported QuickBooks transaction by email. This causes an external email and Intuit limits sandbox email delivery.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionType` | string | Yes | Supported transaction type to email |
+| `transactionId` | string | Yes | QuickBooks transaction ID |
+| `recipient` | string | No | Required for Customer Payments; otherwise an optional single recipient override |
+| `confirmSend` | boolean | Yes | Explicit confirmation that an external email should be sent |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transactionType` | string | Emailed QuickBooks transaction type |
+| `transactionId` | string | Emailed QuickBooks transaction ID |
+| `sent` | boolean | Whether QuickBooks accepted the email send request |
+| `record` | json | Native QuickBooks transaction returned after sending |
+|   ↳ `Id` | string | QuickBooks transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Transaction due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks sales or purchasing transaction lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|     ↳ `SalesItemLineDetail` | json | Native QuickBooks sales item line details |
+|     ↳ `DescriptionLineDetail` | json | Native QuickBooks description line details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `POStatus` | string | Purchase order status |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_download_transaction_pdf`
+
+Download a supported QuickBooks transaction as a bounded PDF file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionType` | string | Yes | Supported transaction type to download |
+| `transactionId` | string | Yes | QuickBooks transaction ID |
+| `fileName` | string | No | Optional safe PDF filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+| `fileName` | string | Safe downloaded filename |
+| `mimeType` | string | Downloaded file MIME type |
+| `size` | number | Downloaded file size in bytes |
+| `transactionType` | string | Downloaded QuickBooks transaction type |
+| `transactionId` | string | Downloaded QuickBooks transaction ID |
+
+### `quickbooks_read_attachments`
+
+List attachment metadata for a fixed QuickBooks entity or read one attachment by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `readMode` | string | Yes | Read mode: list or by_id |
+| `targetType` | string | No | Fixed QuickBooks entity type for List mode |
+| `targetId` | string | No | QuickBooks entity ID for List mode |
+| `attachmentId` | string | No | QuickBooks attachment ID for By ID mode |
+| `startPosition` | number | No | One-based list start position; defaults to 1 |
+| `maxResults` | number | No | List page size from 1 through 100; defaults to 25 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+| `item` | json | Native QuickBooks attachment metadata |
+|   ↳ `Id` | string | QuickBooks attachment ID |
+|   ↳ `SyncToken` | string | Attachment sync token |
+|   ↳ `FileName` | string | Attached file name |
+|   ↳ `ContentType` | string | Attached file MIME type |
+|   ↳ `Size` | number | Attached file size in bytes |
+|   ↳ `Note` | string | Attachment note or description |
+|   ↳ `Category` | string | Native QuickBooks attachment category |
+|   ↳ `AttachableRef` | array | QuickBooks entities referenced by this attachment |
+|     ↳ `EntityRef` | json | Attached entity type and operational ID |
+|     ↳ `IncludeOnSend` | boolean | Whether QuickBooks includes the attachment when sending |
+|   ↳ `MetaData` | json | Attachment creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+| `items` | array | Native QuickBooks attachment metadata page |
+|   ↳ `Id` | string | QuickBooks attachment ID |
+|   ↳ `SyncToken` | string | Attachment sync token |
+|   ↳ `FileName` | string | Attached file name |
+|   ↳ `ContentType` | string | Attached file MIME type |
+|   ↳ `Size` | number | Attached file size in bytes |
+|   ↳ `Note` | string | Attachment note or description |
+|   ↳ `Category` | string | Native QuickBooks attachment category |
+|   ↳ `AttachableRef` | array | QuickBooks entities referenced by this attachment |
+|     ↳ `EntityRef` | json | Attached entity type and operational ID |
+|     ↳ `IncludeOnSend` | boolean | Whether QuickBooks includes the attachment when sending |
+|   ↳ `MetaData` | json | Attachment creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+
+### `quickbooks_add_attachment`
+
+Attach one supported file or one note to a fixed QuickBooks entity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `attachmentKind` | string | Yes | Attachment kind: file or note |
+| `targetType` | string | Yes | Fixed QuickBooks entity type to attach to |
+| `targetId` | string | Yes | QuickBooks target entity ID |
+| `file` | file | No | Single Sim file to upload |
+| `fileName` | string | No | Optional safe filename override |
+| `contentType` | string | No | Optional compatible QuickBooks MIME type override |
+| `description` | string | No | Optional file attachment description |
+| `note` | string | No | Required nonempty note text in Note mode |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachment` | json | Created native QuickBooks attachment metadata |
+|   ↳ `Id` | string | QuickBooks attachment ID |
+|   ↳ `SyncToken` | string | Attachment sync token |
+|   ↳ `FileName` | string | Attached file name |
+|   ↳ `ContentType` | string | Attached file MIME type |
+|   ↳ `Size` | number | Attached file size in bytes |
+|   ↳ `Note` | string | Attachment note or description |
+|   ↳ `Category` | string | Native QuickBooks attachment category |
+|   ↳ `AttachableRef` | array | QuickBooks entities referenced by this attachment |
+|     ↳ `EntityRef` | json | Attached entity type and operational ID |
+|     ↳ `IncludeOnSend` | boolean | Whether QuickBooks includes the attachment when sending |
+|   ↳ `MetaData` | json | Attachment creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+| `attachmentId` | string | Created QuickBooks attachment ID |
+| `attachmentKind` | string | Created attachment kind |
+| `targetType` | string | QuickBooks target entity type |
+| `targetId` | string | QuickBooks target entity ID |
+| `time` | string | QuickBooks response timestamp |
+
+### `quickbooks_download_attachment`
+
+Download a QuickBooks file attachment through its short-lived URL
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `attachmentId` | string | Yes | QuickBooks attachment ID |
+| `fileName` | string | No | Optional safe filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+| `fileName` | string | Safe downloaded filename |
+| `mimeType` | string | Downloaded file MIME type |
+| `size` | number | Downloaded file size in bytes |
+| `attachmentId` | string | Downloaded QuickBooks attachment ID |
