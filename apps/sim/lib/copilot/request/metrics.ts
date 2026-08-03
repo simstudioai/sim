@@ -71,15 +71,23 @@ function cappedToolName(name: string): string {
 // recordSimToolMetric emits copilot.tool.calls (+1) and copilot.tool.duration
 // for one server-side Sim tool dispatch (executor=sim). outcome is the bounded
 // tool outcome (success/error/…). Pure telemetry.
-export function recordSimToolMetric(name: string, outcome: string, durationMs: number): void {
+export function recordSimToolMetric(
+  name: string,
+  agentId: string,
+  outcome: string,
+  durationMs: number
+): void {
   const { toolDuration, toolCalls } = instruments()
-  const attrs = {
+  const baseAttrs = {
     [TraceAttr.ToolName]: cappedToolName(name),
     [TraceAttr.ToolExecutor]: 'sim',
     [TraceAttr.ToolOutcome]: outcome,
   }
-  toolCalls.add(1, attrs)
-  if (durationMs >= 0) toolDuration.record(durationMs, attrs)
+  toolCalls.add(1, {
+    ...baseAttrs,
+    [TraceAttr.GenAiAgentName]: agentId,
+  })
+  if (durationMs >= 0) toolDuration.record(durationMs, baseAttrs)
 }
 
 // recordVfsMaterialize records VFS materialization time. Call once per phase
