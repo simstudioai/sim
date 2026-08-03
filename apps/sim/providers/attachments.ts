@@ -76,9 +76,9 @@ type ProviderFormattedMessage = {
 }
 
 /**
- * Files at or below this size are inlined as base64, exactly as before. Larger files take
- * the provider's large-file path. Keeping the threshold at the legacy 10 MB cap guarantees
- * identical behaviour for existing attachments.
+ * Files at or below this size are inlined as base64; larger files take the provider's
+ * large-file path. Sized to the execution payload store, not to any provider — see
+ * {@link INLINE_ATTACHMENT_MAX_BYTES}.
  */
 export const INLINE_ATTACHMENT_THRESHOLD_BYTES = INLINE_ATTACHMENT_MAX_BYTES
 
@@ -200,6 +200,17 @@ export function supportsFileAttachments(providerId: ProviderId | string): boolea
  */
 export function getProviderAttachmentMaxBytes(providerId: ProviderId | string): number {
   return getProviderFileAttachment(providerId).maxBytes
+}
+
+/**
+ * Combined attachment ceiling for one request, or `null` when the provider documents none.
+ * Separate from {@link getProviderAttachmentMaxBytes}: a provider can accept a 50MB file yet
+ * still reject three 20MB files in the same call.
+ */
+export function getProviderRequestAttachmentMaxBytes(
+  providerId: ProviderId | string
+): number | null {
+  return getProviderFileAttachment(providerId).perRequestMaxBytes ?? null
 }
 
 export function inferAttachmentMimeType(file: UserFile): string {

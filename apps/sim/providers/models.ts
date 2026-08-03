@@ -33,6 +33,7 @@ import {
   xAIIcon,
   ZaiIcon,
 } from '@/components/icons'
+import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { ModelPricing, ProviderId } from '@/providers/types'
 
 /** How a model's thinking appears on the agent-events stream. */
@@ -131,13 +132,27 @@ export interface ProviderDefinition {
 export type ProviderFileAttachmentStrategy = 'inline' | 'files-api' | 'remote-url'
 
 export interface ProviderFileAttachment {
-  /** Maximum attachment size the provider accepts, in bytes. */
+  /** Maximum size of a single attachment the provider accepts, in bytes. */
   maxBytes: number
+  /**
+   * Combined ceiling across every attachment in one request, when the provider documents one
+   * separately from {@link maxBytes} (OpenAI, for example, caps a request at 50 MB total no
+   * matter how the files divide it). Omitted when the provider documents no combined limit.
+   */
+  perRequestMaxBytes?: number
   strategy: ProviderFileAttachmentStrategy
 }
 
-/** Inline base64 attachment cap, also the fallback limit for providers without a large-file path. */
-export const INLINE_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+/**
+ * Inline base64 attachment cap, also the fallback limit for providers without a large-file path.
+ *
+ * Bounded by the execution payload store rather than by any provider. Base64 inflates bytes by
+ * 4/3 and a single stored value may not exceed {@link LARGE_VALUE_THRESHOLD_BYTES}, so the
+ * largest raw file whose base64 still fits is three quarters of that ceiling. A larger cap does
+ * not send a bigger file — it fails the run with "Execution memory limit exceeded" partway
+ * through hydration instead of routing the file to the provider's large-file path.
+ */
+export const INLINE_ATTACHMENT_MAX_BYTES = Math.floor(LARGE_VALUE_THRESHOLD_BYTES / 4) * 3
 
 const DEFAULT_FILE_ATTACHMENT: ProviderFileAttachment = {
   maxBytes: INLINE_ATTACHMENT_MAX_BYTES,
@@ -152,6 +167,15 @@ export function getProviderFileAttachment(providerId: string): ProviderFileAttac
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   fireworks: {
     id: 'fireworks',
+    /**
+     * "Total base64-encoded images must be less than 10MB" — a budget on the encoded bytes, so
+     * the raw-byte equivalent this check sums is three quarters of it.
+     */
+    fileAttachment: {
+      maxBytes: INLINE_ATTACHMENT_MAX_BYTES,
+      perRequestMaxBytes: 7_500_000,
+      strategy: 'inline',
+    },
     name: 'Fireworks',
     description: 'Fast inference for open-source models via Fireworks AI',
     defaultModel: '',
@@ -301,7 +325,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   openai: {
     id: 'openai',
-    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'files-api' },
+    /** "each file must be under 50 MB. The combined limit across all files in the request is 50 MB." */
+    fileAttachment: { maxBytes: 50_000_000, perRequestMaxBytes: 50_000_000, strategy: 'files-api' },
     name: 'OpenAI',
     description: "OpenAI's models",
     defaultModel: 'gpt-4.1',
@@ -2418,7 +2443,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   groq: {
     id: 'groq',
-    fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
+    /** "Maximum allowed size for a request containing an image URL as input is 20MB." */
+    fileAttachment: {
+      maxBytes: 20_000_000,
+      perRequestMaxBytes: 20_000_000,
+      strategy: 'remote-url',
+    },
     name: 'Groq',
     description: "Groq's LLM models with high-performance inference",
     defaultModel: 'groq/llama-3.3-70b-versatile',
@@ -3475,6 +3505,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   bedrock: {
     id: 'bedrock',
+    /**
+     * Converse caps an image at 3.75 MB and a document at 4.5 MB; the lower bound is the safe
+     * single ceiling. There is no large-file path: the only non-inline source is `s3Location`,
+     * which takes an `s3://` URI read with the caller's IAM role, not a presigned HTTPS URL.
+     */
+    fileAttachment: { maxBytes: 3_750_000, strategy: 'inline' },
     name: 'AWS Bedrock',
     description: 'AWS Bedrock foundation models',
     defaultModel: 'bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0',

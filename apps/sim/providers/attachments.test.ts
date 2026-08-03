@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { UserFile } from '@/executor/types'
 import {
   buildAnthropicMessageContent,
@@ -286,6 +287,16 @@ describe('provider attachments', () => {
 })
 
 describe('provider large-file capability', () => {
+  /**
+   * Guards the regression where the inline cap (10 MB) sat above what the payload store could
+   * hold once base64 inflated it, so every 6-10 MB attachment died with "Execution memory limit
+   * exceeded" instead of taking the provider's large-file path.
+   */
+  it('keeps the inline cap inside the payload store ceiling once base64-encoded', () => {
+    const encodedBytes = Math.ceil(INLINE_ATTACHMENT_THRESHOLD_BYTES / 3) * 4
+    expect(encodedBytes).toBeLessThanOrEqual(LARGE_VALUE_THRESHOLD_BYTES)
+  })
+
   it('reports per-provider strategy and ceiling, defaulting others to inline', () => {
     expect(getProviderFileStrategy('openai')).toBe('files-api')
     expect(getProviderFileStrategy('google')).toBe('files-api')
@@ -298,8 +309,9 @@ describe('provider large-file capability', () => {
     expect(getProviderAttachmentMaxBytes('openai')).toBeGreaterThan(
       INLINE_ATTACHMENT_THRESHOLD_BYTES
     )
-    expect(getProviderAttachmentMaxBytes('bedrock')).toBe(INLINE_ATTACHMENT_THRESHOLD_BYTES)
     expect(getProviderAttachmentMaxBytes('azure-openai')).toBe(INLINE_ATTACHMENT_THRESHOLD_BYTES)
+    /** Bedrock Converse caps an image at 3.75MB — below the inline cap, so it needs its own entry. */
+    expect(getProviderAttachmentMaxBytes('bedrock')).toBe(3_750_000)
   })
 
   it('routes only oversized files on capable providers to the large-file path', () => {

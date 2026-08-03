@@ -10,6 +10,7 @@ import type { UserFile } from '@/executor/types'
 import {
   getProviderAttachmentMaxBytes,
   getProviderFileStrategy,
+  getProviderRequestAttachmentMaxBytes,
   inferAttachmentMimeType,
   shouldUseLargeFilePath,
 } from '@/providers/attachments'
@@ -53,6 +54,8 @@ export async function attachLargeFileRemoteUrls(
     file.remoteUrl = undefined
   }
 
+  assertRequestAttachmentBudget(request, providerId)
+
   if (getProviderFileStrategy(providerId) === 'inline') return
 
   const requestId = request.workflowId ?? 'provider-request'
@@ -94,6 +97,36 @@ export async function attachLargeFileRemoteUrls(
       file.key,
       context,
       PRESIGNED_URL_EXPIRY_SECONDS
+    )
+  }
+}
+
+/**
+ * Rejects a request whose attachments together exceed the provider's combined ceiling. Per-file
+ * validation cannot catch this: three 20MB files each clear OpenAI's 50MB per-file limit but
+ * blow its 50MB per-request limit, and the provider answers with an opaque API error late in
+ * the run — after Sim has already paid to upload every one of them.
+ */
+function assertRequestAttachmentBudget(
+  request: ProviderRequest,
+  providerId: ProviderId | string
+): void {
+  const perRequestMaxBytes = getProviderRequestAttachmentMaxBytes(providerId)
+  if (perRequestMaxBytes === null) return
+
+  let totalBytes = 0
+  let fileCount = 0
+  for (const file of iterateRequestFiles(request.messages)) {
+    if (!Number.isFinite(file.size)) continue
+    totalBytes += file.size
+    fileCount++
+  }
+
+  if (totalBytes > perRequestMaxBytes) {
+    const totalMB = (totalBytes / (1024 * 1024)).toFixed(2)
+    const maxMB = (perRequestMaxBytes / (1024 * 1024)).toFixed(0)
+    throw new Error(
+      `The ${fileCount} attachments in this request total ${totalMB}MB, which exceeds the ${maxMB}MB combined attachment limit for provider "${providerId}". Remove or shrink some files.`
     )
   }
 }

@@ -970,8 +970,13 @@ export class AgentBlockHandler implements BlockHandler {
         (file) => !file.base64 && !shouldUseLargeFilePath(file, providerId)
       )
       if (missingFile) {
+        const inlineMB = (INLINE_ATTACHMENT_THRESHOLD_BYTES / (1024 * 1024)).toFixed(0)
+        const oversized =
+          Number.isFinite(missingFile.size) && missingFile.size > INLINE_ATTACHMENT_THRESHOLD_BYTES
         throw new Error(
-          `File "${missingFile.name}" could not be read for provider "${providerId}". The file may exceed the attachment size limit or may no longer be accessible.`
+          oversized
+            ? `File "${missingFile.name}" (${(missingFile.size / (1024 * 1024)).toFixed(2)}MB) exceeds the ${inlineMB}MB inline attachment limit, and provider "${providerId}" has no large-file upload path for it.`
+            : `File "${missingFile.name}" could not be read for provider "${providerId}". The file may no longer be accessible.`
         )
       }
 
