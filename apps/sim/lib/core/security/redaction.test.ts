@@ -111,6 +111,11 @@ describe('isSensitiveKey', () => {
     it.concurrent('should match ssh passphrases', () => {
       expect(isSensitiveKey('passphrase')).toBe(true)
     })
+
+    it.concurrent('should not allow arbitrary keys ending in workflow token names', () => {
+      expect(isSensitiveKey('asyncToken')).toBe(true)
+      expect(isSensitiveKey('homepageToken')).toBe(true)
+    })
   })
 
   describe('non-sensitive keys (no false positives)', () => {

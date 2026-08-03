@@ -15,7 +15,7 @@ export const TRUNCATED_MARKER = '[TRUNCATED]'
  * idempotency keys stay visible so users can pass them into subsequent steps.
  */
 const NON_SENSITIVE_TOKEN_KEY_PATTERNS: RegExp[] = [
-  /(?:page|pagination|continuation|cursor|scroll|sync)[_-]?token$/i,
+  /^(?:[A-Za-z0-9_-]+\.)*(?:(?:next|previous|after|before)[_-]?)?(?:page|pagination|continuation|cursor|scroll|sync)[_-]?token$/i,
   /^(?:next|previous|after|before)[_-]?token$/i,
   /^(?:client[_-]?request|idempotency)[_-]?token$/i,
   /^subjectFromWebIdentityToken$/i,
