@@ -575,6 +575,69 @@ describe('QuickBooks customer and vendor mutations', () => {
     expect(() => parseQuickBooksAddress('{}', 'billingAddress')).toThrow('at least one')
   })
 
+  it('rejects malformed addresses in direct mutation tool calls', () => {
+    expect(() =>
+      quickbooksCreateCustomerTool.request.body!({
+        ...authParams,
+        displayName: 'Sanitized Customer',
+        billingAddress: 'not-an-object' as never,
+      })
+    ).toThrow('billingAddress must be valid JSON')
+
+    expect(() =>
+      quickbooksUpdateCustomerTool.request.body!({
+        ...authParams,
+        customerId: '12',
+        syncToken: '3',
+        shippingAddress: [] as never,
+      })
+    ).toThrow('shippingAddress must be a JSON object')
+
+    expect(() =>
+      quickbooksCreateVendorTool.request.body!({
+        ...authParams,
+        displayName: 'Sanitized Vendor',
+        billingAddress: { unknown: 'value' } as never,
+      })
+    ).toThrow('billingAddress contains unsupported field')
+
+    expect(() =>
+      quickbooksUpdateVendorTool.request.body!({
+        ...authParams,
+        vendorId: '21',
+        syncToken: '4',
+        billingAddress: {} as never,
+      })
+    ).toThrow('billingAddress must contain at least one supported address field')
+  })
+
+  it('treats omitted active status as unchanged in direct update calls', () => {
+    expect(
+      quickbooksUpdateCustomerTool.request.body!({
+        ...authParams,
+        customerId: '12',
+        syncToken: '3',
+        companyName: 'Updated Company',
+      })
+    ).toEqual({
+      Id: '12',
+      SyncToken: '3',
+      sparse: true,
+      CompanyName: 'Updated Company',
+    })
+
+    for (const tool of [
+      quickbooksUpdateCustomerTool,
+      quickbooksUpdateVendorTool,
+      quickbooksUpdateItemTool,
+    ]) {
+      expect(tool.params.activeStatus).toMatchObject({
+        required: false,
+        default: 'unchanged',
+      })
+    }
+  })
+
   it('removes vendor tax identifiers from mutation output', async () => {
     const response = {
       Vendor: {

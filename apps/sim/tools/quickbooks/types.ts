@@ -250,7 +250,7 @@ export interface QuickBooksUpdateCustomerParams
   customerId: string
   syncToken: string
   displayName?: string
-  activeStatus: QuickBooksActiveStatus
+  activeStatus?: QuickBooksActiveStatus
 }
 
 export interface QuickBooksCreateVendorParams extends QuickBooksAuthParams {
@@ -271,7 +271,7 @@ export interface QuickBooksUpdateVendorParams
   vendorId: string
   syncToken: string
   displayName?: string
-  activeStatus: QuickBooksActiveStatus
+  activeStatus?: QuickBooksActiveStatus
 }
 
 export type QuickBooksWritableItemType = 'service' | 'non_inventory'
@@ -294,7 +294,7 @@ export interface QuickBooksUpdateItemParams
   syncToken: string
   name?: string
   incomeAccountId?: string
-  activeStatus: QuickBooksActiveStatus
+  activeStatus?: QuickBooksActiveStatus
 }
 
 export interface QuickBooksCompanyInfoResponse extends ToolResponse {

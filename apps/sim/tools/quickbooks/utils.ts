@@ -306,8 +306,10 @@ export function parseQuickBooksAddress(
   return result
 }
 
-export function quickBooksActiveValue(activeStatus: QuickBooksActiveStatus): boolean | undefined {
-  if (activeStatus === 'unchanged') return undefined
+export function quickBooksActiveValue(
+  activeStatus: QuickBooksActiveStatus | undefined
+): boolean | undefined {
+  if (activeStatus === undefined || activeStatus === 'unchanged') return undefined
   if (activeStatus === 'active') return true
   if (activeStatus === 'inactive') return false
   throw new Error(`Unsupported QuickBooks active status: ${String(activeStatus)}`)

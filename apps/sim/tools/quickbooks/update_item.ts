@@ -103,10 +103,10 @@ export const quickbooksUpdateItemTool: ToolConfig<
     },
     activeStatus: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       default: 'unchanged',
-      description: 'Keep, activate, or deactivate the item',
+      description: 'Item status change: unchanged, active, or inactive',
     },
   },
   oauth: {

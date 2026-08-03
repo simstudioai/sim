@@ -15,6 +15,7 @@ import {
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
   optionalQuickBooksString,
+  parseQuickBooksAddress,
   quickBooksActiveValue,
   quickBooksEmailAddress,
   quickBooksPhoneNumber,
@@ -113,10 +114,10 @@ export const quickbooksUpdateCustomerTool: ToolConfig<
     },
     activeStatus: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       default: 'unchanged',
-      description: 'Keep, activate, or deactivate the customer',
+      description: 'Customer status change: unchanged, active, or inactive',
     },
   },
   oauth: {
@@ -140,8 +141,8 @@ export const quickbooksUpdateCustomerTool: ToolConfig<
         FamilyName: optionalQuickBooksString(params.familyName),
         PrimaryEmailAddr: quickBooksEmailAddress(params.primaryEmail),
         PrimaryPhone: quickBooksPhoneNumber(params.primaryPhone),
-        BillAddr: params.billingAddress,
-        ShipAddr: params.shippingAddress,
+        BillAddr: parseQuickBooksAddress(params.billingAddress, 'billingAddress'),
+        ShipAddr: parseQuickBooksAddress(params.shippingAddress, 'shippingAddress'),
         Taxable: params.taxable,
         Active: quickBooksActiveValue(params.activeStatus),
       }) as Record<string, unknown>
