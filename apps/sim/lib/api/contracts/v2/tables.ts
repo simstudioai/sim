@@ -22,7 +22,6 @@ import {
   runColumnScopeMutexRefine,
   sortSpecSchema,
   tableColumnSchema,
-  tableExportFormatSchema,
   tableIdParamsSchema,
   tableJobSummarySchema,
   tableLocksSchema,
@@ -937,61 +936,6 @@ export const v2ImportIntoTableFormSchema = z.object({
 })
 export type V2ImportIntoTableForm = z.input<typeof v2ImportIntoTableFormSchema>
 
-/**
- * Synchronous-import summary. `deletedCount` is present only for
- * `mode: "replace"`; `skippedHeaders` and `unmappedColumns` report what the
- * import chose NOT to write, so a caller can tell a partial mapping from a
- * complete one without diffing the schema.
- */
-export const v2ImportTableDataSchema = z.object({
-  tableId: z.string(),
-  mode: csvImportModeSchema,
-  insertedCount: z.number(),
-  deletedCount: z.number().optional(),
-  mappedColumns: z.array(z.string()),
-  skippedHeaders: z.array(z.string()),
-  unmappedColumns: z.array(z.string()),
-  sourceFile: z.string(),
-})
-export type V2ImportTableData = z.output<typeof v2ImportTableDataSchema>
-
-/**
- * Synchronous CSV/TSV import into an existing table. Bounded by the request
- * body cap — larger files go through `POST /import-async`, which reads the file
- * from storage instead of the request.
- */
-export const v2ImportTableCsvContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/v2/tables/[tableId]/import',
-  params: tableIdParamsSchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2ImportTableDataSchema),
-  },
-})
-
-/** Multipart form fields for `POST /api/v2/tables/import-csv`. */
-export const v2CreateTableFromCsvFormSchema = z.object({
-  workspaceId: workspaceIdSchema,
-  folderId: folderIdSchema.optional(),
-  timezone: ianaTimezoneSchema.optional(),
-})
-export type V2CreateTableFromCsvForm = z.input<typeof v2CreateTableFromCsvFormSchema>
-
-/**
- * Creates a NEW table from a CSV/TSV: the column schema is inferred from the
- * file's first rows and the table is named after the file. Returns the created
- * table in the same shape as every other v2 table endpoint.
- */
-export const v2CreateTableFromCsvContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/v2/tables/import-csv',
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2TableDataSchema),
-  },
-})
-
 /** Kickoff acknowledgement for a background import. */
 export const v2ImportAsyncDataSchema = z.object({
   tableId: z.string(),
@@ -1000,9 +944,13 @@ export const v2ImportAsyncDataSchema = z.object({
 export type V2ImportAsyncData = z.output<typeof v2ImportAsyncDataSchema>
 
 /**
- * Starts a background import of a file already uploaded to workspace storage.
- * Returns immediately; track the job through `GET /api/v2/tables/jobs` and stop
- * it with `POST /api/v2/tables/[tableId]/job/cancel`.
+ * Starts a background import of a file already uploaded to workspace storage
+ * (`POST /api/v2/files` returns the `key`). Import is the only way in — there is
+ * no synchronous upload endpoint, so no request-body size cliff.
+ *
+ * Returns immediately. A table carries at most one write job, so progress is
+ * read off the table itself (`GET /api/v2/tables/[tableId]` → `job`) rather than
+ * the export-only jobs list; stop it with `POST /api/v2/tables/[tableId]/job/cancel`.
  */
 export const v2ImportTableAsyncContract = defineRouteContract({
   method: 'POST',
@@ -1012,29 +960,6 @@ export const v2ImportTableAsyncContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2ImportAsyncDataSchema),
-  },
-})
-
-/** Export query: the workspace scope plus the serialization format. */
-export const v2ExportTableQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
-  format: tableExportFormatSchema,
-})
-export type V2ExportTableQuery = z.input<typeof v2ExportTableQuerySchema>
-
-/**
- * Streams the whole table as a CSV or JSON attachment. `mode: 'stream'` because
- * the body is the file itself, not the v2 JSON envelope — rows are written as
- * they are read, so nothing is buffered. Large tables should use
- * `POST /export-async` instead, which survives a dropped connection.
- */
-export const v2ExportTableContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/v2/tables/[tableId]/export',
-  params: tableIdParamsSchema,
-  query: v2ExportTableQuerySchema,
-  response: {
-    mode: 'stream',
   },
 })
 
