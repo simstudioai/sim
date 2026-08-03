@@ -63,7 +63,27 @@ networkPolicy:
   ```
 </Callout>
 
-The policy already allows HTTPS (443) egress to everything except the metadata CIDRs, which covers model provider APIs, integration APIs, and cloud object-storage endpoints. What it does **not** cover is anything on a non-443 port outside the namespace — most commonly **Redis** and a **managed Postgres**. Add explicit rules for those under `networkPolicy.egress`.
+The policy already allows HTTPS (443) egress to everything except the metadata CIDRs, which covers model provider APIs, integration APIs, and cloud object-storage endpoints. It also allows the bundled Postgres and Redis by pod selector.
+
+What it does **not** cover is any datastore you run outside the chart — a managed Postgres or Redis on a non-443 port. Add a rule for each:
+
+```yaml
+networkPolicy:
+  enabled: true
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/16   # your VPC / managed-service subnet
+      ports:
+        - protocol: TCP
+          port: 6379           # managed Redis
+        - protocol: TCP
+          port: 5432           # managed Postgres
+```
+
+<Callout type="warn">
+  This applies even when `REDIS_URL` reaches the pod through a Secret rather than `values.yaml` — the chart cannot see the host, so it cannot generate the rule. A deployment that accepts the URL but has no matching egress rule will fail to reach Redis with `networkPolicy.enabled: true`.
+</Callout>
 
 ### Pod Security Standards
 

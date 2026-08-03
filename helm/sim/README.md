@@ -219,6 +219,22 @@ Before installing in production, confirm each of the following:
 * **Secrets management** — provide secrets via External Secrets Operator (ESO) or pre-created Kubernetes Secrets. Never commit secrets to `values.yaml`.
 * **TLS / Ingress** — set the `cert-manager.io/cluster-issuer` annotation on the ingress and tune `proxy-body-size` / `proxy-read-timeout` for your workload. See commented examples in `values.yaml`.
 * **Network policy egress** — review `networkPolicy.egressExceptCidrs`. Defaults block cloud metadata endpoints (`169.254.169.254/32`, `169.254.170.2/32`); add your cluster's API server CIDR for stronger isolation. Custom egress rules go in `networkPolicy.egress` (a list).
+
+  **Every datastore you run outside the chart needs its own egress rule.** The default policy allows HTTPS (443) plus the bundled Postgres and Redis by pod selector — nothing else on a non-443 port. So a managed Postgres, a managed Redis, or any `REDIS_URL` you supply through a Secret is reachable only if you add a rule for it. This bites hardest when the URL comes from a Secret, because the chart cannot see the host and cannot generate the rule for you:
+
+  ```yaml
+  networkPolicy:
+    enabled: true
+    egress:
+      - to:
+          - ipBlock:
+              cidr: 10.0.0.0/16   # your VPC / managed-service subnet
+        ports:
+          - protocol: TCP
+            port: 6379           # managed Redis
+          - protocol: TCP
+            port: 5432           # managed Postgres
+  ```
 * **Network policy ingress** — `networkPolicy.ingressFrom` defaults to `[{}]` (an empty peer selector), which allows ingress traffic from **any pod in the cluster**, not just your ingress controller. This is a deliberate simple default, not a locked-down one. On a shared or multi-tenant cluster, scope it down, e.g. to the ingress-nginx namespace:
   ```yaml
   networkPolicy:
