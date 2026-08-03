@@ -122,6 +122,9 @@ describe('mintBoxServiceAccountToken', () => {
       kind: 'lookup_failed',
       reason: 'response missing user id',
     })
+    // Only the principal degrades — a name that did come back still beats the
+    // Enterprise-ID fallback, so the credential does not lose its label.
+    expect(result.identity?.displayName).toBe('Sim Automation')
   })
 
   it('still succeeds when the identity request itself throws', async () => {

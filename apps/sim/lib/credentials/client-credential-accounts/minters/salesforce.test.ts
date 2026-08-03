@@ -294,6 +294,9 @@ describe('mintSalesforceServiceAccountToken', () => {
       kind: 'lookup_failed',
       reason: 'response missing user_id',
     })
+    // Only the principal degrades — a name that did come back still beats the
+    // host fallback, so the credential does not lose its label.
+    expect(result.identity?.displayName).toBe('Integration User')
   })
 
   it('ignores a non-Salesforce instance_url and falls back to the validated host', async () => {

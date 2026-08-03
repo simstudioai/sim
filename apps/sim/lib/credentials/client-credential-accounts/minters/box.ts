@@ -75,8 +75,14 @@ async function fetchBoxServiceAccountIdentity(
   accessToken: string,
   orgId: string
 ): Promise<ClientCredentialAccountIdentity> {
-  const degraded = (reason: string): ClientCredentialAccountIdentity => ({
-    displayName: `Box enterprise ${orgId}`,
+  /**
+   * `label` keeps whatever human name the lookup did return. A response can
+   * carry `name`/`login` but no `id` — the principal is then unusable, but the
+   * label still beats the Enterprise-ID fallback, so only the principal
+   * degrades and the credential does not silently lose its name.
+   */
+  const degraded = (reason: string, label?: string): ClientCredentialAccountIdentity => ({
+    displayName: label ?? `Box enterprise ${orgId}`,
     principal: { kind: 'lookup_failed', reason },
     auditMetadata: { boxEnterpriseId: orgId },
     storedMetadata: { enterpriseId: orgId },
@@ -105,7 +111,7 @@ async function fetchBoxServiceAccountIdentity(
         status: res.status,
         enterpriseId: orgId,
       })
-      return degraded('response missing user id')
+      return degraded('response missing user id', name ?? login)
     }
     return {
       displayName: name ?? login ?? `Box enterprise ${orgId}`,

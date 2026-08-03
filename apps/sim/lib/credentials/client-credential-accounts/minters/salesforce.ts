@@ -118,8 +118,14 @@ async function fetchSalesforceIdentity(
   instanceUrl: string,
   host: string
 ): Promise<ClientCredentialAccountIdentity> {
-  const degraded = (reason: string): ClientCredentialAccountIdentity => ({
-    displayName: `Salesforce ${host}`,
+  /**
+   * `label` keeps whatever human name userinfo did return. A response can carry
+   * `name`/`preferred_username` but no `user_id` — the principal is then
+   * unusable, but the label still beats the host fallback, so only the
+   * principal degrades and the credential does not silently lose its name.
+   */
+  const degraded = (reason: string, label?: string): ClientCredentialAccountIdentity => ({
+    displayName: label ?? `Salesforce ${host}`,
     principal: { kind: 'lookup_failed', reason },
     auditMetadata: { salesforceMyDomainHost: host },
     storedMetadata: { myDomainHost: host, instanceUrl },
@@ -155,7 +161,7 @@ async function fetchSalesforceIdentity(
         status: res.status,
         host,
       })
-      return degraded('response missing user_id')
+      return degraded('response missing user_id', name ?? username)
     }
     return {
       displayName: name ?? username ?? `Salesforce ${host}`,
