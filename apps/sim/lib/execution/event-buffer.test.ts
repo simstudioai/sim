@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
@@ -366,6 +367,259 @@ describe('execution event buffer', () => {
       'Execution memory limit exceeded'
     )
     expect(persistedEntries).toEqual([])
+  })
+
+  /**
+   * Requeueing a batch the budget rejected is what grew `pending` for a whole
+   * run, each retry re-serializing an ever-larger array. Rejected bytes must be
+   * dropped, not retained.
+   */
+  it('drops rejected batches instead of growing a backlog when the Redis budget is exhausted', async () => {
+    mockRedis.incrby.mockResolvedValue(100000)
+    let budgetExhausted = true
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (isFlushScript(script)) {
+        if (budgetExhausted) return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+        const { zaddArgs } = parseFlushEvalArgs(args)
+        for (let i = 0; i < zaddArgs.length; i += 2) {
+          persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
+        }
+        return [1, 1, 0]
+      }
+      return [1, 'ok', 0, 0]
+    })
+
+    const writer = createExecutionEventWriter('exec-1')
+
+    for (let i = 0; i < 2500; i++) {
+      await writer.write(makeEvent(`block-${i}`)).catch(() => {})
+    }
+
+    // Once the budget frees the writer recovers, but only whatever accumulated
+    // since the last rejection — never a run-length backlog.
+    budgetExhausted = false
+    await writer.flush()
+
+    expect(persistedEntries.length).toBeLessThanOrEqual(200)
+  })
+
+  /**
+   * Individual events are capped well below the single-write limit, but a burst
+   * of large ones coalesces into a batch above it. Splitting is the only way the
+   * buffer makes progress: no retry can shrink a batch it keeps whole.
+   */
+  it('splits a batch that exceeds the single-write cap instead of stalling on it', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    // Built from many modest fields rather than one huge one: compaction offloads
+    // individual values over its threshold, so a single large string would leave a
+    // tiny ref behind and never reach the batch cap. Each event stays under the
+    // 8MiB per-event cap; two of them do not.
+    const chunk = 'x'.repeat(100_000)
+    const wideEvent = () => {
+      const event = makeEvent('wide')
+      const data = event.data as Record<string, unknown>
+      for (let i = 0; i < 45; i++) data[`field${i}`] = chunk
+      return event
+    }
+
+    const writer = createExecutionEventWriter('exec-1')
+    await writer.write(wideEvent())
+    await writer.write(wideEvent())
+    await writer.flush()
+
+    expect(persistedEntries).toHaveLength(2)
+    expect(
+      mockRedis.eval.mock.calls.filter(([script]) => isFlushScript(script as string))
+    ).toHaveLength(2)
+  })
+
+  it('drops the terminal entry rather than leaving it queued when the budget is exhausted', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    let budgetExhausted = true
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (isFlushScript(script)) {
+        if (budgetExhausted) return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+        const { zaddArgs } = parseFlushEvalArgs(args)
+        for (let i = 0; i < zaddArgs.length; i += 2) {
+          persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
+        }
+        return [1, 1, 0]
+      }
+      return [1, 'ok', 0, 0]
+    })
+
+    const writer = createExecutionEventWriter('exec-1')
+
+    await expect(writer.writeTerminal(makeEvent('terminal'), 'complete')).rejects.toThrow(
+      'Execution memory limit exceeded'
+    )
+
+    // The failed terminal write stays surfaced through flush(), but its entry must
+    // not linger in the backlog and reappear once the budget frees up.
+    budgetExhausted = false
+    await writer.flush().catch(() => {})
+
+    expect(persistedEntries).toEqual([])
+  })
+
+  /**
+   * A timer-driven flush carries no terminal status of its own. If it is the
+   * loop that drains the final chunk, the terminal event lands without a status
+   * and readers poll an `active` stream forever — while `writeTerminal` reports
+   * success, so nothing degrades.
+   */
+  it('applies terminal status even when a concurrent scheduled flush drains the final chunk', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    const observedTerminalStatuses: string[] = []
+    let releaseFirstFlush: (() => void) | undefined
+    const firstFlushStarted = new Promise<void>((resolveStarted) => {
+      let started = false
+      mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+        if (!isFlushScript(script)) return [1, 'ok', 0, 0]
+        const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)
+        observedTerminalStatuses.push(terminalStatus)
+        if (!started) {
+          started = true
+          resolveStarted()
+          await new Promise<void>((resolve) => {
+            releaseFirstFlush = resolve
+          })
+        }
+        for (let i = 0; i < zaddArgs.length; i += 2) {
+          persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
+        }
+        return [1, 1, 0]
+      })
+    })
+
+    const writer = createExecutionEventWriter('exec-1')
+    await writer.write(makeEvent('first'))
+    await firstFlushStarted
+
+    const terminalWrite = writer.writeTerminal(makeEvent('terminal'), 'complete')
+    // Let writeTerminal's queued body actually enqueue its entry before the
+    // in-flight flush resolves — otherwise the scheduled loop finds nothing left
+    // to drain and the race under test never forms.
+    await sleep(5)
+    releaseFirstFlush?.()
+    await terminalWrite
+
+    expect(observedTerminalStatuses).toContain('complete')
+  })
+
+  /**
+   * The backlog ahead of a terminal event can exceed the budget while the
+   * terminal event itself still fits. Discarding it alongside the backlog would
+   * leave readers without the final status for a run that could have published
+   * one.
+   */
+  it('still publishes the terminal event when the backlog ahead of it is dropped', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    const observedTerminalStatuses: string[] = []
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (!isFlushScript(script)) return [1, 'ok', 0, 0]
+      const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)
+      // Reject anything but a lone entry, standing in for a budget with only
+      // enough headroom left for one small write.
+      if (zaddArgs.length > 2) return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+      observedTerminalStatuses.push(terminalStatus)
+      for (let i = 0; i < zaddArgs.length; i += 2) {
+        persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
+      }
+      return [1, 1, 0]
+    })
+
+    const writer = createExecutionEventWriter('exec-1')
+    for (let i = 0; i < 5; i++) {
+      await writer.write(makeEvent(`block-${i}`)).catch(() => {})
+    }
+
+    await expect(writer.writeTerminal(makeEvent('terminal'), 'complete')).resolves.toMatchObject({
+      executionId: 'exec-1',
+    })
+    expect(observedTerminalStatuses).toContain('complete')
+    expect(
+      persistedEntries.map((entry) => (entry.event.data as { blockId: string }).blockId)
+    ).toContain('terminal')
+  })
+
+  /**
+   * A terminal publish that threw must not be resurrected. Leaving the status
+   * armed would let the next flush stamp the stream terminal for an event that
+   * was discarded — telling readers the run ended cleanly while the caller was
+   * told it failed.
+   */
+  it('does not stamp terminal status on a later flush after the terminal publish failed', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    const observedTerminalStatuses: string[] = []
+    let failNextFlush = false
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (!isFlushScript(script)) return [1, 'ok', 0, 0]
+      if (failNextFlush) throw new Error('redis unavailable')
+      const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)
+      observedTerminalStatuses.push(terminalStatus)
+      for (let i = 0; i < zaddArgs.length; i += 2) {
+        persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
+      }
+      return [1, 1, 0]
+    })
+
+    const writer = createExecutionEventWriter('exec-1')
+    await writer.write(makeEvent('a'))
+
+    failNextFlush = true
+    await expect(writer.writeTerminal(makeEvent('terminal'), 'complete')).rejects.toThrow()
+
+    // flush() still surfaces the earlier terminal failure; what matters is that
+    // the events it drains are not stamped terminal.
+    failNextFlush = false
+    await writer.flush().catch(() => {})
+
+    expect(observedTerminalStatuses).toEqual([''])
+    expect(
+      persistedEntries.map((entry) => (entry.event.data as { blockId: string }).blockId)
+    ).toEqual(['a'])
+  })
+
+  /**
+   * A budget rejection must not colour a later, unrelated failure: reporting a
+   * Redis outage as "reduce payload size" sends the user after the wrong thing.
+   */
+  it('reports the generic failure, not a stale budget rejection, on the terminal path', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    let mode: 'budget' | 'outage' = 'budget'
+    mockRedis.eval.mockImplementation(async (script: string) => {
+      if (!isFlushScript(script)) return [1, 'ok', 0, 0]
+      if (mode === 'budget') return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+      throw new Error('redis unavailable')
+    })
+
+    const writer = createExecutionEventWriter('exec-1')
+    for (let i = 0; i < 200; i++) {
+      await writer.write(makeEvent(`block-${i}`)).catch(() => {})
+    }
+
+    mode = 'outage'
+    await expect(writer.writeTerminal(makeEvent('terminal'), 'complete')).rejects.toThrow(
+      'Failed to flush terminal execution event'
+    )
+  })
+
+  it('settles a scheduled flush that hits the budget instead of rejecting later callers', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    mockRedis.eval.mockImplementation(async (script: string) => {
+      if (isFlushScript(script)) {
+        return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+      }
+      return [1, 'ok', 0, 0]
+    })
+
+    const writer = createExecutionEventWriter('exec-1')
+    await writer.write(makeEvent('a'))
+
+    await sleep(60)
+
+    await expect(writer.flush()).resolves.toBeUndefined()
   })
 
   it('preserves requested UserFile base64 when buffering terminal events', async () => {

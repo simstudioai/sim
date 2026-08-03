@@ -41,6 +41,7 @@ const {
   mockHandlePostExecutionPauseState,
   mockHasDurableExecutionOwner,
   mockInitializeExecutionStreamMeta,
+  mockSetExecutionMeta,
   mockReleaseExecutionIdClaim,
   mockReleaseExecutionSlot,
   mockReleaseWorkflowToolExecutionClaim,
@@ -66,6 +67,7 @@ const {
   mockHandlePostExecutionPauseState: vi.fn(),
   mockHasDurableExecutionOwner: vi.fn(),
   mockInitializeExecutionStreamMeta: vi.fn(),
+  mockSetExecutionMeta: vi.fn(),
   mockReleaseExecutionIdClaim: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockReleaseWorkflowToolExecutionClaim: vi.fn(),
@@ -128,6 +130,7 @@ vi.mock('@/lib/execution/event-buffer', () => ({
   createExecutionEventWriter: mockCreateExecutionEventWriter,
   flushExecutionStreamReplayBuffer: mockFlushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta: mockInitializeExecutionStreamMeta,
+  setExecutionMeta: mockSetExecutionMeta,
   LIVE_ONLY_EXECUTION_EVENT_TYPES: new Set(),
 }))
 
@@ -403,6 +406,7 @@ describe('workflow execute async route', () => {
     })
     mockHandlePostExecutionPauseState.mockResolvedValue(undefined)
     mockInitializeExecutionStreamMeta.mockReset().mockResolvedValue(true)
+    mockSetExecutionMeta.mockReset().mockResolvedValue(true)
     mockFlushExecutionStreamReplayBuffer.mockReset().mockResolvedValue(true)
     mockCreateExecutionEventWriter.mockReset().mockReturnValue({
       write: vi.fn(async (event: unknown) => ({ event, eventId: '1' })),
@@ -454,6 +458,31 @@ describe('workflow execute async route', () => {
     releasePostExecution?.()
     const body = await bodyPromise
     expect(body).toContain('execution:completed')
+  })
+
+  /**
+   * A terminal event the replay buffer rejected leaves the stream meta on
+   * `active`, so a reconnecting reader polls until its deadline and then errors.
+   * Recording the status directly is the only signal it gets.
+   */
+  it('records terminal stream meta when the replay buffer rejects the terminal event', async () => {
+    mockCreateExecutionEventWriter.mockReturnValue({
+      write: vi.fn(async (event: unknown) => ({ event, eventId: '1' })),
+      writeTerminal: vi.fn(async () => {
+        throw new Error('Execution memory limit exceeded. Reduce payload size and try again.')
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+    })
+
+    const response = await POST(createBoundCopilotExecutionRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+    const body = await response.text()
+
+    expect(response.status).toBe(200)
+    // The live client still receives the terminal event over SSE.
+    expect(body).toContain('execution:completed')
+    expect(mockSetExecutionMeta).toHaveBeenCalledWith('execution-123', { status: 'complete' })
   })
 
   it('rejects a competing Copilot workflow execution before logging starts', async () => {
