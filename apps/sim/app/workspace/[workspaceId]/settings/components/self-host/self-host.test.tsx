@@ -13,6 +13,18 @@ describe('SelfHost settings section', () => {
   })
 
   /**
+   * The body is the Chat keys row and nothing else — no section label, and so
+   * none of `SettingsSection`'s label/divider chrome above it.
+   */
+  it('renders the Chat keys row with no section header', () => {
+    const markup = renderToStaticMarkup(<SelfHost />)
+
+    expect(markup.indexOf('Chat keys')).toBeLessThan(markup.indexOf('Managed keys'))
+    expect(markup).not.toContain('<section')
+    expect(markup).not.toContain('bg-[var(--border)]')
+  })
+
+  /**
    * The section is deliberately only the managed link — no status readouts,
    * capability inventories, or environment-variable listings.
    */
