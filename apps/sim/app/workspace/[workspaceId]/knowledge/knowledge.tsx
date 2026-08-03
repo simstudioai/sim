@@ -490,7 +490,7 @@ export function Knowledge() {
               : sortColumn === 'updated'
                 ? new Date(folder.updatedAt).getTime()
                 : sortColumn === 'owner'
-                  ? (membersById.get(folder.userId)?.name ?? '')
+                  ? (membersById.get(folder.userId)?.name ?? null)
                   : folder.name,
       })
     }
@@ -512,7 +512,7 @@ export function Knowledge() {
                   : sortColumn === 'updated'
                     ? new Date(kb.updatedAt).getTime()
                     : sortColumn === 'owner'
-                      ? (membersById.get(kb.userId)?.name ?? '')
+                      ? (membersById.get(kb.userId)?.name ?? null)
                       : kb.name,
       })
     }
@@ -966,8 +966,8 @@ export function Knowledge() {
         { id: 'tokens', label: 'Tokens' },
         { id: 'connectors', label: 'Connectors' },
         { id: 'created', label: 'Created' },
-        { id: 'updated', label: 'Last Updated' },
         { id: 'owner', label: 'Owner' },
+        { id: 'updated', label: 'Last Updated' },
       ],
       active: activeSort,
       onSort: onSortColumn,

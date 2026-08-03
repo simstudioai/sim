@@ -545,7 +545,7 @@ export function Files() {
                 : sortColumn === 'updated'
                   ? new Date(folder.updatedAt).getTime()
                   : sortColumn === 'owner'
-                    ? (membersById.get(folder.userId)?.name ?? '')
+                    ? (membersById.get(folder.userId)?.name ?? null)
                     : folder.name,
       })
     }
@@ -565,7 +565,7 @@ export function Files() {
                 : sortColumn === 'updated'
                   ? new Date(file.updatedAt).getTime()
                   : sortColumn === 'owner'
-                    ? (membersById.get(file.uploadedBy)?.name ?? '')
+                    ? (membersById.get(file.uploadedBy)?.name ?? null)
                     : file.name,
       })
     }

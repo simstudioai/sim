@@ -94,6 +94,15 @@ describe('sortResources', () => {
     expect(names(sorted)).toEqual(['folder-z', 'item-a'])
   })
 
+  it('sorts a row whose cell renders empty last, not first', () => {
+    // An owner id that resolves to no workspace member renders an empty cell, so its key is
+    // `null` — passing `''` instead would float those rows to the top of an ascending sort.
+    const rows = [entry('unknown-owner', 'item', null), entry('ada', 'item', 'Ada')]
+
+    expect(names(sortResources([...rows], 'asc'))).toEqual(['ada', 'unknown-owner'])
+    expect(names(sortResources([...rows], 'desc'))).toEqual(['ada', 'unknown-owner'])
+  })
+
   it('breaks ties by name ascending regardless of direction', () => {
     const rows = [
       entry('charlie', 'item', 1),

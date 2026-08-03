@@ -342,7 +342,7 @@ export function Tables() {
               : sortColumn === 'updated'
                 ? new Date(folder.updatedAt).getTime()
                 : sortColumn === 'owner'
-                  ? (membersById.get(folder.userId)?.name ?? '')
+                  ? (membersById.get(folder.userId)?.name ?? null)
                   : folder.name,
       })
     }
@@ -362,7 +362,7 @@ export function Tables() {
                 : sortColumn === 'updated'
                   ? new Date(table.updatedAt).getTime()
                   : sortColumn === 'owner'
-                    ? (membersById.get(table.createdBy)?.name ?? '')
+                    ? (membersById.get(table.createdBy)?.name ?? null)
                     : table.name,
       })
     }
