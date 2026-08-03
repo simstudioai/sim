@@ -58,7 +58,12 @@ app:
     REDIS_URL: "rediss://:<password>@my-cache.internal:6380"
 ```
 
-`app.env.REDIS_URL` takes over whenever `redis.enabled` is false. Setting it there is enough — the chart writes every `app.env` key into one Secret that **both** the app and realtime Deployments consume via `envFrom`. Supply it through your secret store rather than plain values; it contains a password, and `externalSecrets.remoteRefs.app.REDIS_URL` is supported.
+`app.env.REDIS_URL` takes over whenever it is set, and the chart skips the bundled instance so you do not get a stray pod.
+
+If the URL lives in a secret store rather than in values:
+
+- **External Secrets** — map `externalSecrets.remoteRefs.app.REDIS_URL`. The chart detects the mapping and steps aside automatically.
+- **Pre-created Secret** (`app.secrets.existingSecret`) — set `redis.provideUrl: false`. The chart cannot read your Secret, so without this it would inject a computed `REDIS_URL` that takes precedence over `envFrom` and shadows your value.
 
 The bundled Redis is deliberately non-persistent (`--save ""`, `--appendonly no`) with a 512 MB cap: Sim stores coordination state and short-lived keys in it, so a restart costs in-flight live updates rather than committed data.
 

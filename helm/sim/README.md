@@ -473,17 +473,17 @@ Two changes alter behavior on an existing release. Neither requires action, but 
 
 * **Free-tier plan limits are no longer preset.** `app.envDefaults` previously shipped `RATE_LIMIT_FREE_SYNC`, `RATE_LIMIT_FREE_ASYNC`, `EXECUTION_TIMEOUT_FREE`, `EXECUTION_TIMEOUT_ASYNC_FREE`, `FREE_TABLES_LIMIT: 3`, and `FREE_TABLE_ROWS_LIMIT: 1000`. With billing disabled the application treats these as **opt-in** — unset means unlimited — so presetting them imposed hosted-plan caps on self-hosted deployments and diverged from Docker Compose, which presets nothing. They are now commented out. **On upgrade, these limits stop being enforced.** To keep them, set the keys explicitly under `app.env`. An explicitly set value has always taken precedence and is unaffected.
 
-* **Redis is now bundled** (`redis.enabled: true`), matching the Docker Compose stack. Redis backs pub/sub and the Socket.IO adapter, and multi-replica deployments silently drop cross-pod events without it. The chart only manages Redis when it can be sure you are not supplying it yourself, so no upgrade reroutes an existing instance:
+* **Redis is now bundled** (`redis.enabled: true`), matching the Docker Compose stack. Redis backs pub/sub and the Socket.IO adapter, and multi-replica deployments silently drop cross-pod events without it. The chart steps aside whenever it can tell you are supplying `REDIS_URL` yourself, so no upgrade reroutes an existing instance:
 
   | Your configuration | Bundled Redis | `REDIS_URL` |
   |---|---|---|
   | Default install | Deployed | Points at the bundled instance |
   | `app.env.REDIS_URL` set | Not deployed | Your value |
-  | `app.secrets.existingSecret.enabled` | Not deployed | Whatever your Secret contains — the chart injects nothing |
-  | `externalSecrets.enabled` | Not deployed | Whatever ESO syncs — the chart injects nothing |
+  | `externalSecrets.remoteRefs.app.REDIS_URL` mapped | Not deployed | Synced by ESO — detected automatically |
+  | `redis.provideUrl: false` | Not deployed | Whatever your pre-created Secret contains |
   | `redis.enabled: false` | Not deployed | Unset unless you provide it |
 
-  The two secret-manager rows matter: those modes carry `REDIS_URL` out-of-band where the chart cannot read it, and a chart-computed `env` entry would take precedence over `envFrom` and silently shadow it. Rendering is therefore byte-identical to 1.4.0 in both modes. To use the bundled Redis while running a secret manager, set `app.env.REDIS_URL` to the in-cluster address (`redis://<release>-redis:6379`) explicitly — it is not a secret.
+  **If you use `app.secrets.existingSecret` and that Secret already contains `REDIS_URL`, set `redis.provideUrl: false`.** The chart cannot read a pre-created Secret, so it would otherwise inject a computed `REDIS_URL` as a container `env` entry, which takes precedence over `envFrom` and would shadow your value. External Secrets needs no such flag — mapping `remoteRefs.app.REDIS_URL` is detected on its own.
 
 ## Upgrading to 1.2.0
 

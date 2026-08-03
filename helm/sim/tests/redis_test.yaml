@@ -114,14 +114,25 @@ tests:
             name: FREE_TABLES_LIMIT
             value: "3"
 
-  # Secret-manager modes carry REDIS_URL out-of-band, where the chart cannot see
-  # it. Emitting a computed REDIS_URL as inline `env` would beat `envFrom` and
-  # silently reroute a managed Redis to an empty in-cluster one on upgrade.
-  - it: does not inject REDIS_URL in existingSecret mode
+  # A secret mode alone must NOT suppress Redis — REDIS_URL is optional there and
+  # the shipped examples omit it, so suppressing would leave no Redis at all.
+  - it: still bundles Redis in existingSecret mode when no URL is supplied
+    template: deployment-redis.yaml
+    set:
+      app.secrets.existingSecret.enabled: true
+      app.secrets.existingSecret.name: my-app-secrets
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  # ...but the operator can opt out when their pre-created Secret already has it,
+  # which the chart cannot read at render time.
+  - it: honours redis.provideUrl=false for a Secret that already carries REDIS_URL
     template: deployment-app.yaml
     set:
       app.secrets.existingSecret.enabled: true
       app.secrets.existingSecret.name: my-app-secrets
+      redis.provideUrl: false
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].env
@@ -129,20 +140,23 @@ tests:
             name: REDIS_URL
             value: "redis://t-sim-redis:6379"
 
-  - it: does not bundle Redis in existingSecret mode
+  - it: deploys no Redis when provideUrl is false
     template: deployment-redis.yaml
     set:
       app.secrets.existingSecret.enabled: true
       app.secrets.existingSecret.name: my-app-secrets
+      redis.provideUrl: false
     asserts:
       - hasDocuments:
           count: 0
 
-  - it: does not inject REDIS_URL in External Secrets mode
+  # ESO exposes a detectable signal, so no manual opt-out is needed there.
+  - it: detects an ESO-mapped REDIS_URL and steps aside
     template: deployment-app.yaml
     set:
       externalSecrets.enabled: true
       externalSecrets.secretStoreRef.name: my-store
+      externalSecrets.remoteRefs.app.REDIS_URL: sim/app/redis-url
       externalSecrets.remoteRefs.app.BETTER_AUTH_SECRET: sim/app/better-auth-secret
       externalSecrets.remoteRefs.app.ENCRYPTION_KEY: sim/app/encryption-key
       externalSecrets.remoteRefs.app.INTERNAL_API_SECRET: sim/app/internal-api-secret
@@ -155,7 +169,7 @@ tests:
             name: REDIS_URL
             value: "redis://t-sim-redis:6379"
 
-  - it: does not bundle Redis in External Secrets mode
+  - it: still bundles Redis under ESO when REDIS_URL is not mapped
     template: deployment-redis.yaml
     set:
       externalSecrets.enabled: true
@@ -167,16 +181,4 @@ tests:
       externalSecrets.remoteRefs.postgresql.password: sim/postgresql/password
     asserts:
       - hasDocuments:
-          count: 0
-
-  - it: realtime also gets no computed REDIS_URL in existingSecret mode
-    template: deployment-realtime.yaml
-    set:
-      app.secrets.existingSecret.enabled: true
-      app.secrets.existingSecret.name: my-app-secrets
-    asserts:
-      - notContains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: REDIS_URL
-            value: "redis://t-sim-redis:6379"
+          count: 2
