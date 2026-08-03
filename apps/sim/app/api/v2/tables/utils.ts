@@ -184,9 +184,13 @@ export function v2TableAccessError(result: { ok: false; status: 404 | 403 }): Ne
  * independent locks, so "locked" on its own does not tell a caller which one to
  * clear — every 423 on the surface reports it.
  */
-export function v2TableLockError(error: unknown): NextResponse | null {
+export function v2TableLockError(
+  error: unknown,
+  /** Merged into `details` — e.g. which operations of a composite write landed. */
+  extraDetails?: Record<string, unknown>
+): NextResponse | null {
   if (error instanceof TableLockedError) {
-    return v2Error('LOCKED', error.message, { details: { lock: error.lock } })
+    return v2Error('LOCKED', error.message, { details: { lock: error.lock, ...extraDetails } })
   }
   return null
 }

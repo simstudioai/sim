@@ -341,6 +341,40 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
     expect(mockPerformRenameTable).not.toHaveBeenCalled()
   })
 
+  /**
+   * The re-read runs after the writes have committed, so a failure there must
+   * still name what landed. Reporting a bare 500 tells the caller nothing took
+   * effect and it retries into a duplicate-name conflict.
+   */
+  it('reports the applied operations when the final re-read throws', async () => {
+    mockPerformRenameTable.mockResolvedValue({ success: true })
+    mockGetTableById.mockRejectedValue(new Error('connection reset'))
+
+    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed' })
+
+    expect(res.status).toBe(500)
+    expect((await res.json()).error.details).toEqual({ applied: ['name'] })
+  })
+
+  it('reports the applied operations when the re-read finds the table archived', async () => {
+    mockPerformRenameTable.mockResolvedValue({ success: true })
+    mockGetTableById.mockResolvedValue(null)
+
+    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed' })
+
+    expect(res.status).toBe(404)
+    expect((await res.json()).error.details).toEqual({ applied: ['name'] })
+  })
+
+  it('omits applied details when the failure happened before any write', async () => {
+    mockGetTableById.mockRejectedValue(new Error('connection reset'))
+
+    const res = await callPatch({ workspaceId: 'ws-1', folderId: 'nope' })
+
+    // Absence is meaningful: nothing is live, so a retry is safe.
+    expect((await res.json()).error.details).toBeUndefined()
+  })
+
   it('still reports the stored lock flags on the table it returns', async () => {
     // The response is a re-read, so the locked state has to come from there.
     mockGetTableById.mockResolvedValue({

@@ -7,6 +7,7 @@ import {
   v2UpdateTableContract,
 } from '@/lib/api/contracts/v2/tables'
 import { parseRequest } from '@/lib/api/server'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
@@ -21,7 +22,6 @@ import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
-  v2CaughtOrchestrationError,
   v2Data,
   v2Error,
   v2RateLimitError,
@@ -37,6 +37,17 @@ import {
 } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableDetailAPI')
+
+/**
+ * `details` payload naming the operations of a composite write that committed,
+ * or `undefined` when none did — so `details.applied` being present always
+ * means "these changes are live despite the error".
+ */
+function appliedDetails(
+  applied: readonly ('name' | 'folderId')[]
+): { applied: readonly string[] } | undefined {
+  return applied.length > 0 ? { applied } : undefined
+}
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -101,6 +112,15 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
 export const PATCH = withRouteHandler(async (request: NextRequest, context: TableRouteParams) => {
   const requestId = generateRequestId()
 
+  /**
+   * Hoisted above the `try` so every exit path can report it. Once a write has
+   * committed, the response must say so even when the failure came *after* the
+   * writes — a throw in the final re-read, or the re-read finding the table
+   * archived. Reporting a bare 500 there tells the caller nothing landed, and
+   * it retries into a duplicate-name conflict or a repeated move.
+   */
+  const applied: ('name' | 'folderId')[] = []
+
   try {
     const rateLimit = await checkRateLimit(request, 'table-detail')
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
@@ -151,7 +171,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
     // per-operation audits — so instead of pretending atomicity the response
     // states exactly which operations landed. A caller that gets an error can
     // then reconcile rather than having to re-read and diff.
-    const applied: ('name' | 'folderId')[] = []
     let failure: { outcome: OrchestrationOutcome; fallback: string } | null = null
 
     if (validated.name !== undefined) {
@@ -190,31 +209,38 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
     // Live-collab: tell open viewers the definition changed so they refetch.
     if (applied.length > 0) signalTableSchemaChanged(tableId)
     if (failure) {
-      return v2TableOrchestrationError(
-        failure.outcome,
-        failure.fallback,
-        // Omitted when nothing landed, so `details.applied` present always
-        // means "these changes are live despite the error".
-        applied.length > 0 ? { applied } : undefined
-      )
+      return v2TableOrchestrationError(failure.outcome, failure.fallback, appliedDetails(applied))
     }
 
-    // Re-read so the response reflects every applied change at once.
+    // Re-read so the response reflects every applied change at once. A miss
+    // means the table was archived after the writes committed, so the caller
+    // still has to be told what landed.
     const updated = await getTableById(tableId)
-    if (!updated) return v2Error('NOT_FOUND', 'Table not found')
+    if (!updated) {
+      return v2Error('NOT_FOUND', 'Table not found', { details: appliedDetails(applied) })
+    }
 
     return v2Data({ table: toApiTable(updated) }, { rateLimit })
   } catch (error) {
-    const lockError = v2TableLockError(error)
+    const details = appliedDetails(applied)
+
+    const lockError = v2TableLockError(error, details)
     if (lockError) return lockError
 
-    const classified = v2CaughtOrchestrationError(error)
-    if (classified) return classified
+    const classified = asOrchestrationError(error)
+    if (classified) {
+      return v2TableOrchestrationError(
+        { errorCode: classified.code, error: classified.message },
+        'Failed to update table',
+        details
+      )
+    }
 
     logger.error(`[${requestId}] Error updating table`, {
       error: getErrorMessage(error, 'Unknown error'),
+      applied,
     })
-    return v2Error('INTERNAL_ERROR', 'Internal server error')
+    return v2Error('INTERNAL_ERROR', 'Internal server error', { details })
   }
 })
 
