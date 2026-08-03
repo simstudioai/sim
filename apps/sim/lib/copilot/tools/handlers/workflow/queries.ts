@@ -32,7 +32,10 @@ export async function executeListUserWorkspaces(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workspaces = await listUserWorkspaces(context.userId)
+    const workspaces = (await listUserWorkspaces(context.userId)).map((workspace) => ({
+      ...workspace,
+      isCurrent: workspace.workspaceId === context.workspaceId,
+    }))
 
     return { success: true, output: { workspaces } }
   } catch (error) {
