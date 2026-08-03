@@ -35,8 +35,13 @@ export async function validateClaudePlatformServiceAccount(
   await throwForProviderResponse(res, 'agents_list')
 
   const suffix = fields.apiToken.slice(-4)
+  // Explicitly no principal: the Managed Agents API exposes no whoami endpoint
+  // and no workspace identifier on any response, so nothing about the key's
+  // owner is knowable at connect time. This is a provider limitation, not a
+  // failed lookup — see `ServiceAccountPrincipal`.
   return {
     displayName: `Claude Platform (…${suffix})`,
+    principal: null,
     auditMetadata: {},
   }
 }

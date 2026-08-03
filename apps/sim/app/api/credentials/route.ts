@@ -654,9 +654,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resourceName: resolvedDisplayName,
       description: `Created ${type} credential "${resolvedDisplayName}"`,
       metadata: {
+        // Provider metadata spreads first so this route's own keys stay
+        // authoritative and can never be shadowed, matching the update path in
+        // `lib/credentials/orchestration`.
+        ...extraAuditMetadata,
         credentialType: type,
         providerId: resolvedProviderId,
-        ...extraAuditMetadata,
       },
       request,
     })

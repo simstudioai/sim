@@ -33,6 +33,7 @@ import {
 } from '@/components/emails'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
+import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
@@ -112,6 +113,45 @@ import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { deriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
 
 const logger = createLogger('Auth')
+
+/**
+ * Shape of `GET https://api.notion.com/v1/users/me` for an OAuth integration token.
+ * @see https://developers.notion.com/reference/get-self
+ */
+interface NotionSelfResponse {
+  id: string
+  name?: string | null
+  bot?: {
+    owner?:
+      | { type: 'user'; user?: { id: string; name?: string | null; person?: { email?: string } } }
+      | { type: 'workspace'; workspace: true }
+  }
+}
+
+/**
+ * Shape of `GET https://api.attio.com/v2/self` (the Identify endpoint).
+ * @see https://docs.attio.com/rest-api/endpoint-reference/meta/identify
+ */
+interface AttioSelfResponse {
+  active?: boolean
+  authorized_by_workspace_member_id?: string | null
+  workspace_id?: string
+  workspace_name?: string
+}
+
+/**
+ * Shape of `GET https://api.attio.com/v2/workspace_members/{id}`.
+ * @see https://docs.attio.com/rest-api/endpoint-reference/workspace-members/get-a-workspace-member
+ */
+interface AttioWorkspaceMemberResponse {
+  data?: {
+    id: { workspace_id: string; workspace_member_id: string }
+    first_name?: string | null
+    last_name?: string | null
+    email_address?: string | null
+    avatar_url?: string | null
+  }
+}
 
 /**
  * Extracts user info from a Microsoft ID token JWT instead of calling Graph API /me.
@@ -1814,7 +1854,7 @@ export const auth = betterAuth({
                 const email =
                   data.email && typeof data.email === 'string'
                     ? data.email
-                    : `wealthbox-${userId}@wealthbox.user`
+                    : syntheticConnectorEmail('wealthbox', userId)
                 const name = data.name || data.full_name || data.username || 'Wealthbox User'
 
                 return {
@@ -1845,7 +1885,7 @@ export const auth = betterAuth({
               return {
                 id: `wealthbox-${tokenHash}-${generateId()}`,
                 name: 'Wealthbox User',
-                email: `wealthbox-${tokenHash}@wealthbox.user`,
+                email: syntheticConnectorEmail('wealthbox', tokenHash),
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
@@ -1962,7 +2002,7 @@ export const auth = betterAuth({
               return {
                 id: `${(data.user_id || data.hub_id).toString()}-${generateId()}`,
                 name: data.user || 'HubSpot User',
-                email: data.user || `hubspot-${data.hub_id}@hubspot.com`,
+                email: data.user || syntheticConnectorEmail('hubspot', data.hub_id),
                 emailVerified: true,
                 image: undefined,
                 createdAt: new Date(),
@@ -2016,7 +2056,8 @@ export const auth = betterAuth({
               return {
                 id: `${(data.user_id || data.sub).toString()}-${generateId()}`,
                 name: data.name || 'Salesforce User',
-                email: data.email || `salesforce-${data.user_id}@salesforce.com`,
+                email:
+                  data.email || syntheticConnectorEmail('salesforce', data.user_id ?? data.sub),
                 emailVerified: data.email_verified === true,
                 image: data.picture || undefined,
                 createdAt: new Date(),
@@ -2172,7 +2213,7 @@ export const auth = betterAuth({
               return {
                 id: `${zuid}-${generateId()}`,
                 name: profile.Display_Name || 'Zoho User',
-                email: profile.Email || `zoho-${zuid}@zoho.user`,
+                email: profile.Email || syntheticConnectorEmail('zoho', zuid),
                 emailVerified: Boolean(profile.Email),
                 createdAt: now,
                 updatedAt: now,
@@ -2230,7 +2271,7 @@ export const auth = betterAuth({
               return {
                 id: `${profile.data.id.toString()}-${generateId()}`,
                 name: profile.data.name || 'X User',
-                email: `${profile.data.username}@x.com`,
+                email: syntheticConnectorEmail('x', profile.data.username ?? profile.data.id),
                 image: profile.data.profile_image_url,
                 emailVerified: profile.data.verified || false,
                 createdAt: now,
@@ -2333,7 +2374,7 @@ export const auth = betterAuth({
               return {
                 id: `${user.open_id}-${generateId()}`,
                 name: user.display_name || 'TikTok User',
-                email: `${user.open_id}@tiktok.user`,
+                email: syntheticConnectorEmail('tiktok', user.open_id),
                 image: user.avatar_url || undefined,
                 emailVerified: false,
                 createdAt: now,
@@ -2384,7 +2425,7 @@ export const auth = betterAuth({
               return {
                 id: `${profile.account_id.toString()}-${generateId()}`,
                 name: profile.name || profile.display_name || 'Confluence User',
-                email: profile.email || `${profile.account_id}@atlassian.com`,
+                email: profile.email || syntheticConnectorEmail('confluence', profile.account_id),
                 image: profile.picture || undefined,
                 emailVerified: true,
                 createdAt: now,
@@ -2435,7 +2476,7 @@ export const auth = betterAuth({
               return {
                 id: `${profile.account_id.toString()}-${generateId()}`,
                 name: profile.name || profile.display_name || 'Jira User',
-                email: profile.email || `${profile.account_id}@atlassian.com`,
+                email: profile.email || syntheticConnectorEmail('jira', profile.account_id),
                 image: profile.picture || undefined,
                 emailVerified: true,
                 createdAt: now,
@@ -2485,7 +2526,7 @@ export const auth = betterAuth({
               return {
                 id: `${data.id.toString()}-${generateId()}`,
                 name: data.email ? data.email.split('@')[0] : 'Airtable User',
-                email: data.email || `${data.id}@airtable.user`,
+                email: data.email || syntheticConnectorEmail('airtable', data.id),
                 emailVerified: !!data.email,
                 createdAt: now,
                 updatedAt: now,
@@ -2528,14 +2569,27 @@ export const auth = betterAuth({
                 return null
               }
 
-              const profile = await response.json()
+              const profile: NotionSelfResponse = await response.json()
               const now = new Date()
 
+              /**
+               * An OAuth integration token always resolves to a bot user, so the
+               * top-level `person` is never present and the top-level `name` is the
+               * integration's own name ("Sim"), not the human's. The authorizing
+               * human — and their email — live under `bot.owner.user`, which is
+               * only populated when `bot.owner.type === 'user'` (a workspace-owned
+               * internal integration reports `{ type: 'workspace' }` instead).
+               * @see https://developers.notion.com/reference/get-self
+               */
+              const ownerUser = profile.bot?.owner?.type === 'user' ? profile.bot.owner.user : null
+              const stableId = ownerUser?.id || profile.id
+              const ownerEmail = ownerUser?.person?.email
+
               return {
-                id: `${(profile.bot?.owner?.user?.id || profile.id).toString()}-${generateId()}`,
-                name: profile.name || profile.bot?.owner?.user?.name || 'Notion User',
-                email: profile.person?.email || `${profile.id}@notion.user`,
-                emailVerified: !!profile.person?.email,
+                id: `${stableId}-${generateId()}`,
+                name: ownerUser?.name || profile.name || 'Notion User',
+                email: ownerEmail || syntheticConnectorEmail('notion', stableId),
+                emailVerified: !!ownerEmail,
                 createdAt: now,
                 updatedAt: now,
               }
@@ -2586,7 +2640,7 @@ export const auth = betterAuth({
               return {
                 id: `${user.id.toString()}-${generateId()}`,
                 name: user.name || 'Monday.com User',
-                email: user.email || `${user.id}@monday.user`,
+                email: user.email || syntheticConnectorEmail('monday', user.id),
                 emailVerified: !!user.email,
                 createdAt: now,
                 updatedAt: now,
@@ -2636,7 +2690,7 @@ export const auth = betterAuth({
               return {
                 id: `${data.id.toString()}-${generateId()}`,
                 name: data.name || 'Reddit User',
-                email: `${data.name}@reddit.user`,
+                email: syntheticConnectorEmail('reddit', data.name ?? data.id),
                 image: data.icon_img || undefined,
                 emailVerified: false,
                 createdAt: now,
@@ -2685,7 +2739,7 @@ export const auth = betterAuth({
               return {
                 id: `${user.id.toString()}-${generateId()}`,
                 name: user.username || 'ClickUp User',
-                email: user.email || `${user.id}@clickup.user`,
+                email: user.email || syntheticConnectorEmail('clickup', user.id),
                 emailVerified: !!user.email,
                 createdAt: now,
                 updatedAt: now,
@@ -2756,7 +2810,7 @@ export const auth = betterAuth({
 
               return {
                 id: `${viewer.id.toString()}-${generateId()}`,
-                email: viewer.email,
+                email: viewer.email || syntheticConnectorEmail('linear', viewer.id),
                 name: viewer.name,
                 emailVerified: true,
                 createdAt: new Date(),
@@ -2781,44 +2835,90 @@ export const auth = betterAuth({
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/attio`,
           getUserInfo: async (tokens) => {
             try {
-              const response = await fetch('https://api.attio.com/v2/workspace_members', {
-                headers: {
-                  Authorization: `Bearer ${tokens.accessToken}`,
-                },
+              /**
+               * Resolve the *authorizing* member, not an arbitrary one. Listing
+               * `/v2/workspace_members` returns every member of the workspace in no
+               * defined order, so taking `data[0]` records a stranger's id as the
+               * account's stable external id — which then collapses two different
+               * Attio members into one account row via the stale-sibling dedupe in
+               * the `account.create.after` hook.
+               *
+               * `/v2/self` requires no scope and reports who authorized the token.
+               * @see https://docs.attio.com/rest-api/endpoint-reference/meta/identify
+               */
+              const selfResponse = await fetch('https://api.attio.com/v2/self', {
+                headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
 
-              if (!response.ok) {
-                const errorText = await response.text()
-                logger.error('Attio API error:', {
-                  status: response.status,
-                  statusText: response.statusText,
+              if (!selfResponse.ok) {
+                const errorText = await selfResponse.text().catch(() => '')
+                logger.error('Attio /v2/self error:', {
+                  status: selfResponse.status,
+                  statusText: selfResponse.statusText,
                   body: errorText,
                 })
-                throw new Error(`Attio API error: ${response.status} ${response.statusText}`)
+                return null
               }
 
-              const { data } = await response.json()
+              const self: AttioSelfResponse = await selfResponse.json()
+              const memberId = self.authorized_by_workspace_member_id
 
-              if (!data || data.length === 0) {
-                throw new Error('No workspace members found in Attio response')
+              if (!memberId) {
+                logger.error('Attio /v2/self returned no authorizing workspace member', {
+                  active: self.active,
+                  workspaceId: self.workspace_id,
+                })
+                return null
               }
 
-              const member = data[0]
+              /**
+               * Fetch that member by id rather than listing and filtering. Requires
+               * `user_management:read`, which Sim always requests for Attio.
+               * @see https://docs.attio.com/rest-api/endpoint-reference/workspace-members/get-a-workspace-member
+               */
+              const memberResponse = await fetch(
+                `https://api.attio.com/v2/workspace_members/${encodeURIComponent(memberId)}`,
+                { headers: { Authorization: `Bearer ${tokens.accessToken}` } }
+              )
+
+              if (!memberResponse.ok) {
+                const errorText = await memberResponse.text().catch(() => '')
+                logger.error('Attio workspace member fetch error:', {
+                  status: memberResponse.status,
+                  statusText: memberResponse.statusText,
+                  body: errorText,
+                })
+                return null
+              }
+
+              const { data: member }: AttioWorkspaceMemberResponse = await memberResponse.json()
+
+              if (!member) {
+                logger.error('Attio workspace member not found', { memberId })
+                return null
+              }
+
+              const email = member.email_address
+              const fullName = `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim()
 
               return {
                 id: `${member.id.workspace_member_id}-${generateId()}`,
-                email: member.email_address,
-                name:
-                  `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() ||
-                  member.email_address,
-                emailVerified: true,
+                email: email || syntheticConnectorEmail('attio', member.id.workspace_member_id),
+                name: fullName || email || 'Attio User',
+                emailVerified: Boolean(email),
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 image: member.avatar_url || undefined,
               }
             } catch (error) {
+              /**
+               * Return null rather than rethrowing: Better Auth's `handleUserInfo`
+               * does not wrap `getUserInfo`, so a throw escapes the callback route
+               * as a raw 500 with no way back into the app, while null redirects
+               * with `user_info_is_missing`.
+               */
               logger.error('Error in Attio getUserInfo:', error)
-              throw error
+              return null
             }
           },
         },
@@ -2854,8 +2954,8 @@ export const auth = betterAuth({
 
               return {
                 id: `${data.id}-${generateId()}`,
-                email: data.login,
-                name: data.name || data.login,
+                email: data.login || syntheticConnectorEmail('box', data.id),
+                name: data.name || data.login || 'Box User',
                 emailVerified: true,
                 createdAt: new Date(),
                 updatedAt: new Date(),
@@ -2962,7 +3062,7 @@ export const auth = betterAuth({
               return {
                 id: `${profile.gid.toString()}-${generateId()}`,
                 name: profile.name || 'Asana User',
-                email: profile.email || `${profile.gid}@asana.user`,
+                email: profile.email || syntheticConnectorEmail('asana', profile.gid),
                 image: profile.photo?.image_128x128 || undefined,
                 emailVerified: !!profile.email,
                 createdAt: now,
@@ -3042,7 +3142,7 @@ export const auth = betterAuth({
               return {
                 id: `${uniqueId}-${generateId()}`,
                 name: teamName,
-                email: `${uniqueId}@slack.bot`,
+                email: syntheticConnectorEmail('slack', uniqueId),
                 emailVerified: false,
                 createdAt: new Date(),
                 updatedAt: new Date(),
@@ -3092,7 +3192,7 @@ export const auth = betterAuth({
               return {
                 id: `${uniqueId}-${generateId()}`,
                 name: data.user_name || 'Webflow User',
-                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@webflow.user`,
+                email: syntheticConnectorEmail('webflow', userId),
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
@@ -3139,8 +3239,8 @@ export const auth = betterAuth({
               return {
                 id: `${profile.sub}-${generateId()}`,
                 name: profile.name || 'LinkedIn User',
-                email: profile.email || `${profile.sub}@linkedin.user`,
-                emailVerified: profile.email_verified || true,
+                email: profile.email || syntheticConnectorEmail('linkedin', profile.sub),
+                emailVerified: true,
                 image: profile.picture || undefined,
                 createdAt: new Date(),
                 updatedAt: new Date(),
@@ -3190,7 +3290,7 @@ export const auth = betterAuth({
                 id: `${profile.id.toString()}-${generateId()}`,
                 name:
                   `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Zoom User',
-                email: profile.email || `${profile.id}@zoom.user`,
+                email: profile.email || syntheticConnectorEmail('zoom', profile.id),
                 emailVerified: profile.verified === 1,
                 image: profile.pic_url || undefined,
                 createdAt: new Date(),
@@ -3238,7 +3338,7 @@ export const auth = betterAuth({
               return {
                 id: `${profile.id.toString()}-${generateId()}`,
                 name: profile.display_name || 'Spotify User',
-                email: profile.email || `${profile.id}@spotify.user`,
+                email: profile.email || syntheticConnectorEmail('spotify', profile.id),
                 emailVerified: true,
                 image: profile.images?.[0]?.url || undefined,
                 createdAt: new Date(),
@@ -3286,7 +3386,12 @@ export const auth = betterAuth({
               return {
                 id: `${profile.ID?.toString() || profile.id?.toString()}-${generateId()}`,
                 name: profile.display_name || profile.username || 'WordPress User',
-                email: profile.email || `${profile.username}@wordpress.com`,
+                email:
+                  profile.email ||
+                  syntheticConnectorEmail(
+                    'wordpress',
+                    profile.username ?? profile.ID ?? profile.id
+                  ),
                 emailVerified: profile.email_verified || false,
                 image: profile.avatar_URL || undefined,
                 createdAt: new Date(),
@@ -3344,7 +3449,7 @@ export const auth = betterAuth({
               return {
                 id: `${data.sub}-${generateId()}`,
                 name: data.name || accountName,
-                email: data.email || `${data.sub}@docusign.com`,
+                email: data.email || syntheticConnectorEmail('docusign', data.sub),
                 emailVerified: true,
                 image: undefined,
                 createdAt: new Date(),
@@ -3395,7 +3500,7 @@ export const auth = betterAuth({
               return {
                 id: `${profile.id?.toString()}-${generateId()}`,
                 name: profile.name || 'Cal.com User',
-                email: profile.email || `${profile.id}@cal.com`,
+                email: profile.email || syntheticConnectorEmail('calcom', profile.id),
                 emailVerified: true,
                 createdAt: new Date(),
                 updatedAt: new Date(),

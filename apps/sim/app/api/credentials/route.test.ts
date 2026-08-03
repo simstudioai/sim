@@ -140,7 +140,8 @@ describe('POST /api/credentials', () => {
         providerId: 'zoom-service-account',
         encryptedServiceAccountKey: 'encrypted-blob',
         displayName: 'Zoom account acct_123',
-        auditMetadata: { zoomAccountId: 'acct_123' },
+        auditMetadata: { principalKind: 'tenant', principalId: 'acct_123' },
+        principal: { kind: 'tenant', id: 'acct_123' },
       })
 
       const req = createMockRequest('POST', {

@@ -3,6 +3,7 @@ import type {
   ClientCredentialAccountMintOptions,
   ClientCredentialAccountMintResult,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { tenantPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   isTransientProviderStatus,
@@ -124,7 +125,10 @@ export async function mintZoomServiceAccountToken(
     grantedScopes,
     identity: {
       displayName: `Zoom account ${fields.orgId}`,
-      auditMetadata: { zoomAccountId: fields.orgId, zoomClientId: fields.clientId },
+      // A Server-to-Server app authenticates as the account, not as a Zoom
+      // user; the grant exposes no user identifier at all.
+      principal: tenantPrincipal(fields.orgId),
+      auditMetadata: { zoomClientId: fields.clientId },
       ...(Object.keys(storedMetadata).length > 0 ? { storedMetadata } : {}),
     },
   }

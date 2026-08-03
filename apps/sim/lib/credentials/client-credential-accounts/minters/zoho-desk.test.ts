@@ -130,12 +130,9 @@ describe('mintZohoDeskServiceAccountToken', () => {
       grantedScopes: ['Desk.tickets.READ', 'Desk.contacts.READ'],
       identity: {
         displayName: 'Zoho Desk org 600123456',
-        auditMetadata: {
-          zohoDeskSoid: 'ZohoDesk.600123456',
-          zohoDeskClientId: 'zoho-cid',
-        },
+        principal: { kind: 'tenant', id: 'ZohoDesk.600123456' },
+        auditMetadata: { zohoDeskClientId: 'zoho-cid' },
         storedMetadata: {
-          soid: 'ZohoDesk.600123456',
           apiDomain: 'https://desk.zoho.com',
           dataCenter: 'us',
           grantedScopes: 'Desk.tickets.READ Desk.contacts.READ',
