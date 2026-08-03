@@ -233,8 +233,13 @@ navigation chevron. Never hand-roll any of it, and never wrap the row in your ow
   (`app/workspace/[workspaceId]/components/resource-tile` — note: *not* under
   `settings/`, unlike the other `…/` paths on this page) — the 36px tile chrome, for the rare tile
   outside a row (a detail heading). `ResourceTile` wraps the filled pairing.
-- **`MemberAvatar`** (`@/components/permissions/member-avatar`) — the one avatar
-  for any member row.
+
+
+**Member avatars are deliberately two components, not one.** `member-list.tsx`
+renders a 14px neutral marker for the dense Teammates/Organization roster, where
+the email is the primary content; `components/permissions/member-row.tsx` renders
+a 36px `getUserColor`-hashed avatar for member *management* rows that carry a name,
+an email, and a role control. Same shape, different job — do not merge them.
 
 ## Deleting a resource
 
