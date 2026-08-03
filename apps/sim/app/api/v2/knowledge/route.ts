@@ -51,12 +51,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId } = parsed.data.query
+    const { workspaceId, folderId, search, sortBy, sortOrder } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const knowledgeBases = await getKnowledgeBases(userId, workspaceId)
+    const knowledgeBases = await getKnowledgeBases(userId, workspaceId, 'active', {
+      folderId,
+      search,
+      sortBy,
+      sortOrder,
+    })
     const items = knowledgeBases.map(formatKnowledgeBase)
 
     // `getKnowledgeBases` returns the full bounded workspace set → single page.

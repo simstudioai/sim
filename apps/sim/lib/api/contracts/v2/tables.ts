@@ -42,7 +42,12 @@ import {
   v1CreateTableRowsBodySchema,
   v1ListTablesQuerySchema,
 } from '@/lib/api/contracts/v1/tables'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2SearchSchema,
+  v2SortFields,
+} from '@/lib/api/contracts/v2/shared'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 
 /**
@@ -187,17 +192,37 @@ export const v2UpsertRowDataSchema = z.object({
 })
 export type V2UpsertRowData = z.output<typeof v2UpsertRowDataSchema>
 
+export const v2TableSortFields = ['name', 'createdAt', 'updatedAt'] as const
+
+export type V2TableSortBy = (typeof v2TableSortFields)[number]
+
+/**
+ * Table list query: the workspace scope every table route shares, plus the v2
+ * search/sort convention and a folder filter. Kept separate from
+ * `v1ListTablesQuerySchema` — the single-table read/delete routes reuse that
+ * schema and have no list params.
+ */
+export const v2ListTablesQuerySchema = v1ListTablesQuerySchema.extend({
+  /** Restrict to one table folder. */
+  folderId: z.string().min(1, 'folderId cannot be empty').optional(),
+  search: v2SearchSchema,
+  ...v2SortFields(v2TableSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
+})
+
+export type V2ListTablesQuery = z.output<typeof v2ListTablesQuerySchema>
+
 /**
  * Table list. `listTables` returns every table in the workspace (a small,
  * bounded per-workspace set), so today the cursor list is a single full page
  * (`nextCursor` is always `null`). Using the canonical cursor envelope keeps the
  * whole v2 list surface uniform, and real pagination can be added later behind
- * the opaque cursor without an interface change.
+ * the opaque cursor without an interface change. Search, folder filter, and
+ * sort all run in that query, not over its result.
  */
 export const v2ListTablesContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/tables',
-  query: v1ListTablesQuerySchema,
+  query: v2ListTablesQuerySchema,
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2ApiTableSchema),

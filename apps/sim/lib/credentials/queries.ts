@@ -1,7 +1,10 @@
 import { db } from '@sim/db'
 import { credential, credentialMember } from '@sim/db/schema'
-import { and, eq, inArray, isNotNull, or } from 'drizzle-orm'
+import { and, type Column, eq, inArray, isNotNull, or } from 'drizzle-orm'
 import type { WorkspaceCredentialType } from '@/lib/api/contracts/credentials'
+import type { V2CredentialSortBy } from '@/lib/api/contracts/v2/credentials'
+import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import { listOrderBy, searchFilter } from '@/lib/api/list-query'
 import { isSharedCredentialType, SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -36,14 +39,38 @@ export interface VisibleWorkspaceCredential {
  * admins — every shared-type credential, plus the caller's own personal env
  * credentials. Encrypted secret material is never selected.
  */
+/**
+ * Orderings for the public list's sortable fields, made total over the contract
+ * enum by `satisfies`. Each ends in `id` so credentials sharing a display name
+ * or a timestamp still come back in a stable order.
+ */
+const CREDENTIAL_SORTS = {
+  displayName: [credential.displayName, credential.id],
+  createdAt: [credential.createdAt, credential.id],
+  updatedAt: [credential.updatedAt, credential.id],
+} satisfies Record<V2CredentialSortBy, readonly Column[]>
+
 export async function listVisibleWorkspaceCredentials(params: {
   workspaceId: string
   userId: string
   workspaceAccess: Pick<WorkspaceAccess, 'canAdmin'>
   type?: WorkspaceCredentialType
   providerId?: string
+  /** Case-insensitive substring match on the credential display name. */
+  search?: string
+  sortBy?: V2CredentialSortBy
+  sortOrder?: V2SortOrder
 }): Promise<VisibleWorkspaceCredential[]> {
-  const { workspaceId, userId, workspaceAccess, type, providerId } = params
+  const {
+    workspaceId,
+    userId,
+    workspaceAccess,
+    type,
+    providerId,
+    search,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+  } = params
 
   const whereClauses = [eq(credential.workspaceId, workspaceId)]
   if (type) whereClauses.push(eq(credential.type, type))
@@ -84,7 +111,8 @@ export async function listVisibleWorkspaceCredentials(params: {
         eq(credentialMember.status, 'active')
       )
     )
-    .where(and(...whereClauses, accessClause))
+    .where(and(...whereClauses, accessClause, searchFilter(credential.displayName, search)))
+    .orderBy(...listOrderBy(CREDENTIAL_SORTS[sortBy], sortOrder))
 
   return rows.map(({ memberRole, encryptedServiceAccountKey, ...rest }) => ({
     ...rest,

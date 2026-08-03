@@ -13,7 +13,10 @@ import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, isNull, sql } from 'drizzle-orm'
+import { and, type Column, count, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import type { V2TableSortBy } from '@/lib/api/contracts/v2/tables'
+import { listOrderBy, searchFilter } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
@@ -207,16 +210,46 @@ export async function getTableById(
 }
 
 /**
+ * Orderings for the public list's sortable fields, made total over the contract
+ * enum by `satisfies`. Each ends in `createdAt` so tables sharing a name still
+ * come back in a stable order.
+ */
+const TABLE_SORTS = {
+  name: [userTableDefinitions.name, userTableDefinitions.createdAt],
+  createdAt: [userTableDefinitions.createdAt],
+  updatedAt: [userTableDefinitions.updatedAt, userTableDefinitions.createdAt],
+} satisfies Record<V2TableSortBy, readonly Column[]>
+
+interface ListTablesOptions {
+  scope?: TableScope
+  /** Restrict to one table folder. */
+  folderId?: string
+  /** Case-insensitive substring match on the table name. */
+  search?: string
+  sortBy?: V2TableSortBy
+  sortOrder?: V2SortOrder
+}
+
+/**
  * Lists all tables in a workspace.
+ *
+ * Filter and sort are applied in the query — a name search must not become
+ * "read every table in the workspace, then discard most of them".
  *
  * @param workspaceId - Workspace ID to list tables for
  * @returns Array of table definitions
  */
 export async function listTables(
   workspaceId: string,
-  options?: { scope?: TableScope }
+  options?: ListTablesOptions
 ): Promise<TableDefinition[]> {
-  const { scope = 'active' } = options ?? {}
+  const {
+    scope = 'active',
+    folderId,
+    search,
+    sortBy = 'createdAt',
+    sortOrder = 'asc',
+  } = options ?? {}
   const tables = await db
     .select({
       id: userTableDefinitions.id,
@@ -236,19 +269,18 @@ export async function listTables(
     })
     .from(userTableDefinitions)
     .where(
-      scope === 'all'
-        ? eq(userTableDefinitions.workspaceId, workspaceId)
-        : scope === 'archived'
-          ? and(
-              eq(userTableDefinitions.workspaceId, workspaceId),
-              sql`${userTableDefinitions.archivedAt} IS NOT NULL`
-            )
-          : and(
-              eq(userTableDefinitions.workspaceId, workspaceId),
-              isNull(userTableDefinitions.archivedAt)
-            )
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        scope === 'all'
+          ? undefined
+          : scope === 'archived'
+            ? isNotNull(userTableDefinitions.archivedAt)
+            : isNull(userTableDefinitions.archivedAt),
+        folderId ? eq(userTableDefinitions.folderId, folderId) : undefined,
+        searchFilter(userTableDefinitions.name, search)
+      )
     )
-    .orderBy(userTableDefinitions.createdAt)
+    .orderBy(...listOrderBy(TABLE_SORTS[sortBy], sortOrder))
 
   const jobsByTable = await latestJobsForTables(tables.map((t) => t.id))
 

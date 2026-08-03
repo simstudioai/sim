@@ -2,7 +2,10 @@ import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import { and, desc, eq, isNull, or } from 'drizzle-orm'
+import { and, type Column, desc, eq, isNull, or } from 'drizzle-orm'
+import type { V2CustomToolSortBy } from '@/lib/api/contracts/v2/custom-tools'
+import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import { listOrderBy, searchFilter } from '@/lib/api/list-query'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 const logger = createLogger('CustomToolsOperations')
@@ -136,12 +139,35 @@ export async function listCustomTools(params: { userId: string; workspaceId?: st
  * scoped in every direction, so it uses these instead — a caller holding a
  * workspace key must never reach another user's personal tool.
  */
-export async function listWorkspaceCustomTools(params: { workspaceId: string }) {
+/**
+ * Orderings for the public list's sortable fields, made total over the contract
+ * enum by `satisfies`. Each ends in `id` so tools sharing a timestamp still come
+ * back in a stable order.
+ */
+const CUSTOM_TOOL_SORTS = {
+  title: [customTools.title, customTools.id],
+  createdAt: [customTools.createdAt, customTools.id],
+  updatedAt: [customTools.updatedAt, customTools.id],
+} satisfies Record<V2CustomToolSortBy, readonly Column[]>
+
+export async function listWorkspaceCustomTools(params: {
+  workspaceId: string
+  /** Case-insensitive substring match on the tool title. */
+  search?: string
+  sortBy?: V2CustomToolSortBy
+  sortOrder?: V2SortOrder
+}) {
+  const { sortBy = 'createdAt', sortOrder = 'desc' } = params
   return db
     .select()
     .from(customTools)
-    .where(eq(customTools.workspaceId, params.workspaceId))
-    .orderBy(desc(customTools.createdAt))
+    .where(
+      and(
+        eq(customTools.workspaceId, params.workspaceId),
+        searchFilter(customTools.title, params.search)
+      )
+    )
+    .orderBy(...listOrderBy(CUSTOM_TOOL_SORTS[sortBy], sortOrder))
 }
 
 export async function getWorkspaceCustomTool(params: { workspaceId: string; toolId: string }) {

@@ -54,7 +54,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, type, providerId } = parsed.data.query
+    const { workspaceId, type, providerId, search, sortBy, sortOrder } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
@@ -71,6 +71,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       workspaceAccess,
       type,
       providerId,
+      search,
+      sortBy,
+      sortOrder,
     })
 
     // The per-workspace credential set is small and bounded → a single full page.

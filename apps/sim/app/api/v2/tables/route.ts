@@ -49,12 +49,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId } = parsed.data.query
+    const { workspaceId, folderId, search, sortBy, sortOrder } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const tables = await listTables(workspaceId)
+    const tables = await listTables(workspaceId, { folderId, search, sortBy, sortOrder })
     const items = tables.map(toApiTable)
 
     // `listTables` returns the full bounded workspace set → single page.
