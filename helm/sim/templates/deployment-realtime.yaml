@@ -62,6 +62,15 @@ spec:
           env:
             - name: DATABASE_URL
               value: {{ include "sim.databaseUrl" . | quote }}
+            {{- /*
+              Inlined for the same reason as on the app pod: @sim/audit runs here
+              too and reads this to decide whether a forwarded header may be
+              believed when stamping an audit row's ipAddress. Chart-computed, so
+              it is excluded from the shared Secret and must be set explicitly on
+              both deployments.
+            */}}
+            - name: TRUST_PROXY_HEADERS
+              value: {{ include "sim.trustProxyHeaders" . | quote }}
             {{- if .Values.telemetry.enabled }}
             {{- $nodeEnv := default (default "production" (index (.Values.realtime.envDefaults | default dict) "NODE_ENV")) (index (.Values.realtime.env | default dict) "NODE_ENV") }}
             # OpenTelemetry configuration
@@ -112,7 +121,7 @@ spec:
               deployment.
             */}}
             {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
-            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" }}
+            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" "TRUST_PROXY_HEADERS" }}
             {{- /*
               Build the effective realtime env from app.env as the base, then
               overlay non-empty realtime.env values. Sprig's `merge` keeps the

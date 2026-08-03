@@ -80,10 +80,26 @@ app:
     # Merged into Better Auth `trustedOrigins` alongside NEXT_PUBLIC_APP_URL. Leave empty when serving from a single origin.
     TRUSTED_ORIGINS: ""
     # AUTH_TRUSTED_PROXIES: comma-separated reverse-proxy IPs or CIDR ranges in front of the app
-    # (ingress controller, load balancer). Better Auth walks x-forwarded-for right to left, skips
-    # these hops, and uses the first untrusted address as the client IP. Required for correct
-    # session IPs and rate-limit keying behind a multi-hop proxy chain (e.g. "10.0.0.0/16").
+    # (ingress controller, load balancer). When set, Better Auth AND Sim's own per-IP throttles
+    # walk x-forwarded-for right to left, skip these hops, and use the first untrusted address as
+    # the client IP — never the leftmost entry, which the caller supplies and could otherwise be
+    # rotated to mint a fresh rate-limit bucket per request. Empty, the two differ: Better Auth
+    # trusts only a single-value header (recording no IP for a multi-hop chain), while Sim's
+    # throttles key on the rightmost (proxy-written) entry — not spoofable, but behind a multi-hop
+    # chain (e.g. CDN in front of ingress) it collapses callers onto the edge addresses.
+    # Set the ingress pods' actual addresses (e.g. "10.42.0.0/24"). Do NOT use a range broad enough
+    # to also cover client traffic: a caller whose own address falls inside a trusted range makes
+    # the whole chain trusted and can then forge the value Sim keys on.
     AUTH_TRUSTED_PROXIES: ""
+    # TRUST_PROXY_HEADERS: whether x-forwarded-for / x-real-ip may be believed at all.
+    # Left empty it is DERIVED from ingress.enabled — on with the ingress (which appends the peer
+    # address), off without it. That matters because ingress.enabled defaults to false: a Service
+    # reached directly (port-forward, LoadBalancer, NodePort) sees a header written entirely by the
+    # caller, and believing it lets anyone rotate a header for a fresh per-IP rate-limit bucket on
+    # every request. While off, per-IP limits collapse into one shared bucket — blunt, but it fails
+    # closed. Set it explicitly ("true"/"false") only for an edge the chart cannot see: a Gateway
+    # API listener, a service mesh, or an external load balancer that appends the peer address.
+    TRUST_PROXY_HEADERS: ""
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
     # NEXT_PUBLIC_SOCKET_URL: public WebSocket URL for browsers. Leave empty to default to the
     # page's own origin (assumes the ingress/reverse proxy routes /socket.io to the realtime service).

@@ -21,11 +21,31 @@ services:
       # (apex + www, alias hostnames, reverse-proxy IPs). Empty by default.
       - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
       # AUTH_TRUSTED_PROXIES: comma-separated reverse-proxy IPs or CIDR ranges in
-      # front of the app (ingress, load balancer). Better Auth walks
-      # x-forwarded-for right to left, skips these hops, and uses the first
-      # untrusted address as the client IP. Required for correct session IPs and
-      # rate-limit keying behind a multi-hop proxy chain. Empty by default.
+      # front of the app (ingress, load balancer). When set, Better Auth AND
+      # Sim's own per-IP throttles walk x-forwarded-for right to left, skip these
+      # hops, and use the first untrusted address as the client IP — never the
+      # leftmost entry, which the caller supplies and could otherwise be rotated
+      # to mint a fresh rate-limit bucket per request. Empty by default, and then
+      # the two differ: Better Auth trusts only a single-value header (recording
+      # no IP for a multi-hop chain), while Sim's throttles key on the rightmost
+      # (proxy-written) entry — not spoofable, but behind a multi-hop chain
+      # (e.g. CDN in front of ingress) it collapses callers onto the edge
+      # addresses. Set your real hops for per-client keying and correct session
+      # IPs. Use the proxies' actual addresses, NOT a broad private range that
+      # also covers clients: a caller inside a trusted range makes the whole
+      # chain trusted. This all assumes a proxy that appends the peer address —
+      # an app exposed directly to the internet sees only what the caller wrote.
       - AUTH_TRUSTED_PROXIES=${AUTH_TRUSTED_PROXIES:-}
+      # TRUST_PROXY_HEADERS: whether x-forwarded-for / x-real-ip may be believed.
+      # Defaults to FALSE here because this file publishes port 3000 directly and
+      # ships no reverse proxy — with nothing in front, those headers are written
+      # entirely by the caller, and believing them would let anyone rotate a
+      # header to get a fresh per-IP rate-limit bucket on every request. While
+      # false, per-IP limits collapse into one shared bucket: blunt, but it fails
+      # closed. Set it to true once a proxy that APPENDS the peer address (nginx,
+      # Caddy, Traefik, an ALB, Cloudflare) terminates in front of the app, and
+      # set AUTH_TRUSTED_PROXIES to that proxy's address at the same time.
+      - TRUST_PROXY_HEADERS=${TRUST_PROXY_HEADERS:-false}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}

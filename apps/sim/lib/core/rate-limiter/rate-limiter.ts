@@ -204,6 +204,26 @@ export class RateLimiter {
     }
   }
 
+  /**
+   * Clears a single bucket addressed by its exact storage key — the counterpart
+   * to {@link checkRateLimitDirect}. Lets a caller keep a failure-only counter
+   * (consume on every attempt, reset once the attempt succeeds) so legitimate
+   * traffic never walks the bucket down.
+   *
+   * Never throws: a reset that fails leaves tokens consumed, which only makes
+   * the limit stricter.
+   */
+  async resetRateLimitBucket(storageKey: string): Promise<void> {
+    try {
+      await this.storage.resetBucket(storageKey)
+    } catch (error) {
+      logger.warn('Failed to reset rate limit bucket', {
+        storageKey,
+        error: toError(error).message,
+      })
+    }
+  }
+
   async resetRateLimit(rateLimitKey: string): Promise<void> {
     try {
       await Promise.all([

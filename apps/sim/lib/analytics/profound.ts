@@ -6,9 +6,10 @@
  * @see https://docs.tryprofound.com/agent-analytics/custom
  */
 import { createLogger } from '@sim/logger'
+import { UNKNOWN_CLIENT_IP } from '@sim/security/client-ip'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/client-ip'
 import { getBaseDomain } from '@/lib/core/utils/urls'
 
 const logger = createLogger('ProfoundAnalytics')
@@ -104,7 +105,7 @@ export function sendToProfound(request: Request, statusCode: number): void {
       status_code: statusCode,
       ip: (() => {
         const resolved = getClientIp(request)
-        return resolved === 'unknown' ? '0.0.0.0' : resolved
+        return resolved === UNKNOWN_CLIENT_IP ? '0.0.0.0' : resolved
       })(),
       user_agent: request.headers.get('user-agent') || '',
       ...(Object.keys(queryParams).length > 0 && { query_params: queryParams }),

@@ -134,6 +134,7 @@ export {
 } from './redis-config.mock'
 // Request mocks
 export {
+  clientIpMock,
   createMockFormDataRequest,
   createMockRequest,
   requestUtilsMock,

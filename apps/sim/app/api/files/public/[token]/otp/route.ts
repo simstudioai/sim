@@ -21,7 +21,8 @@ import {
   OTP_IP_RATE_LIMIT,
   storeOTP,
 } from '@/lib/core/security/otp'
-import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/client-ip'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'

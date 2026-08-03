@@ -20,6 +20,7 @@ const {
   mockSetDeploymentAuthCookie,
   mockIsEmailAllowed,
   mockCheckRateLimitDirect,
+  mockResetRateLimitBucket,
 } = vi.hoisted(() => ({
   mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
   mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
@@ -27,11 +28,13 @@ const {
   mockSetDeploymentAuthCookie: vi.fn(),
   mockIsEmailAllowed: vi.fn(),
   mockCheckRateLimitDirect: vi.fn().mockResolvedValue({ allowed: true }),
+  mockResetRateLimitBucket: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: class {
     checkRateLimitDirect = mockCheckRateLimitDirect
+    resetRateLimitBucket = mockResetRateLimitBucket
   },
 }))
 
@@ -210,6 +213,98 @@ describe('Chat API Utils', () => {
 
       expect(decryptSecret).toHaveBeenCalledWith('encrypted-password')
       expect(result.authorized).toBe(true)
+    })
+
+    it('clears the per-resource failure counter once a password verifies', async () => {
+      const deployment = {
+        id: 'chat-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+
+      const mockRequest = {
+        method: 'POST',
+        cookies: { get: vi.fn().mockReturnValue(null) },
+      } as any
+
+      await validateChatAuth('request-id', deployment, mockRequest, {
+        password: 'correct-password',
+      })
+
+      expect(mockResetRateLimitBucket).toHaveBeenCalledWith('chat-password:resource:chat-id')
+    })
+
+    it('leaves the per-resource failure counter consumed when the password is wrong', async () => {
+      const deployment = {
+        id: 'chat-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+
+      const mockRequest = {
+        method: 'POST',
+        cookies: { get: vi.fn().mockReturnValue(null) },
+      } as any
+
+      const result = await validateChatAuth('request-id', deployment, mockRequest, {
+        password: 'wrong-password',
+      })
+
+      expect(result.authorized).toBe(false)
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
+        'chat-password:resource:chat-id',
+        expect.objectContaining({ maxTokens: 500 }),
+        { failClosed: true }
+      )
+      expect(mockResetRateLimitBucket).not.toHaveBeenCalled()
+    })
+
+    it('checks the per-resource ceiling fail-closed so an outage cannot lift it', async () => {
+      // It is the only bound on distributed guessing at the secret; failing open
+      // would silently remove it during exactly the outage an attacker waits for.
+      const deployment = {
+        id: 'chat-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+      const mockRequest = {
+        method: 'POST',
+        cookies: { get: vi.fn().mockReturnValue(null) },
+      } as any
+
+      await validateChatAuth('request-id', deployment, mockRequest, {
+        password: 'correct-password',
+      })
+
+      const resourceCall = mockCheckRateLimitDirect.mock.calls.find((call: unknown[]) =>
+        String(call[0]).includes(':resource:')
+      )
+      expect(resourceCall?.[2]).toEqual({ failClosed: true })
+    })
+
+    it('rejects guesses once the per-resource counter is exhausted, without decrypting', async () => {
+      const deployment = {
+        id: 'chat-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+
+      const mockRequest = {
+        method: 'POST',
+        cookies: { get: vi.fn().mockReturnValue(null) },
+      } as any
+
+      mockCheckRateLimitDirect.mockImplementation(async (key: string) =>
+        key.includes(':resource:') ? { allowed: false, retryAfterMs: 900_000 } : { allowed: true }
+      )
+
+      const result = await validateChatAuth('request-id', deployment, mockRequest, {
+        password: 'guess',
+      })
+
+      expect(result.authorized).toBe(false)
+      expect(result.status).toBe(429)
+      expect(decryptSecret).not.toHaveBeenCalled()
     })
 
     it('should reject incorrect password', async () => {

@@ -1,5 +1,12 @@
 import { auditLog, db, user } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import {
+  type ClientIpHeaderSource,
+  parseTrustedProxies,
+  parseTrustForwardedHeaders,
+  resolveClientIp,
+  UNKNOWN_CLIENT_IP,
+} from '@sim/security/client-ip'
 import { generateShortId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import type { AuditActionType, AuditResourceTypeValue } from './types'
@@ -23,15 +30,32 @@ interface AuditLogParams {
   resourceName?: string
   description?: string
   metadata?: Record<string, unknown>
-  request?: { headers: { get(name: string): string | null } }
+  request?: ClientIpHeaderSource
 }
 
-function getClientIp(request: { headers: { get(name: string): string | null } }): string {
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip')?.trim() ||
-    'unknown'
-  )
+/**
+ * Reverse-proxy hops trusted for forwarded-IP resolution. Read from the
+ * environment directly rather than the app's env module so this package stays
+ * free of `apps/*` imports; the value is the same `AUTH_TRUSTED_PROXIES` Better
+ * Auth and Sim's rate limiters use, so an audit row's IP matches the session's.
+ */
+const trustedProxies = parseTrustedProxies(process.env.AUTH_TRUSTED_PROXIES)
+
+/**
+ * Mirrors the app's `TRUST_PROXY_HEADERS`. Recording a caller-authored address
+ * as forensic evidence is worse than recording none, so a deployment that
+ * declares it has no proxy in front gets `unknown` rather than a fabrication.
+ */
+const trustForwardedHeaders = parseTrustForwardedHeaders(process.env.TRUST_PROXY_HEADERS)
+
+/**
+ * An audit row's `ipAddress` is forensic evidence, so it must not be whatever
+ * the caller put in the leftmost `X-Forwarded-For` entry. See
+ * {@link resolveClientIp}.
+ */
+function getClientIp(request: ClientIpHeaderSource): string {
+  if (!trustForwardedHeaders) return UNKNOWN_CLIENT_IP
+  return resolveClientIp(request, trustedProxies)
 }
 
 /**

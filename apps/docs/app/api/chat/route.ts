@@ -1,5 +1,11 @@
 import { openai } from '@ai-sdk/openai'
 import {
+  parseTrustedProxies,
+  parseTrustForwardedHeaders,
+  resolveClientIp,
+  UNKNOWN_CLIENT_IP,
+} from '@sim/security/client-ip'
+import {
   convertToModelMessages,
   jsonSchema,
   stepCountIs,
@@ -69,11 +75,35 @@ const RATE_LIMIT_MAX = 20
 const RATE_LIMIT_WINDOW_MS = 60_000
 const rateLimitHits = new Map<string, { count: number; resetAt: number }>()
 
-/** Resolve the client IP from forwarding headers, falling back to a shared bucket. */
+/**
+ * Reverse-proxy hops trusted for forwarded-IP resolution, named after the main
+ * app's setting so the two behave alike where both are deployed. The docs site
+ * ships separately and does not normally set it, so this is usually empty —
+ * which is safe (the rightmost, proxy-written hop wins) but coarse: if the docs
+ * edge presents more than one hop, visitors share one bucket. Set it here too if
+ * that shows up as spurious 429s.
+ */
+const trustedProxies = parseTrustedProxies(process.env.AUTH_TRUSTED_PROXIES)
+
+/**
+ * Mirrors the main app's `TRUST_PROXY_HEADERS`. Every rule about which hop to
+ * read presumes a proxy wrote one of them; with nothing in front, the header is
+ * caller-authored and this limiter guards paid inference, so decline to guess
+ * and let all callers share one bucket. Defaults to true — the docs site is
+ * served behind an edge that sets the header.
+ */
+const trustForwardedHeaders = parseTrustForwardedHeaders(process.env.TRUST_PROXY_HEADERS)
+
+/**
+ * Resolve the client IP from forwarding headers, falling back to a shared
+ * bucket. Walks the chain right to left: the leftmost `X-Forwarded-For` entry is
+ * caller-supplied, so keying this limit on it would let anyone rotate the header
+ * to mint a fresh bucket per request — and, on this endpoint, unmetered model
+ * spend plus unbounded growth of `rateLimitHits`. See {@link resolveClientIp}.
+ */
 function getClientIp(req: Request): string {
-  const forwarded = req.headers.get('x-forwarded-for')
-  if (forwarded) return forwarded.split(',')[0].trim()
-  return req.headers.get('x-real-ip') ?? 'unknown'
+  if (!trustForwardedHeaders) return UNKNOWN_CLIENT_IP
+  return resolveClientIp(req, trustedProxies)
 }
 
 /** Fixed-window check. Returns retry-after seconds when the caller is over the limit, else null. */

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { type ClientIpHeaderSource, resolveClientIp } from '@sim/security/client-ip'
 import { createMockRequest, requestUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -22,12 +23,14 @@ vi.mock('@/lib/core/rate-limiter/storage', async () => {
   }
 })
 
+/**
+ * Route the globally-mocked `getClientIp` through the real resolver, so these
+ * assertions exercise the actual forwarded-header semantics rather than a
+ * hand-rolled restatement of them that could drift from the implementation.
+ */
 function passThroughClientIp() {
-  requestUtilsMockFns.mockGetClientIp.mockImplementation(
-    (req: { headers: { get(name: string): string | null } }) =>
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      req.headers.get('x-real-ip')?.trim() ||
-      'unknown'
+  requestUtilsMockFns.mockGetClientIp.mockImplementation((req: ClientIpHeaderSource) =>
+    resolveClientIp(req)
   )
 }
 
@@ -106,7 +109,7 @@ describe('route-helpers rate limiting', () => {
       passThroughClientIp()
     })
 
-    it('uses the X-Forwarded-For client IP in the bucket key', async () => {
+    it('keys on the proxy-appended hop, not the caller-supplied leftmost one', async () => {
       consume.mockResolvedValueOnce({
         allowed: true,
         tokensRemaining: 9,
@@ -118,11 +121,7 @@ describe('route-helpers rate limiting', () => {
 
       await enforceIpRateLimit('public-bucket', request)
 
-      expect(consume).toHaveBeenCalledWith(
-        'route:public-bucket:ip:203.0.113.7',
-        1,
-        expect.any(Object)
-      )
+      expect(consume).toHaveBeenCalledWith('route:public-bucket:ip:10.0.0.1', 1, expect.any(Object))
     })
 
     it('folds spoofed `X-Forwarded-For: unknown` into a single shared bucket', async () => {

@@ -91,6 +91,8 @@ spec:
               value: {{ include "sim.ollamaUrl" . | quote }}
             - name: PII_URL
               value: {{ include "sim.piiUrl" . | quote }}
+            - name: TRUST_PROXY_HEADERS
+              value: {{ include "sim.trustProxyHeaders" . | quote }}
             {{- /*
               Skip envDefaults keys that the user has explicitly overridden in app.env
               with a non-empty value. K8s `env` takes precedence over `envFrom`, so an
@@ -119,7 +121,7 @@ spec:
               and in inline mode (values flow through the chart-managed Secret).
             */}}
             {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
-            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" }}
+            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" "TRUST_PROXY_HEADERS" }}
             {{- range $key, $value := $appEnv }}
             {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (not (has $key $chartComputed)) }}
             - name: {{ $key }}
