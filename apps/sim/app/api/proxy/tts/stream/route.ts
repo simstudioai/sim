@@ -187,6 +187,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     } catch (err) {
       logger.error('Failed to record voice output usage, refusing to stream:', err)
+      // Release the open vendor stream; nothing will drain it once we reject.
+      await response.body?.cancel().catch(() => {})
       return new Response('Unable to record usage for this request', { status: 500 })
     }
 

@@ -82,20 +82,26 @@ function validBody(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/** Minimal ElevenLabs stub returning a readable audio body. */
+/**
+ * Minimal ElevenLabs stub returning a readable audio body. Returns the `cancel`
+ * spy so tests can assert the vendor stream is released when we reject.
+ */
 function mockElevenLabsAudio() {
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array([0x49, 0x44, 0x33]))
+      controller.close()
+    },
+  })
+  const cancel = vi.fn(() => stream.cancel())
   global.fetch = vi.fn().mockResolvedValue({
     ok: true,
     status: 200,
     statusText: 'OK',
-    body: new ReadableStream({
-      start(controller) {
-        controller.enqueue(new Uint8Array([0x49, 0x44, 0x33]))
-        controller.close()
-      },
-    }),
+    body: { getReader: () => stream.getReader(), cancel },
     // double-cast-allowed: minimal fetch stub for the ElevenLabs stream call
   }) as unknown as typeof fetch
+  return cancel
 }
 
 beforeEach(() => {
@@ -257,7 +263,8 @@ describe('POST /api/proxy/tts/stream — attribution', () => {
     expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 
-  it('refuses to stream audio it could not record a charge for', async () => {
+  it('refuses to stream audio it could not record a charge for, releasing the vendor stream', async () => {
+    const cancel = mockElevenLabsAudio()
     queueTableRows(schemaMock.chat, [publicChatRow])
     mockRecordUsage.mockRejectedValue(new Error('ledger unavailable'))
 
@@ -265,6 +272,7 @@ describe('POST /api/proxy/tts/stream — attribution', () => {
 
     expect(res.status).toBe(500)
     expect(res.headers.get('Content-Type')).not.toBe('audio/mpeg')
+    expect(cancel).toHaveBeenCalledTimes(1)
   })
 
   it('rejects an unknown chat without touching the platform key', async () => {
