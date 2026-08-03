@@ -5,6 +5,7 @@ import {
   getQuickBooksAttachmentTarget,
   parseQuickBooksAttachableResponse,
   QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES,
+  sanitizeQuickBooksAttachable,
   sanitizeQuickBooksFileName,
   validateQuickBooksAttachmentFileType,
 } from '@/tools/quickbooks/documents_utils'
@@ -188,6 +189,45 @@ describe('QuickBooks attachment metadata reads', () => {
     await expect(parseQuickBooksAttachableResponse(response)).resolves.toEqual({
       attachment: { Id: '9' },
       time: '2026-08-02T12:00:00Z',
+    })
+  })
+
+  it('removes Intuit attachment access URLs from parsed and listed metadata', async () => {
+    const attachment = {
+      Id: '9',
+      FileName: 'receipt.pdf',
+      FileAccessUri: 'https://example.invalid/file',
+      TempDownloadUri: 'https://example.invalid/temp?token=secret',
+      TemporaryDownloadUri: 'https://example.invalid/temporary?token=secret',
+      ThumbnailFileAccessUri: 'https://example.invalid/thumbnail',
+      ThumbnailTempDownloadUri: 'https://example.invalid/thumbnail-temp?token=secret',
+    }
+
+    expect(sanitizeQuickBooksAttachable(attachment)).toEqual({
+      Id: '9',
+      FileName: 'receipt.pdf',
+    })
+
+    await expect(
+      parseQuickBooksAttachableResponse(Response.json({ Attachable: attachment }))
+    ).resolves.toEqual({
+      attachment: { Id: '9', FileName: 'receipt.pdf' },
+      time: null,
+    })
+
+    const params: QuickBooksReadAttachmentsParams = {
+      ...auth,
+      readMode: 'list',
+      targetType: 'invoice',
+      targetId: '88',
+    }
+    await expect(
+      quickbooksReadAttachmentsTool.transformResponse!(
+        Response.json({ QueryResponse: { Attachable: [attachment] } }),
+        params
+      )
+    ).resolves.toMatchObject({
+      output: { items: [{ Id: '9', FileName: 'receipt.pdf' }] },
     })
   })
 

@@ -4,6 +4,7 @@ import {
   escapeQuickBooksQueryLiteral,
   getQuickBooksAttachmentTarget,
   parseQuickBooksAttachableResponse,
+  sanitizeQuickBooksAttachable,
 } from '@/tools/quickbooks/documents_utils'
 import type {
   QuickBooksAttachable,
@@ -144,9 +145,10 @@ export const quickbooksReadAttachmentsTool: ToolConfig<
     ) {
       throw new Error('QuickBooks Attachable response is missing QueryResponse')
     }
-    const items = data.QueryResponse.Attachable ?? []
-    if (!Array.isArray(items))
+    const attachments = data.QueryResponse.Attachable ?? []
+    if (!Array.isArray(attachments))
       throw new Error('QuickBooks Attachable response contains a malformed attachment list')
+    const items = attachments.map(sanitizeQuickBooksAttachable)
     const startPosition = Number.isInteger(data.QueryResponse.startPosition)
       ? data.QueryResponse.startPosition!
       : pagination.startPosition

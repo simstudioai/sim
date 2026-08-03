@@ -443,9 +443,6 @@ export interface QuickBooksAttachable {
   Size?: number
   Note?: string
   Category?: string
-  TemporaryDownloadUri?: string
-  FileAccessUri?: string
-  TempDownloadUri?: string
   AttachableRef?: QuickBooksAttachableReference[]
   MetaData?: QuickBooksMetaData
   domain?: string

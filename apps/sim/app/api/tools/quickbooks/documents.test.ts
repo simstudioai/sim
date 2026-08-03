@@ -149,7 +149,15 @@ describe('QuickBooks document API routes', () => {
 
   it('creates a note attachment with one JSON request', async () => {
     mockFetch.mockResolvedValueOnce(
-      Response.json({ Attachable: { Id: '9', Note: 'Audit note' }, time: '2026-08-02' })
+      Response.json({
+        Attachable: {
+          Id: '9',
+          Note: 'Audit note',
+          TempDownloadUri: 'https://example.invalid/temp?token=secret',
+          ThumbnailTempDownloadUri: 'https://example.invalid/thumbnail?token=secret',
+        },
+        time: '2026-08-02',
+      })
     )
 
     const response = await addAttachment(
@@ -165,6 +173,7 @@ describe('QuickBooks document API routes', () => {
 
     expect(response.status).toBe(200)
     expect(body.output).toMatchObject({ attachmentId: '9', attachmentKind: 'note' })
+    expect(body.output.attachment).toEqual({ Id: '9', Note: 'Audit note' })
     expect(mockFetch).toHaveBeenCalledTimes(1)
     expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({
       Note: 'Audit note',

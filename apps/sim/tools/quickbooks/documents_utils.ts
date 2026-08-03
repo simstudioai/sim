@@ -118,6 +118,25 @@ export interface QuickBooksAttachableEnvelope {
   time?: string
 }
 
+/**
+ * Removes Intuit-managed attachment URLs before records enter tool outputs or execution logs.
+ * These URLs can be short-lived capability links and are not needed by callers because file
+ * downloads go through the authenticated Download Attachment operation.
+ */
+export function sanitizeQuickBooksAttachable(
+  attachment: QuickBooksAttachable
+): QuickBooksAttachable {
+  const {
+    FileAccessUri: _fileAccessUri,
+    TempDownloadUri: _tempDownloadUri,
+    TemporaryDownloadUri: _temporaryDownloadUri,
+    ThumbnailFileAccessUri: _thumbnailFileAccessUri,
+    ThumbnailTempDownloadUri: _thumbnailTempDownloadUri,
+    ...safeAttachment
+  } = attachment
+  return safeAttachment as QuickBooksAttachable
+}
+
 export async function parseQuickBooksAttachableResponse(
   response: Response
 ): Promise<{ attachment: QuickBooksAttachable; time: string | null }> {
@@ -140,7 +159,10 @@ export async function parseQuickBooksAttachableResponse(
     throw new Error('QuickBooks Attachable response is missing a valid attachment ID')
   }
   const responseTime = data.time ?? data.AttachableResponse?.[0]?.time
-  return { attachment, time: typeof responseTime === 'string' ? responseTime : null }
+  return {
+    attachment: sanitizeQuickBooksAttachable(attachment),
+    time: typeof responseTime === 'string' ? responseTime : null,
+  }
 }
 
 export function buildQuickBooksAttachableMetadata(
