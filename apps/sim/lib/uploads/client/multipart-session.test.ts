@@ -52,7 +52,7 @@ describe('uploadMultipartSession', () => {
     expect(abort).not.toHaveBeenCalled()
   })
 
-  it('aborts the durable session when a part upload is aborted', async () => {
+  it('aborts the signed session when a part upload is aborted', async () => {
     const file = new File(['part'], 'part.txt')
     const complete = vi.fn()
     const abort = vi.fn(async () => {})

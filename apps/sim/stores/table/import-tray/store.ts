@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 /**
- * An in-flight client upload, shown after its durable import resource is created but before the
+ * An in-flight client upload, shown after its signed upload session is created but before the
  * table list has refreshed. `uploadId` is the import id across upload and processing.
  */
 export interface ImportUpload {

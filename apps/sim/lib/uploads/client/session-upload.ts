@@ -40,6 +40,7 @@ export async function uploadWorkspaceFileSession(params: UploadWorkspaceFileSess
       const batch = await requestJson(createWorkspaceFileUploadPartUrlsContract, {
         params: { uploadId: upload.id },
         query: { workspaceId },
+        headers: { 'upload-token': upload.uploadToken },
         body: { partNumbers },
         signal,
       })
@@ -49,6 +50,7 @@ export async function uploadWorkspaceFileSession(params: UploadWorkspaceFileSess
       const completed = await requestJson(completeWorkspaceFileUploadContract, {
         params: { uploadId: upload.id },
         query: { workspaceId },
+        headers: { 'upload-token': upload.uploadToken },
         body: { parts },
         signal,
       })
@@ -59,6 +61,7 @@ export async function uploadWorkspaceFileSession(params: UploadWorkspaceFileSess
       await requestJson(abortWorkspaceFileUploadContract, {
         params: { uploadId: upload.id },
         query: { workspaceId },
+        headers: { 'upload-token': upload.uploadToken },
       })
     },
   })

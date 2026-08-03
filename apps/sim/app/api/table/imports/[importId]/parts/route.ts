@@ -3,11 +3,8 @@ import { createTableImportPartUrlsContract } from '@/lib/api/contracts/table-tra
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getOwnedTableImport } from '@/lib/table/orchestration/import-resource'
-import {
-  createUploadPartUrls,
-  getOwnedUploadSession,
-} from '@/lib/uploads/multipart-session/service'
+import { getOwnedTableImportUpload } from '@/lib/table/orchestration/import-resource'
+import { createUploadPartUrls } from '@/lib/uploads/multipart-session/service'
 import { orchestrationErrorResponse } from '@/app/api/table/utils'
 
 interface ImportRouteParams {
@@ -22,18 +19,11 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Impor
   const parsed = await parseRequest(createTableImportPartUrlsContract, request, context)
   if (!parsed.success) return parsed.response
   try {
-    const record = await getOwnedTableImport({
+    const upload = getOwnedTableImportUpload({
       importId: parsed.data.params.importId,
       workspaceId: parsed.data.query.workspaceId,
       userId: auth.userId,
-    })
-    if (!record.uploadSessionId) {
-      return NextResponse.json({ error: 'Import has no upload source' }, { status: 409 })
-    }
-    const upload = await getOwnedUploadSession({
-      uploadId: record.uploadSessionId,
-      workspaceId: record.workspaceId,
-      userId: auth.userId,
+      uploadToken: parsed.data.headers['upload-token'],
     })
     const parts = await createUploadPartUrls({
       session: upload,

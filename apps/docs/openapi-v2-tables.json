@@ -3494,7 +3494,7 @@
       "post": {
         "operationId": "createTableImport",
         "summary": "Create Table Import",
-        "description": "Create one durable import resource for either a new or existing table. Upload sources return multipart details; workspace-file sources start immediately.",
+        "description": "Create a table import. Upload sources return a stateless multipart token; workspace-file sources start immediately and both use table jobs for processing state.",
         "tags": ["Tables"],
         "requestBody": {
           "required": true,
@@ -3519,7 +3519,7 @@
       "get": {
         "operationId": "getTableImport",
         "summary": "Get Table Import",
-        "description": "Read upload, processing, progress, and terminal state using the same import id.",
+        "description": "Read processing progress and terminal state from the table job using the same import id.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3553,7 +3553,8 @@
             "required": true,
             "schema": { "type": "string" }
           },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/OptionalUploadTokenHeader" }
         ],
         "responses": {
           "200": {
@@ -3581,7 +3582,8 @@
             "required": true,
             "schema": { "type": "string" }
           },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/UploadTokenHeader" }
         ],
         "requestBody": {
           "required": true,
@@ -3614,7 +3616,8 @@
             "required": true,
             "schema": { "type": "string" }
           },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/UploadTokenHeader" }
         ],
         "requestBody": {
           "required": true,
@@ -3883,6 +3886,20 @@
           "minLength": 1
         },
         "description": "The unique identifier of the workspace that owns the table."
+      },
+      "UploadTokenHeader": {
+        "name": "upload-token",
+        "in": "header",
+        "required": true,
+        "description": "The signed token returned for an upload-backed table import.",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "OptionalUploadTokenHeader": {
+        "name": "upload-token",
+        "in": "header",
+        "required": false,
+        "description": "Required when canceling before upload completion; omitted when canceling a running table job.",
+        "schema": { "type": "string", "minLength": 1 }
       },
       "LimitQuery": {
         "name": "limit",

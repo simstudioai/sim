@@ -7,6 +7,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  abortTableImportUpload,
   cancelTableImportResource,
   getOwnedTableImport,
   toV2TableImport,
@@ -49,13 +50,23 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Imp
   const parsed = await parseRequest(cancelTableImportResourceContract, request, context)
   if (!parsed.success) return parsed.response
   try {
-    const record = await getOwnedTableImport({
-      importId: parsed.data.params.importId,
-      workspaceId: parsed.data.query.workspaceId,
-      userId: user,
-    })
+    const uploadToken = parsed.data.headers['upload-token']
+    const record = uploadToken
+      ? await abortTableImportUpload({
+          importId: parsed.data.params.importId,
+          workspaceId: parsed.data.query.workspaceId,
+          userId: user,
+          uploadToken,
+        })
+      : await cancelTableImportResource(
+          await getOwnedTableImport({
+            importId: parsed.data.params.importId,
+            workspaceId: parsed.data.query.workspaceId,
+            userId: user,
+          })
+        )
     return NextResponse.json({
-      data: await toV2TableImport(await cancelTableImportResource(record)),
+      data: toV2TableImport(record),
     })
   } catch (error) {
     const classified = orchestrationErrorResponse(error)

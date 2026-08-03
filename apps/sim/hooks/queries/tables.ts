@@ -1771,6 +1771,7 @@ async function createAndUploadTableImport(params: {
       const response = await requestJson(createTableImportPartUrlsContract, {
         params: { importId: created.data.id },
         query: { workspaceId: params.workspaceId },
+        headers: { 'upload-token': upload.uploadToken },
         body: { partNumbers },
       })
       return response.data.parts
@@ -1779,6 +1780,7 @@ async function createAndUploadTableImport(params: {
       const response = await requestJson(completeTableImportResourceContract, {
         params: { importId: created.data.id },
         query: { workspaceId: params.workspaceId },
+        headers: { 'upload-token': upload.uploadToken },
         body: { parts },
       })
       return response.data
@@ -1787,12 +1789,13 @@ async function createAndUploadTableImport(params: {
       await requestJson(cancelTableImportResourceContract, {
         params: { importId: created.data.id },
         query: { workspaceId: params.workspaceId },
+        headers: { 'upload-token': upload.uploadToken },
       })
     },
   })
 }
 
-/** Uploads a CSV/TSV through its durable import resource and creates a table from it. */
+/** Uploads a CSV/TSV through a signed multipart session and creates a table from it. */
 export function useImportCsv() {
   const queryClient = useQueryClient()
   const timezone = useTimezone()
@@ -1943,6 +1946,7 @@ export async function cancelTableImport(workspaceId: string, importId: string): 
   await requestJson(cancelTableImportResourceContract, {
     params: { importId },
     query: { workspaceId },
+    headers: {},
   })
 }
 

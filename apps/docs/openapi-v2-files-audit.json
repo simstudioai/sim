@@ -319,7 +319,7 @@
       "post": {
         "operationId": "createFileUpload",
         "summary": "Create File Upload",
-        "description": "Create a durable multipart upload session. Every file uses this flow; a small file is a single part. The maximum file size is 5 GB.",
+        "description": "Create a stateless multipart upload session and signed upload token. Every file uses this flow; a small file is a single part. The maximum file size is 5 GB.",
         "tags": ["Files"],
         "requestBody": {
           "required": true,
@@ -339,31 +339,6 @@
       }
     },
     "/api/v2/files/uploads/{uploadId}": {
-      "get": {
-        "operationId": "getFileUpload",
-        "summary": "Get File Upload",
-        "description": "Read the durable state of a file upload session.",
-        "tags": ["Files"],
-        "parameters": [
-          {
-            "name": "uploadId",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
-        ],
-        "responses": {
-          "200": {
-            "description": "The upload session.",
-            "content": { "application/json": { "schema": {} } }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      },
       "delete": {
         "operationId": "abortFileUpload",
         "summary": "Abort File Upload",
@@ -376,7 +351,8 @@
             "required": true,
             "schema": { "type": "string" }
           },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/UploadTokenHeader" }
         ],
         "responses": {
           "200": {
@@ -404,7 +380,8 @@
             "required": true,
             "schema": { "type": "string" }
           },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/UploadTokenHeader" }
         ],
         "requestBody": {
           "required": true,
@@ -437,7 +414,8 @@
             "required": true,
             "schema": { "type": "string" }
           },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/UploadTokenHeader" }
         ],
         "requestBody": {
           "required": true,
@@ -1698,6 +1676,13 @@
           "type": "string",
           "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
         }
+      },
+      "UploadTokenHeader": {
+        "name": "upload-token",
+        "in": "header",
+        "required": true,
+        "description": "The signed token returned when the multipart upload was created.",
+        "schema": { "type": "string", "minLength": 1 }
       },
       "FileIdPath": {
         "name": "fileId",

@@ -2,11 +2,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { localUploadPartContract } from '@/lib/api/contracts/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { verifyUploadToken } from '@/lib/uploads/core/upload-token'
 import { writeLocalMultipartPart } from '@/lib/uploads/multipart-session/provider'
 import {
   expectedUploadPartSize,
-  getOwnedUploadSession,
+  type UploadSessionRecord,
+  verifyUploadSessionToken,
 } from '@/lib/uploads/multipart-session/service'
 
 interface LocalPartRouteParams {
@@ -20,19 +20,17 @@ interface LocalPartRouteParams {
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: LocalPartRouteParams): Promise<NextResponse> => {
     const { uploadId } = await context.params
-    const verification = verifyUploadToken(request.nextUrl.searchParams.get('token') ?? '')
-    if (!verification.valid || verification.payload.uploadId !== uploadId) {
+    const token = request.nextUrl.searchParams.get('token') ?? ''
+    let session: UploadSessionRecord
+    try {
+      session = verifyUploadSessionToken(token)
+    } catch {
       return NextResponse.json({ error: 'Invalid or expired upload token' }, { status: 403 })
     }
     const parsed = await parseRequest(localUploadPartContract, request, context)
     if (!parsed.success) return parsed.response
 
-    const session = await getOwnedUploadSession({
-      uploadId,
-      workspaceId: verification.payload.workspaceId,
-      userId: verification.payload.userId,
-    })
-    if (session.storageProvider !== 'local' || session.storageKey !== verification.payload.key) {
+    if (session.id !== uploadId || session.storageProvider !== 'local') {
       return NextResponse.json({ error: 'Upload URL does not match this session' }, { status: 403 })
     }
     if (session.status !== 'uploading') {

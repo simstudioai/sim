@@ -44,7 +44,12 @@ export const POST = withRouteHandler(
       const { workspaceId } = parsed.data.query
       const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
       if (access) return v2WorkspaceAccessError(access)
-      const session = await getOwnedUploadSession({ uploadId, workspaceId, userId })
+      const session = getOwnedUploadSession({
+        uploadId,
+        workspaceId,
+        userId,
+        uploadToken: parsed.data.headers['upload-token'],
+      })
       const metadata = session.metadata as { folderId?: string | null }
       const result = await completeUploadSession({
         session,
@@ -61,7 +66,7 @@ export const POST = withRouteHandler(
           return { value: registered.file.id, completedFileId: registered.file.id }
         },
       })
-      const fileId = result.value ?? result.session.completedFileId
+      const fileId = result.value
       if (!fileId) throw new Error('Completed upload is missing its workspace file id')
       const file = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
       if (!file) throw new Error(`Completed workspace file ${fileId} not found`)

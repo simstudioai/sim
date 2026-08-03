@@ -13,6 +13,7 @@ import {
   v2PartUrlsBodySchema,
   v2PartUrlsDataSchema,
   v2UploadStatusSchema,
+  v2UploadTokenHeadersSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 
@@ -32,9 +33,8 @@ import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
  * contract; folder management belongs on `/api/v2/folders` once that surface
  * serves `resourceType: 'file'`.
  *
- * Uploads are durable multipart sessions. The control plane owns cleanup and
- * completion atomically registers the workspace file, so an abandoned direct
- * upload cannot become an untracked permanent object.
+ * Uploads use a signed stateless control token. The storage provider owns the
+ * multipart part state; completion atomically registers the workspace file.
  */
 
 /** A workspace file as exposed by the v2 surface. */
@@ -82,6 +82,7 @@ export const v2FileUploadSchema = z.object({
   size: z.number().int().positive(),
   partSize: z.number().int().positive(),
   partCount: z.number().int().positive(),
+  uploadToken: z.string().min(1),
   expiresAt: z.string().datetime(),
   error: z.string().nullable(),
   file: v2FileSchema.nullable(),
@@ -327,19 +328,12 @@ export const v2CreateFileUploadContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
 })
 
-export const v2GetFileUploadContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/v2/files/uploads/[uploadId]',
-  params: v2FileUploadParamsSchema,
-  query: v2FileUploadWorkspaceQuerySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
-})
-
 export const v2AbortFileUploadContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/files/uploads/[uploadId]',
   params: v2FileUploadParamsSchema,
   query: v2FileUploadWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
   response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
 })
 
@@ -348,6 +342,7 @@ export const v2CreateFileUploadPartUrlsContract = defineRouteContract({
   path: '/api/v2/files/uploads/[uploadId]/parts',
   params: v2FileUploadParamsSchema,
   query: v2FileUploadWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
   body: v2PartUrlsBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2PartUrlsDataSchema) },
 })
@@ -357,6 +352,7 @@ export const v2CompleteFileUploadContract = defineRouteContract({
   path: '/api/v2/files/uploads/[uploadId]/complete',
   params: v2FileUploadParamsSchema,
   query: v2FileUploadWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
   body: v2CompleteUploadBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
 })

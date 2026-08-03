@@ -1,13 +1,14 @@
 import { db } from '@sim/db'
-import { tableImports } from '@sim/db/schema'
+import { tableJobs } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import {
   type V2CreateTableImportBody,
   type V2TableImport,
-  type V2TableImportStatus,
+  type V2TableImportSource,
   type V2TableImportTarget,
+  v2CreateTableImportBodySchema,
   v2TableImportSourceSchema,
   v2TableImportTargetSchema,
 } from '@/lib/api/contracts/v2/tables'
@@ -17,15 +18,11 @@ import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { findActiveFolder } from '@/lib/folders/queries'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
-import {
-  getTableImport,
-  markTrackedImportTerminal,
-  type TableImportRecord,
-} from '@/lib/table/import-resource-store'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markJobCanceled, markJobFailed, markTableJobRunning } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
 import { createTable, getTableById } from '@/lib/table/service'
+import type { TableImportJobPayload } from '@/lib/table/types'
 import { getWorkspaceFile, type WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   abortUploadSession,
@@ -36,8 +33,27 @@ import {
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
+type TableImportStatus = 'uploading' | 'running' | 'ready' | 'failed' | 'canceled'
+
+interface TableImportResource {
+  id: string
+  workspaceId: string
+  userId: string
+  source: V2TableImportSource
+  target: V2TableImportTarget
+  options: TableImportJobPayload['options']
+  tableId: string | null
+  status: TableImportStatus
+  rowsProcessed: number
+  error: string | null
+  upload: UploadSessionRecord | null
+  createdAt: Date
+  updatedAt: Date
+  completedAt: Date | null
+}
+
 interface CreateTableImportResult {
-  record: TableImportRecord
+  record: TableImportResource
   upload: UploadSessionRecord | null
 }
 
@@ -48,11 +64,7 @@ export async function createTableImportResource(
   await assertWorkspaceWrite(userId, body.workspaceId)
   await validateTarget(body.workspaceId, body.target)
   const importId = generateId()
-  const options = {
-    mapping: body.mapping,
-    createColumns: body.createColumns,
-    timezone: body.timezone,
-  }
+  const options = importOptions(body)
 
   if (body.source.type === 'upload') {
     assertCsvFileName(body.source.name)
@@ -64,228 +76,232 @@ export async function createTableImportResource(
       fileName: body.source.name,
       contentType: body.source.contentType,
       fileSize: body.source.size,
+      metadata: { tableImport: body },
     })
-    try {
-      const [record] = await db
-        .insert(tableImports)
-        .values({
-          id: importId,
-          workspaceId: body.workspaceId,
-          userId,
-          uploadSessionId: upload.id,
-          sourceType: 'upload',
-          targetType: body.target.type,
-          sourceFileId: null,
-          tableId: body.target.type === 'existing' ? body.target.tableId : null,
-          source: body.source,
-          target: body.target,
-          options,
-          status: 'uploading',
-        })
-        .returning()
-      if (!record) throw new Error('Table import insert returned no row')
-      return { record, upload }
-    } catch (error) {
-      await abortUploadSession(upload).catch(() => {})
-      throw error
-    }
+    return { record: resourceFromUpload(upload, body), upload }
   }
 
   const file = await requireWorkspaceSource(body.workspaceId, body.source.fileId)
   assertCsvFileName(file.name)
-  const [record] = await db
-    .insert(tableImports)
-    .values({
+  return {
+    record: await startTableImport({
       id: importId,
       workspaceId: body.workspaceId,
       userId,
-      uploadSessionId: null,
-      sourceFileId: file.id,
-      sourceType: 'workspace_file',
-      targetType: body.target.type,
-      tableId: body.target.type === 'existing' ? body.target.tableId : null,
       source: body.source,
       target: body.target,
       options,
-      status: 'queued',
-    })
-    .returning()
-  if (!record) throw new Error('Table import insert returned no row')
-  return {
-    record: await startTableImport(record, file.key, file.name, 'workspace', false),
+      fileKey: file.key,
+      fileName: file.name,
+      storageContext: 'workspace',
+      deleteSourceFile: false,
+    }),
     upload: null,
   }
 }
 
-export async function startUploadedTableImport(importId: string): Promise<TableImportRecord> {
-  const record = await getTableImport(importId)
-  if (!record) throw new OrchestrationError('not_found', 'Table import not found')
-  if (record.status !== 'uploading') return record
-  if (!record.uploadSessionId) throw new Error(`Table import ${importId} has no upload session`)
-  const upload = await getOwnedUploadSession({
-    uploadId: record.uploadSessionId,
-    workspaceId: record.workspaceId,
-    userId: record.userId,
+export async function startUploadedTableImport(
+  upload: UploadSessionRecord
+): Promise<TableImportResource> {
+  const body = tableImportBodyFromUpload(upload)
+  const existing = await findOwnedTableImport({
+    importId: upload.id,
+    workspaceId: upload.workspaceId,
+    userId: upload.userId,
   })
-  if (upload.status !== 'completed') {
-    throw new OrchestrationError('conflict', `Table import upload is ${upload.status}`)
-  }
-  return startTableImport(record, upload.storageKey, upload.fileName, 'table-import', true)
+  if (existing) return existing
+  return startTableImport({
+    id: upload.id,
+    workspaceId: upload.workspaceId,
+    userId: upload.userId,
+    source: body.source,
+    target: body.target,
+    options: importOptions(body),
+    fileKey: upload.storageKey,
+    fileName: upload.fileName,
+    storageContext: 'table-import',
+    deleteSourceFile: true,
+  })
+}
+
+export function getOwnedTableImportUpload(params: {
+  importId: string
+  workspaceId: string
+  userId: string
+  uploadToken: string
+}): UploadSessionRecord {
+  const upload = getOwnedUploadSession({
+    uploadId: params.importId,
+    workspaceId: params.workspaceId,
+    userId: params.userId,
+    uploadToken: params.uploadToken,
+  })
+  tableImportBodyFromUpload(upload)
+  return upload
+}
+
+export async function abortTableImportUpload(params: {
+  importId: string
+  workspaceId: string
+  userId: string
+  uploadToken: string
+}): Promise<TableImportResource> {
+  const upload = getOwnedTableImportUpload(params)
+  const body = tableImportBodyFromUpload(upload)
+  return resourceFromUpload(await abortUploadSession(upload), body)
 }
 
 export async function getOwnedTableImport(params: {
   importId: string
   workspaceId: string
   userId: string
-}): Promise<TableImportRecord> {
-  const [record] = await db
-    .select()
-    .from(tableImports)
-    .where(
-      and(
-        eq(tableImports.id, params.importId),
-        eq(tableImports.workspaceId, params.workspaceId),
-        eq(tableImports.userId, params.userId)
-      )
-    )
-    .limit(1)
+}): Promise<TableImportResource> {
+  const record = await findOwnedTableImport(params)
   if (!record) throw new OrchestrationError('not_found', 'Table import not found')
   return record
 }
 
-export async function cancelTableImportResource(
-  record: TableImportRecord
-): Promise<TableImportRecord> {
-  if (record.status === 'canceled') return record
-  if (record.status === 'completed' || record.status === 'failed' || record.status === 'expired') {
-    throw new OrchestrationError('conflict', `Table import is ${record.status}`)
+async function findOwnedTableImport(params: {
+  importId: string
+  workspaceId: string
+  userId: string
+}): Promise<TableImportResource | null> {
+  const [job] = await db
+    .select()
+    .from(tableJobs)
+    .where(
+      and(
+        eq(tableJobs.id, params.importId),
+        eq(tableJobs.workspaceId, params.workspaceId),
+        eq(tableJobs.type, 'import')
+      )
+    )
+    .limit(1)
+  if (!job) return null
+  const payload = parseImportJobPayload(job.payload)
+  if (payload.userId !== params.userId) return null
+  return {
+    id: job.id,
+    workspaceId: job.workspaceId,
+    userId: payload.userId,
+    source: v2TableImportSourceSchema.parse(payload.source),
+    target: v2TableImportTargetSchema.parse(payload.target),
+    options: payload.options,
+    tableId: job.tableId,
+    status: tableImportStatus(job.status),
+    rowsProcessed: job.rowsProcessed,
+    error: job.error,
+    upload: null,
+    createdAt: job.startedAt,
+    updatedAt: job.updatedAt,
+    completedAt: job.completedAt,
   }
-
-  if (record.status === 'uploading') {
-    if (!record.uploadSessionId) throw new Error(`Table import ${record.id} has no upload session`)
-    const upload = await getOwnedUploadSession({
-      uploadId: record.uploadSessionId,
-      workspaceId: record.workspaceId,
-      userId: record.userId,
-    })
-    await abortUploadSession(upload)
-  } else if (record.tableId) {
-    await markJobCanceled(record.tableId, record.id)
-  }
-  await markTrackedImportTerminal({ importId: record.id, status: 'canceled' })
-  const updated = await getTableImport(record.id)
-  if (!updated) throw new Error(`Canceled table import ${record.id} disappeared`)
-  return updated
 }
 
-export async function toV2TableImport(record: TableImportRecord): Promise<V2TableImport> {
-  const source = v2TableImportSourceSchema.parse(record.source)
-  const target = v2TableImportTargetSchema.parse(record.target)
-  let upload: V2TableImport['upload'] = null
-  if (record.uploadSessionId) {
-    const session = await getOwnedUploadSession({
-      uploadId: record.uploadSessionId,
-      workspaceId: record.workspaceId,
-      userId: record.userId,
-    })
-    upload = {
-      partSize: session.partSize,
-      partCount: session.partCount,
-      expiresAt: session.expiresAt.toISOString(),
-    }
+export async function cancelTableImportResource(
+  record: TableImportResource
+): Promise<TableImportResource> {
+  if (record.status === 'canceled') return record
+  if (record.status !== 'running' || !record.tableId) {
+    throw new OrchestrationError('conflict', `Table import is ${publicImportStatus(record.status)}`)
   }
+  await markJobCanceled(record.tableId, record.id)
+  return getOwnedTableImport({
+    importId: record.id,
+    workspaceId: record.workspaceId,
+    userId: record.userId,
+  })
+}
+
+export function toV2TableImport(record: TableImportResource): V2TableImport {
   return {
     id: record.id,
     workspaceId: record.workspaceId,
     status: publicImportStatus(record.status),
-    source,
-    target,
+    source: record.source,
+    target: record.target,
     tableId: record.tableId,
     rowsProcessed: record.rowsProcessed,
     error: record.error,
-    upload,
+    upload: record.upload
+      ? {
+          uploadToken: record.upload.uploadToken,
+          partSize: record.upload.partSize,
+          partCount: record.upload.partCount,
+          expiresAt: record.upload.expiresAt.toISOString(),
+        }
+      : null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
     completedAt: record.completedAt?.toISOString() ?? null,
   }
 }
 
-async function startTableImport(
-  record: TableImportRecord,
-  fileKey: string,
-  fileName: string,
-  storageContext: 'workspace' | 'table-import',
+interface StartTableImportParams {
+  id: string
+  workspaceId: string
+  userId: string
+  source: V2TableImportSource
+  target: V2TableImportTarget
+  options: TableImportJobPayload['options']
+  fileKey: string
+  fileName: string
+  storageContext: 'workspace' | 'table-import'
   deleteSourceFile: boolean
-): Promise<TableImportRecord> {
-  const [claimed] = await db
-    .update(tableImports)
-    .set({ status: 'preparing', updatedAt: new Date() })
-    .where(and(eq(tableImports.id, record.id), eq(tableImports.status, record.status)))
-    .returning()
-  if (!claimed) {
-    const current = await getTableImport(record.id)
-    if (!current) throw new Error(`Table import ${record.id} disappeared while starting`)
-    return current
-  }
+}
 
-  const target = v2TableImportTargetSchema.parse(claimed.target)
-  const options = claimed.options as {
-    mapping?: TableImportPayload['mapping']
-    createColumns?: string[]
-    timezone?: string
-  }
+async function startTableImport(params: StartTableImportParams): Promise<TableImportResource> {
   const requestId = generateRequestId()
+  const jobPayload: TableImportJobPayload = {
+    kind: 'table_import',
+    userId: params.userId,
+    source: params.source,
+    target: params.target,
+    options: params.options,
+  }
   let tableId: string | null = null
   try {
-    if (target.type === 'new') {
-      const limits = await getWorkspaceTableLimits(claimed.workspaceId)
+    if (params.target.type === 'new') {
+      const limits = await getWorkspaceTableLimits(params.workspaceId)
       const table = await createTable(
         {
-          name: target.name,
-          description: `Imported from ${fileName}`,
+          name: params.target.name,
+          description: `Imported from ${params.fileName}`,
           schema: { columns: [{ name: 'column_1', type: 'string' }] },
-          workspaceId: claimed.workspaceId,
-          folderId: target.folderId ?? null,
-          userId: claimed.userId,
+          workspaceId: params.workspaceId,
+          folderId: params.target.folderId ?? null,
+          userId: params.userId,
           maxTables: limits.maxTables,
           jobStatus: 'running',
           jobType: 'import',
-          jobId: claimed.id,
+          jobId: params.id,
+          jobPayload,
         },
         requestId
       )
       tableId = table.id
     } else {
-      const table = await requireExistingTarget(claimed.workspaceId, target)
+      const table = await requireExistingTarget(params.workspaceId, params.target)
       tableId = table.id
-      if (!(await markTableJobRunning(tableId, claimed.id, 'import'))) {
+      if (!(await markTableJobRunning(tableId, params.id, 'import', jobPayload))) {
         throw new OrchestrationError('conflict', 'A job is already in progress for this table')
       }
     }
 
-    const [queued] = await db
-      .update(tableImports)
-      .set({ tableId, status: 'queued', updatedAt: new Date() })
-      .where(and(eq(tableImports.id, claimed.id), eq(tableImports.status, 'preparing')))
-      .returning()
-    if (!queued)
-      throw new OrchestrationError('conflict', 'Table import was canceled while starting')
-
     const payload: TableImportPayload = {
-      importId: claimed.id,
+      importId: params.id,
       tableId,
-      workspaceId: claimed.workspaceId,
-      userId: claimed.userId,
-      fileKey,
-      fileName,
-      delimiter: fileName.toLowerCase().endsWith('.tsv') ? '\t' : ',',
-      mode: target.type === 'new' ? 'create' : target.mode,
-      mapping: options.mapping,
-      createColumns: options.createColumns,
-      deleteSourceFile,
-      storageContext,
-      trackImportResource: true,
-      timezone: options.timezone ?? (await getUserSettings(claimed.userId)).timezone ?? 'UTC',
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      fileKey: params.fileKey,
+      fileName: params.fileName,
+      delimiter: params.fileName.toLowerCase().endsWith('.tsv') ? '\t' : ',',
+      mode: params.target.type === 'new' ? 'create' : params.target.mode,
+      mapping: params.options.mapping as TableImportPayload['mapping'],
+      createColumns: params.options.createColumns,
+      deleteSourceFile: params.deleteSourceFile,
+      storageContext: params.storageContext,
+      timezone: params.options.timezone ?? (await getUserSettings(params.userId)).timezone ?? 'UTC',
     }
 
     if (isTriggerDevEnabled) {
@@ -295,23 +311,85 @@ async function startTableImport(
         import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableImportTask>('table-import', payload, {
-        tags: [`tableId:${tableId}`, `jobId:${claimed.id}`],
+        tags: [`tableId:${tableId}`, `jobId:${params.id}`],
         region: await resolveTriggerRegion(),
       })
     } else {
       runDetached('table-import', () => runTableImport(payload))
     }
-    return queued
+    return getOwnedTableImport({
+      importId: params.id,
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+    })
   } catch (error) {
     const message = getErrorMessage(error, 'Failed to dispatch table import')
-    if (tableId) await markJobFailed(tableId, claimed.id, message).catch(() => {})
-    await markTrackedImportTerminal({ importId: claimed.id, status: 'failed', error: message })
-    if (deleteSourceFile) {
+    if (tableId) await markJobFailed(tableId, params.id, message).catch(() => {})
+    if (params.deleteSourceFile) {
       const { deleteFile } = await import('@/lib/uploads/core/storage-service')
-      await deleteFile({ key: fileKey, context: storageContext }).catch(() => {})
+      await deleteFile({ key: params.fileKey, context: params.storageContext }).catch(() => {})
     }
     throw error
   }
+}
+
+function resourceFromUpload(
+  upload: UploadSessionRecord,
+  body: V2CreateTableImportBody
+): TableImportResource {
+  return {
+    id: upload.id,
+    workspaceId: upload.workspaceId,
+    userId: upload.userId,
+    source: body.source,
+    target: body.target,
+    options: importOptions(body),
+    tableId: body.target.type === 'existing' ? body.target.tableId : null,
+    status: upload.status === 'aborted' ? 'canceled' : 'uploading',
+    rowsProcessed: 0,
+    error: null,
+    upload,
+    createdAt: upload.createdAt,
+    updatedAt: upload.updatedAt,
+    completedAt: upload.completedAt,
+  }
+}
+
+function tableImportBodyFromUpload(upload: UploadSessionRecord): V2CreateTableImportBody {
+  if (upload.purpose !== 'table_import' || upload.storageContext !== 'table-import') {
+    throw new OrchestrationError('conflict', 'Upload is not a table import')
+  }
+  const body = v2CreateTableImportBodySchema.parse(upload.metadata.tableImport)
+  if (body.workspaceId !== upload.workspaceId || body.source.type !== 'upload') {
+    throw new OrchestrationError('conflict', 'Upload token table import metadata does not match')
+  }
+  return body
+}
+
+function importOptions(body: V2CreateTableImportBody): TableImportJobPayload['options'] {
+  return {
+    ...(body.mapping ? { mapping: body.mapping } : {}),
+    ...(body.createColumns ? { createColumns: body.createColumns as string[] } : {}),
+    ...(body.timezone ? { timezone: body.timezone } : {}),
+  }
+}
+
+function parseImportJobPayload(payload: unknown): TableImportJobPayload {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Table import job is missing its payload')
+  }
+  const candidate = payload as Partial<TableImportJobPayload>
+  if (
+    candidate.kind !== 'table_import' ||
+    typeof candidate.userId !== 'string' ||
+    !candidate.options ||
+    typeof candidate.options !== 'object'
+  ) {
+    throw new Error('Table import job has an invalid payload')
+  }
+  v2TableImportSourceSchema.parse(candidate.source)
+  v2TableImportTargetSchema.parse(candidate.target)
+  return candidate as TableImportJobPayload
 }
 
 async function validateTarget(workspaceId: string, target: V2TableImportTarget): Promise<void> {
@@ -332,8 +410,9 @@ async function requireExistingTarget(
   if (!table || table.workspaceId !== workspaceId) {
     throw new OrchestrationError('not_found', 'Table not found')
   }
-  if (table.archivedAt)
+  if (table.archivedAt) {
     throw new OrchestrationError('validation', 'Cannot import into an archived table')
+  }
   assertRowInsert(table)
   if (target.mode === 'replace') assertRowDelete(table)
   return table
@@ -362,18 +441,15 @@ function assertCsvFileName(fileName: string): void {
   }
 }
 
-function publicImportStatus(status: string): V2TableImportStatus {
-  if (status === 'preparing') return 'queued'
-  if (
-    status !== 'uploading' &&
-    status !== 'queued' &&
-    status !== 'processing' &&
-    status !== 'completed' &&
-    status !== 'failed' &&
-    status !== 'canceled' &&
-    status !== 'expired'
-  ) {
-    throw new Error(`Invalid table import status: ${status}`)
+function tableImportStatus(status: string): TableImportStatus {
+  if (status !== 'running' && status !== 'ready' && status !== 'failed' && status !== 'canceled') {
+    throw new Error(`Invalid table import job status: ${status}`)
   }
+  return status
+}
+
+function publicImportStatus(status: TableImportStatus): V2TableImport['status'] {
+  if (status === 'running') return 'processing'
+  if (status === 'ready') return 'completed'
   return status
 }

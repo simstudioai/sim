@@ -27,11 +27,6 @@ import {
   deleteAllTableRows,
   setTableSchemaForImport,
 } from '@/lib/table/import-data'
-import {
-  markTrackedImportProcessing,
-  markTrackedImportTerminal,
-  updateTrackedImportProgress,
-} from '@/lib/table/import-resource-store'
 import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -84,8 +79,6 @@ export interface TableImportPayload {
   timezone?: string
   /** Storage context for the source object. Legacy imports default to `workspace`. */
   storageContext?: 'workspace' | 'table-import'
-  /** Persist progress to the public table-import resource in addition to the table job. */
-  trackImportResource?: boolean
 }
 
 /**
@@ -105,7 +98,6 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
   let source: Readable | undefined
 
   try {
-    if (payload.trackImportResource) await markTrackedImportProcessing(importId)
     if (!(await updateJobProgress(tableId, 0, importId))) throw new ImportSupersededError()
     const loaded = await getTableById(tableId, { includeArchived: true })
     if (!loaded) throw new Error(`Import target table ${tableId} not found`)
@@ -296,7 +288,6 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       })
       inserted += result.inserted
       lastOrderKey = result.lastOrderKey
-      if (payload.trackImportResource) await updateTrackedImportProgress(importId, inserted)
       // Emit after the first batch, then every interval, so the bar appears early without flooding.
       if (
         inserted - lastReported >= PROGRESS_INTERVAL_ROWS ||
@@ -342,9 +333,6 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         // No data rows — fail rather than report a successful empty import (matches the sync route).
         const message = 'CSV file has no data rows'
         await markJobFailed(tableId, importId, message)
-        if (payload.trackImportResource) {
-          await markTrackedImportTerminal({ importId, status: 'failed', error: message })
-        }
         void appendTableEvent({
           kind: 'job',
           type: 'import',
@@ -380,13 +368,6 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // right at the end makes this a no-op, and we must not emit a false `ready`.
     const becameReady = await markJobReady(tableId, importId)
     if (becameReady) {
-      if (payload.trackImportResource) {
-        await markTrackedImportTerminal({
-          importId,
-          status: 'completed',
-          rowsProcessed: inserted,
-        })
-      }
       void appendTableEvent({
         kind: 'job',
         type: 'import',
@@ -430,11 +411,6 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       logger.error(`[${requestId}] Import failed for table ${tableId}:`, err)
       // Scoped to importId — a no-op if a newer import has taken over.
       await markJobFailed(tableId, importId, message).catch(() => {})
-      if (payload.trackImportResource) {
-        await markTrackedImportTerminal({ importId, status: 'failed', error: message }).catch(
-          () => {}
-        )
-      }
       void appendTableEvent({
         kind: 'job',
         type: 'import',

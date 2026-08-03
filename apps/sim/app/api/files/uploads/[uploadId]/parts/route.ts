@@ -25,10 +25,11 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Uploa
   const access = await requireWorkspaceWrite(user, workspaceId)
   if (access) return access
   try {
-    const upload = await getOwnedUploadSession({
+    const upload = getOwnedUploadSession({
       uploadId: parsed.data.params.uploadId,
       workspaceId,
       userId: user,
+      uploadToken: parsed.data.headers['upload-token'],
     })
     const parts = await createUploadPartUrls({
       session: upload,

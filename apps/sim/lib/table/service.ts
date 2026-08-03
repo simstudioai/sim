@@ -431,6 +431,7 @@ export async function createTable(
           workspaceId: data.workspaceId,
           type: initialJob.type,
           status: 'running',
+          payload: data.jobPayload ?? null,
           startedAt: initialJob.startedAt,
           updatedAt: initialJob.startedAt,
         })

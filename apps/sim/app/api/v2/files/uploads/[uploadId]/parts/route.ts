@@ -41,7 +41,12 @@ export const POST = withRouteHandler(
       const { workspaceId } = parsed.data.query
       const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
       if (access) return v2WorkspaceAccessError(access)
-      const session = await getOwnedUploadSession({ uploadId, workspaceId, userId })
+      const session = getOwnedUploadSession({
+        uploadId,
+        workspaceId,
+        userId,
+        uploadToken: parsed.data.headers['upload-token'],
+      })
       const parts = await createUploadPartUrls({
         session,
         partNumbers: parsed.data.body.partNumbers,

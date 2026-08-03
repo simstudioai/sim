@@ -10,6 +10,15 @@ export const v2UploadStatusSchema = z.enum([
 ])
 export type V2UploadStatus = z.output<typeof v2UploadStatusSchema>
 
+export const v2UploadTokenHeadersSchema = z.object({
+  'upload-token': z.string().min(1, 'upload-token header is required'),
+})
+export type V2UploadTokenHeaders = z.input<typeof v2UploadTokenHeadersSchema>
+
+export const v2OptionalUploadTokenHeadersSchema = z.object({
+  'upload-token': z.string().min(1, 'upload-token header cannot be empty').optional(),
+})
+
 export const v2CompletedPartSchema = z
   .object({
     partNumber: z.number().int().min(1),

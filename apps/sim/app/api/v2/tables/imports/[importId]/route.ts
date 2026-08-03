@@ -8,6 +8,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  abortTableImportUpload,
   cancelTableImportResource,
   getOwnedTableImport,
   toV2TableImport,
@@ -72,12 +73,22 @@ export const DELETE = withRouteHandler(
       if (!parsed.success) return parsed.response
       const scopeError = await resolveWorkspaceScope(rateLimit, parsed.data.query.workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
-      const record = await getOwnedTableImport({
-        importId: parsed.data.params.importId,
-        workspaceId: parsed.data.query.workspaceId,
-        userId,
-      })
-      return v2Data(await toV2TableImport(await cancelTableImportResource(record)), { rateLimit })
+      const uploadToken = parsed.data.headers['upload-token']
+      const record = uploadToken
+        ? await abortTableImportUpload({
+            importId: parsed.data.params.importId,
+            workspaceId: parsed.data.query.workspaceId,
+            userId,
+            uploadToken,
+          })
+        : await cancelTableImportResource(
+            await getOwnedTableImport({
+              importId: parsed.data.params.importId,
+              workspaceId: parsed.data.query.workspaceId,
+              userId,
+            })
+          )
+      return v2Data(toV2TableImport(record), { rateLimit })
     } catch (error) {
       const classified = v2CaughtOrchestrationError(error)
       if (classified) return classified

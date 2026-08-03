@@ -11,6 +11,7 @@ import {
   v2CompleteUploadBodySchema,
   v2PartUrlsBodySchema,
   v2PartUrlsDataSchema,
+  v2UploadTokenHeadersSchema,
 } from '@/lib/api/contracts/v2/uploads'
 
 export const createWorkspaceFileUploadContract = defineRouteContract({
@@ -20,19 +21,12 @@ export const createWorkspaceFileUploadContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
 })
 
-export const getWorkspaceFileUploadContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/files/uploads/[uploadId]',
-  params: v2FileUploadParamsSchema,
-  query: v2FileUploadWorkspaceQuerySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
-})
-
 export const abortWorkspaceFileUploadContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/files/uploads/[uploadId]',
   params: v2FileUploadParamsSchema,
   query: v2FileUploadWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
   response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
 })
 
@@ -41,6 +35,7 @@ export const createWorkspaceFileUploadPartUrlsContract = defineRouteContract({
   path: '/api/files/uploads/[uploadId]/parts',
   params: v2FileUploadParamsSchema,
   query: v2FileUploadWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
   body: v2PartUrlsBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2PartUrlsDataSchema) },
 })
@@ -50,6 +45,7 @@ export const completeWorkspaceFileUploadContract = defineRouteContract({
   path: '/api/files/uploads/[uploadId]/complete',
   params: v2FileUploadParamsSchema,
   query: v2FileUploadWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
   body: v2CompleteUploadBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
 })

@@ -1,11 +1,5 @@
 import { asyncJobs, db } from '@sim/db'
-import {
-  tableImports,
-  tableJobs,
-  uploadSessions,
-  workflowDeploymentOperation,
-  workflowExecutionLogs,
-} from '@sim/db/schema'
+import { tableJobs, workflowDeploymentOperation, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, exists, gt, inArray, lt, sql } from 'drizzle-orm'
@@ -16,7 +10,6 @@ import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { expireUploadSessions } from '@/lib/uploads/multipart-session/service'
 
 const logger = createLogger('CleanupStaleExecutions')
 
@@ -135,8 +128,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     // place (no rollback); the user retries. Also prune long-settled terminal jobs so the table
     // doesn't grow unbounded (the latest job per table is what list/detail reads surface).
     let staleTableJobsMarkedFailed = 0
-    let stalePreparingImportsMarkedFailed = 0
-    let expiredUploadSessions = 0
     try {
       const now = new Date()
       const staleJobs = await db
@@ -151,78 +142,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .returning({ id: tableJobs.id })
 
       staleTableJobsMarkedFailed = staleJobs.length
-      if (staleJobs.length > 0) {
-        const now = new Date()
-        await db
-          .update(tableImports)
-          .set({
-            status: 'failed',
-            error: `Import terminated: no progress for more than ${STALE_THRESHOLD_MINUTES} minutes`,
-            completedAt: now,
-            updatedAt: now,
-          })
-          .where(
-            inArray(
-              tableImports.id,
-              staleJobs.map((job) => job.id)
-            )
-          )
-      }
       if (staleTableJobsMarkedFailed > 0) {
         logger.info(`Marked ${staleTableJobsMarkedFailed} stale table jobs as failed`)
-      }
-
-      const stalePreparingImports = await db
-        .select({ id: tableImports.id })
-        .from(tableImports)
-        .where(
-          and(eq(tableImports.status, 'preparing'), lt(tableImports.updatedAt, staleThreshold))
-        )
-        .orderBy(tableImports.updatedAt)
-        .limit(100)
-      if (stalePreparingImports.length > 0) {
-        const failedImports = await db
-          .update(tableImports)
-          .set({
-            status: 'failed',
-            error: `Import terminated: preparation did not finish within ${STALE_THRESHOLD_MINUTES} minutes`,
-            completedAt: now,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(tableImports.status, 'preparing'),
-              inArray(
-                tableImports.id,
-                stalePreparingImports.map((record) => record.id)
-              )
-            )
-          )
-          .returning({ uploadSessionId: tableImports.uploadSessionId })
-        stalePreparingImportsMarkedFailed = failedImports.length
-
-        const uploadSessionIds = failedImports.flatMap((record) =>
-          record.uploadSessionId ? [record.uploadSessionId] : []
-        )
-        if (uploadSessionIds.length > 0) {
-          const uploads = await db
-            .select({ storageKey: uploadSessions.storageKey })
-            .from(uploadSessions)
-            .where(inArray(uploadSessions.id, uploadSessionIds))
-          for (const upload of uploads) {
-            await deleteFile({ key: upload.storageKey, context: 'table-import' }).catch((error) => {
-              logger.warn('Failed to delete source for a stale table import', {
-                storageKey: upload.storageKey,
-                error: toError(error).message,
-              })
-            })
-          }
-        }
-      }
-      if (stalePreparingImportsMarkedFailed > 0) {
-        logger.info(
-          `Marked ${stalePreparingImportsMarkedFailed} stale preparing table imports as failed`
-        )
       }
 
       const terminalRetention = new Date(Date.now() - TABLE_JOB_RETENTION_HOURS * 60 * 60 * 1000)
@@ -251,14 +172,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
     } catch (error) {
       logger.error('Failed to clean up stale table jobs:', {
-        error: toError(error).message,
-      })
-    }
-
-    try {
-      expiredUploadSessions = await expireUploadSessions(new Date(), 100)
-    } catch (error) {
-      logger.error('Failed to expire multipart upload sessions:', {
         error: toError(error).message,
       })
     }
@@ -392,12 +305,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
       tableJobs: {
         staleMarkedFailed: staleTableJobsMarkedFailed,
-      },
-      tableImports: {
-        stalePreparingMarkedFailed: stalePreparingImportsMarkedFailed,
-      },
-      uploadSessions: {
-        expired: expiredUploadSessions,
       },
       deploymentOperations: {
         pruned: deploymentOperationsPruned,

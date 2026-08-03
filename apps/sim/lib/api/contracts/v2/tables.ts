@@ -47,8 +47,10 @@ import {
 } from '@/lib/api/contracts/v2/shared'
 import {
   v2CompleteUploadBodySchema,
+  v2OptionalUploadTokenHeadersSchema,
   v2PartUrlsBodySchema,
   v2PartUrlsDataSchema,
+  v2UploadTokenHeadersSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
@@ -991,6 +993,7 @@ export const v2TableImportStatusSchema = z.enum([
 export type V2TableImportStatus = z.output<typeof v2TableImportStatusSchema>
 
 export const v2TableImportUploadSchema = z.object({
+  uploadToken: z.string().min(1),
   partSize: z.number().int().positive(),
   partCount: z.number().int().positive(),
   expiresAt: z.string().datetime(),
@@ -1032,6 +1035,7 @@ export const v2CancelTableImportContract = defineRouteContract({
   path: '/api/v2/tables/imports/[importId]',
   params: v2TableImportParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
+  headers: v2OptionalUploadTokenHeadersSchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
 })
 
@@ -1040,6 +1044,7 @@ export const v2CreateTableImportPartUrlsContract = defineRouteContract({
   path: '/api/v2/tables/imports/[importId]/parts',
   params: v2TableImportParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
   body: v2PartUrlsBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2PartUrlsDataSchema) },
 })
@@ -1049,6 +1054,7 @@ export const v2CompleteTableImportContract = defineRouteContract({
   path: '/api/v2/tables/imports/[importId]/complete',
   params: v2TableImportParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
   body: v2CompleteUploadBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
 })

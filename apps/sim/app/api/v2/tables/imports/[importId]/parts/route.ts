@@ -4,11 +4,8 @@ import type { NextRequest } from 'next/server'
 import { v2CreateTableImportPartUrlsContract } from '@/lib/api/contracts/v2/tables'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getOwnedTableImport } from '@/lib/table/orchestration/import-resource'
-import {
-  createUploadPartUrls,
-  getOwnedUploadSession,
-} from '@/lib/uploads/multipart-session/service'
+import { getOwnedTableImportUpload } from '@/lib/table/orchestration/import-resource'
+import { createUploadPartUrls } from '@/lib/uploads/multipart-session/service'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
@@ -41,16 +38,11 @@ export const POST = withRouteHandler(
       const { workspaceId } = parsed.data.query
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
-      const record = await getOwnedTableImport({
+      const session = getOwnedTableImportUpload({
         importId: parsed.data.params.importId,
         workspaceId,
         userId,
-      })
-      if (!record.uploadSessionId) return v2Error('CONFLICT', 'Import has no upload source')
-      const session = await getOwnedUploadSession({
-        uploadId: record.uploadSessionId,
-        workspaceId,
-        userId,
+        uploadToken: parsed.data.headers['upload-token'],
       })
       const parts = await createUploadPartUrls({
         session,

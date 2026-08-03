@@ -4,16 +4,12 @@ import type { NextRequest } from 'next/server'
 import { v2CompleteTableImportContract } from '@/lib/api/contracts/v2/tables'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { markTrackedImportTerminal } from '@/lib/table/import-resource-store'
 import {
-  getOwnedTableImport,
+  getOwnedTableImportUpload,
   startUploadedTableImport,
   toV2TableImport,
 } from '@/lib/table/orchestration/import-resource'
-import {
-  completeUploadSession,
-  getOwnedUploadSession,
-} from '@/lib/uploads/multipart-session/service'
+import { completeUploadSession } from '@/lib/uploads/multipart-session/service'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
@@ -47,30 +43,18 @@ export const POST = withRouteHandler(
       const { workspaceId } = parsed.data.query
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
-      const record = await getOwnedTableImport({
+      const upload = getOwnedTableImportUpload({
         importId: parsed.data.params.importId,
         workspaceId,
         userId,
+        uploadToken: parsed.data.headers['upload-token'],
       })
-      if (!record.uploadSessionId) return v2Error('CONFLICT', 'Import has no upload source')
-      const upload = await getOwnedUploadSession({
-        uploadId: record.uploadSessionId,
-        workspaceId,
-        userId,
-      })
-      await completeUploadSession({
+      const completed = await completeUploadSession({
         session: upload,
         parts: parsed.data.body.parts,
         finalize: async () => ({ value: null }),
-        onFailure: async (_session, error) => {
-          await markTrackedImportTerminal({
-            importId: record.id,
-            status: 'failed',
-            error: getErrorMessage(error, 'Upload finalization failed'),
-          })
-        },
       })
-      const started = await startUploadedTableImport(record.id)
+      const started = await startUploadedTableImport(completed.session)
       return v2Data(await toV2TableImport(started), { rateLimit })
     } catch (error) {
       const lockError = v2TableLockError(error)

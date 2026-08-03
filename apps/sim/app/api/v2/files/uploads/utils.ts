@@ -16,6 +16,7 @@ export function toV2FileUpload(
     size: session.fileSize,
     partSize: session.partSize,
     partCount: session.partCount,
+    uploadToken: session.uploadToken,
     expiresAt: session.expiresAt.toISOString(),
     error: session.error,
     file: file ? toV2File(file) : null,

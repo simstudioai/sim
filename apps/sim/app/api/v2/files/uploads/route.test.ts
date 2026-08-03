@@ -76,6 +76,7 @@ describe('POST /api/v2/files/uploads', () => {
       partSize: 8 * 1024 * 1024,
       partCount: 1,
       status: 'uploading',
+      uploadToken: 'signed-upload-token',
       metadata: {},
       completedFileId: null,
       error: null,
@@ -86,7 +87,7 @@ describe('POST /api/v2/files/uploads', () => {
     })
   })
 
-  it('creates one durable multipart session for a small file', async () => {
+  it('creates one signed multipart session for a small file', async () => {
     const response = await request({
       workspaceId: WORKSPACE_ID,
       name: 'file.csv',
@@ -99,6 +100,7 @@ describe('POST /api/v2/files/uploads', () => {
       id: 'upload-1',
       status: 'uploading',
       partCount: 1,
+      uploadToken: 'signed-upload-token',
       file: null,
     })
     expect(mockCreateUploadSession).toHaveBeenCalledWith({

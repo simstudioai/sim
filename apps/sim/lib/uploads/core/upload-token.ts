@@ -15,6 +15,21 @@ export interface UploadTokenPayload {
   contentType?: string
   /** File size in bytes, carried for ownership metadata at completion. */
   fileSize?: number
+  /** Multipart-session purpose. Omitted by the legacy multipart endpoint. */
+  purpose?: 'workspace_file' | 'table_import'
+  /** Storage provider that owns the multipart upload state. */
+  provider?: 's3' | 'blob' | 'gcs' | 'local'
+  /** Provider-issued multipart upload id. Local and block-blob uploads do not need one. */
+  providerUploadId?: string | null
+  /** Fixed byte size of every part except the final part. */
+  partSize?: number
+  /** Exact number of parts the client must complete. */
+  partCount?: number
+  /** Signed purpose-specific data needed during finalization. */
+  metadata?: Record<string, unknown>
+  /** ISO timestamps used to reconstruct the stateless session response. */
+  createdAt?: string
+  expiresAt?: string
 }
 
 interface SignedPayload extends UploadTokenPayload {
@@ -91,6 +106,25 @@ export function verifyUploadToken(token: string): UploadTokenVerification {
       ...(typeof parsed.fileName === 'string' ? { fileName: parsed.fileName } : {}),
       ...(typeof parsed.contentType === 'string' ? { contentType: parsed.contentType } : {}),
       ...(typeof parsed.fileSize === 'number' ? { fileSize: parsed.fileSize } : {}),
+      ...(parsed.purpose === 'workspace_file' || parsed.purpose === 'table_import'
+        ? { purpose: parsed.purpose }
+        : {}),
+      ...(parsed.provider === 's3' ||
+      parsed.provider === 'blob' ||
+      parsed.provider === 'gcs' ||
+      parsed.provider === 'local'
+        ? { provider: parsed.provider }
+        : {}),
+      ...(typeof parsed.providerUploadId === 'string' || parsed.providerUploadId === null
+        ? { providerUploadId: parsed.providerUploadId }
+        : {}),
+      ...(typeof parsed.partSize === 'number' ? { partSize: parsed.partSize } : {}),
+      ...(typeof parsed.partCount === 'number' ? { partCount: parsed.partCount } : {}),
+      ...(parsed.metadata && typeof parsed.metadata === 'object' && !Array.isArray(parsed.metadata)
+        ? { metadata: parsed.metadata }
+        : {}),
+      ...(typeof parsed.createdAt === 'string' ? { createdAt: parsed.createdAt } : {}),
+      ...(typeof parsed.expiresAt === 'string' ? { expiresAt: parsed.expiresAt } : {}),
     },
   }
 }

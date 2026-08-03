@@ -360,6 +360,19 @@ export interface TableExportJobPayload {
   resultKey?: string
 }
 
+/** Durable import descriptor stored on the existing `table_jobs` row. */
+export interface TableImportJobPayload {
+  kind: 'table_import'
+  userId: string
+  source: unknown
+  target: unknown
+  options: {
+    mapping?: unknown
+    createColumns?: string[]
+    timezone?: string
+  }
+}
+
 /**
  * Keyset cursor for paginating a table's default row order, `(order_key, id)`. The grid's
  * infinite scroll threads this instead of an OFFSET — offset paging re-scans every prior row per
@@ -646,6 +659,8 @@ export interface CreateTableData {
   jobType?: TableJobType
   /** Async job id stamped on the table when `jobStatus` is set. */
   jobId?: string
+  /** Type-specific payload stored on the initial async job. */
+  jobPayload?: unknown
 }
 
 export interface InsertRowData {

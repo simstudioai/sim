@@ -28,10 +28,11 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Uploa
   const access = await requireWorkspaceWrite(user, workspaceId)
   if (access) return access
   try {
-    const upload = await getOwnedUploadSession({
+    const upload = getOwnedUploadSession({
       uploadId: parsed.data.params.uploadId,
       workspaceId,
       userId: user,
+      uploadToken: parsed.data.headers['upload-token'],
     })
     const metadata = upload.metadata as { folderId?: string | null }
     const completed = await completeUploadSession({
@@ -49,7 +50,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Uploa
         return { value: registered.file.id, completedFileId: registered.file.id }
       },
     })
-    const fileId = completed.value ?? completed.session.completedFileId
+    const fileId = completed.value
     if (!fileId) throw new Error('Completed upload is missing its workspace file id')
     const file = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
     if (!file) throw new Error(`Completed workspace file ${fileId} not found`)
