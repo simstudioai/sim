@@ -476,18 +476,20 @@ function collapseMessagesToInput(request: ProviderRequest): {
 }
 
 /**
- * Extracts text content from a completed interaction's outputs array.
- * The outputs array can contain text, thought, google_search_result, and other types.
- * We concatenate all text outputs to get the full research report.
+ * Extracts the report text from a completed interaction's step timeline.
+ *
+ * The v2 Interactions schema replaced the flat `outputs` array with `steps`, a
+ * type-discriminated timeline: the model's prose lives in `model_output` steps as text
+ * content, alongside thought, tool-call, and tool-result steps we deliberately skip.
  */
-function extractTextFromInteractionOutputs(outputs: Interactions.Interaction['outputs']): string {
-  if (!outputs || outputs.length === 0) return ''
+function extractTextFromInteractionSteps(steps: Interactions.Interaction['steps']): string {
+  if (!steps || steps.length === 0) return ''
 
   const textParts: string[] = []
-  for (const output of outputs) {
-    if (output.type === 'text') {
-      const text = (output as Interactions.TextContent).text
-      if (text) textParts.push(text)
+  for (const step of steps) {
+    if (step.type !== 'model_output') continue
+    for (const content of step.content ?? []) {
+      if (content.type === 'text' && content.text) textParts.push(content.text)
     }
   }
 
@@ -506,10 +508,7 @@ interface DeepResearchUsage {
 /**
  * Extracts token usage from an Interaction's Usage object.
  * The Interactions API provides total_input_tokens, total_output_tokens, total_tokens,
- * total_cached_tokens, and total_reasoning_tokens (for thinking models).
- *
- * Also handles the raw API field name total_thought_tokens which the SDK may
- * map to total_reasoning_tokens.
+ * total_cached_tokens, and total_thought_tokens (for thinking models).
  *
  * The Interactions API supports implicit caching, and `total_cached_tokens` is a
  * subset of `total_input_tokens` there just as `cachedContentTokenCount` is of
@@ -525,10 +524,7 @@ function extractInteractionUsage(usage: Interactions.Usage | undefined): DeepRes
 
   const inputTokens = usage.total_input_tokens ?? 0
   const outputTokens = usage.total_output_tokens ?? 0
-  const reasoningTokens =
-    usage.total_reasoning_tokens ??
-    ((usage as Record<string, unknown>).total_thought_tokens as number) ??
-    0
+  const reasoningTokens = usage.total_thought_tokens ?? 0
   const cachedTokens = usage.total_cached_tokens ?? 0
   const totalTokens = usage.total_tokens ?? inputTokens + outputTokens
 
@@ -613,20 +609,20 @@ function createDeepResearchStream(
     async start(controller) {
       try {
         for await (const event of stream) {
-          if (event.event_type === 'content.delta') {
-            const delta = (event as Interactions.ContentDelta).delta
-            if (delta?.type === 'text' && 'text' in delta && delta.text) {
+          if (event.event_type === 'step.delta') {
+            const { delta } = event
+            if (delta?.type === 'text' && delta.text) {
               fullContent += delta.text
               controller.enqueue(new TextEncoder().encode(delta.text))
             }
-          } else if (event.event_type === 'interaction.complete') {
-            const interaction = (event as Interactions.InteractionEvent).interaction
+          } else if (event.event_type === 'interaction.completed') {
+            const { interaction } = event
             if (interaction?.usage) {
               completionUsage = extractInteractionUsage(interaction.usage)
             }
             completedInteractionId = interaction?.id
-          } else if (event.event_type === 'interaction.start') {
-            const interaction = (event as Interactions.InteractionEvent).interaction
+          } else if (event.event_type === 'interaction.created') {
+            const { interaction } = event
             if (interaction?.id) {
               completedInteractionId = interaction.id
             }
@@ -722,9 +718,16 @@ export async function executeDeepResearchRequest(
 
     // Streaming mode: create a streaming interaction and return a StreamingExecution
     if (request.stream) {
-      const streamParams: Interactions.CreateAgentInteractionParamsStreaming = {
+      /**
+       * `stream` is annotated inline rather than via
+       * `Interactions.CreateAgentInteractionParamsStreaming`: as of @google/genai 2.13.0 that
+       * namespace alias resolves to `CreateAgentInteraction`, whose `stream` is a plain
+       * `boolean`. Annotating with it loses the literal that discriminates `interactions.create`'s
+       * overloads, so the call falls through to the union-returning signature.
+       */
+      const streamParams = {
         ...baseParams,
-        stream: true,
+        stream: true as const,
       }
 
       const streamResponse = await ai.interactions.create(
@@ -805,9 +808,10 @@ export async function executeDeepResearchRequest(
     }
 
     // Non-streaming mode: create and poll
-    const createParams: Interactions.CreateAgentInteractionParamsNonStreaming = {
+    /** Inline literal for the same overload-discrimination reason as `streamParams` above. */
+    const createParams = {
       ...baseParams,
-      stream: false,
+      stream: false as const,
     }
 
     const interaction = await ai.interactions.create(
@@ -855,7 +859,7 @@ export async function executeDeepResearchRequest(
       )
     }
 
-    const content = extractTextFromInteractionOutputs(result.outputs)
+    const content = extractTextFromInteractionSteps(result.steps)
     const usage = extractInteractionUsage(result.usage)
 
     logger.info('Deep research completed', {
