@@ -10,17 +10,6 @@ const logger = createLogger('TableExportStream')
 
 const EXPORT_BATCH_SIZE = 1000
 
-/**
- * Synchronous table export as a byte stream, shared by the first-party and
- * public surfaces so both emit byte-identical files.
- *
- * Rows are paged out as they are read rather than buffered, so a table larger
- * than memory still exports — at the cost of a mid-stream failure being
- * unrecoverable (the response has already started). Large tables should use the
- * background export instead.
- */
-
-/** Filename-safe stem for the downloaded file. */
 export function sanitizeExportFilename(name: string): string {
   const cleaned = name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
   return cleaned || 'table'
@@ -34,11 +23,19 @@ function toCsvRow(values: string[]): string {
   return values.map(escapeCsvField).join(',')
 }
 
-/** `Content-Type` for an export in `format`. */
 export function exportContentType(format: TableExportFormat): string {
   return format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json'
 }
 
+/**
+ * Synchronous table export as a byte stream, shared by the first-party and
+ * public surfaces so both emit byte-identical files.
+ *
+ * Rows are paged out as they are read rather than buffered, so a table larger
+ * than memory still exports — at the cost of a mid-stream failure being
+ * unrecoverable (the response has already started). Large tables should use the
+ * background export instead.
+ */
 export function createTableExportStream(
   table: TableDefinition,
   format: TableExportFormat,

@@ -1910,7 +1910,10 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
+    // contract-pending(after #6188 is fully deployed and sizeBytes is backfilled): drop size — new code dual-writes and reads sizeBytes first
     size: integer('size').notNull(),
+    /** Exact byte size for files above PostgreSQL's int4 ceiling; legacy rows fall back to `size`. */
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
     deletedAt: timestamp('deleted_at'),
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -3965,6 +3968,99 @@ export const tableViews = pgTable(
     defaultViewUnique: uniqueIndex('table_views_table_default_unique')
       .on(table.tableId)
       .where(sql`is_default = true`),
+  })
+)
+
+/**
+ * Durable control-plane state for direct multipart uploads. The row exists before any bytes are
+ * accepted, which lets completion register storage atomically and lets the janitor abort uploads
+ * whose clients disappear. Provider ids and storage keys never cross the public API boundary.
+ */
+export const uploadSessions = pgTable(
+  'upload_sessions',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** `'workspace_file'` | `'table_import'`. */
+    purpose: text('purpose').notNull(),
+    storageContext: text('storage_context').notNull(),
+    storageKey: text('storage_key').notNull().unique(),
+    storageProvider: text('storage_provider').notNull(),
+    providerUploadId: text('provider_upload_id'),
+    fileName: text('file_name').notNull(),
+    contentType: text('content_type').notNull(),
+    fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+    partSize: integer('part_size').notNull(),
+    partCount: integer('part_count').notNull(),
+    /** `'uploading'` → `'finalizing'` → `'completed'` | `'failed'` | `'aborted'` | `'expired'`. */
+    status: text('status').notNull().default('uploading'),
+    metadata: jsonb('metadata').notNull().default({}),
+    completedFileId: text('completed_file_id').references(() => workspaceFiles.id, {
+      onDelete: 'set null',
+    }),
+    error: text('error'),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    workspaceCreatedIdx: index('upload_sessions_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt
+    ),
+    statusExpiryIdx: index('upload_sessions_status_expiry_idx').on(table.status, table.expiresAt),
+  })
+)
+
+/**
+ * Public table-import resource. Upload-backed imports share their id with an upload session; once
+ * processing begins the same id is also used by `table_jobs`, so clients never translate ids.
+ */
+export const tableImports = pgTable(
+  'table_imports',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    uploadSessionId: text('upload_session_id').references(() => uploadSessions.id, {
+      onDelete: 'set null',
+    }),
+    sourceFileId: text('source_file_id').references(() => workspaceFiles.id, {
+      onDelete: 'set null',
+    }),
+    /** `'upload'` | `'workspace_file'`. */
+    sourceType: text('source_type').notNull(),
+    /** `'new'` | `'existing'`. */
+    targetType: text('target_type').notNull(),
+    tableId: text('table_id').references(() => userTableDefinitions.id, { onDelete: 'set null' }),
+    source: jsonb('source').notNull(),
+    target: jsonb('target').notNull(),
+    options: jsonb('options').notNull().default({}),
+    /** Internal lifecycle, including `preparing` between upload completion and job dispatch. */
+    status: text('status').notNull(),
+    rowsProcessed: integer('rows_processed').notNull().default(0),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    workspaceCreatedIdx: index('table_imports_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt
+    ),
+    statusUpdatedIdx: index('table_imports_status_updated_idx').on(table.status, table.updatedAt),
+    tableIdx: index('table_imports_table_idx').on(table.tableId),
   })
 )
 

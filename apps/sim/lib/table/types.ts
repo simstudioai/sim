@@ -348,14 +348,13 @@ export interface TableUpdateJobPayload {
   maxRows?: number
 }
 
+export type TableExportFormat = 'csv' | 'json'
+
 /**
  * Persisted scope of an export job (`table_jobs.payload`). `resultKey` is merged in by the worker
  * on completion — the storage key of the generated file, served to the client via a presigned URL
  * and deleted by the janitor when the terminal job is pruned.
  */
-/** Serialization a table export produces. */
-export type TableExportFormat = 'csv' | 'json'
-
 export interface TableExportJobPayload {
   format: TableExportFormat
   resultKey?: string

@@ -2,19 +2,14 @@ import { z } from 'zod'
 import { folderIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   addWorkflowGroupBodySchema,
-  cancelTableJobBodySchema,
   cancelTableRunsBodyBaseSchema,
   createTableColumnBodySchema,
   createTableViewBodySchema,
   csvImportCreateColumnsSchema,
   csvImportMappingSchema,
-  csvImportModeSchema,
   deleteTableColumnBodySchema,
   deleteWorkflowGroupBodySchema,
-  exportDownloadQuerySchema,
   exportTableAsyncBodySchema,
-  importIntoTableAsyncBodySchema,
-  listTableJobsQuerySchema,
   predicateSchema,
   refineCancelTableRunsScope,
   runColumnBodyBaseSchema,
@@ -23,7 +18,6 @@ import {
   sortSpecSchema,
   tableColumnSchema,
   tableIdParamsSchema,
-  tableJobSummarySchema,
   tableLocksSchema,
   tableNameSchema,
   tableRowParamsSchema,
@@ -51,7 +45,13 @@ import {
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CompleteUploadBodySchema,
+  v2PartUrlsBodySchema,
+  v2PartUrlsDataSchema,
+} from '@/lib/api/contracts/v2/uploads'
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
  * v2 tables contracts.
@@ -77,7 +77,7 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 
 /** Default page size when a row query/list `limit` is omitted. */
 export const V2_DEFAULT_ROW_LIMIT = 100
-/** Hard cap on an explicit page `limit`. Larger pulls use `limit=0` (query) or the async export. */
+/** Hard cap on an explicit page `limit`. Larger pulls use `limit=0` (query) or an export resource. */
 export const V2_MAX_ROW_LIMIT = 1000
 
 /**
@@ -87,10 +87,8 @@ export const V2_MAX_ROW_LIMIT = 1000
 /**
  * The table's current background job, or `null` when idle.
  *
- * This is how an async import or delete is observed. Those jobs are derived
- * onto the table itself (one write job per table at a time), so the table is
- * their status endpoint — unlike exports, which are read-only, run concurrently,
- * and therefore have the dedicated `GET /api/v2/tables/jobs` list instead.
+ * Import and delete jobs are also derived onto the table (one write job per table at a time).
+ * Durable imports and exports have their own resource endpoints for complete lifecycle state.
  */
 export const v2TableJobStateSchema = z.object({
   id: z.string().nullable(),
@@ -385,7 +383,7 @@ export const v2QueryRowsBodySchema = z.object({
     .min(0, 'Limit must be at least 0 (use 0 for an unbounded query)')
     .max(
       V2_MAX_ROW_LIMIT,
-      `Limit cannot exceed ${V2_MAX_ROW_LIMIT}; use limit=0 for a full result or the async export for large datasets`
+      `Limit cannot exceed ${V2_MAX_ROW_LIMIT}; use limit=0 for a full result or create an export resource for large datasets`
     )
     .optional(),
   cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
@@ -918,138 +916,202 @@ export const v2FindTableRowsContract = defineRouteContract({
   },
 })
 
-/**
- * Multipart form fields for `POST /api/v2/tables/[tableId]/import`.
- *
- * Not declared as the contract's `body`: the request is `multipart/form-data`,
- * so the route reads the parts with the streaming multipart reader and parses
- * the collected text fields through this schema in one pass. Every value
- * arrives as a string — `mapping` and `createColumns` are JSON-encoded and
- * decoded by their shared field schemas.
- */
-export const v2ImportIntoTableFormSchema = z.object({
-  workspaceId: workspaceIdSchema,
-  mode: csvImportModeSchema.default('append'),
-  mapping: csvImportMappingSchema.optional(),
-  createColumns: csvImportCreateColumnsSchema.optional(),
-  timezone: ianaTimezoneSchema.optional(),
-})
-export type V2ImportIntoTableForm = z.input<typeof v2ImportIntoTableFormSchema>
+export const v2TableImportParamsSchema = z.object({ importId: z.string().min(1) })
+export const v2TableExportParamsSchema = z.object({ exportId: z.string().min(1) })
+export const v2TableTransferWorkspaceQuerySchema = z.object({ workspaceId: workspaceIdSchema })
 
-/** Kickoff acknowledgement for a background import. */
-export const v2ImportAsyncDataSchema = z.object({
-  tableId: z.string(),
-  importId: z.string(),
-})
-export type V2ImportAsyncData = z.output<typeof v2ImportAsyncDataSchema>
+export const v2TableImportSourceSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('upload'),
+      name: z.string().trim().min(1, 'name is required').max(255),
+      contentType: z.string().trim().min(1, 'contentType is required').max(255),
+      size: z.number().int().min(1).max(MAX_WORKSPACE_FILE_SIZE),
+    })
+    .strict(),
+  z.object({ type: z.literal('workspace_file'), fileId: z.string().min(1) }).strict(),
+])
+export type V2TableImportSource = z.input<typeof v2TableImportSourceSchema>
 
-/**
- * Starts a background import of a file already uploaded to workspace storage
- * (`POST /api/v2/files` returns the `key`).
- *
- * The upload step is still a synchronous multipart request capped at 100 MB, so
- * the byte limit moved rather than vanished — but it now fails loudly on an
- * explicit size check instead of relying on a proxy cap that truncates, and the
- * table write itself is a job that can be watched and cancelled.
- *
- * Returns immediately. A table carries at most one write job, so progress is
- * read off the table itself (`GET /api/v2/tables/[tableId]` → `job`) rather than
- * the export-only jobs list; stop it with `POST /api/v2/tables/[tableId]/job/cancel`.
- */
-export const v2ImportTableAsyncContract = defineRouteContract({
+export const v2TableImportTargetSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('new'),
+      name: tableNameSchema,
+      folderId: folderIdSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('existing'),
+      tableId: z.string().min(1),
+      mode: z.enum(['append', 'replace']),
+    })
+    .strict(),
+])
+export type V2TableImportTarget = z.input<typeof v2TableImportTargetSchema>
+
+export const v2CreateTableImportBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    source: v2TableImportSourceSchema,
+    target: v2TableImportTargetSchema,
+    mapping: csvImportMappingSchema.optional(),
+    createColumns: csvImportCreateColumnsSchema.optional(),
+    timezone: ianaTimezoneSchema.optional(),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.target.type === 'new' && body.mapping !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['mapping'],
+        message: 'mapping is only supported for an existing table target',
+      })
+    }
+    if (body.target.type === 'new' && body.createColumns !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['createColumns'],
+        message: 'createColumns is only supported for an existing table target',
+      })
+    }
+  })
+export type V2CreateTableImportBody = z.input<typeof v2CreateTableImportBodySchema>
+
+export const v2TableImportStatusSchema = z.enum([
+  'uploading',
+  'queued',
+  'processing',
+  'completed',
+  'failed',
+  'canceled',
+  'expired',
+])
+export type V2TableImportStatus = z.output<typeof v2TableImportStatusSchema>
+
+export const v2TableImportUploadSchema = z.object({
+  partSize: z.number().int().positive(),
+  partCount: z.number().int().positive(),
+  expiresAt: z.string().datetime(),
+})
+
+export const v2TableImportSchema = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  status: v2TableImportStatusSchema,
+  source: v2TableImportSourceSchema,
+  target: v2TableImportTargetSchema,
+  tableId: z.string().nullable(),
+  rowsProcessed: z.number().int().nonnegative(),
+  error: z.string().nullable(),
+  upload: v2TableImportUploadSchema.nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  completedAt: z.string().datetime().nullable(),
+})
+export type V2TableImport = z.output<typeof v2TableImportSchema>
+
+export const v2CreateTableImportContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/tables/[tableId]/import-async',
-  params: tableIdParamsSchema,
-  body: importIntoTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2ImportAsyncDataSchema),
-  },
+  path: '/api/v2/tables/imports',
+  body: v2CreateTableImportBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
 })
 
-/** Kickoff acknowledgement for a background export. */
-export const v2ExportAsyncDataSchema = z.object({
-  tableId: z.string(),
-  jobId: z.string(),
+export const v2GetTableImportContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/tables/imports/[importId]',
+  params: v2TableImportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
 })
-export type V2ExportAsyncData = z.output<typeof v2ExportAsyncDataSchema>
 
-/**
- * Starts a background export. Export jobs are read-only, so they bypass the
- * one-write-job-per-table gate and can run alongside an import or delete.
- */
-export const v2ExportTableAsyncContract = defineRouteContract({
+export const v2CancelTableImportContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/tables/imports/[importId]',
+  params: v2TableImportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
+})
+
+export const v2CreateTableImportPartUrlsContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/tables/[tableId]/export-async',
+  path: '/api/v2/tables/imports/[importId]/parts',
+  params: v2TableImportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  body: v2PartUrlsBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2PartUrlsDataSchema) },
+})
+
+export const v2CompleteTableImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/imports/[importId]/complete',
+  params: v2TableImportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  body: v2CompleteUploadBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
+})
+
+export const v2TableExportStatusSchema = z.enum([
+  'queued',
+  'processing',
+  'completed',
+  'failed',
+  'canceled',
+])
+export type V2TableExportStatus = z.output<typeof v2TableExportStatusSchema>
+
+export const v2TableExportSchema = z.object({
+  id: z.string(),
+  tableId: z.string(),
+  workspaceId: z.string(),
+  format: z.enum(['csv', 'json']),
+  status: v2TableExportStatusSchema,
+  rowsProcessed: z.number().int().nonnegative(),
+  error: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  completedAt: z.string().datetime().nullable(),
+})
+export type V2TableExport = z.output<typeof v2TableExportSchema>
+
+export const v2CreateTableExportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/exports',
   params: tableIdParamsSchema,
   body: exportTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2ExportAsyncDataSchema),
-  },
+  response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema) },
 })
 
-/** A short-lived presigned URL for a finished export. */
-export const v2ExportDownloadDataSchema = z.object({
-  url: z.string(),
+export const v2GetTableExportContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/tables/exports/[exportId]',
+  params: v2TableExportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema) },
+})
+
+export const v2CancelTableExportContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/tables/exports/[exportId]',
+  params: v2TableExportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema) },
+})
+
+export const v2TableExportDownloadDataSchema = z.object({
+  url: z.string().url(),
   fileName: z.string(),
+  expiresAt: z.string().datetime(),
 })
-export type V2ExportDownloadData = z.output<typeof v2ExportDownloadDataSchema>
 
-/**
- * Resolves a `ready` export job to a presigned download URL. Returns 409 while
- * the job is still running and 410 once the generated file has aged out.
- */
-export const v2ExportDownloadContract = defineRouteContract({
+export const v2TableExportDownloadContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/tables/[tableId]/export/download',
-  params: tableIdParamsSchema,
-  query: exportDownloadQuerySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2ExportDownloadDataSchema),
-  },
-})
-
-/**
- * Workspace-scoped export-job listing: running jobs plus recently finished ones
- * (kept so a completed export stays re-downloadable). Bounded server-side, so a
- * single full page — `nextCursor` is always `null`.
- */
-export const v2ListTableJobsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/v2/tables/jobs',
-  query: listTableJobsQuerySchema,
-  response: {
-    mode: 'json',
-    schema: v2CursorListResponse(tableJobSummarySchema),
-  },
-})
-
-/**
- * Cancel outcome. `canceled` is `false` when the job had already finished —
- * cancelling is idempotent and a late request is not an error.
- */
-export const v2CancelTableJobDataSchema = z.object({
-  jobId: z.string(),
-  canceled: z.boolean(),
-})
-export type V2CancelTableJobData = z.output<typeof v2CancelTableJobDataSchema>
-
-/**
- * Stops an in-flight import or delete. The worker halts at its next ownership
- * check; work already committed (rows inserted or deleted) stays — there is no
- * rollback.
- */
-export const v2CancelTableJobContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/v2/tables/[tableId]/job/cancel',
-  params: tableIdParamsSchema,
-  body: cancelTableJobBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2CancelTableJobDataSchema),
-  },
+  path: '/api/v2/tables/exports/[exportId]/download',
+  params: v2TableExportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableExportDownloadDataSchema) },
 })
 
 /**
@@ -1071,8 +1133,8 @@ export type V2CancelTableRunsData = z.output<typeof v2CancelTableRunsDataSchema>
 
 /**
  * Stops in-flight and pending workflow/enrichment cell runs — the counterpart
- * to `POST /columns/run`. Distinct from `POST /job/cancel`, which stops an
- * import or delete job.
+ * to `POST /columns/run`. Import and export work is canceled by deleting its
+ * resource instead.
  */
 export const v2CancelTableRunsContract = defineRouteContract({
   method: 'POST',

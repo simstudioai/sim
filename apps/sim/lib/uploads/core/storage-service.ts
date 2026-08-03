@@ -34,7 +34,7 @@ const logger = createLogger('StorageService')
  * Create a Blob config from StorageConfig
  * @throws Error if required properties are missing
  */
-function createBlobConfig(config: StorageConfig): BlobConfig {
+export function createBlobConfig(config: StorageConfig): BlobConfig {
   if (!config.containerName) {
     throw new Error('Blob configuration missing required property: containerName')
   }
@@ -57,7 +57,7 @@ function createBlobConfig(config: StorageConfig): BlobConfig {
  * Create an S3 config from StorageConfig
  * @throws Error if required properties are missing
  */
-function createS3Config(config: StorageConfig): S3Config {
+export function createS3Config(config: StorageConfig): S3Config {
   if (!config.bucket || !config.region) {
     throw new Error('S3 configuration missing required properties: bucket and region')
   }
@@ -72,7 +72,7 @@ function createS3Config(config: StorageConfig): S3Config {
  * Create a GCS config from StorageConfig
  * @throws Error if required properties are missing
  */
-function createGcsConfig(config: StorageConfig): GcsConfig {
+export function createGcsConfig(config: StorageConfig): GcsConfig {
   if (!config.bucket) {
     throw new Error('GCS configuration missing required property: bucket')
   }
@@ -634,7 +634,17 @@ export async function headObject(
     return headGcsObject(key, createGcsConfig(config))
   }
 
-  return null
+  const { stat } = await import('fs/promises')
+  const { join } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+  try {
+    const file = await stat(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)))
+    return { size: file.size }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') return null
+    throw error
+  }
 }
 
 /**

@@ -3077,7 +3077,7 @@
       }
     },
     "/api/v2/tables/jobs": {
-      "get": {
+      "x-removed-get": {
         "operationId": "listTableJobs",
         "summary": "List Export Jobs",
         "description": "Export jobs across a workspace — running ones plus recently finished ones, so a completed export stays re-downloadable. Poll this after `POST /export-async`, then fetch the file from `GET /export/download` once a job reports `ready`.",
@@ -3154,7 +3154,7 @@
       }
     },
     "/api/v2/tables/{tableId}/import-async": {
-      "post": {
+      "x-removed-post": {
         "operationId": "importTableCsvAsync",
         "summary": "Import CSV (Background)",
         "description": "Start a background import of a file already uploaded to workspace storage — the path for files too large for the synchronous import.\n\nReturns as soon as the job is queued. Track it on the table itself — `GET /api/v2/tables/{tableId}` returns a `job` object with `status`, `rowsProcessed` and `error` while the import runs — and stop it with `POST /job/cancel`. (`GET /api/v2/tables/jobs` lists exports only: those run concurrently and are not derived onto the table.) `fileKey` must sit under this workspace’s storage prefix. The table’s lock flags are checked before the job slot is claimed, so a locked table answers 423 here rather than failing inside the worker.",
@@ -3244,7 +3244,7 @@
       }
     },
     "/api/v2/tables/{tableId}/export-async": {
-      "post": {
+      "x-removed-post": {
         "operationId": "exportTableAsync",
         "summary": "Export Table (Background)",
         "description": "Start a background export. Export jobs are read-only, so they bypass the one-write-job-per-table gate and can run alongside an import or delete.\n\nReturns as soon as the job is queued. Poll `GET /api/v2/tables/jobs`, then fetch the file from `GET /export/download` once the job reports `ready`.",
@@ -3329,7 +3329,7 @@
       }
     },
     "/api/v2/tables/{tableId}/export/download": {
-      "get": {
+      "x-removed-get": {
         "operationId": "downloadTableExport",
         "summary": "Download Export",
         "description": "Resolve a finished export job to a short-lived presigned download URL.\n\nThe failure modes are deliberately distinct: a job that is not an export of this table is 404, one still running is 409 (retry later), and one whose file has aged out of storage is 410 (start a new export). A caller polling to completion needs to tell \"not yet\" from \"never again\".",
@@ -3409,7 +3409,7 @@
       }
     },
     "/api/v2/tables/{tableId}/job/cancel": {
-      "post": {
+      "x-removed-post": {
         "operationId": "cancelTableJob",
         "summary": "Cancel Job",
         "description": "Stop an in-flight import or delete job. The worker halts at its next ownership check; work already committed (rows inserted or deleted) is left in place — there is no rollback.\n\nIdempotent: cancelling a job that already finished answers `canceled: false` rather than failing, so a client racing the worker is not an error. To stop workflow or enrichment cell runs instead, use `POST /cancel-runs`.",
@@ -3487,6 +3487,265 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
+        }
+      }
+    },
+    "/api/v2/tables/imports": {
+      "post": {
+        "operationId": "createTableImport",
+        "summary": "Create Table Import",
+        "description": "Create one durable import resource for either a new or existing table. Upload sources return multipart details; workspace-file sources start immediately.",
+        "tags": ["Tables"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "201": {
+            "description": "The table import resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "423": { "$ref": "#/components/responses/Locked" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/imports/{importId}": {
+      "get": {
+        "operationId": "getTableImport",
+        "summary": "Get Table Import",
+        "description": "Read upload, processing, progress, and terminal state using the same import id.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The table import resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "cancelTableImport",
+        "summary": "Cancel Table Import",
+        "description": "Cancel an upload or processing import. Already committed row batches remain in the table.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The canceled import resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/imports/{importId}/parts": {
+      "post": {
+        "operationId": "createTableImportPartUrls",
+        "summary": "Create Table Import Part URLs",
+        "description": "Issue short-lived signed PUT URLs for a bounded set of import part numbers.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed URLs for the requested import parts.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/imports/{importId}/complete": {
+      "post": {
+        "operationId": "completeTableImportUpload",
+        "summary": "Complete Table Import Upload",
+        "description": "Verify and assemble the uploaded CSV or TSV, then start processing with the same import id.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "200": {
+            "description": "The queued import resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "423": { "$ref": "#/components/responses/Locked" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/exports": {
+      "post": {
+        "operationId": "createTableExport",
+        "summary": "Create Table Export",
+        "description": "Create one export resource. The server completes small exports inline and queues larger exports without changing the API path.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "201": {
+            "description": "The completed or processing export resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/exports/{exportId}": {
+      "get": {
+        "operationId": "getTableExport",
+        "summary": "Get Table Export",
+        "description": "Read processing, progress, and terminal state for an export resource.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "exportId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The table export resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "cancelTableExport",
+        "summary": "Cancel Table Export",
+        "description": "Cancel an export that is still processing.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "exportId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The canceled export resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/exports/{exportId}/download": {
+      "get": {
+        "operationId": "downloadTableExport",
+        "summary": "Download Table Export",
+        "description": "Return a short-lived download URL once an export has completed.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "exportId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "A short-lived URL for the generated export file.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },
@@ -5448,12 +5707,12 @@
       },
       "TableJobState": {
         "type": "object",
-        "description": "The table's in-flight background job. Import and delete jobs are derived onto the table itself (one write job per table), so the table is their status endpoint — poll `GET /api/v2/tables/{tableId}` after starting one. Exports are read-only and run concurrently, so they are listed separately by `GET /api/v2/tables/jobs` instead.",
+        "description": "The latest write job derived onto the table. Durable imports also expose their full lifecycle at `GET /api/v2/tables/imports/{importId}`. Exports are read-only resources and do not replace this field.",
         "required": ["id", "type", "status", "rowsProcessed", "error"],
         "properties": {
           "id": {
             "type": ["string", "null"],
-            "description": "Job id — pass to `POST /job/cancel` to stop it."
+            "description": "Job id. For durable imports this is also the import resource id."
           },
           "type": {
             "enum": ["import", "delete", "export", "backfill", "update", null],
@@ -5858,7 +6117,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The upload is too large for a synchronous import. Upload the file to workspace storage and use `POST /api/v2/tables/{tableId}/import-async` instead.",
+        "description": "The import source exceeds the 5 GB resource limit.",
         "content": {
           "application/json": {
             "schema": {

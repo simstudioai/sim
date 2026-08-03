@@ -8,6 +8,13 @@ import {
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CompleteUploadBodySchema,
+  v2PartUrlsBodySchema,
+  v2PartUrlsDataSchema,
+  v2UploadStatusSchema,
+} from '@/lib/api/contracts/v2/uploads'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
  * v2 files contracts. v2 drops the v1 `{ success, data, limits }` envelope in
@@ -25,11 +32,9 @@ import {
  * contract; folder management belongs on `/api/v2/folders` once that surface
  * serves `resourceType: 'file'`.
  *
- * Presigned upload is deliberately absent. Presign only performs an advisory
- * quota pre-check; the storage debit happens in the separate register step, so
- * a caller that presigns, PUTs bytes, and never registers leaves unaccounted
- * bytes in the bucket. The buffered multipart upload debits inside
- * `uploadWorkspaceFile`'s own transaction, so it is the only public path.
+ * Uploads are durable multipart sessions. The control plane owns cleanup and
+ * completion atomically registers the workspace file, so an abandoned direct
+ * upload cannot become an untracked permanent object.
  */
 
 /** A workspace file as exposed by the v2 surface. */
@@ -51,6 +56,37 @@ export const v2FileSchema = z.object({
 })
 
 export type V2File = z.output<typeof v2FileSchema>
+
+export const v2FileUploadParamsSchema = z.object({ uploadId: z.string().min(1) })
+export type V2FileUploadParams = z.output<typeof v2FileUploadParamsSchema>
+
+export const v2CreateFileUploadBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
+    contentType: z.string().trim().min(1, 'contentType is required').max(255),
+    size: z.number().int().min(1).max(MAX_WORKSPACE_FILE_SIZE),
+    folderId: z.string().min(1, 'folderId cannot be empty').optional(),
+  })
+  .strict()
+export type V2CreateFileUploadBody = z.input<typeof v2CreateFileUploadBodySchema>
+
+export const v2FileUploadWorkspaceQuerySchema = z.object({ workspaceId: workspaceIdSchema })
+export type V2FileUploadWorkspaceQuery = z.output<typeof v2FileUploadWorkspaceQuerySchema>
+
+export const v2FileUploadSchema = z.object({
+  id: z.string(),
+  status: v2UploadStatusSchema,
+  name: z.string(),
+  contentType: z.string(),
+  size: z.number().int().positive(),
+  partSize: z.number().int().positive(),
+  partCount: z.number().int().positive(),
+  expiresAt: z.string().datetime(),
+  error: z.string().nullable(),
+  file: v2FileSchema.nullable(),
+})
+export type V2FileUpload = z.output<typeof v2FileUploadSchema>
 
 /** Acknowledgement returned by a successful archive (soft delete). */
 export const v2DeleteFileResultSchema = z.object({
@@ -124,19 +160,6 @@ export const v2ListFilesQuerySchema = z.object({
 })
 
 export type V2ListFilesQuery = z.output<typeof v2ListFilesQuerySchema>
-
-/**
- * Upload carries the workspace as a query param so auth runs before buffering.
- * `folderId` is a query param for the same reason — the multipart body is never
- * read until the caller is authorized.
- */
-export const v2UploadFileQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
-  /** Target file folder. Omit to upload to the workspace root. */
-  folderId: z.string().min(1, 'folderId cannot be empty').optional(),
-})
-
-export type V2UploadFileQuery = z.output<typeof v2UploadFileQuerySchema>
 
 /** Download/delete both target a single file within a workspace-scoped query. */
 export const v2FileWorkspaceQuerySchema = z.object({
@@ -297,14 +320,45 @@ export const v2ListFilesContract = defineRouteContract({
   },
 })
 
-export const v2UploadFileContract = defineRouteContract({
+export const v2CreateFileUploadContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/files',
-  query: v2UploadFileQuerySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2FileSchema),
-  },
+  path: '/api/v2/files/uploads',
+  body: v2CreateFileUploadBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
+})
+
+export const v2GetFileUploadContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/uploads/[uploadId]',
+  params: v2FileUploadParamsSchema,
+  query: v2FileUploadWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
+})
+
+export const v2AbortFileUploadContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/files/uploads/[uploadId]',
+  params: v2FileUploadParamsSchema,
+  query: v2FileUploadWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
+})
+
+export const v2CreateFileUploadPartUrlsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/uploads/[uploadId]/parts',
+  params: v2FileUploadParamsSchema,
+  query: v2FileUploadWorkspaceQuerySchema,
+  body: v2PartUrlsBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2PartUrlsDataSchema) },
+})
+
+export const v2CompleteFileUploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/uploads/[uploadId]/complete',
+  params: v2FileUploadParamsSchema,
+  query: v2FileUploadWorkspaceQuerySchema,
+  body: v2CompleteUploadBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
 })
 
 export const v2DownloadFileContract = defineRouteContract({

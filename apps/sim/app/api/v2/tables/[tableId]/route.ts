@@ -149,7 +149,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
       return v2Error('NOT_FOUND', 'Table not found')
     }
 
-    // ── Validate every field BEFORE the first write ──
     // The two operations are separate transactions, so a rejection discovered
     // partway through would leave the earlier one persisted while the response
     // reports failure. Everything a request can be rejected for is therefore
@@ -162,7 +161,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
       }
     }
 
-    // ── Apply ──
     // Every deterministic rejection is already behind us, so a failure here is
     // a genuine fault (lost race, archived mid-request, database error) rather
     // than a bad request. The two operations commit independently — a single

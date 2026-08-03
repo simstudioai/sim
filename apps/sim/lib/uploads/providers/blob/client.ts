@@ -691,7 +691,8 @@ export async function commitBlobBlockList(
 export async function completeMultipartUpload(
   key: string,
   parts: AzureMultipartPart[],
-  customConfig?: BlobConfig
+  customConfig?: BlobConfig,
+  contentType?: string
 ): Promise<{ location: string; path: string; key: string }> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
@@ -726,6 +727,7 @@ export async function completeMultipartUpload(
     .map((part) => part.blockId)
 
   await blockBlobClient.commitBlockList(sortedBlockIds, {
+    ...(contentType ? { blobHTTPHeaders: { blobContentType: contentType } } : {}),
     metadata: {
       multipartUpload: 'completed',
       uploadCompletedAt: new Date().toISOString(),

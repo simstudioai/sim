@@ -83,7 +83,7 @@ export function textKey<Row>(column: Column, read: (row: Row) => string): Keyset
 }
 
 /** A numeric key — sizes, counts, manual positions. */
-export function numberKey<Row>(column: Column, read: (row: Row) => number): KeysetKey<Row> {
+export function numberKey<Row>(column: SQLWrapper, read: (row: Row) => number): KeysetKey<Row> {
   return {
     expr: column,
     encode: read,
