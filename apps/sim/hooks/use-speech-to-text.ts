@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { getVoiceSettingsContract } from '@/lib/api/contracts/common'
 import { speechTokenContract } from '@/lib/api/contracts/media/speech'
 import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
 import {
@@ -13,6 +12,7 @@ import {
   MAX_SESSION_MS,
   SAMPLE_RATE,
 } from '@/lib/speech/config'
+import { useVoiceSettings } from '@/hooks/queries/voice'
 
 const logger = createLogger('useSpeechToText')
 
@@ -40,7 +40,18 @@ export function useSpeechToText({
   workspaceId,
 }: UseSpeechToTextProps): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false)
-  const [isSupported, setIsSupported] = useState(false)
+  /**
+   * Gate the capability request on the browser APIs streaming needs, so clients
+   * that could not use STT anyway never issue it.
+   */
+  const browserSupportsAudioCapture =
+    typeof window !== 'undefined' &&
+    typeof AudioContext !== 'undefined' &&
+    typeof WebSocket !== 'undefined' &&
+    typeof navigator?.mediaDevices?.getUserMedia === 'function'
+
+  const { data: sttAvailable } = useVoiceSettings({ enabled: browserSupportsAudioCapture })
+  const isSupported = browserSupportsAudioCapture && sttAvailable === true
 
   const onTranscriptRef = useRef(onTranscript)
   const onUsageLimitExceededRef = useRef(onUsageLimitExceeded)
@@ -63,27 +74,6 @@ export function useSpeechToText({
   onTranscriptRef.current = onTranscript
   onUsageLimitExceededRef.current = onUsageLimitExceeded
   workspaceIdRef.current = workspaceId
-
-  useEffect(() => {
-    const browserOk =
-      typeof window !== 'undefined' &&
-      typeof AudioContext !== 'undefined' &&
-      typeof WebSocket !== 'undefined' &&
-      typeof navigator?.mediaDevices?.getUserMedia === 'function'
-
-    if (!browserOk) {
-      setIsSupported(false)
-      return
-    }
-
-    requestJson(getVoiceSettingsContract, {})
-      .then((data) => {
-        if (mountedRef.current) setIsSupported(data.sttAvailable === true)
-      })
-      .catch(() => {
-        if (mountedRef.current) setIsSupported(false)
-      })
-  }, [])
 
   const flushAudioBuffer = useCallback(() => {
     const ws = wsRef.current
