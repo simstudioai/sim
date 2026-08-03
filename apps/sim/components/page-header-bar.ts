@@ -23,3 +23,12 @@ export const TITLE_BAR_LANE_PT = 'pt-[calc(8.5px+var(--workspace-content-title-b
  * Single source of truth for this geometry — never re-derive it per page.
  */
 export const PAGE_HEADER_BAR = `flex flex-shrink-0 items-center bg-[var(--bg)] px-4 ${TITLE_BAR_LANE_PT} pb-[8.5px]`
+
+/**
+ * The right-hand action cluster inside a top bar. Every header — settings,
+ * credential detail, `Resource` pages, the integrations tab strip — wears this,
+ * so a chip row is the same height and rhythm wherever it appears.
+ *
+ * Single source of truth: never re-derive `h-[30px]`/`gap-1` per header.
+ */
+export const HEADER_ACTION_CLUSTER = 'flex h-[30px] items-center gap-1'
