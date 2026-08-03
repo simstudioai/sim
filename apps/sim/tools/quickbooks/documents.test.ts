@@ -30,6 +30,7 @@ describe('QuickBooks document tools', () => {
     ['credit_memo', 'creditmemo'],
     ['estimate', 'estimate'],
     ['invoice', 'invoice'],
+    ['payment', 'payment'],
     ['purchase_order', 'purchaseorder'],
     ['refund_receipt', 'refundreceipt'],
     ['sales_receipt', 'salesreceipt'],
@@ -348,11 +349,11 @@ describe('QuickBooks document validation and block parity', () => {
     })
   })
 
-  it('exposes exactly 45 operation/tool pairs and a canonical single-file input pair', () => {
+  it('exposes exactly 47 operation/tool pairs and a canonical single-file input pair', () => {
     const operation = QuickBooksBlock.subBlocks.find((block) => block.id === 'operation')
-    expect(operation?.options).toHaveLength(45)
-    expect(QuickBooksBlock.tools?.access).toHaveLength(45)
-    expect(new Set(QuickBooksBlock.tools?.access).size).toBe(45)
+    expect(operation?.options).toHaveLength(47)
+    expect(QuickBooksBlock.tools?.access).toHaveLength(47)
+    expect(new Set(QuickBooksBlock.tools?.access).size).toBe(47)
     expect(operation?.options?.map((option) => option.id).sort()).toEqual(
       [...(QuickBooksBlock.tools?.access ?? [])].sort()
     )

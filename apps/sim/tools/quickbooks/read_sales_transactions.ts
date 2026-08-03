@@ -7,8 +7,9 @@ import type {
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_SALES_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/types'
 import {
+  assertQuickBooksListOnlyFilters,
   buildQuickBooksEntityUrl,
-  buildQuickBooksQueryUrl,
+  buildQuickBooksSalesQueryUrl,
   getQuickBooksSalesEntity,
   getQuickBooksToolHeaders,
   transformQuickBooksEntityResponse,
@@ -70,6 +71,24 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
       default: 25,
       description: 'Number of list records to request (1–100)',
     },
+    startDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'List transactions on or after this date in YYYY-MM-DD format',
+    },
+    endDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'List transactions on or before this date in YYYY-MM-DD format',
+    },
+    customerId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'List transactions for one QuickBooks customer ID',
+    },
   },
   oauth: {
     required: true,
@@ -81,14 +100,14 @@ export const quickbooksReadSalesTransactionsTool: ToolConfig<
     url: (params) => {
       const config = getQuickBooksSalesEntity(params.transactionType)
       if (params.readMode === 'list') {
-        return buildQuickBooksQueryUrl(
-          params.realmId,
-          config.entity,
-          params.startPosition ?? 1,
-          params.maxResults ?? 25
-        ).toString()
+        return buildQuickBooksSalesQueryUrl(params).toString()
       }
       if (params.readMode === 'by_id') {
+        assertQuickBooksListOnlyFilters(params.readMode, {
+          startDate: params.startDate,
+          endDate: params.endDate,
+          customerId: params.customerId,
+        })
         if (!params.transactionId?.trim()) {
           throw new Error('QuickBooks transaction ID is required for by-ID reads')
         }

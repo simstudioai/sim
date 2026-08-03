@@ -33,6 +33,7 @@ const reportEndpoints = [
   ['sales_by_customer', 'CustomerSales'],
   ['sales_by_item', 'ItemSales'],
   ['trial_balance', 'TrialBalance'],
+  ['transaction_list', 'TransactionList'],
   ['vendor_balance', 'VendorBalance'],
 ] as const satisfies ReadonlyArray<readonly [QuickBooksReportType, string]>
 
@@ -121,6 +122,39 @@ describe('QuickBooks financial report request construction', () => {
     expect(url.searchParams.has('end_date')).toBe(false)
   })
 
+  it('maps bounded Transaction List controls to verified query parameters', () => {
+    const url = buildQuickBooksReportUrl({
+      ...authParams,
+      reportType: 'transaction_list',
+      startDate: '2026-01-01',
+      endDate: '2026-01-31',
+      customerId: '42',
+      vendorId: '43',
+      departmentId: '6',
+      transactionType: 'invoice',
+      groupBy: 'transaction_type',
+      accountsPayablePaid: 'unpaid',
+      accountsReceivablePaid: 'paid',
+      clearedStatus: 'reconciled',
+      documentNumber: ' 1001 ',
+      sourceAccountType: 'accounts_receivable',
+    })
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({
+      start_date: '2026-01-01',
+      end_date: '2026-01-31',
+      customer: '42',
+      vendor: '43',
+      department: '6',
+      transaction_type: 'Invoice',
+      group_by: 'Transaction Type',
+      appaid: 'Unpaid',
+      arpaid: 'Paid',
+      cleared: 'Reconciled',
+      docnum: '1001',
+      source_account_type: 'AccountsReceivable',
+    })
+  })
+
   it('omits blank and default controls', () => {
     const url = buildQuickBooksReportUrl({
       ...authParams,
@@ -157,10 +191,10 @@ describe('QuickBooks financial report request construction', () => {
     ).toThrow(message)
   })
 
-  it('contains exactly the sandbox-verified 14-report support matrix', () => {
+  it('contains exactly the sandbox-verified 15-report support matrix', () => {
     expect(Object.keys(QUICKBOOKS_REPORTS)).toEqual(reportEndpoints.map(([type]) => type))
     expect(Object.keys(QUICKBOOKS_REPORTS)).not.toContain('general_ledger')
-    expect(quickbooksRunFinancialReportTool.params).not.toHaveProperty('transactionType')
+    expect(quickbooksRunFinancialReportTool.params).toHaveProperty('transactionType')
   })
 })
 
@@ -382,6 +416,13 @@ describe('QuickBooks report block behavior', () => {
       departmentId: undefined,
       agingMethod: 'current',
       agingDays: 15,
+      transactionType: undefined,
+      groupBy: undefined,
+      accountsPayablePaid: undefined,
+      accountsReceivablePaid: undefined,
+      clearedStatus: undefined,
+      documentNumber: undefined,
+      sourceAccountType: undefined,
     })
   })
 

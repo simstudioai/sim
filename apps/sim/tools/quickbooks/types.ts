@@ -130,6 +130,7 @@ export interface QuickBooksEmployee {
   PrimaryAddr?: QuickBooksAddress
   BillableTime?: boolean
   MetaData?: QuickBooksMetaData
+  domain?: string
   sparse?: boolean
 }
 
@@ -309,6 +310,7 @@ export interface QuickBooksReadMasterDataParams extends QuickBooksAuthParams {
   recordId?: string
   startPosition?: number
   maxResults?: number
+  activeStatus?: QuickBooksReadActiveStatus
 }
 
 export type QuickBooksSalesTransactionType =
@@ -325,6 +327,9 @@ export interface QuickBooksReadSalesTransactionsParams extends QuickBooksAuthPar
   transactionId?: string
   startPosition?: number
   maxResults?: number
+  startDate?: string
+  endDate?: string
+  customerId?: string
 }
 
 export type QuickBooksPurchasingTransactionType =
@@ -340,6 +345,9 @@ export interface QuickBooksReadPurchasingTransactionsParams extends QuickBooksAu
   transactionId?: string
   startPosition?: number
   maxResults?: number
+  startDate?: string
+  endDate?: string
+  vendorId?: string
 }
 
 export type QuickBooksAccountingTransactionType = 'journal_entry' | 'deposit' | 'transfer'
@@ -350,6 +358,8 @@ export interface QuickBooksReadAccountingTransactionsParams extends QuickBooksAu
   transactionId?: string
   startPosition?: number
   maxResults?: number
+  startDate?: string
+  endDate?: string
 }
 
 export type QuickBooksReportType =
@@ -367,6 +377,7 @@ export type QuickBooksReportType =
   | 'sales_by_customer'
   | 'sales_by_item'
   | 'expenses_by_vendor'
+  | 'transaction_list'
 
 export type QuickBooksAccountingMethod = 'default' | 'cash' | 'accrual'
 
@@ -386,6 +397,69 @@ export type QuickBooksReportSummarizeBy =
 
 export type QuickBooksAgingMethod = 'default' | 'report_date' | 'current'
 
+export type QuickBooksTransactionListPaidStatus = 'default' | 'all' | 'paid' | 'unpaid'
+export type QuickBooksTransactionListClearedStatus =
+  | 'default'
+  | 'cleared'
+  | 'uncleared'
+  | 'reconciled'
+  | 'deposited'
+export type QuickBooksTransactionListGroupBy =
+  | 'default'
+  | 'account'
+  | 'customer'
+  | 'day'
+  | 'employee'
+  | 'department'
+  | 'month'
+  | 'name'
+  | 'none'
+  | 'payment_method'
+  | 'quarter'
+  | 'transaction_type'
+  | 'vendor'
+  | 'week'
+  | 'year'
+
+export type QuickBooksTransactionListTransactionType =
+  | 'default'
+  | 'bill'
+  | 'bill_payment_check'
+  | 'bill_payment_credit_card'
+  | 'cash_purchase'
+  | 'check'
+  | 'credit_card_charge'
+  | 'credit_card_credit'
+  | 'credit_memo'
+  | 'deposit'
+  | 'estimate'
+  | 'invoice'
+  | 'journal_entry'
+  | 'payment'
+  | 'purchase_order'
+  | 'sales_receipt'
+  | 'transfer'
+  | 'vendor_credit'
+
+export type QuickBooksTransactionListSourceAccountType =
+  | 'default'
+  | 'accounts_payable'
+  | 'accounts_receivable'
+  | 'bank'
+  | 'cost_of_goods_sold'
+  | 'credit_card'
+  | 'equity'
+  | 'expense'
+  | 'fixed_asset'
+  | 'income'
+  | 'long_term_liability'
+  | 'non_posting'
+  | 'other_asset'
+  | 'other_current_asset'
+  | 'other_current_liability'
+  | 'other_expense'
+  | 'other_income'
+
 export interface QuickBooksRunFinancialReportParams extends QuickBooksAuthParams {
   reportType: QuickBooksReportType
   startDate?: string
@@ -400,12 +474,20 @@ export interface QuickBooksRunFinancialReportParams extends QuickBooksAuthParams
   departmentId?: string
   agingMethod?: QuickBooksAgingMethod
   agingDays?: number
+  transactionType?: QuickBooksTransactionListTransactionType
+  groupBy?: QuickBooksTransactionListGroupBy
+  accountsPayablePaid?: QuickBooksTransactionListPaidStatus
+  accountsReceivablePaid?: QuickBooksTransactionListPaidStatus
+  clearedStatus?: QuickBooksTransactionListClearedStatus
+  documentNumber?: string
+  sourceAccountType?: QuickBooksTransactionListSourceAccountType
 }
 
 export type QuickBooksDocumentTransactionType =
   | 'credit_memo'
   | 'estimate'
   | 'invoice'
+  | 'payment'
   | 'purchase_order'
   | 'refund_receipt'
   | 'sales_receipt'
@@ -864,6 +946,7 @@ export interface QuickBooksVoidTransactionParams extends QuickBooksAuthParams {
 }
 
 export type QuickBooksActiveStatus = 'unchanged' | 'active' | 'inactive'
+export type QuickBooksReadActiveStatus = 'default' | 'active' | 'inactive'
 
 export interface QuickBooksCreateCustomerParams extends QuickBooksAuthParams {
   displayName: string
@@ -881,6 +964,26 @@ export interface QuickBooksCreateCustomerParams extends QuickBooksAuthParams {
 export interface QuickBooksUpdateCustomerParams
   extends Omit<QuickBooksCreateCustomerParams, 'displayName'> {
   customerId: string
+  syncToken: string
+  displayName?: string
+  activeStatus?: QuickBooksActiveStatus
+}
+
+export interface QuickBooksCreateEmployeeParams extends QuickBooksAuthParams {
+  displayName: string
+  requestId?: string
+  givenName?: string
+  familyName?: string
+  primaryEmail?: string
+  primaryPhone?: string
+  primaryAddress?: QuickBooksAddress
+  printOnCheckName?: string
+  billableTime?: boolean
+}
+
+export interface QuickBooksUpdateEmployeeParams
+  extends Omit<QuickBooksCreateEmployeeParams, 'displayName' | 'requestId'> {
+  employeeId: string
   syncToken: string
   displayName?: string
   activeStatus?: QuickBooksActiveStatus
@@ -1100,7 +1203,9 @@ export type QuickBooksResponse =
   | QuickBooksReadAttachmentsResponse
   | QuickBooksAddAttachmentResponse
   | QuickBooksFileResponse
-  | QuickBooksMutationResponse<QuickBooksCustomer | QuickBooksVendor | QuickBooksItem>
+  | QuickBooksMutationResponse<
+      QuickBooksCustomer | QuickBooksEmployee | QuickBooksVendor | QuickBooksItem
+    >
   | QuickBooksMutationResponse<QuickBooksSalesTransaction>
   | QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
   | QuickBooksCreateBillResponse
@@ -1407,6 +1512,11 @@ export const QUICKBOOKS_EMPLOYEE_PROPERTIES: Record<string, OutputProperty> = {
   DisplayName: { type: 'string', description: 'Employee display name', optional: true },
   GivenName: { type: 'string', description: 'Given name', optional: true },
   FamilyName: { type: 'string', description: 'Family name', optional: true },
+  PrintOnCheckName: {
+    type: 'string',
+    description: 'Employee name printed on checks',
+    optional: true,
+  },
   PrimaryEmailAddr: {
     type: 'json',
     description: 'Employee primary email address',
@@ -1423,6 +1533,8 @@ export const QUICKBOOKS_EMPLOYEE_PROPERTIES: Record<string, OutputProperty> = {
     description: 'Whether employee time is billable',
     optional: true,
   },
+  domain: { type: 'string', description: 'QuickBooks domain', optional: true },
+  sparse: { type: 'boolean', description: 'Whether this is a sparse entity', optional: true },
 }
 
 export const QUICKBOOKS_MASTER_DATA_PROPERTIES: Record<string, OutputProperty> = {

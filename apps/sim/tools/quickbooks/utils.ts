@@ -14,11 +14,16 @@ import type {
   QuickBooksAddress,
   QuickBooksAgingMethod,
   QuickBooksCustomer,
+  QuickBooksEmployee,
   QuickBooksListResponse,
   QuickBooksMasterDataRecordType,
   QuickBooksMutationResponse,
   QuickBooksPaginationParams,
   QuickBooksPurchasingTransactionType,
+  QuickBooksReadAccountingTransactionsParams,
+  QuickBooksReadMasterDataParams,
+  QuickBooksReadPurchasingTransactionsParams,
+  QuickBooksReadSalesTransactionsParams,
   QuickBooksReference,
   QuickBooksReportColumns,
   QuickBooksReportHeader,
@@ -254,6 +259,14 @@ export const QUICKBOOKS_REPORTS = {
     filters: [],
     aging: false,
   },
+  transaction_list: {
+    endpoint: 'TransactionList',
+    dateMode: 'range',
+    accountingMethod: false,
+    summarizeBy: [],
+    filters: ['customerId', 'vendorId', 'departmentId'],
+    aging: false,
+  },
   vendor_balance: {
     endpoint: 'VendorBalance',
     dateMode: 'as_of',
@@ -328,6 +341,134 @@ const QUICKBOOKS_REPORT_FILTER_PARAMS: Record<QuickBooksReportFilter, string> = 
   departmentId: 'department',
 }
 
+const QUICKBOOKS_TRANSACTION_LIST_VALUES = {
+  transactionType: {
+    default: '',
+    bill: 'Bill',
+    bill_payment_check: 'BillPaymentCheck',
+    bill_payment_credit_card: 'BillPaymentCreditCard',
+    cash_purchase: 'CashPurchase',
+    check: 'Check',
+    credit_card_charge: 'CreditCardCharge',
+    credit_card_credit: 'CreditCardCredit',
+    credit_memo: 'CreditMemo',
+    deposit: 'Deposit',
+    estimate: 'Estimate',
+    invoice: 'Invoice',
+    journal_entry: 'JournalEntry',
+    payment: 'ReceivePayment',
+    purchase_order: 'PurchaseOrder',
+    sales_receipt: 'SalesReceipt',
+    transfer: 'Transfer',
+    vendor_credit: 'VendorCredit',
+  },
+  groupBy: {
+    default: '',
+    account: 'Account',
+    customer: 'Customer',
+    day: 'Day',
+    department: 'Location',
+    employee: 'Employee',
+    month: 'Month',
+    name: 'Name',
+    none: 'None',
+    payment_method: 'Payment Method',
+    quarter: 'Quarter',
+    transaction_type: 'Transaction Type',
+    vendor: 'Vendor',
+    week: 'Week',
+    year: 'Year',
+  },
+  paidStatus: { default: '', all: 'All', paid: 'Paid', unpaid: 'Unpaid' },
+  clearedStatus: {
+    default: '',
+    cleared: 'Cleared',
+    deposited: 'Deposited',
+    reconciled: 'Reconciled',
+    uncleared: 'Uncleared',
+  },
+  sourceAccountType: {
+    default: '',
+    accounts_payable: 'AccountsPayable',
+    accounts_receivable: 'AccountsReceivable',
+    bank: 'Bank',
+    cost_of_goods_sold: 'CostOfGoodsSold',
+    credit_card: 'CreditCard',
+    equity: 'Equity',
+    expense: 'Expense',
+    fixed_asset: 'FixedAsset',
+    income: 'Income',
+    long_term_liability: 'LongTermLiability',
+    non_posting: 'NonPosting',
+    other_asset: 'OtherAsset',
+    other_current_asset: 'OtherCurrentAsset',
+    other_current_liability: 'OtherCurrentLiability',
+    other_expense: 'OtherExpense',
+    other_income: 'OtherIncome',
+  },
+} as const
+
+function addQuickBooksTransactionListFilters(
+  url: URL,
+  params: QuickBooksRunFinancialReportParams
+): void {
+  const transactionType = params.transactionType === 'default' ? undefined : params.transactionType
+  const groupBy = params.groupBy === 'default' ? undefined : params.groupBy
+  const accountsPayablePaid =
+    params.accountsPayablePaid === 'default' ? undefined : params.accountsPayablePaid
+  const accountsReceivablePaid =
+    params.accountsReceivablePaid === 'default' ? undefined : params.accountsReceivablePaid
+  const clearedStatus = params.clearedStatus === 'default' ? undefined : params.clearedStatus
+  const sourceAccountType =
+    params.sourceAccountType === 'default' ? undefined : params.sourceAccountType
+  const controls = {
+    transaction_type: transactionType,
+    group_by: groupBy,
+    appaid: accountsPayablePaid,
+    arpaid: accountsReceivablePaid,
+    cleared: clearedStatus,
+    docnum: optionalQuickBooksString(params.documentNumber),
+    source_account_type: sourceAccountType,
+  }
+  const supplied = Object.entries(controls).find(([, value]) => value !== undefined)
+  if (params.reportType !== 'transaction_list') {
+    if (supplied) throw new Error(`${params.reportType} does not support ${supplied[0]}`)
+    return
+  }
+
+  if (transactionType) {
+    url.searchParams.set(
+      'transaction_type',
+      QUICKBOOKS_TRANSACTION_LIST_VALUES.transactionType[transactionType]
+    )
+  }
+  if (groupBy) {
+    url.searchParams.set('group_by', QUICKBOOKS_TRANSACTION_LIST_VALUES.groupBy[groupBy])
+  }
+  if (accountsPayablePaid) {
+    url.searchParams.set(
+      'appaid',
+      QUICKBOOKS_TRANSACTION_LIST_VALUES.paidStatus[accountsPayablePaid]
+    )
+  }
+  if (accountsReceivablePaid) {
+    url.searchParams.set(
+      'arpaid',
+      QUICKBOOKS_TRANSACTION_LIST_VALUES.paidStatus[accountsReceivablePaid]
+    )
+  }
+  if (clearedStatus) {
+    url.searchParams.set('cleared', QUICKBOOKS_TRANSACTION_LIST_VALUES.clearedStatus[clearedStatus])
+  }
+  if (controls.docnum) url.searchParams.set('docnum', controls.docnum)
+  if (sourceAccountType) {
+    url.searchParams.set(
+      'source_account_type',
+      QUICKBOOKS_TRANSACTION_LIST_VALUES.sourceAccountType[sourceAccountType]
+    )
+  }
+}
+
 export function buildQuickBooksReportUrl(params: QuickBooksRunFinancialReportParams): URL {
   const definition = QUICKBOOKS_REPORTS[params.reportType]
   if (!definition) {
@@ -392,6 +533,8 @@ export function buildQuickBooksReportUrl(params: QuickBooksRunFinancialReportPar
     }
     url.searchParams.set('aging_period', String(params.agingDays))
   }
+
+  addQuickBooksTransactionListFilters(url, params)
 
   return url
 }
@@ -470,15 +613,138 @@ export function buildQuickBooksQueryUrl(
   realmId: string,
   entity: QuickBooksQueryEntity,
   startPosition: number,
-  maxResults: number
+  maxResults: number,
+  filters: readonly QuickBooksQueryFilter[] = []
 ): URL {
   const pagination = validateQuickBooksPagination(startPosition, maxResults)
   const url = buildQuickBooksCompanyUrl(realmId, 'query')
+  const where =
+    filters.length > 0
+      ? ` WHERE ${filters.map((filter) => buildQuickBooksQueryFilter(filter)).join(' AND ')}`
+      : ''
   url.searchParams.set(
     'query',
-    `SELECT * FROM ${entity} STARTPOSITION ${pagination.startPosition} MAXRESULTS ${pagination.maxResults}`
+    `SELECT * FROM ${entity}${where} STARTPOSITION ${pagination.startPosition} MAXRESULTS ${pagination.maxResults}`
   )
   return url
+}
+
+type QuickBooksQueryField = 'Active' | 'CustomerRef' | 'EntityRef' | 'TxnDate' | 'VendorRef'
+type QuickBooksQueryOperator = '=' | '>=' | '<='
+
+interface QuickBooksQueryFilter {
+  field: QuickBooksQueryField
+  operator: QuickBooksQueryOperator
+  value: string | boolean
+}
+
+function buildQuickBooksQueryFilter(filter: QuickBooksQueryFilter): string {
+  if (typeof filter.value === 'boolean') {
+    return `${filter.field} ${filter.operator} ${String(filter.value)}`
+  }
+  const value = requiredQuickBooksString(filter.value, filter.field)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+  return `${filter.field} ${filter.operator} '${value}'`
+}
+
+function getQuickBooksDateRangeFilters(
+  startDate: string | undefined,
+  endDate: string | undefined
+): QuickBooksQueryFilter[] {
+  const start = validateQuickBooksDate(startDate, 'startDate')
+  const end = validateQuickBooksDate(endDate, 'endDate')
+  if (start && end && start > end) throw new Error('startDate cannot be after endDate')
+  return [
+    ...(start ? [{ field: 'TxnDate', operator: '>=', value: start } as const] : []),
+    ...(end ? [{ field: 'TxnDate', operator: '<=', value: end } as const] : []),
+  ]
+}
+
+export function buildQuickBooksMasterDataQueryUrl(params: QuickBooksReadMasterDataParams): URL {
+  const config = getQuickBooksMasterDataEntity(params.recordType)
+  const activeStatus = params.activeStatus ?? 'default'
+  if (!['default', 'active', 'inactive'].includes(activeStatus)) {
+    throw new Error(`Unsupported QuickBooks active status filter: ${String(activeStatus)}`)
+  }
+  const filters: QuickBooksQueryFilter[] =
+    activeStatus === 'default'
+      ? []
+      : [{ field: 'Active', operator: '=', value: activeStatus === 'active' }]
+  return buildQuickBooksQueryUrl(
+    params.realmId,
+    config.entity,
+    params.startPosition ?? 1,
+    params.maxResults ?? 25,
+    filters
+  )
+}
+
+export function buildQuickBooksSalesQueryUrl(params: QuickBooksReadSalesTransactionsParams): URL {
+  const config = getQuickBooksSalesEntity(params.transactionType)
+  const filters = getQuickBooksDateRangeFilters(params.startDate, params.endDate)
+  const customerId = optionalQuickBooksString(params.customerId)
+  if (customerId) filters.push({ field: 'CustomerRef', operator: '=', value: customerId })
+  return buildQuickBooksQueryUrl(
+    params.realmId,
+    config.entity,
+    params.startPosition ?? 1,
+    params.maxResults ?? 25,
+    filters
+  )
+}
+
+const QUICKBOOKS_PURCHASING_VENDOR_FILTER_TYPES = new Set<QuickBooksPurchasingTransactionType>([
+  'bill',
+  'bill_payment',
+  'purchase_order',
+  'vendor_credit',
+])
+
+export function buildQuickBooksPurchasingQueryUrl(
+  params: QuickBooksReadPurchasingTransactionsParams
+): URL {
+  const config = getQuickBooksPurchasingEntity(params.transactionType)
+  const filters = getQuickBooksDateRangeFilters(params.startDate, params.endDate)
+  const vendorId = optionalQuickBooksString(params.vendorId)
+  if (vendorId) {
+    if (!QUICKBOOKS_PURCHASING_VENDOR_FILTER_TYPES.has(params.transactionType)) {
+      throw new Error(`${params.transactionType} does not support vendorId filtering`)
+    }
+    filters.push({ field: 'VendorRef', operator: '=', value: vendorId })
+  }
+  return buildQuickBooksQueryUrl(
+    params.realmId,
+    config.entity,
+    params.startPosition ?? 1,
+    params.maxResults ?? 25,
+    filters
+  )
+}
+
+export function buildQuickBooksAccountingQueryUrl(
+  params: QuickBooksReadAccountingTransactionsParams
+): URL {
+  const config = getQuickBooksAccountingEntity(params.transactionType)
+  return buildQuickBooksQueryUrl(
+    params.realmId,
+    config.entity,
+    params.startPosition ?? 1,
+    params.maxResults ?? 25,
+    getQuickBooksDateRangeFilters(params.startDate, params.endDate)
+  )
+}
+
+export function assertQuickBooksListOnlyFilters(
+  readMode: 'list' | 'by_id',
+  filters: Record<string, unknown>
+): void {
+  if (readMode !== 'by_id') return
+  const provided = Object.entries(filters).find(([, value]) => {
+    if (value === undefined || value === null || value === '') return false
+    return value !== 'default'
+  })
+  if (provided) throw new Error(`${provided[0]} is supported only for List mode`)
 }
 
 export const QUICKBOOKS_ACCOUNTING_ENTITIES = {
@@ -675,6 +941,72 @@ export function sanitizeQuickBooksVendor(vendor: QuickBooksVendor): QuickBooksVe
 
 export function sanitizeQuickBooksCustomer(customer: QuickBooksCustomer): QuickBooksCustomer {
   return omit(customer, ['TaxIdentifier']) as QuickBooksCustomer
+}
+
+export function sanitizeQuickBooksEmployee(employee: QuickBooksEmployee): QuickBooksEmployee {
+  const id = typeof employee.Id === 'string' ? employee.Id.trim() : ''
+  if (!id) throw new Error('QuickBooks Employee response is missing Id')
+
+  const sanitized: QuickBooksEmployee = { Id: id }
+  for (const key of [
+    'SyncToken',
+    'DisplayName',
+    'GivenName',
+    'MiddleName',
+    'FamilyName',
+    'Suffix',
+    'Title',
+    'PrintOnCheckName',
+  ] as const) {
+    const value = employee[key]
+    if (typeof value === 'string') sanitized[key] = value
+  }
+  if (typeof employee.domain === 'string') sanitized.domain = employee.domain
+  for (const key of ['Active', 'BillableTime', 'sparse'] as const) {
+    const value = employee[key]
+    if (typeof value === 'boolean') sanitized[key] = value
+  }
+  for (const key of ['PrimaryPhone', 'Mobile'] as const) {
+    const value = employee[key]
+    if (value && typeof value.FreeFormNumber === 'string') {
+      sanitized[key] = { FreeFormNumber: value.FreeFormNumber }
+    }
+  }
+  if (employee.PrimaryEmailAddr && typeof employee.PrimaryEmailAddr.Address === 'string') {
+    sanitized.PrimaryEmailAddr = { Address: employee.PrimaryEmailAddr.Address }
+  }
+  if (employee.PrimaryAddr && typeof employee.PrimaryAddr === 'object') {
+    const address: QuickBooksAddress = {}
+    for (const key of [
+      'Id',
+      'Line1',
+      'Line2',
+      'Line3',
+      'Line4',
+      'Line5',
+      'City',
+      'Country',
+      'CountrySubDivisionCode',
+      'PostalCode',
+      'Lat',
+      'Long',
+    ] as const) {
+      const value = employee.PrimaryAddr[key]
+      if (typeof value === 'string') address[key] = value
+    }
+    if (Object.keys(address).length > 0) sanitized.PrimaryAddr = address
+  }
+  if (employee.MetaData && typeof employee.MetaData === 'object') {
+    sanitized.MetaData = {
+      ...(typeof employee.MetaData.CreateTime === 'string'
+        ? { CreateTime: employee.MetaData.CreateTime }
+        : {}),
+      ...(typeof employee.MetaData.LastUpdatedTime === 'string'
+        ? { LastUpdatedTime: employee.MetaData.LastUpdatedTime }
+        : {}),
+    }
+  }
+  return sanitized
 }
 
 export function quickBooksWritableItemType(itemType: QuickBooksWritableItemType): string {
