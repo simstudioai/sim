@@ -31,6 +31,12 @@ async function fetchSttAvailable(signal?: AbortSignal): Promise<boolean> {
  * Deliberately no `initialData`: consumers derive their support flag from
  * `data === true`, so the first client render matches the server render
  * (unavailable) until the fetch resolves.
+ *
+ * `retryOnMount` overrides the app default of `false`. An infinite staleTime
+ * never goes stale, and `refetchOnWindowFocus` only refetches stale queries, so
+ * without this a single transient failure would cache the error for the life of
+ * the QueryClient and hide the mic until a full reload. Retrying per mount
+ * matches the effect this replaced, which refetched every time it ran.
  */
 export function useVoiceSettings(options?: { enabled?: boolean }) {
   return useQuery({
@@ -38,5 +44,6 @@ export function useVoiceSettings(options?: { enabled?: boolean }) {
     queryFn: ({ signal }) => fetchSttAvailable(signal),
     enabled: options?.enabled ?? true,
     staleTime: VOICE_SETTINGS_STALE_TIME,
+    retryOnMount: true,
   })
 }

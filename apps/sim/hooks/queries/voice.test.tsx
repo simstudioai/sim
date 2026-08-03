@@ -16,9 +16,11 @@ import { useVoiceSettings, voiceSettingsKeys } from '@/hooks/queries/voice'
 /** Trees rendered by a test, torn down in afterEach so observers do not leak across tests. */
 const mountedRoots: Root[] = []
 
-function renderHookWithClient<T>(useHook: () => T): { getResult: () => T } {
+function renderHookWithClient<T>(
+  useHook: () => T,
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+): { getResult: () => T } {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const container = document.createElement('div')
   const root: Root = createRoot(container)
   mountedRoots.push(root)
@@ -100,6 +102,30 @@ describe('useVoiceSettings', () => {
 
     expect(getResult().data).toBeUndefined()
     expect(getResult().isError).toBe(true)
+  })
+
+  /**
+   * The app's QueryClient sets `retryOnMount: false`, and an infinite staleTime
+   * never goes stale, so without an explicit override a single transient
+   * failure would cache the error for the life of the client and keep the mic
+   * hidden until a full reload.
+   */
+  it('recovers on a later mount after a failed probe, under the app query defaults', async () => {
+    const appDefaults = new QueryClient({
+      defaultOptions: { queries: { retry: false, retryOnMount: false, staleTime: 30 * 1000 } },
+    })
+
+    mockRequestJson.mockRejectedValueOnce(new Error('offline'))
+    renderHookWithClient(() => useVoiceSettings(), appDefaults)
+    await flush()
+    expect(mockRequestJson).toHaveBeenCalledTimes(1)
+
+    mockRequestJson.mockResolvedValue({ sttAvailable: true })
+    const second = renderHookWithClient(() => useVoiceSettings(), appDefaults)
+    await flush()
+
+    expect(mockRequestJson).toHaveBeenCalledTimes(2)
+    expect(second.getResult().data).toBe(true)
   })
 
   it('dedupes across simultaneous consumers', async () => {
