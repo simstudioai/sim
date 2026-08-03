@@ -684,6 +684,8 @@ interface CoalescedRefreshOptions {
  */
 const SLACK_LOCK_TTL_SEC = 30
 const SLACK_FOLLOWER_MAX_WAIT_MS = SLACK_LOCK_TTL_SEC * 1000
+const QUICKBOOKS_LOCK_TTL_SEC = 30
+const QUICKBOOKS_FOLLOWER_MAX_WAIT_MS = QUICKBOOKS_LOCK_TTL_SEC * 1000
 
 async function performCoalescedRefresh({
   accountId,
@@ -699,6 +701,7 @@ async function performCoalescedRefresh({
    * dead-flagged, and written per installation rather than per row.
    */
   const slackTeamId = isSlackProvider(providerId) ? extractSlackTeamId(providerAccountId) : null
+  const isQuickBooks = providerId === 'quickbooks'
   const scopeKey = slackTeamId ? `slack:${slackTeamId}` : accountId
 
   const logContext = {
@@ -727,7 +730,14 @@ async function performCoalescedRefresh({
       // so their wait and the lock TTL must outlast the 15s provider timeout —
       // the 3s/10s defaults would fail followers early and let a second leader
       // start a concurrent rotation mid-refresh.
-      ...(slackTeamId ? { maxWaitMs: SLACK_FOLLOWER_MAX_WAIT_MS, ttlSec: SLACK_LOCK_TTL_SEC } : {}),
+      ...(slackTeamId
+        ? { maxWaitMs: SLACK_FOLLOWER_MAX_WAIT_MS, ttlSec: SLACK_LOCK_TTL_SEC }
+        : isQuickBooks
+          ? {
+              maxWaitMs: QUICKBOOKS_FOLLOWER_MAX_WAIT_MS,
+              ttlSec: QUICKBOOKS_LOCK_TTL_SEC,
+            }
+          : {}),
       onLeader: async () => {
         try {
           let refreshTokenToUse = refreshToken

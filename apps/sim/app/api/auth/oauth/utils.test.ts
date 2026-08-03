@@ -7,6 +7,20 @@
 import { redisConfigMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { capturedLeaderLockOptions } = vi.hoisted(() => ({
+  capturedLeaderLockOptions: [] as Array<Record<string, unknown>>,
+}))
+vi.mock('@/lib/concurrency/leader-lock', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/concurrency/leader-lock')>()
+  return {
+    ...actual,
+    withLeaderLock: vi.fn((options) => {
+      capturedLeaderLockOptions.push(options as unknown as Record<string, unknown>)
+      return actual.withLeaderLock(options)
+    }),
+  }
+})
+
 vi.mock('@/lib/oauth/oauth', () => ({
   refreshOAuthToken: vi.fn(),
   OAUTH_PROVIDERS: {},
@@ -70,6 +84,7 @@ function mockUpdateChain() {
 describe('OAuth Utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    capturedLeaderLockOptions.length = 0
     __resetCoalesceLocallyForTests()
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
     redisConfigMockFns.mockAcquireLock.mockResolvedValue(true)
@@ -417,6 +432,62 @@ describe('OAuth Utils', () => {
       )
 
       expect(fakeRedis.set).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('QuickBooks refresh locking', () => {
+    it('keeps the lock and follower wait alive beyond the provider timeout', async () => {
+      const credential = {
+        id: 'quickbooks-row',
+        accessToken: 'expired-token',
+        refreshToken: 'rotating-refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
+        providerId: 'quickbooks',
+      }
+      mockRefreshOAuthToken.mockResolvedValueOnce({
+        ok: true,
+        accessToken: 'new-token',
+        expiresIn: 3600,
+        refreshToken: 'new-rotating-refresh-token',
+      })
+      mockUpdateChain()
+
+      const result = await refreshTokenIfNeeded('request-id', credential, credential.id)
+
+      expect(result).toEqual({ accessToken: 'new-token', refreshed: true })
+      expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledWith(
+        'oauth:refresh:quickbooks-row',
+        expect.any(String),
+        30
+      )
+      expect(capturedLeaderLockOptions[0]).toMatchObject({ ttlSec: 30, maxWaitMs: 30_000 })
+    })
+
+    it('keeps the default refresh-lock budget for other providers', async () => {
+      const credential = {
+        id: 'google-row',
+        accessToken: 'expired-token',
+        refreshToken: 'refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
+        providerId: 'google',
+      }
+      mockRefreshOAuthToken.mockResolvedValueOnce({
+        ok: true,
+        accessToken: 'new-token',
+        expiresIn: 3600,
+        refreshToken: 'new-refresh-token',
+      })
+      mockUpdateChain()
+
+      await refreshTokenIfNeeded('request-id', credential, credential.id)
+
+      expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledWith(
+        'oauth:refresh:google-row',
+        expect.any(String),
+        10
+      )
+      expect(capturedLeaderLockOptions[0]).not.toHaveProperty('ttlSec')
+      expect(capturedLeaderLockOptions[0]).not.toHaveProperty('maxWaitMs')
     })
   })
 
