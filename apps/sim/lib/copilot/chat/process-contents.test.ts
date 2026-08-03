@@ -10,15 +10,33 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import type { ChatContext } from '@/stores/panel'
 
-const { discoverServerTools, getSkillById, getWorkspaceFile, getTableById, getRowsByIds } =
-  vi.hoisted(() => ({
-    discoverServerTools: vi.fn(),
-    getSkillById: vi.fn(),
-    getWorkspaceFile: vi.fn(),
-    getTableById: vi.fn(),
-    getRowsByIds: vi.fn(),
-  }))
+const {
+  discoverServerTools,
+  getBlock,
+  getBlockRegistry,
+  getSkillById,
+  getUserPermissionConfig,
+  getWorkspaceFile,
+  getTableById,
+  getRowsByIds,
+  isIntegrationDeploymentAvailable,
+} = vi.hoisted(() => ({
+  discoverServerTools: vi.fn(),
+  getBlock: vi.fn(),
+  getBlockRegistry: vi.fn(),
+  getSkillById: vi.fn(),
+  getUserPermissionConfig: vi.fn(),
+  getWorkspaceFile: vi.fn(),
+  getTableById: vi.fn(),
+  getRowsByIds: vi.fn(),
+  isIntegrationDeploymentAvailable: vi.fn(() => true),
+}))
 
+vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
+vi.mock('@/ee/access-control/utils/permission-check', () => ({ getUserPermissionConfig }))
+vi.mock('@/lib/integrations/availability.server', () => ({
+  isIntegrationDeploymentAvailable,
+}))
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
@@ -31,6 +49,42 @@ vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
  */
 
 import { processContextsServer } from './process-contents'
+
+describe('processContextsServer - block contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    const blocks = {
+      start_trigger: { type: 'start_trigger', hideFromToolbar: false },
+      slack: { type: 'slack', hideFromToolbar: false },
+      notion: { type: 'notion', hideFromToolbar: false },
+    }
+    getBlockRegistry.mockReturnValue(blocks)
+    getBlock.mockImplementation((type: string) => blocks[type as keyof typeof blocks])
+    getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+    isIntegrationDeploymentAvailable.mockReturnValue(true)
+  })
+
+  it('keeps access-control-exempt blocks while filtering non-exempt integrations', async () => {
+    const result = await processContextsServer(
+      [
+        { kind: 'blocks', blockIds: ['start_trigger'], label: 'Start' } as ChatContext,
+        { kind: 'blocks', blockIds: ['notion'], label: 'Notion' } as ChatContext,
+      ],
+      'user-1',
+      'hello',
+      'workspace-1'
+    )
+
+    expect(result).toEqual([
+      {
+        type: 'blocks',
+        tag: '@Start',
+        content: '',
+        path: 'components/blocks/start_trigger.json',
+      },
+    ])
+  })
+})
 
 describe('processContextsServer - skill contexts', () => {
   beforeEach(() => {

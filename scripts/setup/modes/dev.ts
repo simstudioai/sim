@@ -3,7 +3,7 @@ import path from 'node:path'
 import { truncate } from '@sim/utils/string'
 import { resolveDatabase } from '../db.ts'
 import type { Detection } from '../detect.ts'
-import { ROOT, readEnvFile, writeEnvValues } from '../env-files.ts'
+import { ROOT, readEnvFile, reconcileEnvValues, writeEnvValues } from '../env-files.ts'
 import { SetupError } from '../errors.ts'
 import { pgProbe } from '../probes.ts'
 import * as p from '../prompter.ts'
@@ -118,6 +118,7 @@ export async function runDevMode(
 
   const simAfter = readEnvFile('sim')
   const values: Record<string, string> = {}
+  const remove = new Set<string>()
   // Before the key is minted: a half-set override mints against one environment
   // and validates against the other, and warning afterwards is too late — the
   // bad key is already stored, and the next run offers to keep it.
@@ -144,9 +145,12 @@ export async function runDevMode(
     const trigger = await promptTrigger()
     if (trigger) Object.assign(values, trigger)
     const storage = await promptStorage(simAfter.vars, false)
-    if (storage) Object.assign(values, storage)
+    Object.assign(values, storage.values)
+    for (const key of storage.remove) remove.add(key)
     Object.assign(values, await promptSignInProviders(simAfter.vars, APP_URL))
-    Object.assign(values, await promptEmail(simAfter.vars))
+    const email = await promptEmail(simAfter.vars)
+    Object.assign(values, email.values)
+    for (const key of email.remove) remove.add(key)
     const security = await promptSecurity(simAfter.vars)
     Object.assign(values, security.sim)
     if (Object.keys(security.mirrorToRealtime).length > 0) {
@@ -154,7 +158,10 @@ export async function runDevMode(
     }
     Object.assign(values, await promptUnlocks(simAfter.vars))
   }
-  if (Object.keys(values).length > 0) writeEnvValues('sim', values)
+  for (const key of Object.keys(values)) remove.delete(key)
+  if (remove.size > 0 || Object.keys(values).length > 0) {
+    reconcileEnvValues('sim', [...remove], values)
+  }
 
   let script = 'dev:full'
   if (detection.specs.hostMemGb < 16) {

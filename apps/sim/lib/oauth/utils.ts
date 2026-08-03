@@ -473,12 +473,15 @@ export function getAllOAuthServices(): OAuthServiceMetadata[] {
   const services: OAuthServiceMetadata[] = []
 
   for (const [baseProviderId, provider] of Object.entries(OAUTH_PROVIDERS)) {
-    for (const service of Object.values(provider.services)) {
+    for (const [serviceId, service] of Object.entries(provider.services)) {
       services.push({
+        serviceId,
         providerId: service.providerId,
+        serviceAccountProviderId: service.serviceAccountProviderId,
         name: service.name,
         description: service.description,
         baseProvider: baseProviderId,
+        authType: service.authType ?? 'oauth',
       })
     }
   }

@@ -4,6 +4,9 @@ import {
   getExposedIntegrationTools,
 } from '@/lib/copilot/integration-tools'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailable } from '@/lib/integrations/availability.server'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { stripVersionSuffix } from '@/tools/utils'
 
 export async function executeListIntegrationTools(
@@ -18,7 +21,18 @@ export async function executeListIntegrationTools(
   // The exposed set is the ungated universe — project it for this viewer so
   // gated (preview / kill-switched) integrations stay undiscoverable.
   const vis = await getBlockVisibilityForCopilot(context.userId, context.workspaceId)
-  const all = filterExposedIntegrationTools(getExposedIntegrationTools(), vis)
+  const permissionConfig = context.workspaceId
+    ? await getUserPermissionConfig(context.userId, context.workspaceId)
+    : null
+  const allowedIntegrations =
+    permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+  const all = filterExposedIntegrationTools(
+    getExposedIntegrationTools(),
+    vis,
+    (owner) =>
+      isIntegrationDeploymentAvailable(owner.blockType) &&
+      (allowedIntegrations === null || allowedIntegrations.includes(owner.blockType.toLowerCase()))
+  )
   const service = stripVersionSuffix(raw.toLowerCase())
   const matches = all.filter((tool) => tool.service === service)
 

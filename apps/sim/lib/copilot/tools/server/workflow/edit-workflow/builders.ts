@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import { sortObjectKeysDeep } from '@sim/utils/object'
+import { isIntegrationDeploymentAvailable } from '@/lib/integrations/availability.server'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import {
@@ -648,13 +649,30 @@ export function filterDisallowedTools(
   blockId: string,
   skippedItems: SkippedItem[]
 ): any[] {
-  if (!permissionConfig) {
-    return tools
-  }
-
-  const allowedTools: any[] = []
+  const deploymentAvailableTools: any[] = []
 
   for (const tool of tools) {
+    if (
+      typeof tool?.type === 'string' &&
+      getBlock(tool.type) &&
+      !isIntegrationDeploymentAvailable(tool.type)
+    ) {
+      logSkippedItem(skippedItems, {
+        type: 'tool_not_allowed',
+        operationType: 'add',
+        blockId,
+        reason: `Tool block type "${tool.type}" is unavailable in this deployment - tool not added`,
+        details: { toolType: tool.type },
+      })
+      continue
+    }
+    deploymentAvailableTools.push(tool)
+  }
+
+  if (!permissionConfig) return deploymentAvailableTools
+
+  const allowedTools: any[] = []
+  for (const tool of deploymentAvailableTools) {
     if (tool.type === 'custom-tool' && permissionConfig.disableCustomTools) {
       logSkippedItem(skippedItems, {
         type: 'tool_not_allowed',

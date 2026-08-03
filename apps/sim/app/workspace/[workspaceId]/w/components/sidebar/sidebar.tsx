@@ -46,6 +46,7 @@ import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
+import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -403,7 +404,12 @@ export const Sidebar = memo(function Sidebar({
   const posthog = usePostHog()
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
-  const { config: permissionConfig, filterBlocks } = usePermissionConfig()
+  const {
+    config: permissionConfig,
+    filterBlocks,
+    isBlockAllowed,
+    integrationAvailability,
+  } = usePermissionConfig()
   const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
@@ -1088,8 +1094,17 @@ export const Sidebar = memo(function Sidebar({
   })
 
   const searchModalIntegrations = useMemo(
-    () => (permissionConfig.hideIntegrationsTab ? [] : buildIntegrationSearchItems(workspaceId)),
-    [workspaceId, permissionConfig.hideIntegrationsTab]
+    () =>
+      permissionConfig.hideIntegrationsTab
+        ? []
+        : buildIntegrationSearchItems(workspaceId, isBlockAllowed, (blockType) => {
+            const availability = integrationAvailability.get(blockType.toLowerCase())
+            if (!availability) return CONNECT_MODE.oauth
+            if (availability?.oauthAvailable) return CONNECT_MODE.oauth
+            if (availability?.state === 'limited') return CONNECT_MODE.serviceAccount
+            return null
+          }),
+    [workspaceId, permissionConfig.hideIntegrationsTab, isBlockAllowed, integrationAvailability]
   )
 
   const searchModalConnectedAccounts = useMemo(

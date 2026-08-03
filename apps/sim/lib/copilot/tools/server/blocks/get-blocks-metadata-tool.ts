@@ -6,7 +6,9 @@ import { z } from 'zod'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailable } from '@/lib/integrations/availability.server'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
@@ -129,15 +131,24 @@ export const getBlocksMetadataServerTool: BaseServerTool<
 
     const result: Record<string, CopilotBlockMetadata> = {}
     for (const blockId of blockIds || []) {
-      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
+      const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
+      if (!isIntegrationDeploymentAvailable(blockId)) {
+        logger.debug('Block unavailable for this deployment', { blockId })
+        continue
+      }
+      if (
+        allowedIntegrations != null &&
+        !specialBlock &&
+        !isBlockTypeAccessControlExempt(blockId) &&
+        !allowedIntegrations.includes(blockId.toLowerCase())
+      ) {
         logger.debug('Block not allowed by permission group', { blockId })
         continue
       }
 
       let metadata: any
 
-      if (SPECIAL_BLOCKS_METADATA[blockId]) {
-        const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
+      if (specialBlock) {
         const { commonParameters, operationParameters } = splitParametersByOperation(
           specialBlock.subBlocks || [],
           specialBlock.inputs || {}

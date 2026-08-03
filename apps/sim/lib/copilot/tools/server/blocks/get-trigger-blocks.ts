@@ -2,6 +2,8 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailable } from '@/lib/integrations/availability.server'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { getAllBlocks } from '@/blocks/registry'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
@@ -33,7 +35,12 @@ export const getTriggerBlocksServerTool: BaseServerTool<
     for (const blockConfig of getAllBlocks()) {
       const blockType = blockConfig.type
       if (blockConfig.hideFromToolbar) continue
-      if (allowedIntegrations != null && !allowedIntegrations.includes(blockType.toLowerCase()))
+      if (!isIntegrationDeploymentAvailable(blockType)) continue
+      if (
+        allowedIntegrations != null &&
+        !isBlockTypeAccessControlExempt(blockType) &&
+        !allowedIntegrations.includes(blockType.toLowerCase())
+      )
         continue
 
       if (blockConfig.category === 'triggers') {

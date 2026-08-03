@@ -70,6 +70,10 @@ export const env = createEnv({
     // Database & Storage
     REDIS_URL:                             z.string().url().optional(),            // Redis connection string for caching/sessions
     REDIS_TLS_SERVERNAME:                  z.string().min(1).optional(),           // TLS SNI override; required when REDIS_URL targets an IP over rediss:// (e.g. trigger.dev PrivateLink VPCE IP) so cert hostname verification matches the ElastiCache cert's CN
+    /** Explicit file-storage backend; inferred only when exactly one cloud backend is configured. */
+    STORAGE_PROVIDER:                      z.enum(['local', 's3', 'azure', 'gcs']).optional(),
+    /** Explicit PDF OCR backend; legacy installs infer it from configured credentials. */
+    OCR_PROVIDER:                          z.enum(['local', 'mistral', 'azure-mistral']).optional(),
 
     // Payment & Billing
     STRIPE_SECRET_KEY:                     z.string().min(1).optional(),           // Stripe secret key for payment processing

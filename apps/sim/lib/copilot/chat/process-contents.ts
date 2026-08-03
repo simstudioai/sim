@@ -23,11 +23,14 @@ import {
   encodeVfsPathSegments,
   encodeVfsSegment,
 } from '@/lib/copilot/vfs/path-utils'
+import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailable } from '@/lib/integrations/availability.server'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { getColumnId } from '@/lib/table/column-keys'
 import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
@@ -613,7 +616,15 @@ async function processBlockMetadata(
       userId && workspaceId ? await getUserPermissionConfig(userId, workspaceId) : null
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
-    if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
+    if (!isIntegrationDeploymentAvailable(blockId)) {
+      logger.debug('Block unavailable for this deployment', { blockId })
+      return null
+    }
+    if (
+      allowedIntegrations != null &&
+      !isBlockTypeAccessControlExempt(blockId) &&
+      !allowedIntegrations.includes(blockId.toLowerCase())
+    ) {
       logger.debug('Block not allowed by integration allowlist', { blockId, userId })
       return null
     }
@@ -626,6 +637,7 @@ async function processBlockMetadata(
 
     return { type: 'blocks', tag, content: '', path: canonicalBlockVfsPath(blockId) }
   } catch (error) {
+    if (error instanceof EnvCapabilityConfigurationError) throw error
     logger.error('Error processing block metadata', { blockId, error })
     return null
   }

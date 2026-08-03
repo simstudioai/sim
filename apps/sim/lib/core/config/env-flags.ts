@@ -7,6 +7,7 @@ import {
   resolveEnterpriseEntitlement,
 } from './enterprise-entitlements'
 import { env, envBoolean, getEnv, isFalsy, isTruthy } from './env'
+import { resolveAsyncJobsProvider, resolveSandboxProviderId } from './env-capabilities'
 
 /**
  * Is the application running in production mode
@@ -212,7 +213,7 @@ export const isSlackExtendedScopesEnabled =
 /**
  * Is Trigger.dev enabled for async job processing
  */
-export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
+export const isTriggerDevEnabled = resolveAsyncJobsProvider(env) === 'trigger-dev'
 
 /**
  * Turns on the whole enterprise suite for a deployment that does not run
@@ -390,15 +391,15 @@ export const isForkingEnabled = enterpriseFeatureEnabled(
  * Availability below is derived from THIS provider's credentials, so a
  * Daytona-only deployment (E2B unset) still enables remote execution.
  */
-const sandboxProvider = (env.SANDBOX_PROVIDER || 'e2b').toLowerCase()
+const sandboxProvider = resolveSandboxProviderId(env)
 
 /**
  * Whether remote code/shell execution is available with the selected provider.
  *
- * E2B keeps its explicit `E2B_ENABLED` switch; Daytona is available once its API
- * key is set (the shell snapshot is verified at create time, failing closed).
- * Mirrors the E2B gate exactly when the provider is E2B, so existing behavior is
- * unchanged.
+ * E2B keeps its explicit `E2B_ENABLED` switch. Daytona resolution above fails
+ * fast unless both its API key and tagged shell snapshot are configured.
+ * Mirrors the E2B gate exactly when the provider is E2B, so existing behavior
+ * is unchanged.
  *
  * The browser twin is `NEXT_PUBLIC_SANDBOX_ENABLED`, read by the Function
  * block's `showWhenEnvSet` gates. It exists because `NEXT_PUBLIC_E2B_ENABLED`
@@ -408,7 +409,9 @@ const sandboxProvider = (env.SANDBOX_PROVIDER || 'e2b').toLowerCase()
  * `bun run setup --doctor` flags the mismatch.
  */
 export const isRemoteSandboxEnabled =
-  sandboxProvider === 'daytona' ? Boolean(env.DAYTONA_API_KEY) : isTruthy(env.E2B_ENABLED)
+  sandboxProvider === 'daytona'
+    ? Boolean(env.DAYTONA_API_KEY) && Boolean(env.DAYTONA_SHELL_SNAPSHOT_ID)
+    : isTruthy(env.E2B_ENABLED)
 
 /**
  * Whether the document-generation sandbox is available with the selected

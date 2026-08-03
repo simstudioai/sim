@@ -5,6 +5,7 @@ import { authorizeInstagramContract } from '@/lib/api/contracts/oauth-connection
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
+import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -27,6 +28,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    requireConfiguredOAuthClient('instagram')
 
     const clientId = env.INSTAGRAM_CLIENT_ID
     if (!clientId) {

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { taskContext } from '@trigger.dev/core/v3'
 import type { AsyncBackendType, JobQueueBackend } from '@/lib/core/async-jobs/types'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { getConfiguredAsyncJobsProvider } from '@/lib/core/config/env-capabilities.server'
 
 const logger = createLogger('AsyncJobsConfig')
 
@@ -19,11 +19,10 @@ let cachedInlineBackend: JobQueueBackend | null = null
  * the database backend that nothing's draining.
  */
 export function getAsyncBackendType(): AsyncBackendType {
-  if (isTriggerDevEnabled || taskContext.isInsideTask) {
+  if (taskContext.isInsideTask) {
     return 'trigger-dev'
   }
-
-  return 'database'
+  return getConfiguredAsyncJobsProvider()
 }
 
 /**

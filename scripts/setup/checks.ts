@@ -1,3 +1,17 @@
+import {
+  CORE_CONFIGURATION_KEYS,
+  EMAIL_CAPABILITY,
+  EnvCapabilityConfigurationError,
+  inspectOAuthClientCapability,
+  OAUTH_CLIENT_CAPABILITIES,
+  resolveAsyncJobsProvider,
+  resolveCacheProvider,
+  resolveFallbackCapability,
+  resolveOcrProvider,
+  resolveSandboxProviderId,
+  resolveSelectedCapability,
+  STORAGE_CAPABILITY,
+} from '../../apps/sim/lib/core/config/env-capabilities.ts'
 import { portOpen } from './detect.ts'
 import {
   type EnvFile,
@@ -13,7 +27,7 @@ import {
   writeEnvValues,
 } from './env-files.ts'
 import { httpHealth, pgProbe, redisPing } from './probes.ts'
-import { FLAG_TWINS, hasMailProvider, LOGIN_PROVIDERS } from './twins.ts'
+import { FLAG_TWINS, LOGIN_PROVIDERS } from './twins.ts'
 
 export type CheckGroup = 'files' | 'schema' | 'consistency' | 'coherence' | 'live'
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'skip'
@@ -65,15 +79,10 @@ export function loadCheckContext(live: boolean): CheckContext {
   return { env, layout, primary: layout === 'root' ? env.root : env.sim, live }
 }
 
-const REQUIRED_KEYS: Partial<Record<EnvTarget, string[]>> = {
-  sim: [
-    'DATABASE_URL',
-    'BETTER_AUTH_SECRET',
-    'BETTER_AUTH_URL',
-    'NEXT_PUBLIC_APP_URL',
-    'ENCRYPTION_KEY',
-    'INTERNAL_API_SECRET',
-  ],
+export const REQUIRED_APP_KEYS = CORE_CONFIGURATION_KEYS
+
+const REQUIRED_KEYS: Partial<Record<EnvTarget, readonly string[]>> = {
+  sim: REQUIRED_APP_KEYS,
   realtime: [
     'DATABASE_URL',
     'BETTER_AUTH_URL',
@@ -281,27 +290,22 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   const findings: Finding[] = []
   const sim = ctx.primary
   if (!sim.exists) return findings
-  if (isTruthy(sim.vars.get('TRIGGER_DEV_ENABLED'))) {
-    const missing = ['TRIGGER_SECRET_KEY', 'TRIGGER_PROJECT_ID'].filter((k) => !sim.vars.get(k))
-    if (missing.length > 0) {
+  const capabilityChecks = [
+    { command: 'bun run setup jobs', resolve: () => resolveAsyncJobsProvider(sim.vars) },
+    { command: 'bun run setup cache', resolve: () => resolveCacheProvider(sim.vars) },
+    { command: 'bun run setup sandbox', resolve: () => resolveSandboxProviderId(sim.vars) },
+    { command: 'bun run setup knowledge', resolve: () => resolveOcrProvider(sim.vars) },
+  ]
+  for (const check of capabilityChecks) {
+    try {
+      check.resolve()
+    } catch (error) {
+      if (!(error instanceof EnvCapabilityConfigurationError)) throw error
       findings.push({
         group: 'coherence',
         status: 'fail',
-        message: `TRIGGER_DEV_ENABLED is on but ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not set`,
-        fix: 'set the missing Trigger.dev vars or remove TRIGGER_DEV_ENABLED (jobs fall back to the DB queue)',
-      })
-    }
-  }
-  const redisUrl = sim.vars.get('REDIS_URL')
-  if (redisUrl?.startsWith('rediss://')) {
-    const host = new URL(redisUrl).hostname
-    if (/^\d+\.\d+\.\d+\.\d+$/.test(host) && !sim.vars.get('REDIS_TLS_SERVERNAME')) {
-      findings.push({
-        group: 'coherence',
-        status: 'fail',
-        message:
-          'rediss:// with a bare IP host requires REDIS_TLS_SERVERNAME — the redis client throws without it',
-        fix: 'set REDIS_TLS_SERVERNAME to the certificate hostname',
+        message: error.message,
+        fix: check.command,
       })
     }
   }
@@ -321,50 +325,15 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       // schema group already reports the invalid URL
     }
   }
-  const hasS3 = Boolean(sim.vars.get('AWS_REGION') && sim.vars.get('S3_BUCKET_NAME'))
-  const s3Partial = Boolean(sim.vars.get('AWS_REGION')) !== Boolean(sim.vars.get('S3_BUCKET_NAME'))
-  const hasAzure = Boolean(
-    sim.vars.get('AZURE_CONNECTION_STRING') || sim.vars.get('AZURE_ACCOUNT_NAME')
-  )
-  const azurePartial =
-    Boolean(sim.vars.get('AZURE_ACCOUNT_NAME')) &&
-    !sim.vars.get('AZURE_ACCOUNT_KEY') &&
-    !sim.vars.get('AZURE_CONNECTION_STRING')
-  const hasGcs = Boolean(sim.vars.get('GCS_BUCKET_NAME'))
-  if (s3Partial) {
+  try {
+    resolveSelectedCapability(STORAGE_CAPABILITY, sim.vars)
+  } catch (error) {
+    if (!(error instanceof EnvCapabilityConfigurationError)) throw error
     findings.push({
       group: 'coherence',
       status: 'fail',
-      message:
-        'S3 is half-configured (need BOTH AWS_REGION and S3_BUCKET_NAME) — storage silently falls back to local disk',
-      fix: 'set the missing var, or remove both to use local disk intentionally',
-    })
-  }
-  if (azurePartial) {
-    findings.push({
-      group: 'coherence',
-      status: 'fail',
-      message:
-        'Azure storage is half-configured — AZURE_ACCOUNT_NAME needs AZURE_ACCOUNT_KEY (or use AZURE_CONNECTION_STRING)',
-      fix: 'set the missing credential, or remove the Azure vars',
-    })
-  }
-  if (hasAzure && hasS3) {
-    findings.push({
-      group: 'coherence',
-      status: 'warn',
-      message:
-        'both Azure Blob and S3 are configured — Azure takes precedence, the S3 vars are ignored',
-      fix: 'remove the backend you are not using',
-    })
-  }
-  if (hasGcs && (hasAzure || hasS3)) {
-    findings.push({
-      group: 'coherence',
-      status: 'warn',
-      message:
-        'GCS is configured alongside Azure/S3 — GCS is only used when neither of those is set',
-      fix: 'remove the backend you are not using',
+      message: error.message,
+      fix: STORAGE_CAPABILITY.setupCommand,
     })
   }
   for (const { server, client } of FLAG_TWINS) {
@@ -421,19 +390,41 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
-  if (isTruthy(sim.vars.get('EMAIL_VERIFICATION_ENABLED')) && !hasMailProvider(sim.vars)) {
+  let emailConfigured = false
+  try {
+    emailConfigured = resolveFallbackCapability(EMAIL_CAPABILITY, sim.vars).configured
+  } catch (error) {
+    if (!(error instanceof EnvCapabilityConfigurationError)) throw error
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message: error.message,
+      fix: EMAIL_CAPABILITY.setupCommand,
+    })
+  }
+  if (isTruthy(sim.vars.get('EMAIL_VERIFICATION_ENABLED')) && !emailConfigured) {
     findings.push({
       group: 'coherence',
       status: 'fail',
       message:
-        'EMAIL_VERIFICATION_ENABLED is on but no mail provider is configured — verification emails only go to the console, locking out new users',
-      fix: 'configure RESEND_API_KEY / SMTP_* / AWS_SES_REGION, or turn verification off',
+        'EMAIL_VERIFICATION_ENABLED is on but no mail provider is configured — the app must bypass verification to avoid locking out new users',
+      fix: `${EMAIL_CAPABILITY.setupCommand}, or turn verification off`,
+    })
+  }
+
+  for (const providerId of Object.keys(OAUTH_CLIENT_CAPABILITIES)) {
+    const oauth = inspectOAuthClientCapability(providerId, sim.vars)
+    if (oauth.state !== 'partial' && oauth.state !== 'invalid') continue
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message: `${providerId} OAuth is partially configured — missing ${oauth.missingFields.join(', ')}`,
+      fix: oauth.setupCommand,
     })
   }
 
   const featureRules: Array<{ flag: string; needs: string[]; label: string }> = [
     { flag: 'BILLING_ENABLED', needs: ['STRIPE_SECRET_KEY'], label: 'billing' },
-    { flag: 'E2B_ENABLED', needs: ['E2B_API_KEY'], label: 'E2B code execution' },
     { flag: 'SSO_ENABLED', needs: ['SSO_ISSUER'], label: 'SSO' },
   ]
   for (const rule of featureRules) {

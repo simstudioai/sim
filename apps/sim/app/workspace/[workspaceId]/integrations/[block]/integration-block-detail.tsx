@@ -13,6 +13,7 @@ import {
   resolveCredentialDisplay,
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
+import { getServiceAccountMetadata } from '@/lib/integrations/service-account-metadata'
 import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { RESOURCE_TILE_BASE } from '@/app/workspace/[workspaceId]/components/resource-tile'
@@ -40,6 +41,7 @@ import {
 } from '@/blocks/registry'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 /** Maximum number of overlapping icon tiles rendered per template row. */
 const TEMPLATE_CLUSTER_MAX = 3 as const
@@ -64,6 +66,9 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const matchingTemplates = getTemplatesForBlock(integration.type)
   const suggestedSkills = getSuggestedSkillsForBlock(integration.type)
   const oauthService = resolveOAuthServiceForIntegration(integration)
+  const { integrationAvailability, isLoading: permissionConfigLoading } = usePermissionConfig()
+  const availability = integrationAvailability.get(integration.type.toLowerCase())
+  const oauthAvailable = Boolean(oauthService) && (availability?.oauthAvailable ?? true)
   const [oauthOpen, setOAuthOpen] = useState(false)
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
@@ -93,40 +98,61 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     serviceName: oauthService?.serviceName,
     serviceIcon: oauthService?.serviceIcon,
   })
-  const hasServiceAccount = Boolean(serviceAccountTarget) && !serviceAccountTarget?.hidden
+  const serviceAccountMetadata = integration.oauthServiceId
+    ? getServiceAccountMetadata(integration.oauthServiceId)
+    : undefined
+  const serviceAccountDeploymentAvailable =
+    availability?.state === 'ready' ||
+    availability?.state === 'limited' ||
+    (availability?.state === 'unavailable' &&
+      serviceAccountMetadata?.deploymentRequirement === 'preview-gated')
+  const hasServiceAccount =
+    serviceAccountDeploymentAvailable &&
+    Boolean(serviceAccountTarget) &&
+    !serviceAccountTarget?.hidden
   const serviceAccountConnectLabel = serviceAccountTarget?.label ?? 'Add service account'
   const hasHandledConnectQueryRef = useRef(false)
 
   useEffect(() => {
-    if (hasHandledConnectQueryRef.current) return
-    if (!connectMode) return
+    if (hasHandledConnectQueryRef.current || !connectMode || permissionConfigLoading) return
 
-    let handled = false
-    if (connectMode === CONNECT_MODE.oauth && oauthService) {
+    if (connectMode === CONNECT_MODE.oauth && oauthService && oauthAvailable) {
       setOAuthOpen(true)
-      handled = true
     } else if (connectMode === CONNECT_MODE.serviceAccount && hasServiceAccount) {
       setServiceAccountOpen(true)
-      handled = true
     }
-    if (!handled) return
 
     hasHandledConnectQueryRef.current = true
     void setConnectMode(null, { history: 'replace', scroll: false })
-  }, [connectMode, oauthService, hasServiceAccount, setConnectMode])
+  }, [
+    connectMode,
+    oauthService,
+    oauthAvailable,
+    hasServiceAccount,
+    permissionConfigLoading,
+    setConnectMode,
+  ])
 
   const connectOptions = oauthService
     ? [
-        {
-          value: CONNECT_MODE.oauth,
-          label: 'Connect with OAuth',
-          icon: oauthService.serviceIcon,
-        },
-        {
-          value: CONNECT_MODE.serviceAccount,
-          label: serviceAccountConnectLabel,
-          icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
-        },
+        ...(oauthAvailable
+          ? [
+              {
+                value: CONNECT_MODE.oauth,
+                label: 'Connect with OAuth',
+                icon: oauthService.serviceIcon,
+              },
+            ]
+          : []),
+        ...(hasServiceAccount
+          ? [
+              {
+                value: CONNECT_MODE.serviceAccount,
+                label: serviceAccountConnectLabel,
+                icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
+              },
+            ]
+          : []),
       ]
     : []
 
@@ -148,7 +174,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
         </ChipLink>
         <div className={cn('ml-auto', HEADER_ACTION_CLUSTER)}>
           {oauthService ? (
-            hasServiceAccount ? (
+            connectOptions.length > 1 ? (
               <ChipDropdown
                 variant='primary'
                 leftIcon={Plus}
@@ -158,10 +184,16 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
                 onChange={handleSelectConnectOption}
                 matchTriggerWidth={false}
               />
-            ) : (
+            ) : oauthAvailable ? (
               <Chip variant='primary' leftIcon={Plus} onClick={() => setOAuthOpen(true)}>
                 Add to Sim
               </Chip>
+            ) : hasServiceAccount ? (
+              <Chip variant='primary' leftIcon={Plus} onClick={() => setServiceAccountOpen(true)}>
+                {serviceAccountConnectLabel}
+              </Chip>
+            ) : (
+              <Chip disabled>Unavailable</Chip>
             )
           ) : isChatEnabled ? (
             <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
@@ -170,7 +202,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           ) : null}
         </div>
       </div>
-      {oauthService && (
+      {oauthService && oauthAvailable && (
         <ConnectOAuthModal
           mode='connect'
           origin='integrations'

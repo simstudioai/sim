@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('Storage')
@@ -22,9 +23,9 @@ export function getStorageMethod(): StorageMethod {
     return cachedStorageMethod
   }
 
-  const redis = getRedisClient()
-
-  if (redis) {
+  if (getConfiguredCacheProvider() === 'redis') {
+    const redis = getRedisClient()
+    if (!redis) throw new Error('REDIS_URL is configured but the Redis client is unavailable')
     cachedStorageMethod = 'redis'
     logger.info('Storage method: Redis')
   } else {

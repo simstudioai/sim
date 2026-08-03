@@ -15,6 +15,7 @@ import {
 } from '@/lib/chunkers'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { env, envNumber } from '@/lib/core/config/env'
+import { resolveOcrProvider } from '@/lib/core/config/env-capabilities'
 import { parseBuffer } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
@@ -287,19 +288,22 @@ async function parseDocument(
   metadata?: FileParseMetadata
 }> {
   const isPDF = mimeType === 'application/pdf'
-  const hasAzureMistralOCR =
-    env.OCR_AZURE_API_KEY && env.OCR_AZURE_ENDPOINT && env.OCR_AZURE_MODEL_NAME
-
   const mistralApiKey = await getMistralApiKey(workspaceId)
-  const hasMistralOCR = !!mistralApiKey
+  const ocrProvider = resolveOcrProvider({
+    OCR_PROVIDER: env.OCR_PROVIDER,
+    OCR_AZURE_API_KEY: env.OCR_AZURE_API_KEY,
+    OCR_AZURE_ENDPOINT: env.OCR_AZURE_ENDPOINT,
+    OCR_AZURE_MODEL_NAME: env.OCR_AZURE_MODEL_NAME,
+    MISTRAL_API_KEY: mistralApiKey,
+  })
 
-  if (isPDF && (hasAzureMistralOCR || hasMistralOCR)) {
-    if (hasAzureMistralOCR) {
+  if (isPDF) {
+    if (ocrProvider === 'azure-mistral') {
       logger.info(`Using Azure Mistral OCR: ${filename}`)
       return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId)
     }
 
-    if (hasMistralOCR) {
+    if (ocrProvider === 'mistral') {
       logger.info(`Using Mistral OCR: ${filename}`)
       return parseWithMistralOCR(fileUrl, filename, mimeType, userId, workspaceId, mistralApiKey)
     }
@@ -499,11 +503,9 @@ async function parseWithAzureMistralOCR(
   if (mimeType === 'application/pdf') {
     const pageCount = await getPdfPageCount(fileBuffer)
     if (pageCount > MISTRAL_MAX_PAGES) {
-      logger.info(
-        `PDF has ${pageCount} pages, exceeds Azure OCR limit of ${MISTRAL_MAX_PAGES}. ` +
-          `Falling back to file parser.`
+      throw new Error(
+        `PDF has ${pageCount} pages, exceeding the Azure OCR limit of ${MISTRAL_MAX_PAGES}`
       )
-      return parseWithFileParser(fileUrl, filename, mimeType, userId)
     }
     logger.info(`Azure Mistral OCR: PDF page count for ${filename}: ${pageCount}`)
   }
@@ -545,9 +547,7 @@ async function parseWithAzureMistralOCR(
     logger.error(`Azure Mistral OCR failed for ${filename}:`, {
       message: toError(error).message,
     })
-
-    logger.info(`Falling back to file parser: ${filename}`)
-    return parseWithFileParser(fileUrl, filename, mimeType, userId)
+    throw error
   }
 }
 
@@ -605,9 +605,7 @@ async function parseWithMistralOCR(
     logger.error(`Mistral OCR failed for ${filename}:`, {
       message: toError(error).message,
     })
-
-    logger.info(`Falling back to file parser: ${filename}`)
-    return parseWithFileParser(fileUrl, filename, mimeType, userId)
+    throw error
   }
 }
 

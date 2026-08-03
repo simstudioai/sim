@@ -91,6 +91,8 @@ interface SettingsResourceRowProps {
    * the bleed would force a horizontal scrollbar.
    */
   flush?: boolean
+  /** Renders the row as unavailable without an activation target. */
+  disabled?: boolean
 }
 
 /** The one navigation chevron for every settings resource row. */
@@ -132,6 +134,7 @@ export function SettingsResourceRow({
   clickLabel,
   navigable = false,
   flush = false,
+  disabled = false,
 }: SettingsResourceRowProps) {
   const describedById = useId()
   const isTile = iconVariant === 'tile'
@@ -181,9 +184,13 @@ export function SettingsResourceRow({
 
   // Row geometry is identical whether or not the row is activatable, so a list
   // mixing clickable and static rows keeps one height and one inset.
-  const rowClass = cn('flex items-center justify-between gap-2.5', !flush && '-mx-2 rounded-lg p-2')
+  const rowClass = cn(
+    'flex items-center justify-between gap-2.5',
+    !flush && '-mx-2 rounded-lg p-2',
+    disabled && 'opacity-50'
+  )
 
-  if (!onClick && !href) {
+  if (disabled || (!onClick && !href)) {
     return (
       <div className={rowClass}>
         <div className={clusterClass}>{cluster}</div>
