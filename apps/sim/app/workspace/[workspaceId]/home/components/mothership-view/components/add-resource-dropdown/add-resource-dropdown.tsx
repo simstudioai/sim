@@ -314,15 +314,13 @@ export function useAvailableResources(
   ])
 
   /**
-   * Sorted by name to match how the Tables and Knowledge pages order folders —
-   * the list endpoint makes no ordering guarantee, and these folders carry no
-   * user-defined ordering the way workflow folders do.
+   * Left in source order: `buildResourceFolderTree` orders each level by name,
+   * interleaved with the items, matching the Tables and Knowledge pages. These
+   * folders carry no user-defined ordering the way workflow folders do.
    */
   const structureFolders = useMemo<StructureFolders>(() => {
     const toFolderItems = (source: typeof tableFolders): AvailableItem[] =>
-      (source ?? [])
-        .map((f) => ({ id: f.id, name: f.name, parentId: f.parentId ?? null }))
-        .sort((a, b) => a.name.localeCompare(b.name))
+      (source ?? []).map((f) => ({ id: f.id, name: f.name, parentId: f.parentId ?? null }))
     return {
       table: toFolderItems(tableFolders),
       knowledgebase: toFolderItems(knowledgeBaseFolders),

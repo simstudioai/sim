@@ -62,6 +62,33 @@ describe('buildResourceFolderTree', () => {
     expect(shape(tree)).toEqual(['full[kept]'])
   })
 
+  it('interleaves folders and items by name by default', () => {
+    const tree = buildResourceFolderTree(
+      [item('apple'), item('cherry')],
+      [folder('banana'), folder('date')]
+    )
+    expect(shape(tree)).toEqual(['apple', 'banana[]', 'cherry', 'date[]'])
+  })
+
+  it('orders nested levels by name too', () => {
+    const tree = buildResourceFolderTree(
+      [item('zebra', 'parent'), item('alpha', 'parent')],
+      [folder('parent'), folder('middle', 'parent')]
+    )
+    expect(shape(tree)).toEqual(['parent[alpha,middle[],zebra]'])
+  })
+
+  it('breaks name ties by id so ordering stays stable', () => {
+    const tree = buildResourceFolderTree(
+      [
+        { id: 'b', name: 'same', folderId: null },
+        { id: 'a', name: 'same', folderId: null },
+      ],
+      []
+    )
+    expect(shape(tree)).toEqual(['a', 'b'])
+  })
+
   it('interleaves folders and items by sortOrder when orderBySortOrder is set', () => {
     const tree = buildResourceFolderTree(
       [item('itemA', null, 1), item('itemC', null, 3)],
