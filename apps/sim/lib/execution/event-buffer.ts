@@ -27,6 +27,21 @@ const FLUSH_INTERVAL_MS = 15
 const FLUSH_MAX_RETRY_INTERVAL_MS = 1000
 const FLUSH_MAX_BATCH = 200
 const MAX_PENDING_EVENTS = 1000
+/**
+ * Bytes a single execution may buffer before its events start offloading
+ * aggressively, and the per-value threshold applied once it does.
+ *
+ * The buffer holds `EVENT_LIMIT` events inside the per-execution byte budget,
+ * so a full ring only fits if events average under budget/EVENT_LIMIT. Applying
+ * that ceiling to every run would offload ordinary block outputs into refs the
+ * terminal cannot display — the SSE stream carries the compacted event, and a
+ * ref renders only as a preview. Instead the tight ceiling engages only once a
+ * run has actually buffered its way into the danger zone, so a short run keeps
+ * full-fidelity output and a runaway one stops accumulating.
+ */
+const EXECUTION_EVENT_OFFLOAD_PRESSURE_BYTES = getExecutionRedisBudgetLimits().maxExecutionBytes / 2
+const EXECUTION_EVENT_PRESSURE_VALUE_BYTES =
+  getExecutionRedisBudgetLimits().maxExecutionBytes / EVENT_LIMIT
 const ACTIVE_META_ATTEMPTS = 3
 const FINALIZE_FLUSH_ATTEMPTS = 2
 const FLUSH_EVENTS_SCRIPT = `
@@ -282,6 +297,8 @@ export interface ExecutionEventWriter {
 export interface ExecutionEventWriterContext extends LargeValueStoreContext {
   requireDurablePayloads?: boolean
   preserveUserFileBase64?: boolean
+  /** Offload ceiling for individual values; defaults to the shared large-value cap. */
+  valueThresholdBytes?: number
 }
 
 async function compactEventForBuffer(
@@ -297,6 +314,7 @@ async function compactEventForBuffer(
     executionId: context.executionId ?? event.executionId,
     requireDurable: context.requireDurablePayloads,
     preserveRoot: true,
+    thresholdBytes: context.valueThresholdBytes,
   }
 
   let compactedData = await compactExecutionPayload(event.data, {
@@ -746,6 +764,24 @@ export function createExecutionEventWriter(
   let maxReservedId = 0
   let flushTimer: ReturnType<typeof setTimeout> | null = null
   let consecutiveFlushFailures = 0
+  /**
+   * Bytes this execution has successfully buffered. Counted gross rather than
+   * net of ring-buffer pruning, so it reaches the pressure mark early — erring
+   * toward offloading sooner is the safe direction.
+   */
+  let bufferedBytes = 0
+
+  /**
+   * Preserved base64 is an explicit request for inline delivery and is already
+   * bounded by its own cap and the strip-and-recompact fallback, so pressure
+   * never rewrites it into a ref the caller cannot read.
+   */
+  const getValueThresholdBytes = () => {
+    if (context.preserveUserFileBase64) return undefined
+    return bufferedBytes >= EXECUTION_EVENT_OFFLOAD_PRESSURE_BYTES
+      ? EXECUTION_EVENT_PRESSURE_VALUE_BYTES
+      : undefined
+  }
 
   const getFlushDelayMs = () => {
     if (consecutiveFlushFailures === 0) return FLUSH_INTERVAL_MS
@@ -911,6 +947,7 @@ export function createExecutionEventWriter(
       }
       consecutiveFlushFailures = 0
       lastResourceLimitError = null
+      bufferedBytes += batchBytes
       if (chunkTerminalStatus) pendingTerminalStatus = undefined
       return true
     } catch (error) {
@@ -992,6 +1029,7 @@ export function createExecutionEventWriter(
       ...context,
       executionId,
       requireDurablePayloads: true,
+      valueThresholdBytes: getValueThresholdBytes(),
     })
     const entry: ExecutionEventEntry = { eventId, executionId, event: compactEvent }
     pending.push(entry)
@@ -1038,6 +1076,7 @@ export function createExecutionEventWriter(
         ...context,
         executionId,
         requireDurablePayloads: true,
+        valueThresholdBytes: getValueThresholdBytes(),
       })
       const entry: ExecutionEventEntry = { eventId, executionId, event: compactEvent }
       pending.push(entry)

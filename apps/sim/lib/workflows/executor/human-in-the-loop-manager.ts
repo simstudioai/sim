@@ -1323,7 +1323,18 @@ export class PauseResumeManager {
               await degradeTerminalPublish(terminalStatus, error)
               return { eventId: 0, executionId: resumeExecutionId, event }
             })
-          : await eventWriter.write(event)
+          : await eventWriter.write(event).catch((error) => {
+              // The buffer only backs reconnect replay; the live stream is the
+              // primary delivery path. Awaiting this bare let a failed write
+              // propagate into the executor callback and fail work that had
+              // already run, so degrade the same way the execute route does.
+              logger.warn('Resume event buffer write failed; delivering live only', {
+                resumeExecutionId,
+                eventType: event.type,
+                error: toError(error).message,
+              })
+              return { eventId: 0, executionId: resumeExecutionId, event }
+            })
         event.eventId = entry.eventId
         terminalEventPublished ||= Boolean(terminalStatus)
       }
