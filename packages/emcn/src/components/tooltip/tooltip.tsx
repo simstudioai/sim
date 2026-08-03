@@ -8,18 +8,47 @@ import { cn } from '../../lib/cn'
 const TOOLTIP_OFFSET = 16
 const EDGE_GUTTER = 16
 const EDGE_THRESHOLD = 360
+const MIN_FRAME_MS = 16
 
 /**
- * Resolved position of a floating tooltip. `x`/`y` are whole-pixel viewport
- * coordinates the tooltip anchors to; `alignX`/`alignY` flip the tooltip away
- * from the nearest viewport edge.
+ * How much of the gap between the smoothed and the instantaneous pointer velocity
+ * is closed per pointer event. This is what softens the velocity flourish — the
+ * transform itself is never handed to a CSS transition, because a compositor-
+ * interpolated fractional scale forces the tooltip's rasterized text to be
+ * resampled, which reads as a blur until the interpolation settles.
+ */
+const VELOCITY_SMOOTHING = 0.35
+
+/**
+ * Resolved position and motion of a floating tooltip. `x`/`y` are whole-pixel
+ * viewport coordinates the tooltip anchors to; `alignX`/`alignY` flip the tooltip
+ * away from the nearest viewport edge; `skew`/`scale*` add the velocity-reactive
+ * flourish while the pointer is moving.
  */
 export interface FloatingTooltipState {
   visible: boolean
   x: number
   y: number
+  skew: number
+  scaleX: number
+  scaleY: number
   alignX: 'left' | 'right'
   alignY: 'above' | 'below'
+}
+
+/** Velocity-derived flourish applied to the tooltip on a given frame. */
+interface TooltipMotion {
+  skew: number
+  scaleX: number
+  scaleY: number
+}
+
+const NEUTRAL_MOTION: TooltipMotion = { skew: 0, scaleX: 1, scaleY: 1 }
+
+interface PointerSnapshot {
+  x: number
+  y: number
+  time: number
 }
 
 /**
@@ -39,6 +68,7 @@ const HIDDEN_STATE: FloatingTooltipState = {
   visible: false,
   x: 0,
   y: 0,
+  ...NEUTRAL_MOTION,
   alignX: 'left',
   alignY: 'below',
 }
@@ -57,32 +87,68 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
   const canShowRef = React.useRef(canShow)
   canShowRef.current = canShow
 
+  const lastPointerRef = React.useRef<PointerSnapshot | null>(null)
+  const velocityRef = React.useRef({ x: 0, magnitude: 0 })
   const [state, setState] = React.useState<FloatingTooltipState>(HIDDEN_STATE)
 
   const handlers = React.useMemo<FloatingTooltipHandlers>(() => {
-    const hide = () => setState((current) => (current.visible ? HIDDEN_STATE : current))
+    const reset = () => {
+      lastPointerRef.current = null
+      velocityRef.current.x = 0
+      velocityRef.current.magnitude = 0
+    }
 
-    const show = (clientX: number, clientY: number) => {
-      const next = getTooltipPosition(clientX, clientY)
+    const hide = () => {
+      reset()
+      setState((current) => (current.visible ? HIDDEN_STATE : current))
+    }
+
+    const apply = (clientX: number, clientY: number, motion: TooltipMotion) => {
+      const next = { ...getTooltipPosition(clientX, clientY), ...motion }
       setState((current) =>
         current.visible &&
         current.x === next.x &&
         current.y === next.y &&
         current.alignX === next.alignX &&
-        current.alignY === next.alignY
+        current.alignY === next.alignY &&
+        current.skew === next.skew &&
+        current.scaleX === next.scaleX &&
+        current.scaleY === next.scaleY
           ? current
           : { visible: true, ...next }
       )
     }
 
+    const showNeutral = (clientX: number, clientY: number) => {
+      reset()
+      lastPointerRef.current = { x: clientX, y: clientY, time: performance.now() }
+      apply(clientX, clientY, NEUTRAL_MOTION)
+    }
+
     return {
       onPointerEnter: (event) => {
         if (!canShowRef.current(event.currentTarget)) return
-        show(event.clientX, event.clientY)
+        showNeutral(event.clientX, event.clientY)
       },
       onPointerMove: (event) => {
         if (!canShowRef.current(event.currentTarget)) return
-        show(event.clientX, event.clientY)
+        const now = performance.now()
+        const previous = lastPointerRef.current
+        const elapsed = previous ? Math.max(now - previous.time, MIN_FRAME_MS) : MIN_FRAME_MS
+        const instantX = previous ? ((event.clientX - previous.x) / elapsed) * MIN_FRAME_MS : 0
+        const instantY = previous ? ((event.clientY - previous.y) / elapsed) * MIN_FRAME_MS : 0
+
+        const velocity = velocityRef.current
+        velocity.x += (instantX - velocity.x) * VELOCITY_SMOOTHING
+        velocity.magnitude +=
+          (Math.hypot(instantX, instantY) - velocity.magnitude) * VELOCITY_SMOOTHING
+
+        lastPointerRef.current = { x: event.clientX, y: event.clientY, time: now }
+        apply(event.clientX, event.clientY, {
+          skew: quantize(clamp(velocity.x * 0.11, -6, 6)),
+          scaleX: quantize(1 + Math.min(0.035, velocity.magnitude / 1100)),
+          scaleY: quantize(1 - Math.min(0.02, velocity.magnitude / 1500)),
+        })
       },
       onPointerLeave: hide,
       onPointerDown: hide,
@@ -91,7 +157,7 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
         if (!canShowRef.current(target)) return
         if (!isFocusVisible(target)) return
         const rect = target.getBoundingClientRect()
-        show(rect.left + rect.width / 2, rect.bottom)
+        showNeutral(rect.left + rect.width / 2, rect.bottom)
       },
       onBlur: hide,
     }
@@ -160,6 +226,14 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 /**
+ * Rounds a flourish value to 3 decimals so pointer jitter below the visible
+ * threshold settles to a stable number instead of re-rendering every consumer.
+ */
+function quantize(value: number): number {
+  return Math.round(value * 1000) / 1000
+}
+
+/**
  * Whether an element currently matches `:focus-visible` (keyboard focus, not focus produced by a
  * mouse click). Used to keep the tooltip from re-appearing/repositioning when the trigger is
  * clicked. Falls back to `true` where the selector can't be queried.
@@ -211,11 +285,16 @@ export const FloatingTooltip = React.memo(function FloatingTooltip({
       aria-hidden={role ? undefined : 'true'}
       data-native-surface-overlay=''
       className={cn(
-        'pointer-events-none fixed top-0 left-0 z-[var(--z-tooltip)] w-fit max-w-[min(16rem,calc(100vw-2rem))] rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-[var(--text-body)] text-caption opacity-100 shadow-sm transition-[opacity,transform] duration-150 ease-out',
+        'pointer-events-none fixed top-0 left-0 z-[var(--z-tooltip)] w-fit max-w-[min(16rem,calc(100vw-2rem))] rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-[var(--text-body)] text-caption opacity-100 shadow-sm transition-[opacity,translate] duration-150 ease-out',
         'motion-reduce:transition-none',
         className
       )}
-      style={{ transform: getTooltipTranslate(state, offset) }}
+      style={{
+        translate: getTooltipTranslate(state, offset),
+        scale: `${state.scaleX} ${state.scaleY}`,
+        transform: `skew(${state.skew}deg)`,
+        transformOrigin: state.alignX === 'left' ? '12px 12px' : 'calc(100% - 12px) 12px',
+      }}
     >
       {children ?? <span className='block whitespace-normal break-words text-left'>{label}</span>}
     </div>,
@@ -242,11 +321,17 @@ function getTooltipPosition(
   }
 }
 
+/**
+ * Value for the `translate` CSS property. Kept off the `transform` property so the
+ * velocity flourish (`scale` + `transform: skew()`) can stay out of the transition
+ * list while the tooltip's position still eases toward the cursor.
+ */
 function getTooltipTranslate(state: FloatingTooltipState, offset: number): string {
-  const xOffset = state.alignX === 'left' ? `${offset}px` : `calc(-100% - ${offset}px)`
-  const yOffset = state.alignY === 'below' ? `${offset}px` : `calc(-100% - ${offset}px)`
+  const x = state.alignX === 'left' ? `${state.x + offset}px` : `calc(${state.x - offset}px - 100%)`
+  const y =
+    state.alignY === 'below' ? `${state.y + offset}px` : `calc(${state.y - offset}px - 100%)`
 
-  return `translate3d(${state.x}px, ${state.y}px, 0) translate(${xOffset}, ${yOffset})`
+  return `${x} ${y}`
 }
 
 /**
