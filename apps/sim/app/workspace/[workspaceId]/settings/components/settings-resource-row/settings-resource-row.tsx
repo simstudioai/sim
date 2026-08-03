@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useId } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import Link from 'next/link'
@@ -107,9 +107,13 @@ export const RESOURCE_LIST_STACK = 'flex flex-col gap-y-0.5'
  * lists. The column gap budgets for the rows' own `-mx-2`: 24px of track gap
  * minus 16px of combined bleed leaves the same 8px gutter a stack row gets.
  * Narrowing it makes neighbouring rows — and their hit areas — overlap.
+ *
+ * The track minimum is 264px, not 280px, for the same reason: `auto-fit` measures
+ * tracks rather than margin boxes, so the wider gap would otherwise drop to one
+ * column 32px earlier than this grid did when the container owned the bleed.
  */
 export const RESOURCE_LIST_GRID =
-  'grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-6 gap-y-0.5'
+  'grid grid-cols-[repeat(auto-fit,minmax(264px,1fr))] gap-x-6 gap-y-0.5'
 
 const PLAIN_BASE =
   'flex size-[14px] flex-shrink-0 items-center justify-center text-[var(--text-icon)] [&_svg]:size-[14px] [&_img]:size-[14px]'
@@ -129,6 +133,7 @@ export function SettingsResourceRow({
   navigable = false,
   flush = false,
 }: SettingsResourceRowProps) {
+  const describedById = useId()
   const isTile = iconVariant === 'tile'
   const cluster = (
     <>
@@ -152,7 +157,9 @@ export function SettingsResourceRow({
       <div className='flex min-w-0 flex-col justify-center gap-[1px] text-left'>
         <span className='truncate text-[var(--text-body)] text-sm'>{title}</span>
         {description != null && (
-          <span className='truncate text-[var(--text-muted)] text-caption'>{description}</span>
+          <span id={describedById} className='truncate text-[var(--text-muted)] text-caption'>
+            {description}
+          </span>
         )}
       </div>
     </>
@@ -201,9 +208,20 @@ export function SettingsResourceRow({
       )}
     >
       {href ? (
-        <Link href={href} aria-label={clickLabel} className={overlayClass} />
+        <Link
+          href={href}
+          aria-label={clickLabel}
+          aria-describedby={description != null ? describedById : undefined}
+          className={overlayClass}
+        />
       ) : (
-        <button type='button' onClick={onClick} aria-label={clickLabel} className={overlayClass} />
+        <button
+          type='button'
+          onClick={onClick}
+          aria-label={clickLabel}
+          aria-describedby={description != null ? describedById : undefined}
+          className={overlayClass}
+        />
       )}
       <div className={cn(clusterClass, 'pointer-events-none')}>{cluster}</div>
       {end}

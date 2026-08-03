@@ -12,7 +12,7 @@ skill is the procedure.
 
 Key paths:
 - Layout primitive: `apps/sim/app/workspace/[workspaceId]/settings/components/settings-panel/settings-panel.tsx`
-- Nav metadata (titles + descriptions): `apps/sim/app/workspace/[workspaceId]/settings/navigation.ts`
+- Nav metadata (titles + descriptions): `apps/sim/components/settings/navigation.ts`
 - Section switch + provider: `apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx`
 - Pages: `apps/sim/app/workspace/[workspaceId]/settings/components/<name>/<name>.tsx` and EE pages under `apps/sim/ee/<feature>/components/`
 
@@ -53,7 +53,9 @@ For each page component, confirm the checklist in `.claude/rules/sim-settings-pa
 3. Find literal pixel text sizes (should be 0 — see "Text-scale tokens" in
    `.claude/rules/sim-settings-pages.md` for the token map and the row
    title/subtitle pairing convention):
-   `git grep -nE "text-\[[0-9]+px\]" -- 'apps/sim/**/settings/' 'apps/sim/ee/'`
+   `git grep -nE "text-\[1[0-8]px\]" -- 'apps/sim/**/settings/' 'apps/sim/ee/'` — should
+   be 0. Display type above the scale (`text-[40px]` hero headings, the `text-[8px]`
+   member-avatar initial) is deliberate and out of scope.
 4. Confirm each page imports `SettingsPanel` and that its `NavigationItem` has an
    accurate `description` of consistent length with its peers.
    - Editable pages: confirm Save/Discard go through `SaveDiscardActions` and

@@ -19,6 +19,14 @@ export function CredentialDetailHeading({
   subtitle,
 }: CredentialDetailHeadingProps) {
   return (
-    <SettingsResourceRow iconVariant='custom' icon={leading} title={title} description={subtitle} />
+    <SettingsResourceRow
+      // A heading is not a list row: no bleed, no row padding.
+      flush
+      iconVariant='custom'
+      icon={leading}
+      title={title}
+      // `''` rendered nothing before; the row only skips a nullish description.
+      description={subtitle || undefined}
+    />
   )
 }

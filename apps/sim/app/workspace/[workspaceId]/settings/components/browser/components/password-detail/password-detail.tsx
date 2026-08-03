@@ -145,16 +145,14 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
             <SettingsField label='Site'>
               <div className='flex items-center gap-2.5'>
                 <div className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}>
-                  <div className='flex size-full items-center justify-center'>
-                    {credential.icon ? (
-                      // A `data:` URL copied from the source browser at import
-                      // time — never a network request, which would disclose
-                      // which sites the user has passwords for.
-                      <img src={credential.icon} alt='' className='size-full object-contain' />
-                    ) : (
-                      <Key className='size-5 text-[var(--text-icon)]' />
-                    )}
-                  </div>
+                  {credential.icon ? (
+                    // A `data:` URL copied from the source browser at import
+                    // time — never a network request, which would disclose
+                    // which sites the user has passwords for.
+                    <img src={credential.icon} alt='' className='size-full object-contain' />
+                  ) : (
+                    <Key className='size-5 text-[var(--text-icon)]' />
+                  )}
                 </div>
                 <ChipCopyInput value={credential.origin} copyLabel='Copy site' />
               </div>

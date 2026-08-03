@@ -21,7 +21,6 @@ import {
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail/components/chip-field'
 import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-provider-keys-modal'
-import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   RESOURCE_LIST_STACK,
@@ -324,13 +323,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
 
         {description && <p className='text-[var(--text-secondary)] text-sm'>{description}</p>}
 
-        {isLoading ? (
-          <div className={RESOURCE_LIST_STACK}>
-            {providers.map((p) => (
-              <BYOKKeySkeleton key={p.id} />
-            ))}
-          </div>
-        ) : showNoResults ? (
+        {isLoading ? null : showNoResults ? (
           <SettingsEmptyState variant='inline'>
             No providers found matching "{searchTerm}"
           </SettingsEmptyState>

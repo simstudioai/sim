@@ -436,9 +436,9 @@ function AddMembersModal({
 
               <div className='max-h-[280px] overflow-y-auto'>
                 {filteredMembers.length === 0 ? (
-                  <p className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                  <SettingsEmptyState variant='inline'>
                     No members found matching "{searchTerm}"
-                  </p>
+                  </SettingsEmptyState>
                 ) : (
                   <div className='flex flex-col'>
                     {filteredMembers.map((member) => {

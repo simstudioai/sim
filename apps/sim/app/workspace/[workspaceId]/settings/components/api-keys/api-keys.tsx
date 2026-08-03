@@ -202,14 +202,21 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
             {showsWorkspaceKeys && !searchTerm.trim() ? (
               <SettingsSection label='Workspace'>
                 {workspaceKeys.length === 0 ? (
-                  <div className='text-[var(--text-muted)] text-sm'>No workspace API keys yet</div>
+                  <SettingsEmptyState variant='inline'>
+                    No workspace API keys yet
+                  </SettingsEmptyState>
                 ) : (
                   <div className={RESOURCE_LIST_STACK}>
                     {workspaceKeys.map((key) => (
                       <SettingsResourceRow
                         key={key.id}
                         title={key.name}
-                        description={`${key.displayKey} · last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                        description={key.displayKey}
+                        badge={
+                          <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+                            {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                          </span>
+                        }
                         trailing={
                           <ApiKeyRowMenu
                             keyName={key.name}
@@ -232,7 +239,12 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                     <SettingsResourceRow
                       key={key.id}
                       title={key.name}
-                      description={`${key.displayKey} · last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                      description={key.displayKey}
+                      badge={
+                        <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+                          {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                        </span>
+                      }
                       trailing={
                         <ApiKeyRowMenu
                           keyName={key.name}
@@ -258,7 +270,12 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                       <div key={key.id} className='flex flex-col'>
                         <SettingsResourceRow
                           title={key.name}
-                          description={`${key.displayKey} · last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                          description={key.displayKey}
+                          badge={
+                            <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+                              {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                            </span>
+                          }
                           trailing={
                             <ApiKeyRowMenu
                               keyName={key.name}

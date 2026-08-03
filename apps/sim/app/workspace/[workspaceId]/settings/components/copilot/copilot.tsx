@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import {
-  Chip,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
@@ -15,6 +14,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Plus } from 'lucide-react'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -141,16 +141,26 @@ export function Copilot() {
               <SettingsResourceRow
                 key={key.id}
                 title={key.name || 'Unnamed Key'}
-                description={`${key.displayKey} · last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                description={key.displayKey}
+                badge={
+                  <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+                    {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                  </span>
+                }
                 trailing={
-                  <Chip
-                    onClick={() => {
-                      setDeleteKey(key)
-                      setShowDeleteDialog(true)
-                    }}
-                  >
-                    Delete
-                  </Chip>
+                  <RowActionsMenu
+                    label={`Actions for ${key.name || 'Unnamed Key'}`}
+                    actions={[
+                      {
+                        label: 'Delete',
+                        destructive: true,
+                        onSelect: () => {
+                          setDeleteKey(key)
+                          setShowDeleteDialog(true)
+                        },
+                      },
+                    ]}
+                  />
                 }
               />
             ))}

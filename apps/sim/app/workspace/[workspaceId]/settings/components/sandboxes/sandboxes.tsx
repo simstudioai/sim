@@ -24,10 +24,10 @@ import {
   draftFromSandbox,
   emptyDraft,
   extractIssues,
-  SANDBOX_DELETE_CONFIRM_TEXT,
   SANDBOX_UPGRADE_DESCRIPTION,
   SANDBOX_UPGRADE_TITLE,
   type SandboxDraft,
+  sandboxDeleteConfirmText,
   toSubmittedLines,
 } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -240,13 +240,8 @@ export function Sandboxes() {
             onOpenChange={setShowDeleteConfirm}
             srTitle='Delete Sandbox'
             title='Delete Sandbox'
-            text={SANDBOX_DELETE_CONFIRM_TEXT}
-            confirm={{
-              label: 'Delete',
-              onClick: () => void handleDelete(selected),
-              pending: deleteSandbox.isPending,
-              pendingLabel: 'Deleting...',
-            }}
+            text={sandboxDeleteConfirmText(selected.name)}
+            confirm={{ label: 'Delete', onClick: () => void handleDelete(selected) }}
           />
         )}
 
@@ -292,7 +287,8 @@ export function Sandboxes() {
           {filtered.map((sandbox) => (
             <SettingsResourceRow
               key={sandbox.id}
-              icon={<CodeIcon />}
+              icon={<CodeIcon className='text-[var(--text-icon)]' />}
+              iconFilled
               title={sandbox.name}
               description={`${sandbox.language === 'python' ? 'Python' : 'JavaScript'} · ${sandbox.dependencies.length} ${sandbox.dependencies.length === 1 ? 'package' : 'packages'}`}
               onClick={() => void setSelectedId(sandbox.id)}

@@ -40,10 +40,7 @@ import {
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import {
-  SETTINGS_FIELD_VALUE_CLASSES,
-  SettingsField,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-field'
+import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
@@ -383,11 +380,7 @@ function ServerDetailView({
   if (error || !data) {
     return (
       <SettingsPanel back={{ text: 'MCP servers', icon: ArrowLeft, onSelect: onBack }}>
-        <div className='flex min-h-0 flex-1 items-center justify-center'>
-          <p className='text-[var(--text-error)] text-caption leading-tight'>
-            Failed to load server details
-          </p>
-        </div>
+        <SettingsEmptyState tone='error'>Failed to load server details</SettingsEmptyState>
       </SettingsPanel>
     )
   }
@@ -441,25 +434,20 @@ function ServerDetailView({
           <div className='min-h-[300px] pt-4'>
             {activeServerTab === 'workflows' && (
               <div className='flex flex-col gap-4.5'>
-                <span className='text-[var(--text-muted)] text-small'>Workflows</span>
-
                 {tools.length === 0 ? (
                   <p className='text-[var(--text-muted)] text-sm'>
                     No workflows added yet. Click &quot;Add Workflow&quot; to add a deployed
                     workflow.
                   </p>
                 ) : (
-                  <div className='flex flex-col gap-2'>
+                  <div className={RESOURCE_LIST_STACK}>
                     {tools.map((tool) => (
-                      <div key={tool.id} className='flex items-center justify-between gap-3'>
-                        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                          <span className='text-[var(--text-body)] text-sm'>{tool.toolName}</span>
-                          <p className='truncate text-[var(--text-muted)] text-caption'>
-                            {tool.toolDescription || 'No description'}
-                          </p>
-                        </div>
-                        {canManage && (
-                          <div className='flex flex-shrink-0 items-center gap-1'>
+                      <SettingsResourceRow
+                        key={tool.id}
+                        title={tool.toolName}
+                        description={tool.toolDescription || 'No description'}
+                        trailing={
+                          canManage ? (
                             <RowActionsMenu
                               label='Tool actions'
                               actions={[
@@ -472,9 +460,9 @@ function ServerDetailView({
                                 },
                               ]}
                             />
-                          </div>
-                        )}
-                      </div>
+                          ) : undefined
+                        }
+                      />
                     ))}
                   </div>
                 )}
@@ -490,27 +478,19 @@ function ServerDetailView({
             {activeServerTab === 'details' && (
               <div className='flex flex-col gap-4.5'>
                 <div className='grid grid-cols-[1fr_1fr_1fr] gap-x-6 gap-y-3.5'>
-                  <SettingsField label='Server Name'>
-                    <p className={SETTINGS_FIELD_VALUE_CLASSES}>{server.name}</p>
-                  </SettingsField>
-                  <SettingsField label='Transport'>
-                    <p className={SETTINGS_FIELD_VALUE_CLASSES}>Streamable-HTTP</p>
-                  </SettingsField>
+                  <SettingsField label='Server Name'>{server.name}</SettingsField>
+                  <SettingsField label='Transport'>Streamable-HTTP</SettingsField>
                   <SettingsField label='Access'>
-                    <p className={SETTINGS_FIELD_VALUE_CLASSES}>
-                      {server.isPublic ? 'Public' : 'API Key'}
-                    </p>
+                    {server.isPublic ? 'Public' : 'API Key'}
                   </SettingsField>
                 </div>
 
                 {server.description?.trim() && (
-                  <SettingsField label='Description'>
-                    <p className={SETTINGS_FIELD_VALUE_CLASSES}>{server.description}</p>
-                  </SettingsField>
+                  <SettingsField label='Description'>{server.description}</SettingsField>
                 )}
 
-                <SettingsField label='URL'>
-                  <p className={`break-all ${SETTINGS_FIELD_VALUE_CLASSES}`}>{mcpServerUrl}</p>
+                <SettingsField label='URL' breakAll>
+                  {mcpServerUrl}
                 </SettingsField>
 
                 <div>
@@ -652,244 +632,235 @@ function ServerDetailView({
           </div>
         </div>
       </SettingsPanel>
+      canManage && (
+      <ChipConfirmModal
+        open={!!toolToDelete}
+        onOpenChange={(open) => !open && setToolToDelete(null)}
+        srTitle='Remove Workflow'
+        title='Remove Workflow'
+        text={[
+          'Are you sure you want to remove ',
+          { text: toolToDelete?.toolName ?? 'this workflow', bold: true },
+          ' from this server? The workflow will remain deployed and can be added back later.',
+        ]}
+        confirm={{
+          label: 'Remove',
+          onClick: handleDeleteTool,
+          pending: deleteToolMutation.isPending,
+          pendingLabel: 'Removing...',
+        }}
+      />
+      )canManage && (
+      <ChipModal
+        open={!!toolToView}
+        onOpenChange={(open) => {
+          if (!open) {
+            setToolToView(null)
+            setEditingDescription('')
+            setEditingParameterDescriptions({})
+          }
+        }}
+        srTitle={toolToView?.toolName ?? 'Edit Tool'}
+      >
+        <ChipModalHeader onClose={() => setToolToView(null)}>
+          {toolToView?.toolName}
+        </ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='textarea'
+            title='Description'
+            value={editingDescription}
+            onChange={setEditingDescription}
+            placeholder='Describe what this tool does...'
+            minHeight={80}
+          />
 
-      {canManage && (
-        <ChipConfirmModal
-          open={!!toolToDelete}
-          onOpenChange={(open) => !open && setToolToDelete(null)}
-          srTitle='Remove Workflow'
-          title='Remove Workflow'
-          text={[
-            'Are you sure you want to remove ',
-            { text: toolToDelete?.toolName ?? 'this workflow', bold: true },
-            ' from this server? The workflow will remain deployed and can be added back later.',
-          ]}
-          confirm={{
-            label: 'Remove',
-            onClick: handleDeleteTool,
-            pending: deleteToolMutation.isPending,
-            pendingLabel: 'Removing...',
-          }}
-        />
-      )}
-
-      {canManage && (
-        <ChipModal
-          open={!!toolToView}
-          onOpenChange={(open) => {
-            if (!open) {
-              setToolToView(null)
-              setEditingDescription('')
-              setEditingParameterDescriptions({})
-            }
-          }}
-          srTitle={toolToView?.toolName ?? 'Edit Tool'}
-        >
-          <ChipModalHeader onClose={() => setToolToView(null)}>
-            {toolToView?.toolName}
-          </ChipModalHeader>
-          <ChipModalBody>
-            <ChipModalField
-              type='textarea'
-              title='Description'
-              value={editingDescription}
-              onChange={setEditingDescription}
-              placeholder='Describe what this tool does...'
-              minHeight={80}
-            />
-
-            <ChipModalField type='custom' title='Parameters'>
-              {(() => {
-                const schema = toolToView?.parameterSchema as
-                  | { properties?: Record<string, { type?: string; description?: string }> }
-                  | undefined
-                const properties = schema?.properties
-                const hasParams = properties && Object.keys(properties).length > 0
-                return hasParams ? (
-                  <div className='flex flex-col gap-2'>
-                    {Object.entries(properties).map(([name, prop]) => (
-                      <div
-                        key={name}
-                        className='overflow-hidden rounded-sm border border-[var(--border-1)]'
-                      >
-                        <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
-                          <div className='flex min-w-0 flex-1 items-center gap-2'>
-                            <span className='block truncate font-medium text-[var(--text-tertiary)] text-base'>
-                              {name}
-                            </span>
-                            <Badge variant='type' size='sm'>
-                              {prop.type || 'any'}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-                          <div className='flex flex-col gap-1.5'>
-                            <Label>Description</Label>
-                            <ChipInput
-                              value={editingParameterDescriptions[name] || ''}
-                              onChange={(e) =>
-                                setEditingParameterDescriptions((prev) => ({
-                                  ...prev,
-                                  [name]: e.target.value,
-                                }))
-                              }
-                              placeholder={`Enter description for ${name}`}
-                            />
-                          </div>
+          <ChipModalField type='custom' title='Parameters'>
+            {(() => {
+              const schema = toolToView?.parameterSchema as
+                | { properties?: Record<string, { type?: string; description?: string }> }
+                | undefined
+              const properties = schema?.properties
+              const hasParams = properties && Object.keys(properties).length > 0
+              return hasParams ? (
+                <div className='flex flex-col gap-2'>
+                  {Object.entries(properties).map(([name, prop]) => (
+                    <div
+                      key={name}
+                      className='overflow-hidden rounded-sm border border-[var(--border-1)]'
+                    >
+                      <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
+                        <div className='flex min-w-0 flex-1 items-center gap-2'>
+                          <span className='block truncate font-medium text-[var(--text-tertiary)] text-base'>
+                            {name}
+                          </span>
+                          <Badge variant='type' size='sm'>
+                            {prop.type || 'any'}
+                          </Badge>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className='text-[var(--text-muted)] text-sm'>
-                    No inputs configured for this workflow.
-                  </p>
-                )
-              })()}
-            </ChipModalField>
-          </ChipModalBody>
-          <ChipModalFooter
-            onCancel={() => setToolToView(null)}
-            primaryAction={{
-              label: updateToolMutation.isPending ? 'Saving...' : 'Save',
-              onClick: handleSaveToolEdit,
-              disabled: isSaveToolDisabled,
-            }}
-          />
-        </ChipModal>
-      )}
-
-      {canManage && (
-        <ChipModal
-          open={showAddWorkflow}
-          onOpenChange={(open) => {
-            if (!open) {
-              setShowAddWorkflow(false)
-              setSelectedWorkflowId(null)
-            }
-          }}
-          srTitle='Add Workflow'
-        >
-          <ChipModalHeader
-            onClose={() => {
-              setShowAddWorkflow(false)
-              setSelectedWorkflowId(null)
-            }}
-          >
-            Add Workflow
-          </ChipModalHeader>
-          <ChipModalBody>
-            <p className='px-2 text-[var(--text-secondary)] text-sm'>
-              Select a deployed workflow to add to this MCP server. The workflow will be available
-              as a tool.
-            </p>
-            <ChipModalField type='custom' title='Select Workflow'>
-              <ChipSelect
-                options={workflowOptions}
-                value={selectedWorkflowId || undefined}
-                onChange={(value: string) => setSelectedWorkflowId(value)}
-                placeholder='Select a workflow...'
-                searchable
-                searchPlaceholder='Search workflows...'
-                disabled={addToolMutation.isPending}
-                fullWidth
-                dropdownWidth='trigger'
-                align='start'
-                displayLabel={selectedWorkflow?.name}
-              />
-            </ChipModalField>
-            <ChipModalError>
-              {addToolMutation.isError
-                ? addToolMutation.error?.message || 'Failed to add workflow'
-                : null}
-            </ChipModalError>
-          </ChipModalBody>
-          <ChipModalFooter
-            onCancel={() => {
-              setShowAddWorkflow(false)
-              setSelectedWorkflowId(null)
-            }}
-            primaryAction={{
-              label: addToolMutation.isPending ? 'Adding...' : 'Add Workflow',
-              onClick: handleAddWorkflow,
-              disabled: !selectedWorkflowId || addToolMutation.isPending,
-            }}
-          />
-        </ChipModal>
-      )}
-
-      {canManage && (
-        <ChipModal
-          open={showEditServer}
-          onOpenChange={(open) => {
-            if (!open) {
-              setShowEditServer(false)
-            }
-          }}
-          srTitle='Edit Server'
-        >
-          <ChipModalHeader onClose={() => setShowEditServer(false)}>Edit Server</ChipModalHeader>
-          <ChipModalBody>
-            <ChipModalField
-              type='input'
-              title='Server name'
-              required
-              value={editServerName}
-              onChange={setEditServerName}
-              placeholder='e.g., My MCP Server'
-            />
-            <ChipModalField
-              type='textarea'
-              title='Description'
-              value={editServerDescription}
-              onChange={setEditServerDescription}
-              placeholder='Describe what this MCP server does (optional)'
-              minHeight={60}
-            />
-            <ChipModalField type='custom' title='Access'>
-              <div className='flex flex-col gap-1.5'>
-                <ButtonGroup
-                  value={editServerIsPublic ? 'public' : 'private'}
-                  onValueChange={(value) => setEditServerIsPublic(value === 'public')}
-                >
-                  <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
-                  <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-                </ButtonGroup>
-                <p className='text-[var(--text-muted)] text-caption'>
-                  {editServerIsPublic
-                    ? 'Anyone with the URL can call this server without authentication'
-                    : 'Requests must include your Sim API key in the X-API-Key header'}
+                      <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+                        <div className='flex flex-col gap-1.5'>
+                          <Label>Description</Label>
+                          <ChipInput
+                            value={editingParameterDescriptions[name] || ''}
+                            onChange={(e) =>
+                              setEditingParameterDescriptions((prev) => ({
+                                ...prev,
+                                [name]: e.target.value,
+                              }))
+                            }
+                            placeholder={`Enter description for ${name}`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className='text-[var(--text-muted)] text-sm'>
+                  No inputs configured for this workflow.
                 </p>
-              </div>
-            </ChipModalField>
-          </ChipModalBody>
-          <ChipModalFooter
-            onCancel={() => setShowEditServer(false)}
-            primaryAction={{
-              label: updateServerMutation.isPending ? 'Saving...' : 'Save',
-              onClick: handleSaveServerEdit,
-              disabled:
-                !editServerName.trim() ||
-                updateServerMutation.isPending ||
-                (editServerName === server.name &&
-                  editServerDescription === (server.description || '') &&
-                  editServerIsPublic === server.isPublic),
-            }}
-          />
-        </ChipModal>
-      )}
-
-      {canManage && (
-        <CreateApiKeyModal
-          open={showCreateApiKeyModal}
-          onOpenChange={setShowCreateApiKeyModal}
-          workspaceId={workspaceId}
-          existingKeyNames={existingKeyNames}
-          allowPersonalApiKeys={allowPersonalApiKeys}
-          canManageWorkspaceKeys={canManageWorkspaceKeys}
-          defaultKeyType={defaultKeyType}
+              )
+            })()}
+          </ChipModalField>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => setToolToView(null)}
+          primaryAction={{
+            label: updateToolMutation.isPending ? 'Saving...' : 'Save',
+            onClick: handleSaveToolEdit,
+            disabled: isSaveToolDisabled,
+          }}
         />
-      )}
+      </ChipModal>
+      )canManage && (
+      <ChipModal
+        open={showAddWorkflow}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowAddWorkflow(false)
+            setSelectedWorkflowId(null)
+          }
+        }}
+        srTitle='Add Workflow'
+      >
+        <ChipModalHeader
+          onClose={() => {
+            setShowAddWorkflow(false)
+            setSelectedWorkflowId(null)
+          }}
+        >
+          Add Workflow
+        </ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Select a deployed workflow to add to this MCP server. The workflow will be available as
+            a tool.
+          </p>
+          <ChipModalField type='custom' title='Select Workflow'>
+            <ChipSelect
+              options={workflowOptions}
+              value={selectedWorkflowId || undefined}
+              onChange={(value: string) => setSelectedWorkflowId(value)}
+              placeholder='Select a workflow...'
+              searchable
+              searchPlaceholder='Search workflows...'
+              disabled={addToolMutation.isPending}
+              fullWidth
+              dropdownWidth='trigger'
+              align='start'
+              displayLabel={selectedWorkflow?.name}
+            />
+          </ChipModalField>
+          <ChipModalError>
+            {addToolMutation.isError
+              ? addToolMutation.error?.message || 'Failed to add workflow'
+              : null}
+          </ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => {
+            setShowAddWorkflow(false)
+            setSelectedWorkflowId(null)
+          }}
+          primaryAction={{
+            label: addToolMutation.isPending ? 'Adding...' : 'Add Workflow',
+            onClick: handleAddWorkflow,
+            disabled: !selectedWorkflowId || addToolMutation.isPending,
+          }}
+        />
+      </ChipModal>
+      )canManage && (
+      <ChipModal
+        open={showEditServer}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowEditServer(false)
+          }
+        }}
+        srTitle='Edit Server'
+      >
+        <ChipModalHeader onClose={() => setShowEditServer(false)}>Edit Server</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='input'
+            title='Server name'
+            required
+            value={editServerName}
+            onChange={setEditServerName}
+            placeholder='e.g., My MCP Server'
+          />
+          <ChipModalField
+            type='textarea'
+            title='Description'
+            value={editServerDescription}
+            onChange={setEditServerDescription}
+            placeholder='Describe what this MCP server does (optional)'
+            minHeight={60}
+          />
+          <ChipModalField type='custom' title='Access'>
+            <div className='flex flex-col gap-1.5'>
+              <ButtonGroup
+                value={editServerIsPublic ? 'public' : 'private'}
+                onValueChange={(value) => setEditServerIsPublic(value === 'public')}
+              >
+                <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
+                <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+              </ButtonGroup>
+              <p className='text-[var(--text-muted)] text-caption'>
+                {editServerIsPublic
+                  ? 'Anyone with the URL can call this server without authentication'
+                  : 'Requests must include your Sim API key in the X-API-Key header'}
+              </p>
+            </div>
+          </ChipModalField>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => setShowEditServer(false)}
+          primaryAction={{
+            label: updateServerMutation.isPending ? 'Saving...' : 'Save',
+            onClick: handleSaveServerEdit,
+            disabled:
+              !editServerName.trim() ||
+              updateServerMutation.isPending ||
+              (editServerName === server.name &&
+                editServerDescription === (server.description || '') &&
+                editServerIsPublic === server.isPublic),
+          }}
+        />
+      </ChipModal>
+      )canManage && (
+      <CreateApiKeyModal
+        open={showCreateApiKeyModal}
+        onOpenChange={setShowCreateApiKeyModal}
+        workspaceId={workspaceId}
+        existingKeyNames={existingKeyNames}
+        allowPersonalApiKeys={allowPersonalApiKeys}
+        canManageWorkspaceKeys={canManageWorkspaceKeys}
+        defaultKeyType={defaultKeyType}
+      />
+      )
     </>
   )
 }
@@ -1053,7 +1024,8 @@ export function WorkflowMcpServers() {
                 return (
                   <SettingsResourceRow
                     key={server.id}
-                    icon={<McpIcon />}
+                    icon={<McpIcon className='text-[var(--text-icon)]' />}
+                    iconFilled
                     title={server.name}
                     description={toolsLabel}
                     onClick={() => {

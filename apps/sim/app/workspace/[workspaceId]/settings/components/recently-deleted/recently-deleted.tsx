@@ -562,22 +562,24 @@ export function RecentlyDeleted() {
                     Deleted {formatDate(resource.deletedAt)}
                   </>
                 }
+                badge={
+                  canRestore && isRestored ? (
+                    <span className='text-[var(--text-muted)] text-caption'>
+                      {PAUSED_AUTOMATION_TYPES.has(resource.type)
+                        ? 'Restored \u00b7 schedules and webhooks stay paused'
+                        : 'Restored'}
+                    </span>
+                  ) : undefined
+                }
                 trailing={
                   !canRestore ? null : isRestoring ? (
                     <Chip variant='primary' disabled>
                       Restoring...
                     </Chip>
                   ) : isRestored ? (
-                    <div className='flex items-center gap-2'>
-                      <span className='text-[var(--text-muted)] text-small'>
-                        {PAUSED_AUTOMATION_TYPES.has(resource.type)
-                          ? 'Restored \u00b7 schedules and webhooks stay paused'
-                          : 'Restored'}
-                      </span>
-                      <Chip variant='primary' onClick={() => handleView(resource)}>
-                        View
-                      </Chip>
-                    </div>
+                    <Chip variant='primary' onClick={() => handleView(resource)}>
+                      View
+                    </Chip>
                   ) : (
                     <Chip variant='primary' onClick={() => void handleRestore(resource)}>
                       Restore

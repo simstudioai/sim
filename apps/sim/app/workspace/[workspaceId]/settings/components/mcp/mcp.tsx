@@ -27,10 +27,7 @@ import {
 import { getRefreshActionState } from '@/app/workspace/[workspaceId]/settings/components/mcp/refresh-action-state'
 import { getServerToolsLabel } from '@/app/workspace/[workspaceId]/settings/components/mcp/server-tools-label'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import {
-  SETTINGS_FIELD_VALUE_CLASSES,
-  SettingsField,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-field'
+import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   RESOURCE_LIST_STACK,
@@ -126,20 +123,24 @@ function ServerListItem({
         : showDiscoveryError
           ? discoveryError
           : toolsLabel
-  const statusLabel = `${transportLabel} · ${statusText}`
 
   return (
     <SettingsResourceRow
-      icon={<McpIcon />}
+      icon={<McpIcon className='text-[var(--text-icon)]' />}
+      iconFilled
       title={serverName}
       description={
-        <span
-          className={cn(
-            hasConnectionIssue && !isConnecting ? 'text-[var(--text-error)]' : undefined
-          )}
-        >
-          {statusLabel}
-        </span>
+        <>
+          {`${transportLabel} · `}
+          {/* Only the status reddens — the transport is neutral metadata. */}
+          <span
+            className={cn(
+              hasConnectionIssue && !isConnecting ? 'text-[var(--text-error)]' : undefined
+            )}
+          >
+            {statusText}
+          </span>
+        </>
       }
       onClick={onViewDetails}
       clickLabel={`Open ${serverName}`}
@@ -457,17 +458,13 @@ export function MCP() {
       >
         <SettingsSection label='Server'>
           <div className='flex flex-col gap-4.5'>
-            <SettingsField label='Server name'>
-              <p className={SETTINGS_FIELD_VALUE_CLASSES}>{server.name || 'Unnamed server'}</p>
-            </SettingsField>
+            <SettingsField label='Server name'>{server.name || 'Unnamed server'}</SettingsField>
 
-            <SettingsField label='Transport'>
-              <p className={SETTINGS_FIELD_VALUE_CLASSES}>{transportLabel}</p>
-            </SettingsField>
+            <SettingsField label='Transport'>{transportLabel}</SettingsField>
 
             {server.url && (
-              <SettingsField label='URL'>
-                <p className={`break-all ${SETTINGS_FIELD_VALUE_CLASSES}`}>{server.url}</p>
+              <SettingsField label='URL' breakAll>
+                {server.url}
               </SettingsField>
             )}
 
