@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { client } from '@/lib/auth/auth-client'
-import { env, isFalsy } from '@/lib/core/config/env'
+import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { AuthSubmitButton } from '@/app/(auth)/components'
@@ -37,6 +37,8 @@ export default function SSOForm() {
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [callbackUrl, setCallbackUrl] = useState('/workspace')
+
+  const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
 
   useEffect(() => {
     if (searchParams) {
@@ -184,8 +186,7 @@ export default function SSOForm() {
         </AuthSubmitButton>
       </form>
 
-      {/* Only show divider and email signin button if email/password is enabled */}
-      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+      {emailEnabled && (
         <>
           <div className='relative my-6 font-light'>
             <div className='absolute inset-0 flex items-center'>
@@ -208,8 +209,7 @@ export default function SSOForm() {
         </>
       )}
 
-      {/* Only show signup link if email/password signup is enabled */}
-      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+      {emailEnabled && (
         <div className='pt-6 text-center font-light text-base'>
           <span className='font-normal'>Don't have an account? </span>
           <Link
