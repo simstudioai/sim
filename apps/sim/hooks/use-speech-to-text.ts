@@ -16,8 +16,6 @@ import {
 
 const logger = createLogger('useSpeechToText')
 
-export type PermissionState = 'prompt' | 'granted' | 'denied'
-
 interface UseSpeechToTextProps {
   onTranscript: (text: string) => void
   /**
@@ -25,7 +23,6 @@ interface UseSpeechToTextProps {
    * whether it was a per-member cap (which only an org admin can raise).
    */
   onUsageLimitExceeded?: (message?: string, isMemberLimit?: boolean) => void
-  language?: string
   /** Attributes the voice-input cost to this workspace for per-member usage. */
   workspaceId?: string
 }
@@ -33,7 +30,6 @@ interface UseSpeechToTextProps {
 interface UseSpeechToTextReturn {
   isListening: boolean
   isSupported: boolean
-  permissionState: PermissionState
   toggleListening: () => void
   resetTranscript: () => void
 }
@@ -41,16 +37,13 @@ interface UseSpeechToTextReturn {
 export function useSpeechToText({
   onTranscript,
   onUsageLimitExceeded,
-  language,
   workspaceId,
 }: UseSpeechToTextProps): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
-  const [permissionState, setPermissionState] = useState<PermissionState>('prompt')
 
   const onTranscriptRef = useRef(onTranscript)
   const onUsageLimitExceededRef = useRef(onUsageLimitExceeded)
-  const languageRef = useRef(language)
   const workspaceIdRef = useRef(workspaceId)
   const mountedRef = useRef(true)
   const startingRef = useRef(false)
@@ -69,7 +62,6 @@ export function useSpeechToText({
 
   onTranscriptRef.current = onTranscript
   onUsageLimitExceededRef.current = onUsageLimitExceeded
-  languageRef.current = language
   workspaceIdRef.current = workspaceId
 
   useEffect(() => {
@@ -206,7 +198,6 @@ export function useSpeechToText({
         return false
       }
 
-      setPermissionState('granted')
       streamRef.current = stream
 
       const params = new URLSearchParams({
@@ -216,9 +207,6 @@ export function useSpeechToText({
         commit_strategy: 'vad',
         vad_silence_threshold_secs: '1.0',
       })
-      if (languageRef.current) {
-        params.set('language_code', languageRef.current)
-      }
 
       const ws = new WebSocket(`${ELEVENLABS_WS_URL}?${params.toString()}`)
       wsRef.current = ws
@@ -305,9 +293,6 @@ export function useSpeechToText({
     } catch (error) {
       logger.error('Failed to start speech streaming', error)
       cleanup()
-      if (error instanceof DOMException && error.name === 'NotAllowedError') {
-        setPermissionState('denied')
-      }
       return false
     } finally {
       startingRef.current = false
@@ -396,7 +381,6 @@ export function useSpeechToText({
   return {
     isListening,
     isSupported,
-    permissionState,
     toggleListening,
     resetTranscript,
   }

@@ -17,21 +17,19 @@ interface PasswordAuthProps {
 export default function PasswordAuth({ identifier }: PasswordAuthProps) {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [showValidationError, setShowValidationError] = useState(false)
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
+  const hasPasswordError = passwordErrors.length > 0
   const authenticate = useChatPasswordAuth(identifier)
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPassword = e.target.value
     setPassword(newPassword)
-    setShowValidationError(false)
     setPasswordErrors([])
   }
 
   const handleAuthenticate = async () => {
     if (!password.trim()) {
       setPasswordErrors(['Password is required'])
-      setShowValidationError(true)
       return
     }
 
@@ -41,7 +39,6 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
     } catch (error) {
       logger.error('Authentication error:', error)
       setPasswordErrors([toError(error).message || 'Invalid password. Please try again.'])
-      setShowValidationError(true)
     }
   }
 
@@ -84,15 +81,14 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                     onChange={handlePasswordChange}
                     className={cn(
                       'pr-10',
-                      showValidationError &&
-                        passwordErrors.length > 0 &&
+                      hasPasswordError &&
                         'border-[var(--text-error)] focus:border-[var(--text-error)]'
                     )}
                   />
                   <button
                     type='button'
                     onClick={() => setShowPassword(!showPassword)}
-                    className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -101,9 +97,7 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                 <div
                   className={cn(
                     'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
-                    showValidationError && passwordErrors.length > 0
-                      ? 'grid-rows-[1fr]'
-                      : 'grid-rows-[0fr]'
+                    hasPasswordError ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
                   )}
                   aria-live='polite'
                 >
