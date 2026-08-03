@@ -36,21 +36,27 @@ export default function SSOForm() {
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [callbackUrl, setCallbackUrl] = useState('/workspace')
 
   const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
 
+  /**
+   * Derived during render rather than seeded into state from an effect: the
+   * first painted frame otherwise carries the `/workspace` default, so the
+   * "Sign in with email" and "Sign up" links briefly point at the wrong
+   * destination on any deep link carrying `?callbackUrl=`.
+   */
+  const callbackParam = searchParams?.get('callbackUrl') ?? null
+  const isCallbackValid = callbackParam !== null && validateCallbackUrl(callbackParam)
+  const callbackUrl = callbackParam !== null && isCallbackValid ? callbackParam : '/workspace'
+
+  useEffect(() => {
+    if (callbackParam !== null && !isCallbackValid) {
+      logger.warn('Invalid callback URL detected and blocked:', { url: callbackParam })
+    }
+  }, [callbackParam, isCallbackValid])
+
   useEffect(() => {
     if (searchParams) {
-      const callback = searchParams.get('callbackUrl')
-      if (callback) {
-        if (validateCallbackUrl(callback)) {
-          setCallbackUrl(callback)
-        } else {
-          logger.warn('Invalid callback URL detected and blocked:', { url: callback })
-        }
-      }
-
       const emailParam = searchParams.get('email')
       if (emailParam) {
         setEmail(emailParam)
