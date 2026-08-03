@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   ACCOUNT_SETTINGS_ITEMS,
@@ -32,9 +32,13 @@ import {
  */
 beforeEach(() => {
   setEnv({ NEXT_PUBLIC_SANDBOX_ENABLED: 'true', NEXT_PUBLIC_E2B_ENABLED: undefined })
+  resetEnvFlagsMock()
 })
 
-afterAll(resetEnvMock)
+afterAll(() => {
+  resetEnvMock()
+  resetEnvFlagsMock()
+})
 
 describe('settings navigation boundaries', () => {
   it('preserves the order of all four settings catalogs', () => {
@@ -58,6 +62,7 @@ describe('settings navigation boundaries', () => {
       'sandboxes',
       'inbox',
       'recently-deleted',
+      'self-host',
       'sso',
       'sessions',
       'data-retention',
@@ -99,6 +104,7 @@ describe('settings navigation boundaries', () => {
       'recently-deleted',
       'forks',
       'custom-blocks',
+      'self-host',
     ])
   })
 
@@ -125,6 +131,50 @@ describe('settings navigation boundaries', () => {
         },
       }).map(({ id }) => id)
     ).not.toContain('sandboxes')
+  })
+
+  /**
+   * The Self-host section links out to the managed service that issues this
+   * deployment's Chat keys. On Sim Cloud that surface is reached from the
+   * account plane instead, so the section must not exist there at all — in the
+   * sidebar catalog or in the workspace-plane gate the route consults.
+   */
+  it('shows the Self-host section only on a self-hosted deployment', () => {
+    setEnvFlags({ isHosted: false })
+
+    expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toContain('self-host')
+    expect(
+      resolveWorkspaceNavigation({
+        permission: 'admin',
+        permissionConfig: {},
+        entitlements: {
+          byok: true,
+          inbox: true,
+          customBlocks: true,
+          forks: true,
+          sandboxes: true,
+        },
+      }).map(({ id }) => id)
+    ).toContain('self-host')
+  })
+
+  it('drops the Self-host section on hosted Sim', () => {
+    setEnvFlags({ isHosted: true })
+
+    expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).not.toContain('self-host')
+    expect(
+      resolveWorkspaceNavigation({
+        permission: 'admin',
+        permissionConfig: {},
+        entitlements: {
+          byok: true,
+          inbox: true,
+          customBlocks: true,
+          forks: true,
+          sandboxes: true,
+        },
+      }).map(({ id }) => id)
+    ).not.toContain('self-host')
   })
 
   it('keeps the Sandboxes section on the pre-Daytona E2B flag alone', () => {
@@ -367,6 +417,7 @@ describe('settings navigation boundaries', () => {
         'inbox',
         'recently-deleted',
         'custom-blocks',
+        'self-host',
       ],
       mutable: [],
     },
@@ -384,6 +435,7 @@ describe('settings navigation boundaries', () => {
         'inbox',
         'recently-deleted',
         'custom-blocks',
+        'self-host',
       ],
       mutable: ['secrets', 'custom-tools', 'mcp', 'workflow-mcp-servers', 'recently-deleted'],
     },
@@ -439,6 +491,7 @@ describe('settings navigation boundaries', () => {
       'recently-deleted',
       'forks',
       'custom-blocks',
+      'self-host',
     ])
   })
 
