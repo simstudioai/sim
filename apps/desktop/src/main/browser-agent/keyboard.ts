@@ -3,6 +3,7 @@
  * parsing "Cmd+Shift+Z"-style combos and building the trusted CDP
  * keyDown/keyUp pair. Pure logic except {@link dispatchKeyCombo}.
  */
+import { getErrorMessage } from '@sim/utils/errors'
 import type { WebContents } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import { ToolError } from '@/main/browser-agent/errors'
@@ -303,7 +304,7 @@ export async function dispatchKeyCombo(contents: WebContents, combo: ParsedCombo
       await cdp.dispatchKeyEvent(contents, up).catch(() => {})
     }
     throw new KeyDispatchError(
-      error instanceof Error ? error.message : 'Trusted key dispatch failed',
+      getErrorMessage(error, 'Trusted key dispatch failed'),
       keyDownDispatched
     )
   } finally {
