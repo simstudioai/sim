@@ -44,7 +44,7 @@ helm install sim ./helm/sim \
 ```
 
 <Callout type="warn">
-  Save all five values somewhere durable before moving on. `ENCRYPTION_KEY` in particular cannot be regenerated — losing it makes workspace environment variables and stored provider keys permanently unreadable. See [Backup & Restore](/platform/self-hosting/backup-restore).
+  Save all five values somewhere durable before moving on. `ENCRYPTION_KEY` in particular cannot be regenerated — losing it makes workspace environment variables and stored provider keys permanently unreadable.
 
   `CRON_SECRET` is required, not optional: the chart enables background jobs by default and will not render without it.
 </Callout>
@@ -106,7 +106,7 @@ helm upgrade --install sim ./helm/sim \
 app:
   replicaCount: 2
   image:
-    tag: "v0.7.44"
+    tag: "v1.2.3"  # a tag from the releases page
   env:
     NEXT_PUBLIC_APP_URL: "https://sim.yourdomain.com"
     BETTER_AUTH_URL: "https://sim.yourdomain.com"
@@ -116,11 +116,11 @@ app:
 
 realtime:
   image:
-    tag: "v0.7.44"
+    tag: "v1.2.3"  # a tag from the releases page
 
 migrations:
   image:
-    tag: "v0.7.44"
+    tag: "v1.2.3"  # a tag from the releases page
 
 postgresql:
   persistence:

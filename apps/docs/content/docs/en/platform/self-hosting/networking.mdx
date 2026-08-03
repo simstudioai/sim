@@ -266,8 +266,6 @@ A proxy body limit of 250 MB accommodates all three defaults. If you lower the a
 
 The app makes outbound calls to model providers, integration APIs, your email provider, and object storage. There is no global forward-proxy setting. Sim does not read `HTTP_PROXY` / `HTTPS_PROXY`, so model-provider calls, integration calls, and email delivery cannot be routed through a forward proxy. (The HTTP Request block accepts a per-request `proxyUrl`, but that covers only that one block, not the platform's own outbound traffic.) Environments with a mandatory egress proxy need a transparent proxy or NAT-based egress instead.
 
-For a full list of what needs to be reachable, see [Air-Gapped Deployments](/platform/self-hosting/air-gapped).
-
 <FAQ items={[
   { question: "Do I need two hostnames?", answer: "No. A single hostname works if your proxy can route /socket.io to the realtime service and everything else to the app. Two hostnames are useful when path-based splitting is awkward, which is common on GKE's built-in load balancer."},
   { question: "Websockets disconnect every 30 seconds on GKE. How do I fix it?", answer: "The GCE load balancer defaults to a 30-second backend timeout. Create a BackendConfig with timeoutSec: 3600 and attach it to the realtime Service with the cloud.google.com/backend-config annotation. On AWS, raise the ALB idle_timeout instead."},

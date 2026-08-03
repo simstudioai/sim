@@ -12,14 +12,8 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parse } from 'yaml'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
-
-interface Job {
-  path: string
-  schedule: string
-}
 
 /** Parses `*​/5 * * * * curl ... "$SIM_URL/api/foo"` into its schedule and path. */
 function parseCrontab(contents: string): Map<string, string> {
@@ -37,11 +31,41 @@ function parseCrontab(contents: string): Map<string, string> {
   return jobs
 }
 
+/**
+ * Pulls the `schedule`/`path` pairs out of the `cronjobs.jobs` block.
+ *
+ * Deliberately dependency-free rather than using a YAML parser: this runs in the
+ * chart-validation CI job, which otherwise installs nothing — and a full install
+ * there drags in native modules that have no business building for a lint job.
+ * The block has a fixed shape, and an empty result is treated as an error, so a
+ * structural change fails loudly instead of silently passing.
+ */
 function parseHelmJobs(contents: string): Map<string, string> {
-  const values = parse(contents) as { cronjobs?: { jobs?: Record<string, Job> } }
+  const lines = contents.split('\n')
+  const start = lines.findIndex((l) => l.startsWith('cronjobs:'))
+  if (start === -1) throw new Error('helm/sim/values.yaml has no top-level `cronjobs:` block')
+
   const jobs = new Map<string, string>()
-  for (const job of Object.values(values.cronjobs?.jobs ?? {})) {
-    jobs.set(job.path, job.schedule)
+  let schedule: string | null = null
+
+  for (const line of lines.slice(start + 1)) {
+    // A new top-level key ends the cronjobs block.
+    if (/^[a-zA-Z]/.test(line)) break
+    const scheduleMatch = line.match(/^\s+schedule:\s*"([^"]+)"/)
+    if (scheduleMatch) {
+      schedule = scheduleMatch[1]
+      continue
+    }
+    const pathMatch = line.match(/^\s+path:\s*"([^"]+)"/)
+    if (pathMatch) {
+      if (!schedule) throw new Error(`path "${pathMatch[1]}" has no preceding schedule`)
+      jobs.set(pathMatch[1], schedule)
+      schedule = null
+    }
+  }
+
+  if (jobs.size === 0) {
+    throw new Error('parsed no jobs from cronjobs.jobs — the values.yaml shape likely changed')
   }
   return jobs
 }

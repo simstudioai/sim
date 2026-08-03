@@ -36,10 +36,6 @@ INTERNAL_API_SECRET=$(openssl rand -hex 32)
 API_ENCRYPTION_KEY=$(openssl rand -hex 32)
 CRON_SECRET=$(openssl rand -hex 32)
 
-# Pin the release. app, realtime and migrations share a schema and move together.
-# The cron service is version-independent and tracks latest.
-SIM_VERSION=v0.7.44
-
 # Your public origin. BETTER_AUTH_URL is derived from this automatically.
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
 
@@ -55,10 +51,12 @@ EOF
 </Callout>
 
 <Callout type="error">
-  Save `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` somewhere outside this server. `ENCRYPTION_KEY` encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets; `API_ENCRYPTION_KEY` encrypts user-generated Sim API keys. Neither can be regenerated — a database restore paired with a different key leaves the data it protected permanently unreadable. See [Backup & Restore](/platform/self-hosting/backup-restore).
+  Save `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` somewhere outside this server. `ENCRYPTION_KEY` encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets; `API_ENCRYPTION_KEY` encrypts user-generated Sim API keys. Neither can be regenerated — a database restore paired with a different key leaves the data it protected permanently unreadable.
 </Callout>
 
-The compose file refuses to start if `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, or `INTERNAL_API_SECRET` is missing, rather than booting with empty values. `CRON_SECRET` is treated more gently: without it the `cron` service prints what to set and exits, leaving the rest of the stack running — so upgrading from a compose file that predates the scheduler still works. Leaving `SIM_VERSION` unset falls back to `latest`; pin it in production. See [Upgrades](/platform/self-hosting/upgrades).
+The compose file refuses to start if `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, or `INTERNAL_API_SECRET` is missing, rather than booting with empty values. `CRON_SECRET` is treated more gently: without it the `cron` service prints what to set and exits, leaving the rest of the stack running — so upgrading from a compose file that predates the scheduler still works.
+
+Images track `latest` unless you pin them. For production, see [Upgrades](/platform/self-hosting/upgrades).
 
 ### 2. Start Services
 

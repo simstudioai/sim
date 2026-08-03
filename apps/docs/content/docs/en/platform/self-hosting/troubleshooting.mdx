@@ -209,7 +209,7 @@ Embeddings need a hosted provider — set `OPENAI_API_KEY`, configure Azure Open
 
 ## Credentials Unreadable After a Restore
 
-Integrations show as connected but fail, or provider keys error on decrypt. `ENCRYPTION_KEY` does not match the value in use when the backup was taken. There is no recovery — the key must be restored. See [Backup & Restore](/platform/self-hosting/backup-restore).
+Integrations show as connected but fail, or provider keys error on decrypt. `ENCRYPTION_KEY` does not match the value in use when the backup was taken. There is no recovery — the original key must be restored.
 
 ## Kubernetes: App Pods Never Become Ready
 
@@ -224,7 +224,7 @@ Common causes: `DATABASE_URL` unreachable, the database user lacking rights to c
 
 ## Kubernetes: ImagePullBackOff
 
-Either the tag does not exist in the registry (`helm get values sim` and check), or you are pulling from a private registry without `global.imagePullSecrets`. In an air-gapped setup, remember `global.useRegistryForAllImages: true` — otherwise third-party images still point at Docker Hub. See [Air-Gapped](/platform/self-hosting/air-gapped).
+Either the tag does not exist in the registry (`helm get values sim` and check), or you are pulling from a private registry without `global.imagePullSecrets`. When mirroring into a private registry, set `global.useRegistryForAllImages: true` — otherwise third-party images still point at Docker Hub.
 
 ## Kubernetes: Postgres Pod Pending
 

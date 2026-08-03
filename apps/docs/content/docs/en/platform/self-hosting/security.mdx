@@ -19,7 +19,7 @@ Five secrets drive the security of a deployment. Generate each with `openssl ran
 | `CRON_SECRET` | Background job endpoints | Yes — roll app and cron together |
 
 <Callout type="error">
-  `ENCRYPTION_KEY` cannot be rotated without re-encrypting the data it protects, and cannot be recovered if lost. Changing it renders all of that data permanently unreadable. Back it up independently of the database — see [Backup & Restore](/platform/self-hosting/backup-restore).
+  `ENCRYPTION_KEY` cannot be rotated without re-encrypting the data it protects, and cannot be recovered if lost. Changing it renders all of that data permanently unreadable. Back it up independently of the database.
 </Callout>
 
 `BETTER_AUTH_SECRET` must be **identical** on the app and realtime services — they share sessions through the database, and a mismatch means realtime rejects every authenticated socket.

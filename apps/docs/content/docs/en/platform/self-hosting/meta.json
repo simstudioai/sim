@@ -21,9 +21,7 @@
     "---Operate---",
     "observability",
     "scaling",
-    "backup-restore",
     "upgrades",
-    "air-gapped",
     "troubleshooting"
   ],
   "defaultOpen": false

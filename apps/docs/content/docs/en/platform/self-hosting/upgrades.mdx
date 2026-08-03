@@ -14,7 +14,7 @@ import { FAQ } from '@/components/ui/faq'
   Never run `:latest` in production. An unpinned tag means an unplanned restart can pull a new version with new migrations at an arbitrary time.
 </Callout>
 
-Sim publishes images to GHCR, tagged by release (`v0.7.44`) alongside `latest`:
+Sim publishes images to GHCR, tagged by release alongside `latest`:
 
 ```
 ghcr.io/simstudioai/simstudio
@@ -32,13 +32,13 @@ ghcr.io/simstudioai/migrations
 ```yaml
 app:
   image:
-    tag: "v0.7.44"
+    tag: "v1.2.3"  # a tag from the releases page
 realtime:
   image:
-    tag: "v0.7.44"
+    tag: "v1.2.3"  # a tag from the releases page
 migrations:
   image:
-    tag: "v0.7.44"
+    tag: "v1.2.3"  # a tag from the releases page
 ```
 
 When `image.tag` is unset it defaults to the chart's `appVersion`, which moves when you upgrade the chart. Setting it explicitly decouples the two. For maximum determinism, pin `image.digest` instead:
@@ -52,16 +52,14 @@ app:
   </Tab>
   <Tab value="Docker Compose">
 
-One variable drives all three schema-coupled images, so they cannot drift apart:
+Images track `latest` by default. To pin, set `SIM_VERSION` in `.env` to a tag from the [releases page](https://github.com/simstudioai/sim/releases):
 
 ```bash
 # .env
-SIM_VERSION=v0.7.44
+SIM_VERSION=v1.2.3
 ```
 
-Unset, it falls back to `latest`. Pin it in production.
-
-The `cron` service is deliberately excluded: it only makes HTTP calls and shares no schema, so it tracks `latest` unless you pin `SIM_CRON_VERSION`.
+One variable drives all three schema-coupled images, so they cannot drift apart. The `cron` service is deliberately excluded — it only makes HTTP calls and shares no schema, so it tracks `latest` unless you pin `SIM_CRON_VERSION`.
 
   </Tab>
 </Tabs>
@@ -103,8 +101,6 @@ aws rds create-db-snapshot --db-instance-identifier sim-db \
 kubectl exec -n simstudio statefulset/sim-postgresql -- \
   pg_dump -U postgres -Fc sim > "pre-upgrade-$(date +%F).dump"
 ```
-
-See [Backup & Restore](/platform/self-hosting/backup-restore).
 
 </Step>
 

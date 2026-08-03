@@ -73,7 +73,7 @@ Three places once the deployment is configured for production. Everything else i
 </Callout>
 
 <Callout type="error">
-  `ENCRYPTION_KEY` is not recoverable and not derivable. It encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets at rest — a database restore paired with a *different* key yields a working app in which none of that can be decrypted. Back it up separately from the database, and never rotate it casually. See [Backup & Restore](/platform/self-hosting/backup-restore).
+  `ENCRYPTION_KEY` is not recoverable and not derivable. It encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets at rest — a database restore paired with a *different* key yields a working app in which none of that can be decrypted. Back it up separately from the database, and never rotate it casually.
 </Callout>
 
 Redis is a cache and message bus. Losing it drops in-flight live updates; it does not lose committed data.
