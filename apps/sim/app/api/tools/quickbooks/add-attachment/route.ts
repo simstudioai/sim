@@ -49,6 +49,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
     const data = parsed.data.body
+    request.signal.throwIfAborted()
     const url = buildQuickBooksCompanyUrl(
       data.realmId,
       data.attachmentKind === 'file' ? 'upload' : 'attachable'
@@ -66,8 +67,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(metadata),
+        signal: request.signal,
       })
     } else {
+      request.signal.throwIfAborted()
       const rawFile = assertSingleQuickBooksFile(data.file ?? undefined)
       const files = processFilesToUserFiles([rawFile], requestId, logger)
       if (files.length !== 1) throw new Error('Exactly one valid file is required')
@@ -79,12 +82,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       try {
         downloaded = await downloadServableFileFromStorage(file, requestId, logger, {
           maxBytes: MAX_FILE_SIZE,
+          signal: request.signal,
         })
       } catch (error) {
         const notReady = docNotReadyResponse(error)
         if (notReady) return notReady
         throw error
       }
+      request.signal.throwIfAborted()
       assertKnownSizeWithinLimit(
         downloaded.buffer.length,
         MAX_FILE_SIZE,
@@ -118,15 +123,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         new Blob([new Uint8Array(downloaded.buffer)], { type: mimeType }),
         resolvedName
       )
+      request.signal.throwIfAborted()
       response = await fetch(url, {
         method: 'POST',
         headers: buildQuickBooksHeaders(data.accessToken),
         body: formData,
+        signal: request.signal,
       })
     }
 
-    if (!response.ok) throw await getQuickBooksDocumentError(response)
-    const transformed = await parseQuickBooksAttachableResponse(response)
+    if (!response.ok) throw await getQuickBooksDocumentError(response, request.signal)
+    const transformed = await parseQuickBooksAttachableResponse(response, request.signal)
     return NextResponse.json({
       success: true,
       output: {

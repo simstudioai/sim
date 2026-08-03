@@ -461,6 +461,11 @@ export interface QuickBooksDownloadTransactionPdfParams extends QuickBooksAuthPa
   transactionType: QuickBooksDocumentTransactionType
   transactionId: string
   fileName?: string
+  _context?: {
+    workspaceId?: string
+    workflowId?: string
+    executionId?: string
+  }
 }
 
 export interface QuickBooksReadAttachmentsParams extends QuickBooksAuthParams {
@@ -486,6 +491,11 @@ export interface QuickBooksAddAttachmentParams extends QuickBooksAuthParams {
 export interface QuickBooksDownloadAttachmentParams extends QuickBooksAuthParams {
   attachmentId: string
   fileName?: string
+  _context?: {
+    workspaceId?: string
+    workflowId?: string
+    executionId?: string
+  }
 }
 
 export interface QuickBooksReportOption {

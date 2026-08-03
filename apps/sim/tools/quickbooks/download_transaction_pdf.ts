@@ -1,4 +1,4 @@
-import { QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES } from '@/tools/quickbooks/documents_utils'
+import { QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES } from '@/tools/quickbooks/documents_utils'
 import type {
   QuickBooksDownloadTransactionPdfParams,
   QuickBooksFileResponse,
@@ -55,8 +55,20 @@ export const quickbooksDownloadTransactionPdfTool: ToolConfig<
     url: '/api/tools/quickbooks/download-transaction-pdf',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => params,
-    maxResponseBytes: QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES,
+    body: (params) => ({
+      accessToken: params.accessToken,
+      realmId: params.realmId,
+      transactionType: params.transactionType,
+      transactionId: params.transactionId,
+      fileName: params.fileName,
+      workspaceId:
+        typeof params._context?.workspaceId === 'string' ? params._context.workspaceId : undefined,
+      workflowId:
+        typeof params._context?.workflowId === 'string' ? params._context.workflowId : undefined,
+      executionId:
+        typeof params._context?.executionId === 'string' ? params._context.executionId : undefined,
+    }),
+    maxResponseBytes: QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES,
   },
   outputs: {
     ...QUICKBOOKS_FILE_OUTPUTS,

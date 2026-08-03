@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { userFileSchema } from '@/lib/api/contracts/primitives'
 import { quickBooksDownloadAttachmentContract } from '@/lib/api/contracts/tools/quickbooks'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -15,6 +16,8 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { buildQuickBooksCompanyUrl, buildQuickBooksHeaders } from '@/tools/quickbooks/client'
 import {
@@ -62,7 +65,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
     if (!parsed.success) return parsed.response
-    const { accessToken, realmId, attachmentId, fileName } = parsed.data.body
+    const { accessToken, realmId, attachmentId, fileName, workspaceId, workflowId, executionId } =
+      parsed.data.body
+    request.signal.throwIfAborted()
     const metadataUrl = buildQuickBooksCompanyUrl(
       realmId,
       `download/${encodeURIComponent(attachmentId)}`
@@ -70,12 +75,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const metadataResponse = await fetch(metadataUrl, {
       method: 'GET',
       headers: { ...buildQuickBooksHeaders(accessToken), Accept: 'text/plain' },
+      signal: request.signal,
     })
-    if (!metadataResponse.ok) throw await getQuickBooksDocumentError(metadataResponse)
+    if (!metadataResponse.ok)
+      throw await getQuickBooksDocumentError(metadataResponse, request.signal)
     const temporaryUrl = (
       await readResponseTextWithLimit(metadataResponse, {
         maxBytes: QUICKBOOKS_TEMP_URL_MAX_BYTES,
         label: 'QuickBooks temporary attachment URL',
+        signal: request.signal,
       })
     ).trim()
     if (!temporaryUrl) throw new Error('This QuickBooks attachment has no downloadable file')
@@ -87,6 +95,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       method: 'GET',
       maxResponseBytes: MAX_FILE_SIZE,
       stripAuthOnRedirect: true,
+      signal: request.signal,
     })
     if (downloadResponse.status === 404) {
       throw new Error('This QuickBooks attachment has no downloadable file')
@@ -101,6 +110,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const buffer = await readResponseToBufferWithLimit(downloadResponse, {
       maxBytes: MAX_FILE_SIZE,
       label: 'QuickBooks attachment file',
+      signal: request.signal,
     })
     if (buffer.length === 0) throw new Error('QuickBooks attachment file is empty')
     const mimeType =
@@ -118,15 +128,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       contentDispositionFileName(downloadResponse.headers.get('content-disposition')) ||
         fallbackName
     )
+    request.signal.throwIfAborted()
+    const storedFile = userFileSchema.parse(
+      workspaceId && workflowId && executionId
+        ? await uploadExecutionFile(
+            { workspaceId, workflowId, executionId },
+            buffer,
+            resolvedName,
+            mimeType,
+            authResult.userId
+          )
+        : await uploadCopilotFile({
+            buffer,
+            fileName: resolvedName,
+            contentType: mimeType,
+            userId: authResult.userId,
+          })
+    )
     return NextResponse.json({
       success: true,
       output: {
-        file: {
-          name: resolvedName,
-          mimeType,
-          data: buffer.toString('base64'),
-          size: buffer.length,
-        },
+        file: storedFile,
         attachmentId,
         fileName: resolvedName,
         mimeType,

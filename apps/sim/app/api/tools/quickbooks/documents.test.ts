@@ -7,6 +7,7 @@ import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
@@ -14,10 +15,14 @@ const {
   mockAssertToolFileAccess,
   mockDownloadServableFileFromStorage,
   mockProcessFilesToUserFiles,
+  mockUploadCopilotFile,
+  mockUploadExecutionFile,
 } = vi.hoisted(() => ({
   mockAssertToolFileAccess: vi.fn(),
   mockDownloadServableFileFromStorage: vi.fn(),
   mockProcessFilesToUserFiles: vi.fn(),
+  mockUploadCopilotFile: vi.fn(),
+  mockUploadExecutionFile: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
@@ -29,6 +34,10 @@ vi.mock('@/lib/uploads/utils/file-utils', () => ({
 }))
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
   downloadServableFileFromStorage: mockDownloadServableFileFromStorage,
+}))
+vi.mock('@/lib/uploads/contexts/copilot', () => ({ uploadCopilotFile: mockUploadCopilotFile }))
+vi.mock('@/lib/uploads/contexts/execution', () => ({
+  uploadExecutionFile: mockUploadExecutionFile,
 }))
 
 import { POST as addAttachment } from '@/app/api/tools/quickbooks/add-attachment/route'
@@ -45,6 +54,15 @@ const attachmentFile = {
   type: 'application/pdf',
 }
 
+function createAbortableRequest(body: unknown, signal: AbortSignal): NextRequest {
+  return new NextRequest('http://localhost:3000/api/tools/quickbooks/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('fetch', mockFetch)
@@ -58,6 +76,22 @@ beforeEach(() => {
   mockDownloadServableFileFromStorage.mockResolvedValue({
     buffer: Buffer.from('%PDF-1.4 fixture'),
     contentType: 'application/pdf',
+  })
+  mockUploadCopilotFile.mockResolvedValue({
+    id: 'copilot-file-1',
+    key: 'copilot/user-1/receipt.pdf',
+    name: 'receipt.pdf',
+    size: 10,
+    type: 'application/pdf',
+    url: 'https://files.example/receipt.pdf',
+  })
+  mockUploadExecutionFile.mockResolvedValue({
+    id: 'execution-file-1',
+    key: 'execution/workspace-1/workflow-1/execution-1/invoice.pdf',
+    name: 'invoice.pdf',
+    size: 16,
+    type: 'application/pdf',
+    url: 'https://files.example/invoice.pdf',
   })
   mockValidateUrlWithDNS.mockResolvedValue({
     isValid: true,
@@ -92,13 +126,29 @@ describe('QuickBooks document API routes', () => {
         transactionType: 'invoice',
         transactionId: 'A/B',
         fileName: '../invoice.pdf',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
       })
     )
     const body = await response.json()
 
     expect(response.status).toBe(200)
     expect(body.output.fileName).toBe('invoice.pdf')
-    expect(body.output.file.data).toBe(Buffer.from('%PDF-1.4 fixture').toString('base64'))
+    expect(body.output.file).toMatchObject({
+      key: 'execution/workspace-1/workflow-1/execution-1/invoice.pdf',
+      name: 'invoice.pdf',
+    })
+    expect(body.output.file).not.toHaveProperty('data')
+    expect(body.output.file).not.toHaveProperty('base64')
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
+      { workspaceId: 'workspace-1', workflowId: 'workflow-1', executionId: 'execution-1' },
+      expect.any(Buffer),
+      'invoice.pdf',
+      'application/pdf',
+      'user-1'
+    )
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
     expect(mockFetch).toHaveBeenCalledTimes(1)
     expect(String(mockFetch.mock.calls[0][0])).toContain('/invoice/A%2FB/pdf')
   })
@@ -175,6 +225,7 @@ describe('QuickBooks document API routes', () => {
     expect(body.output).toMatchObject({ attachmentId: '9', attachmentKind: 'note' })
     expect(body.output.attachment).toEqual({ Id: '9', Note: 'Audit note' })
     expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(mockFetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
     expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({
       Note: 'Audit note',
       AttachableRef: [{ EntityRef: { type: 'Invoice', value: '77' } }],
@@ -210,7 +261,7 @@ describe('QuickBooks document API routes', () => {
       attachmentFile,
       expect.any(String),
       expect.anything(),
-      { maxBytes: MAX_FILE_SIZE }
+      { maxBytes: MAX_FILE_SIZE, signal: expect.any(AbortSignal) }
     )
     const formData = mockFetch.mock.calls[0][1].body as FormData
     expect(formData.get('file_metadata_01')).toBeInstanceOf(Blob)
@@ -343,6 +394,18 @@ describe('QuickBooks document API routes', () => {
       mimeType: 'application/pdf',
       size: 10,
     })
+    expect(body.output.file).toMatchObject({
+      key: 'copilot/user-1/receipt.pdf',
+      name: 'receipt.pdf',
+    })
+    expect(body.output.file).not.toHaveProperty('data')
+    expect(body.output.file).not.toHaveProperty('base64')
+    expect(mockUploadCopilotFile).toHaveBeenCalledWith({
+      buffer: expect.any(Buffer),
+      fileName: 'receipt.pdf',
+      contentType: 'application/pdf',
+      userId: 'user-1',
+    })
     expect(mockFetch).toHaveBeenCalledTimes(1)
     expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'https://intuit-download.example/receipt.pdf',
@@ -351,7 +414,12 @@ describe('QuickBooks document API routes', () => {
     expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://intuit-download.example/receipt.pdf',
       '203.0.113.8',
-      { method: 'GET', maxResponseBytes: MAX_FILE_SIZE, stripAuthOnRedirect: true }
+      {
+        method: 'GET',
+        maxResponseBytes: MAX_FILE_SIZE,
+        stripAuthOnRedirect: true,
+        signal: expect.any(AbortSignal),
+      }
     )
   })
 
@@ -435,5 +503,98 @@ describe('QuickBooks document API routes', () => {
     expect(body.error).toContain('Reconnect the QuickBooks credential')
     expect(body.error).toContain('tracking-1')
     expect(body.error).not.toContain('access-token')
+  })
+
+  it('cancels PDF and attachment downloads before storing their bytes', async () => {
+    const pdfController = new AbortController()
+    const pdfRequest = createAbortableRequest(
+      { ...auth, transactionType: 'invoice', transactionId: '1' },
+      pdfController.signal
+    )
+    mockFetch.mockImplementationOnce(async (_url, init) => {
+      expect(init.signal).toBe(pdfRequest.signal)
+      pdfController.abort()
+      return new Response('%PDF-1.4 fixture', {
+        headers: { 'content-type': 'application/pdf' },
+      })
+    })
+
+    const pdfResponse = await downloadTransactionPdf(pdfRequest)
+    expect(pdfResponse.status).toBe(500)
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
+
+    vi.clearAllMocks()
+    hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'internal_jwt',
+    })
+    mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.8',
+      originalHostname: 'intuit-download.example',
+    })
+    const attachmentController = new AbortController()
+    const attachmentRequest = createAbortableRequest(
+      { ...auth, attachmentId: '15' },
+      attachmentController.signal
+    )
+    mockFetch.mockResolvedValueOnce(new Response('https://intuit-download.example/receipt.pdf'))
+    mockSecureFetchWithPinnedIP.mockImplementationOnce(async (_url, _ip, init) => {
+      expect(init.signal).toBe(attachmentRequest.signal)
+      attachmentController.abort()
+      return new Response('file bytes', { headers: { 'content-type': 'application/pdf' } })
+    })
+
+    const attachmentResponse = await downloadAttachment(attachmentRequest)
+    expect(attachmentResponse.status).toBe(500)
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
+  })
+
+  it('does not begin an attachment mutation when cancellation arrives after file loading', async () => {
+    const controller = new AbortController()
+    const request = createAbortableRequest(
+      {
+        ...auth,
+        attachmentKind: 'file',
+        targetType: 'invoice',
+        targetId: '1',
+        file: attachmentFile,
+      },
+      controller.signal
+    )
+    mockDownloadServableFileFromStorage.mockImplementationOnce(
+      async (_file, _id, _logger, opts) => {
+        expect(opts.signal).toBe(request.signal)
+        controller.abort()
+        return { buffer: Buffer.from('%PDF-1.4 fixture'), contentType: 'application/pdf' }
+      }
+    )
+
+    const response = await addAttachment(request)
+    expect(response.status).toBe(500)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('does not begin a note attachment mutation when the request is already cancelled', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const response = await addAttachment(
+      createAbortableRequest(
+        {
+          ...auth,
+          attachmentKind: 'note',
+          targetType: 'invoice',
+          targetId: '1',
+          note: 'Audit note',
+        },
+        controller.signal
+      )
+    )
+
+    expect(response.status).toBe(500)
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 })

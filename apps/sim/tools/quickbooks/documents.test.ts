@@ -4,7 +4,7 @@ import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
   getQuickBooksAttachmentTarget,
   parseQuickBooksAttachableResponse,
-  QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES,
+  QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES,
   sanitizeQuickBooksAttachable,
   sanitizeQuickBooksFileName,
   validateQuickBooksAttachmentFileType,
@@ -294,14 +294,32 @@ describe('QuickBooks document validation and block parity', () => {
     )
   })
 
-  it('allows bounded 100 MiB file outputs to pass through the tool executor', () => {
+  it('keeps internal download route responses as small stored-file metadata', () => {
     expect(quickbooksDownloadTransactionPdfTool.request.maxResponseBytes).toBe(
-      QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES
+      QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES
     )
     expect(quickbooksDownloadAttachmentTool.request.maxResponseBytes).toBe(
-      QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES
+      QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES
     )
-    expect(QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES).toBeGreaterThan((100 * 1024 * 1024 * 4) / 3)
+    expect(QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES).toBe(256 * 1024)
+  })
+
+  it('forwards trusted execution context only to file download routes', () => {
+    const body = quickbooksDownloadTransactionPdfTool.request.body!({
+      ...auth,
+      transactionType: 'invoice',
+      transactionId: '12',
+      _context: {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      },
+    })
+    expect(body).toMatchObject({
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
   })
 
   it('exposes exactly 45 operation/tool pairs and a canonical single-file input pair', () => {

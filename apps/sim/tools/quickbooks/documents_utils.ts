@@ -1,6 +1,5 @@
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
-import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 import type {
@@ -138,11 +137,13 @@ export function sanitizeQuickBooksAttachable(
 }
 
 export async function parseQuickBooksAttachableResponse(
-  response: Response
+  response: Response,
+  signal?: AbortSignal
 ): Promise<{ attachment: QuickBooksAttachable; time: string | null }> {
   const data = await parseQuickBooksJson<QuickBooksAttachableEnvelope>(
     response,
-    'QuickBooks Attachable response'
+    'QuickBooks Attachable response',
+    signal
   )
   const nestedFault = data.AttachableResponse?.find((entry) => entry.Fault)?.Fault
   const sanitizedFault = sanitizeQuickBooksFaultData({ Fault: nestedFault })
@@ -196,15 +197,18 @@ export function assertSingleQuickBooksFile(file: RawFileInput | undefined): RawF
 
 export const QUICKBOOKS_TEMP_URL_MAX_BYTES = 64 * 1024
 export const QUICKBOOKS_DOCUMENT_JSON_MAX_BYTES = QUICKBOOKS_MAX_RESPONSE_BYTES
-export const QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES =
-  Math.ceil((MAX_FILE_SIZE * 4) / 3) + 256 * 1024
+export const QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES = 256 * 1024
 
-export async function getQuickBooksDocumentError(response: Response): Promise<Error> {
+export async function getQuickBooksDocumentError(
+  response: Response,
+  signal?: AbortSignal
+): Promise<Error> {
   let detail = ''
   try {
     const text = await readResponseTextWithLimit(response, {
       maxBytes: QUICKBOOKS_TEMP_URL_MAX_BYTES,
       label: 'QuickBooks document error response',
+      signal,
     })
     if (text) {
       try {

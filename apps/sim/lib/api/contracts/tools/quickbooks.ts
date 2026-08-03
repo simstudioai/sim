@@ -1,4 +1,10 @@
 import { z } from 'zod'
+import {
+  nonEmptyIdSchema,
+  userFileSchema,
+  workflowIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
@@ -57,12 +63,6 @@ const optionalDescription = z
   .nullable()
 const optionalNote = z.string().trim().max(4000, 'Note is too long').optional().nullable()
 const boundedId = z.string().trim().min(1, 'ID is required').max(256, 'ID is too long')
-const fileOutputSchema = z.object({
-  name: z.string().min(1).max(180),
-  mimeType: z.string().min(1).max(255),
-  data: z.string().min(1),
-  size: z.number().int().positive(),
-})
 const routeErrorSchema = z.object({ success: z.literal(false), error: z.string().min(1) })
 const attachableSchema = z
   .object({
@@ -78,11 +78,17 @@ export const quickBooksDownloadTransactionPdfBodySchema = quickBooksAuthSchema.e
   transactionType: documentTransactionTypeSchema,
   transactionId: boundedId,
   fileName: optionalFileName,
+  workspaceId: workspaceIdSchema.optional(),
+  workflowId: workflowIdSchema.optional(),
+  executionId: nonEmptyIdSchema.optional(),
 })
 
 export const quickBooksDownloadAttachmentBodySchema = quickBooksAuthSchema.extend({
   attachmentId: boundedId,
   fileName: optionalFileName,
+  workspaceId: workspaceIdSchema.optional(),
+  workflowId: workflowIdSchema.optional(),
+  executionId: nonEmptyIdSchema.optional(),
 })
 
 export const quickBooksAddAttachmentBodySchema = quickBooksAuthSchema
@@ -143,7 +149,7 @@ export const quickBooksDownloadTransactionPdfContract = defineRouteContract({
       z.object({
         success: z.literal(true),
         output: z.object({
-          file: fileOutputSchema,
+          file: userFileSchema,
           transactionType: documentTransactionTypeSchema,
           transactionId: boundedId,
           fileName: z.string().min(1).max(180),
@@ -166,7 +172,7 @@ export const quickBooksDownloadAttachmentContract = defineRouteContract({
       z.object({
         success: z.literal(true),
         output: z.object({
-          file: fileOutputSchema,
+          file: userFileSchema,
           attachmentId: boundedId,
           fileName: z.string().min(1).max(180),
           mimeType: z.string().min(1).max(255),

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { userFileSchema } from '@/lib/api/contracts/primitives'
 import { quickBooksDownloadTransactionPdfContract } from '@/lib/api/contracts/tools/quickbooks'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -9,6 +10,8 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { buildQuickBooksCompanyUrl, buildQuickBooksHeaders } from '@/tools/quickbooks/client'
 import {
@@ -43,7 +46,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
     if (!parsed.success) return parsed.response
-    const { accessToken, realmId, transactionType, transactionId, fileName } = parsed.data.body
+    const {
+      accessToken,
+      realmId,
+      transactionType,
+      transactionId,
+      fileName,
+      workspaceId,
+      workflowId,
+      executionId,
+    } = parsed.data.body
+    request.signal.throwIfAborted()
     const { resource } = getQuickBooksDocumentTransaction(transactionType)
     const url = buildQuickBooksCompanyUrl(
       realmId,
@@ -52,8 +65,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const response = await fetch(url, {
       method: 'GET',
       headers: { ...buildQuickBooksHeaders(accessToken), Accept: 'application/pdf' },
+      signal: request.signal,
     })
-    if (!response.ok) throw await getQuickBooksDocumentError(response)
+    if (!response.ok) throw await getQuickBooksDocumentError(response, request.signal)
 
     const mimeType =
       response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
@@ -61,6 +75,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const buffer = await readResponseToBufferWithLimit(response, {
       maxBytes: MAX_FILE_SIZE,
       label: 'QuickBooks transaction PDF',
+      signal: request.signal,
     })
     if (buffer.length === 0) throw new Error('QuickBooks returned an empty PDF')
     if (buffer.subarray(0, 5).toString('ascii') !== '%PDF-') {
@@ -72,16 +87,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!resolvedName.toLowerCase().endsWith('.pdf'))
       throw new Error('PDF filename must end in .pdf')
+    request.signal.throwIfAborted()
+
+    const storedFile = userFileSchema.parse(
+      workspaceId && workflowId && executionId
+        ? await uploadExecutionFile(
+            { workspaceId, workflowId, executionId },
+            buffer,
+            resolvedName,
+            mimeType,
+            authResult.userId
+          )
+        : await uploadCopilotFile({
+            buffer,
+            fileName: resolvedName,
+            contentType: mimeType,
+            userId: authResult.userId,
+          })
+    )
 
     return NextResponse.json({
       success: true,
       output: {
-        file: {
-          name: resolvedName,
-          mimeType,
-          data: buffer.toString('base64'),
-          size: buffer.length,
-        },
+        file: storedFile,
         transactionType,
         transactionId,
         fileName: resolvedName,
