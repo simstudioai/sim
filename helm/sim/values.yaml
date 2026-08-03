@@ -106,7 +106,7 @@ app:
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
     API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest; if unset, keys are stored in plain text
-    REDIS_URL: ""           # OPTIONAL - external Redis connection string. Takes precedence over the bundled Redis (see the `redis:` section) and suppresses it. If it instead comes from a pre-created Secret, set redis.provideUrl=false; if from External Secrets, map externalSecrets.remoteRefs.app.REDIS_URL and the chart detects it.
+    REDIS_URL: ""           # OPTIONAL - external Redis connection string. Overrides the bundled Redis (see the `redis:` section) and suppresses its Deployment. A REDIS_URL from a pre-created Secret or External Secrets also wins, without needing to be repeated here.
     
     # Email & Communication
     # Configure one provider — the mailer auto-detects in priority order:
@@ -563,13 +563,6 @@ realtime:
 # its connection string in app.env.REDIS_URL, which then takes over.
 redis:
   enabled: true
-
-  # Inject REDIS_URL pointing at the bundled instance. Set false when you run
-  # `app.secrets.existingSecret` and that Secret already contains REDIS_URL —
-  # the chart cannot read a pre-created Secret, and a computed env entry would
-  # take precedence over it. Not needed for External Secrets: mapping
-  # externalSecrets.remoteRefs.app.REDIS_URL is detected automatically.
-  provideUrl: true
 
   image:
     repository: redis

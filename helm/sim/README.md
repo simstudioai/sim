@@ -473,17 +473,11 @@ Two changes alter behavior on an existing release. Neither requires action, but 
 
 * **Free-tier plan limits are no longer preset.** `app.envDefaults` previously shipped `RATE_LIMIT_FREE_SYNC`, `RATE_LIMIT_FREE_ASYNC`, `EXECUTION_TIMEOUT_FREE`, `EXECUTION_TIMEOUT_ASYNC_FREE`, `FREE_TABLES_LIMIT: 3`, and `FREE_TABLE_ROWS_LIMIT: 1000`. With billing disabled the application treats these as **opt-in** — unset means unlimited — so presetting them imposed hosted-plan caps on self-hosted deployments and diverged from Docker Compose, which presets nothing. They are now commented out. **On upgrade, these limits stop being enforced.** To keep them, set the keys explicitly under `app.env`. An explicitly set value has always taken precedence and is unaffected.
 
-* **Redis is now bundled** (`redis.enabled: true`), matching the Docker Compose stack. Redis backs pub/sub and the Socket.IO adapter, and multi-replica deployments silently drop cross-pod events without it. The chart steps aside whenever it can tell you are supplying `REDIS_URL` yourself, so no upgrade reroutes an existing instance:
+* **Redis is now bundled** (`redis.enabled: true`), matching the Docker Compose stack. Redis backs pub/sub and the Socket.IO adapter, and multi-replica deployments silently drop cross-pod events without it.
 
-  | Your configuration | Bundled Redis | `REDIS_URL` |
-  |---|---|---|
-  | Default install | Deployed | Points at the bundled instance |
-  | `app.env.REDIS_URL` set | Not deployed | Your value |
-  | `externalSecrets.remoteRefs.app.REDIS_URL` mapped | Not deployed | Synced by ESO — detected automatically |
-  | `redis.provideUrl: false` | Not deployed | Whatever your pre-created Secret contains |
-  | `redis.enabled: false` | Not deployed | Unset unless you provide it |
+  **An existing `REDIS_URL` always wins, wherever it comes from — no action needed on upgrade.** The bundled URL ships as a ConfigMap listed *before* the app Secret in `envFrom`. Kubernetes resolves duplicate keys by letting the last source win, so a `REDIS_URL` in your chart-managed Secret, a pre-created `existingSecret`, or one synced by External Secrets overrides the bundled value — the chart never has to read it. The bundled Redis simply fills the gap when nothing else provides a URL.
 
-  **If you use `app.secrets.existingSecret` and that Secret already contains `REDIS_URL`, set `redis.provideUrl: false`.** The chart cannot read a pre-created Secret, so it would otherwise inject a computed `REDIS_URL` as a container `env` entry, which takes precedence over `envFrom` and would shadow your value. External Secrets needs no such flag — mapping `remoteRefs.app.REDIS_URL` is detected on its own.
+  Set `app.env.REDIS_URL` to skip the bundled Deployment entirely (no unused pod), or `redis.enabled: false` to opt out.
 
 ## Upgrading to 1.2.0
 

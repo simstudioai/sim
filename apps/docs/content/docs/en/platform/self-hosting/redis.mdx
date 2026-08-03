@@ -58,12 +58,9 @@ app:
     REDIS_URL: "rediss://:<password>@my-cache.internal:6380"
 ```
 
-`app.env.REDIS_URL` takes over whenever it is set, and the chart skips the bundled instance so you do not get a stray pod.
+`app.env.REDIS_URL` takes over whenever it is set, and the chart skips the bundled Deployment so you do not get a stray pod.
 
-If the URL lives in a secret store rather than in values:
-
-- **External Secrets** — map `externalSecrets.remoteRefs.app.REDIS_URL`. The chart detects the mapping and steps aside automatically.
-- **Pre-created Secret** (`app.secrets.existingSecret`) — set `redis.provideUrl: false`. The chart cannot read your Secret, so without this it would inject a computed `REDIS_URL` that takes precedence over `envFrom` and shadows your value.
+If the URL lives in a secret store instead — a pre-created Secret or one synced by External Secrets — it also wins, and there is nothing extra to configure. The bundled URL is delivered as a ConfigMap listed before the app Secret in `envFrom`, and Kubernetes lets the last source win for duplicate keys, so your value overrides it without the chart ever reading it.
 
 The bundled Redis is deliberately non-persistent (`--save ""`, `--appendonly no`) with a 512 MB cap: Sim stores coordination state and short-lived keys in it, so a restart costs in-flight live updates rather than committed data.
 

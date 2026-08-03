@@ -91,10 +91,6 @@ spec:
               value: {{ include "sim.ollamaUrl" . | quote }}
             - name: PII_URL
               value: {{ include "sim.piiUrl" . | quote }}
-            {{- with (include "sim.redisUrl" .) }}
-            - name: REDIS_URL
-              value: {{ . | quote }}
-            {{- end }}
             {{- /*
               Skip envDefaults keys that the user has explicitly overridden in app.env
               with a non-empty value. K8s `env` takes precedence over `envFrom`, so an
@@ -123,7 +119,7 @@ spec:
               and in inline mode (values flow through the chart-managed Secret).
             */}}
             {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
-            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" "REDIS_URL" }}
+            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" }}
             {{- range $key, $value := $appEnv }}
             {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (not (has $key $chartComputed)) }}
             - name: {{ $key }}
@@ -147,6 +143,12 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           envFrom:
+            # Bundled Redis URL. Listed FIRST so any operator-supplied REDIS_URL
+            # in a later source overrides it — see templates/configmap-redis.yaml.
+            {{- if include "sim.chartManagesRedis" . }}
+            - configMapRef:
+                name: {{ include "sim.fullname" . }}-redis
+            {{- end }}
             # App secrets (authentication, encryption keys)
             - secretRef:
                 name: {{ include "sim.appSecretName" . }}

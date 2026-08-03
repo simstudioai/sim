@@ -465,51 +465,18 @@ PII (Presidio) service URL
 {{- end }}
 
 {{/*
-Whether the operator is supplying REDIS_URL themselves.
+Whether the chart owns Redis for this release.
 
-Three detectable signals:
-  - app.env.REDIS_URL set explicitly
-  - externalSecrets.remoteRefs.app.REDIS_URL mapped (ESO syncs it into the Secret)
-  - redis.provideUrl=false, the opt-out for a pre-created Secret that already
-    contains REDIS_URL, which the chart cannot read at render time
-
-When any holds, the chart neither deploys Redis nor emits a computed REDIS_URL —
-a container `env` entry beats `envFrom`, so emitting one would silently shadow
-the operator's value and reroute a managed Redis to an empty in-cluster instance.
-*/}}
-{{- define "sim.redisUrlSuppliedByOperator" -}}
-{{- $esoRef := "" -}}
-{{- if .Values.externalSecrets.enabled -}}
-{{- $esoRef = dig "remoteRefs" "app" "REDIS_URL" "" .Values.externalSecrets -}}
-{{- end -}}
-{{- if or (.Values.app.env.REDIS_URL | default "") $esoRef (not .Values.redis.provideUrl) -}}
-true
-{{- end -}}
-{{- end }}
-
-{{/*
-Whether the chart owns Redis for this release: enabled, and the operator is not
-supplying a URL themselves. Secret-manager modes alone do NOT suppress it —
-doing so left those deployments with no Redis at all, since REDIS_URL is optional
-and the shipped examples omit it.
+False only when the operator points app.env.REDIS_URL at their own instance —
+then deploying a bundled one would leave an unused pod. Secret-manager modes do
+NOT suppress it: the bundled URL ships as a ConfigMap listed before the app
+Secret in envFrom, so any operator-supplied REDIS_URL (chart Secret, pre-created
+Secret, or ESO-synced) overrides it without the chart needing to see the value.
+See templates/configmap-redis.yaml.
 */}}
 {{- define "sim.chartManagesRedis" -}}
-{{- if and .Values.redis.enabled (not (include "sim.redisUrlSuppliedByOperator" .)) -}}
+{{- if and .Values.redis.enabled (not (.Values.app.env.REDIS_URL | default "")) -}}
 true
-{{- end -}}
-{{- end }}
-
-{{/*
-Redis URL emitted as a chart-computed container env. Only set when the chart owns
-Redis, or when app.env.REDIS_URL is given explicitly. Empty otherwise, so a
-Secret- or ESO-supplied value flows through envFrom untouched.
-*/}}
-{{- define "sim.redisUrl" -}}
-{{- $external := .Values.app.env.REDIS_URL | default "" -}}
-{{- if $external -}}
-{{- $external -}}
-{{- else if (include "sim.chartManagesRedis" .) -}}
-{{- printf "redis://%s-redis:6379" (include "sim.fullname" .) -}}
 {{- end -}}
 {{- end }}
 

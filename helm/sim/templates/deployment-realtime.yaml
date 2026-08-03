@@ -62,10 +62,6 @@ spec:
           env:
             - name: DATABASE_URL
               value: {{ include "sim.databaseUrl" . | quote }}
-            {{- with (include "sim.redisUrl" .) }}
-            - name: REDIS_URL
-              value: {{ . | quote }}
-            {{- end }}
             {{- if .Values.telemetry.enabled }}
             {{- $nodeEnv := default (default "production" (index (.Values.realtime.envDefaults | default dict) "NODE_ENV")) (index (.Values.realtime.env | default dict) "NODE_ENV") }}
             # OpenTelemetry configuration
@@ -116,7 +112,7 @@ spec:
               deployment.
             */}}
             {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
-            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" "REDIS_URL" }}
+            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" }}
             {{- /*
               Build the effective realtime env from app.env as the base, then
               overlay non-empty realtime.env values. Sprig's `merge` keeps the
@@ -141,6 +137,12 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           envFrom:
+            # Bundled Redis URL. Listed FIRST so any operator-supplied REDIS_URL
+            # in a later source overrides it — see templates/configmap-redis.yaml.
+            {{- if include "sim.chartManagesRedis" . }}
+            - configMapRef:
+                name: {{ include "sim.fullname" . }}-redis
+            {{- end }}
             # App secrets (authentication keys shared with main app)
             - secretRef:
                 name: {{ include "sim.appSecretName" . }}
