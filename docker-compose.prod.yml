@@ -26,10 +26,10 @@ services:
       # untrusted address as the client IP. Required for correct session IPs and
       # rate-limit keying behind a multi-hop proxy chain. Empty by default.
       - AUTH_TRUSTED_PROXIES=${AUTH_TRUSTED_PROXIES:-}
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required. Run bun run setup, or set it in .env (32+ characters)}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required. Run bun run setup, or set it in .env (exactly 64 hex characters)}
       - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET is required. Run bun run setup, or set it in .env (32+ characters)}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - COPILOT_API_KEY=${COPILOT_API_KEY:-}
       - NEXT_PUBLIC_CHAT_DISABLED=${NEXT_PUBLIC_CHAT_DISABLED:-}
@@ -76,8 +76,8 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required. Run bun run setup, or set it in .env (32+ characters)}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET is required. Run bun run setup, or set it in .env (32+ characters)}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       db:
