@@ -1,0 +1,27 @@
+name: Sim CodeQL config
+
+# Trims the extraction surface. CodeQL parses every matching file into a
+# database before a single query runs, and that phase dominates runtime on a
+# ~12.7k-file JS/TS tree. Test and fixture code is not attacker-reachable, so
+# excluding it costs no real coverage.
+#
+# paths-ignore applies to analysis. The workflow's `on.pull_request.paths`
+# filter is separate and decides whether the run happens at all.
+paths-ignore:
+  - '**/*.test.ts'
+  - '**/*.test.tsx'
+  - '**/*.test.js'
+  - '**/*.spec.ts'
+  - '**/*.spec.tsx'
+  - '**/__tests__/**'
+  - '**/__mocks__/**'
+  - '**/__fixtures__/**'
+  - '**/test/**'
+  - '**/tests/**'
+  - '**/testing/**'
+  - '**/e2e/**'
+  - '**/*.d.ts'
+  - '**/node_modules/**'
+  - '**/dist/**'
+  - '**/.next/**'
+  - 'apps/docs/content/**'
