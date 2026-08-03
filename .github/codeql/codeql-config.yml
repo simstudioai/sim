@@ -16,10 +16,16 @@ paths-ignore:
   - '**/__tests__/**'
   - '**/__mocks__/**'
   - '**/__fixtures__/**'
-  - '**/test/**'
-  - '**/tests/**'
-  - '**/testing/**'
   - '**/e2e/**'
+  # Deliberately no '**/test/**' or '**/tests/**'. A directory named `test` is a
+  # routable Next.js path segment, not necessarily test code: those globs
+  # excluded the real endpoint
+  # apps/sim/app/api/organizations/[id]/data-drains/[drainId]/test/route.ts,
+  # which authorizes, decrypts destination credentials, and makes an outbound
+  # request. CodeQL's paths-ignore has no `!` negation to carve it back out
+  # ("The filter pattern characters ?, +, [, ], and ! are not supported and will
+  # be matched literally"), and the globs only covered 76 of 12,716 files, so
+  # the naming convention above is the safer filter.
   - '**/*.d.ts'
   - '**/node_modules/**'
   - '**/dist/**'

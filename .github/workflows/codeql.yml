@@ -22,8 +22,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main, staging]
-    # Draft PRs are excluded via the job-level `if`, not here: `types` would
-    # also have to re-list the default event types to keep synchronize working.
+    # `ready_for_review` is not a default activity type, so it has to be listed
+    # alongside the defaults it replaces. Without it, a PR opened as a draft and
+    # then marked ready is skipped by the job-level draft guard and never
+    # rescanned until the next push.
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - '**/*.ts'
       - '**/*.tsx'
