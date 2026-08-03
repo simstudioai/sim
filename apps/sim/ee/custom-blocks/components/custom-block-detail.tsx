@@ -439,8 +439,8 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           ...(existing && canManageBlock
             ? [
                 {
+                  id: 'delete',
                   text: remove.isPending ? 'Deleting...' : 'Delete',
-                  variant: 'destructive' as const,
                   onSelect: () => {
                     setShowDelete(true)
                     // The warning must reflect the org's CURRENT usage, not a

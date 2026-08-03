@@ -1543,8 +1543,8 @@ export function GroupDetail({
             saveDisabled: !trimmedName,
           }),
           {
+            id: 'delete',
             text: deletePermissionGroup.isPending ? 'Deleting...' : 'Delete',
-            variant: 'destructive',
             onSelect: () => setShowDeleteConfirm(true),
             disabled: deletePermissionGroup.isPending,
           },

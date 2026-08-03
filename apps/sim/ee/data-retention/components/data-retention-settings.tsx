@@ -516,8 +516,8 @@ function PolicyDetail({
           ...(canRemove
             ? [
                 {
+                  id: 'delete',
                   text: 'Remove override',
-                  variant: 'destructive',
                   onSelect: () => setShowRemoveConfirm(true),
                   disabled: isSaving,
                 } satisfies SettingsAction,

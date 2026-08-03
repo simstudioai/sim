@@ -217,7 +217,6 @@ export function Sandboxes() {
                   {
                     id: 'delete',
                     text: deleteSandbox.isPending ? 'Deleting...' : 'Delete',
-                    variant: 'destructive' as const,
                     onSelect: () => setShowDeleteConfirm(true),
                     disabled: deleteSandbox.isPending,
                   },
