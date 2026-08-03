@@ -256,9 +256,20 @@ Every detail header reads left→right:
 ```
 
 You do not have to get the array order right — `orderHeaderActions()` ranks them
-(secondary → `id:'discard'` → `variant:'primary'`), order-stable within each
-band, so spreading `saveDiscardActions()` first still renders Save last. Both
-action stacks apply it: `SettingsHeaderShell` and `SettingsActionChips`.
+(secondary → `id:'delete'` → `id:'discard'` → `variant:'primary'`), order-stable
+within each band, so spreading `saveDiscardActions()` first still renders Save
+last. Three stacks apply it: `SettingsHeaderShell`, `SettingsActionChips`, and
+`Resource.Header` — so tables, files, knowledge and logs get the same ordering
+as settings.
+
+Delete is placed by its **`id`**, not by position, which is why `id:'delete'` is
+required rather than cosmetic: a page with no primary action still must not
+leave a destructive chip in the slot a primary would occupy.
+
+The bar geometry and the action cluster are both single-sourced in
+`@/components/page-header-bar` — `PAGE_HEADER_BAR` (or `Resource.Header`'s
+bordered variant) and `HEADER_ACTION_CLUSTER`. Never re-derive `h-[30px]`,
+`gap-1`, or the lane padding per header.
 Covered by `settings-header-order.test.ts` and `settings-header-shell.test.tsx`
 — the latter pins that a reordered chip still routes to its own handler.
 
