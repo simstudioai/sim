@@ -133,8 +133,8 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
         description='Saved on this device, encrypted. Chat can never read, choose, or type it.'
         actions={[
           {
+            id: 'delete',
             text: 'Forget',
-            variant: 'destructive' as const,
             onSelect: () => setConfirmingForget(true),
             disabled: busy,
           },

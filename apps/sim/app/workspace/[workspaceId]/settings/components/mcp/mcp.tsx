@@ -448,7 +448,6 @@ export function MCP() {
                 {
                   id: 'delete',
                   text: deletingServers.has(server.id) ? 'Deleting...' : 'Delete',
-                  variant: 'destructive' as const,
                   onSelect: () => handleRemoveServer(server.id),
                   disabled: deletingServers.has(server.id),
                 },

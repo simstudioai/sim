@@ -247,12 +247,46 @@ the email is the primary content; `components/permissions/member-row.tsx` render
 a 36px `getUserColor`-hashed avatar for member *management* rows that carry a name,
 an email, and a role control. Same shape, different job — do not merge them.
 
+## Header action order
+
+Every detail header reads left→right:
+
+```
+← Back        [secondary actions] → Delete → Discard → Save
+```
+
+You do not have to get the array order right — `orderHeaderActions()` ranks them
+(secondary → `id:'discard'` → `variant:'primary'`), order-stable within each
+band, so spreading `saveDiscardActions()` first still renders Save last. Both
+action stacks apply it: `SettingsHeaderShell` and `SettingsActionChips`.
+Covered by `settings-header-order.test.ts` and `settings-header-shell.test.tsx`
+— the latter pins that a reordered chip still routes to its own handler.
+
+Two consequences worth knowing:
+
+- **The primary chip is always right-most**, and it is not always Save — on a
+  page with no save state it is whatever the primary action is (`Add workflows`,
+  `Import`). Delete still precedes it.
+- `CredentialDetailLayout` takes a `ReactNode`, so the chips you write directly
+  are in your order — only what you route through `SettingsActionChips` /
+  `SaveDiscardChips` is ranked. Put `<SaveDiscardChips>` last (skills, secrets,
+  connected credentials already do).
+
 ## Deleting a resource
 
-Delete lives in the **detail header**, as
-`{ text: 'Delete', variant: 'destructive', onSelect: … }` behind a
-`ChipConfirmModal` — never `textTone: 'error'`, never a bare `Chip`, and never
-unconfirmed. A list row does not carry Delete when the resource has a detail page.
+Delete lives in the **detail header**, as `{ id: 'delete', text: 'Delete',
+onSelect: … }` behind a `ChipConfirmModal` — a **plain chip**, never
+`textTone: 'error'`, and never unconfirmed. In a `SettingsPanel` header it is
+action *data*, never a hand-rolled `<Chip>`; only `CredentialDetailLayout`
+surfaces, which take a `ReactNode`, render one directly. Always set `id: 'delete'`; without a
+stable id the chip remounts when the label flips to `Deleting...`.
+
+`variant: 'destructive'` is reserved for actions that are destructive at
+**scale** — `Delete all` passwords, `Clear all` browsing data, `Sign out all
+members`. Removing the single resource you are already looking at is confirmed
+by the modal, so it does not also need a red chip.
+
+A list row does not carry Delete when the resource has a detail page.
 
 ## Save / Discard + unsaved-changes guard
 
@@ -344,5 +378,5 @@ A settings page is design-system-clean when:
 - [ ] Rows that open a detail page use `navigable` + `clickLabel`; flat records use `RowActionsMenu`. Not both.
 - [ ] Decorative trailing content is in `badge`, not `trailing`.
 - [ ] Labeled sections use `SettingsSection`; read-only fields use `SettingsField`; empty/loading/error use `SettingsEmptyState`.
-- [ ] Delete is a `destructive` header action behind a `ChipConfirmModal`.
+- [ ] Delete is a plain `id:'delete'` header action behind a `ChipConfirmModal`; `destructive` is reserved for bulk actions.
 - [ ] `tsc`, `biome`, and the page's tests pass.

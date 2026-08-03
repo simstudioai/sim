@@ -411,7 +411,6 @@ function ServerDetailView({
                       {
                         id: 'delete',
                         text: isDeleting ? 'Deleting...' : 'Delete',
-                        variant: 'destructive' as const,
                         onSelect: onDelete,
                         disabled: isDeleting,
                       },
