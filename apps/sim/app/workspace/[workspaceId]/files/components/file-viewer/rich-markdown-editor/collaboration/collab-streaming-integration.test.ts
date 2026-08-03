@@ -90,8 +90,8 @@ describe('collab streaming integration — moving pieces', () => {
 
     const session = beginAgentStream(A.editor)!
     applyAgentStreamFrame(A.editor, session, '# Title\n\nAlpha\n\nBeta\n\nGamma\n\nDelta')
-    peerInsertNear(B.editor, 'Alpha', 'B_EDIT ') // peer B edits the top
-    peerInsertNear(C.editor, 'Gamma', 'C_EDIT ') // peer C edits the bottom
+    expect(peerInsertNear(B.editor, 'Alpha', 'B_EDIT ')).toBe(true) // peer B edits the top
+    expect(peerInsertNear(C.editor, 'Gamma', 'C_EDIT ')).toBe(true) // peer C edits the bottom
     applyAgentStreamFrame(
       A.editor,
       session,
@@ -120,7 +120,7 @@ describe('collab streaming integration — moving pieces', () => {
     Y.applyUpdate(B.doc, Y.encodeStateAsUpdate(A.doc))
     wireMesh([A.doc, B.doc])
 
-    peerInsertNear(B.editor, 'base', 'PEER_UNDOABLE ') // peer's own edit (goes on peer's undo stack)
+    expect(peerInsertNear(B.editor, 'base', 'PEER_UNDOABLE ')).toBe(true) // peer's own edit (undo stack)
     const session = beginAgentStream(A.editor)!
     applyAgentStreamFrame(
       A.editor,

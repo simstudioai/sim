@@ -168,7 +168,7 @@ describe('two-writer: peer edits while the agent streams', () => {
 
     applyAgentStreamFrame(A.editor, session, '# Title\n\noriginal body text extended')
     // Peer edits the SAME paragraph the agent is rewriting.
-    peerInsertNear(B.editor, 'original', 'PEER ')
+    expect(peerInsertNear(B.editor, 'original', 'PEER ')).toBe(true)
     applyAgentStreamFrame(A.editor, session, '# Title\n\nagent fully rewrote this paragraph')
     endAgentStream(session)
 
