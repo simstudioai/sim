@@ -72,11 +72,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const files = processFilesToUserFiles([rawFile], requestId, logger)
       if (files.length !== 1) throw new Error('Exactly one valid file is required')
       const file = files[0]
+      assertKnownSizeWithinLimit(file.size, MAX_FILE_SIZE, 'QuickBooks attachment file')
       const denied = await assertToolFileAccess(file.key, authResult.userId, requestId, logger)
       if (denied) return denied
       let downloaded: Awaited<ReturnType<typeof downloadServableFileFromStorage>>
       try {
-        downloaded = await downloadServableFileFromStorage(file, requestId, logger)
+        downloaded = await downloadServableFileFromStorage(file, requestId, logger, {
+          maxBytes: MAX_FILE_SIZE,
+        })
       } catch (error) {
         const notReady = docNotReadyResponse(error)
         if (notReady) return notReady

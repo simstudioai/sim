@@ -184,6 +184,12 @@ describe('QuickBooks document API routes', () => {
       expect.anything()
     )
     expect(mockDownloadServableFileFromStorage).toHaveBeenCalledTimes(1)
+    expect(mockDownloadServableFileFromStorage).toHaveBeenCalledWith(
+      attachmentFile,
+      expect.any(String),
+      expect.anything(),
+      { maxBytes: MAX_FILE_SIZE }
+    )
     const formData = mockFetch.mock.calls[0][1].body as FormData
     expect(formData.get('file_metadata_01')).toBeInstanceOf(Blob)
     expect(formData.get('file_content_01')).toBeInstanceOf(Blob)
@@ -222,6 +228,22 @@ describe('QuickBooks document API routes', () => {
       })
     )
     expect(mixed.status).toBe(400)
+
+    mockProcessFilesToUserFiles.mockReturnValueOnce([
+      { ...attachmentFile, size: MAX_FILE_SIZE + 1 },
+    ])
+    const declaredOversized = await addAttachment(
+      createMockRequest('POST', {
+        ...auth,
+        attachmentKind: 'file',
+        targetType: 'invoice',
+        targetId: '1',
+        file: attachmentFile,
+      })
+    )
+    expect(declaredOversized.status).toBe(413)
+    expect(mockAssertToolFileAccess).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
 
     mockDownloadServableFileFromStorage.mockResolvedValueOnce({
       buffer: Buffer.alloc(0),
