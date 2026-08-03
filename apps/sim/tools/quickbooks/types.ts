@@ -1,3 +1,5 @@
+import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 export interface QuickBooksReference {
@@ -398,6 +400,95 @@ export interface QuickBooksRunFinancialReportParams extends QuickBooksAuthParams
   departmentId?: string
   agingMethod?: QuickBooksAgingMethod
   agingDays?: number
+}
+
+export type QuickBooksDocumentTransactionType =
+  | 'credit_memo'
+  | 'estimate'
+  | 'invoice'
+  | 'purchase_order'
+  | 'refund_receipt'
+  | 'sales_receipt'
+
+export type QuickBooksAttachmentTargetType =
+  | 'bill'
+  | 'bill_payment'
+  | 'credit_memo'
+  | 'deposit'
+  | 'estimate'
+  | 'invoice'
+  | 'item'
+  | 'journal_entry'
+  | 'payment'
+  | 'purchase'
+  | 'purchase_order'
+  | 'refund_receipt'
+  | 'sales_receipt'
+  | 'vendor_credit'
+
+export type QuickBooksAttachmentReadMode = 'list' | 'by_id'
+export type QuickBooksAttachmentKind = 'file' | 'note'
+
+export interface QuickBooksAttachableReference {
+  EntityRef?: QuickBooksReference & { type?: string }
+  IncludeOnSend?: boolean
+  [key: string]: unknown
+}
+
+export interface QuickBooksAttachable {
+  Id: string
+  SyncToken?: string
+  FileName?: string
+  ContentType?: string
+  Size?: number
+  Note?: string
+  Category?: string
+  TemporaryDownloadUri?: string
+  FileAccessUri?: string
+  TempDownloadUri?: string
+  AttachableRef?: QuickBooksAttachableReference[]
+  MetaData?: QuickBooksMetaData
+  domain?: string
+  sparse?: boolean
+  [key: string]: unknown
+}
+
+export interface QuickBooksEmailTransactionParams extends QuickBooksAuthParams {
+  transactionType: QuickBooksDocumentTransactionType
+  transactionId: string
+  recipient?: string
+  confirmSend: boolean
+}
+
+export interface QuickBooksDownloadTransactionPdfParams extends QuickBooksAuthParams {
+  transactionType: QuickBooksDocumentTransactionType
+  transactionId: string
+  fileName?: string
+}
+
+export interface QuickBooksReadAttachmentsParams extends QuickBooksAuthParams {
+  readMode: QuickBooksAttachmentReadMode
+  targetType?: QuickBooksAttachmentTargetType
+  targetId?: string
+  attachmentId?: string
+  startPosition?: number
+  maxResults?: number
+}
+
+export interface QuickBooksAddAttachmentParams extends QuickBooksAuthParams {
+  attachmentKind: QuickBooksAttachmentKind
+  targetType: QuickBooksAttachmentTargetType
+  targetId: string
+  file?: RawFileInput
+  fileName?: string
+  contentType?: string
+  description?: string
+  note?: string
+}
+
+export interface QuickBooksDownloadAttachmentParams extends QuickBooksAuthParams {
+  attachmentId: string
+  fileName?: string
 }
 
 export interface QuickBooksReportOption {
@@ -914,6 +1005,51 @@ export interface QuickBooksRunFinancialReportResponse extends ToolResponse {
   }
 }
 
+export interface QuickBooksEmailTransactionResponse extends ToolResponse {
+  output: {
+    transactionType: QuickBooksDocumentTransactionType
+    transactionId: string
+    sent: true
+    record?: QuickBooksTransaction
+    time: string | null
+  }
+}
+
+export interface QuickBooksReadAttachmentsResponse extends ToolResponse {
+  output: {
+    item?: QuickBooksAttachable
+    items?: QuickBooksAttachable[]
+    startPosition?: number
+    maxResults?: number
+    nextStartPosition?: number
+    hasMore?: boolean
+    time: string | null
+  }
+}
+
+export interface QuickBooksAddAttachmentResponse extends ToolResponse {
+  output: {
+    attachment: QuickBooksAttachable
+    attachmentId: string
+    attachmentKind: QuickBooksAttachmentKind
+    targetType: QuickBooksAttachmentTargetType
+    targetId: string
+    time: string | null
+  }
+}
+
+export interface QuickBooksFileResponse extends ToolResponse {
+  output: {
+    file: UserFile
+    transactionType?: QuickBooksDocumentTransactionType
+    transactionId?: string
+    attachmentId?: string
+    fileName: string
+    mimeType: string
+    size: number
+  }
+}
+
 export interface QuickBooksMutationResponse<T extends { Id: string; SyncToken?: string }>
   extends ToolResponse {
   output: {
@@ -953,6 +1089,10 @@ export type QuickBooksResponse =
   | QuickBooksReadPurchasingTransactionsResponse
   | QuickBooksReadAccountingTransactionsResponse
   | QuickBooksRunFinancialReportResponse
+  | QuickBooksEmailTransactionResponse
+  | QuickBooksReadAttachmentsResponse
+  | QuickBooksAddAttachmentResponse
+  | QuickBooksFileResponse
   | QuickBooksMutationResponse<QuickBooksCustomer | QuickBooksVendor | QuickBooksItem>
   | QuickBooksMutationResponse<QuickBooksSalesTransaction>
   | QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
@@ -1045,6 +1185,55 @@ export const QUICKBOOKS_LIST_OUTPUTS: Record<string, OutputProperty> = {
     optional: true,
     nullable: true,
   },
+}
+
+export const QUICKBOOKS_ATTACHABLE_PROPERTIES: Record<string, OutputProperty> = {
+  Id: { type: 'string', description: 'QuickBooks attachment ID' },
+  SyncToken: { type: 'string', description: 'Attachment sync token', optional: true },
+  FileName: { type: 'string', description: 'Attached file name', optional: true },
+  ContentType: { type: 'string', description: 'Attached file MIME type', optional: true },
+  Size: { type: 'number', description: 'Attached file size in bytes', optional: true },
+  Note: { type: 'string', description: 'Attachment note or description', optional: true },
+  Category: {
+    type: 'string',
+    description: 'Native QuickBooks attachment category',
+    optional: true,
+  },
+  AttachableRef: {
+    type: 'array',
+    description: 'QuickBooks entities referenced by this attachment',
+    optional: true,
+    items: {
+      type: 'json',
+      properties: {
+        EntityRef: {
+          type: 'json',
+          description: 'Attached entity type and operational ID',
+          optional: true,
+        },
+        IncludeOnSend: {
+          type: 'boolean',
+          description: 'Whether QuickBooks includes the attachment when sending',
+          optional: true,
+        },
+      },
+    },
+  },
+  MetaData: {
+    type: 'json',
+    description: 'Attachment creation and update timestamps',
+    optional: true,
+    properties: QUICKBOOKS_METADATA_PROPERTIES,
+  },
+  domain: { type: 'string', description: 'QuickBooks domain', optional: true },
+  sparse: { type: 'boolean', description: 'Whether this is a sparse entity', optional: true },
+}
+
+export const QUICKBOOKS_FILE_OUTPUTS: Record<string, OutputProperty> = {
+  file: { type: 'file', description: 'Downloaded file stored in execution files' },
+  fileName: { type: 'string', description: 'Safe downloaded filename' },
+  mimeType: { type: 'string', description: 'Downloaded file MIME type' },
+  size: { type: 'number', description: 'Downloaded file size in bytes' },
 }
 
 export const QUICKBOOKS_ENTITY_BASE_PROPERTIES: Record<string, OutputProperty> = {
