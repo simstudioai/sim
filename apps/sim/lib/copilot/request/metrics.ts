@@ -68,6 +68,15 @@ function cappedToolName(name: string): string {
   return TOOL_CATALOG[name] ? name : 'other'
 }
 
+const REGISTERED_AGENT_IDS = new Set([
+  'main',
+  ...Object.values(TOOL_CATALOG).flatMap(({ subagentId }) => (subagentId ? [subagentId] : [])),
+])
+
+function cappedAgentId(agentId: string): string {
+  return REGISTERED_AGENT_IDS.has(agentId) ? agentId : 'other'
+}
+
 // recordSimToolMetric emits copilot.tool.calls (+1) and copilot.tool.duration
 // for one server-side Sim tool dispatch (executor=sim). outcome is the bounded
 // tool outcome (success/error/…). Pure telemetry.
@@ -85,7 +94,7 @@ export function recordSimToolMetric(
   }
   toolCalls.add(1, {
     ...baseAttrs,
-    [TraceAttr.GenAiAgentName]: agentId,
+    [TraceAttr.GenAiAgentName]: cappedAgentId(agentId),
   })
   if (durationMs >= 0) toolDuration.record(durationMs, baseAttrs)
 }

@@ -112,25 +112,32 @@ describe('executeToolAndReport metrics', () => {
     )
   })
 
-  it('falls back to main when forwarding an unexpected throw', async () => {
-    const toolCall: ToolCallState = {
-      id: 'call-2',
-      name: 'read',
-      status: MothershipStreamV1ToolOutcome.error,
-      endTime: Date.now(),
-    }
-    const context = createStreamingContext({
-      toolCalls: new Map([[toolCall.id, toolCall]]),
-    })
+  it.each([
+    { agentId: 'workflow', expectedAgentId: 'workflow' },
+    { agentId: undefined, expectedAgentId: 'main' },
+  ])(
+    'forwards $expectedAgentId when an unexpected error occurs',
+    async ({ agentId, expectedAgentId }) => {
+      const toolCall: ToolCallState = {
+        id: 'call-2',
+        name: 'read',
+        status: MothershipStreamV1ToolOutcome.error,
+        agentId,
+        endTime: Date.now(),
+      }
+      const context = createStreamingContext({
+        toolCalls: new Map([[toolCall.id, toolCall]]),
+      })
 
-    await expect(executeToolAndReport(toolCall.id, context, executionContext)).rejects.toThrow(
-      'missing a canonical error'
-    )
-    expect(recordSimToolMetric).toHaveBeenCalledWith(
-      'read',
-      'main',
-      MothershipStreamV1ToolOutcome.error,
-      expect.any(Number)
-    )
-  })
+      await expect(executeToolAndReport(toolCall.id, context, executionContext)).rejects.toThrow(
+        'missing a canonical error'
+      )
+      expect(recordSimToolMetric).toHaveBeenCalledWith(
+        'read',
+        expectedAgentId,
+        MothershipStreamV1ToolOutcome.error,
+        expect.any(Number)
+      )
+    }
+  )
 })
