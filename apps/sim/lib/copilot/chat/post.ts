@@ -26,6 +26,7 @@ import {
   MAX_FILE_SELECTION_TEXT_LENGTH,
   MAX_TABLE_SELECTION_COLUMNS,
   MAX_TABLE_SELECTION_ROWS,
+  safeBrowserSelectionUrl,
 } from '@/lib/copilot/chat/selection-context'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceSnapshot } from '@/lib/copilot/chat/workspace-context'
@@ -146,26 +147,9 @@ function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSche
   })
 }
 
-/**
- * Keeps only public web URLs in browser-selection source metadata. Invalid or
- * local URLs are optional context, so they are discarded without rejecting the
- * selected text itself.
- */
+/** Non-strings pass through for the schema to reject; strings are sanitized. */
 function sanitizeBrowserSelectionUrl(value: unknown): unknown {
-  if (typeof value !== 'string') return value
-  try {
-    const parsed = new URL(value)
-    if (
-      (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
-      parsed.username ||
-      parsed.password
-    ) {
-      return undefined
-    }
-    return parsed.href
-  } catch {
-    return undefined
-  }
+  return typeof value === 'string' ? safeBrowserSelectionUrl(value) : value
 }
 
 const BrowserTextSelectionSchema = z

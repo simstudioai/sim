@@ -6,6 +6,12 @@ import type {
 } from '@sim/terminal-protocol'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import {
+  activateScopedSession,
+  discardScopedSession,
+  migrateScopedSession,
+  withScopedSession,
+} from '@/stores/scoped-sessions'
 
 export interface CopilotTerminalSessionData {
   tabs: TerminalTabsState
@@ -23,7 +29,7 @@ export interface CopilotTerminalSessionData {
  * Named `copilot-terminal` because `stores/terminal` is the workflow editor's
  * execution-log panel, which is unrelated.
  */
-interface CopilotTerminalState extends CopilotTerminalSessionData {
+interface CopilotTerminalState {
   activeScopeId: string | null
   sessions: Record<string, CopilotTerminalSessionData>
   activateScope: (scopeId: string) => void
@@ -86,11 +92,7 @@ function withSession(
   scopeId: string,
   update: (current: CopilotTerminalSessionData) => CopilotTerminalSessionData
 ): Partial<CopilotTerminalState> {
-  const current = state.sessions[scopeId] ?? createInitialSession()
-  const next = update(current)
-  if (next === current) return {}
-  const sessions = { ...state.sessions, [scopeId]: next }
-  return scopeId === state.activeScopeId ? { ...next, sessions } : { sessions }
+  return withScopedSession(state, scopeId, createInitialSession, update)
 }
 
 export function getCopilotTerminalSession(scopeId: string): CopilotTerminalSessionData {
@@ -100,51 +102,13 @@ export function getCopilotTerminalSession(scopeId: string): CopilotTerminalSessi
 export const useCopilotTerminalStore = create<CopilotTerminalState>()(
   devtools(
     (set) => ({
-      ...initialSession,
       activeScopeId: null,
       sessions: {},
       activateScope: (scopeId) =>
-        set((state) => {
-          const current = state.sessions[scopeId] ?? createInitialSession()
-          const session = current.suspended ? { ...current, suspended: false } : current
-          if (scopeId === state.activeScopeId && session === current) return {}
-          const sessions =
-            state.sessions[scopeId] === session
-              ? state.sessions
-              : { ...state.sessions, [scopeId]: session }
-          return {
-            ...session,
-            activeScopeId: scopeId,
-            sessions,
-          }
-        }),
+        set((state) => activateScopedSession(state, scopeId, createInitialSession)),
       migrateScope: (fromScopeId, toScopeId) =>
-        set((state) => {
-          if (fromScopeId === toScopeId) return {}
-          const source = state.sessions[fromScopeId]
-          const destination = state.sessions[toScopeId]
-          if (!source || (destination && !isPristineSession(destination))) return {}
-          const sessions = { ...state.sessions }
-          delete sessions[fromScopeId]
-          sessions[toScopeId] = source
-          const activeScopeId =
-            state.activeScopeId === fromScopeId ? toScopeId : state.activeScopeId
-          return activeScopeId === toScopeId
-            ? { ...sessions[toScopeId], activeScopeId, sessions }
-            : { activeScopeId, sessions }
-        }),
-      discardScope: (scopeId) =>
-        set((state) => {
-          if (!state.sessions[scopeId]) return {}
-          const sessions = { ...state.sessions }
-          delete sessions[scopeId]
-          if (state.activeScopeId !== scopeId) return { sessions }
-          return {
-            ...createInitialSession(),
-            activeScopeId: null,
-            sessions,
-          }
-        }),
+        set((state) => migrateScopedSession(state, fromScopeId, toScopeId, isPristineSession)),
+      discardScope: (scopeId) => set((state) => discardScopedSession(state, scopeId)),
       suspendScope: (scopeId) =>
         set((state) =>
           withSession(state, scopeId, (current) => {

@@ -2,21 +2,21 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { BROWSER_DATA_KINDS, type BrowserDataKind } from '@sim/browser-protocol'
-import {
-  type BrowserCredentialMetadata,
-  type DesktopAppearanceTheme,
-  type DesktopPreferences,
-  type DesktopZoomPercent,
-  isDesktopAppearanceTheme,
+import type {
+  BrowserCredentialMetadata,
+  DesktopAppearanceTheme,
+  DesktopPreferences,
+  DesktopZoomPercent,
 } from '@sim/desktop-bridge'
 import { Chip, ChipConfirmModal, Label, Switch, toast } from '@sim/emcn'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { getDesktopBridge, setDesktopPreferencesSnapshot } from '@/lib/desktop'
+import { getDesktopBridge } from '@/lib/desktop'
 import { AppearanceThemeSelect } from '@/app/workspace/[workspaceId]/settings/components/appearance-theme-select'
 import { PasswordsView } from '@/app/workspace/[workspaceId]/settings/components/browser/components/passwords-view/passwords-view'
 import { DefaultZoomSelect } from '@/app/workspace/[workspaceId]/settings/components/default-zoom-select'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 
 interface DataRow {
   kind: BrowserDataKind
@@ -60,10 +60,6 @@ export function Browser() {
   const searchParams = useSearchParams()
   const workspaceId = params.workspaceId as string
   const [preferences, setPreferences] = useState<DesktopPreferences | null>(null)
-  const [togglePending, setTogglePending] = useState(false)
-  const [themePending, setThemePending] = useState(false)
-  const [zoomPending, setZoomPending] = useState(false)
-  const [downloadDirectoryPending, setDownloadDirectoryPending] = useState(false)
   const [credentials, setCredentials] = useState<BrowserCredentialMetadata[]>([])
   const openImport = searchParams.get('browserImport') === '1'
   const [showPasswords, setShowPasswords] = useState(
@@ -74,51 +70,25 @@ export function Browser() {
   )
   const [clearPending, setClearPending] = useState(false)
 
-  const setTheme = useCallback(async (theme: DesktopAppearanceTheme) => {
-    const desktop = getDesktopBridge()
-    if (!desktop) return
-    setThemePending(true)
-    try {
-      const next = await desktop.settings.setBrowserTheme(theme)
-      setPreferences(next)
-      setDesktopPreferencesSnapshot(next)
-    } catch {
-      toast.error('Could not update browser appearance')
-    } finally {
-      setThemePending(false)
-    }
-  }, [])
+  const { pending: themePending, mutate: setTheme } = useDesktopPreferenceMutation(
+    (bridge, theme: DesktopAppearanceTheme) => bridge.settings.setBrowserTheme(theme),
+    'Could not update browser appearance',
+    setPreferences
+  )
 
-  const setDefaultZoom = useCallback(async (zoom: DesktopZoomPercent) => {
-    const desktop = getDesktopBridge()
-    if (!desktop) return
-    setZoomPending(true)
-    try {
-      const next = await desktop.settings.setBrowserDefaultZoom(zoom)
-      setPreferences(next)
-      setDesktopPreferencesSnapshot(next)
-    } catch {
-      toast.error('Could not update the default browser zoom')
-    } finally {
-      setZoomPending(false)
-    }
-  }, [])
+  const { pending: zoomPending, mutate: setDefaultZoom } = useDesktopPreferenceMutation(
+    (bridge, zoom: DesktopZoomPercent) => bridge.settings.setBrowserDefaultZoom(zoom),
+    'Could not update the default browser zoom',
+    setPreferences
+  )
 
-  const chooseDownloadDirectory = useCallback(async () => {
-    const desktop = getDesktopBridge()
-    if (!desktop) return
-    setDownloadDirectoryPending(true)
-    try {
-      const next = await desktop.settings.chooseBrowserDownloadDirectory()
-      if (!next) return
-      setPreferences(next)
-      setDesktopPreferencesSnapshot(next)
-    } catch {
-      toast.error('Could not update the browser download location')
-    } finally {
-      setDownloadDirectoryPending(false)
-    }
-  }, [])
+  // A cancelled chooser resolves without preferences, which the hook skips.
+  const { pending: downloadDirectoryPending, mutate: chooseDownloadDirectory } =
+    useDesktopPreferenceMutation(
+      (bridge) => bridge.settings.chooseBrowserDownloadDirectory(),
+      'Could not update the browser download location',
+      setPreferences
+    )
 
   const refreshCredentials = useCallback(async () => {
     const bridge = getDesktopBridge()?.browserCredentials
@@ -138,20 +108,11 @@ export function Browser() {
       .catch(() => toast.error('Could not load browser settings'))
   }, [refreshCredentials, router, workspaceId])
 
-  const setEnabled = useCallback(async (enabled: boolean) => {
-    const desktop = getDesktopBridge()
-    if (!desktop) return
-    setTogglePending(true)
-    try {
-      const next = await desktop.settings.setPreference('browserEnabled', enabled)
-      setPreferences(next)
-      setDesktopPreferencesSnapshot(next)
-    } catch {
-      toast.error('Could not update browser settings')
-    } finally {
-      setTogglePending(false)
-    }
-  }, [])
+  const { pending: togglePending, mutate: setEnabled } = useDesktopPreferenceMutation(
+    (bridge, enabled: boolean) => bridge.settings.setPreference('browserEnabled', enabled),
+    'Could not update browser settings',
+    setPreferences
+  )
 
   const clear = useCallback(async (kinds: readonly BrowserDataKind[]) => {
     const desktop = getDesktopBridge()
@@ -217,9 +178,7 @@ export function Browser() {
                 ariaLabel='Browser theme'
                 value={preferences.browserTheme}
                 disabled={themePending}
-                onChange={(theme) => {
-                  if (isDesktopAppearanceTheme(theme)) void setTheme(theme)
-                }}
+                onChange={(theme) => void setTheme(theme)}
               />
             </div>
 

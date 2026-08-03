@@ -75,9 +75,7 @@ export function Desktop() {
   const workspaceId = params.workspaceId as string
   const [preferences, setPreferences] = useState<DesktopPreferences | null>(null)
   const [mounts, setMounts] = useState<LocalFilesystemMount[]>([])
-  const [pendingPreference, setPendingPreference] = useState<
-    DesktopPreferenceKey | 'trayEnabled' | null
-  >(null)
+  const [pendingPreference, setPendingPreference] = useState<DesktopPreferenceKey | null>(null)
   const [mountToForget, setMountToForget] = useState<LocalFilesystemMount | null>(null)
   const [mountMutationPending, setMountMutationPending] = useState(false)
   const [updateState, setUpdateState] = useState<DesktopUpdateState>({ status: 'idle' })

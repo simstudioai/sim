@@ -2,10 +2,9 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
-import { suspendBrowserScope } from '@/lib/browser-agent/transport'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
-import { suspendTerminalScope } from '@/lib/terminal/transport'
+import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
 const logger = createLogger('MothershipChatEvents')
@@ -112,10 +111,7 @@ export function handleMothershipChatStatusEvent(
     // A task may be deleted from another window, browser, or device. Stop its
     // local native resources here too; relying only on this renderer's delete
     // mutation would leave pages and PTYs running indefinitely.
-    void Promise.allSettled([
-      suspendBrowserScope(payload.chatId),
-      suspendTerminalScope(payload.chatId),
-    ])
+    void suspendDesktopChatScopes(payload.chatId)
     queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
     return
   }

@@ -210,7 +210,7 @@ function frameMatches(candidate: ProtocolFrame, frame: WebFrameMain): boolean {
   )
 }
 
-function sameWebFrame(left: WebFrameMain, right: WebFrameMain): boolean {
+export function sameWebFrame(left: WebFrameMain, right: WebFrameMain): boolean {
   if (left === right) return true
   if (Number.isSafeInteger(left.frameTreeNodeId) && Number.isSafeInteger(right.frameTreeNodeId)) {
     return left.frameTreeNodeId === right.frameTreeNodeId

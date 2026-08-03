@@ -3,6 +3,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
+  browserPanelSnapshotStyle,
   browserSelectionContext,
   clearOmniboxSelection,
   resolveUrlBarInput,
@@ -10,6 +11,35 @@ import {
   shouldRemoveBrowserResource,
   shouldReportBrowserBounds,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
+
+describe('browserPanelSnapshotStyle', () => {
+  const snapshot = {
+    dataUrl: 'data:image/png;base64,c2lt',
+    tabId: 'tab-1',
+    zoomPercent: 100,
+    scopeId: 'chat-1',
+  }
+
+  it('uses the exact native viewport rectangle without host clipping', () => {
+    expect(
+      browserPanelSnapshotStyle({
+        ...snapshot,
+        viewportBounds: { x: 500.5, y: 64, width: 799.5, height: 701.5 },
+      })
+    ).toEqual({
+      position: 'fixed',
+      top: 64,
+      left: 500.5,
+      width: 799.5,
+      height: 701.5,
+      maxWidth: 'none',
+    })
+  })
+
+  it('falls back to host sizing for older installed shells', () => {
+    expect(browserPanelSnapshotStyle(snapshot)).toBeUndefined()
+  })
+})
 
 describe('browserSelectionContext', () => {
   it('keeps the exact selected text in a browser-tab mention', () => {

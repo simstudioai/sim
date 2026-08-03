@@ -110,6 +110,7 @@ import type { DesktopPreferences } from '@sim/desktop-bridge'
 import type { WebContents } from 'electron'
 import { clipboard, ipcMain, shell } from 'electron'
 import * as browserDriver from '@/main/browser-agent/driver'
+import * as browserSession from '@/main/browser-agent/session'
 import {
   copyCredential,
   credentialsAvailable,
@@ -810,10 +811,12 @@ describe('registerIpcHandlers', () => {
         },
       ],
     }
-    const getState = vi.spyOn(browserDriver, 'getDownloadsState').mockReturnValue(state)
-    const showMenu = vi.spyOn(browserDriver, 'showDownloadsMenu').mockReturnValue(true)
+    const getState = vi.spyOn(browserSession, 'getBrowserDownloadsState').mockReturnValue(state)
+    const showMenu = vi.spyOn(browserSession, 'showBrowserDownloadsMenu').mockReturnValue(true)
     const showToolbar = vi.spyOn(browserDriver, 'showToolbarMenu').mockReturnValue(true)
-    const showInFolder = vi.spyOn(browserDriver, 'showDownloadInFolder').mockReturnValue(true)
+    const showInFolder = vi
+      .spyOn(browserSession, 'showBrowserDownloadInFolder')
+      .mockReturnValue(true)
     const { invoke } = collectHandlers()
 
     await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-b')

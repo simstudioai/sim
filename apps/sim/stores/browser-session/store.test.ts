@@ -10,7 +10,6 @@ function resetStore(): void {
     suspended: false,
   }
   useBrowserSessionStore.setState({
-    ...session,
     activeScopeId: 'chat-test',
     sessions: { 'chat-test': session },
   })
@@ -43,7 +42,7 @@ describe('browser session store', () => {
       ],
     })
 
-    expect(useBrowserSessionStore.getState().pageState).toEqual({
+    expect(getBrowserSession('chat-test').pageState).toEqual({
       tabId: '2',
       scopeId: 'chat-test',
       title: 'Dashboard',
@@ -55,24 +54,22 @@ describe('browser session store', () => {
   })
 
   it('clears page state when the last tab closes', () => {
-    useBrowserSessionStore.setState({
-      pageState: {
-        tabId: '1',
-        scopeId: 'chat-test',
-        title: 'Docs',
-        url: 'https://docs.sim.ai',
-        loading: false,
-        canGoBack: false,
-        canGoForward: false,
-      },
+    useBrowserSessionStore.getState().setPageState({
+      tabId: '1',
+      scopeId: 'chat-test',
+      title: 'Docs',
+      url: 'https://docs.sim.ai',
+      loading: false,
+      canGoBack: false,
+      canGoForward: false,
     })
 
     useBrowserSessionStore
       .getState()
       .setTabsState({ scopeId: 'chat-test', tabs: [], activeTabId: null })
 
-    expect(useBrowserSessionStore.getState().pageState).toBeNull()
-    expect(useBrowserSessionStore.getState().sessionAlive).toBe(false)
+    expect(getBrowserSession('chat-test').pageState).toBeNull()
+    expect(getBrowserSession('chat-test').sessionAlive).toBe(false)
   })
 
   it('keeps overlapping tab ids isolated while chats switch', () => {
@@ -121,12 +118,13 @@ describe('browser session store', () => {
       canGoForward: false,
     })
 
-    expect(useBrowserSessionStore.getState().pageState?.title).toBe('B')
+    expect(useBrowserSessionStore.getState().activeScopeId).toBe('chat-b')
     expect(getBrowserSession('chat-a').pageState?.title).toBe('A updated')
     expect(getBrowserSession('chat-b').pageState?.title).toBe('B')
 
     store.activateScope('chat-a')
-    expect(useBrowserSessionStore.getState().pageState?.title).toBe('A updated')
+    expect(useBrowserSessionStore.getState().activeScopeId).toBe('chat-a')
+    expect(getBrowserSession('chat-a').pageState?.title).toBe('A updated')
   })
 
   it('moves a pending new-chat bucket to its resolved chat id', () => {

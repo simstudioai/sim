@@ -1,6 +1,7 @@
 import { readFileSync, unlinkSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { isDesktopScopeId, isPendingDesktopScopeId } from '@sim/desktop-bridge'
+import { isRecordLike } from '@sim/utils/object'
 import { safeStorage } from 'electron'
 import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
 
@@ -72,10 +73,6 @@ interface EncryptedEnvelope {
   ciphertext: string
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function normalizeOrigin(origin: unknown): string | null {
   if (
     typeof origin !== 'string' ||
@@ -136,7 +133,7 @@ function normalizeActiveIndex(value: unknown, tabCount: number): number {
 
 function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null {
   if (
-    !isRecord(value) ||
+    !isRecordLike(value) ||
     value.v !== SNAPSHOT_VERSION ||
     !Array.isArray(value.tabs) ||
     !Array.isArray(value.downloads)
@@ -146,7 +143,7 @@ function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null
 
   const tabs: BrowserSessionSnapshot['tabs'] = []
   for (const candidate of value.tabs) {
-    if (!isRecord(candidate) || typeof candidate.pinned !== 'boolean') continue
+    if (!isRecordLike(candidate) || typeof candidate.pinned !== 'boolean') continue
     const url = normalizeBrowserUrl(candidate.url)
     if (url === null) continue
     tabs.push({ url, pinned: candidate.pinned })
@@ -154,7 +151,7 @@ function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null
 
   const downloads: BrowserSessionSnapshot['downloads'] = []
   for (const candidate of value.downloads) {
-    if (!isRecord(candidate)) continue
+    if (!isRecordLike(candidate)) continue
     if (
       typeof candidate.id !== 'string' ||
       candidate.id.length === 0 ||
@@ -202,11 +199,12 @@ function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null
 }
 
 function normalizeTerminalSnapshot(value: unknown): TerminalSessionSnapshot | null {
-  if (!isRecord(value) || value.v !== SNAPSHOT_VERSION || !Array.isArray(value.tabs)) return null
+  if (!isRecordLike(value) || value.v !== SNAPSHOT_VERSION || !Array.isArray(value.tabs))
+    return null
 
   const tabs: TerminalSessionSnapshot['tabs'] = []
   for (const candidate of value.tabs) {
-    if (!isRecord(candidate) || typeof candidate.cwd !== 'string') continue
+    if (!isRecordLike(candidate) || typeof candidate.cwd !== 'string') continue
     if (
       candidate.cwd.trim().length === 0 ||
       candidate.cwd.length > MAX_CWD_LENGTH ||
@@ -221,23 +219,6 @@ function normalizeTerminalSnapshot(value: unknown): TerminalSessionSnapshot | nu
     v: SNAPSHOT_VERSION,
     tabs,
     activeIndex: normalizeActiveIndex(value.activeIndex, tabs.length),
-  }
-}
-
-function cloneBrowserSnapshot(snapshot: BrowserSessionSnapshot): BrowserSessionSnapshot {
-  return {
-    v: SNAPSHOT_VERSION,
-    tabs: snapshot.tabs.map((tab) => ({ ...tab })),
-    activeIndex: snapshot.activeIndex,
-    downloads: snapshot.downloads.map((download) => ({ ...download })),
-  }
-}
-
-function cloneTerminalSnapshot(snapshot: TerminalSessionSnapshot): TerminalSessionSnapshot {
-  return {
-    v: SNAPSHOT_VERSION,
-    tabs: snapshot.tabs.map((tab) => ({ ...tab })),
-    activeIndex: snapshot.activeIndex,
   }
 }
 
@@ -296,7 +277,7 @@ export class DesktopChatSessionStore {
     try {
       const envelope = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
       if (
-        !isRecord(envelope) ||
+        !isRecordLike(envelope) ||
         envelope.v !== STORE_VERSION ||
         typeof envelope.ciphertext !== 'string'
       ) {
@@ -305,7 +286,11 @@ export class DesktopChatSessionStore {
 
       const decrypted = this.encryption.decryptString(Buffer.from(envelope.ciphertext, 'base64'))
       const payload = JSON.parse(decrypted) as unknown
-      if (!isRecord(payload) || payload.v !== STORE_VERSION || !Array.isArray(payload.entries)) {
+      if (
+        !isRecordLike(payload) ||
+        payload.v !== STORE_VERSION ||
+        !Array.isArray(payload.entries)
+      ) {
         return false
       }
 
@@ -349,7 +334,7 @@ export class DesktopChatSessionStore {
     if (!entry?.browser) return null
     this.touch(entry)
     this.changed(entry.scope)
-    return cloneBrowserSnapshot(entry.browser)
+    return structuredClone(entry.browser)
   }
 
   setBrowser(origin: string, scope: string, snapshot: BrowserSessionSnapshot): boolean {
@@ -368,7 +353,7 @@ export class DesktopChatSessionStore {
     if (!entry?.terminal) return null
     this.touch(entry)
     this.changed(entry.scope)
-    return cloneTerminalSnapshot(entry.terminal)
+    return structuredClone(entry.terminal)
   }
 
   setTerminal(origin: string, scope: string, snapshot: TerminalSessionSnapshot): boolean {
@@ -501,8 +486,8 @@ export class DesktopChatSessionStore {
       .slice(-MAX_DURABLE_ENTRIES)
       .map((entry) => ({
         ...entry,
-        ...(entry.browser ? { browser: cloneBrowserSnapshot(entry.browser) } : {}),
-        ...(entry.terminal ? { terminal: cloneTerminalSnapshot(entry.terminal) } : {}),
+        ...(entry.browser ? { browser: structuredClone(entry.browser) } : {}),
+        ...(entry.terminal ? { terminal: structuredClone(entry.terminal) } : {}),
       }))
 
     try {
@@ -562,7 +547,7 @@ export class DesktopChatSessionStore {
   }
 
   private normalizeEntry(value: unknown): SessionEntry | null {
-    if (!isRecord(value)) return null
+    if (!isRecordLike(value)) return null
     const origin = normalizeOrigin(value.origin)
     const scope = normalizeScope(value.scope)
     if (!origin || !scope) return null

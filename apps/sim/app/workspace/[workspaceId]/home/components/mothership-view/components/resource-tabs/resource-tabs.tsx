@@ -182,7 +182,6 @@ interface ResourceTabItemProps {
   showGapBefore: boolean
   showGapAfter: boolean
   displayName: string
-  chatId?: string
   onDragStart: (e: React.DragEvent, idx: number) => void
   onDragOver: (e: React.DragEvent, idx: number) => void
   onDragLeave: () => void
@@ -202,7 +201,6 @@ const ResourceTabItem = memo(function ResourceTabItem({
   showGapBefore,
   showGapAfter,
   displayName,
-  chatId,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -685,7 +683,6 @@ export function ResourceTabs({
                 showGapBefore={showGapBefore}
                 showGapAfter={showGapAfter}
                 displayName={displayName}
-                chatId={chatId}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}

@@ -17,7 +17,7 @@ import type {
 } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { BrowserWindow, NativeImage, WebContentsView } from 'electron'
+import type { BrowserWindow, WebContentsView } from 'electron'
 import { zoomPercentOf } from '@/main/browser-agent/context-menu'
 import type { AgentTab } from '@/main/browser-agent/session'
 
@@ -77,6 +77,16 @@ let panelOwnerWindow: BrowserWindow | null = null
 let attachedView: WebContentsView | null = null
 let lastAppliedBounds = ''
 let lastAppliedVisibility: boolean | null = null
+interface OccludablePanelFrame {
+  view: WebContentsView
+  win: BrowserWindow
+  scopeId: string
+  tabId: string
+  shellZoom: number
+  nativeBounds: BrowserPanelBounds
+}
+/** Geometry of the painted frame that is currently allowed to replace the view. */
+let occludableFrame: OccludablePanelFrame | null = null
 /** The host window whose `resize` currently drives {@link layout}, if any. */
 let resizeBoundWindow: BrowserWindow | null = null
 /** Captures nothing, so one instance serves every window it is bound to. */
@@ -258,13 +268,14 @@ function clampToContent(
  * Clears the tracked attachment before touching Electron objects so a stale
  * host or child view cannot leave layout permanently wedged after teardown.
  */
-export function detachAttachedView(): void {
+function detachAttachedView(): void {
   const view = attachedView
   const win = hostedWindow
   attachedView = null
   hostedWindow = null
   lastAppliedBounds = ''
   lastAppliedVisibility = null
+  occludableFrame = null
   unbindHostResize()
   host.onViewDetached(view)
 
@@ -282,6 +293,7 @@ export function detachAttachedView(): void {
 /** Reveals the native view and invalidates every frame captured for its old state. */
 function resetOcclusion(): void {
   panelOccluded = false
+  occludableFrame = null
   panelCaptureGeneration++
 }
 
@@ -389,6 +401,7 @@ export function layout(): void {
   const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
   if (boundsKey !== lastAppliedBounds) {
     lastAppliedBounds = boundsKey
+    occludableFrame = null
     active.view.setBounds(bounds)
   }
   const visible = !panelOccluded
@@ -398,30 +411,67 @@ export function layout(): void {
   }
 }
 
-const SNAPSHOT_MAX_WIDTH = 1024
-const SNAPSHOT_JPEG_QUALITY = 70
+/** Converts the applied native DIP rectangle back into Sim viewport CSS pixels. */
+function viewportBoundsFor(
+  nativeBounds: BrowserPanelBounds,
+  shellZoom: number
+): BrowserPanelBounds {
+  return {
+    x: nativeBounds.x / shellZoom,
+    y: nativeBounds.y / shellZoom,
+    width: nativeBounds.width / shellZoom,
+    height: nativeBounds.height / shellZoom,
+  }
+}
 
-/** Bounds the transient replacement frame before it crosses IPC. */
-function encodeSnapshot(image: NativeImage): string {
-  const { width } = image.getSize()
-  const scaled = width > SNAPSHOT_MAX_WIDTH ? image.resize({ width: SNAPSHOT_MAX_WIDTH }) : image
-  const jpeg = scaled.toJPEG(SNAPSHOT_JPEG_QUALITY)
-  return `data:image/jpeg;base64,${jpeg.toString('base64')}`
+function sameBounds(left: BrowserPanelBounds, right: BrowserPanelBounds): boolean {
+  return (
+    left.x === right.x &&
+    left.y === right.y &&
+    left.width === right.width &&
+    left.height === right.height
+  )
+}
+
+function frameGeometryIsCurrent(frame: OccludablePanelFrame): boolean {
+  return (
+    activePanelScopeId === frame.scopeId &&
+    host.activeTab()?.id === frame.tabId &&
+    attachedView === frame.view &&
+    panelWindow() === frame.win &&
+    !frame.win.isDestroyed() &&
+    !frame.view.webContents.isDestroyed() &&
+    frame.win.webContents.getZoomFactor() === frame.shellZoom &&
+    sameBounds(frame.view.getBounds(), frame.nativeBounds)
+  )
 }
 
 /** A blank tab needs only its native backdrop, not a compositor capture. */
-function blankSnapshot(scopeId: string, tabId: string, zoomPercent: number): BrowserPanelSnapshot {
+function blankSnapshot(
+  scopeId: string,
+  tabId: string,
+  zoomPercent: number,
+  viewportBounds: BrowserPanelBounds
+): BrowserPanelSnapshot {
   return {
     scopeId,
     tabId,
     zoomPercent,
+    viewportBounds,
     dataUrl: `data:image/svg+xml,${encodeURIComponent(
       `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><path fill="${host.backgroundColor()}" d="M0 0h1v1H0z"/></svg>`
     )}`,
   }
 }
 
-/** Captures a compact replacement while leaving the native page visible. */
+/**
+ * Captures the compositor surface without resizing or lossy encoding.
+ *
+ * This image temporarily replaces the native view while renderer-owned chrome
+ * is open, so any scaling or JPEG compression is visible as a veil over the
+ * page. Keeping the frame at native resolution and in PNG makes that surface
+ * swap visually seamless.
+ */
 export async function capturePanelSnapshot(
   ownerWindow?: BrowserWindow,
   scopeId = activePanelScopeId
@@ -438,13 +488,32 @@ export async function capturePanelSnapshot(
   const win = panelWindow()
   if (!active || !win || active.view.webContents.isDestroyed()) return null
 
+  // Ensure the snapshot describes the bounds Electron is actually painting,
+  // not merely the renderer host that requested them.
+  layout()
+  if (attachedView !== active.view) return null
+
   const generation = ++panelCaptureGeneration
+  occludableFrame = null
   const tabId = active.id
   const contents = active.view.webContents
+  const shellZoom = win.webContents.getZoomFactor()
+  const nativeBounds = active.view.getBounds()
+  const frame: OccludablePanelFrame = {
+    view: active.view,
+    win,
+    scopeId,
+    tabId,
+    shellZoom,
+    nativeBounds,
+  }
+  const viewportBounds = viewportBoundsFor(nativeBounds, shellZoom)
   const zoomPercent = zoomPercentOf(contents.getZoomFactor())
   const url = contents.getURL()
   if (url === '' || url === 'about:blank') {
-    return blankSnapshot(scopeId, tabId, zoomPercent)
+    if (!frameGeometryIsCurrent(frame)) return null
+    occludableFrame = frame
+    return blankSnapshot(scopeId, tabId, zoomPercent, viewportBounds)
   }
   try {
     const image = await contents.capturePage(undefined, { stayHidden: false })
@@ -454,16 +523,20 @@ export async function capturePanelSnapshot(
       host.activeTab()?.id !== tabId ||
       panelWindow() !== win ||
       win.isDestroyed() ||
+      !frameGeometryIsCurrent(frame) ||
       image.isEmpty()
     ) {
       return null
     }
-    return {
+    const snapshot: BrowserPanelSnapshot = {
       scopeId,
       tabId,
       zoomPercent,
-      dataUrl: encodeSnapshot(image),
+      viewportBounds,
+      dataUrl: image.toDataURL(),
     }
+    occludableFrame = frame
+    return snapshot
   } catch (error) {
     logger.warn('Could not capture browser panel for a toolbar menu', {
       error: getErrorMessage(error, 'unknown'),
@@ -485,7 +558,12 @@ export function setPanelOccluded(
   if (!panelUpdateAllowed(ownerWindow, scopeId)) return false
   if (occluded && (panelBounds === null || host.activeTab() === null)) return false
   if (panelOccluded === occluded) return true
+  if (occluded) {
+    layout()
+    if (!occludableFrame || !frameGeometryIsCurrent(occludableFrame)) return false
+  }
   panelOccluded = occluded
+  occludableFrame = null
   layout()
   return true
 }

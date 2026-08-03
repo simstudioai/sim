@@ -588,7 +588,7 @@ export function AddResourceDropdown({
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange} modal={false}>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <DropdownMenuTrigger asChild>

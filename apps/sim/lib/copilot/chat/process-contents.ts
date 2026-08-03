@@ -8,6 +8,7 @@ import {
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
+  safeBrowserSelectionUrl,
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -77,29 +78,8 @@ interface AgentContext {
 
 const logger = createLogger('ProcessContents')
 
-/**
- * Browser source metadata is advisory and must never expose local schemes or
- * embedded credentials to the model.
- */
-function getSafeBrowserSelectionUrl(value: string | undefined): string | undefined {
-  if (!value) return undefined
-  try {
-    const parsed = new URL(value)
-    if (
-      (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
-      parsed.username ||
-      parsed.password
-    ) {
-      return undefined
-    }
-    return parsed.href
-  } catch {
-    return undefined
-  }
-}
-
 function formatBrowserSelection(selection: BrowserTextSelection): string {
-  const url = getSafeBrowserSelectionUrl(selection.url)
+  const url = selection.url ? safeBrowserSelectionUrl(selection.url) : undefined
   const quotedSelection = JSON.stringify({
     source: {
       ...(selection.title ? { title: selection.title } : {}),

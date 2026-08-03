@@ -241,18 +241,6 @@ function insertedTextFor(combo: ParsedCombo): string | undefined {
 }
 
 /**
- * Whether a combo would put characters into whatever the page has focused.
- * Shares {@link insertedTextFor} with the dispatcher so a guard built on this
- * cannot drift from what is actually sent.
- */
-export function comboInsertsText(
-  rawCombo: ParsedCombo,
-  platform: NodeJS.Platform = process.platform
-): boolean {
-  return insertedTextFor(normalizeComboForPlatform(rawCombo, platform)) !== undefined
-}
-
-/**
  * Builds the trusted keyDown/keyUp pair for a combo. Printable keys without
  * ctrl/meta carry `text` so Blink inserts the character; Enter carries "\r"
  * so it activates defaults (form submission, newline). Everything else is a

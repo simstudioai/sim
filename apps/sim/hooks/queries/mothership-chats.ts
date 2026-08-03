@@ -22,7 +22,6 @@ import {
   restoreMothershipChatContract,
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
-import { suspendBrowserScope } from '@/lib/browser-agent/transport'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
@@ -31,7 +30,7 @@ import {
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
-import { suspendTerminalScope } from '@/lib/terminal/transport'
+import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
@@ -291,10 +290,6 @@ async function deleteChat(chatId: string): Promise<void> {
   })
 }
 
-async function suspendNativeChatResources(chatId: string): Promise<void> {
-  await Promise.allSettled([suspendBrowserScope(chatId), suspendTerminalScope(chatId)])
-}
-
 /**
  * Soft-deletes a mothership chat and invalidates both the active and archived
  * chat lists — the chat moves from the sidebar into Recently Deleted.
@@ -304,7 +299,7 @@ export function useDeleteMothershipChat(workspaceId?: string) {
   return useMutation({
     mutationFn: deleteChat,
     onSuccess: async (_data, chatId) => {
-      await suspendNativeChatResources(chatId)
+      await suspendDesktopChatScopes(chatId)
     },
     onSettled: (_data, _error, chatId) => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
@@ -349,7 +344,7 @@ export function useDeleteMothershipChats(workspaceId?: string) {
       await Promise.all(
         chatIds.map(async (chatId) => {
           await deleteChat(chatId)
-          await suspendNativeChatResources(chatId)
+          await suspendDesktopChatScopes(chatId)
         })
       )
     },

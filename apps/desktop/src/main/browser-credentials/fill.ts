@@ -6,7 +6,6 @@ import { normalizeOrigin } from '@/main/browser-credentials/origin'
 import type { CredentialVault } from '@/main/browser-credentials/vault'
 
 const logger = createLogger('BrowserCredentialFill')
-const RESCAN_CHANNEL = 'browser-credentials:rescan'
 
 /**
  * Decides when a credential may be filled, and does the filling.
@@ -107,7 +106,9 @@ export class FillCoordinator {
     // A same-document navigation keeps the preload and its report fingerprint
     // alive. Ask it to report again after clearing main-process state, or an
     // unchanged login form remains invisible until a full page reload.
-    if (sameDocument && !contents.isDestroyed()) contents.send(RESCAN_CHANNEL)
+    // Literal channel name: the IPC contract audit resolves constants only on
+    // the preload side, so main-process sends must inline the channel.
+    if (sameDocument && !contents.isDestroyed()) contents.send('browser-credentials:rescan')
     void this.refreshAvailability()
   }
 

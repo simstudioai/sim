@@ -35,12 +35,14 @@ import type {
   DesktopAppearanceTheme,
   SimDesktopBrowserAgentApi,
 } from '@sim/desktop-bridge'
+import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
 import { getDesktopBridge, isBrowserAgentEnabled } from '@/lib/desktop'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 let initialized = false
 let activeScopeId: string | null = null
-const latestPanelBoundsByScope = new Map<string, BrowserPanelBounds | null>()
+/** Last VISIBLE rect per scope; a hidden/unmounted panel has no entry. */
+const latestPanelBoundsByScope = new Map<string, BrowserPanelBounds>()
 
 function bridge(): SimDesktopBrowserAgentApi | null {
   return getDesktopBridge()?.browserAgent ?? null
@@ -74,7 +76,7 @@ export function initBrowserAgentTransport(): void {
     useBrowserSessionStore.getState().setTabsState(state)
   })
   agent.onSessionStatus((alive, scopeId) => {
-    if (scopeId) useBrowserSessionStore.getState().setSessionAlive(alive, scopeId)
+    useBrowserSessionStore.getState().setSessionAlive(alive, scopeId)
   })
   agent.onScopeSuspended(applyBrowserScopeSuspended)
 }
@@ -103,35 +105,29 @@ export async function restoreBrowserScope(scopeId: string): Promise<boolean> {
 
 /** Rebinds a pending new-chat browser set to the chat id assigned by the server. */
 export async function migrateBrowserScope(fromScopeId: string, toScopeId: string): Promise<void> {
-  const agent = bridge()
-  if (!agent) {
-    await discardBrowserScope(fromScopeId)
-    return
-  }
-  const tabs = await agent.migrateScope(fromScopeId, toScopeId)
-  if (tabs.scopeId !== toScopeId) {
-    // A material durable destination wins. Drop the provisional source rather
-    // than moving renderer state ahead of a native migration that was refused
-    // and leaving hidden WebContents orphaned under the pending id.
+  const tabs = await bridge()?.migrateScope(fromScopeId, toScopeId)
+  if (tabs?.scopeId !== toScopeId) {
+    // A material durable destination wins (and no bridge at all is the same
+    // outcome). Drop the provisional source rather than moving renderer state
+    // ahead of a native migration that was refused and leaving hidden
+    // WebContents orphaned under the pending id.
     await discardBrowserScope(fromScopeId)
     return
   }
 
   useBrowserSessionStore.getState().migrateScope(fromScopeId, toScopeId)
   if (activeScopeId === fromScopeId) activeScopeId = toScopeId
-  if (latestPanelBoundsByScope.has(fromScopeId)) {
-    latestPanelBoundsByScope.set(
-      toScopeId,
-      latestPanelBoundsByScope.get(toScopeId) ?? latestPanelBoundsByScope.get(fromScopeId) ?? null
-    )
-    latestPanelBoundsByScope.delete(fromScopeId)
+  const movedBounds = latestPanelBoundsByScope.get(fromScopeId)
+  latestPanelBoundsByScope.delete(fromScopeId)
+  if (movedBounds && !latestPanelBoundsByScope.has(toScopeId)) {
+    latestPanelBoundsByScope.set(toScopeId, movedBounds)
   }
   useBrowserSessionStore.getState().setTabsState(tabs)
 }
 
 /** Drops an abandoned pre-chat browser group from renderer and native memory. */
 export async function discardBrowserScope(scopeId: string): Promise<void> {
-  if (!scopeId.startsWith('pending:')) return
+  if (!isPendingDesktopScopeId(scopeId)) return
   useBrowserSessionStore.getState().discardScope(scopeId)
   latestPanelBoundsByScope.delete(scopeId)
   if (activeScopeId === scopeId) activeScopeId = null
@@ -145,7 +141,7 @@ export async function discardBrowserScope(scopeId: string): Promise<void> {
  * when the chat is restored.
  */
 export async function suspendBrowserScope(scopeId: string): Promise<boolean> {
-  if (scopeId.startsWith('pending:')) return false
+  if (isPendingDesktopScopeId(scopeId)) return false
   const suspended = (await bridge()?.suspendScope(scopeId)) ?? false
   if (!suspended) return false
 
@@ -458,7 +454,11 @@ export function reportBrowserPanelBounds(
   anchor: BrowserPanelAnchor | null = null,
   scopeId = currentBrowserScopeId()
 ): void {
-  latestPanelBoundsByScope.set(scopeId, bounds)
+  if (bounds) {
+    latestPanelBoundsByScope.set(scopeId, bounds)
+  } else {
+    latestPanelBoundsByScope.delete(scopeId)
+  }
   bridge()?.setPanelBounds(bounds, anchor, scopeId)
 }
 

@@ -625,7 +625,7 @@ describe('executeTool', () => {
           })
         }
         if (isPageCall(expression, 'focusElementForTyping')) {
-          return Promise.resolve({ focused: true, kind: 'input' })
+          return Promise.resolve({ focused: true, kind: 'input', x: 24, y: 48 })
         }
         if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
         if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
@@ -869,11 +869,17 @@ describe('credential protection', () => {
 
   it('aborts a type when focus moves to a password field before the insert', async () => {
     const contents = await openPage()
-    // The element passed the guard, then the page advanced focus — what a
-    // login form does between the username and password steps.
-    respondWith(contents, {
-      focusElementForTyping: { focused: true, kind: 'input' },
-      activeElementSecrecy: 'secret',
+    let focusReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'focusElementForTyping')) {
+        focusReads++
+        return Promise.resolve(
+          focusReads === 1 ? { focused: true, kind: 'input', x: 24, y: 48 } : { error: 'password' }
+        )
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) return Promise.resolve({})
+      return Promise.resolve(undefined)
     })
 
     const result = await driver.executeTool('chat-test', 'browser_type', {
@@ -886,16 +892,15 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
   })
 
-  it('aborts when a surface check moves focus to a password field at the final guard', async () => {
+  it('aborts when the suggestions surface steals focus at the final guard', async () => {
     const contents = await openPage()
-    let secrecyReads = 0
+    let focusReads = 0
     vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
       if (isPageCall(expression, 'focusElementForTyping')) {
-        return Promise.resolve({ focused: true, kind: 'input' })
-      }
-      if (isPageCall(expression, 'activeElementSecrecy')) {
-        secrecyReads++
-        return Promise.resolve(secrecyReads === 1 ? 'safe' : 'secret')
+        focusReads++
+        return Promise.resolve(
+          focusReads === 1 ? { focused: true, kind: 'input', x: 24, y: 48 } : { error: 'different' }
+        )
       }
       if (isPageCall(expression, 'clickElement')) {
         return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Test' })
@@ -921,16 +926,16 @@ describe('credential protection', () => {
       text: 'hunter2',
     })
 
-    expect(secrecyReads).toBe(2)
+    expect(focusReads).toBe(2)
     expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/Refusing to act on a password field/)
+    expect(result.error).toMatch(/different field took focus/)
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
   })
 
   it('warns when acknowledged text produces no observable field change', async () => {
     const contents = await openPage()
     respondWith(contents, {
-      focusElementForTyping: { focused: true, kind: 'input' },
+      focusElementForTyping: { focused: true, kind: 'input', x: 24, y: 48 },
       activeElementSecrecy: 'safe',
       readActiveElementState: { activeElement: 'input', valueLength: 7 },
     })
@@ -950,6 +955,42 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
   })
 
+  it('types through a focused combobox suggestions popup without pointer probing', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      focusElementForTyping: {
+        focused: true,
+        kind: 'input',
+        x: 24,
+        y: 48,
+        coveredByRelatedPopup: true,
+      },
+      readActiveElementState: { activeElement: 'input', valueLength: 0 },
+      readPageActionState: {
+        url: 'https://example.com/login',
+        title: 'Compose',
+        focus: 'input:combobox:::To:',
+        mutationRevision: 0,
+        dialogs: [],
+        popups: ['Contact list'],
+        scroll: [0],
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: 'Mondu',
+    })
+
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true, trusted: true } })
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'clickElement'))
+    ).toBe(false)
+  })
+
   it('confirms typing only after the field readback changes', async () => {
     const contents = await openPage()
     let inserted = false
@@ -960,7 +1001,7 @@ describe('credential protection', () => {
     })
     vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
       if (isPageCall(expression, 'focusElementForTyping')) {
-        return Promise.resolve({ focused: true, kind: 'input' })
+        return Promise.resolve({ focused: true, kind: 'input', x: 24, y: 48 })
       }
       if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
       if (isPageCall(expression, 'clickElement')) {
@@ -1029,6 +1070,22 @@ describe('credential protection', () => {
 
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/Refusing to act on a password field/)
+  })
+
+  it('guides typing through owned suggestions without dispatching a pointer click', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      clickElement: { error: 'suggestions-open', blocker: 'Contact list' },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('Use browser_type on the same element'),
+    })
+    expect(result.error).toContain('do not dismiss the popup')
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
   })
 
   it('uses trusted CDP mouse input for element clicks', async () => {
@@ -1126,10 +1183,52 @@ describe('credential protection', () => {
     })
   })
 
+  it('confirms a panel close when the clicked target semantically disappears', async () => {
+    const contents = await openPage()
+    let actionReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'clickElement')) {
+        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Close thread' })
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        actionReads++
+        return Promise.resolve({
+          url: 'https://example.com/thread',
+          title: 'Thread',
+          focus: 'body',
+          mutationRevision: actionReads === 1 ? 0 : 2,
+          dialogs: [],
+          popups: [],
+          scroll: [0],
+          targetState:
+            actionReads === 1
+              ? { present: true, rendered: true }
+              : { present: false, rendered: false },
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        effectObserved: true,
+        possibleEffectObserved: true,
+        effect: { targetChanged: true },
+      },
+    })
+    expect(result).not.toMatchObject({
+      result: { note: expect.stringContaining('background DOM/title churn') },
+    })
+  })
+
   it('reports failed submit dispatch separately from a completed text write', async () => {
     const contents = await openPage()
     respondWith(contents, {
-      focusElementForTyping: { focused: true, kind: 'input' },
+      focusElementForTyping: { focused: true, kind: 'input', x: 24, y: 48 },
       activeElementSecrecy: 'safe',
       readActiveElementState: { activeElement: 'input', valueLength: 5 },
       readPageActionState: {
@@ -1172,7 +1271,7 @@ describe('credential protection', () => {
   it('does not retry text when Chromium loses the insert acknowledgement', async () => {
     const contents = await openPage()
     respondWith(contents, {
-      focusElementForTyping: { focused: true, kind: 'input' },
+      focusElementForTyping: { focused: true, kind: 'input', x: 24, y: 48 },
       activeElementSecrecy: 'safe',
       readActiveElementState: { activeElement: 'input', valueLength: 5 },
     })

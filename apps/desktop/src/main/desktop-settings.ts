@@ -154,27 +154,23 @@ export function createDesktopSettingsService(
     },
     setAppearancePreference(key, value) {
       const previousBrowserTheme = key === 'browserTheme' ? read().browserTheme : undefined
-      if (!isDesktopAppearanceTheme(value)) return read()
       deps.config.set(key, value)
       deps.config.flush()
       if (key === 'browserTheme') {
-        const browserTheme = value as DesktopAppearanceTheme
-        deps.setBrowserTheme(browserTheme)
-        if (browserTheme !== previousBrowserTheme) {
-          deps.onBrowserThemeChanged?.(browserTheme)
+        deps.setBrowserTheme(value)
+        if (value !== previousBrowserTheme) {
+          deps.onBrowserThemeChanged?.(value)
         }
       }
       return read()
     },
     setBrowserDefaultZoom(zoom) {
-      if (!isDesktopZoomPercent(zoom)) return read()
       deps.config.set('browserDefaultZoom', zoom)
       deps.config.flush()
       deps.setBrowserDefaultZoom(zoom)
       return read()
     },
     setTerminalDefaultZoom(zoom) {
-      if (!isDesktopZoomPercent(zoom)) return read()
       deps.config.set('terminalDefaultZoom', zoom)
       deps.config.flush()
       deps.setTerminalDefaultZoom(zoom)

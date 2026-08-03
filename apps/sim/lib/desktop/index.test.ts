@@ -24,7 +24,7 @@ function installBridge(value: unknown): void {
   vi.stubGlobal('window', { simDesktop: value })
 }
 
-describe('desktop scoped surface availability', () => {
+describe('desktop surface availability', () => {
   beforeEach(() => {
     setDesktopPreferencesSnapshot(ENABLED_PREFERENCES)
   })
@@ -33,32 +33,35 @@ describe('desktop scoped surface availability', () => {
     vi.unstubAllGlobals()
   })
 
-  it('does not enable legacy global browser or terminal surfaces', () => {
+  it('ships every surface with the desktop bridge', () => {
     installBridge({ browserAgent: {}, terminal: {} })
+
+    expect(hasBrowserAgent()).toBe(true)
+    expect(hasTerminal()).toBe(true)
+    expect(isBrowserAgentEnabled()).toBe(true)
+    expect(isTerminalEnabled()).toBe(true)
+  })
+
+  it('reports no surfaces outside the desktop app', () => {
+    vi.stubGlobal('window', {})
+
+    expect(hasBrowserAgent()).toBe(false)
+    expect(hasTerminal()).toBe(false)
+    expect(isBrowserAgentEnabled()).toBe(false)
+    expect(isTerminalEnabled()).toBe(false)
+  })
+
+  it('honors the per-device browser and terminal switches', () => {
+    installBridge({ browserAgent: {}, terminal: {} })
+    setDesktopPreferencesSnapshot({
+      ...ENABLED_PREFERENCES,
+      browserEnabled: false,
+      terminalEnabled: false,
+    })
 
     expect(hasBrowserAgent()).toBe(true)
     expect(hasTerminal()).toBe(true)
     expect(isBrowserAgentEnabled()).toBe(false)
     expect(isTerminalEnabled()).toBe(false)
-  })
-
-  it('requires both activation and migration for each scoped surface', () => {
-    installBridge({
-      browserAgent: { activateScope: vi.fn() },
-      terminal: { migrateScope: vi.fn() },
-    })
-
-    expect(isBrowserAgentEnabled()).toBe(false)
-    expect(isTerminalEnabled()).toBe(false)
-  })
-
-  it('enables surfaces that implement chat scope activation and migration', () => {
-    installBridge({
-      browserAgent: { activateScope: vi.fn(), migrateScope: vi.fn() },
-      terminal: { activateScope: vi.fn(), migrateScope: vi.fn() },
-    })
-
-    expect(isBrowserAgentEnabled()).toBe(true)
-    expect(isTerminalEnabled()).toBe(true)
   })
 })

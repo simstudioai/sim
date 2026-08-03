@@ -35,11 +35,12 @@ import '@xterm/xterm/css/xterm.css'
 import type { TerminalTabState, TerminalTabsState } from '@sim/terminal-protocol'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
-import { getDesktopBridge, setDesktopPreferencesSnapshot } from '@/lib/desktop'
+import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopTerminalAppearance,
   loadDesktopTerminalThemeProfiles,
   resolveDesktopAppearanceTheme,
+  withSelectedProfile,
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { addMothershipContext } from '@/lib/mothership/events'
@@ -62,6 +63,7 @@ import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/compo
 import { TerminalContextMenu } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-context-menu'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 import type { ChatContext, TerminalTextSelection } from '@/stores/panel'
 
@@ -489,6 +491,7 @@ const TerminalView = memo(function TerminalView({
         // not that it shrank. Fitting to that would resize the pty to nonsense.
         if (!onscreenRef.current || host.clientWidth <= 0 || host.clientHeight <= 0) return
         try {
+          // biome-ignore lint/suspicious/noFocusedTests: xterm FitAddon.fit(), not a focused test
           fit.fit()
         } catch {
           // Zero-sized while animating; the next observation refits.
@@ -540,6 +543,7 @@ const TerminalView = memo(function TerminalView({
     const frame = requestAnimationFrame(() => {
       if (host.clientWidth <= 0 || host.clientHeight <= 0) return
       try {
+        // biome-ignore lint/suspicious/noFocusedTests: xterm FitAddon.fit(), not a focused test
         fitRef.current?.fit()
         terminal.focus()
       } catch {
@@ -575,22 +579,6 @@ const TerminalView = memo(function TerminalView({
     if (!terminal) return
     const disposeRenderer = attachWebglRenderer(terminal)
     return () => disposeRenderer?.()
-  }, [onscreen])
-
-  useEffect(() => {
-    if (!onscreen) return
-    // Measure after the browser has laid the newly shown terminal out.
-    const frame = requestAnimationFrame(() => {
-      const host = hostRef.current
-      if (!host || host.clientWidth <= 0 || host.clientHeight <= 0) return
-      try {
-        fitRef.current?.fit()
-        terminalRef.current?.focus()
-      } catch {
-        // Panel still animating; the ResizeObserver refits.
-      }
-    })
-    return () => cancelAnimationFrame(frame)
   }, [onscreen])
 
   const {
@@ -716,7 +704,6 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [appearanceTheme, setAppearanceTheme] = useState<TerminalAppearanceTheme>('app')
   const [profiles, setProfiles] = useState<TerminalThemeProfile[]>([])
-  const [appearanceThemePending, setAppearanceThemePending] = useState(false)
   const [defaultZoom, setDefaultZoom] = useState<DesktopZoomPercent>(100)
   // Scope activation happens after a navigation commits. Selecting this
   // panel's bucket directly avoids briefly rendering the previous chat's
@@ -730,10 +717,7 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const { removeResource } = useMothershipResources()
   const [startError, setStartError] = useState<string | null>(null)
   const availableProfiles = useMemo(
-    () =>
-      typeof appearanceTheme !== 'string' && !profiles.some(({ id }) => id === appearanceTheme.id)
-        ? [...profiles, appearanceTheme]
-        : profiles,
+    () => withSelectedProfile(profiles, appearanceTheme),
     [appearanceTheme, profiles]
   )
 
@@ -770,24 +754,22 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
     }
   }, [])
 
-  const setTerminalAppearanceTheme = useCallback(async (theme: TerminalAppearanceTheme) => {
-    const bridge = getDesktopBridge()
-    if (!bridge) return
-    setAppearanceThemePending(true)
-    try {
-      const preferences =
+  const { pending: appearanceThemePending, mutate: setTerminalAppearanceTheme } =
+    useDesktopPreferenceMutation(
+      (bridge, theme: TerminalAppearanceTheme) =>
         typeof theme === 'string'
-          ? await bridge.settings.setTerminalTheme(theme)
-          : await bridge.terminalThemes?.selectProfile(theme.id)
-      if (!preferences) return
-      setAppearanceTheme(preferences.terminalTheme)
-      setDesktopPreferencesSnapshot(preferences)
-    } catch {
-      toast.error('Could not update terminal appearance')
-    } finally {
-      setAppearanceThemePending(false)
-    }
-  }, [])
+          ? bridge.settings.setTerminalTheme(theme)
+          : (bridge.terminalThemes?.selectProfile(theme.id) ?? Promise.resolve(undefined)),
+      'Could not update terminal appearance',
+      (preferences) => setAppearanceTheme(preferences.terminalTheme)
+    )
+  // Stable so the memoized TerminalView can bail out; recomputing the bridge
+  // check per render would hand every terminal a fresh closure.
+  const hasDesktopBridge = Boolean(getDesktopBridge())
+  const handleAppearanceThemeChange = useCallback(
+    (theme: TerminalAppearanceTheme) => void setTerminalAppearanceTheme(theme),
+    [setTerminalAppearanceTheme]
+  )
 
   // Interaction ownership is reported once for the whole panel, never per tab.
   // The shell holds a single focus flag, so a per-tab reporter would let one
@@ -965,9 +947,7 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
             scopeId={scopeId}
             appearanceTheme={appearanceTheme}
             profiles={availableProfiles}
-            onAppearanceThemeChange={
-              getDesktopBridge() ? (theme) => void setTerminalAppearanceTheme(theme) : undefined
-            }
+            onAppearanceThemeChange={hasDesktopBridge ? handleAppearanceThemeChange : undefined}
             appearanceThemePending={appearanceThemePending}
             defaultZoom={defaultZoom}
           />

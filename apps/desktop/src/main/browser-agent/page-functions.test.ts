@@ -111,6 +111,7 @@ beforeEach(() => {
   window.__simAgentNextElementId = 0
   window.__simAgentResolveElement = undefined
   installDomShims()
+  Reflect.deleteProperty(document, 'activeElement')
   document.body.innerHTML = ''
   window.__simAgentElements = []
   Object.defineProperty(document, 'elementFromPoint', {
@@ -272,6 +273,115 @@ describe('secret-field detection', () => {
     expect(nested instanceof HTMLInputElement).toBe(false)
     register(nested)
     expect(clickElement(0)).toEqual({ error: 'password' })
+  })
+})
+
+describe('combobox typing surfaces', () => {
+  function composeField(): {
+    wrapper: HTMLDivElement
+    input: HTMLInputElement
+    option: HTMLDivElement
+  } {
+    document.body.innerHTML = `
+      <div role="combobox" aria-label="To:" aria-expanded="true" aria-controls="contact-list">
+        <input type="text" aria-label="Recipients" />
+      </div>
+      <div id="contact-list" role="listbox" aria-label="Contact list">
+        <div role="option">Mondu</div>
+      </div>
+    `
+    const wrapper = visible(document.querySelector('[role="combobox"]') as HTMLDivElement)
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    visible(document.querySelector('[role="listbox"]') as HTMLDivElement)
+    const option = visible(document.querySelector('[role="option"]') as HTMLDivElement)
+    register(wrapper)
+    return { wrapper, input, option }
+  }
+
+  it('types through a focused combobox own portaled suggestions list', () => {
+    const { input, option } = composeField()
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => option,
+    })
+
+    expect(focusElementForTyping(0)).toMatchObject({
+      focused: true,
+      kind: 'input',
+      coveredByRelatedPopup: true,
+    })
+    expect(document.activeElement).toBe(input)
+    expect(focusElementForTyping(0, false)).toMatchObject({
+      focused: true,
+      coveredByRelatedPopup: true,
+    })
+    expect(typeIntoElement(0, 'Mondu', false)).toMatchObject({ dispatched: true })
+    expect(input.value).toBe('Mondu')
+  })
+
+  it('keeps pointer clicks blocked with typing guidance when suggestions own the surface', () => {
+    const { option } = composeField()
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => option,
+    })
+    expect(focusElementForTyping(0)).toMatchObject({ focused: true })
+
+    expect(clickElement(0, false)).toMatchObject({
+      error: 'suggestions-open',
+      blocker: 'Mondu',
+    })
+  })
+
+  it('does not give suggestions guidance when any click point has an unrelated blocker', () => {
+    const { option } = composeField()
+    const overlay = visible(document.createElement('div'))
+    overlay.setAttribute('aria-label', 'Unrelated overlay')
+    document.body.append(overlay)
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: (x: number) => (x > 70 ? overlay : option),
+    })
+    expect(focusElementForTyping(0)).toEqual({
+      error: 'obstructed',
+      blocker: 'Mondu',
+    })
+
+    expect(clickElement(0, false)).toMatchObject({
+      error: 'obstructed',
+      blocker: 'Mondu',
+    })
+  })
+
+  it('refuses mixed or unrelated blockers instead of treating them as suggestions', () => {
+    const { option } = composeField()
+    const overlay = visible(document.createElement('div'))
+    overlay.setAttribute('aria-label', 'Unrelated overlay')
+    document.body.append(overlay)
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: (x: number) => (x > 70 ? overlay : option),
+    })
+
+    expect(focusElementForTyping(0)).toEqual({
+      error: 'obstructed',
+      blocker: 'Mondu',
+    })
+  })
+
+  it('refuses ambiguous composite fields and descendant passwords', () => {
+    document.body.innerHTML = `
+      <div id="ambiguous" role="combobox"><input /><input /></div>
+      <div id="secret" role="combobox"><input type="password" /></div>
+    `
+    const ambiguous = visible(document.querySelector('#ambiguous') as HTMLDivElement)
+    const secret = visible(document.querySelector('#secret') as HTMLDivElement)
+    for (const input of Array.from(document.querySelectorAll('input'))) visible(input)
+    register(ambiguous, secret)
+
+    expect(focusElementForTyping(0)).toEqual({ error: 'ambiguous-editable' })
+    expect(focusElementForTyping(1)).toEqual({ error: 'password' })
+    expect(typeIntoElement(1, 'nope', false)).toEqual({ error: 'password' })
   })
 })
 
@@ -624,6 +734,41 @@ describe('collectSnapshot', () => {
     expect(clicked).toBe(true)
   })
 
+  it('recovers from a connected but collapsed node to its unique visible replacement', () => {
+    document.body.innerHTML =
+      '<div role="combobox" data-testid="compose-recipient" aria-label="To:"><input /></div>'
+    const original = visible(document.querySelector('[role="combobox"]') as HTMLDivElement)
+    visible(document.querySelector('input') as HTMLInputElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'To:')
+    original.getBoundingClientRect = () =>
+      ({ width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 }) as DOMRect
+    const replacement = visible(original.cloneNode(true) as HTMLDivElement)
+    visible(replacement.querySelector('input') as HTMLInputElement)
+    document.body.append(replacement)
+
+    expect(focusElementForTyping(ref)).toMatchObject({
+      focused: true,
+      refRecovered: true,
+    })
+  })
+
+  it('does not guess between visible replacements for a collapsed connected ref', () => {
+    document.body.innerHTML =
+      '<div role="combobox" data-testid="compose-recipient" aria-label="To:"><input /></div>'
+    const original = visible(document.querySelector('[role="combobox"]') as HTMLDivElement)
+    visible(document.querySelector('input') as HTMLInputElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'To:')
+    original.getBoundingClientRect = () =>
+      ({ width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 }) as DOMRect
+    for (let index = 0; index < 2; index++) {
+      const replacement = visible(original.cloneNode(true) as HTMLDivElement)
+      visible(replacement.querySelector('input') as HTMLInputElement)
+      document.body.append(replacement)
+    }
+
+    expect(focusElementForTyping(ref)).toEqual({ error: 'stale' })
+  })
+
   it('refuses to recover a ref when replacement is ambiguous', () => {
     document.body.innerHTML = '<button>Close</button>'
     const original = visible(document.querySelector('button') as HTMLButtonElement)
@@ -669,6 +814,43 @@ describe('collectSnapshot', () => {
     expect(secondRef).toBeGreaterThan(firstRef)
     expect(clickElement(firstRef)).toEqual({ error: 'stale' })
     expect(clickElement(secondRef)).toMatchObject({ dispatched: true })
+  })
+
+  it('reports a targeted control semantic disappearance after its panel closes', () => {
+    document.body.innerHTML = `
+      <aside aria-label="Thread panel"><button data-testid="close-thread">Close thread</button></aside>
+    `
+    const panel = document.querySelector('aside') as HTMLElement
+    visible(panel)
+    visible(document.querySelector('button') as HTMLButtonElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Close thread')
+
+    const before = readPageActionState(true, ref) as {
+      targetState: { present: boolean; rendered: boolean }
+    }
+    panel.remove()
+    const composer = visible(document.createElement('textarea'))
+    composer.setAttribute('aria-label', 'Message')
+    document.body.append(composer)
+    const after = readPageActionState(false, ref) as {
+      targetState: { present: boolean; rendered: boolean }
+    }
+
+    expect(before.targetState).toMatchObject({ present: true, rendered: true })
+    expect(after.targetState).toEqual({ present: false, rendered: false })
+  })
+
+  it('keeps semantic target presence through a unique React replacement', () => {
+    document.body.innerHTML =
+      '<button data-testid="close-thread" aria-label="Close thread"></button>'
+    const original = visible(document.querySelector('button') as HTMLButtonElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Close thread')
+    const before = readPageActionState(true, ref) as { targetState: unknown }
+    const replacement = visible(original.cloneNode(true) as HTMLButtonElement)
+    original.replaceWith(replacement)
+    const after = readPageActionState(false, ref) as { targetState: unknown }
+
+    expect(after.targetState).toEqual(before.targetState)
   })
 })
 

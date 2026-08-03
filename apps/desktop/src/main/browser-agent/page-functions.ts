@@ -670,9 +670,42 @@ export function collectSnapshot(startingElementId = 0): unknown {
       )
     }
 
+    // The snapshot-time visibility WeakMap is intentionally not used here.
+    // React apps often keep the old combobox/control connected but collapse it
+    // to zero size while mounting a replacement. Re-check live so a parked
+    // node can fall through to the same strict, unique recovery used for a
+    // detached node.
+    const isCurrentlyVisible = (candidate: Element): boolean => {
+      const rect = candidate.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return false
+      for (let current: Element | null = candidate; current; ) {
+        const currentView: Window | null = current.ownerDocument.defaultView
+        const style = currentView?.getComputedStyle(current)
+        const opacity = Number.parseFloat(style?.opacity || '1')
+        if (
+          !style ||
+          style.display === 'none' ||
+          style.visibility === 'hidden' ||
+          style.contentVisibility === 'hidden' ||
+          (Number.isFinite(opacity) && opacity <= 0.01) ||
+          current.hasAttribute('hidden') ||
+          current.getAttribute('aria-hidden') === 'true'
+        ) {
+          return false
+        }
+        if (current.parentElement) current = current.parentElement
+        else {
+          const root = current.getRootNode()
+          current = 'host' in root ? (root.host as Element) : null
+        }
+      }
+      return true
+    }
+
     const current = registry[id]
     if (current?.isConnected) {
-      return identityMatches(current, true) ? { element: current, recovered: false } : null
+      if (!identityMatches(current, true)) return null
+      if (isCurrentlyVisible(current)) return { element: current, recovered: false }
     }
 
     const reachable: Element[] = []
@@ -700,7 +733,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     if (document.body) collect(document.body)
 
     const scored = reachable
-      .filter((candidate) => identityMatches(candidate) && isVisible(candidate))
+      .filter((candidate) => identityMatches(candidate) && isCurrentlyVisible(candidate))
       .map((candidate) => {
         const candidateAttributes = locatorAttributes(candidate)
         const logicalAttributeMatch = [
@@ -940,6 +973,7 @@ export function clickElement(
   let clientX = 0
   let clientY = 0
   let blocker: Element | null = null
+  const blockedHits: Array<Element | null> = []
   let foundPoint = false
   const blockerLabel = (element: Element | null): string =>
     (
@@ -967,12 +1001,92 @@ export function clickElement(
           break
         }
         blocker ??= hit
+        blockedHits.push(hit)
       }
       if (foundPoint) break
     }
     if (foundPoint) break
   }
   if (!foundPoint) {
+    const suggestionsCoverFocusedEditable = (): boolean => {
+      const candidates: HTMLElement[] = []
+      const addCandidate = (candidate: Element): void => {
+        const candidateTag = String(candidate.tagName || '').toUpperCase()
+        const inputType =
+          candidateTag === 'INPUT'
+            ? String((candidate as HTMLInputElement).type || 'text').toLowerCase()
+            : ''
+        if (
+          candidateTag === 'TEXTAREA' ||
+          (candidateTag === 'INPUT' &&
+            ['text', 'search', 'email', 'url', 'tel', 'number'].includes(inputType)) ||
+          (candidate as HTMLElement).isContentEditable
+        ) {
+          candidates.push(candidate as HTMLElement)
+        }
+      }
+      addCandidate(el)
+      for (const candidate of Array.from(
+        el.querySelectorAll<HTMLElement>(
+          'input, textarea, [contenteditable="true"], [contenteditable=""]'
+        )
+      )) {
+        addCandidate(candidate)
+      }
+      const editables = Array.from(new Set(candidates))
+      if (editables.length !== 1 || !blocker || blockedHits.length === 0) return false
+      const editable = editables[0]
+      if (editable.ownerDocument.activeElement !== editable) return false
+      let owner: Element | null = editable
+      for (let depth = 0; owner && depth < 10; depth++) {
+        if (owner.getAttribute('role') === 'combobox') break
+        owner = composedParent(owner)
+      }
+      if (!owner || owner.getAttribute('aria-expanded') !== 'true') return false
+      const ids = new Set<string>()
+      for (let current: Element | null = editable; current; current = composedParent(current)) {
+        for (const attribute of ['aria-controls', 'aria-owns']) {
+          for (const token of (current.getAttribute(attribute) || '').trim().split(/\s+/)) {
+            if (token) ids.add(token)
+          }
+        }
+        if (current === owner) break
+      }
+      const scopes = Array.from(
+        new Set<ParentNode>([owner.getRootNode() as ParentNode, editable.ownerDocument])
+      )
+      const controlledPopups: Element[] = []
+      for (const idRef of ids) {
+        const matches = new Set<Element>()
+        for (const scope of scopes) {
+          let visited = 0
+          for (const candidate of Array.from(scope.querySelectorAll('[id]'))) {
+            if (++visited > 12_000) break
+            if (candidate.id === idRef) matches.add(candidate)
+          }
+        }
+        if (matches.size !== 1) continue
+        const popup = Array.from(matches)[0]
+        if (
+          ['listbox', 'tree', 'grid'].includes(popup.getAttribute('role') || '') &&
+          popup.getAttribute('aria-modal') !== 'true'
+        ) {
+          controlledPopups.push(popup)
+        }
+      }
+      if (controlledPopups.length === 0) return false
+      const coveringPopups = new Set<Element>()
+      for (const hit of blockedHits) {
+        if (!hit) return false
+        const popup = controlledPopups.find((candidate) => candidate.contains(hit))
+        if (!popup) return false
+        coveringPopups.add(popup)
+      }
+      return coveringPopups.size === 1
+    }
+    if (suggestionsCoverFocusedEditable()) {
+      return { error: 'suggestions-open', blocker: blockerLabel(blocker) }
+    }
     return { error: 'obstructed', blocker: blockerLabel(blocker) }
   }
 
@@ -1085,7 +1199,7 @@ export function clickElement(
  * what's there — including inside code editors (CodeMirror/Monaco), whose
  * models sync from the DOM selection / native input pipeline.
  */
-export function focusElementForTyping(id: number): unknown {
+export function focusElementForTyping(id: number, moveFocus = true): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
     if (String((node as HTMLInputElement).type || '').toLowerCase() === 'password') return true
@@ -1099,11 +1213,6 @@ export function focusElementForTyping(id: number): unknown {
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
   if (!el || !el.isConnected) return { error: 'stale' }
-  el.scrollIntoView({ block: 'center', behavior: 'instant' })
-
-  if (isSecretField(el)) {
-    return { error: 'password' }
-  }
 
   const isWritableTextField = (
     field: HTMLInputElement | HTMLTextAreaElement
@@ -1116,91 +1225,255 @@ export function focusElementForTyping(id: number): unknown {
       ? 'writable'
       : 'not-editable'
   }
-  const hasVisibleSurface = (editable: HTMLElement): boolean => {
-    const rect = editable.getBoundingClientRect()
-    const view = editable.ownerDocument.defaultView
-    if (!view || rect.width <= 0 || rect.height <= 0) return false
-    for (let current: Element | null = editable; current; ) {
-      const currentView: Window | null = current.ownerDocument.defaultView
-      const style = currentView?.getComputedStyle(current)
-      const opacity = Number.parseFloat(style?.opacity || '1')
-      if (
-        !style ||
-        style.display === 'none' ||
-        style.visibility === 'hidden' ||
-        style.contentVisibility === 'hidden' ||
-        (Number.isFinite(opacity) && opacity <= 0.01) ||
-        current.hasAttribute('hidden') ||
-        current.getAttribute('aria-hidden') === 'true'
-      ) {
-        return false
-      }
-      if (current.parentElement) current = current.parentElement
-      else {
-        const root = current.getRootNode()
-        current = 'host' in root ? (root.host as Element) : null
-      }
-    }
-    const root = editable.getRootNode() as ParentNode & {
-      elementFromPoint?: (x: number, y: number) => Element | null
-    }
-    const elementAt =
-      typeof root.elementFromPoint === 'function'
-        ? root.elementFromPoint.bind(root)
-        : typeof editable.ownerDocument.elementFromPoint === 'function'
-          ? editable.ownerDocument.elementFromPoint.bind(editable.ownerDocument)
-          : null
-    if (!elementAt) return true
-    const hit = elementAt(rect.left + rect.width / 2, rect.top + rect.height / 2)
-    return Boolean(hit && (hit === editable || editable.contains(hit)))
-  }
 
-  // Tag comparisons, not `instanceof`: element wrappers are realm-bound, so an
-  // input inside a same-origin iframe — a framed login form, a TinyMCE body —
-  // fails every `instanceof` against the top frame's constructors and would be
-  // reported back as "not a text input".
-  const tag = String(el.tagName || '').toUpperCase()
-  if (tag === 'INPUT' || tag === 'TEXTAREA') {
-    const field = el as HTMLInputElement | HTMLTextAreaElement
-    const writable = isWritableTextField(field)
+  const tagFor = (node: Element): string => String(node.tagName || '').toUpperCase()
+  const potentialEditables: HTMLElement[] = []
+  const addEditable = (node: Element): void => {
+    const tag = tagFor(node)
+    const inputType =
+      tag === 'INPUT' ? String((node as HTMLInputElement).type || 'text').toLowerCase() : ''
+    if (
+      tag === 'TEXTAREA' ||
+      (tag === 'INPUT' &&
+        ['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)) ||
+      (node as HTMLElement).isContentEditable
+    ) {
+      potentialEditables.push(node as HTMLElement)
+    }
+  }
+  addEditable(el)
+  for (const candidate of Array.from(
+    el.querySelectorAll<HTMLElement>(
+      'input, textarea, [contenteditable="true"], [contenteditable=""]'
+    )
+  )) {
+    addEditable(candidate)
+  }
+  const editables = Array.from(new Set(potentialEditables))
+  if (editables.length === 0) return { error: 'not-editable' }
+  if (editables.length > 1) return { error: 'ambiguous-editable' }
+  const editable = editables[0]
+  const editableTag = tagFor(editable)
+
+  if (isSecretField(editable)) return { error: 'password' }
+  if (editableTag === 'INPUT' || editableTag === 'TEXTAREA') {
+    const writable = isWritableTextField(editable as HTMLInputElement | HTMLTextAreaElement)
     if (writable !== 'writable') return { error: writable }
-    if (!hasVisibleSurface(field)) return { error: 'not-visible' }
-    field.focus()
-    try {
-      field.select()
-    } catch {
-      // Some text-entry UIs (notably number/email) reject DOM select(), while
-      // the trusted Mod+A immediately dispatched by the driver still works.
-    }
-    return {
-      focused: true,
-      kind: tag === 'INPUT' ? 'input' : 'textarea',
-      refRecovered: resolved?.recovered === true,
-    }
-  }
-
-  // Editors often register a wrapper as the interactive element while the
-  // actual editable surface is a descendant.
-  const editable = (el as HTMLElement).isContentEditable
-    ? (el as HTMLElement)
-    : Array.from(
-        el.querySelectorAll<HTMLElement>('[contenteditable="true"], [contenteditable=""]')
-      ).find(hasVisibleSurface)
-  if (editable) {
+  } else {
     if (editable.getAttribute('aria-disabled') === 'true') return { error: 'disabled' }
     if (editable.getAttribute('aria-readonly') === 'true') return { error: 'readonly' }
-    if (!hasVisibleSurface(editable)) return { error: 'not-visible' }
-    editable.focus()
-    const selection = editable.ownerDocument.defaultView?.getSelection()
-    if (selection) {
-      const range = editable.ownerDocument.createRange()
-      range.selectNodeContents(editable)
-      selection.removeAllRanges()
-      selection.addRange(range)
-    }
-    return { focused: true, kind: 'contenteditable', refRecovered: resolved?.recovered === true }
   }
-  return { error: 'not-editable' }
+
+  editable.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+
+  const composedParent = (node: Element): Element | null => {
+    if (node.parentElement) return node.parentElement
+    const root = node.getRootNode()
+    return 'host' in root ? (root.host as Element) : null
+  }
+  const rawRects = Array.from(editable.getClientRects())
+  if (rawRects.length === 0) rawRects.push(editable.getBoundingClientRect())
+  const view = editable.ownerDocument.defaultView
+  if (!view) return { error: 'stale' }
+  const rects = rawRects
+    .map((rect) => ({
+      left: Math.max(0, rect.left),
+      top: Math.max(0, rect.top),
+      right: Math.min(view.innerWidth, rect.right),
+      bottom: Math.min(view.innerHeight, rect.bottom),
+    }))
+    .filter(
+      (rect) =>
+        Number.isFinite(rect.left) &&
+        Number.isFinite(rect.top) &&
+        Number.isFinite(rect.right) &&
+        Number.isFinite(rect.bottom) &&
+        rect.right - rect.left > 1 &&
+        rect.bottom - rect.top > 1
+    )
+  if (rects.length === 0) return { error: 'not-visible' }
+  for (let current: Element | null = editable; current; current = composedParent(current)) {
+    const currentView: Window | null = current.ownerDocument.defaultView
+    const style = currentView?.getComputedStyle(current)
+    const opacity = Number.parseFloat(style?.opacity || '1')
+    if (
+      !style ||
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      style.contentVisibility === 'hidden' ||
+      (Number.isFinite(opacity) && opacity <= 0.01) ||
+      current.hasAttribute('hidden') ||
+      current.getAttribute('aria-hidden') === 'true'
+    ) {
+      return { error: 'not-visible' }
+    }
+  }
+
+  if (moveFocus) {
+    editable.focus()
+    if (editableTag === 'INPUT' || editableTag === 'TEXTAREA') {
+      try {
+        ;(editable as HTMLInputElement | HTMLTextAreaElement).select()
+      } catch {
+        // Trusted Mod+A in the driver still covers field types that reject select().
+      }
+    } else {
+      const selection = editable.ownerDocument.defaultView?.getSelection()
+      if (selection) {
+        const range = editable.ownerDocument.createRange()
+        range.selectNodeContents(editable)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
+    }
+  }
+
+  const deepestActiveElement = (): HTMLElement | null => {
+    let active = editable.ownerDocument.activeElement as HTMLElement | null
+    for (let depth = 0; active && depth < 10; depth++) {
+      if (active.shadowRoot?.activeElement) {
+        active = active.shadowRoot.activeElement as HTMLElement
+        continue
+      }
+      const activeTag = tagFor(active)
+      if (activeTag === 'IFRAME' || activeTag === 'FRAME') {
+        try {
+          const inner = (active as HTMLIFrameElement).contentDocument
+          if (inner?.activeElement && inner.activeElement !== inner.body) {
+            active = inner.activeElement as HTMLElement
+            continue
+          }
+        } catch {
+          return active
+        }
+      }
+      break
+    }
+    return active
+  }
+  const active = deepestActiveElement()
+  if (isSecretField(active)) return { error: 'password' }
+  if (!active || (active !== editable && !editable.contains(active))) return { error: 'different' }
+
+  const root = editable.getRootNode() as ParentNode & {
+    elementFromPoint?: (x: number, y: number) => Element | null
+  }
+  const elementAt =
+    typeof root.elementFromPoint === 'function'
+      ? root.elementFromPoint.bind(root)
+      : typeof editable.ownerDocument.elementFromPoint === 'function'
+        ? editable.ownerDocument.elementFromPoint.bind(editable.ownerDocument)
+        : null
+
+  let comboboxOwner: Element | null = editable
+  for (let depth = 0; comboboxOwner && depth < 10; depth++) {
+    if (comboboxOwner.getAttribute('role') === 'combobox') break
+    comboboxOwner = composedParent(comboboxOwner)
+  }
+  const controlledPopups: Element[] = []
+  if (comboboxOwner?.getAttribute('aria-expanded') === 'true') {
+    const idRefs = new Set<string>()
+    for (let current: Element | null = editable; current; current = composedParent(current)) {
+      for (const attribute of ['aria-controls', 'aria-owns']) {
+        for (const token of (current.getAttribute(attribute) || '').trim().split(/\s+/)) {
+          if (token) idRefs.add(token)
+        }
+      }
+      if (current === comboboxOwner) break
+    }
+    const scopes = Array.from(
+      new Set<ParentNode>([comboboxOwner.getRootNode() as ParentNode, editable.ownerDocument])
+    )
+    for (const idRef of idRefs) {
+      const matches = new Set<Element>()
+      for (const scope of scopes) {
+        let visited = 0
+        for (const candidate of Array.from(scope.querySelectorAll('[id]'))) {
+          if (++visited > 12_000) break
+          if (candidate.id === idRef) matches.add(candidate)
+        }
+      }
+      if (matches.size !== 1) continue
+      const popup = Array.from(matches)[0]
+      if (
+        ['listbox', 'tree', 'grid'].includes(popup.getAttribute('role') || '') &&
+        popup.getAttribute('aria-modal') !== 'true'
+      ) {
+        controlledPopups.push(popup)
+      }
+    }
+  }
+
+  const blockerLabel = (element: Element | null): string =>
+    (
+      element?.getAttribute('aria-label') ||
+      (element as HTMLElement | null)?.innerText ||
+      element?.textContent ||
+      element?.tagName ||
+      'another element'
+    )
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120)
+      .replace(/[\uD800-\uDBFF]$/, '')
+  const fractions = [0.5, 0.2, 0.8]
+  let chosenPoint: { x: number; y: number } | null = null
+  let firstBlocker: Element | null = null
+  const blockedPoints: Array<{ x: number; y: number; hit: Element | null }> = []
+  for (const rect of rects) {
+    for (const xFraction of fractions) {
+      for (const yFraction of fractions) {
+        const x = rect.left + (rect.right - rect.left) * xFraction
+        const y = rect.top + (rect.bottom - rect.top) * yFraction
+        const hit = elementAt ? elementAt(x, y) : editable
+        if (hit && (hit === editable || editable.contains(hit))) {
+          chosenPoint = { x, y }
+          break
+        }
+        firstBlocker ??= hit
+        blockedPoints.push({ x, y, hit })
+      }
+      if (chosenPoint) break
+    }
+    if (chosenPoint) break
+  }
+
+  let coveredByRelatedPopup = false
+  if (!chosenPoint && blockedPoints.length > 0) {
+    const coveringPopups = new Set<Element>()
+    let allRelated = controlledPopups.length > 0
+    for (const point of blockedPoints) {
+      const popup = point.hit
+        ? controlledPopups.find((candidate) => candidate.contains(point.hit))
+        : undefined
+      if (!popup) {
+        allRelated = false
+        break
+      }
+      coveringPopups.add(popup)
+    }
+    if (allRelated && coveringPopups.size === 1) {
+      chosenPoint = { x: blockedPoints[0].x, y: blockedPoints[0].y }
+      coveredByRelatedPopup = true
+    }
+  }
+  if (!chosenPoint) {
+    return { error: 'obstructed', blocker: blockerLabel(firstBlocker) }
+  }
+
+  return {
+    focused: true,
+    kind:
+      editableTag === 'INPUT'
+        ? 'input'
+        : editableTag === 'TEXTAREA'
+          ? 'textarea'
+          : 'contenteditable',
+    x: chosenPoint.x,
+    y: chosenPoint.y,
+    coveredByRelatedPopup,
+    refRecovered: resolved?.recovered === true,
+  }
 }
 
 /**
@@ -1465,11 +1738,6 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
   if (!el || !el.isConnected) return { error: 'stale' }
-  el.scrollIntoView({ block: 'center', behavior: 'instant' })
-
-  if (isSecretField(el)) {
-    return { error: 'password' }
-  }
 
   const isWritableTextField = (
     field: HTMLInputElement | HTMLTextAreaElement
@@ -1483,17 +1751,48 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
       : 'not-editable'
   }
 
-  const tag = String(el.tagName || '').toUpperCase()
-  let submissionTarget: HTMLElement = el as HTMLElement
+  const potentialEditables: HTMLElement[] = []
+  const addEditable = (node: Element): void => {
+    const candidateTag = String(node.tagName || '').toUpperCase()
+    const inputType =
+      candidateTag === 'INPUT'
+        ? String((node as HTMLInputElement).type || 'text').toLowerCase()
+        : ''
+    if (
+      candidateTag === 'TEXTAREA' ||
+      (candidateTag === 'INPUT' &&
+        ['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)) ||
+      (node as HTMLElement).isContentEditable
+    ) {
+      potentialEditables.push(node as HTMLElement)
+    }
+  }
+  addEditable(el)
+  for (const candidate of Array.from(
+    el.querySelectorAll<HTMLElement>(
+      'input, textarea, [contenteditable="true"], [contenteditable=""]'
+    )
+  )) {
+    addEditable(candidate)
+  }
+  const editables = Array.from(new Set(potentialEditables))
+  if (editables.length === 0) return { error: 'not-editable' }
+  if (editables.length > 1) return { error: 'ambiguous-editable' }
+  const editable = editables[0]
+  const tag = String(editable.tagName || '').toUpperCase()
+  editable.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+  if (isSecretField(editable)) return { error: 'password' }
+
+  let submissionTarget: HTMLElement = editable
   if (tag === 'INPUT' || tag === 'TEXTAREA') {
-    const field = el as HTMLInputElement | HTMLTextAreaElement
+    const field = editable as HTMLInputElement | HTMLTextAreaElement
     const writable = isWritableTextField(field)
     if (writable !== 'writable') return { error: writable }
     field.focus()
     // The native setter must come from the element's OWN realm. A same-origin
     // iframe has its own constructors, and calling the top frame's setter on
     // one of its nodes throws "Illegal invocation".
-    const view = el.ownerDocument.defaultView ?? window
+    const view = editable.ownerDocument.defaultView ?? window
     const proto =
       tag === 'INPUT' ? view.HTMLInputElement.prototype : view.HTMLTextAreaElement.prototype
     const descriptor = Object.getOwnPropertyDescriptor(proto, 'value')
@@ -1502,18 +1801,6 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
     field.dispatchEvent(new Event('input', { bubbles: true }))
     field.dispatchEvent(new Event('change', { bubbles: true }))
   } else {
-    const editable = (el as HTMLElement).isContentEditable
-      ? (el as HTMLElement)
-      : Array.from(
-          el.querySelectorAll<HTMLElement>('[contenteditable="true"], [contenteditable=""]')
-        ).find((candidate) => {
-          const rect = candidate.getBoundingClientRect()
-          const view = candidate.ownerDocument.defaultView
-          if (!view || rect.width <= 0 || rect.height <= 0) return false
-          const style = view.getComputedStyle(candidate)
-          return style.display !== 'none' && style.visibility !== 'hidden'
-        })
-    if (!editable) return { error: 'not-editable' }
     if (editable.getAttribute('aria-disabled') === 'true') return { error: 'disabled' }
     if (editable.getAttribute('aria-readonly') === 'true') return { error: 'readonly' }
     submissionTarget = editable
@@ -1599,10 +1886,20 @@ export function pressKeyOnPage(
  * “the page visibly reacted.”
  */
 export function readPageActionState(resetMutationRevision = false, elementId?: number): unknown {
+  const registeredElement =
+    typeof elementId === 'number' ? (window.__simAgentElements || [])[elementId] : undefined
+  const resolver = window.__simAgentResolveElement
   const resolved =
-    typeof elementId === 'number' ? window.__simAgentResolveElement?.(elementId) : undefined
+    typeof elementId === 'number'
+      ? resolver
+        ? resolver(elementId)
+        : registeredElement?.isConnected
+          ? { element: registeredElement, recovered: false }
+          : null
+      : undefined
   const observedElement = resolved?.element ?? null
-  const observedDocument = observedElement?.ownerDocument ?? document
+  const observedDocument =
+    observedElement?.ownerDocument ?? registeredElement?.ownerDocument ?? document
   const observedWindow = observedDocument.defaultView ?? window
   const observationRoot = observedDocument.body
 
@@ -1765,26 +2062,69 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
     .slice(0, 30)
     .map((element) => `${element.tagName}:${Math.round((element as HTMLElement).scrollTop)}`)
 
-  const targetState = observedElement
-    ? {
-        ariaExpanded: observedElement.getAttribute('aria-expanded'),
-        ariaSelected: observedElement.getAttribute('aria-selected'),
-        ariaPressed: observedElement.getAttribute('aria-pressed'),
-        ariaChecked: observedElement.getAttribute('aria-checked'),
-        checked:
-          'checked' in observedElement
-            ? Boolean((observedElement as HTMLInputElement).checked)
-            : undefined,
-        selected:
-          'selected' in observedElement
-            ? Boolean((observedElement as HTMLOptionElement).selected)
-            : undefined,
-        open: observedElement.hasAttribute('open'),
-        hidden:
-          observedElement.hasAttribute('hidden') ||
-          observedElement.getAttribute('aria-hidden') === 'true',
+  const isEffectivelyRendered = (element: Element): boolean => {
+    const rect = element.getBoundingClientRect()
+    const view = element.ownerDocument.defaultView
+    if (
+      !view ||
+      rect.width <= 1 ||
+      rect.height <= 1 ||
+      rect.right <= 0 ||
+      rect.bottom <= 0 ||
+      rect.left >= view.innerWidth ||
+      rect.top >= view.innerHeight
+    ) {
+      return false
+    }
+    for (let current: Element | null = element; current; ) {
+      const currentView: Window | null = current.ownerDocument.defaultView
+      const style = currentView?.getComputedStyle(current)
+      const opacity = Number.parseFloat(style?.opacity || '1')
+      if (
+        !style ||
+        style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        style.contentVisibility === 'hidden' ||
+        (Number.isFinite(opacity) && opacity <= 0.01) ||
+        current.hasAttribute('hidden') ||
+        current.getAttribute('aria-hidden') === 'true'
+      ) {
+        return false
       }
-    : undefined
+      if (current.parentElement) current = current.parentElement
+      else {
+        const root = current.getRootNode()
+        current = 'host' in root ? (root.host as Element) : null
+      }
+    }
+    return true
+  }
+
+  const targetState =
+    typeof elementId !== 'number'
+      ? undefined
+      : observedElement
+        ? {
+            present: true,
+            rendered: isEffectivelyRendered(observedElement),
+            ariaExpanded: observedElement.getAttribute('aria-expanded'),
+            ariaSelected: observedElement.getAttribute('aria-selected'),
+            ariaPressed: observedElement.getAttribute('aria-pressed'),
+            ariaChecked: observedElement.getAttribute('aria-checked'),
+            checked:
+              'checked' in observedElement
+                ? Boolean((observedElement as HTMLInputElement).checked)
+                : undefined,
+            selected:
+              'selected' in observedElement
+                ? Boolean((observedElement as HTMLOptionElement).selected)
+                : undefined,
+            open: observedElement.hasAttribute('open'),
+            hidden:
+              observedElement.hasAttribute('hidden') ||
+              observedElement.getAttribute('aria-hidden') === 'true',
+          }
+        : { present: false, rendered: false }
 
   return {
     url: observedWindow.location.href.slice(0, 4096),

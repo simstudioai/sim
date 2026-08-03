@@ -12,7 +12,7 @@ export type FocusedResourceShortcut =
   | 'reload-or-clear'
   | `zoom-${DesktopZoomAction}`
 
-export function zoomActionForShortcut(shortcut: FocusedResourceShortcut): DesktopZoomAction | null {
+export function zoomActionForShortcut(shortcut: `zoom-${DesktopZoomAction}`): DesktopZoomAction {
   switch (shortcut) {
     case 'zoom-in':
       return 'in'
@@ -20,7 +20,5 @@ export function zoomActionForShortcut(shortcut: FocusedResourceShortcut): Deskto
       return 'out'
     case 'zoom-reset':
       return 'reset'
-    default:
-      return null
   }
 }

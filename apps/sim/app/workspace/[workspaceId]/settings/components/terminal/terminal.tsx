@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type {
   DesktopAppearanceTheme,
   DesktopPreferences,
@@ -9,11 +9,13 @@ import type {
 } from '@sim/desktop-bridge'
 import { Label, Switch, toast } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
-import { getDesktopBridge, setDesktopPreferencesSnapshot } from '@/lib/desktop'
+import { getDesktopBridge } from '@/lib/desktop'
+import { loadDesktopTerminalThemeProfiles } from '@/lib/desktop/appearance'
 import { DefaultZoomSelect } from '@/app/workspace/[workspaceId]/settings/components/default-zoom-select'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { TerminalThemePicker } from '@/app/workspace/[workspaceId]/settings/components/terminal/terminal-theme-picker'
+import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 
 export function Terminal() {
   const params = useParams()
@@ -21,9 +23,6 @@ export function Terminal() {
   const workspaceId = params.workspaceId as string
   const [preferences, setPreferences] = useState<DesktopPreferences | null>(null)
   const [profiles, setProfiles] = useState<TerminalThemeProfile[]>([])
-  const [togglePending, setTogglePending] = useState(false)
-  const [themePending, setThemePending] = useState(false)
-  const [zoomPending, setZoomPending] = useState(false)
 
   useEffect(() => {
     const bridge = getDesktopBridge()
@@ -31,10 +30,7 @@ export function Terminal() {
       router.replace(`/workspace/${workspaceId}/settings/general`)
       return
     }
-    void Promise.all([
-      bridge.settings.getPreferences(),
-      bridge.terminalThemes?.listProfiles().catch(() => []) ?? [],
-    ])
+    void Promise.all([bridge.settings.getPreferences(), loadDesktopTerminalThemeProfiles()])
       .then(([nextPreferences, nextProfiles]) => {
         setPreferences(nextPreferences)
         setProfiles(nextProfiles)
@@ -42,69 +38,38 @@ export function Terminal() {
       .catch(() => toast.error('Could not load terminal settings'))
   }, [router, workspaceId])
 
-  const setEnabled = useCallback(async (enabled: boolean) => {
-    const settings = getDesktopBridge()?.settings
-    if (!settings) return
-    setTogglePending(true)
-    try {
-      const next = await settings.setPreference('terminalEnabled', enabled)
-      setPreferences(next)
-      setDesktopPreferencesSnapshot(next)
-    } catch {
-      toast.error('Could not update terminal settings')
-    } finally {
-      setTogglePending(false)
-    }
-  }, [])
+  const { pending: togglePending, mutate: setEnabled } = useDesktopPreferenceMutation(
+    (bridge, enabled: boolean) => bridge.settings.setPreference('terminalEnabled', enabled),
+    'Could not update terminal settings',
+    setPreferences
+  )
 
-  const selectProfile = useCallback(async (profile: TerminalThemeProfile) => {
-    const select = getDesktopBridge()?.terminalThemes?.selectProfile
-    if (!select) return
-    setThemePending(true)
-    try {
-      const next = await select(profile.id)
-      if (!next) {
-        toast.error('Could not select that terminal theme')
-        return
-      }
-      setPreferences(next)
-      setDesktopPreferencesSnapshot(next)
-    } catch {
-      toast.error('Could not select that terminal theme')
-    } finally {
-      setThemePending(false)
-    }
-  }, [])
+  // A missing profile resolves without preferences; surface that as the same
+  // failure a rejected call reports.
+  const { pending: profilePending, mutate: selectProfile } = useDesktopPreferenceMutation(
+    async (bridge, profile: TerminalThemeProfile) => {
+      if (!bridge.terminalThemes) return undefined
+      const next = await bridge.terminalThemes.selectProfile(profile.id)
+      if (!next) throw new Error('unknown terminal theme profile')
+      return next
+    },
+    'Could not select that terminal theme',
+    setPreferences
+  )
 
-  const setTheme = useCallback(async (theme: DesktopAppearanceTheme) => {
-    const settings = getDesktopBridge()?.settings
-    if (!settings) return
-    setThemePending(true)
-    try {
-      const next = await settings.setTerminalTheme(theme)
-      setPreferences(next)
-      setDesktopPreferencesSnapshot(next)
-    } catch {
-      toast.error('Could not update terminal appearance')
-    } finally {
-      setThemePending(false)
-    }
-  }, [])
+  const { pending: builtInThemePending, mutate: setTheme } = useDesktopPreferenceMutation(
+    (bridge, theme: DesktopAppearanceTheme) => bridge.settings.setTerminalTheme(theme),
+    'Could not update terminal appearance',
+    setPreferences
+  )
 
-  const setDefaultZoom = useCallback(async (zoom: DesktopZoomPercent) => {
-    const settings = getDesktopBridge()?.settings
-    if (!settings) return
-    setZoomPending(true)
-    try {
-      const next = await settings.setTerminalDefaultZoom(zoom)
-      setPreferences(next)
-      setDesktopPreferencesSnapshot(next)
-    } catch {
-      toast.error('Could not update the default terminal zoom')
-    } finally {
-      setZoomPending(false)
-    }
-  }, [])
+  const { pending: zoomPending, mutate: setDefaultZoom } = useDesktopPreferenceMutation(
+    (bridge, zoom: DesktopZoomPercent) => bridge.settings.setTerminalDefaultZoom(zoom),
+    'Could not update the default terminal zoom',
+    setPreferences
+  )
+
+  const themePending = profilePending || builtInThemePending
 
   if (!preferences) {
     return null

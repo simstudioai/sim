@@ -500,15 +500,6 @@ describe('Browser settings', () => {
     vi.clearAllMocks()
   })
 
-  it('hides the Passwords action on shells without the credential surface', async () => {
-    mockBridge.current = { ...createBridge(), browserCredentials: undefined }
-    await render()
-
-    expect(
-      [...container.querySelectorAll('header button')].map((b) => b.textContent)
-    ).not.toContain('Passwords')
-  })
-
   it('opens the manager from the header rather than inlining it', async () => {
     await render()
     expect(container.querySelector('[aria-label="Passwords view"]')).toBeNull()

@@ -34,7 +34,7 @@ import {
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, WebContents } from 'electron'
-import { type FocusedResourceShortcut, zoomActionForShortcut } from '@/main/resource-shortcuts'
+import type { FocusedResourceShortcut } from '@/main/resource-shortcuts'
 import { elide, TerminalSession } from '@/main/terminal/session'
 import {
   activePane,
@@ -407,8 +407,7 @@ export class TerminalService {
         return true
     }
 
-    const zoomAction = zoomActionForShortcut(shortcut)
-    if (zoomAction && this.activeId) emitRendererCommand(`zoom-${zoomAction}`, this.activeId)
+    if (this.activeId) emitRendererCommand(shortcut, this.activeId)
     return true
   }
 

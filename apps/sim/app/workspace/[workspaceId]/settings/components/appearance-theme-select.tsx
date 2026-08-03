@@ -16,7 +16,7 @@ interface AppearanceThemeSelectProps {
   ariaLabel: string
 }
 
-/** Canonical settings dropdown for device-owned browser and terminal themes. */
+/** Settings dropdown for the device-owned browser theme. */
 export function AppearanceThemeSelect({
   value,
   onChange,

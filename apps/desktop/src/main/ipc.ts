@@ -8,7 +8,6 @@ import {
   isBrowserToolName,
 } from '@sim/browser-protocol'
 import {
-  type DesktopAppearanceTheme,
   type DesktopNotificationPayload,
   type DesktopUpdateState,
   type DesktopWindowState,
@@ -30,23 +29,23 @@ import {
   clearBrowsingData,
   disposeBrowserScope,
   executeTool,
-  getDownloadsState,
   getKnownSessions,
   handlePanelAction,
   migrateBrowserScope,
   restoreBrowserScope,
-  showDownloadInFolder,
-  showDownloadsMenu,
   showToolbarMenu,
   suspendBrowserScope,
 } from '@/main/browser-agent/driver'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import {
   findInActiveTab,
+  getBrowserDownloadsState,
   peekTabsState,
   reorderTab,
   setBrowserAppTheme,
   setTabPinned,
+  showBrowserDownloadInFolder,
+  showBrowserDownloadsMenu,
   showTabContextMenu,
   stopFindInActiveTab,
   withBrowserScope,
@@ -84,7 +83,7 @@ const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
  * Desktop state is partitioned by the existing chat id. A new-chat view uses
  * the composer’s existing provisional key until the server assigns that id.
  */
-export function parseDesktopScope(raw: unknown): string | null {
+function parseDesktopScope(raw: unknown): string | null {
   return isDesktopScopeId(raw) ? raw : null
 }
 
@@ -194,6 +193,25 @@ export function parsePanelAnchor(raw: unknown): BrowserPanelAnchor | undefined {
     return undefined
   }
   return { viewportWidth, viewportHeight, widthRatio }
+}
+
+/**
+ * Validates a renderer-supplied menu anchor point. Menus position at the
+ * anchor, so unlike {@link parsePanelAnchor} a malformed value fails the
+ * request rather than degrading.
+ */
+function parseMenuAnchor(raw: unknown): { x: number; y: number } | null {
+  if (!isRecordLike(raw)) return null
+  const { x, y } = raw as { x?: unknown; y?: unknown }
+  if (
+    typeof x !== 'number' ||
+    typeof y !== 'number' ||
+    !Number.isFinite(x) ||
+    !Number.isFinite(y)
+  ) {
+    return null
+  }
+  return { x, y }
 }
 
 export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificationPayload | null {
@@ -514,7 +532,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     sender: WebContents,
     scope: string
   ): void => {
-    if (!scope.startsWith('pending:')) return
+    if (!isPendingDesktopScopeId(scope)) return
     const owned = pendingScopes.get(sender) ?? new Set<string>()
     owned.add(scope)
     pendingScopes.set(sender, owned)
@@ -620,10 +638,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       denied: null,
       handler: (key: unknown, value: unknown) => {
-        if (key === 'browserTheme' && isDesktopAppearanceTheme(value)) {
-          return deps.settings.setAppearancePreference(key, value as DesktopAppearanceTheme)
-        }
-        if (key === 'terminalTheme' && isDesktopAppearanceTheme(value)) {
+        if (
+          (key === 'browserTheme' || key === 'terminalTheme') &&
+          isDesktopAppearanceTheme(value)
+        ) {
           return deps.settings.setAppearancePreference(key, value)
         }
         return deps.settings.getPreferences()
@@ -848,7 +866,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       denied: { downloads: [] },
       handler: (sender, rawScope) => {
         const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
-        return scope ? getDownloadsState(scope) : { downloads: [] }
+        return scope ? getBrowserDownloadsState(scope) : { downloads: [] }
       },
     },
     'browser-agent:show-download-in-folder': {
@@ -861,7 +879,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, downloadId, rawScope) => {
         const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
         return scope && typeof downloadId === 'string'
-          ? showDownloadInFolder(scope, downloadId)
+          ? showBrowserDownloadInFolder(scope, downloadId)
           : false
       },
     },
@@ -876,17 +894,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         const contents = sender as WebContents
         const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
         const ownerWindow = deps.getWindowForContents(contents)
-        if (!scope || !ownerWindow || !isRecordLike(anchor)) return false
-        const { x, y } = anchor as { x?: unknown; y?: unknown }
-        if (
-          typeof x !== 'number' ||
-          typeof y !== 'number' ||
-          !Number.isFinite(x) ||
-          !Number.isFinite(y)
-        ) {
-          return false
-        }
-        return showDownloadsMenu(scope, ownerWindow, { x, y })
+        const point = parseMenuAnchor(anchor)
+        if (!scope || !ownerWindow || !point) return false
+        return showBrowserDownloadsMenu(scope, ownerWindow, point)
       },
     },
     'browser-agent:show-toolbar-menu': {
@@ -900,17 +910,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         const contents = sender as WebContents
         const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
         const ownerWindow = deps.getWindowForContents(contents)
-        if (!scope || !ownerWindow || !isRecordLike(anchor)) return false
-        const { x, y } = anchor as { x?: unknown; y?: unknown }
-        if (
-          typeof x !== 'number' ||
-          typeof y !== 'number' ||
-          !Number.isFinite(x) ||
-          !Number.isFinite(y)
-        ) {
-          return false
-        }
-        return showToolbarMenu(scope, ownerWindow, { x, y })
+        const point = parseMenuAnchor(anchor)
+        if (!scope || !ownerWindow || !point) return false
+        return showToolbarMenu(scope, ownerWindow, point)
       },
     },
     'browser-agent:panel-action': {
@@ -1272,17 +1274,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         const contents = sender as WebContents
         const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
         const window = deps.getWindowForContents(contents)
-        if (!scope || !window || !isRecordLike(anchor)) return false
-        const { x, y } = anchor as { x?: unknown; y?: unknown }
-        if (
-          typeof x !== 'number' ||
-          typeof y !== 'number' ||
-          !Number.isFinite(x) ||
-          !Number.isFinite(y)
-        ) {
-          return false
-        }
-        return fillCoordinator()?.showChooser(window, { x, y }, scope) ?? false
+        const point = parseMenuAnchor(anchor)
+        if (!scope || !window || !point) return false
+        return fillCoordinator()?.showChooser(window, point, scope) ?? false
       },
     },
     'browser-credentials:fill-selected': {

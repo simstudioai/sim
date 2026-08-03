@@ -52,8 +52,8 @@ interface TerminalContextMenuProps {
   onAppearanceThemeChange?: (theme: TerminalAppearanceTheme) => void
   appearanceThemePending?: boolean
   onNewTab: () => void
-  /** Closes this terminal. Absent when it is the only one left. */
-  onCloseTerminal?: () => void
+  /** Closes this terminal (deliberately offered even for the only one left). */
+  onCloseTerminal: () => void
 }
 
 /**
@@ -183,13 +183,11 @@ export function TerminalContextMenu({
           New Tab
           <DropdownMenuShortcut>⌘T</DropdownMenuShortcut>
         </DropdownMenuItem>
-        {onCloseTerminal && (
-          <DropdownMenuItem onSelect={run(onCloseTerminal)}>
-            <X />
-            Close Terminal
-            <DropdownMenuShortcut>⌘W</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuItem onSelect={run(onCloseTerminal)}>
+          <X />
+          Close Terminal
+          <DropdownMenuShortcut>⌘W</DropdownMenuShortcut>
+        </DropdownMenuItem>
 
         <DropdownMenuSeparator />
 

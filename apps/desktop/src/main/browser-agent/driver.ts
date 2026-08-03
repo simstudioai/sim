@@ -790,7 +790,7 @@ function unwrapPageResult(result: unknown): unknown {
     }
     if (code === 'not-visible') {
       throw new ToolError(
-        'That element has no visible clickable area. Take a fresh browser_snapshot after bringing it into view.'
+        'That element is no longer visibly rendered. Take a fresh browser_snapshot and use its current field or control.'
       )
     }
     if (code === 'obstructed') {
@@ -799,8 +799,23 @@ function unwrapPageResult(result: unknown): unknown {
         `That element is covered by ${blocker}. Close or move the overlay, then take a fresh browser_snapshot.`
       )
     }
+    if (code === 'suggestions-open') {
+      throw new ToolError(
+        'That editable field is already focused and covered by its own suggestions popup. Use browser_type on the same element; do not dismiss the popup first.'
+      )
+    }
     if (code === 'not-editable') {
       throw new ToolError('That element is not a text input — pick an editable element.')
+    }
+    if (code === 'ambiguous-editable') {
+      throw new ToolError(
+        'That composite control contains multiple editable fields. Take a fresh browser_snapshot and target the exact field.'
+      )
+    }
+    if (code === 'different') {
+      throw new ToolError(
+        'A different field took focus before the action. No text was entered; take a fresh browser_snapshot and try again.'
+      )
     }
     if (code === 'disabled') {
       throw new ToolError('That control is disabled and cannot be operated by the user.')
@@ -1078,6 +1093,34 @@ async function prepareElementSurface(
     !Number.isFinite(prepared.y)
   ) {
     throw new ToolError('Could not verify that element on the visible page surface.')
+  }
+  return prepared
+}
+
+async function prepareTypingSurface(
+  target: PageExecutionTarget,
+  elementId: number,
+  moveFocus: boolean,
+  executionDeadline?: number
+): Promise<Record<string, unknown>> {
+  const prepared = unwrapPageResult(
+    await execInPage(
+      target,
+      focusElementForTyping,
+      [elementId, moveFocus],
+      false,
+      executionDeadline
+    )
+  )
+  if (
+    !isRecordLike(prepared) ||
+    prepared.focused !== true ||
+    typeof prepared.x !== 'number' ||
+    !Number.isFinite(prepared.x) ||
+    typeof prepared.y !== 'number' ||
+    !Number.isFinite(prepared.y)
+  ) {
+    throw new ToolError('Could not verify and focus that editable element.')
   }
   return prepared
 }
@@ -2178,7 +2221,7 @@ async function executeToolInner(
       // synthetic value-setter when CDP is unavailable.
       assertCurrentExecution()
       assertElementActionCurrent(contents, elementId, target)
-      const initialSurface = await prepareElementSurface(target, elementId, executionDeadline)
+      const initialSurface = await prepareTypingSurface(target, elementId, true, executionDeadline)
       assertCurrentExecution()
       assertElementActionCurrent(contents, elementId, target)
       if (targetFrame) {
@@ -2189,12 +2232,6 @@ async function executeToolInner(
         )
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
-      }
-      const focusResult = unwrapPageResult(
-        await execInPage(target, focusElementForTyping, [elementId], false, executionDeadline)
-      )
-      if (!isRecordLike(focusResult) || focusResult.focused !== true) {
-        throw new ToolError('Could not focus that editable element.')
       }
       let trusted = true
       let nativeInserted = false
@@ -2218,20 +2255,9 @@ async function executeToolInner(
         const beforeElement = await activeElementState(target)
         const beforeTopPage = targetFrame ? await pageActionState(contents, true) : beforePage
         const beforeTopElement = targetFrame ? await activeElementState(contents) : beforeElement
-        const focusStatus = await execInPage(target, activeElementSecrecy, [elementId]).catch(
-          () => 'opaque'
-        )
-        if (focusStatus === 'secret' || focusStatus === 'opaque') {
-          throw new ToolError(PASSWORD_REFUSAL)
-        }
-        if (focusStatus !== 'safe') {
-          throw new ToolError(
-            'A different field took focus before text insertion. No text was entered; take a fresh browser_snapshot and try again.'
-          )
-        }
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
-        const finalSurface = await prepareElementSurface(target, elementId, executionDeadline)
+        const finalSurface = await prepareTypingSurface(target, elementId, false, executionDeadline)
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
         if (targetFrame) {
@@ -2248,20 +2274,24 @@ async function executeToolInner(
             'The requested field lost frame focus before text insertion. Take a fresh browser_snapshot and try again.'
           )
         }
-        // Surface checks can run parent-frame code and scrolling can trigger
-        // app handlers. Re-read the actual active element after every one of
-        // those round trips; this is the final secrecy boundary before CDP
-        // inserts into whichever field currently owns focus.
-        const finalFocusStatus = await execInPage(target, activeElementSecrecy, [elementId]).catch(
-          () => 'opaque'
-        )
-        if (finalFocusStatus === 'secret' || finalFocusStatus === 'opaque') {
-          throw new ToolError(PASSWORD_REFUSAL)
-        }
-        if (finalFocusStatus !== 'safe') {
-          throw new ToolError(
-            'A different field took focus before text insertion. No text was entered; take a fresh browser_snapshot and try again.'
+        if (targetFrame) {
+          // Parent-frame hit testing can trigger app work. Verify the exact
+          // focused editable once more without moving focus, and refuse if its
+          // child-frame point changed while the embedding was inspected.
+          const finalFocusSurface = await prepareTypingSurface(
+            target,
+            elementId,
+            false,
+            executionDeadline
           )
+          if (
+            Math.abs((finalFocusSurface.x as number) - (finalSurface.x as number)) >= 1 ||
+            Math.abs((finalFocusSurface.y as number) - (finalSurface.y as number)) >= 1
+          ) {
+            throw new ToolError(
+              'The requested field moved before text insertion. Take a fresh browser_snapshot and try again.'
+            )
+          }
         }
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
@@ -2288,12 +2318,22 @@ async function executeToolInner(
             : beforeSubmitElement
           const frameStillFocused =
             !targetFrame || frameIsWithin(contents.focusedFrame, targetFrame)
-          const submitFocusStatus = frameStillFocused
-            ? await execInPage(target, activeElementSecrecy, [elementId]).catch(() => 'opaque')
-            : 'different'
-          if (submitFocusStatus !== 'safe') {
+          const submitFocus = frameStillFocused
+            ? await execInPage(
+                target,
+                focusElementForTyping,
+                [elementId, false],
+                false,
+                executionDeadline
+              ).catch(() => null)
+            : null
+          const submitFocusError =
+            isRecordLike(submitFocus) && typeof submitFocus.error === 'string'
+              ? submitFocus.error
+              : ''
+          if (!isRecordLike(submitFocus) || submitFocus.focused !== true) {
             submitNote =
-              submitFocusStatus === 'secret' || submitFocusStatus === 'opaque'
+              submitFocusError === 'password' || !submitFocus
                 ? 'Text was entered, but Enter was withheld because focus moved to an uninspectable or secret field.'
                 : 'Text was entered, but Enter was withheld because the requested field lost focus.'
           } else {

@@ -53,6 +53,20 @@ export async function loadDesktopTerminalThemeProfiles(): Promise<TerminalThemeP
 }
 
 /**
+ * Keeps the currently selected profile theme selectable even when source
+ * profile discovery has not (or no longer) returned it — the picker must
+ * always be able to render the active selection.
+ */
+export function withSelectedProfile(
+  profiles: TerminalThemeProfile[],
+  theme: TerminalAppearanceTheme
+): TerminalThemeProfile[] {
+  return typeof theme !== 'string' && !profiles.some(({ id }) => id === theme.id)
+    ? [...profiles, theme]
+    : profiles
+}
+
+/**
  * Resolves `app` against next-themes' raw or resolved value. `system` stays
  * meaningful for browser CDP; terminal callers treat it as the light fallback
  * until next-themes has resolved.

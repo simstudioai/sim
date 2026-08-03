@@ -123,6 +123,15 @@ export interface BrowserPanelSnapshot {
   zoomPercent: number
   /** Chat scope that owns the captured tab. */
   scopeId: string
+  /**
+   * Exact native-view rectangle in the Sim renderer's viewport CSS pixels.
+   *
+   * The native surface is integer-positioned in Electron DIP, while its React
+   * host can end on fractional CSS pixels. Rendering the replacement at this
+   * viewport rectangle avoids clipping or stretching it to the host box.
+   * Optional for compatibility with installed shells from before this field.
+   */
+  viewportBounds?: BrowserPanelBounds
 }
 
 /**

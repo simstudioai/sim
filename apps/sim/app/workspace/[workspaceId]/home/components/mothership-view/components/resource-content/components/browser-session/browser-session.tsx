@@ -1,7 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BrowserPanelAnchor, BrowserTabState } from '@sim/browser-protocol'
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type {
+  BrowserPanelAnchor,
+  BrowserPanelSnapshot,
+  BrowserTabState,
+} from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
 import type {
   BrowserAddToChatPayload,
@@ -28,6 +32,7 @@ import {
 import { ArrowLeft, ArrowRight, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
 import { Globe } from 'lucide-react'
 import { useTheme } from 'next-themes'
+import { createPortal } from 'react-dom'
 import {
   fillBrowserCredential,
   loadBrowserFillOptions,
@@ -146,6 +151,47 @@ export function selectFocusedOmniboxOnNextFrame(input: HTMLInputElement): number
 export function clearOmniboxSelection(input: HTMLInputElement): void {
   const caret = input.selectionEnd ?? input.value.length
   input.setSelectionRange(caret, caret)
+}
+
+/** Places the replacement on the native view's exact, unclipped viewport rectangle. */
+export function browserPanelSnapshotStyle(
+  snapshot: BrowserPanelSnapshot
+): CSSProperties | undefined {
+  const bounds = snapshot.viewportBounds
+  if (!bounds) return undefined
+  return {
+    position: 'fixed',
+    top: bounds.y,
+    left: bounds.x,
+    width: bounds.width,
+    height: bounds.height,
+    maxWidth: 'none',
+  }
+}
+
+interface BrowserPanelSnapshotImageProps {
+  snapshot: BrowserPanelSnapshot
+  onError: () => void
+}
+
+function BrowserPanelSnapshotImage({ snapshot, onError }: BrowserPanelSnapshotImageProps) {
+  const style = browserPanelSnapshotStyle(snapshot)
+  const image = (
+    <img
+      src={snapshot.dataUrl}
+      alt=''
+      aria-hidden
+      draggable={false}
+      onError={onError}
+      style={style}
+      className={cn(
+        'pointer-events-none select-none object-fill',
+        style ? 'z-[calc(var(--z-popover)-1)] block' : 'absolute inset-0 size-full max-w-none'
+      )}
+    />
+  )
+  if (!style || typeof document === 'undefined') return image
+  return createPortal(image, document.body)
 }
 
 /** Re-report unchanged bounds before the main-process visibility lease expires. */
@@ -422,6 +468,9 @@ export function BrowserSession({
       findInputRef.current?.select()
     })
   }, [])
+
+  /** Every toolbar menu action closes the overlay first, then runs. */
+  const afterToolbarClose = (action: () => void) => () => void closeOverlay('toolbar').then(action)
 
   // Mod+F reaches the panel two different ways and neither sees the other: with
   // the embedded page focused the keystroke never becomes a renderer key event
@@ -915,49 +964,33 @@ export function BrowserSession({
               // find input opened by its own action and returns focus here.
               onCloseAutoFocus={(event) => event.preventDefault()}
             >
-              <DropdownMenuItem onSelect={() => void closeOverlay('toolbar').then(openFind)}>
+              <DropdownMenuItem onSelect={afterToolbarClose(openFind)}>
                 Find in Page
                 <DropdownMenuShortcut>⌘F</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <ResourceZoomMenuItems
-                onZoomIn={() =>
-                  void closeOverlay('toolbar').then(() =>
-                    sendBrowserPanelAction('zoom-in', {}, scopeId)
-                  )
-                }
-                onZoomOut={() =>
-                  void closeOverlay('toolbar').then(() =>
-                    sendBrowserPanelAction('zoom-out', {}, scopeId)
-                  )
-                }
-                onActualSize={() =>
-                  void closeOverlay('toolbar').then(() =>
-                    sendBrowserPanelAction('zoom-reset', {}, scopeId)
-                  )
-                }
+                onZoomIn={afterToolbarClose(() => sendBrowserPanelAction('zoom-in', {}, scopeId))}
+                onZoomOut={afterToolbarClose(() => sendBrowserPanelAction('zoom-out', {}, scopeId))}
+                onActualSize={afterToolbarClose(() =>
+                  sendBrowserPanelAction('zoom-reset', {}, scopeId)
+                )}
               />
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onSelect={() =>
-                  void closeOverlay('toolbar').then(() =>
-                    navigateToSettings({
-                      section: 'browser',
-                      browserView: 'passwords',
-                      browserImport: true,
-                    })
-                  )
-                }
+                onSelect={afterToolbarClose(() =>
+                  navigateToSettings({
+                    section: 'browser',
+                    browserView: 'passwords',
+                    browserImport: true,
+                  })
+                )}
               >
                 Import Passwords
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onSelect={() =>
-                  void closeOverlay('toolbar').then(() =>
-                    navigateToSettings({ section: 'browser' })
-                  )
-                }
+                onSelect={afterToolbarClose(() => navigateToSettings({ section: 'browser' }))}
               >
                 Browser Settings
               </DropdownMenuItem>
@@ -971,14 +1004,7 @@ export function BrowserSession({
       {/* Host area: the real page is overlaid exactly on this rect. */}
       <div ref={hostRef} className='relative flex-1 overflow-hidden bg-[var(--bg)]'>
         {panelSnapshot && (!activeTabId || panelSnapshot.tabId === activeTabId) && (
-          <img
-            src={panelSnapshot.dataUrl}
-            alt=''
-            aria-hidden
-            draggable={false}
-            onError={onSnapshotError}
-            className='pointer-events-none absolute inset-0 size-full select-none object-fill'
-          />
+          <BrowserPanelSnapshotImage snapshot={panelSnapshot} onError={onSnapshotError} />
         )}
         {!pageState && (
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-2'>

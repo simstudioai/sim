@@ -165,35 +165,31 @@ export function BrowserDownloads({ scopeId, open, requestOpen, onClose }: Browse
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' sideOffset={5} className='w-[320px] p-1'>
         <DropdownMenuLabel>Downloads</DropdownMenuLabel>
-        {downloads.length === 0 ? (
-          <DropdownMenuItem disabled>No downloads yet</DropdownMenuItem>
-        ) : (
-          downloads.map((download) => {
-            const completed = download.state === 'completed'
-            return (
-              <DropdownMenuItem
-                key={download.id}
-                disabled={!completed}
-                className='h-auto min-h-[42px] py-2'
-                onSelect={() => {
-                  if (completed) void showBrowserDownloadInFolder(download.id, scopeId)
-                }}
-              >
-                {download.state === 'progressing' ? (
-                  <Loader animate />
-                ) : download.state === 'completed' ? (
-                  <File />
-                ) : (
-                  <CircleAlert className='text-[var(--text-error)]' />
-                )}
-                <span className='min-w-0 flex-1 truncate'>{download.filename}</span>
-                <span className='ml-auto shrink-0 text-[var(--text-muted)] text-xs tabular-nums'>
-                  {downloadMeta(download)}
-                </span>
-              </DropdownMenuItem>
-            )
-          })
-        )}
+        {downloads.map((download) => {
+          const completed = download.state === 'completed'
+          return (
+            <DropdownMenuItem
+              key={download.id}
+              disabled={!completed}
+              className='h-auto min-h-[42px] py-2'
+              onSelect={() => {
+                if (completed) void showBrowserDownloadInFolder(download.id, scopeId)
+              }}
+            >
+              {download.state === 'progressing' ? (
+                <Loader animate />
+              ) : download.state === 'completed' ? (
+                <File />
+              ) : (
+                <CircleAlert className='text-[var(--text-error)]' />
+              )}
+              <span className='min-w-0 flex-1 truncate'>{download.filename}</span>
+              <span className='ml-auto shrink-0 text-[var(--text-muted)] text-xs tabular-nums'>
+                {downloadMeta(download)}
+              </span>
+            </DropdownMenuItem>
+          )
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   )

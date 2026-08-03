@@ -179,6 +179,13 @@ interface BrowserScopeState {
   focusedBrowserTabId: string | null
   focusedBrowserClearTimer: ReturnType<typeof setTimeout> | null
   automationActive: boolean
+  /**
+   * Tab a find is currently running on. Tracked because the find outlives the
+   * call that started it — Chromium keeps the highlights until it is told to
+   * stop, so leaving a tab (or navigating it) has to clear the find explicitly
+   * or the old matches stay lit under a match count that no longer describes
+   * anything on screen.
+   */
   findingTabId: string | null
   findingRequestId: number | null
 }
@@ -355,7 +362,7 @@ export function getBrowserDownloadsState(scopeId: string): BrowserDownloadsState
 }
 
 /** Human-readable byte count for the native recent-downloads menu. */
-export function formatBrowserDownloadBytes(bytes: number): string {
+function formatBrowserDownloadBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB'] as const
   const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
@@ -528,7 +535,7 @@ export function isBrowserScopeSuspended(scopeId: string): boolean {
  * ownership of its own and may safely be replaced by a pending chat adopting
  * the same durable id.
  */
-export function isActivationOnlyBrowserScope(scopeId: string): boolean {
+function isActivationOnlyBrowserScope(scopeId: string): boolean {
   const state = browserScopeStates.get(resolveBrowserScopeId(scopeId))
   return (
     state?.activationOnly === true &&
@@ -947,13 +954,6 @@ function openRendererFind(): void {
   win.webContents.send('browser-agent:open-find', getBrowserScopeId())
 }
 
-/**
- * Tab a find is currently running on. Tracked because the find outlives the
- * call that started it — Chromium keeps the highlights until it is told to
- * stop, so leaving a tab (or navigating it) has to clear the find explicitly
- * or the old matches stay lit under a match count that no longer describes
- * anything on screen.
- */
 /**
  * Drops a tab's highlights and stops treating it as the tab being searched.
  * Leaves the renderer's bar alone — emptying the find box and searching a
@@ -1401,6 +1401,16 @@ interface AddTabOptions {
   notify?: boolean
 }
 
+/** Pinned tabs join the stable group at the far left; regular tabs append. */
+function insertPinnedAware(tab: AgentTab): void {
+  if (tab.pinned) {
+    const firstRegularTab = tabs.findIndex((entry) => !entry.pinned)
+    tabs.splice(firstRegularTab < 0 ? tabs.length : firstRegularTab, 0, tab)
+  } else {
+    tabs.push(tab)
+  }
+}
+
 function addTabInternal({
   pinned = false,
   activate = true,
@@ -1416,12 +1426,7 @@ function addTabInternal({
     view: createTabView(),
     pinned,
   }
-  if (pinned) {
-    const firstRegularTab = tabs.findIndex((entry) => !entry.pinned)
-    tabs.splice(firstRegularTab < 0 ? tabs.length : firstRegularTab, 0, tab)
-  } else {
-    tabs.push(tab)
-  }
+  insertPinnedAware(tab)
   if (activate || currentScope.activeTabId === null) {
     currentScope.activeTabId = tab.id
     applyActiveTabThrottling()
@@ -1673,12 +1678,7 @@ export function setTabPinned(tabId: string, pinned: boolean): AgentTab {
 
   tabs.splice(index, 1)
   tab.pinned = pinned
-  if (pinned) {
-    const firstRegularTab = tabs.findIndex((entry) => !entry.pinned)
-    tabs.splice(firstRegularTab < 0 ? tabs.length : firstRegularTab, 0, tab)
-  } else {
-    tabs.push(tab)
-  }
+  insertPinnedAware(tab)
   persistBrowserSession()
   events?.onTabsChanged()
   return tab
@@ -1752,7 +1752,6 @@ export function handleFocusedShortcut(
   }
 
   const zoomAction = zoomActionForShortcut(shortcut)
-  if (!zoomAction) return true
   const contents = focusedTab.view.webContents
   const factor =
     zoomAction === 'reset'

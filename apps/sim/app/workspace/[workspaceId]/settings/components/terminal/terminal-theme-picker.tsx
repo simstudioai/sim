@@ -2,6 +2,7 @@
 
 import type { TerminalAppearanceTheme, TerminalThemeProfile } from '@sim/desktop-bridge'
 import { ChipCombobox } from '@sim/emcn'
+import { withSelectedProfile } from '@/lib/desktop/appearance'
 
 interface TerminalThemePickerProps {
   value: TerminalAppearanceTheme
@@ -29,11 +30,7 @@ export function TerminalThemePicker({
   onBuiltInSelect,
   onProfileSelect,
 }: TerminalThemePickerProps) {
-  const selectedProfile = typeof value === 'string' ? undefined : value
-  const availableProfiles =
-    selectedProfile && !profiles.some(({ id }) => id === selectedProfile.id)
-      ? [...profiles, selectedProfile]
-      : profiles
+  const availableProfiles = withSelectedProfile(profiles, value)
   const selectedValue = typeof value === 'string' ? value : value.id
 
   return (

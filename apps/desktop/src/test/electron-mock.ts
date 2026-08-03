@@ -186,7 +186,11 @@ export class WebContentsView {
   webContents = createWebContentsMock()
   setBackgroundColor = vi.fn()
   setVisible = vi.fn()
-  setBounds = vi.fn()
+  private bounds = { x: 0, y: 0, width: 0, height: 0 }
+  setBounds = vi.fn((bounds: { x: number; y: number; width: number; height: number }) => {
+    this.bounds = { ...bounds }
+  })
+  getBounds = vi.fn(() => ({ ...this.bounds }))
 }
 
 export class BrowserWindow {

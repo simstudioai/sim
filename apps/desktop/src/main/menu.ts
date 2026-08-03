@@ -42,19 +42,24 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     }
   }
 
-  const setZoom =
-    (
-      action: 'in' | 'out' | 'reset',
-      resolve: (current: number) => number
-    ): NonNullable<MenuItemConstructorOptions['click']> =>
-    (_item, focusedWindow) => {
-      const win = focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+  /** Accelerators fire on whichever window has focus; fall back to the main one. */
+  const focusedOrMain = (focusedWindow: unknown): BrowserWindow | null =>
+    focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+
+  const setZoom = (
+    action: 'in' | 'out' | 'reset'
+  ): NonNullable<MenuItemConstructorOptions['click']> => {
+    const resolve = (current: number) =>
+      action === 'reset' ? 0 : action === 'in' ? current + ZOOM_STEP : current - ZOOM_STEP
+    return (_item, focusedWindow) => {
+      const win = focusedOrMain(focusedWindow)
       if (!win || win.isDestroyed()) return
       if (deps.handleFocusedResourceShortcut(win, `zoom-${action}`)) return
       const level = resolve(win.webContents.getZoomLevel())
       win.webContents.setZoomLevel(level)
       deps.config.set('zoomLevel', level)
     }
+  }
 
   const viewSubmenu: MenuItemConstructorOptions[] = [
     {
@@ -82,24 +87,16 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       label: 'Reload',
       accelerator: 'CmdOrCtrl+R',
       click: (_item, focusedWindow) => {
-        const win = focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+        const win = focusedOrMain(focusedWindow)
         if (!win || win.isDestroyed()) return
         if (deps.handleFocusedResourceShortcut(win, 'reload-or-clear')) return
         win.webContents.reload()
       },
     },
     { type: 'separator' },
-    { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: setZoom('reset', () => 0) },
-    {
-      label: 'Zoom In',
-      accelerator: 'CmdOrCtrl+Plus',
-      click: setZoom('in', (current) => current + ZOOM_STEP),
-    },
-    {
-      label: 'Zoom Out',
-      accelerator: 'CmdOrCtrl+-',
-      click: setZoom('out', (current) => current - ZOOM_STEP),
-    },
+    { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: setZoom('reset') },
+    { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', click: setZoom('in') },
+    { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: setZoom('out') },
     { type: 'separator' },
   ]
   viewSubmenu.push({ role: 'togglefullscreen' })
@@ -129,9 +126,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           label: 'New Tab',
           accelerator: 'CmdOrCtrl+T',
           click: (_item, focusedWindow) => {
-            const win =
-              focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
-            deps.handleFocusedResourceShortcut(win, 'new-tab')
+            deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'new-tab')
           },
         },
         {
@@ -145,17 +140,14 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           label: 'Reopen Closed Tab',
           accelerator: 'CmdOrCtrl+Shift+T',
           click: (_item, focusedWindow) => {
-            const win =
-              focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
-            deps.handleFocusedResourceShortcut(win, 'reopen-closed-tab')
+            deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'reopen-closed-tab')
           },
         },
         {
           label: 'Close Window',
           accelerator: 'CmdOrCtrl+W',
           click: (_item, focusedWindow) => {
-            const win =
-              focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+            const win = focusedOrMain(focusedWindow)
             if (deps.handleFocusedResourceShortcut(win, 'close-tab')) return
             if (win && !win.isDestroyed()) win.close()
           },
