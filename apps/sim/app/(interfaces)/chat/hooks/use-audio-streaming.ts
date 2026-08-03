@@ -2,6 +2,7 @@
 
 import { type RefObject, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { DEFAULT_TTS_MODEL_ID } from '@/lib/api/contracts/media/tts-stream'
 
 const logger = createLogger('UseAudioStreaming')
 
@@ -79,7 +80,7 @@ export function useAudioStreaming(sharedAudioContextRef?: RefObject<AudioContext
     const { text, options } = item
     const {
       voiceId,
-      modelId = 'eleven_flash_v2_5',
+      modelId = DEFAULT_TTS_MODEL_ID,
       chatId,
       onAudioStart,
       onAudioEnd,

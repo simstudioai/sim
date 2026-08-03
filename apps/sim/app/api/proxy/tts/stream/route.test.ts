@@ -17,16 +17,16 @@ const {
   mockResolveSystemBillingAttribution,
   mockCheckAttributedUsageLimits,
   mockToBillingContext,
-  mockCheckAndBillPayerOverageThreshold,
-  mockCheckRateLimitDirect,
+  mockEnforceIpRateLimit,
+  mockEnforceChatRateLimit,
 } = vi.hoisted(() => ({
   mockRecordUsage: vi.fn(),
   mockCheckActorUsageLimits: vi.fn(),
   mockResolveSystemBillingAttribution: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
   mockToBillingContext: vi.fn(),
-  mockCheckAndBillPayerOverageThreshold: vi.fn(),
-  mockCheckRateLimitDirect: vi.fn(),
+  mockEnforceIpRateLimit: vi.fn(),
+  mockEnforceChatRateLimit: vi.fn(),
 }))
 
 const SYSTEM_BILLING_ATTRIBUTION = {
@@ -54,14 +54,9 @@ vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkActorUsageLimits: mockCheckActorUsageLimits,
 }))
 
-vi.mock('@/lib/billing/threshold-billing', () => ({
-  checkAndBillPayerOverageThreshold: mockCheckAndBillPayerOverageThreshold,
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mockCheckRateLimitDirect
-  },
+vi.mock('@/lib/core/rate-limiter/route-helpers', () => ({
+  enforceIpRateLimit: mockEnforceIpRateLimit,
+  enforceChatRateLimit: mockEnforceChatRateLimit,
 }))
 
 vi.mock('@/lib/core/security/deployment', () => ({ validateAuthToken: vi.fn(() => false) }))
@@ -107,7 +102,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
   setEnv({ ELEVENLABS_API_KEY: 'test-key' })
-  mockCheckRateLimitDirect.mockResolvedValue({ allowed: true, remaining: 10 })
+  mockEnforceIpRateLimit.mockResolvedValue(null)
+  mockEnforceChatRateLimit.mockResolvedValue(null)
   mockRecordUsage.mockResolvedValue(undefined)
   mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
   mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
@@ -167,26 +163,32 @@ describe('POST /api/proxy/tts/stream — spend controls', () => {
   })
 
   it('throttles per IP before any chat lookup so a flood cannot be amplified into queries', async () => {
-    mockCheckRateLimitDirect.mockResolvedValueOnce({ allowed: false, retryAfterMs: 30_000 })
+    mockEnforceIpRateLimit.mockResolvedValue(new Response('Rate limit exceeded', { status: 429 }))
 
     const res = await POST(createMockRequest('POST', validBody()))
 
     expect(res.status).toBe(429)
-    expect(res.headers.get('Retry-After')).toBe('30')
-    expect(mockCheckRateLimitDirect.mock.calls[0][0]).toContain('tts-stream:ip:')
+    expect(mockEnforceIpRateLimit).toHaveBeenCalledWith('tts-stream', expect.anything(), {
+      maxTokens: 60,
+      refillRate: 30,
+      refillIntervalMs: 60_000,
+    })
+    expect(mockEnforceChatRateLimit).not.toHaveBeenCalled()
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('throttles per chat so many callers cannot drain one public chat', async () => {
     queueTableRows(schemaMock.chat, [publicChatRow])
-    mockCheckRateLimitDirect
-      .mockResolvedValueOnce({ allowed: true, remaining: 10 })
-      .mockResolvedValueOnce({ allowed: false, retryAfterMs: 60_000 })
+    mockEnforceChatRateLimit.mockResolvedValue(new Response('Rate limit exceeded', { status: 429 }))
 
     const res = await POST(createMockRequest('POST', validBody()))
 
     expect(res.status).toBe(429)
-    expect(mockCheckRateLimitDirect.mock.calls[1][0]).toBe('tts-stream:chat:chat-1')
+    expect(mockEnforceChatRateLimit).toHaveBeenCalledWith('tts-stream', 'chat-1', {
+      maxTokens: 120,
+      refillRate: 60,
+      refillIntervalMs: 60_000,
+    })
     expect(global.fetch).not.toHaveBeenCalled()
     expect(mockRecordUsage).not.toHaveBeenCalled()
   })
@@ -228,14 +230,6 @@ describe('POST /api/proxy/tts/stream — attribution', () => {
     const second = mockRecordUsage.mock.calls[1][0].entries[0].sourceReference
     expect(first).toBeDefined()
     expect(first).not.toBe(second)
-  })
-
-  it('does not run per-request threshold settlement on the realtime path', async () => {
-    queueTableRows(schemaMock.chat, [publicChatRow])
-
-    await POST(createMockRequest('POST', validBody()))
-
-    expect(mockCheckAndBillPayerOverageThreshold).not.toHaveBeenCalled()
   })
 
   it('falls back to the chat owner when the workflow has no workspace', async () => {

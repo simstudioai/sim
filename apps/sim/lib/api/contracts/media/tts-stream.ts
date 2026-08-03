@@ -4,7 +4,6 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 /** Default ElevenLabs voice (Jessica) — Flash v2.5-optimized. */
 export const DEFAULT_TTS_VOICE_ID = 'cgSgspJ2msm6clMCkdW9'
 
-/** Default ElevenLabs model for deployed-chat TTS. */
 export const DEFAULT_TTS_MODEL_ID = 'eleven_flash_v2_5'
 
 /**
@@ -13,8 +12,8 @@ export const DEFAULT_TTS_MODEL_ID = 'eleven_flash_v2_5'
  * allowlists rather than free-form strings — otherwise the caller chooses the
  * (possibly premium or cloned) voice and the billing model.
  */
-export const ALLOWED_TTS_VOICE_IDS = [DEFAULT_TTS_VOICE_ID] as const
-export const ALLOWED_TTS_MODEL_IDS = [DEFAULT_TTS_MODEL_ID] as const
+const ALLOWED_TTS_VOICE_IDS = [DEFAULT_TTS_VOICE_ID] as const
+const ALLOWED_TTS_MODEL_IDS = [DEFAULT_TTS_MODEL_ID] as const
 
 /**
  * ElevenLabs bills per character, so an uncapped `text` is an uncapped charge.
@@ -23,14 +22,12 @@ export const ALLOWED_TTS_MODEL_IDS = [DEFAULT_TTS_MODEL_ID] as const
  */
 export const MAX_TTS_TEXT_LENGTH = 2000
 
-export const ttsStreamBodySchema = z
-  .object({
-    text: z.string().min(1).max(MAX_TTS_TEXT_LENGTH),
-    voiceId: z.enum(ALLOWED_TTS_VOICE_IDS),
-    modelId: z.enum(ALLOWED_TTS_MODEL_IDS).optional().default(DEFAULT_TTS_MODEL_ID),
-    chatId: z.string().min(1),
-  })
-  .passthrough()
+export const ttsStreamBodySchema = z.object({
+  text: z.string().min(1).max(MAX_TTS_TEXT_LENGTH),
+  voiceId: z.enum(ALLOWED_TTS_VOICE_IDS),
+  modelId: z.enum(ALLOWED_TTS_MODEL_IDS).optional().default(DEFAULT_TTS_MODEL_ID),
+  chatId: z.string().min(1),
+})
 
 export const ttsStreamContract = defineRouteContract({
   method: 'POST',
