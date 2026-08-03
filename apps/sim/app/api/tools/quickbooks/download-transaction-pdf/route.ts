@@ -55,7 +55,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
     if (!response.ok) throw await getQuickBooksDocumentError(response)
 
-    const mimeType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase()
+    const mimeType =
+      response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
     if (mimeType !== 'application/pdf') throw new Error('QuickBooks returned a non-PDF response')
     const buffer = await readResponseToBufferWithLimit(response, {
       maxBytes: MAX_FILE_SIZE,

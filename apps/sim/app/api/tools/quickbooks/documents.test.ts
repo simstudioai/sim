@@ -116,6 +116,19 @@ describe('QuickBooks document API routes', () => {
     )
     expect(nonPdf.status).toBe(500)
 
+    mockFetch.mockResolvedValueOnce(new Response(new Uint8Array(Buffer.from('%PDF-1.4 fixture'))))
+    const missingContentType = await downloadTransactionPdf(
+      createMockRequest('POST', {
+        ...auth,
+        transactionType: 'invoice',
+        transactionId: '1',
+      })
+    )
+    expect(missingContentType.status).toBe(500)
+    await expect(missingContentType.json()).resolves.toMatchObject({
+      error: 'QuickBooks returned a non-PDF response',
+    })
+
     mockFetch.mockResolvedValueOnce(
       new Response('%PDF-', {
         headers: {
