@@ -500,11 +500,40 @@ describe('QuickBooks BillPayment account compatibility', () => {
       const mutationUrl = new URL(fetchMock.mock.calls[1][0] as URL)
       expect(mutationUrl.pathname).toBe('/v3/company/123456789/billpayment')
       expect(mutationUrl.searchParams.get('requestid')).toBe('sanitized-request-id')
-      expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({
-        PayType: payType,
-      })
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual(
+        buildQuickBooksCreateBillPaymentBody({ ...params, paymentType })
+      )
     }
   )
+
+  it.each([
+    ['allocation-total mismatch', [{ billId: '12', amount: 24 }]],
+    ['empty allocations', []],
+    ['malformed allocation', [null]],
+    [
+      'duplicate Bill IDs',
+      [
+        { billId: '12', amount: 12.5 },
+        { billId: '12', amount: 12.5 },
+      ],
+    ],
+    ['non-finite allocation', [{ billId: '12', amount: Number.POSITIVE_INFINITY }]],
+    [
+      'more than 100 allocations',
+      Array.from({ length: 101 }, (_, index) => ({ billId: String(index), amount: 1 })),
+    ],
+  ])('rejects %s before fetching the payment account', async (_name, billAllocations) => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      quickbooksCreateBillPaymentTool.directExecution!({
+        ...params,
+        billAllocations: billAllocations as QuickBooksCreateBillPaymentParams['billAllocations'],
+      })
+    ).rejects.toThrow()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 
   it.each([
     ['check', 'Credit Card', 'Bank'],

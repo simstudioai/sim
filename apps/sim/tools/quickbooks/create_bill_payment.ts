@@ -158,6 +158,7 @@ export const quickbooksCreateBillPaymentTool: ToolConfig<
     maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   directExecution: async (params, signal) => {
+    const body = buildQuickBooksCreateBillPaymentBody(params)
     const paymentAccountId = params.paymentAccountId.trim()
     if (!paymentAccountId) throw new Error('paymentAccountId is required')
 
@@ -188,7 +189,7 @@ export const quickbooksCreateBillPaymentTool: ToolConfig<
       {
         method: 'POST',
         headers: getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-        body: JSON.stringify(buildQuickBooksCreateBillPaymentBody(params)),
+        body: JSON.stringify(body),
         signal,
       }
     )
