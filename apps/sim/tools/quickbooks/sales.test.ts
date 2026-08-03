@@ -51,6 +51,26 @@ beforeEach(() => setEnv({ QUICKBOOKS_ENV: 'sandbox' }))
 afterEach(resetEnvMock)
 
 describe('QuickBooks sales reader', () => {
+  it('builds bounded date and customer filters without accepting query fragments', () => {
+    const requestUrl = quickbooksReadSalesTransactionsTool.request.url as (
+      params: QuickBooksReadSalesTransactionsParams
+    ) => string
+    const url = new URL(
+      requestUrl({
+        ...authParams,
+        transactionType: 'invoice',
+        readMode: 'list',
+        startDate: '2026-01-01',
+        endDate: '2026-01-31',
+        customerId: " customer'1 ",
+        startPosition: 1,
+        maxResults: 25,
+      })
+    )
+    expect(url.searchParams.get('query')).toBe(
+      "SELECT * FROM Invoice WHERE TxnDate >= '2026-01-01' AND TxnDate <= '2026-01-31' AND CustomerRef = 'customer\\'1' STARTPOSITION 1 MAXRESULTS 25"
+    )
+  })
   const listParams: QuickBooksReadSalesTransactionsParams = {
     ...authParams,
     transactionType: 'invoice',

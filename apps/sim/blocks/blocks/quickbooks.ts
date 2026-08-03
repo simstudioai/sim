@@ -2,6 +2,7 @@ import { QuickBooksIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, OutputCondition } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import {
   parseQuickBooksDepositLines,
   parseQuickBooksJournalLines,
@@ -31,11 +32,18 @@ const SALES_READ_OPERATION = 'quickbooks_read_sales_transactions'
 const PURCHASING_READ_OPERATION = 'quickbooks_read_purchasing_transactions'
 const ACCOUNTING_READ_OPERATION = 'quickbooks_read_accounting_transactions'
 const REPORT_OPERATION = 'quickbooks_run_financial_report'
+const EMAIL_TRANSACTION_OPERATION = 'quickbooks_email_transaction'
+const DOWNLOAD_TRANSACTION_PDF_OPERATION = 'quickbooks_download_transaction_pdf'
+const READ_ATTACHMENTS_OPERATION = 'quickbooks_read_attachments'
+const ADD_ATTACHMENT_OPERATION = 'quickbooks_add_attachment'
+const DOWNLOAD_ATTACHMENT_OPERATION = 'quickbooks_download_attachment'
 const CUSTOMER_OPERATIONS = ['quickbooks_create_customer', 'quickbooks_update_customer'] as const
+const EMPLOYEE_OPERATIONS = ['quickbooks_create_employee', 'quickbooks_update_employee'] as const
 const VENDOR_OPERATIONS = ['quickbooks_create_vendor', 'quickbooks_update_vendor'] as const
 const ITEM_OPERATIONS = ['quickbooks_create_item', 'quickbooks_update_item'] as const
 const MASTER_DATA_CREATE_OPERATIONS = [
   'quickbooks_create_customer',
+  'quickbooks_create_employee',
   'quickbooks_create_item',
   'quickbooks_create_vendor',
 ] as const
@@ -92,6 +100,7 @@ const SALES_VOID_OPERATIONS = [
 ] as const
 const MASTER_DATA_UPDATE_OPERATIONS = [
   'quickbooks_update_customer',
+  'quickbooks_update_employee',
   'quickbooks_update_item',
   'quickbooks_update_vendor',
 ] as const
@@ -128,6 +137,7 @@ const UPDATE_OPERATIONS = [
 ] as const
 const MUTATION_OPERATIONS = [
   ...CUSTOMER_OPERATIONS,
+  ...EMPLOYEE_OPERATIONS,
   ...ITEM_OPERATIONS,
   ...VENDOR_OPERATIONS,
   ...SALES_MUTATION_OPERATIONS,
@@ -139,6 +149,7 @@ const PAGINATED_OPERATIONS = [
   SALES_READ_OPERATION,
   PURCHASING_READ_OPERATION,
   ACCOUNTING_READ_OPERATION,
+  READ_ATTACHMENTS_OPERATION,
 ] as const
 const LIST_OUTPUT_CONDITION: OutputCondition = {
   field: 'operation',
@@ -147,6 +158,7 @@ const LIST_OUTPUT_CONDITION: OutputCondition = {
     SALES_READ_OPERATION,
     PURCHASING_READ_OPERATION,
     ACCOUNTING_READ_OPERATION,
+    READ_ATTACHMENTS_OPERATION,
   ],
   and: { field: 'readMode', value: 'list' },
 }
@@ -157,6 +169,11 @@ const QUICKBOOKS_OPERATIONS = [
   PURCHASING_READ_OPERATION,
   ACCOUNTING_READ_OPERATION,
   REPORT_OPERATION,
+  EMAIL_TRANSACTION_OPERATION,
+  DOWNLOAD_TRANSACTION_PDF_OPERATION,
+  READ_ATTACHMENTS_OPERATION,
+  ADD_ATTACHMENT_OPERATION,
+  DOWNLOAD_ATTACHMENT_OPERATION,
   ...MUTATION_OPERATIONS,
 ] as const
 
@@ -275,6 +292,9 @@ function paginationCondition(values?: Record<string, unknown>) {
   if (values?.operation === ACCOUNTING_READ_OPERATION) {
     return { field: 'readMode', value: 'list' }
   }
+  if (values?.operation === READ_ATTACHMENTS_OPERATION) {
+    return { field: 'readMode', value: 'list' }
+  }
   return { field: 'operation', value: [] }
 }
 
@@ -317,14 +337,37 @@ function parseConfirmation(value: unknown, fieldName: string): boolean {
   throw new Error(`${fieldName} must be yes or no`)
 }
 
+function attachmentTargetCondition(values?: Record<string, unknown>) {
+  if (!values) {
+    return { field: 'operation', value: [READ_ATTACHMENTS_OPERATION, ADD_ATTACHMENT_OPERATION] }
+  }
+  if (values.operation === READ_ATTACHMENTS_OPERATION) {
+    return { field: 'readMode', value: 'list' }
+  }
+  return { field: 'operation', value: ADD_ATTACHMENT_OPERATION }
+}
+
+function attachmentIdCondition(values?: Record<string, unknown>) {
+  if (!values) {
+    return {
+      field: 'operation',
+      value: [READ_ATTACHMENTS_OPERATION, DOWNLOAD_ATTACHMENT_OPERATION],
+    }
+  }
+  if (values.operation === READ_ATTACHMENTS_OPERATION) {
+    return { field: 'readMode', value: 'by_id' }
+  }
+  return { field: 'operation', value: DOWNLOAD_ATTACHMENT_OPERATION }
+}
+
 export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
   type: 'quickbooks',
   name: 'QuickBooks',
   description:
-    'Manage QuickBooks Online company, sales, purchasing, payables, accounting, and reports',
+    'Manage QuickBooks Online company, transactions, reports, emails, PDFs, and attachments',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, general-accounting, and financial-reporting workflows.',
+    'Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.',
   docsLink: 'https://docs.sim.ai/integrations/quickbooks',
   category: 'tools',
   integrationType: IntegrationType.Commerce,
@@ -340,6 +383,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Read Master Data', id: 'quickbooks_read_master_data' },
         { label: 'Create Customer', id: 'quickbooks_create_customer' },
         { label: 'Update Customer', id: 'quickbooks_update_customer' },
+        { label: 'Create Employee', id: 'quickbooks_create_employee' },
+        { label: 'Update Employee', id: 'quickbooks_update_employee' },
         { label: 'Create Vendor', id: 'quickbooks_create_vendor' },
         { label: 'Update Vendor', id: 'quickbooks_update_vendor' },
         { label: 'Create Item', id: 'quickbooks_create_item' },
@@ -382,6 +427,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Create Deposit', id: 'quickbooks_create_deposit' },
         { label: 'Update Deposit', id: 'quickbooks_update_deposit' },
         { label: 'Run Financial Report', id: 'quickbooks_run_financial_report' },
+        { label: 'Email Transaction', id: 'quickbooks_email_transaction' },
+        { label: 'Download Transaction PDF', id: 'quickbooks_download_transaction_pdf' },
+        { label: 'Read Attachments', id: 'quickbooks_read_attachments' },
+        { label: 'Add Attachment', id: 'quickbooks_add_attachment' },
+        { label: 'Download Attachment', id: 'quickbooks_download_attachment' },
       ],
       value: () => 'quickbooks_get_company_info',
     },
@@ -394,6 +444,217 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       requiredScopes: getScopesForService('quickbooks'),
       placeholder: 'Select QuickBooks company',
       required: true,
+    },
+    {
+      id: 'documentTransactionType',
+      title: 'Transaction Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Invoice', id: 'invoice' },
+        { label: 'Customer Payment', id: 'payment' },
+        { label: 'Estimate', id: 'estimate' },
+        { label: 'Sales Receipt', id: 'sales_receipt' },
+        { label: 'Credit Memo', id: 'credit_memo' },
+        { label: 'Refund Receipt', id: 'refund_receipt' },
+        { label: 'Purchase Order', id: 'purchase_order' },
+      ],
+      condition: {
+        field: 'operation',
+        value: [EMAIL_TRANSACTION_OPERATION, DOWNLOAD_TRANSACTION_PDF_OPERATION],
+      },
+      required: {
+        field: 'operation',
+        value: [EMAIL_TRANSACTION_OPERATION, DOWNLOAD_TRANSACTION_PDF_OPERATION],
+      },
+      value: () => 'invoice',
+    },
+    {
+      id: 'documentTransactionId',
+      title: 'Transaction ID',
+      type: 'short-input',
+      placeholder: 'QuickBooks transaction ID',
+      condition: {
+        field: 'operation',
+        value: [EMAIL_TRANSACTION_OPERATION, DOWNLOAD_TRANSACTION_PDF_OPERATION],
+      },
+      required: {
+        field: 'operation',
+        value: [EMAIL_TRANSACTION_OPERATION, DOWNLOAD_TRANSACTION_PDF_OPERATION],
+      },
+    },
+    {
+      id: 'confirmSend',
+      title: 'Confirm Send',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'no' },
+        { label: 'Yes', id: 'yes' },
+      ],
+      condition: { field: 'operation', value: EMAIL_TRANSACTION_OPERATION },
+      required: { field: 'operation', value: EMAIL_TRANSACTION_OPERATION },
+      value: () => 'no',
+    },
+    {
+      id: 'recipientOverride',
+      title: 'Recipient',
+      type: 'short-input',
+      placeholder: 'Required for Customer Payments; otherwise optional',
+      condition: { field: 'operation', value: EMAIL_TRANSACTION_OPERATION },
+      required: {
+        field: 'operation',
+        value: EMAIL_TRANSACTION_OPERATION,
+        and: { field: 'documentTransactionType', value: 'payment' },
+      },
+      description:
+        'Required for Customer Payments. For other transactions, leave blank to use the email stored in QuickBooks or provide one override address.',
+    },
+    {
+      id: 'documentFileName',
+      title: 'File Name',
+      type: 'short-input',
+      placeholder: 'Optional PDF filename',
+      condition: { field: 'operation', value: DOWNLOAD_TRANSACTION_PDF_OPERATION },
+      mode: 'advanced',
+    },
+    {
+      id: 'attachmentTargetType',
+      title: 'Target Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Bill', id: 'bill' },
+        { label: 'Bill Payment', id: 'bill_payment' },
+        { label: 'Credit Memo', id: 'credit_memo' },
+        { label: 'Deposit', id: 'deposit' },
+        { label: 'Estimate', id: 'estimate' },
+        { label: 'Invoice', id: 'invoice' },
+        { label: 'Item', id: 'item' },
+        { label: 'Journal Entry', id: 'journal_entry' },
+        { label: 'Customer Payment', id: 'payment' },
+        { label: 'Purchase or Expense', id: 'purchase' },
+        { label: 'Purchase Order', id: 'purchase_order' },
+        { label: 'Refund Receipt', id: 'refund_receipt' },
+        { label: 'Sales Receipt', id: 'sales_receipt' },
+        { label: 'Vendor Credit', id: 'vendor_credit' },
+      ],
+      condition: attachmentTargetCondition,
+      required: attachmentTargetCondition,
+      value: () => 'invoice',
+    },
+    {
+      id: 'attachmentTargetId',
+      title: 'Target ID',
+      type: 'short-input',
+      placeholder: 'QuickBooks target entity ID',
+      condition: attachmentTargetCondition,
+      required: attachmentTargetCondition,
+    },
+    {
+      id: 'attachmentId',
+      title: 'Attachment ID',
+      type: 'short-input',
+      placeholder: 'QuickBooks attachment ID',
+      condition: attachmentIdCondition,
+      required: attachmentIdCondition,
+    },
+    {
+      id: 'attachmentKind',
+      title: 'Attachment Kind',
+      type: 'dropdown',
+      options: [
+        { label: 'File', id: 'file' },
+        { label: 'Note', id: 'note' },
+      ],
+      condition: { field: 'operation', value: ADD_ATTACHMENT_OPERATION },
+      required: { field: 'operation', value: ADD_ATTACHMENT_OPERATION },
+      value: () => 'file',
+    },
+    {
+      id: 'attachmentFileUpload',
+      title: 'File',
+      type: 'file-upload',
+      canonicalParamId: 'attachmentFile',
+      placeholder: 'Upload one supported file',
+      condition: {
+        field: 'operation',
+        value: ADD_ATTACHMENT_OPERATION,
+        and: { field: 'attachmentKind', value: 'file' },
+      },
+      required: {
+        field: 'operation',
+        value: ADD_ATTACHMENT_OPERATION,
+        and: { field: 'attachmentKind', value: 'file' },
+      },
+      mode: 'basic',
+      multiple: false,
+    },
+    {
+      id: 'attachmentFileReference',
+      title: 'File',
+      type: 'short-input',
+      canonicalParamId: 'attachmentFile',
+      placeholder: 'Reference one file from a previous block',
+      condition: {
+        field: 'operation',
+        value: ADD_ATTACHMENT_OPERATION,
+        and: { field: 'attachmentKind', value: 'file' },
+      },
+      required: {
+        field: 'operation',
+        value: ADD_ATTACHMENT_OPERATION,
+        and: { field: 'attachmentKind', value: 'file' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'attachmentNote',
+      title: 'Note',
+      type: 'long-input',
+      placeholder: 'Note to attach in QuickBooks',
+      condition: {
+        field: 'operation',
+        value: ADD_ATTACHMENT_OPERATION,
+        and: { field: 'attachmentKind', value: 'note' },
+      },
+      required: {
+        field: 'operation',
+        value: ADD_ATTACHMENT_OPERATION,
+        and: { field: 'attachmentKind', value: 'note' },
+      },
+    },
+    {
+      id: 'attachmentFileName',
+      title: 'File Name',
+      type: 'short-input',
+      placeholder: 'Optional safe filename override',
+      condition: {
+        field: 'operation',
+        value: [ADD_ATTACHMENT_OPERATION, DOWNLOAD_ATTACHMENT_OPERATION],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'attachmentContentType',
+      title: 'Content Type',
+      type: 'short-input',
+      placeholder: 'Optional compatible MIME type',
+      condition: {
+        field: 'operation',
+        value: ADD_ATTACHMENT_OPERATION,
+        and: { field: 'attachmentKind', value: 'file' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'attachmentDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Optional file attachment description',
+      condition: {
+        field: 'operation',
+        value: ADD_ATTACHMENT_OPERATION,
+        and: { field: 'attachmentKind', value: 'file' },
+      },
+      mode: 'advanced',
     },
     {
       id: 'recordType',
@@ -427,6 +688,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           SALES_READ_OPERATION,
           PURCHASING_READ_OPERATION,
           ACCOUNTING_READ_OPERATION,
+          READ_ATTACHMENTS_OPERATION,
         ],
       },
       required: {
@@ -436,6 +698,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           SALES_READ_OPERATION,
           PURCHASING_READ_OPERATION,
           ACCOUNTING_READ_OPERATION,
+          READ_ATTACHMENTS_OPERATION,
         ],
       },
       value: () => 'list',
@@ -455,6 +718,76 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         value: MASTER_DATA_OPERATION,
         and: { field: 'readMode', value: 'by_id' },
       },
+    },
+    {
+      id: 'readActiveStatus',
+      title: 'Active Status',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'Active', id: 'active' },
+        { label: 'Inactive', id: 'inactive' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: MASTER_DATA_OPERATION,
+        and: { field: 'readMode', value: 'list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'readStartDate',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION, ACCOUNTING_READ_OPERATION],
+        and: { field: 'readMode', value: 'list' },
+      },
+    },
+    {
+      id: 'readEndDate',
+      title: 'End Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION, ACCOUNTING_READ_OPERATION],
+        and: { field: 'readMode', value: 'list' },
+      },
+    },
+    {
+      id: 'readCustomerId',
+      title: 'Customer ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find a customer ID',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: SALES_READ_OPERATION,
+        and: { field: 'readMode', value: 'list' },
+      },
+    },
+    {
+      id: 'readVendorId',
+      title: 'Vendor ID',
+      type: 'short-input',
+      placeholder: 'Use Read Master Data to find a vendor ID',
+      description:
+        'Supported for purchase orders, bills, bill payments, and vendor credits. Purchase/Expense filtering is not exposed because its reference contract differs.',
+      mode: 'advanced',
+      condition: (values) => ({
+        field: 'operation',
+        value: PURCHASING_READ_OPERATION,
+        and:
+          values?.purchasingTransactionType === 'purchase'
+            ? { field: 'purchasingTransactionType', value: 'purchase', not: true }
+            : { field: 'readMode', value: 'list' },
+      }),
     },
     {
       id: 'transactionType',
@@ -527,6 +860,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Sales by Customer Summary', id: 'sales_by_customer' },
         { label: 'Sales by Product/Service Summary', id: 'sales_by_item' },
         { label: 'Expenses by Vendor', id: 'expenses_by_vendor' },
+        { label: 'Transaction List', id: 'transaction_list' },
       ],
       condition: { field: 'operation', value: REPORT_OPERATION },
       required: { field: 'operation', value: REPORT_OPERATION },
@@ -711,6 +1045,165 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       condition: reportControlCondition('aging'),
     },
     {
+      id: 'reportTransactionType',
+      title: 'Transaction Type',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: 'default' },
+        { label: 'Bill', id: 'bill' },
+        { label: 'Bill Payment (Check)', id: 'bill_payment_check' },
+        { label: 'Bill Payment (Credit Card)', id: 'bill_payment_credit_card' },
+        { label: 'Cash Purchase', id: 'cash_purchase' },
+        { label: 'Check', id: 'check' },
+        { label: 'Credit Card Charge', id: 'credit_card_charge' },
+        { label: 'Credit Card Credit', id: 'credit_card_credit' },
+        { label: 'Credit Memo', id: 'credit_memo' },
+        { label: 'Deposit', id: 'deposit' },
+        { label: 'Estimate', id: 'estimate' },
+        { label: 'Invoice', id: 'invoice' },
+        { label: 'Journal Entry', id: 'journal_entry' },
+        { label: 'Customer Payment', id: 'payment' },
+        { label: 'Purchase Order', id: 'purchase_order' },
+        { label: 'Sales Receipt', id: 'sales_receipt' },
+        { label: 'Transfer', id: 'transfer' },
+        { label: 'Vendor Credit', id: 'vendor_credit' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportGroupBy',
+      title: 'Group By',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'Account', id: 'account' },
+        { label: 'Customer', id: 'customer' },
+        { label: 'Day', id: 'day' },
+        { label: 'Department', id: 'department' },
+        { label: 'Employee', id: 'employee' },
+        { label: 'Month', id: 'month' },
+        { label: 'Name', id: 'name' },
+        { label: 'None', id: 'none' },
+        { label: 'Payment Method', id: 'payment_method' },
+        { label: 'Quarter', id: 'quarter' },
+        { label: 'Transaction Type', id: 'transaction_type' },
+        { label: 'Vendor', id: 'vendor' },
+        { label: 'Week', id: 'week' },
+        { label: 'Year', id: 'year' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportAccountsPayablePaid',
+      title: 'A/P Paid Status',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'All', id: 'all' },
+        { label: 'Paid', id: 'paid' },
+        { label: 'Unpaid', id: 'unpaid' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportAccountsReceivablePaid',
+      title: 'A/R Paid Status',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'All', id: 'all' },
+        { label: 'Paid', id: 'paid' },
+        { label: 'Unpaid', id: 'unpaid' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportClearedStatus',
+      title: 'Cleared Status',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'Cleared', id: 'cleared' },
+        { label: 'Uncleared', id: 'uncleared' },
+        { label: 'Reconciled', id: 'reconciled' },
+        { label: 'Deposited', id: 'deposited' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
+      id: 'reportDocumentNumber',
+      title: 'Document Number',
+      type: 'short-input',
+      placeholder: 'Exact QuickBooks document number',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+    },
+    {
+      id: 'reportSourceAccountType',
+      title: 'Source Account Type',
+      type: 'dropdown',
+      options: [
+        { label: 'QuickBooks Default', id: 'default' },
+        { label: 'Accounts Payable', id: 'accounts_payable' },
+        { label: 'Accounts Receivable', id: 'accounts_receivable' },
+        { label: 'Bank', id: 'bank' },
+        { label: 'Cost of Goods Sold', id: 'cost_of_goods_sold' },
+        { label: 'Credit Card', id: 'credit_card' },
+        { label: 'Equity', id: 'equity' },
+        { label: 'Expense', id: 'expense' },
+        { label: 'Fixed Asset', id: 'fixed_asset' },
+        { label: 'Income', id: 'income' },
+        { label: 'Long-term Liability', id: 'long_term_liability' },
+        { label: 'Non-posting', id: 'non_posting' },
+        { label: 'Other Asset', id: 'other_asset' },
+        { label: 'Other Current Asset', id: 'other_current_asset' },
+        { label: 'Other Current Liability', id: 'other_current_liability' },
+        { label: 'Other Expense', id: 'other_expense' },
+        { label: 'Other Income', id: 'other_income' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: REPORT_OPERATION,
+        and: { field: 'reportType', value: 'transaction_list' },
+      },
+      value: () => 'default',
+    },
+    {
       id: 'startPosition',
       title: 'Start Position',
       type: 'short-input',
@@ -774,6 +1267,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       required: { field: 'operation', value: 'quickbooks_update_item' },
     },
     {
+      id: 'employeeId',
+      title: 'Employee ID',
+      type: 'short-input',
+      placeholder: 'QuickBooks employee ID',
+      condition: { field: 'operation', value: 'quickbooks_update_employee' },
+      required: { field: 'operation', value: 'quickbooks_update_employee' },
+    },
+    {
       id: 'syncToken',
       title: 'Sync Token',
       type: 'short-input',
@@ -788,11 +1289,15 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'Unique display name',
       condition: {
         field: 'operation',
-        value: [...CUSTOMER_OPERATIONS, ...VENDOR_OPERATIONS],
+        value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
       required: {
         field: 'operation',
-        value: ['quickbooks_create_customer', 'quickbooks_create_vendor'],
+        value: [
+          'quickbooks_create_customer',
+          'quickbooks_create_employee',
+          'quickbooks_create_vendor',
+        ],
       },
     },
     {
@@ -812,7 +1317,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'Given name',
       condition: {
         field: 'operation',
-        value: [...CUSTOMER_OPERATIONS, ...VENDOR_OPERATIONS],
+        value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
     },
     {
@@ -822,7 +1327,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'Family name',
       condition: {
         field: 'operation',
-        value: [...CUSTOMER_OPERATIONS, ...VENDOR_OPERATIONS],
+        value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
     },
     {
@@ -832,7 +1337,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'name@example.com',
       condition: {
         field: 'operation',
-        value: [...CUSTOMER_OPERATIONS, ...VENDOR_OPERATIONS],
+        value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
     },
     {
@@ -842,7 +1347,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'Phone number',
       condition: {
         field: 'operation',
-        value: [...CUSTOMER_OPERATIONS, ...VENDOR_OPERATIONS],
+        value: [...CUSTOMER_OPERATIONS, ...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
       },
     },
     {
@@ -881,12 +1386,44 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       },
     },
     {
+      id: 'primaryAddress',
+      title: 'Primary Address (JSON)',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '{"line1":"123 Main St","city":"San Francisco","countrySubDivisionCode":"CA","postalCode":"94105"}',
+      condition: { field: 'operation', value: [...EMPLOYEE_OPERATIONS] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a QuickBooks address JSON object using only line1, line2, city, countrySubDivisionCode, postalCode, and country. Return ONLY the JSON object.',
+        generationType: 'json-object',
+      },
+    },
+    {
       id: 'printOnCheckName',
       title: 'Print on Check Name',
       type: 'short-input',
       placeholder: 'Name printed on checks',
-      condition: { field: 'operation', value: [...VENDOR_OPERATIONS] },
+      condition: {
+        field: 'operation',
+        value: [...EMPLOYEE_OPERATIONS, ...VENDOR_OPERATIONS],
+      },
       mode: 'advanced',
+    },
+    {
+      id: 'billableTime',
+      title: 'Billable Time',
+      type: 'dropdown',
+      options: [
+        { label: 'Not specified', id: 'not_specified' },
+        { label: 'Yes', id: 'yes' },
+        { label: 'No', id: 'no' },
+      ],
+      condition: { field: 'operation', value: [...EMPLOYEE_OPERATIONS] },
+      mode: 'advanced',
+      value: () => 'not_specified',
     },
     {
       id: 'accountNumber',
@@ -1391,6 +1928,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       'quickbooks_read_master_data',
       'quickbooks_create_customer',
       'quickbooks_update_customer',
+      'quickbooks_create_employee',
+      'quickbooks_update_employee',
       'quickbooks_create_vendor',
       'quickbooks_update_vendor',
       'quickbooks_create_item',
@@ -1427,6 +1966,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       'quickbooks_create_deposit',
       'quickbooks_update_deposit',
       'quickbooks_run_financial_report',
+      'quickbooks_email_transaction',
+      'quickbooks_download_transaction_pdf',
+      'quickbooks_read_attachments',
+      'quickbooks_add_attachment',
+      'quickbooks_download_attachment',
     ],
     config: {
       tool: (params) => {
@@ -1439,6 +1983,68 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       params: (params) => {
         const operation = String(params.operation)
         const oauthCredentialValue = params.oauthCredential
+
+        if (operation === EMAIL_TRANSACTION_OPERATION) {
+          return {
+            credential: oauthCredentialValue,
+            transactionType: params.documentTransactionType,
+            transactionId: optionalValue(params.documentTransactionId),
+            recipient: optionalValue(params.recipientOverride),
+            confirmSend: parseConfirmation(params.confirmSend, 'confirmSend'),
+          }
+        }
+        if (operation === DOWNLOAD_TRANSACTION_PDF_OPERATION) {
+          return {
+            credential: oauthCredentialValue,
+            transactionType: params.documentTransactionType,
+            transactionId: optionalValue(params.documentTransactionId),
+            fileName: optionalValue(params.documentFileName),
+          }
+        }
+        if (operation === READ_ATTACHMENTS_OPERATION) {
+          if (params.readMode === 'by_id') {
+            return {
+              credential: oauthCredentialValue,
+              readMode: 'by_id',
+              attachmentId: optionalValue(params.attachmentId),
+            }
+          }
+          return {
+            credential: oauthCredentialValue,
+            readMode: 'list',
+            targetType: params.attachmentTargetType,
+            targetId: optionalValue(params.attachmentTargetId),
+            startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
+            maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
+          }
+        }
+        if (operation === ADD_ATTACHMENT_OPERATION) {
+          const attachmentKind = params.attachmentKind
+          return {
+            credential: oauthCredentialValue,
+            attachmentKind,
+            targetType: params.attachmentTargetType,
+            targetId: optionalValue(params.attachmentTargetId),
+            file:
+              attachmentKind === 'file'
+                ? normalizeFileInput(params.attachmentFile, { single: true })
+                : undefined,
+            fileName:
+              attachmentKind === 'file' ? optionalValue(params.attachmentFileName) : undefined,
+            contentType:
+              attachmentKind === 'file' ? optionalValue(params.attachmentContentType) : undefined,
+            description:
+              attachmentKind === 'file' ? optionalValue(params.attachmentDescription) : undefined,
+            note: attachmentKind === 'note' ? optionalValue(params.attachmentNote) : undefined,
+          }
+        }
+        if (operation === DOWNLOAD_ATTACHMENT_OPERATION) {
+          return {
+            credential: oauthCredentialValue,
+            attachmentId: optionalValue(params.attachmentId),
+            fileName: optionalValue(params.attachmentFileName),
+          }
+        }
 
         if (operation === MASTER_DATA_OPERATION) {
           if (params.readMode === 'by_id') {
@@ -1453,6 +2059,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             credential: oauthCredentialValue,
             recordType: params.recordType,
             readMode: params.readMode,
+            activeStatus: params.readActiveStatus ?? 'default',
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -1470,6 +2077,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             credential: oauthCredentialValue,
             transactionType: params.transactionType,
             readMode: params.readMode,
+            startDate: optionalValue(params.readStartDate),
+            endDate: optionalValue(params.readEndDate),
+            customerId: optionalValue(params.readCustomerId),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -1487,6 +2097,12 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             credential: oauthCredentialValue,
             transactionType: params.purchasingTransactionType,
             readMode: params.readMode,
+            startDate: optionalValue(params.readStartDate),
+            endDate: optionalValue(params.readEndDate),
+            vendorId:
+              params.purchasingTransactionType === 'purchase'
+                ? undefined
+                : optionalValue(params.readVendorId),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -1504,6 +2120,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             credential: oauthCredentialValue,
             transactionType: params.accountingTransactionType,
             readMode: params.readMode,
+            startDate: optionalValue(params.readStartDate),
+            endDate: optionalValue(params.readEndDate),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -1547,6 +2165,34 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             agingDays: reportSupports(reportType, 'aging')
               ? parseOptionalPositiveInteger(params.reportAgingDays, 'agingDays')
               : undefined,
+            transactionType:
+              reportType === 'transaction_list' && params.reportTransactionType !== 'default'
+                ? params.reportTransactionType
+                : undefined,
+            groupBy:
+              reportType === 'transaction_list' && params.reportGroupBy !== 'default'
+                ? params.reportGroupBy
+                : undefined,
+            accountsPayablePaid:
+              reportType === 'transaction_list' && params.reportAccountsPayablePaid !== 'default'
+                ? params.reportAccountsPayablePaid
+                : undefined,
+            accountsReceivablePaid:
+              reportType === 'transaction_list' && params.reportAccountsReceivablePaid !== 'default'
+                ? params.reportAccountsReceivablePaid
+                : undefined,
+            clearedStatus:
+              reportType === 'transaction_list' && params.reportClearedStatus !== 'default'
+                ? params.reportClearedStatus
+                : undefined,
+            documentNumber:
+              reportType === 'transaction_list'
+                ? optionalValue(params.reportDocumentNumber)
+                : undefined,
+            sourceAccountType:
+              reportType === 'transaction_list' && params.reportSourceAccountType !== 'default'
+                ? params.reportSourceAccountType
+                : undefined,
           }
         }
         if (SALES_VOID_OPERATIONS.includes(operation as (typeof SALES_VOID_OPERATIONS)[number])) {
@@ -1743,6 +2389,27 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
+        if (
+          operation === 'quickbooks_create_employee' ||
+          operation === 'quickbooks_update_employee'
+        ) {
+          const isCreate = operation === 'quickbooks_create_employee'
+          return {
+            credential: oauthCredentialValue,
+            employeeId: isCreate ? undefined : optionalValue(params.employeeId),
+            syncToken: isCreate ? undefined : optionalValue(params.syncToken),
+            displayName: optionalValue(params.displayName),
+            givenName: optionalValue(params.givenName),
+            familyName: optionalValue(params.familyName),
+            primaryEmail: optionalValue(params.primaryEmail),
+            primaryPhone: optionalValue(params.primaryPhone),
+            primaryAddress: parseQuickBooksAddress(params.primaryAddress, 'primaryAddress'),
+            printOnCheckName: optionalValue(params.printOnCheckName),
+            billableTime: parseTriStateBoolean(params.billableTime, 'billableTime'),
+            activeStatus: params.activeStatus ?? 'unchanged',
+            requestId: isCreate ? optionalValue(params.requestId) : undefined,
+          }
+        }
         if (operation === 'quickbooks_create_vendor' || operation === 'quickbooks_update_vendor') {
           const isCreate = operation === 'quickbooks_create_vendor'
           return {
@@ -1830,6 +2497,21 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     reportDepartmentId: { type: 'string', description: 'Department report filter ID' },
     reportAgingMethod: { type: 'string', description: 'Aging report calculation date' },
     reportAgingDays: { type: 'number', description: 'Days in each aging period' },
+    reportTransactionType: { type: 'string', description: 'Transaction List type filter' },
+    reportGroupBy: { type: 'string', description: 'Transaction List grouping' },
+    reportAccountsPayablePaid: { type: 'string', description: 'Transaction List A/P status' },
+    reportAccountsReceivablePaid: { type: 'string', description: 'Transaction List A/R status' },
+    reportClearedStatus: { type: 'string', description: 'Transaction List cleared status' },
+    reportDocumentNumber: { type: 'string', description: 'Transaction List document number' },
+    reportSourceAccountType: {
+      type: 'string',
+      description: 'Transaction List source account type',
+    },
+    readActiveStatus: { type: 'string', description: 'Master-data active-status filter' },
+    readStartDate: { type: 'string', description: 'Transaction list start date' },
+    readEndDate: { type: 'string', description: 'Transaction list end date' },
+    readCustomerId: { type: 'string', description: 'Sales list customer filter' },
+    readVendorId: { type: 'string', description: 'Purchasing list vendor filter' },
     transactionId: { type: 'string', description: 'QuickBooks transaction ID' },
     startPosition: {
       type: 'number',
@@ -1842,17 +2524,20 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     customerId: { type: 'string', description: 'QuickBooks customer ID' },
     vendorId: { type: 'string', description: 'QuickBooks vendor ID' },
     itemId: { type: 'string', description: 'Item ID for an update' },
+    employeeId: { type: 'string', description: 'Employee ID for an update' },
     syncToken: { type: 'string', description: 'Current entity sync token' },
-    displayName: { type: 'string', description: 'Customer or vendor display name' },
+    displayName: { type: 'string', description: 'Customer, employee, or vendor display name' },
     companyName: { type: 'string', description: 'Customer or vendor company name' },
-    givenName: { type: 'string', description: 'Customer or vendor given name' },
-    familyName: { type: 'string', description: 'Customer or vendor family name' },
+    givenName: { type: 'string', description: 'Customer, employee, or vendor given name' },
+    familyName: { type: 'string', description: 'Customer, employee, or vendor family name' },
     primaryEmail: { type: 'string', description: 'Primary email address' },
     primaryPhone: { type: 'string', description: 'Primary phone number' },
     billingAddress: { type: 'json', description: 'Allowlisted billing address object' },
     shippingAddress: { type: 'json', description: 'Allowlisted shipping address object' },
+    primaryAddress: { type: 'json', description: 'Allowlisted employee address object' },
     taxable: { type: 'boolean', description: 'Optional taxable value' },
-    printOnCheckName: { type: 'string', description: 'Vendor name printed on checks' },
+    printOnCheckName: { type: 'string', description: 'Employee or vendor name printed on checks' },
+    billableTime: { type: 'boolean', description: 'Optional employee billable-time value' },
     accountNumber: { type: 'string', description: 'Vendor account number' },
     vendor1099: { type: 'boolean', description: 'Optional vendor 1099 value' },
     name: { type: 'string', description: 'Item name' },
@@ -1908,6 +2593,26 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'boolean',
       description: 'Explicit confirmation before posting a journal entry',
     },
+    documentTransactionType: {
+      type: 'string',
+      description: 'Supported transaction type for email or PDF download',
+    },
+    documentTransactionId: {
+      type: 'string',
+      description: 'QuickBooks transaction ID for email or PDF download',
+    },
+    confirmSend: { type: 'boolean', description: 'Explicit confirmation before sending email' },
+    recipientOverride: { type: 'string', description: 'Optional single email recipient override' },
+    documentFileName: { type: 'string', description: 'Optional PDF filename override' },
+    attachmentTargetType: { type: 'string', description: 'QuickBooks attachment target type' },
+    attachmentTargetId: { type: 'string', description: 'QuickBooks attachment target ID' },
+    attachmentId: { type: 'string', description: 'QuickBooks attachment ID' },
+    attachmentKind: { type: 'string', description: 'File or Note attachment kind' },
+    attachmentFile: { type: 'file', description: 'Single file to attach to QuickBooks' },
+    attachmentNote: { type: 'string', description: 'Note text to attach to QuickBooks' },
+    attachmentFileName: { type: 'string', description: 'Optional attachment filename override' },
+    attachmentContentType: { type: 'string', description: 'Optional compatible MIME type' },
+    attachmentDescription: { type: 'string', description: 'Optional file attachment description' },
   },
   outputs: {
     company: {
@@ -1926,7 +2631,21 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       description: 'Sales, purchasing, or accounting transaction type returned by the read',
       condition: {
         field: 'operation',
-        value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION, ACCOUNTING_READ_OPERATION],
+        value: [
+          SALES_READ_OPERATION,
+          PURCHASING_READ_OPERATION,
+          ACCOUNTING_READ_OPERATION,
+          EMAIL_TRANSACTION_OPERATION,
+          DOWNLOAD_TRANSACTION_PDF_OPERATION,
+        ],
+      },
+    },
+    transactionId: {
+      type: 'string',
+      description: 'QuickBooks transaction ID used by the document operation',
+      condition: {
+        field: 'operation',
+        value: [EMAIL_TRANSACTION_OPERATION, DOWNLOAD_TRANSACTION_PDF_OPERATION],
       },
     },
     reportType: {
@@ -1952,7 +2671,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     item: {
       type: 'json',
       description:
-        'Single master-data, sales, purchasing, or accounting transaction with native QuickBooks fields',
+        'Single master-data, transaction, or attachment record with native QuickBooks fields',
       condition: {
         field: 'operation',
         value: [
@@ -1960,14 +2679,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           SALES_READ_OPERATION,
           PURCHASING_READ_OPERATION,
           ACCOUNTING_READ_OPERATION,
+          READ_ATTACHMENTS_OPERATION,
         ],
         and: { field: 'readMode', value: 'by_id' },
       },
     },
     items: {
       type: 'array',
-      description:
-        'Master-data, sales, purchasing, or accounting transaction objects with native QuickBooks fields',
+      description: 'Master-data, transaction, or attachment objects with native QuickBooks fields',
       condition: LIST_OUTPUT_CONDITION,
     },
     startPosition: {
@@ -1993,8 +2712,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     record: {
       type: 'json',
       description:
-        'Created, updated, or voided master-data, sales, purchasing, or accounting record with native QuickBooks fields',
-      condition: { field: 'operation', value: [...MUTATION_OPERATIONS] },
+        'Created, updated, voided, or emailed record with native QuickBooks fields when QuickBooks returns one',
+      condition: {
+        field: 'operation',
+        value: [...MUTATION_OPERATIONS, EMAIL_TRANSACTION_OPERATION],
+      },
     },
     recordId: {
       type: 'string',
@@ -2039,6 +2761,71 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       description: 'Warning that QuickBooks created the Bill without every requested link',
       condition: { field: 'operation', value: 'quickbooks_create_bill' },
     },
+    sent: {
+      type: 'boolean',
+      description: 'Whether QuickBooks accepted the transaction email request',
+      condition: { field: 'operation', value: EMAIL_TRANSACTION_OPERATION },
+    },
+    attachment: {
+      type: 'json',
+      description: 'Created native QuickBooks attachment metadata',
+      condition: { field: 'operation', value: ADD_ATTACHMENT_OPERATION },
+    },
+    attachmentId: {
+      type: 'string',
+      description: 'QuickBooks attachment ID',
+      condition: {
+        field: 'operation',
+        value: [ADD_ATTACHMENT_OPERATION, DOWNLOAD_ATTACHMENT_OPERATION],
+      },
+    },
+    attachmentKind: {
+      type: 'string',
+      description: 'Created QuickBooks attachment kind',
+      condition: { field: 'operation', value: ADD_ATTACHMENT_OPERATION },
+    },
+    targetType: {
+      type: 'string',
+      description: 'QuickBooks attachment target type',
+      condition: { field: 'operation', value: ADD_ATTACHMENT_OPERATION },
+    },
+    targetId: {
+      type: 'string',
+      description: 'QuickBooks attachment target ID',
+      condition: { field: 'operation', value: ADD_ATTACHMENT_OPERATION },
+    },
+    file: {
+      type: 'file',
+      description: 'Downloaded QuickBooks file stored in execution files',
+      condition: {
+        field: 'operation',
+        value: [DOWNLOAD_TRANSACTION_PDF_OPERATION, DOWNLOAD_ATTACHMENT_OPERATION],
+      },
+    },
+    fileName: {
+      type: 'string',
+      description: 'Downloaded file name',
+      condition: {
+        field: 'operation',
+        value: [DOWNLOAD_TRANSACTION_PDF_OPERATION, DOWNLOAD_ATTACHMENT_OPERATION],
+      },
+    },
+    mimeType: {
+      type: 'string',
+      description: 'Downloaded file MIME type',
+      condition: {
+        field: 'operation',
+        value: [DOWNLOAD_TRANSACTION_PDF_OPERATION, DOWNLOAD_ATTACHMENT_OPERATION],
+      },
+    },
+    size: {
+      type: 'number',
+      description: 'Downloaded file size in bytes',
+      condition: {
+        field: 'operation',
+        value: [DOWNLOAD_TRANSACTION_PDF_OPERATION, DOWNLOAD_ATTACHMENT_OPERATION],
+      },
+    },
     time: {
       type: 'string',
       description: 'QuickBooks response timestamp',
@@ -2072,7 +2859,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks catalogue maintenance',
       prompt:
-        'Build a workflow that reads QuickBooks accounts, creates approved Service or Non-inventory items, or updates exposed item fields without changing item types.',
+        'Build a workflow that reads filtered QuickBooks master data, creates approved non-payroll employees or Service and Non-inventory items, and safely updates exposed fields while retaining returned IDs and sync tokens.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'catalogue', 'operations'],
@@ -2097,9 +2884,9 @@ export const QuickBooksBlockMeta = {
     },
     {
       icon: QuickBooksIcon,
-      title: 'QuickBooks invoice creation',
+      title: 'QuickBooks invoice creation and delivery',
       prompt:
-        'Create a workflow that validates approved customer and item IDs, creates a QuickBooks invoice without emailing it, and stores the returned ID and sync token.',
+        'Create a workflow that validates approved customer and item IDs, creates a QuickBooks invoice, stores its ID and sync token, then—after explicit approval—emails it or downloads its PDF for controlled delivery and archiving.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'invoices', 'receivables'],
@@ -2135,7 +2922,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks bill entry and payment',
       prompt:
-        'Build a controlled workflow that reads an approved Purchase Order by ID, captures its Line IDs, creates a QuickBooks Bill with explicit PO-line mappings, checks linkingSucceeded and missingLinks, and records a separately approved payment only after reviewing the created Bill.',
+        'Build a controlled workflow that reads an approved Purchase Order by ID, captures its Line IDs, creates a QuickBooks Bill with explicit PO-line mappings, checks linkingSucceeded and missingLinks, attaches one approved receipt or audit note, and records a separately approved payment only after reviewing the created Bill.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'payments', 'payables'],
@@ -2144,7 +2931,7 @@ export const QuickBooksBlockMeta = {
       icon: QuickBooksIcon,
       title: 'QuickBooks customer, vendor, and expense analysis',
       prompt:
-        'Create a workflow that runs customer and vendor balance reports, sales by customer or product/service, and expenses by vendor with supported account, class, or department filters for accountant review.',
+        'Create a workflow that runs customer and vendor balance reports, expenses by vendor, or the Transaction List with bounded date, entity, paid-status, cleared-status, document-number, grouping, and source-account filters for accountant review.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'reporting', 'analysis'],
@@ -2183,9 +2970,10 @@ export const QuickBooksBlockMeta = {
     },
     {
       name: 'create-quickbooks-invoices',
-      description: 'Create approved QuickBooks invoices and retain identifiers for later updates.',
+      description:
+        'Create approved QuickBooks invoices and explicitly deliver or archive their documents.',
       content:
-        '# Create QuickBooks Invoices\n\n## Steps\n1. Validate the approved customer, item IDs, positive amounts, and optional dates.\n2. Use Create Invoice with at least one bounded line.\n3. Store the returned `recordId` and `syncToken`.\n\n## Output\nReturn the native Invoice and identifiers. Do not claim to email the invoice or collect payment automatically.',
+        '# Create and Deliver QuickBooks Invoices\n\n## Steps\n1. Validate the approved customer, item IDs, positive amounts, and optional dates.\n2. Use Create Invoice with at least one bounded line.\n3. Store the returned `recordId` and `syncToken`.\n4. Only after explicit approval, use Email Transaction for one recipient or Download Transaction PDF for controlled archiving.\n5. Use Add Attachment for one approved receipt or audit note when needed, and Read Attachments to verify the metadata.\n\n## Output\nReturn the native Invoice and identifiers plus any sent status, downloaded file, or attachment ID. Do not claim bulk email, automatic resend, attachment deletion, or automatic payment collection.',
     },
     {
       name: 'record-quickbooks-payables',
