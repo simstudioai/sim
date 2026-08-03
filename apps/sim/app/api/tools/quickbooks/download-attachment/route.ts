@@ -104,7 +104,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
     if (buffer.length === 0) throw new Error('QuickBooks attachment file is empty')
     const mimeType =
-      downloadResponse.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() ||
+      downloadResponse.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() ||
       'application/octet-stream'
     let fallbackName = `quickbooks-attachment-${attachmentId}`
     try {

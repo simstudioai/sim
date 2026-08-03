@@ -346,6 +346,28 @@ describe('QuickBooks document API routes', () => {
     )
   })
 
+  it('uses the binary fallback MIME type when an attachment response omits Content-Type', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response('https://intuit-download.example/attachment.bin', {
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
+
+    const response = await downloadAttachment(
+      createMockRequest('POST', { ...auth, attachmentId: '16' })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.output).toMatchObject({
+      attachmentId: '16',
+      fileName: 'attachment.bin',
+      mimeType: 'application/octet-stream',
+      size: 3,
+    })
+  })
+
   it('rejects note-only and oversized attachment downloads', async () => {
     mockFetch.mockResolvedValueOnce(new Response(''))
     const note = await downloadAttachment(
