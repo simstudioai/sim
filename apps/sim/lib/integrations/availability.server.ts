@@ -1,9 +1,15 @@
+import { stripVersionSuffix } from '@sim/utils/string'
+import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { env } from '@/lib/core/config/env'
 import {
   inspectOAuthClientCapability,
   resolveOAuthClientCapabilityId,
 } from '@/lib/core/config/env-capabilities'
-import { resolveIntegrationAvailability } from '@/lib/integrations/availability'
+import {
+  type IntegrationAvailability,
+  resolveIntegrationAvailability,
+  resolveIntegrationAvailabilityStateForVisibility,
+} from '@/lib/integrations/availability'
 
 export type {
   IntegrationAvailability,
@@ -11,6 +17,7 @@ export type {
 } from '@/lib/integrations/availability'
 
 let unavailableIntegrationTypes: ReadonlySet<string> | null = null
+let integrationAvailabilityByType: ReadonlyMap<string, IntegrationAvailability> | null = null
 const oauthServiceAvailability = new Map<string, boolean>()
 
 export function getIntegrationAvailability() {
@@ -31,8 +38,49 @@ export function getUnavailableIntegrationTypes(): ReadonlySet<string> {
   return unavailableIntegrationTypes
 }
 
+function getIntegrationAvailabilityByType(): ReadonlyMap<string, IntegrationAvailability> {
+  if (!integrationAvailabilityByType) {
+    integrationAvailabilityByType = new Map(
+      getIntegrationAvailability().map((availability) => [
+        availability.type.toLowerCase(),
+        availability,
+      ])
+    )
+  }
+  return integrationAvailabilityByType
+}
+
+function getIntegrationAvailabilityForBlockType(
+  blockType: string
+): IntegrationAvailability | undefined {
+  const normalized = blockType.toLowerCase().replace(/-/g, '_')
+  const availabilityByType = getIntegrationAvailabilityByType()
+  return (
+    availabilityByType.get(normalized) ?? availabilityByType.get(stripVersionSuffix(normalized))
+  )
+}
+
 export function isIntegrationDeploymentAvailable(blockType: string): boolean {
-  return !getUnavailableIntegrationTypes().has(blockType.toLowerCase())
+  const availability = getIntegrationAvailabilityForBlockType(blockType)
+  return (
+    !availability ||
+    (availability.state !== 'unavailable' && availability.state !== 'misconfigured')
+  )
+}
+
+/**
+ * Whether an integration can be used in this deployment for the current
+ * viewer. The cached catalog remains viewer-agnostic; preview service-account
+ * alternatives are projected against explicitly supplied block visibility.
+ */
+export function isIntegrationDeploymentAvailableForVisibility(
+  blockType: string,
+  visibility: BlockVisibilityState | null
+): boolean {
+  const availability = getIntegrationAvailabilityForBlockType(blockType)
+  if (!availability) return true
+  const state = resolveIntegrationAvailabilityStateForVisibility(availability, visibility)
+  return state !== 'unavailable' && state !== 'misconfigured'
 }
 
 export function isOAuthServiceDeploymentAvailable(serviceId: string): boolean {

@@ -19,6 +19,7 @@ const {
   getWorkspaceFile,
   getTableById,
   getRowsByIds,
+  getBlockVisibilityForCopilot,
   isIntegrationDeploymentAvailable,
 } = vi.hoisted(() => ({
   discoverServerTools: vi.fn(),
@@ -29,13 +30,15 @@ const {
   getWorkspaceFile: vi.fn(),
   getTableById: vi.fn(),
   getRowsByIds: vi.fn(),
+  getBlockVisibilityForCopilot: vi.fn(async () => null),
   isIntegrationDeploymentAvailable: vi.fn(() => true),
 }))
 
 vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
+vi.mock('@/lib/copilot/block-visibility', () => ({ getBlockVisibilityForCopilot }))
 vi.mock('@/ee/access-control/utils/permission-check', () => ({ getUserPermissionConfig }))
 vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailable,
+  isIntegrationDeploymentAvailableForVisibility: isIntegrationDeploymentAvailable,
 }))
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))

@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/env-flags'
-import { isIntegrationDeploymentAvailable } from '@/lib/integrations/availability.server'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
@@ -128,11 +128,12 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         : null
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+    const visibility = overlayVisibility()
 
     const result: Record<string, CopilotBlockMetadata> = {}
     for (const blockId of blockIds || []) {
       const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
-      if (!isIntegrationDeploymentAvailable(blockId)) {
+      if (!isIntegrationDeploymentAvailableForVisibility(blockId, visibility)) {
         logger.debug('Block unavailable for this deployment', { blockId })
         continue
       }
@@ -181,7 +182,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         // explicitly: unrevealed preview blocks and kill-switched types stay
         // out of the agent's metadata (the router wraps this tool in
         // withBlockVisibility).
-        if (isHiddenUnder(overlayVisibility(), blockConfig)) {
+        if (isHiddenUnder(visibility, blockConfig)) {
           logger.debug('Skipping block gated by visibility', { blockId })
           continue
         }

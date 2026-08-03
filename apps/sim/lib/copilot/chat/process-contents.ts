@@ -6,6 +6,7 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { and, eq, isNull, ne } from 'drizzle-orm'
+import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
   safeBrowserSelectionUrl,
@@ -25,7 +26,7 @@ import {
 } from '@/lib/copilot/vfs/path-utils'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { isIntegrationDeploymentAvailable } from '@/lib/integrations/availability.server'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
@@ -612,11 +613,13 @@ async function processBlockMetadata(
   workspaceId?: string
 ): Promise<AgentContext | null> {
   try {
-    const permissionConfig =
-      userId && workspaceId ? await getUserPermissionConfig(userId, workspaceId) : null
+    const [permissionConfig, visibility] = await Promise.all([
+      userId && workspaceId ? getUserPermissionConfig(userId, workspaceId) : null,
+      userId ? getBlockVisibilityForCopilot(userId, workspaceId) : null,
+    ])
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
-    if (!isIntegrationDeploymentAvailable(blockId)) {
+    if (!isIntegrationDeploymentAvailableForVisibility(blockId, visibility)) {
       logger.debug('Block unavailable for this deployment', { blockId })
       return null
     }

@@ -129,7 +129,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 }))
 
 vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailable: mockIsIntegrationDeploymentAvailable,
+  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
   isOAuthServiceDeploymentAvailable: mockIsOAuthServiceDeploymentAvailable,
 }))
 

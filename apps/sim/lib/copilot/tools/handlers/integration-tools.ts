@@ -5,7 +5,7 @@ import {
 } from '@/lib/copilot/integration-tools'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { isIntegrationDeploymentAvailable } from '@/lib/integrations/availability.server'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { stripVersionSuffix } from '@/tools/utils'
 
@@ -30,7 +30,7 @@ export async function executeListIntegrationTools(
     getExposedIntegrationTools(),
     vis,
     (owner) =>
-      isIntegrationDeploymentAvailable(owner.blockType) &&
+      isIntegrationDeploymentAvailableForVisibility(owner.blockType, vis) &&
       (allowedIntegrations === null || allowedIntegrations.includes(owner.blockType.toLowerCase()))
   )
   const service = stripVersionSuffix(raw.toLowerCase())

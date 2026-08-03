@@ -14,7 +14,7 @@ const { mockIsIntegrationDeploymentAvailable } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailable: mockIsIntegrationDeploymentAvailable,
+  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
 }))
 
 const agentBlockConfig = {

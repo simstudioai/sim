@@ -23,7 +23,7 @@ import {
   isHosted,
 } from '@/lib/core/config/env-flags'
 import {
-  isIntegrationDeploymentAvailable,
+  isIntegrationDeploymentAvailableForVisibility,
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -223,7 +223,7 @@ async function buildIntegrationToolSchemasUncached(
       getExposedIntegrationTools(),
       vis,
       (owner) =>
-        isIntegrationDeploymentAvailable(owner.blockType) &&
+        isIntegrationDeploymentAvailableForVisibility(owner.blockType, vis) &&
         (allowedIntegrationTypes === null ||
           allowedIntegrationTypes.has(owner.blockType.toLowerCase()))
     )

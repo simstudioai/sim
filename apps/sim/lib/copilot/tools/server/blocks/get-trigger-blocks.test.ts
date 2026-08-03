@@ -26,7 +26,7 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 }))
 
 vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailable: mockIsIntegrationDeploymentAvailable,
+  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
 }))
 
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'

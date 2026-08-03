@@ -103,7 +103,7 @@ import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import {
-  isIntegrationDeploymentAvailable,
+  isIntegrationDeploymentAvailableForVisibility,
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
@@ -193,7 +193,7 @@ function isBlockOwnerHidden(
 ): boolean {
   const config = BLOCK_REGISTRY[owner.type]
   if (config?.hideFromToolbar) return true
-  if (!isIntegrationDeploymentAvailable(owner.type)) return true
+  if (!isIntegrationDeploymentAvailableForVisibility(owner.type, vis)) return true
   if (
     allowedIntegrationTypes !== null &&
     !isBlockTypeAccessControlExempt(owner.type) &&
@@ -343,12 +343,8 @@ function getStaticComponentFiles(): Map<string, string> {
   // universe. Preview blocks get schema files here and are filtered per viewer
   // at stamp time. Viewer-specific aggregate files are built during materialization.
   const allBlocks = Object.values(BLOCK_REGISTRY)
-  const visibleBlocks = allBlocks.filter(
-    (block) => !block.hideFromToolbar && isIntegrationDeploymentAvailable(block.type)
-  )
-  const exposedTools = getExposedIntegrationTools().filter((tool) =>
-    tool.owners.some((owner) => isIntegrationDeploymentAvailable(owner.blockType))
-  )
+  const visibleBlocks = allBlocks.filter((block) => !block.hideFromToolbar)
+  const exposedTools = getExposedIntegrationTools()
   const toolConfigs = new Map<string, ToolConfig>()
   for (const { toolId, config } of exposedTools) {
     toolConfigs.set(toolId, config)
@@ -830,7 +826,7 @@ export class WorkspaceVFS {
               getExposedIntegrationTools(),
               blockVisibility,
               (owner) =>
-                isIntegrationDeploymentAvailable(owner.blockType) &&
+                isIntegrationDeploymentAvailableForVisibility(owner.blockType, blockVisibility) &&
                 (allowedIntegrationTypes === null ||
                   allowedIntegrationTypes.has(owner.blockType.toLowerCase()))
             )

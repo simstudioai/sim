@@ -57,7 +57,7 @@ vi.mock('@/blocks/registry', () => ({
 }))
 
 vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailable: () => true,
+  isIntegrationDeploymentAvailableForVisibility: () => true,
 }))
 
 function makeLoopWorkflow() {

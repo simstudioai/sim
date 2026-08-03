@@ -2,9 +2,10 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { isIntegrationDeploymentAvailable } from '@/lib/integrations/availability.server'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { getAllBlocks } from '@/blocks/registry'
+import { overlayVisibility } from '@/blocks/visibility/context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 export const GetTriggerBlocksInput = z.object({})
@@ -29,13 +30,14 @@ export const getTriggerBlocksServerTool: BaseServerTool<
         : null
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+    const visibility = overlayVisibility()
 
     const triggerBlockIds: string[] = []
 
     for (const blockConfig of getAllBlocks()) {
       const blockType = blockConfig.type
       if (blockConfig.hideFromToolbar) continue
-      if (!isIntegrationDeploymentAvailable(blockType)) continue
+      if (!isIntegrationDeploymentAvailableForVisibility(blockType, visibility)) continue
       if (
         allowedIntegrations != null &&
         !isBlockTypeAccessControlExempt(blockType) &&

@@ -1,7 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/config/env', () => ({ env: {} }))
+
 import {
   OAUTH_CLIENT_CAPABILITIES,
   resolveOAuthClientCapabilityId,
@@ -13,6 +16,10 @@ import {
   resolveIntegrationAvailability,
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
+import {
+  isIntegrationDeploymentAvailable,
+  isIntegrationDeploymentAvailableForVisibility,
+} from '@/lib/integrations/availability.server'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import { SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID } from '@/lib/integrations/service-account-metadata'
 import type { Integration } from '@/lib/integrations/types'
@@ -109,6 +116,32 @@ describe('integration availability', () => {
     expect(resolveIntegrationAvailabilityStateForVisibility(availabilityFor('x'), disabled)).toBe(
       'unavailable'
     )
+  })
+
+  it('projects base and versioned deployment availability through explicit visibility', () => {
+    const revealed = {
+      revealed: new Set(['slack_v2']),
+      disabled: new Set<string>(),
+      previewTagged: new Set(['slack_v2']),
+    }
+    const disabled = {
+      ...revealed,
+      disabled: new Set(['slack_v2']),
+    }
+
+    expect(isIntegrationDeploymentAvailable('slack')).toBe(false)
+    expect(isIntegrationDeploymentAvailable('slack_v2')).toBe(false)
+    expect(isIntegrationDeploymentAvailable('slack-v2')).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack', null)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack_v2', null)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack-v2', null)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack', revealed)).toBe(true)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack_v2', revealed)).toBe(true)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack-v2', revealed)).toBe(true)
+    expect(isIntegrationDeploymentAvailableForVisibility('x', revealed)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack', disabled)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack_v2', disabled)).toBe(false)
+    expect(isIntegrationDeploymentAvailableForVisibility('slack-v2', disabled)).toBe(false)
   })
 
   it('requires the deployment Trello API key for OAuth and pasted member tokens', () => {

@@ -254,7 +254,7 @@ vi.mock('@/providers/utils', () => ({
 }))
 
 vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailable: mockIsIntegrationDeploymentAvailable,
+  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
 }))
 
 import {
