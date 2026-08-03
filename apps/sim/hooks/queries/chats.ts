@@ -29,8 +29,6 @@ const logger = createLogger('ChatMutations')
  */
 export const chatKeys = {
   all: ['chats'] as const,
-  status: deploymentKeys.chatStatus,
-  detail: deploymentKeys.chatDetail,
   configs: () => [...chatKeys.all, 'config'] as const,
   config: (identifier?: string) => [...chatKeys.configs(), identifier ?? ''] as const,
 }

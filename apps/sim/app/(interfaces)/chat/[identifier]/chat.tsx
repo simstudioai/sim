@@ -1,6 +1,6 @@
 'use client'
 
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import {
@@ -25,6 +25,8 @@ import { useDeployedChatConfig } from '@/hooks/queries/chats'
 import { useGitHubStars } from '@/hooks/queries/github-stars'
 
 const logger = createLogger('ChatClient')
+
+const NEAR_BOTTOM_THRESHOLD_PX = 100
 
 interface ChatRequestFile {
   name: string
@@ -87,13 +89,11 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
     useChatStreaming()
 
-  const NEAR_BOTTOM_THRESHOLD_PX = 100
-
   /**
    * ChatGPT-style scroll. Without `force`, no-ops when the user has scrolled away.
    * With `force` (jump button), re-pins to bottom.
    */
-  const scrollToBottom = useCallback((options?: { behavior?: ScrollBehavior; force?: boolean }) => {
+  const scrollToBottom = (options?: { behavior?: ScrollBehavior; force?: boolean }) => {
     const behavior = options?.behavior ?? 'smooth'
     const force = options?.force === true
     if (!force && !stickToBottomRef.current) return
@@ -112,52 +112,46 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       },
       behavior === 'smooth' ? 400 : 50
     )
-  }, [])
+  }
 
-  const scrollToMessage = useCallback(
-    (messageId: string, scrollToShowOnlyMessage = false) => {
-      const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
-      if (messageElement && messagesContainerRef.current) {
-        const container = messagesContainerRef.current
-        const containerRect = container.getBoundingClientRect()
-        const messageRect = messageElement.getBoundingClientRect()
+  const scrollToMessage = (messageId: string) => {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+    if (!messageElement || !messagesContainerRef.current) return
 
-        if (scrollToShowOnlyMessage) {
-          const scrollTop = container.scrollTop + messageRect.top - containerRect.top
-
-          container.scrollTo({
-            top: scrollTop,
-            behavior: 'smooth',
-          })
-        } else {
-          const scrollTop = container.scrollTop + messageRect.top - containerRect.top - 80
-
-          container.scrollTo({
-            top: scrollTop,
-            behavior: 'smooth',
-          })
-        }
-      }
-    },
-    [messagesContainerRef]
-  )
-
-  useEffect(() => {
     const container = messagesContainerRef.current
-    if (!container) return
+    const containerRect = container.getBoundingClientRect()
+    const messageRect = messageElement.getBoundingClientRect()
+
+    container.scrollTo({
+      top: container.scrollTop + messageRect.top - containerRect.top,
+      behavior: 'smooth',
+    })
+  }
+
+  /**
+   * Attaches on mount via a ref callback rather than an effect: the container
+   * renders only after the auth/loading early returns, so an effect would need
+   * unrelated render values as a stand-in for "the node exists yet".
+   */
+  const attachMessagesContainer = useCallback((node: HTMLDivElement | null) => {
+    messagesContainerRef.current = node
+    if (!node) return
 
     const handleScroll = () => {
       if (ignoreScrollRef.current) return
-      const { scrollTop, scrollHeight, clientHeight } = container
+      const { scrollTop, scrollHeight, clientHeight } = node
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
       const nearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX
       stickToBottomRef.current = nearBottom
       setShowScrollButton(!nearBottom)
     }
 
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    return () => container.removeEventListener('scroll', handleScroll)
-  }, [chatConfig, authRequired])
+    node.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      node.removeEventListener('scroll', handleScroll)
+      messagesContainerRef.current = null
+    }
+  }, [])
 
   const handleSendMessage = async (
     messageToSend: string,
@@ -199,7 +193,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     setIsLoading(true)
 
     setTimeout(() => {
-      scrollToMessage(userMessage.id, true)
+      scrollToMessage(userMessage.id)
     }, 100)
 
     // One AbortController for fetch + SSE body reads so Stop cancels server work too.
@@ -314,7 +308,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   }
 
   return (
-    <div className='light desktop-title-bar-page fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div className='light desktop-title-bar-page fixed inset-0 z-[var(--z-dropdown)] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
       <DesktopTitleBarLane />
       <ChatHeader chatConfig={chatConfig} starCount={starCount} />
 
@@ -322,10 +316,9 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         messages={displayMessages}
         isLoading={isLoading}
         showScrollButton={showScrollButton}
-        messagesContainerRef={messagesContainerRef as RefObject<HTMLDivElement>}
+        messagesContainerRef={attachMessagesContainer}
         messagesEndRef={messagesEndRef as RefObject<HTMLDivElement>}
         scrollToBottom={() => scrollToBottom({ behavior: 'smooth', force: true })}
-        scrollToMessage={scrollToMessage}
         chatConfig={chatConfig}
       />
 

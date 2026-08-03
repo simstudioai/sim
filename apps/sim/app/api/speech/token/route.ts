@@ -60,8 +60,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     const actorUserId = session.user.id
     /**
-     * Editor voice accepts only a workspace the caller belongs to, preventing
-     * client-supplied IDs from misattributing or bypassing member usage.
+     * Accepts only a workspace the caller belongs to, preventing client-supplied
+     * IDs from misattributing or bypassing member usage.
      */
     const requestedWorkspaceId =
       body.success && typeof body.data.workspaceId === 'string' ? body.data.workspaceId : undefined
@@ -70,8 +70,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (permission) workspaceId = requestedWorkspaceId
     }
     /**
-     * Editor voice is workspace-scoped so every charge has a payer and member
-     * cap attribution.
+     * Workspace-scoped so every charge has a payer and member cap attribution.
      */
     if (!workspaceId) {
       return NextResponse.json({ error: 'Workspace context is required.' }, { status: 400 })
