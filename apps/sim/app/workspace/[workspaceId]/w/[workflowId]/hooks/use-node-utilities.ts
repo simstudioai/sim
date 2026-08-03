@@ -48,8 +48,11 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
       if (block.height) {
         return {
-          width: BLOCK_DIMENSIONS.FIXED_WIDTH,
-          height: Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT),
+          width: block.type === 'note' ? BLOCK_DIMENSIONS.NOTE_WIDTH : BLOCK_DIMENSIONS.FIXED_WIDTH,
+          height:
+            block.type === 'note'
+              ? block.height
+              : Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT),
         }
       }
 

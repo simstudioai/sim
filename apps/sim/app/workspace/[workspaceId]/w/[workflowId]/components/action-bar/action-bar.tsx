@@ -1,6 +1,25 @@
 import { memo, useCallback, useEffect, useState } from 'react'
-import { Button, cn, Duplicate, PlayOutline, Tooltip, Trash2, toast } from '@sim/emcn'
-import { Circle, CircleOff, Lock, LogOut, Unlock } from 'lucide-react'
+import {
+  Button,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+  Duplicate,
+  PlayOutline,
+  Tooltip,
+  Trash2,
+  toast,
+} from '@sim/emcn'
+import {
+  DEFAULT_NOTE_COLOR,
+  isNoteColor,
+  NOTE_COLOR_OPTIONS,
+  type NoteColor,
+} from '@sim/workflow-renderer'
+import { Circle, CircleOff, Lock, LogOut, Palette, Unlock } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { ThinkingLoader } from '@/components/ui'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
@@ -29,7 +48,7 @@ const PROGRESS_LEFT_CAP_PATH =
 const PROGRESS_RIGHT_CAP_PATH =
   'M16.25 0A8 8 0 0 1 22.4 2.88L36.59 19.9A2.5 2.5 0 0 1 34.66 24L0 24L0 0Z'
 
-type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete'
+type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete' | 'color'
 
 function IndeterminateBlockProgress() {
   return (
@@ -89,6 +108,10 @@ interface ActionBarProps {
   variant?: 'floating' | 'swell'
   /** Whether the current workflow is executing. */
   isRunning?: boolean
+  noteColor?: NoteColor
+  onNoteColorChange?: (color: NoteColor) => void
+  /** Keeps the note and its swell selected while the portalled color menu is open. */
+  onNoteColorMenuOpen?: () => void
 }
 
 /**
@@ -104,6 +127,9 @@ export const ActionBar = memo(
     disabled = false,
     variant = 'floating',
     isRunning = false,
+    noteColor = DEFAULT_NOTE_COLOR,
+    onNoteColorChange,
+    onNoteColorMenuOpen,
   }: ActionBarProps) {
     const {
       collaborativeBatchAddBlocks,
@@ -200,16 +226,7 @@ export const ActionBar = memo(
     const canRunFromBlock =
       dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isExecuting
     const isSwell = variant === 'swell'
-    const firstActionId: ActionId =
-      !isNoteBlock && !isInsideSubflow
-        ? 'run'
-        : !isNoteBlock
-          ? 'enabled'
-          : userPermissions.canAdmin
-            ? 'lock'
-            : !isStartBlock && !isResponseBlock
-              ? 'duplicate'
-              : 'delete'
+    const firstActionId: ActionId = isNoteBlock ? 'color' : !isInsideSubflow ? 'run' : 'enabled'
     /*
      * Icon treatment follows the swell's own fill, published by the card view
      * as `data-node-selected`. Keying off React Flow's raw `selected` would
@@ -235,7 +252,8 @@ export const ActionBar = memo(
      * stays tight against neighboring actions. The row is right-[24px] to
      * match the swell anchor inset (right-aligned on the card). Glyphs shift
      * away from the outer cut (+6 / -6). Play gets an extra +2px because the
-     * triangle’s optical center sits left of its viewBox center.
+     * triangle’s optical center sits left of its viewBox center; the Note
+     * palette uses the same inset so its first-action padding matches.
      */
     const getActionButtonStyles = (actionId: ActionId) =>
       cn(
@@ -248,7 +266,9 @@ export const ActionBar = memo(
           "!w-[40px] [clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24L36_24A4_4_0_0_0_40_20L40_4A4_4_0_0_0_36_0Z')] [&_svg]:translate-y-px",
         isSwell &&
           actionId === firstActionId &&
-          (actionId === 'run' ? '[&_svg]:translate-x-[8px]' : '[&_svg]:translate-x-[6px]'),
+          (actionId === 'run' || actionId === 'color'
+            ? '[&_svg]:translate-x-[8px]'
+            : '[&_svg]:translate-x-[6px]'),
         isSwell &&
           actionId === 'delete' &&
           "!w-[40px] [clip-path:path('M16.25_0A8_8_0_0_1_22.4_2.88L36.59_19.9A2.5_2.5_0_0_1_34.66_24L4_24A4_4_0_0_1_0_20L0_4A4_4_0_0_1_4_0Z')] [&_svg]:-translate-x-[6px] [&_svg]:translate-y-px",
@@ -380,6 +400,63 @@ export const ActionBar = memo(
                         : getTooltipMessage(isEnabled ? 'Disable' : 'Enable')}
                   </Tooltip.Content>
                 </Tooltip.Root>
+              )}
+
+              {isNoteBlock && (
+                <DropdownMenu
+                  onOpenChange={(open) => {
+                    if (open) onNoteColorMenuOpen?.()
+                  }}
+                >
+                  <Tooltip.Root preferAbove>
+                    <Tooltip.Trigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant='ghost'
+                          className={getActionButtonStyles('color')}
+                          disabled={disabled || isLocked || isParentLocked || !onNoteColorChange}
+                          aria-label='Note color'
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Palette className={ICON_SIZE} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>Color</Tooltip.Content>
+                  </Tooltip.Root>
+                  <DropdownMenuContent
+                    align='center'
+                    side='top'
+                    sideOffset={8}
+                    className='w-fit min-w-0 rounded-full p-1'
+                  >
+                    <DropdownMenuRadioGroup
+                      value={noteColor}
+                      className='flex flex-col gap-0.5'
+                      onValueChange={(value) => {
+                        if (isNoteColor(value)) onNoteColorChange?.(value)
+                      }}
+                    >
+                      {NOTE_COLOR_OPTIONS.map((option) => (
+                        <DropdownMenuRadioItem
+                          key={option.id}
+                          value={option.id}
+                          aria-label={option.label}
+                          className='size-[28px] cursor-pointer justify-center rounded-full p-0 [&>span:first-child]:hidden'
+                        >
+                          <span
+                            className={cn(
+                              'size-[16px] rounded-full border border-black/15',
+                              option.swatchClassName,
+                              option.id === noteColor &&
+                                'ring-2 ring-[var(--text-primary)] ring-offset-1 ring-offset-[var(--bg)]'
+                            )}
+                          />
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
 
               {userPermissions.canAdmin && (
@@ -524,7 +601,10 @@ export const ActionBar = memo(
       prevProps.blockType === nextProps.blockType &&
       prevProps.disabled === nextProps.disabled &&
       prevProps.variant === nextProps.variant &&
-      prevProps.isRunning === nextProps.isRunning
+      prevProps.isRunning === nextProps.isRunning &&
+      prevProps.noteColor === nextProps.noteColor &&
+      prevProps.onNoteColorChange === nextProps.onNoteColorChange &&
+      prevProps.onNoteColorMenuOpen === nextProps.onNoteColorMenuOpen
     )
   }
 )

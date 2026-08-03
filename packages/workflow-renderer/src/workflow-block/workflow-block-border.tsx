@@ -145,10 +145,16 @@ interface WorkflowBlockBorderProps {
   ringStyles: string
   /** Paints the unified silhouette with the canonical selected-state color. */
   isSelected?: boolean
+  /** Overrides the selected silhouette while preserving the canonical idle and ring colors. */
+  selectedSilhouetteColor?: string
+  /** Overrides the resolved silhouette without changing selected or ring state. */
+  silhouetteColorOverride?: string
   /** Fills the card body without changing its silhouette or border color. */
   bodyFill?: string
   /** Explicit layout width for fixed-size hosts; omit to measure the host. */
   width?: number
+  /** First-frame height used while an observed host has not reported its size yet. */
+  initialHeight?: number
   /**
    * Card height in layout px. Must match what the card actually renders — the
    * silhouette is drawn from it, so an over-estimate paints a card taller than
@@ -836,15 +842,21 @@ export function WorkflowBlockBorder({
   hasRing,
   ringStyles,
   isSelected = false,
+  selectedSilhouetteColor,
+  silhouetteColorOverride,
   bodyFill = 'var(--surface-2)',
   width,
+  initialHeight,
   height,
   onCursorHandleChange,
   onActionMenuReadyChange,
 }: WorkflowBlockBorderProps) {
   const clipId = `workflow-border-${useId().replaceAll(':', '')}`
   const svgRef = useRef<SVGSVGElement>(null)
-  const [size, setSize] = useState({ width: width ?? 250, height: height ?? 100 })
+  const [size, setSize] = useState({
+    width: width ?? 250,
+    height: height ?? initialHeight ?? 100,
+  })
   const [renderedPath, setRenderedPath] = useState<{
     d: string
     startS: number
@@ -912,7 +924,9 @@ export function WorkflowBlockBorder({
          left on the vertical edges and the action-menu tab collapses into the
          corner arcs. The host carries the same floor; this keeps the geometry
          correct even if a caller sizes one some other way. */
-      const nextHeight = Math.max(host.offsetHeight, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT)
+      const observedHeight = host.offsetHeight > 0 ? host.offsetHeight : initialHeight
+      if (observedHeight === undefined) return
+      const nextHeight = Math.max(observedHeight, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT)
       if (Number.isFinite(width) && Number.isFinite(nextHeight) && width > 0 && nextHeight > 0) {
         setSize((current) =>
           current.width === width && current.height === nextHeight
@@ -925,7 +939,7 @@ export function WorkflowBlockBorder({
     const observer = new ResizeObserver(update)
     observer.observe(host)
     return () => observer.disconnect()
-  }, [height, width])
+  }, [height, initialHeight, width])
 
   useLayoutEffect(() => {
     const perimeter = buildRoundedRectPerimeter(size.width, size.height, radius)
@@ -1592,11 +1606,13 @@ export function WorkflowBlockBorder({
 
   const ring = resolveRing(ringStyles)
   const { d: path } = renderedPath
-  const silhouetteColor = isSelected
-    ? 'var(--text-secondary)'
-    : hasRing && ring.solid
-      ? ring.color
-      : 'var(--border-1)'
+  const silhouetteColor =
+    silhouetteColorOverride ??
+    (isSelected
+      ? (selectedSilhouetteColor ?? 'var(--text-secondary)')
+      : hasRing && ring.solid
+        ? ring.color
+        : 'var(--border-1)')
 
   return (
     <svg

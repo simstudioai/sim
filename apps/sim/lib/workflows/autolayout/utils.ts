@@ -329,17 +329,20 @@ function getNoteDimensions(block: BlockState): { width: number; height: number }
   const width = Math.max(
     resolveNumeric(block.data?.width, 0),
     block.layout?.measuredWidth ?? 0,
-    BLOCK_DIMENSIONS.FIXED_WIDTH
+    BLOCK_DIMENSIONS.NOTE_WIDTH
   )
 
-  const defaultHeight = getNoteBlockHeight(false)
-
-  const height = Math.max(
+  const measuredHeight = Math.max(
     resolveNumeric(block.data?.height, 0),
     block.layout?.measuredHeight ?? 0,
-    block.height ?? 0,
-    defaultHeight
+    block.height ?? 0
   )
+  const minimumHeight = getNoteBlockHeight(true)
+  const maximumHeight = getNoteBlockHeight(false)
+  const height =
+    measuredHeight > 0
+      ? Math.min(maximumHeight, Math.max(minimumHeight, measuredHeight))
+      : maximumHeight
 
   return { width, height }
 }
@@ -552,8 +555,14 @@ export function transferBlockHeights(
   for (const block of Object.values(sourceBlocks)) {
     const key = `${block.type}:${block.name}`
     heightMap.set(key, {
-      height: block.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
-      width: block.layout?.measuredWidth || BLOCK_DIMENSIONS.FIXED_WIDTH,
+      height:
+        block.height ||
+        (block.type === NOTE_BLOCK_TYPE ? getNoteBlockHeight(true) : BLOCK_DIMENSIONS.MIN_HEIGHT),
+      width:
+        block.layout?.measuredWidth ||
+        (block.type === NOTE_BLOCK_TYPE
+          ? BLOCK_DIMENSIONS.NOTE_WIDTH
+          : BLOCK_DIMENSIONS.FIXED_WIDTH),
     })
   }
 
