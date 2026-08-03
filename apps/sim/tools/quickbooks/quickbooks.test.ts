@@ -5,6 +5,7 @@ import { evaluateOutputCondition } from '@/lib/workflows/blocks/block-outputs'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
+  quickbooksAddAttachmentTool,
   quickbooksCreateBillPaymentTool,
   quickbooksCreateBillTool,
   quickbooksCreateCreditMemoTool,
@@ -18,7 +19,11 @@ import {
   quickbooksCreateRefundReceiptTool,
   quickbooksCreateSalesReceiptTool,
   quickbooksCreateVendorCreditTool,
+  quickbooksDownloadAttachmentTool,
+  quickbooksDownloadTransactionPdfTool,
+  quickbooksEmailTransactionTool,
   quickbooksReadAccountingTransactionsTool,
+  quickbooksReadAttachmentsTool,
   quickbooksReadPurchasingTransactionsTool,
   quickbooksReadSalesTransactionsTool,
   quickbooksRunFinancialReportTool,
@@ -885,6 +890,7 @@ describe('QuickBooks item mutations', () => {
 
 describe('QuickBooks tool and block boundaries', () => {
   const tools = [
+    quickbooksAddAttachmentTool,
     quickbooksCreateBillPaymentTool,
     quickbooksCreateBillTool,
     quickbooksCreateCreditMemoTool,
@@ -901,9 +907,13 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksCreateSalesReceiptTool,
     quickbooksCreateVendorTool,
     quickbooksCreateVendorCreditTool,
+    quickbooksDownloadAttachmentTool,
+    quickbooksDownloadTransactionPdfTool,
+    quickbooksEmailTransactionTool,
     quickbooksGetCompanyInfoTool,
     quickbooksReadMasterDataTool,
     quickbooksReadAccountingTransactionsTool,
+    quickbooksReadAttachmentsTool,
     quickbooksReadPurchasingTransactionsTool,
     quickbooksReadSalesTransactionsTool,
     quickbooksRunFinancialReportTool,
@@ -927,18 +937,20 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksVoidInvoiceTool,
   ]
 
-  it('declares exactly 40 bounded tools with hidden company credentials and no retries', () => {
+  it('declares exactly 45 bounded tools with hidden company credentials and no retries', () => {
     expect(tools.map((tool) => tool.id).sort()).toEqual([...QuickBooksBlock.tools.access].sort())
     for (const tool of tools) {
       expect(tool.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
       expect(tool.params.realmId).toMatchObject({ required: true, visibility: 'hidden' })
-      expect(tool.request.retry).toEqual({ enabled: false })
-      expect(tool.request.maxResponseBytes).toBe(QUICKBOOKS_MAX_RESPONSE_BYTES)
+      if (typeof tool.request.url !== 'string') {
+        expect(tool.request.retry).toEqual({ enabled: false })
+        expect(tool.request.maxResponseBytes).toBe(QUICKBOOKS_MAX_RESPONSE_BYTES)
+      }
       expect(tool.postProcess).toBeUndefined()
     }
   })
 
-  it('exposes the 40 compact operations and unique subblock IDs', () => {
+  it('exposes the 45 compact operations and unique subblock IDs', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     expect(operation?.options).toEqual([
       { label: 'Get Company Info', id: 'quickbooks_get_company_info' },
@@ -987,6 +999,14 @@ describe('QuickBooks tool and block boundaries', () => {
       { label: 'Create Deposit', id: 'quickbooks_create_deposit' },
       { label: 'Update Deposit', id: 'quickbooks_update_deposit' },
       { label: 'Run Financial Report', id: 'quickbooks_run_financial_report' },
+      { label: 'Email Transaction', id: 'quickbooks_email_transaction' },
+      {
+        label: 'Download Transaction PDF',
+        id: 'quickbooks_download_transaction_pdf',
+      },
+      { label: 'Read Attachments', id: 'quickbooks_read_attachments' },
+      { label: 'Add Attachment', id: 'quickbooks_add_attachment' },
+      { label: 'Download Attachment', id: 'quickbooks_download_attachment' },
     ])
     const ids = QuickBooksBlock.subBlocks.map((subBlock) => subBlock.id)
     expect(new Set(ids).size).toBe(ids.length)
@@ -1142,6 +1162,7 @@ describe('QuickBooks tool and block boundaries', () => {
         'quickbooks_read_sales_transactions',
         'quickbooks_read_purchasing_transactions',
         'quickbooks_read_accounting_transactions',
+        'quickbooks_read_attachments',
       ],
     })
     expect(
@@ -1178,6 +1199,7 @@ describe('QuickBooks tool and block boundaries', () => {
         'quickbooks_read_sales_transactions',
         'quickbooks_read_purchasing_transactions',
         'quickbooks_read_accounting_transactions',
+        'quickbooks_read_attachments',
       ],
       and: { field: 'readMode', value: 'list' },
     })

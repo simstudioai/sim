@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-02",
+  "updatedAt": "2026-08-03",
   "integrations": [
     {
       "type": "onepassword",
@@ -14564,8 +14564,8 @@
       "type": "quickbooks",
       "slug": "quickbooks",
       "name": "QuickBooks",
-      "description": "Manage QuickBooks Online company, sales, purchasing, payables, accounting, and reports",
-      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, general-accounting, and financial-reporting workflows.",
+      "description": "Manage QuickBooks Online company, transactions, reports, emails, PDFs, and attachments",
+      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.",
       "bgColor": "#2CA01C",
       "iconName": "QuickBooksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
@@ -14729,9 +14729,29 @@
         {
           "name": "Run Financial Report",
           "description": "Run a fixed QuickBooks financial report with verified accountant-focused filters"
+        },
+        {
+          "name": "Email Transaction",
+          "description": "Send a supported QuickBooks transaction by email. This causes an external email and Intuit limits sandbox email delivery."
+        },
+        {
+          "name": "Download Transaction PDF",
+          "description": "Download a supported QuickBooks transaction as a bounded PDF file"
+        },
+        {
+          "name": "Read Attachments",
+          "description": "List attachment metadata for a fixed QuickBooks entity or read one attachment by ID"
+        },
+        {
+          "name": "Add Attachment",
+          "description": "Attach one supported file or one note to a fixed QuickBooks entity"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a QuickBooks file attachment through its short-lived URL"
         }
       ],
-      "operationCount": 40,
+      "operationCount": 45,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
