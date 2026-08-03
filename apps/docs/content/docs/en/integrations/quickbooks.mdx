@@ -2595,11 +2595,11 @@ Send a supported QuickBooks transaction by email. This causes an external email 
 | `transactionId` | string | Emailed QuickBooks transaction ID |
 | `sent` | boolean | Whether QuickBooks accepted the email send request |
 | `record` | json | Native QuickBooks transaction returned after sending |
-|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `Id` | string | QuickBooks transaction ID |
 |   ↳ `SyncToken` | string | Current transaction sync token |
 |   ↳ `DocNumber` | string | Transaction document number |
 |   ↳ `TxnDate` | string | Transaction date |
-|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `DueDate` | string | Transaction due date |
 |   ↳ `ExpirationDate` | string | Estimate expiration date |
 |   ↳ `CustomerRef` | json | Customer reference |
 |     ↳ `value` | string | QuickBooks entity ID |
@@ -2611,12 +2611,28 @@ Send a supported QuickBooks transaction by email. This causes an external email 
 |   ↳ `PaymentMethodRef` | json | Payment method reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
 |   ↳ `CurrencyRef` | json | Transaction currency reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
-|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `Line` | array | Native QuickBooks sales or purchasing transaction lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|     ↳ `SalesItemLineDetail` | json | Native QuickBooks sales item line details |
+|     ↳ `DescriptionLineDetail` | json | Native QuickBooks description line details |
 |   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
 |   ↳ `TotalAmt` | number | Transaction total amount |
 |   ↳ `Balance` | number | Remaining transaction balance |
 |   ↳ `UnappliedAmt` | number | Unapplied payment amount |
@@ -2626,6 +2642,24 @@ Send a supported QuickBooks transaction by email. This causes an external email 
 |   ↳ `MetaData` | json | Transaction creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
 |     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `POStatus` | string | Purchase order status |
 | `time` | string | QuickBooks response timestamp |
 
 ### `quickbooks_download_transaction_pdf`
