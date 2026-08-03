@@ -119,16 +119,28 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
       )
     }
 
-    const showNeutral = (clientX: number, clientY: number) => {
+    /** Reveals the tooltip at the pointer, seeding velocity tracking from it. */
+    const showFromPointer = (clientX: number, clientY: number) => {
       reset()
       lastPointerRef.current = { x: clientX, y: clientY, time: performance.now() }
+      apply(clientX, clientY, NEUTRAL_MOTION)
+    }
+
+    /**
+     * Reveals the tooltip anchored to an element's box rather than the pointer.
+     * Velocity tracking stays cleared: seeding it from the box would make the next
+     * `pointermove` read the box-to-cursor delta as velocity and spike the flourish
+     * when the pointer already happens to be over the trigger.
+     */
+    const showFromElement = (clientX: number, clientY: number) => {
+      reset()
       apply(clientX, clientY, NEUTRAL_MOTION)
     }
 
     return {
       onPointerEnter: (event) => {
         if (!canShowRef.current(event.currentTarget)) return
-        showNeutral(event.clientX, event.clientY)
+        showFromPointer(event.clientX, event.clientY)
       },
       onPointerMove: (event) => {
         if (!canShowRef.current(event.currentTarget)) return
@@ -157,7 +169,7 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
         if (!canShowRef.current(target)) return
         if (!isFocusVisible(target)) return
         const rect = target.getBoundingClientRect()
-        showNeutral(rect.left + rect.width / 2, rect.bottom)
+        showFromElement(rect.left + rect.width / 2, rect.bottom)
       },
       onBlur: hide,
     }
