@@ -11,11 +11,13 @@ const {
   getEffectiveBlockOutputPathsMock,
   hasTriggerCapabilityMock,
   getBlockMock,
+  listUserWorkspacesMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   getEffectiveBlockOutputPathsMock: vi.fn(),
   hasTriggerCapabilityMock: vi.fn(),
   getBlockMock: vi.fn(),
+  listUserWorkspacesMock: vi.fn(),
 }))
 
 const loadWorkflowFromNormalizedTablesMock =
@@ -44,7 +46,54 @@ vi.mock('@/blocks/registry', () => ({
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-import { executeGetBlockOutputs } from './queries'
+vi.mock('@/lib/workspaces/utils', () => ({
+  listUserWorkspaces: listUserWorkspacesMock,
+}))
+
+import {
+  executeGetBlockOutputs,
+  executeListUserWorkspaces,
+} from '@/lib/copilot/tools/handlers/workflow/queries'
+
+describe('executeListUserWorkspaces', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('marks the current workspace in the accessible workspace list', async () => {
+    listUserWorkspacesMock.mockResolvedValue([
+      { workspaceId: 'workspace-1', workspaceName: 'One', role: 'owner' },
+      { workspaceId: 'workspace-2', workspaceName: 'Two', role: 'read' },
+    ])
+
+    const result = await executeListUserWorkspaces({
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-2',
+    })
+
+    expect(listUserWorkspacesMock).toHaveBeenCalledWith('user-1')
+    expect(result).toEqual({
+      success: true,
+      output: {
+        workspaces: [
+          {
+            workspaceId: 'workspace-1',
+            workspaceName: 'One',
+            role: 'owner',
+            isCurrent: false,
+          },
+          {
+            workspaceId: 'workspace-2',
+            workspaceName: 'Two',
+            role: 'read',
+            isCurrent: true,
+          },
+        ],
+      },
+    })
+  })
+})
 
 describe('executeGetBlockOutputs', () => {
   beforeEach(() => {
