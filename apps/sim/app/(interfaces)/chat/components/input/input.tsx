@@ -5,9 +5,8 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Badge, Button, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { ArrowUp, Mic, Paperclip, X } from 'lucide-react'
+import { ArrowUp, Paperclip, X } from 'lucide-react'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
-import { VoiceInput } from '@/app/(interfaces)/chat/components/input/voice-input'
 
 const logger = createLogger('ChatInput')
 
@@ -23,20 +22,10 @@ interface AttachedFile {
 }
 
 export const ChatInput: React.FC<{
-  onSubmit?: (value: string, isVoiceInput?: boolean, files?: AttachedFile[]) => void
+  onSubmit?: (value: string, files?: AttachedFile[]) => void
   isStreaming?: boolean
   onStopStreaming?: () => void
-  onVoiceStart?: () => void
-  voiceOnly?: boolean
-  sttAvailable?: boolean
-}> = ({
-  onSubmit,
-  isStreaming = false,
-  onStopStreaming,
-  onVoiceStart,
-  voiceOnly = false,
-  sttAvailable = false,
-}) => {
+}> = ({ onSubmit, isStreaming = false, onStopStreaming }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [inputValue, setInputValue] = useState('')
@@ -114,7 +103,7 @@ export const ChatInput: React.FC<{
   const handleSubmit = useCallback(() => {
     if (isStreaming) return
     if (!inputValue.trim() && attachedFiles.length === 0) return
-    onSubmit?.(inputValue.trim(), false, attachedFiles)
+    onSubmit?.(inputValue.trim(), attachedFiles)
     setInputValue('')
     setAttachedFiles([])
     setUploadErrors([])
@@ -140,31 +129,6 @@ export const ChatInput: React.FC<{
   }, [])
 
   const canSubmit = (inputValue.trim().length > 0 || attachedFiles.length > 0) && !isStreaming
-
-  if (voiceOnly) {
-    return (
-      <Tooltip.Provider>
-        <div className='flex items-center justify-center'>
-          {sttAvailable && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <div>
-                  <VoiceInput
-                    onVoiceStart={onVoiceStart ?? (() => {})}
-                    disabled={isStreaming}
-                    large={true}
-                  />
-                </div>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                <p>Start voice conversation</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
-        </div>
-      </Tooltip.Provider>
-    )
-  }
 
   return (
     <Tooltip.Provider>
@@ -302,26 +266,8 @@ export const ChatInput: React.FC<{
                 />
               </div>
 
-              {/* Right: mic + send */}
+              {/* Right: send */}
               <div className='flex items-center gap-1.5'>
-                {sttAvailable && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='quiet'
-                        onClick={onVoiceStart}
-                        disabled={isStreaming}
-                        className='size-[28px] rounded-full p-0'
-                      >
-                        <Mic className='size-[16px]' strokeWidth={2} />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>
-                      <p>Start voice conversation</p>
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                )}
-
                 {isStreaming ? (
                   <Button
                     variant='primary'
