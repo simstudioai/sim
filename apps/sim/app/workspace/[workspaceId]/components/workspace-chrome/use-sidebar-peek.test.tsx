@@ -47,6 +47,8 @@ function stubRect(
 
 interface Harness {
   state: () => { isPeekActive: boolean; isPeekOpen: boolean }
+  card: () => HTMLElement
+  trigger: () => HTMLElement
   triggerEnter: () => void
   triggerLeave: () => void
   setEnabled: (enabled: boolean) => void
@@ -99,6 +101,8 @@ function renderPeek(initialEnabled: boolean): Harness {
 
   return {
     state: () => latest,
+    card: () => query('card'),
+    trigger: () => query('trigger'),
     triggerEnter: () => onTriggerEnter(),
     triggerLeave: () => onTriggerLeave(),
     setEnabled: (enabled: boolean) => render({ enabled }),
@@ -111,9 +115,8 @@ function renderPeek(initialEnabled: boolean): Harness {
 }
 
 /**
- * Dispatches a pointer move at client coordinates. `target` only matters for the
- * portal check — the card and trigger are matched by geometry. Each call advances the
- * clock past the hook's sample floor so consecutive moves are never coalesced.
+ * Dispatches a pointer move at client coordinates. Each call advances the clock past
+ * the hook's sample floor so consecutive moves are never coalesced.
  */
 function movePointerTo([x, y]: readonly [number, number], target: Element = document.body) {
   act(() => {
@@ -214,6 +217,22 @@ describe('useSidebarPeek', () => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS * 3)
     })
 
+    expect(active.state().isPeekOpen).toBe(true)
+  })
+
+  it('does not force layout while the pointer moves across sidebar content', () => {
+    active = renderPeek(true)
+    openPeek(active)
+
+    const row = document.createElement('button')
+    active.card().appendChild(row)
+    const cardMeasure = vi.spyOn(active.card(), 'getBoundingClientRect')
+    const triggerMeasure = vi.spyOn(active.trigger(), 'getBoundingClientRect')
+
+    movePointerTo(POINT.inCard, row)
+
+    expect(cardMeasure).not.toHaveBeenCalled()
+    expect(triggerMeasure).not.toHaveBeenCalled()
     expect(active.state().isPeekOpen).toBe(true)
   })
 

@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import {
   Calendar,
-  Cursor,
   Database,
   Folder as FolderIcon,
   Library,
@@ -10,6 +9,7 @@ import {
   TerminalWindow,
   Workflow,
 } from '@sim/emcn/icons'
+import { Globe } from 'lucide-react'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
@@ -57,7 +57,7 @@ function renderIntegrationTile({ context, className }: RenderIconArgs): ReactNod
 export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKindConfig> = {
   browser_tab: {
     label: 'Browser tab',
-    renderIcon: ({ className }) => <Cursor className={className} />,
+    renderIcon: ({ className }) => <Globe className={className} />,
   },
   terminal_tab: {
     label: 'Terminal',

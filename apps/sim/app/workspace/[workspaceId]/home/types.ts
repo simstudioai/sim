@@ -1,4 +1,5 @@
 import type { ChatContext } from '@/stores/panel'
+import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 const EDIT_CONTENT_TOOL_ID = 'edit_content'
 const RUN_SUBAGENT_ID = 'run'
@@ -161,6 +162,9 @@ export interface ChatMessageContext {
   rowIds?: string[]
   /** Selected column ids for a `table_selection` cell range. */
   columnIds?: string[]
+  tabId?: string
+  terminalId?: string
+  selection?: BrowserTextSelection | TerminalTextSelection
 }
 
 export interface ChatMessage {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
-import { Button } from '@sim/emcn'
+import { Button, useNativeSurfaceOcclusionReady } from '@sim/emcn'
 import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
 import { isShellOutdated } from '@/lib/desktop/min-version'
 
@@ -72,6 +72,8 @@ export function DesktopUpdateGate() {
     return unsubscribe
   }, [])
 
+  const nativeSurfaceReady = useNativeSurfaceOcclusionReady(outdated, 'takeover')
+
   if (!outdated) {
     return null
   }
@@ -79,7 +81,11 @@ export function DesktopUpdateGate() {
   const action = gateActionFor(updateState)
 
   return (
-    <div className='fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 bg-[var(--bg)] px-8 text-center'>
+    <div
+      className='fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 bg-[var(--bg)] px-8 text-center'
+      style={{ opacity: nativeSurfaceReady ? 1 : 0 }}
+      data-native-surface-occlusion='takeover'
+    >
       <div className='flex max-w-sm flex-col gap-2'>
         <h1 className='font-medium text-[var(--text-primary)] text-lg'>Update Sim to continue</h1>
         <p className='text-[var(--text-secondary)] text-sm'>

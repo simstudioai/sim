@@ -52,6 +52,7 @@ function summarize({ cookies, passwords }: BrowserChromeImportResult): string | 
 
 interface PasswordsViewProps {
   credentials: BrowserCredentialMetadata[]
+  initialImportOpen?: boolean
   onChange: (credentials: BrowserCredentialMetadata[]) => void
   onBack: () => void
   /** Lets the Browser page refresh its own counts after an import. */
@@ -63,18 +64,23 @@ interface PasswordsViewProps {
  * login, each opening its own detail page. Nothing secret is shown here — the
  * password only exists on the detail page, and only after Touch ID.
  */
-export function PasswordsView({ credentials, onChange, onBack, onImported }: PasswordsViewProps) {
+export function PasswordsView({
+  credentials,
+  initialImportOpen = false,
+  onChange,
+  onBack,
+  onImported,
+}: PasswordsViewProps) {
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false)
   const [deleteAllPending, setDeleteAllPending] = useState(false)
   const [profiles, setProfiles] = useState<BrowserImportProfile[]>([])
-  const [importOpen, setImportOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(initialImportOpen)
   const [importPending, setImportPending] = useState(false)
 
   useEffect(() => {
-    // Absent on shells without the importer and on platforms where one cannot
-    // run, so the action simply does not render there.
+    // Absent on platforms where the local importer cannot run.
     const listProfiles = getDesktopBridge()?.browserImport?.listChromeProfiles
     if (!listProfiles) return
     void listProfiles()
@@ -117,7 +123,7 @@ export function PasswordsView({ credentials, onChange, onBack, onImported }: Pas
 
   const forgetAll = useCallback(async () => {
     const bridge = getDesktopBridge()?.browserCredentials
-    if (!bridge?.forgetAll) return
+    if (!bridge) return
     setDeleteAllPending(true)
     try {
       onChange(await bridge.forgetAll())
@@ -150,7 +156,6 @@ export function PasswordsView({ credentials, onChange, onBack, onImported }: Pas
     )
   }
 
-  const canForgetAll = typeof getDesktopBridge()?.browserCredentials?.forgetAll === 'function'
   const canImport = profiles.length > 0
 
   return (
@@ -161,7 +166,7 @@ export function PasswordsView({ credentials, onChange, onBack, onImported }: Pas
         description='Saved logins for the built-in browser, encrypted on this device.'
         search={{ value: searchTerm, onChange: setSearchTerm, placeholder: 'Search passwords...' }}
         actions={[
-          ...(canForgetAll && credentials.length > 0
+          ...(credentials.length > 0
             ? [
                 {
                   text: 'Delete all',

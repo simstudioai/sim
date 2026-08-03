@@ -1,10 +1,25 @@
 import type {
-  TerminalCommandEvent,
+  ScopedTerminalCommandEvent,
+  ScopedTerminalTabsState,
   TerminalTabState,
   TerminalTabsState,
 } from '@sim/terminal-protocol'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import {
+  activateScopedSession,
+  discardScopedSession,
+  migrateScopedSession,
+  withScopedSession,
+} from '@/stores/scoped-sessions'
+
+export interface CopilotTerminalSessionData {
+  tabs: TerminalTabsState
+  /** Tool call ids whose commands the agent is currently running. */
+  agentCommandIds: string[]
+  /** Live PTYs were stopped while the restart descriptor was retained. */
+  suspended: boolean
+}
 
 /**
  * Renderer-side view of the agent terminals. Deliberately holds no PTY output:
@@ -15,17 +30,38 @@ import { devtools } from 'zustand/middleware'
  * execution-log panel, which is unrelated.
  */
 interface CopilotTerminalState {
-  tabs: TerminalTabsState
-  /** Tool call ids whose commands the agent is currently running. */
-  agentCommandIds: string[]
-  setTabs: (tabs: TerminalTabsState) => void
-  applyCommandEvent: (event: TerminalCommandEvent) => void
-  reset: () => void
+  activeScopeId: string | null
+  sessions: Record<string, CopilotTerminalSessionData>
+  activateScope: (scopeId: string) => void
+  migrateScope: (fromScopeId: string, toScopeId: string) => void
+  discardScope: (scopeId: string) => void
+  suspendScope: (scopeId: string) => void
+  setTabs: (tabs: ScopedTerminalTabsState) => void
+  applyCommandEvent: (event: ScopedTerminalCommandEvent) => void
 }
 
-const initialState = {
-  tabs: { tabs: [], activeTerminalId: null } as TerminalTabsState,
-  agentCommandIds: [] as string[],
+function createInitialSession(): CopilotTerminalSessionData {
+  return {
+    tabs: { tabs: [], activeTerminalId: null },
+    agentCommandIds: [],
+    suspended: false,
+  }
+}
+
+const initialSession = createInitialSession()
+
+/**
+ * Scope activation creates an empty bucket before the desktop answers. That
+ * placeholder must not block the pending chat's real terminals from moving to
+ * the durable id assigned by the server.
+ */
+function isPristineSession(session: CopilotTerminalSessionData): boolean {
+  return (
+    !session.suspended &&
+    session.tabs.tabs.length === 0 &&
+    session.tabs.activeTerminalId === null &&
+    session.agentCommandIds.length === 0
+  )
 }
 
 /**
@@ -51,24 +87,69 @@ function tabEqual(a: TerminalTabState, b: TerminalTabState): boolean {
   return keys.every((key) => a[key] === b[key])
 }
 
+function withSession(
+  state: CopilotTerminalState,
+  scopeId: string,
+  update: (current: CopilotTerminalSessionData) => CopilotTerminalSessionData
+): Partial<CopilotTerminalState> {
+  return withScopedSession(state, scopeId, createInitialSession, update)
+}
+
+export function getCopilotTerminalSession(scopeId: string): CopilotTerminalSessionData {
+  return useCopilotTerminalStore.getState().sessions[scopeId] ?? initialSession
+}
+
 export const useCopilotTerminalStore = create<CopilotTerminalState>()(
   devtools(
     (set) => ({
-      ...initialState,
-      setTabs: (tabs) => set((state) => (tabsEqual(state.tabs, tabs) ? {} : { tabs })),
+      activeScopeId: null,
+      sessions: {},
+      activateScope: (scopeId) =>
+        set((state) => activateScopedSession(state, scopeId, createInitialSession)),
+      migrateScope: (fromScopeId, toScopeId) =>
+        set((state) => migrateScopedSession(state, fromScopeId, toScopeId, isPristineSession)),
+      discardScope: (scopeId) => set((state) => discardScopedSession(state, scopeId)),
+      suspendScope: (scopeId) =>
+        set((state) =>
+          withSession(state, scopeId, (current) => {
+            if (
+              current.suspended &&
+              current.tabs.tabs.length === 0 &&
+              current.tabs.activeTerminalId === null &&
+              current.agentCommandIds.length === 0
+            ) {
+              return current
+            }
+            return {
+              tabs: { tabs: [], activeTerminalId: null },
+              agentCommandIds: [],
+              suspended: true,
+            }
+          })
+        ),
+      setTabs: (tabs) =>
+        set((state) => {
+          return withSession(state, tabs.scopeId, (current) =>
+            current.suspended || tabsEqual(current.tabs, tabs) ? current : { ...current, tabs }
+          )
+        }),
       applyCommandEvent: (event) =>
         set((state) => {
-          if (!event.toolCallId) return {}
           const toolCallId = event.toolCallId
-          return event.phase === 'start'
-            ? {
-                agentCommandIds: state.agentCommandIds.includes(toolCallId)
-                  ? state.agentCommandIds
-                  : [...state.agentCommandIds, toolCallId],
-              }
-            : { agentCommandIds: state.agentCommandIds.filter((id) => id !== toolCallId) }
+          if (!toolCallId) return {}
+          return withSession(state, event.scopeId, (current) => {
+            if (current.suspended) return current
+            const agentCommandIds =
+              event.phase === 'start'
+                ? current.agentCommandIds.includes(toolCallId)
+                  ? current.agentCommandIds
+                  : [...current.agentCommandIds, toolCallId]
+                : current.agentCommandIds.filter((id) => id !== toolCallId)
+            return agentCommandIds === current.agentCommandIds
+              ? current
+              : { ...current, agentCommandIds }
+          })
         }),
-      reset: () => set({ ...initialState }),
     }),
     { name: 'copilot-terminal-store' }
   )

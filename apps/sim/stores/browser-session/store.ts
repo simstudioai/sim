@@ -1,28 +1,61 @@
-import type {
-  BrowserPageState,
-  BrowserPanelSnapshot,
-  BrowserTabState,
-  BrowserTabsState,
-} from '@sim/browser-protocol'
+import type { BrowserPageState, BrowserTabState, BrowserTabsState } from '@sim/browser-protocol'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import {
+  activateScopedSession,
+  discardScopedSession,
+  migrateScopedSession,
+  withScopedSession,
+} from '@/stores/scoped-sessions'
 
-interface BrowserSessionState {
+export interface BrowserSessionData {
   /** Live state of the agent browser's active page, pushed by the desktop app. */
   pageState: BrowserPageState | null
-  /** All live tabs, available on desktop versions with multi-tab support. */
+  /** All live tabs in this browser scope. */
   tabs: BrowserTabState[]
   activeTabId: string | null
-  tabsSupported: boolean
-  /** Last browser frame captured for display beneath renderer overlays. */
-  panelSnapshot: BrowserPanelSnapshot | null
-  /** False after the browser session ends; true again when a new one starts. */
+  /** False after this chat's browser session ends; true again when a new one starts. */
   sessionAlive: boolean
+  /** Live views were administratively stopped while the restart descriptor was retained. */
+  suspended: boolean
+}
+
+interface BrowserSessionState {
+  activeScopeId: string | null
+  sessions: Record<string, BrowserSessionData>
+  activateScope: (scopeId: string) => void
+  migrateScope: (fromScopeId: string, toScopeId: string) => void
+  discardScope: (scopeId: string) => void
+  suspendScope: (scopeId: string) => void
   setPageState: (state: BrowserPageState) => void
   setTabsState: (state: BrowserTabsState) => void
-  setTabsSupported: (supported: boolean) => void
-  setPanelSnapshot: (snapshot: BrowserPanelSnapshot) => void
-  setSessionAlive: (alive: boolean) => void
+  setSessionAlive: (alive: boolean, scopeId: string) => void
+}
+
+function createInitialSession(): BrowserSessionData {
+  return {
+    pageState: null,
+    tabs: [],
+    activeTabId: null,
+    sessionAlive: true,
+    suspended: false,
+  }
+}
+
+const initialSession = createInitialSession()
+
+/**
+ * Activation eagerly creates a renderer bucket before the desktop has returned
+ * its tab list. An empty response may update capability/liveness flags, but it
+ * still carries no browser state and is safe for a pending chat to replace.
+ */
+function isPristineSession(session: BrowserSessionData): boolean {
+  return (
+    !session.suspended &&
+    session.pageState === null &&
+    session.tabs.length === 0 &&
+    session.activeTabId === null
+  )
 }
 
 function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
@@ -46,6 +79,7 @@ function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null):
   if (!a || !b) return false
   return (
     a.tabId === b.tabId &&
+    a.scopeId === b.scopeId &&
     a.url === b.url &&
     a.title === b.title &&
     a.loading === b.loading &&
@@ -54,97 +88,151 @@ function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null):
   )
 }
 
-const initialState = {
-  pageState: null as BrowserPageState | null,
-  tabs: [] as BrowserTabState[],
-  activeTabId: null as string | null,
-  tabsSupported: false,
-  panelSnapshot: null as BrowserPanelSnapshot | null,
-  sessionAlive: true,
+function withSession(
+  state: BrowserSessionState,
+  scopeId: string,
+  update: (current: BrowserSessionData) => BrowserSessionData
+): Partial<BrowserSessionState> {
+  return withScopedSession(state, scopeId, createInitialSession, update)
+}
+
+export function getBrowserSession(scopeId: string): BrowserSessionData {
+  return useBrowserSessionStore.getState().sessions[scopeId] ?? initialSession
 }
 
 export const useBrowserSessionStore = create<BrowserSessionState>()(
   devtools(
     (set) => ({
-      ...initialState,
+      activeScopeId: null,
+      sessions: {},
+      activateScope: (scopeId) =>
+        set((state) => activateScopedSession(state, scopeId, createInitialSession)),
+      migrateScope: (fromScopeId, toScopeId) =>
+        set((state) => migrateScopedSession(state, fromScopeId, toScopeId, isPristineSession)),
+      discardScope: (scopeId) => set((state) => discardScopedSession(state, scopeId)),
+      suspendScope: (scopeId) =>
+        set((state) =>
+          withSession(state, scopeId, (current) => {
+            if (
+              current.suspended &&
+              current.pageState === null &&
+              current.tabs.length === 0 &&
+              current.activeTabId === null &&
+              !current.sessionAlive
+            ) {
+              return current
+            }
+            return {
+              ...current,
+              pageState: null,
+              tabs: [],
+              activeTabId: null,
+              sessionAlive: false,
+              suspended: true,
+            }
+          })
+        ),
       setPageState: (pageState) =>
         set((state) => {
-          if (!pageState.tabId) {
-            // No tab dimension to fold in; only touch pageState if it changed.
-            return pageStateEqual(state.pageState, pageState)
-              ? { sessionAlive: true }
-              : { pageState, sessionAlive: true }
-          }
-          const nextTabs = state.tabs.map((tab) =>
-            tab.tabId === pageState.tabId
-              ? {
-                  ...tab,
-                  url: pageState.url,
-                  title: pageState.title,
-                  loading: pageState.loading,
-                  active: true,
-                }
-              : tab.active
-                ? { ...tab, active: false }
-                : tab
-          )
-          // Keep the old array when nothing moved, so subscribers keyed on tab
-          // identity do not re-render on a page-state push that changed nothing.
-          const tabs = tabsEqual(state.tabs, nextTabs) ? state.tabs : nextTabs
-          if (
-            tabs === state.tabs &&
-            state.activeTabId === pageState.tabId &&
-            pageStateEqual(state.pageState, pageState)
-          ) {
-            return { sessionAlive: true }
-          }
-          return { pageState, sessionAlive: true, activeTabId: pageState.tabId, tabs }
+          const { scopeId } = pageState
+          return withSession(state, scopeId, (current) => {
+            if (current.suspended) return current
+            const nextTabs = current.tabs.map((tab) =>
+              tab.tabId === pageState.tabId
+                ? {
+                    ...tab,
+                    url: pageState.url,
+                    title: pageState.title,
+                    loading: pageState.loading,
+                    active: true,
+                  }
+                : tab.active
+                  ? { ...tab, active: false }
+                  : tab
+            )
+            const tabs = tabsEqual(current.tabs, nextTabs) ? current.tabs : nextTabs
+            if (
+              tabs === current.tabs &&
+              current.activeTabId === pageState.tabId &&
+              current.sessionAlive &&
+              pageStateEqual(current.pageState, pageState)
+            ) {
+              return current
+            }
+            return {
+              ...current,
+              pageState,
+              sessionAlive: true,
+              activeTabId: pageState.tabId,
+              tabs,
+            }
+          })
         }),
-      setTabsState: ({ tabs: incomingTabs, activeTabId }) =>
+      setTabsState: (tabsState) =>
         set((state) => {
-          // Reuse the existing array when the values match, so an identical
-          // push (a background tab's title event, say) is inert for React.
-          const tabs = tabsEqual(state.tabs, incomingTabs) ? state.tabs : incomingTabs
-          const activeTab = tabs.find((tab) => tab.tabId === activeTabId)
-          const hasCurrentPageState =
-            state.pageState?.tabId !== undefined && state.pageState.tabId === activeTabId
-          return {
-            tabs,
-            activeTabId,
-            // A tabs-capable shell reporting an empty list is authoritative:
-            // there is no page to snapshot or act on. Older single-tab shells
-            // never call this setter, so their compatibility default remains.
-            sessionAlive: tabs.length > 0,
-            ...(!activeTab
-              ? { pageState: null }
+          const { scopeId } = tabsState
+          return withSession(state, scopeId, (current) => {
+            if (current.suspended) return current
+            const tabs = tabsEqual(current.tabs, tabsState.tabs) ? current.tabs : tabsState.tabs
+            const activeTab = tabs.find((tab) => tab.tabId === tabsState.activeTabId)
+            const hasCurrentPageState =
+              current.pageState?.tabId !== undefined &&
+              current.pageState.tabId === tabsState.activeTabId
+            const pageState = !activeTab
+              ? null
               : hasCurrentPageState
-                ? {}
+                ? current.pageState
                 : {
-                    pageState: {
-                      tabId: activeTab.tabId,
-                      url: activeTab.url,
-                      title: activeTab.title,
-                      loading: activeTab.loading,
-                      canGoBack: false,
-                      canGoForward: false,
-                    },
-                  }),
-          }
+                    tabId: activeTab.tabId,
+                    scopeId,
+                    url: activeTab.url,
+                    title: activeTab.title,
+                    loading: activeTab.loading,
+                    canGoBack: false,
+                    canGoForward: false,
+                  }
+            const sessionAlive = tabs.length > 0
+            if (
+              tabs === current.tabs &&
+              tabsState.activeTabId === current.activeTabId &&
+              sessionAlive === current.sessionAlive &&
+              pageState === current.pageState
+            ) {
+              return current
+            }
+            return {
+              ...current,
+              tabs,
+              activeTabId: tabsState.activeTabId,
+              sessionAlive,
+              pageState,
+            }
+          })
         }),
-      setTabsSupported: (tabsSupported) => set({ tabsSupported }),
-      setPanelSnapshot: (panelSnapshot) => set({ panelSnapshot }),
-      setSessionAlive: (alive) =>
-        set(
-          alive
-            ? { sessionAlive: true }
-            : {
-                sessionAlive: false,
-                pageState: null,
-                tabs: [],
-                activeTabId: null,
-                panelSnapshot: null,
-              }
-        ),
+      setSessionAlive: (alive, scopeId) =>
+        set((state) => {
+          return withSession(state, scopeId, (current) => {
+            if (current.suspended) return current
+            if (alive) {
+              return current.sessionAlive ? current : { ...current, sessionAlive: true }
+            }
+            if (
+              !current.sessionAlive &&
+              current.pageState === null &&
+              current.tabs.length === 0 &&
+              current.activeTabId === null
+            ) {
+              return current
+            }
+            return {
+              ...current,
+              sessionAlive: false,
+              pageState: null,
+              tabs: [],
+              activeTabId: null,
+            }
+          })
+        }),
     }),
     { name: 'browser-session-store' }
   )

@@ -89,6 +89,8 @@ export interface StreamLoopDeps {
   setError: Dispatch<SetStateAction<string | null>>
   setPendingMessages: Dispatch<SetStateAction<ChatMessage[]>>
   setResolvedChatId: Dispatch<SetStateAction<string | undefined>>
+  /** Adopts a server-created chat before any event handler mutates chatIdRef. */
+  adoptResolvedChatId: (chatId: string) => void
   setResources: Dispatch<SetStateAction<MothershipResource[]>>
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
 

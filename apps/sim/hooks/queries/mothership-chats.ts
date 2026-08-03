@@ -30,6 +30,7 @@ import {
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
+import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
@@ -297,6 +298,9 @@ export function useDeleteMothershipChat(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: deleteChat,
+    onSuccess: async (_data, chatId) => {
+      await suspendDesktopChatScopes(chatId)
+    },
     onSettled: (_data, _error, chatId) => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
       queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
@@ -333,7 +337,16 @@ export function useDeleteMothershipChats(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (chatIds: string[]) => {
-      await Promise.all(chatIds.map(deleteChat))
+      // Couple each successful DELETE to its own native suspension. If one
+      // sibling request fails, Promise.all rejects but the independently
+      // successful tasks still stop their pages and PTYs instead of being
+      // stranded live behind the aggregate onSuccess callback.
+      await Promise.all(
+        chatIds.map(async (chatId) => {
+          await deleteChat(chatId)
+          await suspendDesktopChatScopes(chatId)
+        })
+      )
     },
     onSettled: (_data, _error, chatIds) => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })

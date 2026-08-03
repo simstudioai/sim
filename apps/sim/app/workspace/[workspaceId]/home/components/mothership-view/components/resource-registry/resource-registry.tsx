@@ -5,7 +5,6 @@ import { cn } from '@sim/emcn'
 import {
   Calendar,
   Connections,
-  Cursor,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
@@ -16,6 +15,7 @@ import {
   Workflow,
 } from '@sim/emcn/icons'
 import type { QueryClient } from '@tanstack/react-query'
+import { Globe } from 'lucide-react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type {
   MothershipResource,
@@ -216,11 +216,11 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   browser: {
     type: 'browser',
     label: 'Browser',
-    icon: Cursor,
+    icon: Globe,
     renderTabIcon: (_resource, className) => (
-      <Cursor className={cn(className, 'text-[var(--text-icon)]')} />
+      <Globe className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Cursor} />,
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Globe} />,
   },
   terminal: {
     type: 'terminal',

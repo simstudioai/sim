@@ -20,6 +20,7 @@ import {
   Wrench,
 } from '@sim/emcn'
 import { Calendar, Clock, Cursor, Table as TableIcon } from '@sim/emcn/icons'
+import { Globe } from 'lucide-react'
 import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
 import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -73,7 +74,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   generate_video: VideoIcon,
   generate_audio: TTSIcon,
   ffmpeg: Wrench,
-  browser: Cursor,
+  browser: Globe,
   browser_navigate: Cursor,
   browser_go_back: Cursor,
   browser_go_forward: Cursor,

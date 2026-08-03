@@ -312,11 +312,31 @@ describe('buildCopilotRequestPayload', () => {
         mode: 'agent',
         model: '',
         workspaceId: 'ws-1',
+        browser: true,
+        browserSessions: [
+          {
+            hostname: 'example.com',
+            evidence: 'cookies',
+            lastObservedAt: '2026-08-01T00:00:00.000Z',
+          },
+        ],
       },
       { selectedModel: '' }
     )
     expect(browserPayload).not.toHaveProperty('mothershipTools')
-    expect(browserPayload).not.toHaveProperty('desktopCapabilities')
+    expect(browserPayload).toMatchObject({
+      desktopCapabilities: {
+        browser: true,
+        browserSessions: [
+          {
+            hostname: 'example.com',
+            evidence: 'cookies',
+            lastObservedAt: '2026-08-01T00:00:00.000Z',
+          },
+        ],
+      },
+    })
+    expect(browserPayload).not.toHaveProperty('browserCapable')
   })
 
   it('passes user metadata through to the Go request payload', async () => {

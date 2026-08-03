@@ -1327,7 +1327,7 @@ export const Sidebar = memo(function Sidebar({
       />
       <div className='relative h-full'>
         <aside
-          className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)]'
+          className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)] [&_.group.cursor-pointer]:duration-0'
           data-collapsed={isCollapsed || undefined}
           aria-label='Workspace sidebar'
           onClick={handleSidebarClick}

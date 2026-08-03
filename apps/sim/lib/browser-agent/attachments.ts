@@ -9,7 +9,7 @@
  * nothing to say and is dropped.
  */
 import type { MothershipResource } from '@/lib/copilot/resources/types'
-import { useBrowserSessionStore } from '@/stores/browser-session/store'
+import { getBrowserSession } from '@/stores/browser-session/store'
 
 export interface ResourceAttachment {
   type: MothershipResource['type']
@@ -22,9 +22,10 @@ export interface ResourceAttachment {
 
 export function buildResourceAttachments(
   resources: readonly MothershipResource[],
-  activeResourceId: string | null
+  activeResourceId: string | null,
+  scopeId: string
 ): ResourceAttachment[] | undefined {
-  const { pageState, tabs, tabsSupported } = useBrowserSessionStore.getState()
+  const { tabs } = getBrowserSession(scopeId)
   const attachments = resources.flatMap<ResourceAttachment>((resource) => {
     // The terminal panel is not addressable context: unlike a browser tab it
     // carries no URL to reference, and the shell's state reaches the model
@@ -42,28 +43,15 @@ export function buildResourceAttachments(
       ]
     }
 
-    if (tabsSupported) {
-      return tabs
-        .filter((tab) => Boolean(tab.url))
-        .map((tab) => ({
-          type: resource.type,
-          id: `${resource.id}:${tab.tabId}`,
-          title: tab.title.trim() || resource.title,
-          active: resource.id === activeResourceId && tab.active,
-          url: tab.url,
-        }))
-    }
-
-    if (!pageState?.url) return []
-    return [
-      {
+    return tabs
+      .filter((tab) => Boolean(tab.url))
+      .map((tab) => ({
         type: resource.type,
-        id: resource.id,
-        title: pageState.title.trim() || resource.title,
-        active: resource.id === activeResourceId,
-        url: pageState.url,
-      },
-    ]
+        id: `${resource.id}:${tab.tabId}`,
+        title: tab.title.trim() || resource.title,
+        active: resource.id === activeResourceId && tab.active,
+        url: tab.url,
+      }))
   })
 
   if (attachments.length === 0) {

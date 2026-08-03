@@ -38,6 +38,7 @@ const globalStyles = read('../_styles/globals.css')
 const desktopTitleBar = read('../_shell/desktop-title-bar.tsx')
 const logoShell = read('../(landing)/components/logo-shell/logo-shell.tsx')
 const pageHeaderBar = read('../../components/page-header-bar.ts')
+const settingsHeader = read('../../components/settings/settings-header.tsx')
 const resourceHeader = read(
   '../workspace/[workspaceId]/components/resource/components/resource-header/resource-header.tsx'
 )
@@ -169,6 +170,13 @@ describe('desktop title-bar surface audit', () => {
 
     expect(resourceHeader).toContain('TITLE_BAR_LANE_PT')
     expect(resourceHeader).not.toMatch(/py-\[8\.5px\]/)
+  })
+
+  it('keeps top-level settings headers aligned when the desktop sidebar collapses', () => {
+    expect(settingsHeader).toContain('!back && COLLAPSED_DESKTOP_TOP_LEVEL_INSET')
+    expect(settingsHeader).toContain(
+      '[[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:[--workspace-content-title-bar-inset:9px]'
+    )
   })
 })
 

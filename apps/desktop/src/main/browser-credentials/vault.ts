@@ -87,11 +87,31 @@ function toMetadata(record: CredentialRecord): BrowserCredentialMetadata {
 }
 
 export class CredentialVault {
+  /**
+   * The tail of this instance's mutation queue.
+   *
+   * Vault updates are read-modify-write operations. Atomic file replacement
+   * prevents torn writes, but without serialization two overlapping mutations
+   * can both read the same snapshot and the later rename silently discards the
+   * earlier result. Keeping the tail resolved after failures also ensures one
+   * failed disk write does not permanently poison subsequent mutations.
+   */
+  private mutationTail: Promise<void> = Promise.resolve()
+
   constructor(
     private readonly filePath: string,
     private readonly encryption: EncryptionProvider = safeStorage,
     private readonly now: () => Date = () => new Date()
   ) {}
+
+  private serializeMutation<T>(mutation: () => Promise<T>): Promise<T> {
+    const result = this.mutationTail.then(mutation)
+    this.mutationTail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
 
   /**
    * Whether credentials can be stored at all. The UI must hide or disable
@@ -197,10 +217,12 @@ export class CredentialVault {
   }
 
   async delete(id: string): Promise<boolean> {
-    const records = await this.read()
-    const remaining = records.filter((record) => record.id !== id)
-    if (remaining.length === records.length) return false
-    return this.write(remaining)
+    return this.serializeMutation(async () => {
+      const records = await this.read()
+      const remaining = records.filter((record) => record.id !== id)
+      if (remaining.length === records.length) return false
+      return this.write(remaining)
+    })
   }
 
   /**
@@ -215,65 +237,67 @@ export class CredentialVault {
     candidates: ImportCandidate[],
     policy: ConflictPolicy
   ): Promise<ImportOutcome> {
-    if (!this.isAvailable()) return { added: 0, updated: 0, skipped: candidates.length }
+    return this.serializeMutation(async () => {
+      if (!this.isAvailable()) return { added: 0, updated: 0, skipped: candidates.length }
 
-    const records = await this.read()
-    const byIdentity = new Map(
-      records.map((record) => [`${record.origin}\u0000${record.username}`, record])
-    )
-    const timestamp = this.now().toISOString()
-    const outcome: ImportOutcome = { added: 0, updated: 0, skipped: 0 }
-    let iconsAdded = false
+      const records = await this.read()
+      const byIdentity = new Map(
+        records.map((record) => [`${record.origin}\u0000${record.username}`, record])
+      )
+      const timestamp = this.now().toISOString()
+      const outcome: ImportOutcome = { added: 0, updated: 0, skipped: 0 }
+      let iconsAdded = false
 
-    for (const candidate of candidates) {
-      const origin = normalizeOrigin(candidate.origin)
-      const username = normalizeUsername(candidate.username)
-      if (origin === null || candidate.password.length === 0) {
-        outcome.skipped += 1
-        continue
-      }
-
-      const identity = `${origin}\u0000${username}`
-      const existing = byIdentity.get(identity)
-      if (existing) {
-        if (policy === 'keep-existing' || existing.password === candidate.password) {
-          // A re-import still refreshes a missing icon; that is not a
-          // credential change, so it does not count as an update.
-          if (candidate.icon && !existing.icon) {
-            existing.icon = candidate.icon
-            iconsAdded = true
-          }
+      for (const candidate of candidates) {
+        const origin = normalizeOrigin(candidate.origin)
+        const username = normalizeUsername(candidate.username)
+        if (origin === null || candidate.password.length === 0) {
           outcome.skipped += 1
           continue
         }
-        existing.password = candidate.password
-        existing.updatedAt = timestamp
-        existing.source = 'chrome'
-        if (candidate.icon) existing.icon = candidate.icon
-        outcome.updated += 1
-        continue
+
+        const identity = `${origin}\u0000${username}`
+        const existing = byIdentity.get(identity)
+        if (existing) {
+          if (policy === 'keep-existing' || existing.password === candidate.password) {
+            // A re-import still refreshes a missing icon; that is not a
+            // credential change, so it does not count as an update.
+            if (candidate.icon && !existing.icon) {
+              existing.icon = candidate.icon
+              iconsAdded = true
+            }
+            outcome.skipped += 1
+            continue
+          }
+          existing.password = candidate.password
+          existing.updatedAt = timestamp
+          existing.source = 'chrome'
+          if (candidate.icon) existing.icon = candidate.icon
+          outcome.updated += 1
+          continue
+        }
+
+        const record: CredentialRecord = {
+          id: generateId(),
+          origin,
+          username,
+          password: candidate.password,
+          ...(candidate.icon ? { icon: candidate.icon } : {}),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          source: 'chrome',
+        }
+        byIdentity.set(identity, record)
+        records.push(record)
+        outcome.added += 1
       }
 
-      const record: CredentialRecord = {
-        id: generateId(),
-        origin,
-        username,
-        password: candidate.password,
-        ...(candidate.icon ? { icon: candidate.icon } : {}),
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        source: 'chrome',
+      if (outcome.added === 0 && outcome.updated === 0 && !iconsAdded) return outcome
+      if (!(await this.write(records))) {
+        return { added: 0, updated: 0, skipped: candidates.length }
       }
-      byIdentity.set(identity, record)
-      records.push(record)
-      outcome.added += 1
-    }
-
-    if (outcome.added === 0 && outcome.updated === 0 && !iconsAdded) return outcome
-    if (!(await this.write(records))) {
-      return { added: 0, updated: 0, skipped: candidates.length }
-    }
-    return outcome
+      return outcome
+    })
   }
 
   /**
@@ -281,6 +305,6 @@ export class CredentialVault {
    * machine cannot inherit the previous user's passwords.
    */
   async clear(): Promise<void> {
-    await removeFileIfPresent(this.filePath)
+    await this.serializeMutation(() => removeFileIfPresent(this.filePath))
   }
 }
