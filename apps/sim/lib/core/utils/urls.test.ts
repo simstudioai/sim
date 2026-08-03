@@ -56,15 +56,20 @@ describe('getBaseUrl', () => {
     expect(getBaseUrl()).toBe('https://app.example.com')
   })
 
-  it('falls back to the page origin instead of throwing when the injected env is missing', () => {
+  /**
+   * Never guesses from `window.location.origin`: an opaque origin (a sandboxed
+   * iframe) serializes to the truthy string `'null'`, which would silently
+   * produce `null/api/...` rather than surfacing the misconfiguration.
+   */
+  it('throws in the browser rather than guessing from the page origin', () => {
     setLocation('https://www.sim.ai/workspace/ws-1/w/wf-1')
-    expect(getBaseUrl()).toBe('https://www.sim.ai')
+    expect(() => getBaseUrl()).toThrow('NEXT_PUBLIC_APP_URL must be configured')
   })
 
   it('treats a whitespace-only NEXT_PUBLIC_APP_URL as unset', () => {
     mockGetEnv.mockImplementation((key) => (key === 'NEXT_PUBLIC_APP_URL' ? '   ' : undefined))
     setLocation('https://www.sim.ai/')
-    expect(getBaseUrl()).toBe('https://www.sim.ai')
+    expect(() => getBaseUrl()).toThrow('NEXT_PUBLIC_APP_URL must be configured')
   })
 })
 
