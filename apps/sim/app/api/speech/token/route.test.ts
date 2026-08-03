@@ -12,7 +12,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockRecordUsage,
-  mockCheckActorUsageLimits,
   mockVerifyWorkspaceMembership,
   mockResolveBillingAttribution,
   mockCheckAttributedUsageLimits,
@@ -20,7 +19,6 @@ const {
   mockCheckAndBillPayerOverageThreshold,
 } = vi.hoisted(() => ({
   mockRecordUsage: vi.fn(),
-  mockCheckActorUsageLimits: vi.fn(),
   mockVerifyWorkspaceMembership: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
@@ -34,10 +32,6 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mockResolveBillingAttribution,
   checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
   toBillingContext: mockToBillingContext,
-}))
-
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkActorUsageLimits: mockCheckActorUsageLimits,
 }))
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
@@ -64,7 +58,6 @@ beforeEach(() => {
   setEnv({ ELEVENLABS_API_KEY: 'test-key' })
   mockGetSession.mockResolvedValue({ user: { id: 'member-1' } })
   mockRecordUsage.mockResolvedValue(undefined)
-  mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
   mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
   mockResolveBillingAttribution.mockImplementation(
     ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) => ({

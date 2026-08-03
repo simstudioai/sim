@@ -5,9 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { speechTokenBodySchema } from '@/lib/api/contracts/media/speech'
 import { parseOptionalJsonBody } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
-  type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
   resolveBillingAttribution,
   toBillingContext,
@@ -55,7 +53,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const body = speechTokenBodySchema.safeParse(parsedBody.data ?? {})
 
     let workspaceId: string | undefined
-    let billingAttribution: BillingAttributionSnapshot | undefined
 
     const session = await getSession()
     if (!session?.user?.id) {
@@ -80,12 +77,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Workspace context is required.' }, { status: 400 })
     }
 
-    if (!billingAttribution) {
-      billingAttribution = await resolveBillingAttribution({
-        actorUserId,
-        workspaceId,
-      })
-    }
+    const billingAttribution = await resolveBillingAttribution({ actorUserId, workspaceId })
 
     if (isBillingEnabled) {
       const rateCheck = await rateLimiter.checkRateLimitDirect(
@@ -115,9 +107,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * and rate limited per user, so the overshoot is a knowable ceiling against
      * an identified payer.
      */
-    const usageCheck = billingAttribution
-      ? await checkAttributedUsageLimits(billingAttribution)
-      : await checkActorUsageLimits(actorUserId)
+    const usageCheck = await checkAttributedUsageLimits(billingAttribution)
     if (usageCheck.isExceeded) {
       return NextResponse.json(
         {
@@ -158,7 +148,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       await recordUsage({
         userId: actorUserId,
         workspaceId,
-        ...(billingAttribution ? toBillingContext(billingAttribution) : {}),
+        ...toBillingContext(billingAttribution),
         entries: [
           {
             category: 'fixed',
@@ -169,9 +159,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           },
         ],
       })
-      if (billingAttribution) {
-        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
-      }
+      await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
     } catch (err) {
       logger.warn('Failed to record voice input usage, continuing:', err)
     }

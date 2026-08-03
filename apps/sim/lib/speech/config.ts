@@ -5,11 +5,7 @@ export const SAMPLE_RATE = 16000
 export const CHUNK_SEND_INTERVAL_MS = 250
 export const MAX_SESSION_MS = 3 * 60 * 1000
 
-/**
- * Whether a speech-to-text provider is configured.
- * Currently checks for `ELEVENLABS_API_KEY`.
- * To add a new provider: add its env check here.
- */
+/** Whether a speech-to-text provider is configured. Add new providers' env checks here. */
 export function hasSTTService(): boolean {
   return !!env.ELEVENLABS_API_KEY?.trim()
 }
