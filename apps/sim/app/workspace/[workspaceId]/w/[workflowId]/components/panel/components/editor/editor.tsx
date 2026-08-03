@@ -93,15 +93,21 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
-  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
-    usePanelEditorStore(
-      useShallow((state) => ({
-        currentBlockId: state.currentBlockId,
-        connectionsHeight: state.connectionsHeight,
-        toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
-        registerRenameCallback: state.registerRenameCallback,
-      }))
-    )
+  const {
+    currentBlockId,
+    connectionsHeight,
+    toggleConnectionsCollapsed,
+    registerRenameCallback,
+    clearCurrentBlock,
+  } = usePanelEditorStore(
+    useShallow((state) => ({
+      currentBlockId: state.currentBlockId,
+      connectionsHeight: state.connectionsHeight,
+      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+      registerRenameCallback: state.registerRenameCallback,
+      clearCurrentBlock: state.clearCurrentBlock,
+    }))
+  )
   const activeSearchTarget = usePanelEditorSearchStore((state) => state.activeSearchTarget)
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
@@ -128,6 +134,11 @@ export function Editor() {
 
   const isWorkflowBlock =
     currentBlock && (currentBlock.type === 'workflow' || currentBlock.type === 'workflow_input')
+  const isNoteBlock = currentBlock?.type === 'note'
+
+  useEffect(() => {
+    if (isNoteBlock) clearCurrentBlock()
+  }, [clearCurrentBlock, isNoteBlock])
 
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -377,13 +388,15 @@ export function Editor() {
 
   const isConnectionsAtMinHeight = connectionsHeight <= 35
 
+  if (isNoteBlock) return null
+
   return (
     <ActiveSearchTargetProvider value={activeSearchTargetForCurrentBlock}>
       <div className='flex h-full flex-col'>
         {/* Header */}
         <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex min-w-0 flex-1 items-center gap-2'>
-            {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
+            {(blockConfig || isSubflow) && (
               <ChipTag
                 variant={isIntegration ? 'brand' : typeAccent.variant}
                 tone={isIntegration ? undefined : typeAccent.tone}

@@ -1,4 +1,4 @@
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
 import { getBlock } from '@/blocks/registry'
 
 /**
@@ -9,6 +9,13 @@ import { getBlock } from '@/blocks/registry'
  * @returns Estimated width and height for the block
  */
 export function estimateBlockDimensions(blockType: string): { width: number; height: number } {
+  if (blockType === 'note') {
+    return {
+      width: BLOCK_DIMENSIONS.NOTE_WIDTH,
+      height: getNoteBlockHeight(true),
+    }
+  }
+
   const blockConfig = getBlock(blockType)
   const subBlockCount = blockConfig?.subBlocks?.length ?? 3
   const estimatedRows = Math.max(3, Math.min(Math.ceil(subBlockCount / 2), 7))

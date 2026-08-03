@@ -9,6 +9,9 @@
 
 export const BLOCK_DIMENSIONS = {
   FIXED_WIDTH: 250,
+  NOTE_WIDTH: 320,
+  NOTE_EXPANDED_WIDTH: 520,
+  NOTE_EXPANDED_HEIGHT: 400,
   HEADER_HEIGHT: 40,
   MIN_HEIGHT: 100,
   /**
@@ -32,11 +35,11 @@ export const BLOCK_DIMENSIONS = {
   WORKFLOW_SENTENCE_LINE_HEIGHT: 24,
   /** Footer divider above the error row: 1px border + 6px padding */
   WORKFLOW_FOOTER_DIVIDER_HEIGHT: 7,
-  /** Total vertical padding around the note's content viewport (`p-2`). */
-  NOTE_CONTENT_PADDING: 16,
+  /** Total vertical spacing around an empty note's single text line. */
+  NOTE_CONTENT_PADDING: 10,
   NOTE_MIN_CONTENT_HEIGHT: 20,
-  /** Bounded canvas preview, including its `p-2`; full content stays in the editor. */
-  NOTE_CONTENT_VIEWPORT_HEIGHT: 176,
+  /** Maximum inline content viewport before the Note begins scrolling. */
+  NOTE_CONTENT_VIEWPORT_HEIGHT: 200,
 } as const
 
 /** Keeps note DOM, React Flow bounds, and auto-layout on the same height. */
@@ -45,6 +48,26 @@ export const getNoteBlockHeight = (isEmpty: boolean) =>
   (isEmpty
     ? BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
     : BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT)
+
+/** Clamps measured note content to its compact minimum and scrollable maximum. */
+export const clampNoteBlockHeight = (contentHeight: number) =>
+  BLOCK_DIMENSIONS.HEADER_HEIGHT +
+  Math.min(
+    BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT,
+    Math.max(
+      BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT,
+      contentHeight
+    )
+  )
+
+/** Gives Notes a stable first frame before the rendered text can be measured. */
+export const estimateNoteBlockHeight = (content: string) => {
+  if (content.trim().length === 0) return getNoteBlockHeight(true)
+  const lineCount = Math.max(1, content.split('\n').length)
+  return clampNoteBlockHeight(
+    BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + lineCount * BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
+  )
+}
 
 export const CONTAINER_DIMENSIONS = {
   DEFAULT_WIDTH: 500,

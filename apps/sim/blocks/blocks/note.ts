@@ -17,6 +17,13 @@ export const NoteBlock: BlockConfig = {
       rows: 8,
       placeholder: 'Add context or instructions for collaborators...',
       description: 'Write your note using Markdown. YouTube links will display as embedded videos.',
+      hidden: true,
+    },
+    {
+      id: 'color',
+      type: 'short-input',
+      defaultValue: 'carbon',
+      hidden: true,
     },
   ],
   tools: { access: [] },
