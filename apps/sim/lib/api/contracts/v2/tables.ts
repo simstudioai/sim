@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { folderIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
+  addWorkflowGroupBodySchema,
   cancelTableJobBodySchema,
   cancelTableRunsBodyBaseSchema,
   createTableColumnBodySchema,
@@ -9,6 +10,7 @@ import {
   csvImportMappingSchema,
   csvImportModeSchema,
   deleteTableColumnBodySchema,
+  deleteWorkflowGroupBodySchema,
   exportDownloadQuerySchema,
   exportTableAsyncBodySchema,
   importIntoTableAsyncBodySchema,
@@ -33,7 +35,9 @@ import {
   updateTableColumnBodySchema,
   updateTableRowBodySchema,
   updateTableViewBodySchema,
+  updateWorkflowGroupBodySchema,
   upsertTableRowBodySchema,
+  workflowGroupOutputColumnSchema,
 } from '@/lib/api/contracts/tables'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
@@ -679,6 +683,135 @@ export const v2ListWorkflowGroupsContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2WorkflowGroupSchema),
+  },
+})
+
+/**
+ * Output column of a group, as the public surface accepts it. The first-party
+ * shape carries `workflowGroupId` because the client mints the group id before
+ * posting; v2 server-generates it, so the field is stamped from the group being
+ * written rather than being a caller's to supply (and get wrong).
+ */
+const v2WorkflowGroupOutputColumnSchema = workflowGroupOutputColumnSchema.omit({
+  workflowGroupId: true,
+})
+
+/**
+ * A group names its producer two mutually exclusive ways, and the underlying
+ * shape leaves both optional. Rejecting the mismatch here means the route never
+ * has to guess which one a half-specified group meant.
+ */
+function refineGroupSource(
+  group: { type?: 'manual' | 'enrichment'; workflowId?: string; enrichmentId?: string },
+  ctx: z.RefinementCtx,
+  path: (string | number)[]
+): void {
+  // `manual` is the workflow-backed default — it does not mean hand-entered.
+  const type = group.type ?? 'manual'
+  if (type === 'enrichment' && !group.enrichmentId) {
+    ctx.addIssue({
+      code: 'custom',
+      path: [...path, 'enrichmentId'],
+      message: 'enrichmentId is required when type is "enrichment"',
+    })
+  }
+  if (type === 'manual' && !group.workflowId) {
+    ctx.addIssue({
+      code: 'custom',
+      path: [...path, 'workflowId'],
+      message: 'workflowId is required when type is "manual"',
+    })
+  }
+}
+
+/**
+ * Create a group and the columns its runs populate, in one call.
+ *
+ * Two deliberate departures from the first-party body:
+ * - `group.id` is optional and server-generated. The UI mints an id so it can
+ *   render optimistically; a public caller has no such need and a client-chosen
+ *   id is a collision waiting to happen.
+ * - `autoRun` defaults to **false**. On the first-party surface it defaults to
+ *   true so a UI add fills cells immediately, but here it would make one POST
+ *   fan out a metered run across every existing row. Callers opt in, or fire
+ *   explicitly via `POST /columns/run`.
+ */
+export const v2AddWorkflowGroupBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    group: addWorkflowGroupBodySchema.shape.group.extend({
+      id: z.string().min(1).optional(),
+    }),
+    outputColumns: z.array(v2WorkflowGroupOutputColumnSchema).min(1),
+    autoRun: z.boolean().optional().default(false),
+  })
+  .strict()
+  .superRefine((body, ctx) => refineGroupSource(body.group, ctx, ['group']))
+export type V2AddWorkflowGroupBody = z.input<typeof v2AddWorkflowGroupBodySchema>
+
+/** Update body. Omitted fields keep their stored values. */
+export const v2UpdateWorkflowGroupBodySchema = updateWorkflowGroupBodySchema
+  .extend({
+    newOutputColumns: z.array(v2WorkflowGroupOutputColumnSchema).optional(),
+  })
+  .strict()
+export type V2UpdateWorkflowGroupBody = z.input<typeof v2UpdateWorkflowGroupBodySchema>
+
+export const v2DeleteWorkflowGroupBodySchema = deleteWorkflowGroupBodySchema.strict()
+export type V2DeleteWorkflowGroupBody = z.input<typeof v2DeleteWorkflowGroupBodySchema>
+
+/**
+ * Create and update both mutate the group *and* the table's columns, so both
+ * are returned — otherwise a caller has to re-read the table to learn which
+ * columns it just got.
+ */
+export const v2WorkflowGroupDataSchema = z.object({
+  group: v2WorkflowGroupSchema,
+  columns: z.array(tableColumnSchema),
+})
+export type V2WorkflowGroupData = z.output<typeof v2WorkflowGroupDataSchema>
+
+/**
+ * Delete acknowledgement. Removing a group removes the columns it fed, so the
+ * surviving column list is returned rather than left for the caller to guess.
+ */
+export const v2DeleteWorkflowGroupDataSchema = z.object({
+  id: z.string(),
+  deleted: z.literal(true),
+  columns: z.array(tableColumnSchema),
+})
+export type V2DeleteWorkflowGroupData = z.output<typeof v2DeleteWorkflowGroupDataSchema>
+
+export const v2AddWorkflowGroupContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/groups',
+  params: tableIdParamsSchema,
+  body: v2AddWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowGroupDataSchema),
+  },
+})
+
+export const v2UpdateWorkflowGroupContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/tables/[tableId]/groups',
+  params: tableIdParamsSchema,
+  body: v2UpdateWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowGroupDataSchema),
+  },
+})
+
+export const v2DeleteWorkflowGroupContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/tables/[tableId]/groups',
+  params: tableIdParamsSchema,
+  body: v2DeleteWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2DeleteWorkflowGroupDataSchema),
   },
 })
 

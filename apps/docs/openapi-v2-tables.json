@@ -2393,6 +2393,373 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "post": {
+        "operationId": "addTableWorkflowGroup",
+        "summary": "Add Workflow Group",
+        "description": "Bind a workflow or enrichment to the table and create the columns its runs populate, in one call.\n\nThe group is the unit that fills columns — one group can feed several. `group.outputs[].columnName` says where each value lands; `outputColumns` defines the columns to create. Every `outputColumns` entry must be named by an output, or the request is rejected rather than creating a column nothing feeds.\n\n`autoRun` defaults to **false**: enabling it backfills every existing row, which on an API key is a metered fan-out from a single call.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/groups\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"group\": {\n      \"workflowId\": \"wf_...\",\n      \"outputs\": [{\"blockId\": \"blk_7f2a\", \"path\": \"output.revenue\", \"columnName\": \"revenue\"}]\n    },\n    \"outputColumns\": [{\"name\": \"revenue\", \"type\": \"currency\"}]\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddWorkflowGroupBody"
+              },
+              "examples": {
+                "workflow": {
+                  "summary": "Workflow-backed column",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "group": {
+                      "workflowId": "wf_1b3d5f7a9c2e4680b4d6f8a0c2e4b619",
+                      "name": "Enrich company",
+                      "outputs": [
+                        {
+                          "blockId": "blk_7f2a",
+                          "path": "output.revenue",
+                          "columnName": "revenue"
+                        }
+                      ]
+                    },
+                    "outputColumns": [
+                      {
+                        "name": "revenue",
+                        "type": "currency"
+                      }
+                    ]
+                  }
+                },
+                "enrichment": {
+                  "summary": "Registry enrichment filling two columns",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "group": {
+                      "type": "enrichment",
+                      "enrichmentId": "company_lookup",
+                      "outputs": [
+                        {
+                          "outputId": "annual_revenue",
+                          "columnName": "revenue"
+                        },
+                        {
+                          "outputId": "headquarters",
+                          "columnName": "hq"
+                        }
+                      ]
+                    },
+                    "outputColumns": [
+                      {
+                        "name": "revenue",
+                        "type": "currency"
+                      },
+                      {
+                        "name": "hq",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created group and the table's columns.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowGroupEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "group": {
+                      "id": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                      "workflowId": "wf_1b3d5f7a9c2e4680b4d6f8a0c2e4b619",
+                      "name": "Enrich company",
+                      "type": "manual",
+                      "outputs": [
+                        {
+                          "blockId": "blk_7f2a",
+                          "path": "output.revenue",
+                          "columnName": "revenue"
+                        }
+                      ],
+                      "deploymentMode": "deployed",
+                      "autoRun": true
+                    },
+                    "columns": [
+                      {
+                        "id": "col_a1b2c3",
+                        "name": "revenue",
+                        "type": "currency",
+                        "required": false,
+                        "unique": false
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateTableWorkflowGroup",
+        "summary": "Update Workflow Group",
+        "description": "Restructure a group: re-point it at a different workflow, add or remove outputs, or change how its runs are scheduled.\n\n**Removing an output deletes that column and its values.** There is currently no way to detach a column from its group while keeping the data.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/groups\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"groupId\": \"grp_...\", \"name\": \"Renamed\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowGroupBody"
+              },
+              "examples": {
+                "rename": {
+                  "summary": "Rename",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "groupId": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                    "name": "Renamed"
+                  }
+                },
+                "addOutput": {
+                  "summary": "Add a second output column",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "groupId": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                    "outputs": [
+                      {
+                        "blockId": "blk_7f2a",
+                        "path": "output.revenue",
+                        "columnName": "revenue"
+                      },
+                      {
+                        "blockId": "blk_7f2a",
+                        "path": "output.hq",
+                        "columnName": "hq"
+                      }
+                    ],
+                    "newOutputColumns": [
+                      {
+                        "name": "hq",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated group and the table's columns.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowGroupEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "group": {
+                      "id": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                      "workflowId": "wf_1b3d5f7a9c2e4680b4d6f8a0c2e4b619",
+                      "name": "Enrich company",
+                      "type": "manual",
+                      "outputs": [
+                        {
+                          "blockId": "blk_7f2a",
+                          "path": "output.revenue",
+                          "columnName": "revenue"
+                        }
+                      ],
+                      "deploymentMode": "deployed",
+                      "autoRun": true
+                    },
+                    "columns": [
+                      {
+                        "id": "col_a1b2c3",
+                        "name": "revenue",
+                        "type": "currency",
+                        "required": false,
+                        "unique": false
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTableWorkflowGroup",
+        "summary": "Delete Workflow Group",
+        "description": "Remove a group **and every column it fed**, along with their values. The surviving column list is returned so a caller does not have to re-read the table.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/groups\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"groupId\": \"grp_...\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteWorkflowGroupBody"
+              },
+              "example": {
+                "workspaceId": "ws_123",
+                "groupId": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The group was removed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteWorkflowGroupEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "id": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                    "deleted": true,
+                    "columns": []
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/api/v2/tables/{tableId}/columns/run": {
@@ -5473,6 +5840,237 @@
           "error": {
             "type": ["string", "null"],
             "description": "Failure reason for a `failed` job; null otherwise."
+          }
+        }
+      },
+      "WorkflowGroupOutputColumnInput": {
+        "type": "object",
+        "description": "A column the group's runs will populate. `workflowGroupId` is NOT accepted — the server stamps it from the group being written.",
+        "required": ["name", "type"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Column name. Must match one of `group.outputs[].columnName`.",
+            "example": "revenue"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "currency", "boolean", "date", "json", "select"]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "unique": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AddWorkflowGroupBody": {
+        "type": "object",
+        "description": "Bind a workflow or enrichment to the table and create the columns its runs populate, in one call.",
+        "required": ["workspaceId", "group", "outputColumns"],
+        "additionalProperties": false,
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "group": {
+            "type": "object",
+            "description": "The binding. `id` is optional and server-generated. Supply `workflowId` when `type` is `manual` (the default), or `enrichmentId` when it is `enrichment` — the mismatch is a 400.",
+            "required": ["outputs"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional. Omit to have the server generate one."
+              },
+              "workflowId": {
+                "type": "string",
+                "description": "Required for `manual` groups."
+              },
+              "enrichmentId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Required for `enrichment` groups."
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["manual", "enrichment"],
+                "default": "manual",
+                "description": "`manual` means workflow-backed — not hand-entered."
+              },
+              "dependencies": {
+                "type": "object",
+                "description": "Columns that must be populated before this group runs."
+              },
+              "outputs": {
+                "type": "array",
+                "minItems": 1,
+                "description": "Where each value comes from. Workflow outputs carry `blockId`/`path`; enrichment outputs carry `outputId`.",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "inputMappings": {
+                "type": "array",
+                "description": "Workflow Start-block inputs fed from table columns.",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "deploymentMode": {
+                "type": "string",
+                "enum": ["live", "deployed"]
+              },
+              "autoRun": {
+                "type": "boolean",
+                "description": "Whether the group auto-fires from the scheduler."
+              }
+            }
+          },
+          "outputColumns": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/WorkflowGroupOutputColumnInput"
+            }
+          },
+          "autoRun": {
+            "type": "boolean",
+            "default": false,
+            "description": "Backfill every existing row on creation. Defaults to **false** here (the first-party surface defaults true) — on an API key this fans out a metered run per row. Prefer POST /columns/run."
+          }
+        }
+      },
+      "UpdateWorkflowGroupBody": {
+        "type": "object",
+        "description": "Restructure a group. Omitted fields keep their stored values.\n\n**Removing an output deletes that column and its values** — the same behavior as DELETE /columns on a bound column. There is no detach.",
+        "required": ["workspaceId", "groupId"],
+        "additionalProperties": false,
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "groupId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workflowId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Re-point the group. Re-checked against the workspace."
+          },
+          "name": {
+            "type": "string"
+          },
+          "dependencies": {
+            "type": "object"
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Full replacement set. Entries dropped here delete their columns."
+          },
+          "newOutputColumns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowGroupOutputColumnInput"
+            }
+          },
+          "mappingUpdates": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Re-point a column to a different workflow output, keeping the column."
+          },
+          "inputMappings": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "deploymentMode": {
+            "type": "string",
+            "enum": ["live", "deployed"]
+          },
+          "type": {
+            "type": "string",
+            "enum": ["manual", "enrichment"]
+          },
+          "autoRun": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DeleteWorkflowGroupBody": {
+        "type": "object",
+        "description": "Remove a group and every column it fed.",
+        "required": ["workspaceId", "groupId"],
+        "additionalProperties": false,
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "groupId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "WorkflowGroupEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["group", "columns"],
+            "properties": {
+              "group": {
+                "$ref": "#/components/schemas/WorkflowGroup"
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Column"
+                }
+              }
+            }
+          }
+        }
+      },
+      "DeleteWorkflowGroupEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["id", "deleted", "columns"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "deleted": {
+                "type": "boolean",
+                "enum": [true]
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Column"
+                }
+              }
+            }
           }
         }
       }

@@ -1402,7 +1402,7 @@ const workflowGroupInputMappingSchema = z.object({
   columnName: z.string().min(1, 'columnName cannot be empty'),
 })
 
-const workflowGroupOutputColumnSchema = z.object({
+export const workflowGroupOutputColumnSchema = z.object({
   name: z.string().min(1),
   type: columnTypeSchema,
   required: z.boolean().optional(),
