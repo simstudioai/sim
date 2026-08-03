@@ -2969,12 +2969,15 @@ async function generateBlockDoc(blockPath: string) {
 
       const manualSections = existingContent ? extractManualContent(existingContent) : {}
 
-      const markdown = await generateMarkdownForBlock(blockConfig, displayType)
+      const markdown = await generateMarkdownForBlock(blockConfig, displayType, existingContent)
 
       let finalContent = markdown
       if (Object.keys(manualSections).length > 0) {
         finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
       }
+
+      const trailingNewlines = existingContent?.match(/\n+$/)?.[0] ?? '\n'
+      finalContent = `${finalContent.trimEnd()}${trailingNewlines}`
 
       fs.writeFileSync(outputFilePath, finalContent)
       const logType =
@@ -2988,7 +2991,8 @@ async function generateBlockDoc(blockPath: string) {
 
 async function generateMarkdownForBlock(
   blockConfig: BlockConfig,
-  displayType?: string
+  displayType?: string,
+  existingContent?: string | null
 ): Promise<string> {
   const {
     type,
@@ -3160,6 +3164,10 @@ async function generateMarkdownForBlock(
     usageInstructions = `## Usage Instructions\n\n${longDescription}\n\n`
   }
 
+  const blockInfoCardOpening = existingContent?.includes('<BlockInfoCard\n')
+    ? '<BlockInfoCard'
+    : '<BlockInfoCard '
+
   return `---
 title: ${name}
 description: ${description}
@@ -3167,7 +3175,7 @@ description: ${description}
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+${blockInfoCardOpening}
   type="${type}"
   color="${bgColor || '#F5F5F5'}"
 />

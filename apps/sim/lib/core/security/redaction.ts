@@ -7,7 +7,19 @@ import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file
 export const REDACTED_MARKER = '[REDACTED]'
 export const TRUNCATED_MARKER = '[TRUNCATED]'
 
-const BYPASS_REDACTION_KEYS = new Set(['nextPageToken'])
+/**
+ * Token-named fields that carry workflow state rather than authorization.
+ *
+ * Keep this allowlist semantic and narrow: unknown `*token` fields remain
+ * redacted by default, while pagination cursors, synchronization versions, and
+ * idempotency keys stay visible so users can pass them into subsequent steps.
+ */
+const NON_SENSITIVE_TOKEN_KEY_PATTERNS: RegExp[] = [
+  /^(?:[A-Za-z0-9_-]+\.)*(?:(?:next|previous|after|before)[_-]?)?(?:page|pagination|continuation|cursor|scroll|sync)[_-]?token$/i,
+  /^(?:next|previous|after|before)[_-]?token$/i,
+  /^(?:client[_-]?request|idempotency)[_-]?token$/i,
+  /^subjectFromWebIdentityToken$/i,
+]
 
 /** Keys that contain large binary/encoded data that should be truncated in logs */
 const LARGE_DATA_KEYS = new Set(['base64'])
@@ -56,25 +68,15 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
     pattern: /\b(sk|pk|api|key)[_-][A-Za-z0-9\-._]{20,}\b/gi,
     replacement: REDACTED_MARKER,
   },
-  // JSON-style password fields: password: "value" or password: 'value'
-  {
-    pattern: /password['":\s]*['"][^'"]+['"]/gi,
-    replacement: `password: "${REDACTED_MARKER}"`,
-  },
-  // JSON-style token fields: token: "value" or token: 'value'
-  {
-    pattern: /token['":\s]*['"][^'"]+['"]/gi,
-    replacement: `token: "${REDACTED_MARKER}"`,
-  },
-  // JSON-style api_key fields: api_key: "value" or api-key: "value"
-  {
-    pattern: /api[_-]?key['":\s]*['"][^'"]+['"]/gi,
-    replacement: `api_key: "${REDACTED_MARKER}"`,
-  },
+]
+
+const STRING_FIELD_PATTERNS = [
+  /(^|[^A-Za-z0-9_.-])(["']?)([A-Za-z0-9_.-]+)\2(\s*[:=]\s*)("(?:\\.|[^"\\])*")/gm,
+  /(^|[^A-Za-z0-9_.-])(["']?)([A-Za-z0-9_.-]+)\2(\s*[:=]\s*)('(?:\\.|[^'\\])*')/gm,
 ]
 
 export function isSensitiveKey(key: string): boolean {
-  if (BYPASS_REDACTION_KEYS.has(key)) {
+  if (NON_SENSITIVE_TOKEN_KEY_PATTERNS.some((pattern) => pattern.test(key))) {
     return false
   }
   const lowerKey = key.toLowerCase()
@@ -92,6 +94,13 @@ export function redactSensitiveValues(value: string): string {
   }
 
   let result = value
+  for (const pattern of STRING_FIELD_PATTERNS) {
+    result = result.replace(pattern, (match, prefix, keyQuote, key, separator, quotedValue) =>
+      isSensitiveKey(key)
+        ? `${prefix}${keyQuote}${key}${keyQuote}${separator}${quotedValue[0]}${REDACTED_MARKER}${quotedValue[0]}`
+        : match
+    )
+  }
   for (const { pattern, replacement } of SENSITIVE_VALUE_PATTERNS) {
     result = result.replace(pattern, replacement)
   }

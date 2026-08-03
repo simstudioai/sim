@@ -20,6 +20,7 @@
  */
 
 import { parseGraphErrorFromData } from '@/tools/microsoft_excel/utils'
+import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 
 export interface ErrorInfo {
   status?: number
@@ -378,5 +379,3 @@ export const ErrorExtractorId = {
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const
-
-import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
