@@ -30,7 +30,7 @@ interface MemberRowProps {
 export function MemberRow({ name, email, image, status, roleControl, menu }: MemberRowProps) {
   return (
     <div className={ROW_CLASSES}>
-      <MemberAvatar name={name} image={image} />
+      <MemberAvatar name={name} image={image} colorSeed={email || name} />
       <span className={ROW_EMAIL_CLASSES}>{email}</span>
       <span className={ROW_STATUS_CLASSES}>{status}</span>
       {roleControl}

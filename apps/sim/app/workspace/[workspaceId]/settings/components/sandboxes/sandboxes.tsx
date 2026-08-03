@@ -80,6 +80,10 @@ export function Sandboxes() {
       setDraft(null)
       setIssues([])
     }
+    // The confirmation belongs to the sandbox that opened it. Browser Back unmounts
+    // the modal without closing it, so leaving this set would re-open it against
+    // whichever sandbox is selected next — and delete that one instead.
+    setShowDeleteConfirm(false)
     // Creating and having one open are mutually exclusive, and history can land on
     // a sandbox while create mode is still set — Forward after starting a new one.
     // Leaving both on renders an empty "New sandbox" form whose Delete still points
@@ -211,6 +215,7 @@ export function Sandboxes() {
             ...(selected && canAdmin
               ? [
                   {
+                    id: 'delete',
                     text: deleteSandbox.isPending ? 'Deleting...' : 'Delete',
                     variant: 'destructive' as const,
                     onSelect: () => setShowDeleteConfirm(true),

@@ -28,6 +28,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { ChevronDown, Plus } from 'lucide-react'
 import { useQueryState } from 'nuqs'
+import { MemberAvatar } from '@/components/permissions/member-avatar'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -41,10 +42,7 @@ import {
   groupTabParam,
   groupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import {
-  MemberAvatar,
-  MemberRow,
-} from '@/app/workspace/[workspaceId]/settings/components/member-list'
+import { MemberRow } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -455,7 +453,11 @@ function AddMembersModal({
                           className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
-                          <MemberAvatar name={name} image={member.user?.image ?? null} />
+                          <MemberAvatar
+                            name={name}
+                            image={member.user?.image ?? null}
+                            colorSeed={member.userId || email}
+                          />
                           <div className='min-w-0 flex-1'>
                             <div className='truncate text-[var(--text-body)] text-sm'>{name}</div>
                             <div className='truncate text-[var(--text-muted)] text-caption'>

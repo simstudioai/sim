@@ -1,6 +1,9 @@
 ---
 paths:
   - "apps/sim/app/workspace/*/settings/**"
+  - "apps/sim/app/workspace/*/{integrations,skills,upgrade}/**"
+  - "apps/sim/app/workspace/*/components/{resource-tile,credential-detail}/**"
+  - "apps/sim/components/{settings,permissions}/**"
   - "apps/sim/ee/**/components/**"
 ---
 
@@ -173,8 +176,10 @@ navigation chevron. Never hand-roll any of it, and never wrap the row in your ow
   `iconFill` lets an uploaded image reach the tile edge.
 - `onClick` / `href` — makes the **whole row** activatable via a stretched
   overlay. Prefer `href` when the destination is a route, so the row keeps
-  prefetch, middle-click, and open-in-new-tab. `clickLabel` is the accessible
-  name and is **required** alongside either: the overlay has no text of its own.
+  prefetch, middle-click, and open-in-new-tab. Always pass `clickLabel` with
+  either — the overlay holds no text, so it is the control's *only* accessible
+  name. The prop is optional in the type (nothing enforces it), so omitting it
+  ships a nameless button rather than failing the build.
 - `navigable` — appends the one canonical chevron. Set it on rows that open a
   detail page; leave it off when `onClick` acts in place (revealing a folder).
   Never import an arrow yourself: `lucide-react` and `@sim/emcn/icons` ship
@@ -187,9 +192,13 @@ navigation chevron. Never hand-roll any of it, and never wrap the row in your ow
   containers. A `SettingsResourceRow` carries its own `-mx-2` bleed and padding,
   so a container holding one only sets rhythm: never add a second `-mx-2` (they
   stack into a 16px bleed) and never a different gap. A list of hand-rolled rows
-  is the opposite — there the container owns the bleed. Note `-mx-2` inside a
-  fixed-height `overflow-y-auto` box forces a horizontal scrollbar; drop the
-  bleed there.
+  is the opposite — there the container owns the bleed. A row inside a
+  fixed-height `overflow-y-auto` box, or a heading that must line up with the
+  section labels under it, passes `flush` to drop the bleed and padding.
+  `RESOURCE_LIST_GRID` budgets its column gap for the bleed (24px of track gap
+  minus 16px of bleed = an 8px gutter); narrowing that gap makes neighbouring
+  rows — and their stretched hit areas — overlap, so a click in the gutter opens
+  the wrong card.
 
 **Three-dots vs. chevron** is not a taste call:
 
@@ -221,7 +230,8 @@ navigation chevron. Never hand-roll any of it, and never wrap the row in your ow
   Conditional items become array spreads: `...(canManage ? [{…}] : [])`. Never
   hand-roll the `<DropdownMenu>` + `<MoreHorizontal>` trigger per page.
 - **`RESOURCE_TILE_BASE`** + one of `RESOURCE_TILE_FILL` / `RESOURCE_TILE_PLAIN`
-  (`…/components/resource-tile`) — the 36px tile chrome, for the rare tile
+  (`app/workspace/[workspaceId]/components/resource-tile` — note: *not* under
+  `settings/`, unlike the other `…/` paths on this page) — the 36px tile chrome, for the rare tile
   outside a row (a detail heading). `ResourceTile` wraps the filled pairing.
 - **`MemberAvatar`** (`@/components/permissions/member-avatar`) — the one avatar
   for any member row.
@@ -316,7 +326,7 @@ A settings page is design-system-clean when:
 - [ ] Its `NavigationItem` has an accurate, consistent-length `description`.
 - [ ] Detail sub-views and entitlement/loading gates keep their own chrome (intentional).
 - [ ] If it has editable state: Save/Discard go through `SaveDiscardActions`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
-- [ ] No business logic, handlers, or conditional rendering changed by the migration.
+- [ ] No business logic, handlers, or conditional rendering changed by the migration — except where the shared primitive makes a gate structural (a permission gate becomes `onClick={can ? … : undefined}` + `navigable={can}`, which renders a plain non-interactive row).
 - [ ] No literal `text-[Npx]` classes — named scale tokens only (see "Text-scale tokens" above).
 - [ ] Every **resource** list row (a thing with an identity — a tool, a server, a key, a credential) is a `SettingsResourceRow` in a `RESOURCE_LIST_STACK`/`RESOURCE_LIST_GRID` — no wrapper `<button>`/`<Link>`, no hand-passed arrow, no re-derived title/subtitle spans. Rows with a genuinely different shape stay bespoke: multi-line bodies (inbox tasks), tabular columns (billing invoices, credit usage), and grids (secrets).
 - [ ] Rows that open a detail page use `navigable` + `clickLabel`; flat records use `RowActionsMenu`. Not both.

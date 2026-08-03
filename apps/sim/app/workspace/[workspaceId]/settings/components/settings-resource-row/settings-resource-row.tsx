@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   RESOURCE_TILE_BASE,
   RESOURCE_TILE_FILL,
+  RESOURCE_TILE_PLAIN,
 } from '@/app/workspace/[workspaceId]/components/resource-tile'
 
 /**
@@ -84,6 +85,12 @@ interface SettingsResourceRowProps {
    * `lucide-react` and `@sim/emcn/icons` ship visibly different ones.
    */
   navigable?: boolean
+  /**
+   * Drops the row's `-mx-2` bleed and padding. For a row that is not in a list —
+   * a detail heading — or one inside a fixed-height `overflow-y-auto` box, where
+   * the bleed would force a horizontal scrollbar.
+   */
+  flush?: boolean
 }
 
 /** The one navigation chevron for every settings resource row. */
@@ -95,9 +102,14 @@ export const RESOURCE_ROW_ARROW_CLASSES = 'size-4 flex-shrink-0 text-[var(--text
  */
 export const RESOURCE_LIST_STACK = 'flex flex-col gap-y-0.5'
 
-/** Responsive two-up card grid worn by the skills, integrations, and passwords lists. */
+/**
+ * Responsive two-up card grid worn by the skills, integrations, and passwords
+ * lists. The column gap budgets for the rows' own `-mx-2`: 24px of track gap
+ * minus 16px of combined bleed leaves the same 8px gutter a stack row gets.
+ * Narrowing it makes neighbouring rows — and their hit areas — overlap.
+ */
 export const RESOURCE_LIST_GRID =
-  'grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-2 gap-y-0.5'
+  'grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-6 gap-y-0.5'
 
 const PLAIN_BASE =
   'flex size-[14px] flex-shrink-0 items-center justify-center text-[var(--text-icon)] [&_svg]:size-[14px] [&_img]:size-[14px]'
@@ -115,6 +127,7 @@ export function SettingsResourceRow({
   href,
   clickLabel,
   navigable = false,
+  flush = false,
 }: SettingsResourceRowProps) {
   const isTile = iconVariant === 'tile'
   const cluster = (
@@ -127,7 +140,7 @@ export function SettingsResourceRow({
             isTile
               ? cn(
                   RESOURCE_TILE_BASE,
-                  iconFilled ? RESOURCE_TILE_FILL : 'bg-[var(--bg)]',
+                  iconFilled ? RESOURCE_TILE_FILL : RESOURCE_TILE_PLAIN,
                   iconFill ? '[&_img]:size-full' : '[&_img]:size-5'
                 )
               : PLAIN_BASE
@@ -161,7 +174,7 @@ export function SettingsResourceRow({
 
   // Row geometry is identical whether or not the row is activatable, so a list
   // mixing clickable and static rows keeps one height and one inset.
-  const rowClass = '-mx-2 flex items-center justify-between gap-2.5 rounded-lg p-2'
+  const rowClass = cn('flex items-center justify-between gap-2.5', !flush && '-mx-2 rounded-lg p-2')
 
   if (!onClick && !href) {
     return (
@@ -182,7 +195,10 @@ export function SettingsResourceRow({
   // list) while `trailing` — which may hold its own buttons — stacks above it.
   return (
     <div
-      className={cn(rowClass, 'relative transition-colors hover-hover:bg-[var(--surface-active)]')}
+      className={cn(
+        rowClass,
+        'group relative transition-colors hover-hover:bg-[var(--surface-active)]'
+      )}
     >
       {href ? (
         <Link href={href} aria-label={clickLabel} className={overlayClass} />

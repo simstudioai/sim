@@ -117,7 +117,7 @@ function ServerListItem({
   const serverName = server.name || 'Unnamed server'
   // Transport rides on the description rather than beside the name — inside the
   // row's truncating title a long name would clip it away entirely.
-  const statusLabel = isConnecting
+  const statusText = isConnecting
     ? 'Waiting for authorization...'
     : isRefreshing
       ? 'Refreshing...'
@@ -125,7 +125,8 @@ function ServerListItem({
         ? 'Loading...'
         : showDiscoveryError
           ? discoveryError
-          : `${transportLabel} · ${toolsLabel}`
+          : toolsLabel
+  const statusLabel = `${transportLabel} · ${statusText}`
 
   return (
     <SettingsResourceRow
@@ -444,6 +445,7 @@ export function MCP() {
                   onSelect: () => setEditingServerId(server.id),
                 },
                 {
+                  id: 'delete',
                   text: deletingServers.has(server.id) ? 'Deleting...' : 'Delete',
                   variant: 'destructive' as const,
                   onSelect: () => handleRemoveServer(server.id),

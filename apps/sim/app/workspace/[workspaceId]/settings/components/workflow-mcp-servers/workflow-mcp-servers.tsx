@@ -416,6 +416,7 @@ function ServerDetailView({
                 ...(onDelete
                   ? [
                       {
+                        id: 'delete',
                         text: isDeleting ? 'Deleting...' : 'Delete',
                         variant: 'destructive' as const,
                         onSelect: onDelete,

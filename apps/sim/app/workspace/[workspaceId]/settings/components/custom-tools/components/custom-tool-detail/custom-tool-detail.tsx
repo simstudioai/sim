@@ -219,6 +219,7 @@ export function CustomToolDetail({
           ...(tool && !readOnly
             ? [
                 {
+                  id: 'delete',
                   text: deleteTool.isPending ? 'Deleting...' : 'Delete',
                   variant: 'destructive' as const,
                   onSelect: () => setShowDeleteConfirm(true),

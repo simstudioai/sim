@@ -6,7 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { AgentSkillsIcon } from '@/components/icons'
+import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -111,8 +111,8 @@ export function Skills() {
                   {filteredSkills.map((s) => (
                     <SettingsResourceRow
                       key={s.id}
-                      icon={<AgentSkillsIcon className='text-[var(--text-icon)]' />}
-                      iconFilled
+                      iconVariant='custom'
+                      icon={<SkillTile />}
                       title={s.name}
                       description={s.description || undefined}
                       onClick={() => router.push(`${skillsHref}/${s.id}`)}
