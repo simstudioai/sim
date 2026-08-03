@@ -15,6 +15,11 @@ import {
   type ClientCredentialAccountSecretBlob,
   getClientCredentialAccountMinter,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
+import {
+  type ServiceAccountPrincipal,
+  serviceAccountPrincipalMetadata,
+} from '@/lib/credentials/principal'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -52,6 +57,12 @@ export interface ServiceAccountSecretResult {
   encryptedServiceAccountKey: string
   displayName: string
   auditMetadata: Record<string, string>
+  /**
+   * Provider principal behind the credential, or `null` when the provider
+   * exposes none. Required (never optional) so a new provider cannot be added
+   * without deciding what identity it captures.
+   */
+  principal: ServiceAccountPrincipal | null
   /** Slack custom bot: the derived bot user id (for reaction self-drop). */
   botUserId?: string
 }
@@ -78,12 +89,20 @@ async function buildAtlassianServiceAccountSecret(
   }
   const normalizedDomain = normalizeAtlassianDomain(domain)
   const validation = await validateAtlassianServiceAccount(apiToken, normalizedDomain)
+  const principal: ServiceAccountPrincipal = {
+    kind: 'user',
+    id: validation.accountId,
+    ...(validation.emailAddress ? { label: validation.emailAddress } : {}),
+  }
+  // `atlassianAccountId` stays at the blob's top level: `getAtlassianServiceAccountSecret`
+  // in `app/api/auth/oauth/utils.ts` reads it there on every existing credential.
   const blob = JSON.stringify({
     type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
     apiToken,
     domain: normalizedDomain,
     cloudId: validation.cloudId,
     atlassianAccountId: validation.accountId,
+    metadata: serviceAccountPrincipalMetadata(principal),
   })
   const { encrypted } = await encryptSecret(blob)
   return {
@@ -93,7 +112,9 @@ async function buildAtlassianServiceAccountSecret(
     auditMetadata: {
       atlassianDomain: normalizedDomain,
       atlassianCloudId: validation.cloudId,
+      ...serviceAccountPrincipalMetadata(principal),
     },
+    principal,
   }
 }
 
@@ -123,6 +144,11 @@ async function buildSlackCustomBotSecret(
       `Could not verify the Slack bot token: ${getErrorMessage(error)}`
     )
   }
+  // `auth.test` returns the bot user only for bot tokens; a token without one
+  // is workspace-scoped, so the team is the finest identity available.
+  const principal: ServiceAccountPrincipal = botUserId
+    ? { kind: 'user', id: botUserId }
+    : { kind: 'tenant', id: teamId, ...(teamName ? { label: teamName } : {}) }
   const blob = JSON.stringify({
     type: SLACK_CUSTOM_BOT_SECRET_TYPE,
     signingSecret,
@@ -130,13 +156,15 @@ async function buildSlackCustomBotSecret(
     teamId,
     botUserId,
     teamName,
+    metadata: serviceAccountPrincipalMetadata(principal),
   })
   const { encrypted } = await encryptSecret(blob)
   return {
     providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
     encryptedServiceAccountKey: encrypted,
-    displayName: teamName || 'Slack bot',
-    auditMetadata: { slackTeamId: teamId },
+    displayName: slackCustomBotDisplayName(teamName),
+    auditMetadata: { slackTeamId: teamId, ...serviceAccountPrincipalMetadata(principal) },
+    principal,
     botUserId,
   }
 }
@@ -161,12 +189,23 @@ async function buildGoogleServiceAccountSecret(
       getValidationErrorMessage(jsonParseResult.error, 'Invalid service account JSON')
     )
   }
+  const { client_email: clientEmail, project_id: projectId } = jsonParseResult.data
+  // `client_email` is the principal a Google service account authenticates as
+  // (its `unique_id` is not guaranteed to be present in a downloaded key).
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: clientEmail }
+  // The blob stays the verbatim GCP key — every consumer parses it as one — so
+  // the principal is mirrored into the audit metadata only.
   const { encrypted } = await encryptSecret(serviceAccountJson)
   return {
     providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
     encryptedServiceAccountKey: encrypted,
-    displayName: jsonParseResult.data.client_email,
-    auditMetadata: {},
+    displayName: clientEmail,
+    auditMetadata: {
+      googleClientEmail: clientEmail,
+      googleProjectId: projectId,
+      ...serviceAccountPrincipalMetadata(principal),
+    },
+    principal,
   }
 }
 
@@ -197,19 +236,21 @@ async function buildTokenServiceAccountSecret(
     )
   }
   const validation = await validator({ apiToken, domain })
+  const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
   const blob: TokenServiceAccountSecretBlob = {
     type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
     providerId,
     apiToken,
     ...(requiresDomain ? { domain: validation.normalizedDomain ?? domain } : {}),
-    ...(validation.storedMetadata ? { metadata: validation.storedMetadata } : {}),
+    metadata: { ...validation.storedMetadata, ...principalMetadata },
   }
   const { encrypted } = await encryptSecret(JSON.stringify(blob))
   return {
     providerId,
     encryptedServiceAccountKey: encrypted,
     displayName: validation.displayName,
-    auditMetadata: validation.auditMetadata,
+    auditMetadata: { ...validation.auditMetadata, ...principalMetadata },
+    principal: validation.principal,
   }
 }
 
@@ -246,6 +287,10 @@ async function buildClientCredentialAccountSecret(
     )
   }
   const mint = await minter({ clientId, clientSecret, orgId, dataCenter })
+  // `identity` is absent only on the `skipIdentity` execution-time path, which
+  // never reaches this builder; treat it as "no principal captured".
+  const principal = mint.identity?.principal ?? null
+  const principalMetadata = serviceAccountPrincipalMetadata(principal)
   const blob: ClientCredentialAccountSecretBlob = {
     type: CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
     providerId,
@@ -253,14 +298,15 @@ async function buildClientCredentialAccountSecret(
     clientSecret,
     orgId,
     ...(dataCenter ? { dataCenter } : {}),
-    ...(mint.identity?.storedMetadata ? { metadata: mint.identity.storedMetadata } : {}),
+    metadata: { ...mint.identity?.storedMetadata, ...principalMetadata },
   }
   const { encrypted } = await encryptSecret(JSON.stringify(blob))
   return {
     providerId,
     encryptedServiceAccountKey: encrypted,
     displayName: mint.identity?.displayName ?? `${descriptor.serviceLabel} ${orgId}`,
-    auditMetadata: mint.identity?.auditMetadata ?? {},
+    auditMetadata: { ...mint.identity?.auditMetadata, ...principalMetadata },
+    principal,
   }
 }
 

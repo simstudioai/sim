@@ -1,3 +1,4 @@
+import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 import {
   AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID,
   ASANA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -44,11 +45,21 @@ export interface TokenServiceAccountFields {
 export interface TokenServiceAccountValidationResult {
   /** Default display name when the user didn't provide one. */
   displayName: string
-  /** Non-secret identifiers recorded in the audit log (e.g. portal/workspace id). */
+  /**
+   * Identity the token authenticates as, or `null` when the provider exposes
+   * none. Required (never optional) so a new validator cannot be written
+   * without deciding. `verifyAndBuildServiceAccountSecret` mirrors it into both
+   * `auditMetadata` and `storedMetadata`, so validators must not repeat it.
+   */
+  principal: ServiceAccountPrincipal | null
+  /**
+   * Non-secret identifiers recorded in the audit log that are NOT the
+   * principal (e.g. the org id behind a user principal).
+   */
   auditMetadata: Record<string, string>
   /**
    * Non-secret metadata persisted inside the encrypted blob alongside the
-   * token (e.g. normalized store domain, portal id) for later debugging.
+   * token (e.g. normalized store domain, granted scopes) for later debugging.
    */
   storedMetadata?: Record<string, string>
   /** Normalized domain to persist instead of the raw user input (when collected). */
