@@ -260,7 +260,7 @@ Sparse-update a customer in the connected QuickBooks Online company
 | `billingAddress` | json | No | Replacement billing address |
 | `shippingAddress` | json | No | Replacement shipping address |
 | `taxable` | boolean | No | Whether sales to this customer are taxable |
-| `activeStatus` | string | Yes | Keep, activate, or deactivate the customer |
+| `activeStatus` | string | No | Customer status change: unchanged, active, or inactive |
 
 #### Output
 
@@ -359,7 +359,7 @@ Sparse-update a vendor in the connected QuickBooks Online company
 | `printOnCheckName` | string | No | Replacement name to print on checks |
 | `accountNumber` | string | No | Replacement vendor account number |
 | `vendor1099` | boolean | No | Whether the vendor is tracked for 1099 reporting |
-| `activeStatus` | string | Yes | Keep, activate, or deactivate the vendor |
+| `activeStatus` | string | No | Vendor status change: unchanged, active, or inactive |
 
 #### Output
 
@@ -465,7 +465,7 @@ Sparse-update supported fields on an item without changing its type
 | `purchaseCost` | number | No | Replacement purchase cost per unit |
 | `expenseAccountId` | string | No | Replacement expense account ID |
 | `taxable` | boolean | No | Whether the item is taxable |
-| `activeStatus` | string | Yes | Keep, activate, or deactivate the item |
+| `activeStatus` | string | No | Item status change: unchanged, active, or inactive |
 
 #### Output
 
