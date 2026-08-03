@@ -3,8 +3,8 @@
  *
  * Public v2 table delete and update. Delete hands the actor to the service so
  * the audit is emitted there — and only for a delete that actually archived a
- * row. Update routes each field to its own orchestration call, and carries the
- * first-party permission split: renaming needs `write`, locking needs `admin`.
+ * row. Update routes each field to its own orchestration call; lock flags are
+ * read-only on this surface and a request carrying them is refused outright.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,7 +20,6 @@ const {
   mockRecordAudit,
   mockGetTableById,
   mockFindActiveFolder,
-  mockIsFeatureEnabled,
   mockGateError,
   mockSignalSchemaChanged,
 } = vi.hoisted(() => ({
@@ -34,7 +33,6 @@ const {
   mockRecordAudit: vi.fn(),
   mockGetTableById: vi.fn(),
   mockFindActiveFolder: vi.fn(),
-  mockIsFeatureEnabled: vi.fn(),
   mockGateError: vi.fn(),
   mockSignalSchemaChanged: vi.fn(),
 }))
@@ -69,7 +67,6 @@ vi.mock('@/lib/table/events', () => ({
   signalTableSchemaChanged: mockSignalSchemaChanged,
 }))
 vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mockFindActiveFolder }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mockIsFeatureEnabled }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: vi.fn().mockResolvedValue({ organizationId: 'org-1' }),
 }))
@@ -142,7 +139,6 @@ beforeEach(() => {
   mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
   mockGetTableById.mockResolvedValue(UPDATED_TABLE)
   mockFindActiveFolder.mockResolvedValue({ id: 'folder-1' })
-  mockIsFeatureEnabled.mockResolvedValue(true)
   mockGateError.mockResolvedValue(null)
 })
 
@@ -267,21 +263,6 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
     expect(mockSignalSchemaChanged).not.toHaveBeenCalled()
   })
 
-  it('rejects a lock change from a non-admin without applying the rename beside it', async () => {
-    mockCheckAccess.mockImplementation(async (_tableId, _userId, level) =>
-      level === 'admin' ? { ok: false, status: 403 } : { ok: true, table: TABLE }
-    )
-
-    const res = await callPatch({
-      workspaceId: 'ws-1',
-      name: 'Renamed',
-      locks: { deleteLocked: true },
-    })
-
-    expect(res.status).toBe(403)
-    expect(mockPerformRenameTable).not.toHaveBeenCalled()
-  })
-
   it('reports which operations landed when a later one fails', async () => {
     // The three writes commit independently, so rather than pretending
     // atomicity the error states what is already live — a caller can reconcile
@@ -331,42 +312,46 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
     expect(mockSignalSchemaChanged).toHaveBeenCalledWith('table-1')
   })
 
-  it('rejects a lock change from a write-level caller', async () => {
-    mockCheckAccess.mockImplementation(async (_tableId, _userId, level) =>
-      level === 'admin' ? { ok: false, status: 403 } : { ok: true, table: TABLE }
-    )
-
+  /**
+   * Locks are read-only on the public API. A `write`-level API key can already
+   * mutate the table, so letting it clear a lock would let it undo the guard
+   * placed there to stop it. The strict body rejects the field outright rather
+   * than dropping it silently, which would report success for a change that
+   * never happened.
+   */
+  it('rejects a lock change instead of applying or silently ignoring it', async () => {
     const res = await callPatch({ workspaceId: 'ws-1', locks: { deleteLocked: true } })
 
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error.code).toBe('BAD_REQUEST')
+    expect(JSON.stringify(body.error)).toContain('locks')
     expect(mockPerformUpdateTableLocks).not.toHaveBeenCalled()
   })
 
-  it('rejects enabling a lock while the feature is off', async () => {
-    mockIsFeatureEnabled.mockResolvedValue(false)
-
-    const res = await callPatch({ workspaceId: 'ws-1', locks: { deleteLocked: true } })
-
-    expect(res.status).toBe(403)
-    expect((await res.json()).error.message).toBe('Table locks are not enabled')
-    expect(mockPerformUpdateTableLocks).not.toHaveBeenCalled()
-  })
-
-  it('still clears a lock while the feature is off, so a locked table is never stranded', async () => {
-    mockIsFeatureEnabled.mockResolvedValue(false)
-    mockCheckAccess.mockResolvedValue({
-      ok: true,
-      table: { ...TABLE, locks: { ...UNLOCKED, deleteLocked: true } },
+  it('rejects a lock change even when paired with an otherwise valid rename', async () => {
+    const res = await callPatch({
+      workspaceId: 'ws-1',
+      name: 'Renamed',
+      locks: { deleteLocked: false },
     })
-    mockPerformUpdateTableLocks.mockResolvedValue({ success: true })
 
-    const res = await callPatch({ workspaceId: 'ws-1', locks: { deleteLocked: false } })
+    expect(res.status).toBe(400)
+    // The whole request is refused — the rename must not land either.
+    expect(mockPerformRenameTable).not.toHaveBeenCalled()
+  })
+
+  it('still reports the stored lock flags on the table it returns', async () => {
+    // The response is a re-read, so the locked state has to come from there.
+    mockGetTableById.mockResolvedValue({
+      ...UPDATED_TABLE,
+      locks: { ...UNLOCKED, deleteLocked: true },
+    })
+
+    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed' })
 
     expect(res.status).toBe(200)
-    expect(mockIsFeatureEnabled).not.toHaveBeenCalled()
-    expect(mockPerformUpdateTableLocks).toHaveBeenCalledWith(
-      expect.objectContaining({ tableId: 'table-1', partial: { deleteLocked: false } })
-    )
+    expect((await res.json()).data.table.locks).toMatchObject({ deleteLocked: true })
   })
 
   it('maps a duplicate-name rename to 409 CONFLICT', async () => {

@@ -127,7 +127,7 @@ function refineColumnOptions(
  * Identifier for tables/columns: starts with letter or underscore, contains
  * only alphanumerics + underscores, capped at `MAX_TABLE_NAME_LENGTH`.
  */
-const tableNameSchema = z
+export const tableNameSchema = z
   .string()
   .min(1, 'Name is required')
   .max(

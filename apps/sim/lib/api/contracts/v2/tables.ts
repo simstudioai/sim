@@ -24,12 +24,12 @@ import {
   tableIdParamsSchema,
   tableJobSummarySchema,
   tableLocksSchema,
+  tableNameSchema,
   tableRowParamsSchema,
   tableRowsQueryBaseSchema,
   tableViewConfigSchema,
   tableViewParamsSchema,
   updateRowsByFilterBodySchema,
-  updateTableBodySchema,
   updateTableColumnBodySchema,
   updateTableRowBodySchema,
   updateTableViewBodySchema,
@@ -108,7 +108,11 @@ export const v2ApiTableSchema = z.object({
   maxRows: z.number(),
   /** Owning folder, or `null` when the table sits at the workspace root. */
   folderId: z.string().nullable(),
-  /** Governance flags. Writable only by a workspace admin via `PATCH`. */
+  /**
+   * Governance flags, read-only on the public API. They are enforced on every
+   * write (a locked verb returns 423), but flipping them is a first-party admin
+   * action — see {@link v2UpdateTableBodySchema}.
+   */
   locks: tableLocksSchema,
   /** In-flight background job, or `null` when the table is idle. */
   job: v2TableJobStateSchema.nullable(),
@@ -252,23 +256,45 @@ export const v2GetTableContract = defineRouteContract({
 
 /**
  * Table update. Every field is optional but at least one must be present:
- * `name` renames, `folderId` moves the table (explicit `null` moves it to the
- * workspace root; omission leaves the placement untouched), and `locks` flips
- * the governance flags. The lock branch additionally requires workspace `admin`
- * and the `table-locks` feature, matching the first-party surface — a `write`
- * caller can rename and move but not lock.
+ * `name` renames and `folderId` moves the table (explicit `null` moves it to
+ * the workspace root; omission leaves the placement untouched).
+ *
+ * `locks` is deliberately **not** accepted here, which is why this body is
+ * declared rather than reusing the first-party `updateTableBodySchema`. The
+ * governance flags are read-only on the public surface: an API key that can
+ * write a table must not also be able to clear the lock that was put there to
+ * stop it. Flipping a lock stays a first-party admin action. The body is
+ * `.strict()`, so a caller sending `locks` gets a 400 naming the field instead
+ * of a silent no-op that reads as success.
  */
+export const v2UpdateTableBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    name: tableNameSchema.optional(),
+    folderId: folderIdSchema.nullable().optional(),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.name === undefined && body.folderId === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Provide a new name or folder',
+        path: ['name'],
+      })
+    }
+  })
+
 export const v2UpdateTableContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]',
   params: tableIdParamsSchema,
-  body: updateTableBodySchema,
+  body: v2UpdateTableBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2TableDataSchema),
   },
 })
-export type V2UpdateTableBody = z.input<typeof updateTableBodySchema>
+export type V2UpdateTableBody = z.input<typeof v2UpdateTableBodySchema>
 
 export const v2DeleteTableContract = defineRouteContract({
   method: 'DELETE',

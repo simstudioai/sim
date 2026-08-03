@@ -7,7 +7,6 @@ import {
   v2UpdateTableContract,
 } from '@/lib/api/contracts/v2/tables'
 import { parseRequest } from '@/lib/api/server'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
@@ -17,10 +16,7 @@ import {
   performDeleteTable,
   performMoveTableToFolder,
   performRenameTable,
-  performUpdateTableLocks,
 } from '@/lib/table/orchestration'
-import { TABLE_LOCK_FLAGS, TABLE_LOCK_KINDS } from '@/lib/table/types'
-import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -91,15 +87,16 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
 })
 
 /**
- * PATCH /api/v2/tables/[tableId] — Rename, move, and/or change lock flags.
+ * PATCH /api/v2/tables/[tableId] — Rename and/or move a table.
  *
  * Each field routes to its own orchestration call so the audit records the
- * operation the caller actually performed. `locks` carries the first-party
- * permission split: `write` is the floor for the endpoint, but enabling a lock
- * additionally needs workspace `admin` and the `table-locks` feature. Clearing
- * a lock stays available with the feature off, or flipping the kill switch
- * would strand an already-locked table with no way to unlock it while
- * enforcement of the stored locks keeps running.
+ * operation the caller actually performed.
+ *
+ * Lock flags are **not** settable here. They are readable on the table resource
+ * and enforced on every write, but an API key that can mutate a table must not
+ * also be able to clear the lock placed there to stop it; changing a lock stays
+ * a first-party admin action. The contract body is `.strict()`, so a request
+ * carrying `locks` is rejected rather than silently ignored.
  */
 export const PATCH = withRouteHandler(async (request: NextRequest, context: TableRouteParams) => {
   const requestId = generateRequestId()
@@ -133,36 +130,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
     }
 
     // ── Validate every field BEFORE the first write ──
-    // The three operations are separate transactions, so a rejection
-    // discovered partway through would leave the earlier ones persisted while
-    // the response reports failure. Everything a request can be rejected for
-    // is therefore checked up front: a rejected PATCH changes nothing.
-    if (validated.locks !== undefined) {
-      // Only a lock transitioning off→on needs the feature; comparing against
-      // the stored state is what lets a caller submitting the full flag set
-      // clear one lock while another stays on.
-      const enablesALock = TABLE_LOCK_KINDS.some((kind) => {
-        const flag = TABLE_LOCK_FLAGS[kind]
-        return validated.locks?.[flag] === true && !table.locks[flag]
-      })
-      if (enablesALock) {
-        // Resolved against the workspace's host organization, not the caller's
-        // active one, so an org-targeted rollout can't accept the write here
-        // and reject it in the first-party UI.
-        const workspace = await getWorkspaceWithOwner(table.workspaceId)
-        const enabled = await isFeatureEnabled('table-locks', {
-          userId,
-          orgId: workspace?.organizationId ?? undefined,
-        })
-        if (!enabled) return v2Error('FORBIDDEN', 'Table locks are not enabled')
-      }
-
-      const adminResult = await checkAccess(tableId, userId, 'admin')
-      if (!adminResult.ok) {
-        return v2Error('FORBIDDEN', 'Admin access required to change table locks')
-      }
-    }
-
+    // The two operations are separate transactions, so a rejection discovered
+    // partway through would leave the earlier one persisted while the response
+    // reports failure. Everything a request can be rejected for is therefore
+    // checked up front: a rejected PATCH changes nothing.
     if (validated.folderId != null) {
       // Scoped to `resourceType: 'table'` so a folder id from another resource's
       // tree can't file the table somewhere Tables never lists.
@@ -174,28 +145,16 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Tabl
     // ── Apply ──
     // Every deterministic rejection is already behind us, so a failure here is
     // a genuine fault (lost race, archived mid-request, database error) rather
-    // than a bad request. The three operations commit independently — a single
-    // transaction would have to span three shared service functions that also
+    // than a bad request. The two operations commit independently — a single
+    // transaction would have to span two shared service functions that also
     // back the first-party route and two copilot tools, and would break their
     // per-operation audits — so instead of pretending atomicity the response
     // states exactly which operations landed. A caller that gets an error can
     // then reconcile rather than having to re-read and diff.
-    const applied: ('locks' | 'name' | 'folderId')[] = []
+    const applied: ('name' | 'folderId')[] = []
     let failure: { outcome: OrchestrationOutcome; fallback: string } | null = null
 
-    if (validated.locks !== undefined) {
-      const outcome = await performUpdateTableLocks({
-        tableId,
-        partial: validated.locks,
-        userId,
-        requestId,
-        request,
-      })
-      if (outcome.success) applied.push('locks')
-      else failure = { outcome, fallback: 'Failed to update table locks' }
-    }
-
-    if (!failure && validated.name !== undefined) {
+    if (validated.name !== undefined) {
       const outcome = await performRenameTable({
         table,
         newName: validated.name,

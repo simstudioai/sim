@@ -55,14 +55,21 @@
             "in": "query",
             "required": false,
             "description": "Restrict the list to one folder. Omit to list every table in the workspace.",
-            "schema": { "type": "string", "minLength": 1 }
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           {
             "name": "search",
             "in": "query",
             "required": false,
             "description": "Case-insensitive substring match against the table `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
-            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
           },
           {
             "name": "sortBy",
@@ -80,7 +87,11 @@
             "in": "query",
             "required": false,
             "description": "Sort direction.",
-            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
           }
         ],
         "responses": {
@@ -405,7 +416,7 @@
       "patch": {
         "operationId": "updateTable",
         "summary": "Update Table",
-        "description": "Rename a table, move it between folders, and/or change its lock flags. Provide at least one of `name`, `folderId`, or `locks`. Each field is applied independently, so one request can rename and move at once, and the response reflects every applied change.\n\n`name` and `folderId` need workspace write. `locks` additionally needs workspace **admin** \u2014 a write-level caller gets 403. Clearing a lock always works; enabling one requires the table-locks feature to be on for the workspace, so an already-locked table can never be stranded.\n\n**Partial-success semantics.** The three operations commit independently, so this endpoint is not atomic. Everything that can be *rejected* \u2014 the lock feature gate, the admin check, folder existence \u2014 is validated before the first write, so a rejected request changes nothing. If a genuine fault (a lost race, the table archived mid-request, a database error) fails a later operation after an earlier one has committed, the response is an error whose `error.details.applied` lists the operations that are nevertheless live (`\"locks\"`, `\"name\"`, `\"folderId\"`). The field is absent when nothing was applied, so its presence always means \"these changes took effect despite the error\" \u2014 re-read the table to confirm before retrying.",
+        "description": "Rename a table and/or move it between folders. Provide at least one of `name` or `folderId`. Each field is applied independently, so one request can rename and move at once, and the response reflects every applied change.\n\nBoth fields need workspace write.\n\n**Lock flags are read-only here.** A table's `locks` are returned on the table resource and enforced on every write (a locked verb returns 423), but they cannot be changed through the API — a write-level key must not be able to clear the guard placed there to stop it. Changing a lock is a first-party workspace-admin action. A request carrying `locks` is rejected with 400 rather than silently ignored.\n\n**Partial-success semantics.** The two operations commit independently, so this endpoint is not atomic. Everything that can be *rejected* — the body shape, folder existence — is validated before the first write, so a rejected request changes nothing. If a genuine fault (a lost race, the table archived mid-request, a database error) fails the later operation after the earlier one has committed, the response is an error whose `error.details.applied` lists the operations that are nevertheless live (`\"name\"`, `\"folderId\"`). The field is absent when nothing was applied, so its presence always means \"these changes took effect despite the error\" — re-read the table to confirm before retrying.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -440,15 +451,6 @@
                   "value": {
                     "workspaceId": "ws_123",
                     "folderId": null
-                  }
-                },
-                "lock": {
-                  "summary": "Lock deletes (workspace admin)",
-                  "value": {
-                    "workspaceId": "ws_123",
-                    "locks": {
-                      "deleteLocked": true
-                    }
                   }
                 }
               }
@@ -638,7 +640,7 @@
       "patch": {
         "operationId": "updateTableColumn",
         "summary": "Update Column",
-        "description": "Update a column by name \u2014 rename it, change its type, or toggle its required/unique constraints. Provide at least one field in `updates`. Returns the table's full column list after the change.",
+        "description": "Update a column by name — rename it, change its type, or toggle its required/unique constraints. Provide at least one field in `updates`. Returns the table's full column list after the change.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -782,7 +784,7 @@
       "get": {
         "operationId": "listTableRows",
         "summary": "List rows",
-        "description": "Plain cursor page over the default row order. Filtering and sorting are not part of this surface \u2014 use `POST /api/v2/tables/{tableId}/query` for predicate-filtered, sorted reads. The cursor is opaque; page by passing the previous response's `nextCursor` back as `cursor` and stop when it is `null`.",
+        "description": "Plain cursor page over the default row order. Filtering and sorting are not part of this surface — use `POST /api/v2/tables/{tableId}/query` for predicate-filtered, sorted reads. The cursor is opaque; page by passing the previous response's `nextCursor` back as `cursor` and stop when it is `null`.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -1518,7 +1520,7 @@
       "post": {
         "operationId": "queryTableRows",
         "summary": "Query Rows",
-        "description": "Query rows with a typed predicate filter, an ordered sort spec, and opaque cursor pagination. Row `data` is keyed by column NAME; `select` cells return option names, and filter operands on select columns accept option names (resolved case-insensitively).\n\n**Pagination contract:** page by passing the previous response's `nextCursor` back as `cursor`, and stop only when it is `null` \u2014 a page may return fewer than `limit` rows and still have more behind it, so page fullness is never a termination signal. A cursor is bound to the exact query shape it was minted under: keyset cursors to the default row order, offset cursors (sorted views) to that sort. Replaying one under a different `sort` returns 400 `CURSOR_SORT_CONFLICT`.",
+        "description": "Query rows with a typed predicate filter, an ordered sort spec, and opaque cursor pagination. Row `data` is keyed by column NAME; `select` cells return option names, and filter operands on select columns accept option names (resolved case-insensitively).\n\n**Pagination contract:** page by passing the previous response's `nextCursor` back as `cursor`, and stop only when it is `null` — a page may return fewer than `limit` rows and still have more behind it, so page fullness is never a termination signal. A cursor is bound to the exact query shape it was minted under: keyset cursors to the default row order, offset cursors (sorted views) to that sort. Replaying one under a different `sort` returns 400 `CURSOR_SORT_CONFLICT`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1563,7 +1565,7 @@
                     "minimum": 0,
                     "maximum": 1000,
                     "default": 100,
-                    "description": "Omitted \u2192 100. `1..1000` \u2192 page size. `0` \u2192 the ENTIRE matching result in one response; fails with 400 `TABLE_QUERY_RESULT_TOO_LARGE` if it exceeds the 5 MB row-data budget (narrow the predicate or page instead)."
+                    "description": "Omitted → 100. `1..1000` → page size. `0` → the ENTIRE matching result in one response; fails with 400 `TABLE_QUERY_RESULT_TOO_LARGE` if it exceeds the 5 MB row-data budget (narrow the predicate or page instead)."
                   },
                   "cursor": {
                     "type": "string",
@@ -1681,7 +1683,7 @@
       "post": {
         "operationId": "restoreTable",
         "summary": "Restore Table",
-        "description": "Un-archive a table archived by `DELETE /api/v2/tables/{tableId}`, along with its rows. Requires workspace write. Returns 409 when a different active table has since taken the archived table\u2019s name \u2014 rename that table first, then retry.",
+        "description": "Un-archive a table archived by `DELETE /api/v2/tables/{tableId}`, along with its rows. Requires workspace write. Returns 409 when a different active table has since taken the archived table’s name — rename that table first, then retry.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -1811,7 +1813,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The table\u2019s saved views.",
+            "description": "The table’s saved views.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimitLimit"
@@ -1886,7 +1888,7 @@
       "post": {
         "operationId": "createTableView",
         "summary": "Create View",
-        "description": "Save a filter, sort, and column layout as a named view. A view is presentation state, never an access boundary \u2014 rows it hides stay readable through the row and query endpoints.",
+        "description": "Save a filter, sort, and column layout as a named view. A view is presentation state, never an access boundary — rows it hides stay readable through the row and query endpoints.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2107,7 +2109,7 @@
       "patch": {
         "operationId": "updateTableView",
         "summary": "Update View",
-        "description": "Rename a view, replace or merge its config, or promote it to the table\u2019s default. Provide at least one of `name`, `config`, `configPatch`, or `isDefault`.\n\n`config` replaces the stored config wholesale; `configPatch` is shallow-merged server-side so overlapping partial writes cannot clobber each other. The two are mutually exclusive. Setting `isDefault: true` demotes the table\u2019s existing default in the same transaction.",
+        "description": "Rename a view, replace or merge its config, or promote it to the table’s default. Provide at least one of `name`, `config`, `configPatch`, or `isDefault`.\n\n`config` replaces the stored config wholesale; `configPatch` is shallow-merged server-side so overlapping partial writes cannot clobber each other. The two are mutually exclusive. Setting `isDefault: true` demotes the table’s existing default in the same transaction.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2134,7 +2136,7 @@
               },
               "examples": {
                 "promote": {
-                  "summary": "Make this the table\u2019s default view",
+                  "summary": "Make this the table’s default view",
                   "value": {
                     "workspaceId": "ws_123",
                     "isDefault": true
@@ -2236,7 +2238,7 @@
       "delete": {
         "operationId": "deleteTableView",
         "summary": "Delete View",
-        "description": "Remove a saved view. Deleting the table\u2019s default simply leaves the table unfiltered; no rows are affected.",
+        "description": "Remove a saved view. Deleting the table’s default simply leaves the table unfiltered; no rows are affected.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2309,7 +2311,7 @@
       "get": {
         "operationId": "listTableWorkflowGroups",
         "summary": "List Workflow Groups",
-        "description": "The table\u2019s workflow and enrichment groups \u2014 the units the run endpoints dispatch. Read-only: groups are authored in the workflow builder. Bounded per table, so this is a single full page and `nextCursor` is always null.",
+        "description": "The table’s workflow and enrichment groups — the units the run endpoints dispatch. Read-only: groups are authored in the workflow builder. Bounded per table, so this is a single full page and `nextCursor` is always null.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2329,7 +2331,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The table\u2019s workflow groups.",
+            "description": "The table’s workflow groups.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimitLimit"
@@ -2397,7 +2399,7 @@
       "post": {
         "operationId": "runTableColumns",
         "summary": "Run Column Groups",
-        "description": "Run one or more workflow or enrichment groups and write their outputs into the table.\n\n**Asynchronous.** The response acknowledges the dispatch, not the results: the runner walks the scoped rows and writes cells as runs land. Poll `POST /api/v2/tables/{tableId}/query` for results, and stop an in-flight run with the same group ids and an empty scope.\n\nScope with `rowIds` (an explicit set) or `filter` (every matching row, walked in pages so no id list is materialized) \u2014 never both. Omit both to run every row. Starting a run clears the target groups\u2019 cells to pending, so a read taken immediately after will show them empty.",
+        "description": "Run one or more workflow or enrichment groups and write their outputs into the table.\n\n**Asynchronous.** The response acknowledges the dispatch, not the results: the runner walks the scoped rows and writes cells as runs land. Poll `POST /api/v2/tables/{tableId}/query` for results, and stop an in-flight run with the same group ids and an empty scope.\n\nScope with `rowIds` (an explicit set) or `filter` (every matching row, walked in pages so no id list is materialized) — never both. Omit both to run every row. Starting a run clears the target groups’ cells to pending, so a read taken immediately after will show them empty.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2507,7 +2509,7 @@
       "post": {
         "operationId": "runRowEnrichment",
         "summary": "Run Enrichment For One Row",
-        "description": "The single-cell case of `POST /api/v2/tables/{tableId}/columns/run`: runs one group for one row. Naming a specific cell is an explicit re-run request, so an already-populated cell recomputes rather than being skipped.\n\n**Asynchronous** \u2014 the response acknowledges the dispatch; read the row back for the result.",
+        "description": "The single-cell case of `POST /api/v2/tables/{tableId}/columns/run`: runs one group for one row. Naming a specific cell is an explicit re-run request, so an already-populated cell recomputes rather than being skipped.\n\n**Asynchronous** — the response acknowledges the dispatch; read the row back for the result.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2596,7 +2598,7 @@
       "post": {
         "operationId": "findTableRows",
         "summary": "Find Rows",
-        "description": "Case-insensitive substring search across every cell, narrowed by the same predicate and sort grammar as `POST /api/v2/tables/{tableId}/query`. Select cells match on their option names.\n\nReturns matching **cells**, not rows. Each match carries the row\u2019s ordinal in exactly the view a query with the same `predicate` and `sort` returns, so a caller can page straight to it. Matches are capped server-side and have no cursor \u2014 when `truncated` is true, narrow the predicate rather than paging.",
+        "description": "Case-insensitive substring search across every cell, narrowed by the same predicate and sort grammar as `POST /api/v2/tables/{tableId}/query`. Select cells match on their option names.\n\nReturns matching **cells**, not rows. Each match carries the row’s ordinal in exactly the view a query with the same `predicate` and `sort` returns, so a caller can page straight to it. Matches are capped server-side and have no cursor — when `truncated` is true, narrow the predicate rather than paging.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2711,7 +2713,7 @@
       "post": {
         "operationId": "createTableFromCsv",
         "summary": "Create Table From CSV",
-        "description": "Create a table from a CSV or TSV file. The column schema is inferred from the file\u2019s first rows and the table is named after the file.\n\nSend `multipart/form-data` with `workspaceId` **before** the file part, so an unauthorized upload is rejected before its bytes are read. Rows stream in as they are parsed, so a file larger than memory still imports; a failure part way through drops the half-populated table rather than leaving it behind.",
+        "description": "Create a table from a CSV or TSV file. The column schema is inferred from the file’s first rows and the table is named after the file.\n\nSend `multipart/form-data` with `workspaceId` **before** the file part, so an unauthorized upload is rejected before its bytes are read. Rows stream in as they are parsed, so a file larger than memory still imports; a failure part way through drops the half-populated table rather than leaving it behind.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2723,7 +2725,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Bodies over 10 MB are rejected with 413 \u2014 use the async import instead.",
+          "description": "Bodies over 10 MB are rejected with 413 — use the async import instead.",
           "content": {
             "multipart/form-data": {
               "schema": {
@@ -2782,7 +2784,7 @@
       "get": {
         "operationId": "listTableJobs",
         "summary": "List Export Jobs",
-        "description": "Export jobs across a workspace \u2014 running ones plus recently finished ones, so a completed export stays re-downloadable. Poll this after `POST /export-async`, then fetch the file from `GET /export/download` once a job reports `ready`.",
+        "description": "Export jobs across a workspace — running ones plus recently finished ones, so a completed export stays re-downloadable. Poll this after `POST /export-async`, then fetch the file from `GET /export/download` once a job reports `ready`.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2802,7 +2804,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The workspace\u2019s export jobs.",
+            "description": "The workspace’s export jobs.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimitLimit"
@@ -2859,7 +2861,7 @@
       "post": {
         "operationId": "importTableCsv",
         "summary": "Import CSV",
-        "description": "Import a CSV or TSV into an existing table, appending or replacing its rows.\n\nSend `multipart/form-data` with `workspaceId` **before** the file part. Omit `mapping` to auto-map CSV headers to same-named columns; pass `createColumns` to have unmatched headers created as new columns, with types inferred from the file. The response reports what was written AND what was not (`skippedHeaders`, `unmappedColumns`), so a partial mapping is visible without diffing the schema.\n\nThe table\u2019s single write-job slot is held for the whole import, so a concurrent import or delete gets 409. Files over 10 MB must use `POST /import-async`.",
+        "description": "Import a CSV or TSV into an existing table, appending or replacing its rows.\n\nSend `multipart/form-data` with `workspaceId` **before** the file part. Omit `mapping` to auto-map CSV headers to same-named columns; pass `createColumns` to have unmatched headers created as new columns, with types inferred from the file. The response reports what was written AND what was not (`skippedHeaders`, `unmappedColumns`), so a partial mapping is visible without diffing the schema.\n\nThe table’s single write-job slot is held for the whole import, so a concurrent import or delete gets 409. Files over 10 MB must use `POST /import-async`.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -2876,7 +2878,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Bodies over 10 MB are rejected with 413 \u2014 use the async import instead.",
+          "description": "Bodies over 10 MB are rejected with 413 — use the async import instead.",
           "content": {
             "multipart/form-data": {
               "schema": {
@@ -2952,7 +2954,7 @@
       "post": {
         "operationId": "importTableCsvAsync",
         "summary": "Import CSV (Background)",
-        "description": "Start a background import of a file already uploaded to workspace storage \u2014 the path for files too large for the synchronous import.\n\nReturns as soon as the job is queued. Track it on the table itself \u2014 `GET /api/v2/tables/{tableId}` returns a `job` object with `status`, `rowsProcessed` and `error` while the import runs \u2014 and stop it with `POST /job/cancel`. (`GET /api/v2/tables/jobs` lists exports only: those run concurrently and are not derived onto the table.) `fileKey` must sit under this workspace\u2019s storage prefix. The table\u2019s lock flags are checked before the job slot is claimed, so a locked table answers 423 here rather than failing inside the worker.",
+        "description": "Start a background import of a file already uploaded to workspace storage — the path for files too large for the synchronous import.\n\nReturns as soon as the job is queued. Track it on the table itself — `GET /api/v2/tables/{tableId}` returns a `job` object with `status`, `rowsProcessed` and `error` while the import runs — and stop it with `POST /job/cancel`. (`GET /api/v2/tables/jobs` lists exports only: those run concurrently and are not derived onto the table.) `fileKey` must sit under this workspace’s storage prefix. The table’s lock flags are checked before the job slot is claimed, so a locked table answers 423 here rather than failing inside the worker.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -3042,7 +3044,7 @@
       "get": {
         "operationId": "exportTable",
         "summary": "Export Table",
-        "description": "Stream the whole table as a CSV or JSON file attachment.\n\nThe only endpoint whose success body is the file itself rather than the `{ data }` envelope. Rows are written as they are read, so nothing is buffered \u2014 but once the stream has started a failure can only tear the connection down. Large tables should use `POST /export-async`, which survives a dropped connection and leaves a re-downloadable result.",
+        "description": "Stream the whole table as a CSV or JSON file attachment.\n\nThe only endpoint whose success body is the file itself rather than the `{ data }` envelope. Rows are written as they are read, so nothing is buffered — but once the stream has started a failure can only tear the connection down. Large tables should use `POST /export-async`, which survives a dropped connection and leaves a re-downloadable result.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -3290,7 +3292,7 @@
       "post": {
         "operationId": "cancelTableJob",
         "summary": "Cancel Job",
-        "description": "Stop an in-flight import or delete job. The worker halts at its next ownership check; work already committed (rows inserted or deleted) is left in place \u2014 there is no rollback.\n\nIdempotent: cancelling a job that already finished answers `canceled: false` rather than failing, so a client racing the worker is not an error. To stop workflow or enrichment cell runs instead, use `POST /cancel-runs`.",
+        "description": "Stop an in-flight import or delete job. The worker halts at its next ownership check; work already committed (rows inserted or deleted) is left in place — there is no rollback.\n\nIdempotent: cancelling a job that already finished answers `canceled: false` rather than failing, so a client racing the worker is not an error. To stop workflow or enrichment cell runs instead, use `POST /cancel-runs`.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -3372,7 +3374,7 @@
       "post": {
         "operationId": "cancelTableRuns",
         "summary": "Cancel Column Runs",
-        "description": "Stop in-flight and pending workflow or enrichment cell runs \u2014 the counterpart to `POST /columns/run`, and distinct from `POST /job/cancel`, which stops an import or delete.\n\n`scope: \"all\"` cancels every running and pending cell, optionally narrowed to rows matching `filter`; `scope: \"row\"` cancels one row\u2019s cells and requires `rowId`. Cancelling clears the affected cells, so a read taken immediately after will show them empty.",
+        "description": "Stop in-flight and pending workflow or enrichment cell runs — the counterpart to `POST /columns/run`, and distinct from `POST /job/cancel`, which stops an import or delete.\n\n`scope: \"all\"` cancels every running and pending cell, optionally narrowed to rows matching `filter`; `scope: \"row\"` cancels one row’s cells and requires `rowId`. Cancelling clears the affected cells, so a read taken immediately after will show them empty.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -3403,7 +3405,7 @@
                   }
                 },
                 "oneRow": {
-                  "summary": "Stop one row\u2019s runs",
+                  "summary": "Stop one row’s runs",
                   "value": {
                     "workspaceId": "ws_123",
                     "scope": "row",
@@ -3713,7 +3715,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Stable column id. Server-assigned \u2014 normally omit."
+            "description": "Stable column id. Server-assigned — normally omit."
           },
           "options": {
             "type": "array",
@@ -4434,7 +4436,7 @@
         }
       },
       "Predicate": {
-        "description": "A predicate tree: exactly one of `all` (every member must match) or `any` (at least one must). Members are conditions or nested groups; nesting expresses mixed AND/OR logic. Groups must be non-empty (1\u2013100 members), trees at most 10 levels deep and 500 nodes total. Nodes are STRICT: unknown keys, or a node carrying both a group key and condition keys, are rejected rather than ignored.",
+        "description": "A predicate tree: exactly one of `all` (every member must match) or `any` (at least one must). Members are conditions or nested groups; nesting expresses mixed AND/OR logic. Groups must be non-empty (1–100 members), trees at most 10 levels deep and 500 nodes total. Nodes are STRICT: unknown keys, or a node carrying both a group key and condition keys, are rejected rather than ignored.",
         "oneOf": [
           {
             "type": "object",
@@ -4486,7 +4488,7 @@
           "field": {
             "type": "string",
             "maxLength": 128,
-            "description": "Column name, or a built-in: `id`, `createdAt`, `updatedAt` (camelCase \u2014 snake_case is treated as a user column and matches nothing)."
+            "description": "Column name, or a built-in: `id`, `createdAt`, `updatedAt` (camelCase — snake_case is treated as a user column and matches nothing)."
           },
           "op": {
             "enum": [
@@ -4511,7 +4513,7 @@
               "isNull",
               "isNotNull"
             ],
-            "description": "`eq`/`ne`/`in`/`nin` are case-sensitive equality/membership. `contains`/`ncontains`/`startsWith`/`endsWith` are case-insensitive text matches \u2014 except on a multi-select column, where `contains`/`ncontains` mean set membership by option name. `like`/`nlike` are case-sensitive and `ilike`/`nilike` case-insensitive patterns with `*` as the only wildcard (literal `%`/`_` match themselves). `isEmpty`/`isNotEmpty` treat null and empty string as empty; `isNull`/`isNotNull` are strict null checks. The four `is*` operators take no `value`. Negated text matches retain rows where the cell is absent. `in`/`nin` require a non-empty array of at most 1000 values; other value-taking operators reject arrays. Select columns accept only equality/membership operators appropriate to their cardinality (single: eq/ne/in/nin; multi: contains/ncontains; both: the `is*` checks)."
+            "description": "`eq`/`ne`/`in`/`nin` are case-sensitive equality/membership. `contains`/`ncontains`/`startsWith`/`endsWith` are case-insensitive text matches — except on a multi-select column, where `contains`/`ncontains` mean set membership by option name. `like`/`nlike` are case-sensitive and `ilike`/`nilike` case-insensitive patterns with `*` as the only wildcard (literal `%`/`_` match themselves). `isEmpty`/`isNotEmpty` treat null and empty string as empty; `isNull`/`isNotNull` are strict null checks. The four `is*` operators take no `value`. Negated text matches retain rows where the cell is absent. `in`/`nin` require a non-empty array of at most 1000 values; other value-taking operators reject arrays. Select columns accept only equality/membership operators appropriate to their cardinality (single: eq/ne/in/nin; multi: contains/ncontains; both: the `is*` checks)."
           },
           "value": {
             "description": "Operand. Omit for the `is*` operators. Ranges on `number` columns require numbers, on `date` columns ISO strings (compared as UTC, independent of any session timezone); ranges on `boolean`/`json` columns are rejected."
@@ -4524,7 +4526,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Stable option id \u2014 the value stored in cells."
+            "description": "Stable option id — the value stored in cells."
           },
           "name": {
             "type": "string",
@@ -4556,31 +4558,9 @@
           }
         }
       },
-      "TableLocksPatch": {
-        "type": "object",
-        "description": "Lock flags to change. Omitted flags are left as they are.",
-        "properties": {
-          "schemaLocked": {
-            "type": "boolean",
-            "description": "Blocks column adds, edits, and deletes."
-          },
-          "insertLocked": {
-            "type": "boolean",
-            "description": "Blocks new rows."
-          },
-          "updateLocked": {
-            "type": "boolean",
-            "description": "Blocks cell writes to existing rows."
-          },
-          "deleteLocked": {
-            "type": "boolean",
-            "description": "Blocks row deletes and archiving the table."
-          }
-        }
-      },
       "UpdateTableBody": {
         "type": "object",
-        "description": "Rename, move, and/or re-lock a table. Every field beyond `workspaceId` is optional, but at least one must be present.",
+        "description": "Rename and/or move a table. Every field beyond `workspaceId` is optional, but at least one must be present. Lock flags are read-only on this API and are not accepted here.",
         "required": ["workspaceId"],
         "properties": {
           "workspaceId": {
@@ -4596,11 +4576,9 @@
           "folderId": {
             "type": ["string", "null"],
             "description": "Folder to move the table into. Pass null to move it to the workspace root; omit to leave the placement untouched."
-          },
-          "locks": {
-            "$ref": "#/components/schemas/TableLocksPatch"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "WorkspaceScopedBody": {
         "type": "object",
@@ -4633,7 +4611,7 @@
       },
       "ViewConfig": {
         "type": "object",
-        "description": "A view\u2019s saved preset: the row predicate and sort plus the column layout. Column references are stable column ids, so renaming a column never invalidates a view.",
+        "description": "A view’s saved preset: the row predicate and sort plus the column layout. Column references are stable column ids, so renaming a column never invalidates a view.",
         "properties": {
           "columnWidths": {
             "type": "object",
@@ -4662,7 +4640,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Column ids hidden by the view. A deny-list \u2014 a column added later is visible by default. Hiding is presentation only; the data is untouched and reappears intact when unhidden."
+            "description": "Column ids hidden by the view. A deny-list — a column added later is visible by default. Hiding is presentation only; the data is untouched and reappears intact when unhidden."
           },
           "filter": {
             "$ref": "#/components/schemas/Predicate"
@@ -4674,7 +4652,7 @@
       },
       "View": {
         "type": "object",
-        "description": "A saved view: a named preset of filter, sort, and column layout over a table. Presentation only \u2014 a view narrows what a reader sees by default, it is never an access boundary, and every row it hides stays reachable by reading the table without it.",
+        "description": "A saved view: a named preset of filter, sort, and column layout over a table. Presentation only — a view narrows what a reader sees by default, it is never an access boundary, and every row it hides stays reachable by reading the table without it.",
         "required": [
           "id",
           "tableId",
@@ -4704,7 +4682,7 @@
           },
           "isDefault": {
             "type": "boolean",
-            "description": "Whether this view is the table\u2019s default. At most one view per table is."
+            "description": "Whether this view is the table’s default. At most one view per table is."
           },
           "createdBy": {
             "type": ["string", "null"],
@@ -4773,7 +4751,7 @@
           },
           "isDefault": {
             "type": "boolean",
-            "description": "Promote this view to the table\u2019s default. Setting it demotes the table\u2019s existing default in the same transaction."
+            "description": "Promote this view to the table’s default. Setting it demotes the table’s existing default in the same transaction."
           }
         }
       },
@@ -4806,7 +4784,7 @@
           },
           "nextCursor": {
             "type": ["string", "null"],
-            "description": "Always null \u2014 a table carries a bounded set of views, so the list is a single full page."
+            "description": "Always null — a table carries a bounded set of views, so the list is a single full page."
           }
         }
       },
@@ -4834,7 +4812,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Group id \u2014 pass to the run endpoints."
+            "description": "Group id — pass to the run endpoints."
           },
           "workflowId": {
             "type": "string",
@@ -4929,13 +4907,13 @@
           },
           "nextCursor": {
             "type": ["string", "null"],
-            "description": "Always null \u2014 groups are bounded per table, so the list is a single full page."
+            "description": "Always null — groups are bounded per table, so the list is a single full page."
           }
         }
       },
       "RunColumnBody": {
         "type": "object",
-        "description": "Run one or more groups. Scope with `rowIds` (an explicit set) or `filter` (every matching row) \u2014 never both; omit both to run every row. `excludeRowIds` applies only to the filter scope.",
+        "description": "Run one or more groups. Scope with `rowIds` (an explicit set) or `filter` (every matching row) — never both; omit both to run every row. `excludeRowIds` applies only to the filter scope.",
         "required": ["workspaceId", "groupIds"],
         "properties": {
           "workspaceId": {
@@ -5042,7 +5020,7 @@
         "properties": {
           "ordinal": {
             "type": "integer",
-            "description": "The row\u2019s 0-based index in the same predicate-filtered, sorted view that `POST /api/v2/tables/{tableId}/query` returns for these arguments \u2014 use it to page straight to the match."
+            "description": "The row’s 0-based index in the same predicate-filtered, sorted view that `POST /api/v2/tables/{tableId}/query` returns for these arguments — use it to page straight to the match."
           },
           "rowId": {
             "type": "string",
@@ -5071,7 +5049,7 @@
               },
               "truncated": {
                 "type": "boolean",
-                "description": "True when the search hit the server-side cap and more cells match than were returned. Matches have no cursor \u2014 narrow the predicate instead of paging."
+                "description": "True when the search hit the server-side cap and more cells match than were returned. Matches have no cursor — narrow the predicate instead of paging."
               }
             }
           }
@@ -5085,7 +5063,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
-            "description": "The workspace that owns the table. Must appear BEFORE the file part \u2014 the server rejects an unauthorized upload before reading its bytes."
+            "description": "The workspace that owns the table. Must appear BEFORE the file part — the server rejects an unauthorized upload before reading its bytes."
           },
           "file": {
             "type": "string",
@@ -5109,7 +5087,7 @@
           },
           "timezone": {
             "type": "string",
-            "description": "IANA zone used to read naive datetimes (Excel and Sheets exports carry no offset). Defaults to the API key owner\u2019s saved timezone, else UTC.",
+            "description": "IANA zone used to read naive datetimes (Excel and Sheets exports carry no offset). Defaults to the API key owner’s saved timezone, else UTC.",
             "example": "America/New_York"
           }
         }
@@ -5122,7 +5100,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
-            "description": "The workspace to create the table in. Must appear BEFORE the file part \u2014 the server rejects an unauthorized upload before reading its bytes."
+            "description": "The workspace to create the table in. Must appear BEFORE the file part — the server rejects an unauthorized upload before reading its bytes."
           },
           "file": {
             "type": "string",
@@ -5135,7 +5113,7 @@
           },
           "timezone": {
             "type": "string",
-            "description": "IANA zone used to read naive datetimes. Defaults to the API key owner\u2019s saved timezone, else UTC.",
+            "description": "IANA zone used to read naive datetimes. Defaults to the API key owner’s saved timezone, else UTC.",
             "example": "America/New_York"
           }
         }
@@ -5190,7 +5168,7 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Table columns no CSV header supplied \u2014 left at their existing values."
+                "description": "Table columns no CSV header supplied — left at their existing values."
               },
               "sourceFile": {
                 "type": "string",
@@ -5214,7 +5192,7 @@
               },
               "importId": {
                 "type": "string",
-                "description": "Job id \u2014 pass to `POST /job/cancel` to stop the import."
+                "description": "Job id — pass to `POST /job/cancel` to stop the import."
               }
             }
           }
@@ -5233,7 +5211,7 @@
           "fileKey": {
             "type": "string",
             "minLength": 1,
-            "description": "Storage key of the uploaded file. Must sit under this workspace\u2019s `workspace/{workspaceId}/` prefix.",
+            "description": "Storage key of the uploaded file. Must sit under this workspace’s `workspace/{workspaceId}/` prefix.",
             "example": "workspace/ws_123/imports/contacts.csv"
           },
           "fileName": {
@@ -5247,7 +5225,7 @@
           },
           "mapping": {
             "type": "object",
-            "description": "CSV header \u2192 column name, or null to skip the header.",
+            "description": "CSV header → column name, or null to skip the header.",
             "additionalProperties": {
               "type": ["string", "null"]
             }
@@ -5297,7 +5275,7 @@
               },
               "jobId": {
                 "type": "string",
-                "description": "Job id \u2014 poll `GET /api/v2/tables/jobs`, then fetch the file from `GET /export/download`."
+                "description": "Job id — poll `GET /api/v2/tables/jobs`, then fetch the file from `GET /export/download`."
               }
             }
           }
@@ -5314,7 +5292,7 @@
             "properties": {
               "url": {
                 "type": "string",
-                "description": "Presigned URL. Expires shortly after issue \u2014 fetch it promptly."
+                "description": "Presigned URL. Expires shortly after issue — fetch it promptly."
               },
               "fileName": {
                 "type": "string",
@@ -5381,7 +5359,7 @@
           },
           "nextCursor": {
             "type": ["string", "null"],
-            "description": "Always null \u2014 the listing is bounded server-side to a single page."
+            "description": "Always null — the listing is bounded server-side to a single page."
           }
         }
       },
@@ -5416,7 +5394,7 @@
               },
               "canceled": {
                 "type": "boolean",
-                "description": "False when the job had already finished. Cancelling is idempotent \u2014 a late request is not an error."
+                "description": "False when the job had already finished. Cancelling is idempotent — a late request is not an error."
               }
             }
           }
@@ -5434,7 +5412,7 @@
           },
           "scope": {
             "enum": ["all", "row"],
-            "description": "`all` cancels every running and pending cell; `row` cancels one row\u2019s cells."
+            "description": "`all` cancels every running and pending cell; `row` cancels one row’s cells."
           },
           "rowId": {
             "type": "string",
@@ -5473,12 +5451,12 @@
       },
       "TableJobState": {
         "type": "object",
-        "description": "The table's in-flight background job. Import and delete jobs are derived onto the table itself (one write job per table), so the table is their status endpoint \u2014 poll `GET /api/v2/tables/{tableId}` after starting one. Exports are read-only and run concurrently, so they are listed separately by `GET /api/v2/tables/jobs` instead.",
+        "description": "The table's in-flight background job. Import and delete jobs are derived onto the table itself (one write job per table), so the table is their status endpoint — poll `GET /api/v2/tables/{tableId}` after starting one. Exports are read-only and run concurrently, so they are listed separately by `GET /api/v2/tables/jobs` instead.",
         "required": ["id", "type", "status", "rowsProcessed", "error"],
         "properties": {
           "id": {
             "type": ["string", "null"],
-            "description": "Job id \u2014 pass to `POST /job/cancel` to stop it."
+            "description": "Job id — pass to `POST /job/cancel` to stop it."
           },
           "type": {
             "enum": ["import", "delete", "export", "backfill", "update", null],
@@ -5490,7 +5468,7 @@
           },
           "rowsProcessed": {
             "type": "integer",
-            "description": "Rows handled so far \u2014 progress for a running job."
+            "description": "Rows handled so far — progress for a running job."
           },
           "error": {
             "type": ["string", "null"],
@@ -5620,7 +5598,7 @@
         }
       },
       "Conflict": {
-        "description": "The request conflicts with the current state of the resource \u2014 for example a rename to a name another table in the workspace already uses.",
+        "description": "The request conflicts with the current state of the resource — for example a rename to a name another table in the workspace already uses.",
         "content": {
           "application/json": {
             "schema": {
