@@ -14,6 +14,7 @@ vi.mock('@/lib/core/config/env', () => ({
 }))
 
 import {
+  getBaseUrl,
   getBrowserOrigin,
   getSocketUrl,
   isLocalhostUrl,
@@ -34,6 +35,36 @@ describe('getBrowserOrigin', () => {
   it('returns the page origin in the browser', () => {
     setLocation('https://example.com/some/path')
     expect(getBrowserOrigin()).toBe('https://example.com')
+  })
+})
+
+describe('getBaseUrl', () => {
+  beforeEach(() => {
+    mockGetEnv.mockReset()
+    mockGetEnv.mockReturnValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('uses NEXT_PUBLIC_APP_URL when set', () => {
+    mockGetEnv.mockImplementation((key) =>
+      key === 'NEXT_PUBLIC_APP_URL' ? 'https://app.example.com' : undefined
+    )
+    setLocation('https://other.example.com/workspace/w/1')
+    expect(getBaseUrl()).toBe('https://app.example.com')
+  })
+
+  it('falls back to the page origin instead of throwing when the injected env is missing', () => {
+    setLocation('https://www.sim.ai/workspace/ws-1/w/wf-1')
+    expect(getBaseUrl()).toBe('https://www.sim.ai')
+  })
+
+  it('treats a whitespace-only NEXT_PUBLIC_APP_URL as unset', () => {
+    mockGetEnv.mockImplementation((key) => (key === 'NEXT_PUBLIC_APP_URL' ? '   ' : undefined))
+    setLocation('https://www.sim.ai/')
+    expect(getBaseUrl()).toBe('https://www.sim.ai')
   })
 })
 

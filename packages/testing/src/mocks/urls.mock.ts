@@ -26,14 +26,18 @@ function hasHttpProtocol(url: string): boolean {
 
 function getBaseUrlImpl(): string {
   const baseUrl = readEnv('NEXT_PUBLIC_APP_URL')?.trim()
-  if (!baseUrl) {
-    throw new Error(
-      'NEXT_PUBLIC_APP_URL must be configured for webhooks and callbacks to work correctly'
-    )
+  if (baseUrl) {
+    // Mirrors the real module: protocol-less values get https:// under isProd.
+    const protocol = envFlagsMock.isProd ? 'https://' : 'http://'
+    return hasHttpProtocol(baseUrl) ? baseUrl : `${protocol}${baseUrl}`
   }
-  // Mirrors the real module: protocol-less values get https:// under isProd.
-  const protocol = envFlagsMock.isProd ? 'https://' : 'http://'
-  return hasHttpProtocol(baseUrl) ? baseUrl : `${protocol}${baseUrl}`
+  // Mirrors the real module: the browser falls back to its own origin, only
+  // server-side (no `window`) callers throw.
+  const browserOrigin = getBrowserOriginImpl()
+  if (browserOrigin) return browserOrigin
+  throw new Error(
+    'NEXT_PUBLIC_APP_URL must be configured for webhooks and callbacks to work correctly'
+  )
 }
 
 function getInternalApiBaseUrlImpl(): string {
