@@ -1333,9 +1333,12 @@ export class PauseResumeManager {
                 eventType: event.type,
                 error: toError(error).message,
               })
-              return { eventId: 0, executionId: resumeExecutionId, event }
+              return null
             })
-        event.eventId = entry.eventId
+        // Leave `eventId` unset when the write failed, matching the execute
+        // route. Assigning 0 here would be persisted as a reconnect cursor and
+        // rewind the client to the start of the run.
+        if (entry) event.eventId = entry.eventId
         terminalEventPublished ||= Boolean(terminalStatus)
       }
       sendEvent?.(event)

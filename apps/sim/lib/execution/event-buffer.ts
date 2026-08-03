@@ -1094,17 +1094,26 @@ export function createExecutionEventWriter(
           // alone rather than losing the run's final status with them. Gated on a
           // budget rejection specifically: a transient Redis error leaves the batch
           // queued for retry, and clearing it here would turn that into data loss.
-          const remaining = pending.filter((pendingEntry) => pendingEntry !== entry)
-          // Drain what is queued ahead of the terminal event first. Terminal
-          // status is the reader's end-of-run signal: stamping it while lower
-          // event ids are still queued strands them behind a stream the reader
-          // has already drained and closed.
-          if (remaining.length > 0) {
-            pending = remaining
+          const terminalStatus = pendingTerminalStatus
+          pending = pending.filter((pendingEntry) => pendingEntry !== entry)
+          if (pending.length > 0) {
+            // Drain what is queued ahead of the terminal event first, with the
+            // status disarmed: `doFlush` stamps it on whichever chunk empties
+            // `pending`, so leaving it armed would mark the run complete before
+            // its terminal event is written. Whatever this cannot persist stays
+            // queued — it must not be overwritten.
+            pendingTerminalStatus = undefined
             await flushPending(false)
+            pendingTerminalStatus = terminalStatus
           }
-          pending = [entry]
-          ok = await flushPending(false)
+          if (pending.length === 0) {
+            // Only publish alone once nothing earlier is still queued. Doing so
+            // over a surviving backlog would signal end-of-run to a reader that
+            // has not received those events; failing instead lets the caller
+            // degrade, which records the status without claiming they arrived.
+            pending = [entry]
+            ok = await flushPending(false)
+          }
         }
       } catch (error) {
         discardTerminalEntry(entry)

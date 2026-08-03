@@ -742,6 +742,49 @@ describe('execution event buffer', () => {
     expect(persisted).toContain(LARGE_VALUE_REF_MARKER)
   })
 
+  /**
+   * A transient failure while draining the backlog must not cost events, and
+   * must not let the run be marked terminal. Overwriting the queue would drop
+   * entries the budget never rejected, and the drain's final chunk would
+   * otherwise stamp the status before the terminal event is written.
+   */
+  it('retains the backlog and withholds terminal status when the drain fails transiently', async () => {
+    mockRedis.incrby.mockResolvedValue(100000)
+    const stamped: string[] = []
+    let failDrain = true
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (!isFlushScript(script)) return [1, 'ok', 0, 0]
+      const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)
+      // Reject any multi-entry batch so the terminal-alone retry path is taken.
+      if (zaddArgs.length > 2) return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+      // The backlog drain hits a transient outage rather than a budget rejection.
+      if (failDrain) {
+        failDrain = false
+        throw new Error('redis unavailable')
+      }
+      for (let i = 0; i < zaddArgs.length; i += 2) {
+        persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
+      }
+      if (terminalStatus) stamped.push(terminalStatus)
+      return [1, 1, 0]
+    })
+
+    const payload = 'x'.repeat(1_500_000)
+    const writer = createExecutionEventWriter('exec-1', {
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+    })
+    for (let i = 0; i < 3; i++) {
+      await writer.write(makeEvent(payload)).catch(() => {})
+    }
+    await expect(writer.writeTerminal(makeEvent('terminal'), 'complete')).rejects.toThrow()
+
+    // The transiently-failed backlog is still queued, so it is not lost.
+    expect(stamped).toEqual([])
+    await writer.close().catch(() => {})
+    expect(persistedEntries.length).toBeGreaterThan(0)
+  })
+
   it('preserves requested UserFile base64 when buffering terminal events', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     const base64 = Buffer.from('hello').toString('base64')
