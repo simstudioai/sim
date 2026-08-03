@@ -13,7 +13,7 @@ import type {
   QuickBooksEmailTransactionResponse,
   QuickBooksTransaction,
 } from '@/tools/quickbooks/types'
-import { QUICKBOOKS_SALES_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/types'
+import { QUICKBOOKS_EMAILABLE_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/types'
 import { parseQuickBooksJson, requiredQuickBooksString } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -123,7 +123,7 @@ export const quickbooksEmailTransactionTool: ToolConfig<
       type: 'json',
       description: 'Native QuickBooks transaction returned after sending',
       optional: true,
-      properties: QUICKBOOKS_SALES_TRANSACTION_PROPERTIES,
+      properties: QUICKBOOKS_EMAILABLE_TRANSACTION_PROPERTIES,
     },
     time: {
       type: 'string',

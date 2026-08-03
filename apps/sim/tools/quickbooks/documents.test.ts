@@ -18,6 +18,7 @@ import type {
   QuickBooksEmailTransactionParams,
   QuickBooksReadAttachmentsParams,
 } from '@/tools/quickbooks/types'
+import { QUICKBOOKS_EMAILABLE_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/types'
 
 const auth = { accessToken: 'access-token', realmId: '123456789' }
 
@@ -87,6 +88,31 @@ describe('QuickBooks document tools', () => {
         time: 'test-time',
       },
     })
+  })
+
+  it('advertises one optional sales and purchasing transaction output superset', () => {
+    const record = quickbooksEmailTransactionTool.outputs?.record
+    expect(record?.properties).toBe(QUICKBOOKS_EMAILABLE_TRANSACTION_PROPERTIES)
+    expect(record?.properties).toMatchObject({
+      CustomerRef: { optional: true },
+      ExpirationDate: { optional: true },
+      VendorRef: { optional: true },
+      APAccountRef: { optional: true },
+      POStatus: { optional: true },
+      LinkedTxn: { optional: true },
+    })
+    expect(record?.properties?.Line).toMatchObject({
+      optional: true,
+      items: {
+        properties: {
+          SalesItemLineDetail: { optional: true },
+          AccountBasedExpenseLineDetail: { optional: true },
+          ItemBasedExpenseLineDetail: { optional: true },
+        },
+      },
+    })
+    expect(record?.properties?.Id.optional).not.toBe(true)
+    expect(record?.properties?.CustomerRef.optional).toBe(true)
   })
 })
 

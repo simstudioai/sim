@@ -120,7 +120,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
       formData.append(
         'file_content_01',
-        new Blob([new Uint8Array(downloaded.buffer)], { type: mimeType }),
+        new Blob(
+          [
+            new Uint8Array(
+              downloaded.buffer.buffer as ArrayBuffer,
+              downloaded.buffer.byteOffset,
+              downloaded.buffer.byteLength
+            ),
+          ],
+          { type: mimeType }
+        ),
         resolvedName
       )
       request.signal.throwIfAborted()

@@ -269,6 +269,34 @@ describe('QuickBooks document API routes', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
+  it('uploads only the visible bytes from a sliced storage buffer', async () => {
+    const backing = Buffer.from('before-visible-after')
+    const visible = backing.subarray('before-'.length, 'before-visible'.length)
+    mockDownloadServableFileFromStorage.mockResolvedValueOnce({
+      buffer: visible,
+      contentType: 'application/pdf',
+    })
+    mockFetch.mockResolvedValueOnce(
+      Response.json({ AttachableResponse: [{ Attachable: { Id: '11' } }] })
+    )
+
+    const response = await addAttachment(
+      createMockRequest('POST', {
+        ...auth,
+        attachmentKind: 'file',
+        targetType: 'bill',
+        targetId: '88',
+        file: attachmentFile,
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const formData = mockFetch.mock.calls[0][1].body as FormData
+    const filePart = formData.get('file_content_01') as Blob
+    expect(Buffer.from(await filePart.arrayBuffer()).toString()).toBe('visible')
+  })
+
   it('rejects an unauthorized workspace file before storage or Intuit access', async () => {
     mockAssertToolFileAccess.mockResolvedValueOnce(
       Response.json({ success: false, error: 'Forbidden' }, { status: 403 })

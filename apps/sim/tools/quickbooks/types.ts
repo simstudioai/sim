@@ -1753,6 +1753,35 @@ export const QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES: Record<string, Output
   },
 }
 
+export const QUICKBOOKS_EMAILABLE_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
+  ...QUICKBOOKS_SALES_TRANSACTION_PROPERTIES,
+  ...QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES,
+  Id: { type: 'string', description: 'QuickBooks transaction ID' },
+  DueDate: { type: 'string', description: 'Transaction due date', optional: true },
+  POStatus: { type: 'string', description: 'Purchase order status', optional: true },
+  Line: {
+    type: 'array',
+    description: 'Native QuickBooks sales or purchasing transaction lines',
+    optional: true,
+    items: {
+      type: 'json',
+      properties: {
+        ...QUICKBOOKS_PURCHASING_LINE_PROPERTIES,
+        SalesItemLineDetail: {
+          type: 'json',
+          description: 'Native QuickBooks sales item line details',
+          optional: true,
+        },
+        DescriptionLineDetail: {
+          type: 'json',
+          description: 'Native QuickBooks description line details',
+          optional: true,
+        },
+      },
+    },
+  },
+}
+
 export const QUICKBOOKS_ACCOUNTING_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
   Id: { type: 'string', description: 'QuickBooks accounting transaction ID' },
   SyncToken: { type: 'string', description: 'Current transaction sync token', optional: true },
