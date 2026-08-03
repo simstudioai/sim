@@ -436,9 +436,9 @@ function AddMembersModal({
 
               <div className='max-h-[280px] overflow-y-auto'>
                 {filteredMembers.length === 0 ? (
-                  <p className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                  <SettingsEmptyState variant='inline'>
                     No members found matching "{searchTerm}"
-                  </p>
+                  </SettingsEmptyState>
                 ) : (
                   <div className='flex flex-col'>
                     {filteredMembers.map((member) => {
@@ -451,7 +451,7 @@ function AddMembersModal({
                           key={member.userId}
                           type='button'
                           onClick={() => handleToggleMember(member.userId)}
-                          className='flex items-center gap-2.5 rounded-sm p-2 text-left hover-hover:bg-[var(--surface-active)]'
+                          className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
                           <MemberAvatar name={name} image={member.user?.image ?? null} />
@@ -1543,8 +1543,8 @@ export function GroupDetail({
             saveDisabled: !trimmedName,
           }),
           {
+            id: 'delete',
             text: deletePermissionGroup.isPending ? 'Deleting...' : 'Delete',
-            variant: 'destructive',
             onSelect: () => setShowDeleteConfirm(true),
             disabled: deletePermissionGroup.isPending,
           },

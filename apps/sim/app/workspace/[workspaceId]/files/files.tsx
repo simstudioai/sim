@@ -1634,6 +1634,7 @@ export function Files() {
               onSelect: handleShareSelected,
             },
             {
+              id: 'delete',
               text: 'Delete',
               icon: Trash,
               onSelect: handleDeleteSelected,

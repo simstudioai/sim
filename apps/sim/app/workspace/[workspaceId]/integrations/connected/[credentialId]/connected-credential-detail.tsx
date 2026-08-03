@@ -8,6 +8,7 @@ import {
   ChipInput,
   ChipLink,
   ChipTextarea,
+  cn,
   Send,
   toast,
 } from '@sim/emcn'
@@ -28,10 +29,15 @@ import {
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
+  RESOURCE_TILE_BASE,
+  RESOURCE_TILE_PLAIN,
+} from '@/app/workspace/[workspaceId]/components/resource-tile'
+import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   useCreateCredentialDraft,
   useDeleteWorkspaceCredential,
@@ -217,7 +223,7 @@ export function ConnectedCredentialDetail({
   if (credentialsLoading && !credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>
+        <SettingsEmptyState variant='inline'>Loading…</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
@@ -225,7 +231,7 @@ export function ConnectedCredentialDetail({
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Credential not found.</p>
+        <SettingsEmptyState variant='inline'>Credential not found.</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
@@ -241,7 +247,7 @@ export function ConnectedCredentialDetail({
             display?.icon ? (
               <IntegrationTile blockType={integrationBlockType} icon={display.icon} />
             ) : (
-              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+              <div className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}>
                 <span className='font-medium text-[var(--text-tertiary)] text-small'>
                   {resolveProviderLabel(credential.providerId).slice(0, 1) || '?'}
                 </span>

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 
 /**
@@ -22,6 +23,19 @@ export class TokenServiceAccountValidationError extends Error {
 }
 
 const ERROR_SNIPPET_MAX_LENGTH = 500
+
+/**
+ * Short, stable description of a failed best-effort provider call, for callers
+ * that degrade instead of throwing. `TokenServiceAccountValidationError`'s
+ * message is only its code, so the status is appended to keep the reason
+ * diagnosable.
+ */
+export function providerFailureReason(error: unknown): string {
+  if (error instanceof TokenServiceAccountValidationError) {
+    return `${error.code} (HTTP ${error.status})`
+  }
+  return getErrorMessage(error, 'request failed')
+}
 
 /**
  * Transient statuses a provider token/verification endpoint can return that

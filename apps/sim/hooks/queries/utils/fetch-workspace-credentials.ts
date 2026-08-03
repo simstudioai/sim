@@ -1,6 +1,8 @@
 import { requestJson } from '@/lib/api/client/request'
 import { listWorkspaceCredentialsContract, type WorkspaceCredential } from '@/lib/api/contracts'
 
+export const WORKSPACE_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
+
 /**
  * Fetches the workspace credential list.
  *

@@ -5,13 +5,13 @@ import {
   Button,
   Chip,
   ChipConfirmModal,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  cn,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -21,9 +21,11 @@ import {
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail/components/chip-field'
 import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-provider-keys-modal'
-import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const logger = createLogger('BYOKKeyManager')
@@ -308,31 +310,20 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     <>
       <div className='flex flex-col gap-4.5'>
         {showSearch && (
-          <div className={CHIP_FIELD_SHELL}>
-            <Search
-              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-              strokeWidth={2}
-            />
-            <input
-              aria-label='Search providers'
-              placeholder='Search providers...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              disabled={isLoading}
-              className={cn(CHIP_FIELD_INPUT, 'disabled:cursor-not-allowed disabled:opacity-60')}
-            />
-          </div>
+          <ChipInput
+            icon={Search}
+            aria-label='Search providers'
+            placeholder='Search providers...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            disabled={isLoading}
+            className='w-full'
+          />
         )}
 
         {description && <p className='text-[var(--text-secondary)] text-sm'>{description}</p>}
 
-        {isLoading ? (
-          <div className='flex flex-col gap-2'>
-            {providers.map((p) => (
-              <BYOKKeySkeleton key={p.id} />
-            ))}
-          </div>
-        ) : showNoResults ? (
+        {isLoading ? null : showNoResults ? (
           <SettingsEmptyState variant='inline'>
             No providers found matching "{searchTerm}"
           </SettingsEmptyState>
@@ -346,13 +337,13 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
 
               return (
                 <SettingsSection key={section.label} label={section.label}>
-                  <div className='flex flex-col gap-2'>{rows.map(renderRow)}</div>
+                  <div className={RESOURCE_LIST_STACK}>{rows.map(renderRow)}</div>
                 </SettingsSection>
               )
             })}
           </div>
         ) : (
-          <div className='flex flex-col gap-2'>{filteredProviders.map(renderRow)}</div>
+          <div className={RESOURCE_LIST_STACK}>{filteredProviders.map(renderRow)}</div>
         )}
       </div>
 

@@ -7,6 +7,10 @@ import { createMarkdownContentExtensions } from './extensions'
 import { parseMarkdownToDoc, serializeMarkdownBody, splitMarkdownBlocks } from './markdown-parse'
 import { isRoundTripSafe } from './round-trip-safety'
 
+/** Mirror of the production `isEmptyParagraph` (not exported): the shape a blank line reconstructs to. */
+const isEmptyPara = (n: { type?: string; content?: unknown[] }): boolean =>
+  n.type === 'paragraph' && !n.content?.length
+
 let editor: Editor | null = null
 afterEach(() => {
   editor?.destroy()
@@ -59,12 +63,6 @@ const CASES: Array<[string, string]> = [
     '1. First\n  - sub bullet\n  - another\n  1. deep ordered\n  2. item\n2. Second',
   ],
   ['heading-separated sections', '# A\n\nalpha\n\n## B\n\nbeta\n\n## C\n\ngamma'],
-  // Blank-line spacing: `@tiptap/markdown` reconstructs empty paragraphs from runs of blank lines, so
-  // the chunker must reinsert them or a saved blank line vanishes on reload. See the dedicated
-  // "empty paragraphs" suite below for the exact whole-document-parser parity.
-  ['one empty paragraph between paragraphs', 'first\n\n\n\nsecond'],
-  ['two empty paragraphs between paragraphs', 'first\n\n\n\n\n\nsecond'],
-  ['empty paragraphs between headings and text', '# A\n\n\n\nalpha\n\n\n\n## B'],
 ]
 
 describe('parseMarkdownToDoc (chunked)', () => {
@@ -93,63 +91,62 @@ describe('parseMarkdownToDoc (chunked)', () => {
     expect(splitMarkdownBlocks('\n\n  \n')).toEqual([])
   })
 
-  // The chunker used to drop empty paragraphs (visual blank lines between blocks) that the whole-document
-  // parser preserves, so a saved blank line silently vanished on the next load. These assert the chunked
-  // parse reconstructs the SAME empty-paragraph structure the whole-document parser does — at document
-  // edges and between blocks, for one or many blank lines, and around lists.
-  describe('empty paragraphs (blank-line spacing) match the whole-document parser', () => {
-    /** Block-type shape of a doc, `∅` for an empty paragraph, normalized through the editor. */
-    function shapeOf(md: string, parse: 'chunked' | 'whole'): string {
-      editor = new Editor({ extensions: createMarkdownContentExtensions() })
-      if (parse === 'whole') editor.commands.setContent(md, { contentType: 'markdown' })
-      else editor.commands.setContent(parseMarkdownToDoc(md), { contentType: 'json' })
-      const shape = (editor.getJSON().content ?? [])
-        .map((n) => (n.type === 'paragraph' && !n.content?.length ? '∅' : n.type))
+  // Asserts the collapse documented on `stripEmptyParagraphs` — at document edges, between blocks, for
+  // one or many blank lines, and around lists. (Blank runs are insignificant in markdown, so a collapsed
+  // file renders identically everywhere it's viewed; the pathological case is a run of thousands.)
+  describe('collapses blank-line runs to markdown-standard spacing', () => {
+    /** Block-type shape of a doc after `parseMarkdownToDoc`, `∅` for any surviving empty paragraph. */
+    function shapeOf(md: string): string {
+      return (parseMarkdownToDoc(md).content ?? [])
+        .map((n) => (isEmptyPara(n) ? '∅' : n.type))
         .join(',')
-      editor.destroy()
-      editor = null
-      return shape
     }
 
     it.each([
-      ['one empty between paragraphs', 'a\n\n\n\nb'],
-      ['two empties between paragraphs', 'a\n\n\n\n\n\nb'],
-      ['three empties between paragraphs', 'a\n\n\n\n\n\n\n\nb'],
-      ['even blank-line gap (rounds down)', 'a\n\n\n\n\nb'],
-      ['leading empties', '\n\n\n\na'],
-      ['leading + between', '\n\n\na\n\n\n\nb'],
-      ['empties between a heading and text', '# H\n\n\n\ntext'],
-      ['empties after a tight list', '- a\n- b\n\n\n\ntext'],
-      ['empties before a tight list', 'text\n\n\n\n- a\n- b'],
-      // Line-ending variants: the whole-vs-chunked routing must normalize first, or a `\r`-only body
-      // skips the empty-paragraph guard and is chunked (dropping the empties this fix restores).
-      ['CRLF between empties', 'a\r\n\r\n\r\n\r\nb'],
-      ['CR-only (classic Mac) between empties', 'a\r\r\r\rb'],
-    ])('chunked matches whole-doc: %s', (_label, md) => {
-      expect(shapeOf(md, 'chunked')).toBe(shapeOf(md, 'whole'))
+      ['one blank gap between paragraphs', 'a\n\n\n\nb', 'paragraph,paragraph'],
+      ['many blank lines between paragraphs', 'a\n\n\n\n\n\n\n\nb', 'paragraph,paragraph'],
+      ['leading blank lines', '\n\n\n\na', 'paragraph'],
+      ['leading + interior', '\n\n\na\n\n\n\nb', 'paragraph,paragraph'],
+      ['blank gap between a heading and text', '# H\n\n\n\ntext', 'heading,paragraph'],
+      ['blank gap after a tight list', '- a\n- b\n\n\n\ntext', 'bulletList,paragraph'],
+      ['blank gap before a tight list', 'text\n\n\n\n- a\n- b', 'paragraph,bulletList'],
+      // Line-ending variants normalize first, so `\r`-only / CRLF blank runs collapse identically.
+      ['CRLF between blocks', 'a\r\n\r\n\r\n\r\nb', 'paragraph,paragraph'],
+      ['CR-only (classic Mac) between blocks', 'a\r\r\r\rb', 'paragraph,paragraph'],
+    ])('collapses to no empty paragraphs: %s', (_label, md, expected) => {
+      expect(shapeOf(md)).toBe(expected)
+    })
+
+    it('a pathological blank run does not explode into empty paragraph nodes', () => {
+      // The production incident: an agent/paste artifact with a huge blank run became ~1959 empty
+      // paragraphs baked into the doc. Collapsing on parse neutralizes any such source.
+      const body = `Para A${'\n'.repeat(4000)}Para B`
+      const content = parseMarkdownToDoc(body).content ?? []
+      expect(content.filter(isEmptyPara).length).toBe(0)
+      expect(content.map((n) => n.type)).toEqual(['paragraph', 'paragraph'])
     })
   })
 
-  // Regression: a file ending in a blank line (a trailing empty paragraph) must stay EDITABLE. Such an
-  // empty paragraph can't be serialized stably (postProcess collapses trailing newlines), so the parser
-  // strips it — keeping the doc round-trip-safe/idempotent instead of flipping the file read-only.
-  describe('trailing blank lines stay editable (regression)', () => {
+  // Regression: a file with blank lines (leading, interior, or trailing) must stay EDITABLE. Collapsing
+  // blank runs keeps serialize→parse idempotent, so the round-trip-safety probe reaches a fixed point
+  // instead of flipping the file read-only.
+  describe('blank lines stay editable (regression)', () => {
     it.each([
       ['plain paragraph', 'abc\n\n'],
       ['heading + text', '# Title\n\nSome text\n\n'],
       ['three trailing newlines', 'hello\n\n\n'],
       ['two paragraphs', 'para one\n\npara two\n\n'],
-      ['interior empties + trailing', 'a\n\n\n\nb\n\n'],
-    ])('a file ending in a blank line is round-trip-safe: %s', (_label, md) => {
+      ['interior blank run + trailing', 'a\n\n\n\nb\n\n'],
+    ])('a file with blank lines is round-trip-safe: %s', (_label, md) => {
       expect(isRoundTripSafe(md)).toBe(true)
     })
 
-    it('strips the trailing empty paragraph but keeps interior ones', () => {
+    it('removes only structurally-empty paragraphs — a paragraph with content survives', () => {
+      // The shape suite above already proves leading/interior/trailing blank runs collapse to zero empty
+      // paragraphs; this pins the complementary guarantee — a real (non-empty) paragraph is never dropped.
       const trailing = parseMarkdownToDoc('abc\n\n').content ?? []
       expect(trailing.at(-1)?.type).toBe('paragraph')
-      expect(trailing.at(-1)?.content?.length ?? 0).toBeGreaterThan(0)
-      const interior = parseMarkdownToDoc('a\n\n\n\nb').content ?? []
-      expect(interior.some((n) => n.type === 'paragraph' && !n.content?.length)).toBe(true)
+      expect(isEmptyPara(trailing.at(-1) ?? {})).toBe(false)
     })
   })
 

@@ -377,6 +377,8 @@ describe('MothershipBlockHandler', () => {
       chatId: 'chat-uuid',
       messageId: 'message-uuid',
       requestId: 'request-uuid',
+      secretScope: 'all',
+      mountedSecrets: [],
       workflowId: 'workflow-1',
       executionId: 'execution-1',
     })
@@ -443,6 +445,8 @@ describe('MothershipBlockHandler', () => {
       chatId: 'existing-chat-id',
       messageId: 'message-uuid',
       requestId: 'request-uuid',
+      secretScope: 'all',
+      mountedSecrets: [],
       workflowId: 'workflow-1',
       executionId: 'execution-1',
     })

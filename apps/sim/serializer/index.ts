@@ -329,6 +329,16 @@ export class Serializer {
       enabled: block.enabled,
     }
 
+    const privateInputIds = new Set<string>()
+    for (const subBlock of blockConfig.subBlocks) {
+      if (!subBlock.hideFromCopilot) continue
+      privateInputIds.add(subBlock.id)
+      if (subBlock.canonicalParamId) privateInputIds.add(subBlock.canonicalParamId)
+    }
+    if (privateInputIds.size > 0) {
+      serialized.privateInputIds = [...privateInputIds]
+    }
+
     if (block.data?.canonicalModes) {
       serialized.canonicalModes = block.data.canonicalModes as Record<string, 'basic' | 'advanced'>
     }

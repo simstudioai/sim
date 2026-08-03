@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { ChipConfirmModal, toast } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
@@ -12,7 +12,6 @@ import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import {
   SandboxEditor,
   SandboxStatus,
@@ -28,12 +27,15 @@ import {
   SANDBOX_UPGRADE_DESCRIPTION,
   SANDBOX_UPGRADE_TITLE,
   type SandboxDraft,
+  sandboxDeleteConfirmText,
   toSubmittedLines,
 } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsUpgradeNotice } from '@/app/workspace/[workspaceId]/settings/components/settings-upgrade-notice'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -66,6 +68,7 @@ export function Sandboxes() {
   const [draft, setDraft] = useState<SandboxDraft | null>(null)
   const [issues, setIssues] = useState<SandboxDependencyIssue[]>([])
   const [isCreating, setIsCreating] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // The draft belongs to whatever was open when it was typed. Browser Back
   // clears `selectedId` without going through `closeEditor`, so without this the
@@ -77,6 +80,10 @@ export function Sandboxes() {
       setDraft(null)
       setIssues([])
     }
+    // The confirmation belongs to the sandbox that opened it. Browser Back unmounts
+    // the modal without closing it, so leaving this set would re-open it against
+    // whichever sandbox is selected next — and delete that one instead.
+    setShowDeleteConfirm(false)
     // Creating and having one open are mutually exclusive, and history can land on
     // a sandbox while create mode is still set — Forward after starting a new one.
     // Leaving both on renders an empty "New sandbox" form whose Delete still points
@@ -140,6 +147,7 @@ export function Sandboxes() {
 
   const handleDelete = useCallback(
     async (sandbox: Sandbox) => {
+      setShowDeleteConfirm(false)
       try {
         await deleteSandbox.mutateAsync({ workspaceId, sandboxId: sandbox.id })
         if (selectedId === sandbox.id) closeEditor()
@@ -207,9 +215,9 @@ export function Sandboxes() {
             ...(selected && canAdmin
               ? [
                   {
-                    text: 'Delete',
-                    textTone: 'error' as const,
-                    onSelect: () => void handleDelete(selected),
+                    id: 'delete',
+                    text: deleteSandbox.isPending ? 'Deleting...' : 'Delete',
+                    onSelect: () => setShowDeleteConfirm(true),
                     disabled: deleteSandbox.isPending,
                   },
                 ]
@@ -224,6 +232,17 @@ export function Sandboxes() {
             status={selected ? <SandboxStatus sandbox={selected} strategy={strategy} /> : undefined}
           />
         </SettingsPanel>
+
+        {selected && (
+          <ChipConfirmModal
+            open={showDeleteConfirm}
+            onOpenChange={setShowDeleteConfirm}
+            srTitle='Delete Sandbox'
+            title='Delete Sandbox'
+            text={sandboxDeleteConfirmText(selected.name)}
+            confirm={{ label: 'Delete', onClick: () => void handleDelete(selected) }}
+          />
+        )}
 
         <UnsavedChangesModal
           open={guard.showUnsavedModal}
@@ -256,49 +275,28 @@ export function Sandboxes() {
           : []
       }
     >
-      <SettingsSection label='Sandboxes'>
-        {filtered.length === 0 ? (
-          <SettingsEmptyState variant={searchTerm ? 'inline' : 'fill'}>
-            {searchTerm
-              ? 'No sandboxes match your search.'
-              : 'No sandboxes yet. Create one to let Function blocks import packages.'}
-          </SettingsEmptyState>
-        ) : (
-          <div className='flex flex-col gap-3'>
-            {filtered.map((sandbox) => (
-              <SettingsResourceRow
-                key={sandbox.id}
-                icon={<CodeIcon />}
-                title={
-                  <button
-                    type='button'
-                    className='truncate text-left text-[var(--text-body)] text-sm'
-                    onClick={() => void setSelectedId(sandbox.id)}
-                  >
-                    {sandbox.name}
-                  </button>
-                }
-                description={`${sandbox.language === 'python' ? 'Python' : 'JavaScript'} · ${sandbox.dependencies.length} ${sandbox.dependencies.length === 1 ? 'package' : 'packages'}`}
-                trailing={
-                  canAdmin ? (
-                    <RowActionsMenu
-                      label={`Actions for ${sandbox.name}`}
-                      actions={[
-                        { label: 'Edit', onSelect: () => void setSelectedId(sandbox.id) },
-                        {
-                          label: 'Delete',
-                          destructive: true,
-                          onSelect: () => void handleDelete(sandbox),
-                        },
-                      ]}
-                    />
-                  ) : undefined
-                }
-              />
-            ))}
-          </div>
-        )}
-      </SettingsSection>
+      {filtered.length === 0 ? (
+        <SettingsEmptyState variant={searchTerm ? 'inline' : 'fill'}>
+          {searchTerm
+            ? 'No sandboxes match your search.'
+            : 'No sandboxes yet. Create one to let Function blocks import packages.'}
+        </SettingsEmptyState>
+      ) : (
+        <div className={RESOURCE_LIST_STACK}>
+          {filtered.map((sandbox) => (
+            <SettingsResourceRow
+              key={sandbox.id}
+              icon={<CodeIcon className='text-[var(--text-icon)]' />}
+              iconFilled
+              title={sandbox.name}
+              description={`${sandbox.language === 'python' ? 'Python' : 'JavaScript'} · ${sandbox.dependencies.length} ${sandbox.dependencies.length === 1 ? 'package' : 'packages'}`}
+              onClick={() => void setSelectedId(sandbox.id)}
+              clickLabel={`Open ${sandbox.name}`}
+              navigable
+            />
+          ))}
+        </div>
+      )}
     </SettingsPanel>
   )
 }

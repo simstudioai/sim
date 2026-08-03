@@ -26,6 +26,7 @@ import {
 import { sleep } from '@sim/utils/helpers'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   ResolvedSecretTraceRegistry,
@@ -700,10 +701,95 @@ describe('executeTool Function', () => {
     expect(new Headers(requestInit?.headers).get('x-sim-request-private-tool-metadata')).toBe(
       'resolved-secret-names-v1'
     )
-    expect(result.output).not.toHaveProperty('__resolvedSecretNames')
+    expect(result.output).toEqual({
+      success: true,
+      output: { result: 'secret-value', stdout: '' },
+    })
     expect(registry.getActiveMatches()).toEqual([
       { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
     ])
+  })
+
+  it('fails concurrent projection closed while custom-tool provenance is pending', async () => {
+    const secret = 'custom-tool-secret-value'
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'API_KEY',
+        plaintext: secret,
+        encryptedValue: 'encrypted-value',
+      },
+    ])
+    mockGetToolAsync.mockResolvedValueOnce({
+      id: 'custom_pending-provenance',
+      name: 'Pending provenance custom tool',
+      description: 'Tests late provenance activation',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/function/execute',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: () => ({ code: 'return {{API_KEY}}', envVars: { API_KEY: secret } }),
+      },
+      transformResponse: async (response: Response) => {
+        const data = await response.json()
+        return { success: true, output: data.output }
+      },
+    })
+
+    let resolveRequest!: (response: Response) => void
+    let markRequestStarted!: () => void
+    const requestStarted = new Promise<void>((resolve) => {
+      markRequestStarted = resolve
+    })
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveRequest = resolve
+            markRequestStarted()
+          })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const execution = executeTool(
+      'custom_pending-provenance',
+      { envVars: { API_KEY: secret } },
+      {
+        executionContext: createToolExecutionContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+    await requestStarted
+
+    expect(registry.isComplete()).toBe(false)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
+    ).not.toHaveProperty('output')
+
+    resolveRequest(
+      new Response(
+        JSON.stringify({
+          success: true,
+          output: { result: secret },
+          __resolvedSecretNames: ['API_KEY'],
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'x-sim-private-tool-metadata': 'resolved-secret-names-v1',
+          },
+        }
+      )
+    )
+
+    await expect(execution).resolves.toMatchObject({ success: true })
+    expect(registry.isComplete()).toBe(true)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
+    ).toMatchObject({ output: { result: '{{API_KEY}}' } })
   })
 
   it('keeps the Function result unchanged when requested provenance is missing', async () => {
@@ -1778,6 +1864,53 @@ describe('Copilot Env Variable Reference Resolution', () => {
     expect(sentRequestBody(fetchMock).apiKey).toBe('sntrys_real_token')
   })
 
+  it('fails concurrent projection closed while a user-only secret reference is resolving', async () => {
+    const secret = 'sntrys_real_token'
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'SENTRY_AUTH_TOKEN',
+        plaintext: secret,
+        encryptedValue: 'encrypted-token',
+      },
+    ])
+    let resolveEnvironment!: (variables: Record<string, string>) => void
+    let markResolutionStarted!: () => void
+    const resolutionStarted = new Promise<void>((resolve) => {
+      markResolutionStarted = resolve
+    })
+    mockGetEffectiveDecryptedEnv.mockImplementationOnce(
+      () =>
+        new Promise<Record<string, string>>((resolve) => {
+          resolveEnvironment = resolve
+          markResolutionStarted()
+        })
+    )
+    mockJsonFetch()
+
+    const execution = executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}' },
+      {
+        executionContext: copilotContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+    await resolutionStarted
+
+    expect(registry.isComplete()).toBe(false)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
+    ).not.toHaveProperty('output')
+
+    resolveEnvironment({ SENTRY_AUTH_TOKEN: secret })
+    await expect(execution).resolves.toMatchObject({ success: true })
+
+    expect(registry.isComplete()).toBe(true)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
+    ).toMatchObject({ output: { result: '{{SENTRY_AUTH_TOKEN}}' } })
+  })
+
   it('trims whitespace inside the braces like the executor resolver', async () => {
     const fetchMock = mockJsonFetch()
 
@@ -2249,6 +2382,74 @@ describe('MCP Tool Execution', () => {
     expect(registry.getActiveMatches()).toEqual([
       { plaintext: 'secret-value', replacement: '{{MCP_TOKEN}}' },
     ])
+  })
+
+  it('fails concurrent projection closed while MCP provenance is pending', async () => {
+    const secret = 'mcp-secret-value'
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'test-user',
+      workspaceId: 'workspace-456',
+    })
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: secret })
+
+    let resolveRequest!: (response: Response) => void
+    let markRequestStarted!: () => void
+    const requestStarted = new Promise<void>((resolve) => {
+      markRequestStarted = resolve
+    })
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveRequest = resolve
+            markRequestStarted()
+          })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const execution = executeTool(
+      'mcp-123-list_files',
+      { path: '/test' },
+      {
+        executionContext: createToolExecutionContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+    await requestStarted
+
+    expect(registry.isComplete()).toBe(false)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { value: secret } }, registry)
+    ).not.toHaveProperty('output')
+
+    resolveRequest(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: { output: { content: [{ type: 'text', text: secret }] } },
+          __resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+            scope: { userId: 'test-user', workspaceId: 'workspace-456' },
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
+          },
+        }
+      )
+    )
+
+    await expect(execution).resolves.toMatchObject({ success: true })
+    expect(registry.isComplete()).toBe(true)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { value: secret } }, registry)
+    ).toMatchObject({ output: { value: '{{MCP_TOKEN}}' } })
   })
 
   it('rejects unmarked MCP provenance instead of trusting a response body field', async () => {

@@ -369,6 +369,7 @@ export const executeWorkflowBodySchema = z.object({
   /** Internal MCP bridge pin for calls admitted before a deployment cutover. */
   deploymentVersionId: z.string().min(1).optional(),
   executionId: z.unknown().optional(),
+  copilotToolCallId: z.string().min(1).max(255).optional(),
   triggerBlockId: z.string().optional(),
   startBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),

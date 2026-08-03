@@ -1498,6 +1498,8 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       workspaceId: jobRecord.sourceWorkspaceId,
       userId: jobRecord.sourceUserId,
       chatId: jobRecord.sourceChatId || generateId(),
+      secretScope: jobRecord.secretScope,
+      mountedSecrets: jobRecord.mountedSecrets,
       ...(jobRecord.contexts && jobRecord.contexts.length > 0
         ? { contexts: jobRecord.contexts }
         : {}),

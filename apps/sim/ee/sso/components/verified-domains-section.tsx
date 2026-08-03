@@ -46,16 +46,16 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
         icon={<Link />}
         title={domain.domain}
         description={isVerified ? 'Ownership verified' : 'Awaiting DNS verification'}
+        badge={
+          <ChipTag variant={isVerified ? 'mono' : 'gray'}>
+            {isVerified ? 'Verified' : 'Pending'}
+          </ChipTag>
+        }
         trailing={
-          <div className='flex items-center gap-2'>
-            <ChipTag variant={isVerified ? 'mono' : 'gray'}>
-              {isVerified ? 'Verified' : 'Pending'}
-            </ChipTag>
-            <RowActionsMenu
-              label={`${domain.domain} actions`}
-              actions={[{ label: 'Remove', onSelect: () => onRemove(domain), destructive: true }]}
-            />
-          </div>
+          <RowActionsMenu
+            label={`${domain.domain} actions`}
+            actions={[{ label: 'Remove', onSelect: () => onRemove(domain), destructive: true }]}
+          />
         }
       />
 

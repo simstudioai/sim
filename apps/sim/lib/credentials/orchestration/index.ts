@@ -5,11 +5,12 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { decryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import { isClientCredentialAccountProviderId } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
+import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import {
   deleteWorkspaceEnvCredentials,
   syncPersonalEnvCredentialsForUser,
@@ -19,18 +20,40 @@ import {
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import {
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  SLACK_CUSTOM_BOT_PROVIDER_ID,
+  SLACK_CUSTOM_BOT_SECRET_TYPE,
+} from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
 
 /**
- * Read the `dataCenter` already stored in a service-account credential's
- * encrypted blob. Used on reconnect so a non-secret regional selector survives a
- * secret rotation that does not resubmit it. Returns undefined on any failure -
- * a blob that cannot be read must not block the reconnect, and the provider's
- * own default then applies.
+ * Google's stored blob is the raw GCP JSON key, whose own `type` discriminator
+ * is `service_account`.
  */
-async function readStoredDataCenter(credentialId: string): Promise<string | undefined> {
+const GOOGLE_SERVICE_ACCOUNT_KEY_TYPE = 'service_account'
+
+/**
+ * Provider ids whose credential `displayName` is derived from the secret's own
+ * principal at create time AND whose principal is recoverable from the stored
+ * blob. Only for these can a reconnect tell a stale derived label apart from a
+ * name the user typed. An empty provider id is a legacy Google service account
+ * (the original flow predates multi-provider support).
+ */
+const IDENTITY_DERIVED_DISPLAY_NAME_PROVIDERS: ReadonlySet<string> = new Set([
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  SLACK_CUSTOM_BOT_PROVIDER_ID,
+  '',
+])
+
+/**
+ * Read and decrypt a service-account credential's stored secret blob. Returns
+ * null on any failure - a blob that cannot be read must never block a
+ * reconnect; each caller degrades to the behaviour it had without the blob.
+ */
+async function readStoredSecretBlob(credentialId: string): Promise<Record<string, unknown> | null> {
   try {
     const rows = await db
       .select({ key: credential.encryptedServiceAccountKey })
@@ -38,13 +61,41 @@ async function readStoredDataCenter(credentialId: string): Promise<string | unde
       .where(eq(credential.id, credentialId))
       .limit(1)
     const key = rows[0]?.key
-    if (!key) return undefined
+    if (!key) return null
     const { decrypted } = await decryptSecret(key)
-    const blob = JSON.parse(decrypted) as { dataCenter?: unknown }
-    return typeof blob.dataCenter === 'string' && blob.dataCenter ? blob.dataCenter : undefined
+    const blob: unknown = JSON.parse(decrypted)
+    return blob !== null && typeof blob === 'object' ? (blob as Record<string, unknown>) : null
   } catch {
-    return undefined
+    return null
   }
+}
+
+/**
+ * The `dataCenter` already stored in a service-account blob. Used on reconnect
+ * so a non-secret regional selector survives a secret rotation that does not
+ * resubmit it; undefined lets the provider's own default apply.
+ */
+function readStoredDataCenter(blob: Record<string, unknown> | null): string | undefined {
+  const dataCenter = blob?.dataCenter
+  return typeof dataCenter === 'string' && dataCenter ? dataCenter : undefined
+}
+
+/**
+ * Recompute the display name that `verifyAndBuildServiceAccountSecret` derived
+ * from the *stored* secret, so a reconnect can tell whether the current label
+ * is still the previous principal or a name the user deliberately typed.
+ * Returns undefined when the blob does not carry its own identity, in which
+ * case the label must be left alone.
+ */
+function deriveStoredDisplayName(blob: Record<string, unknown> | null): string | undefined {
+  if (!blob) return undefined
+  if (blob.type === SLACK_CUSTOM_BOT_SECRET_TYPE) {
+    return slackCustomBotDisplayName(typeof blob.teamName === 'string' ? blob.teamName : undefined)
+  }
+  if (blob.type === GOOGLE_SERVICE_ACCOUNT_KEY_TYPE && typeof blob.client_email === 'string') {
+    return blob.client_email || undefined
+  }
+  return undefined
 }
 
 export type CredentialOrchestrationErrorCode =
@@ -125,34 +176,13 @@ export async function performUpdateCredential(
     ) {
       updates.displayName = params.displayName
     }
-    if (params.serviceAccountJson !== undefined && access.credential.type === 'service_account') {
-      let parsedJson: Record<string, unknown>
-      try {
-        parsedJson = JSON.parse(params.serviceAccountJson)
-      } catch {
-        return { success: false, error: 'Invalid JSON format', errorCode: 'validation' }
-      }
-      if (
-        parsedJson.type !== 'service_account' ||
-        typeof parsedJson.client_email !== 'string' ||
-        typeof parsedJson.private_key !== 'string' ||
-        typeof parsedJson.project_id !== 'string'
-      ) {
-        return {
-          success: false,
-          error: 'Invalid service account JSON key',
-          errorCode: 'validation',
-        }
-      }
-      const { encrypted } = await encryptSecret(params.serviceAccountJson)
-      updates.encryptedServiceAccountKey = encrypted
-    }
-
-    // Reconnect: rotate a service-account secret (Slack, Atlassian, or any
-    // token-paste provider) in place. The
-    // secret is re-verified against the provider and re-encrypted; the display
-    // name is preserved (the user may have renamed it).
+    // Reconnect: rotate a service-account secret (Google JSON key, Slack,
+    // Atlassian, or any token-paste / client-credential provider) in place. The
+    // secret is re-verified against the provider and re-encrypted through the
+    // same builder the create path uses, so the rotation also yields the new
+    // principal's derived display name and audit metadata.
     const hasRotationSecret =
+      params.serviceAccountJson !== undefined ||
       params.signingSecret !== undefined ||
       params.botToken !== undefined ||
       params.apiToken !== undefined ||
@@ -162,38 +192,61 @@ export async function performUpdateCredential(
       params.orgId !== undefined ||
       params.dataCenter !== undefined
     let rotatedSlackBotUserId: string | undefined
+    let rotatedAuditMetadata: Record<string, string> | undefined
     if (hasRotationSecret && access.credential.type === 'service_account') {
+      const providerId = access.credential.providerId ?? ''
+
       // A reconnect rebuilds the secret blob from the submitted fields only, and
       // the modal never prefills (secrets are never echoed back). For an actual
       // secret that is correct - the admin retypes it. But a non-secret selector
       // like the Zoho data center would be silently dropped, moving an EU/IN/AU
       // credential back to the US accounts server. Carry the stored value forward
       // when the caller did not supply one.
-      // Scoped to the providers that actually have a dataCenter field, so no
-      // other service-account reconnect (Slack, Atlassian, every token-paste
-      // provider) pays for a DB read plus a decrypt it can never use.
-      const carriedDataCenter =
-        params.dataCenter === undefined &&
-        isClientCredentialAccountProviderId(access.credential.providerId ?? '')
-          ? await readStoredDataCenter(access.credential.id)
-          : params.dataCenter
+      const needsStoredDataCenter =
+        params.dataCenter === undefined && isClientCredentialAccountProviderId(providerId)
+
+      // Rotating to a key that belongs to a different principal makes an
+      // identity-derived label (a Google `client_email`, a Slack team name)
+      // actively wrong about who the credential authenticates as. Re-derive it -
+      // but only when the stored label is still the previous principal, so a
+      // name the user deliberately typed always wins. An explicit `displayName`
+      // in this same request wins outright and skips the read entirely.
+      const needsStoredIdentity =
+        params.displayName === undefined && IDENTITY_DERIVED_DISPLAY_NAME_PROVIDERS.has(providerId)
+
+      // One read + decrypt at most, and only for the providers that can use it.
+      const storedBlob =
+        needsStoredDataCenter || needsStoredIdentity
+          ? await readStoredSecretBlob(access.credential.id)
+          : null
 
       try {
-        const secret = await verifyAndBuildServiceAccountSecret(
-          access.credential.providerId ?? '',
-          {
-            signingSecret: params.signingSecret,
-            botToken: params.botToken,
-            apiToken: params.apiToken,
-            domain: params.domain,
-            clientId: params.clientId,
-            clientSecret: params.clientSecret,
-            orgId: params.orgId,
-            dataCenter: carriedDataCenter,
-          }
-        )
+        const secret = await verifyAndBuildServiceAccountSecret(providerId, {
+          signingSecret: params.signingSecret,
+          botToken: params.botToken,
+          apiToken: params.apiToken,
+          domain: params.domain,
+          serviceAccountJson: params.serviceAccountJson,
+          clientId: params.clientId,
+          clientSecret: params.clientSecret,
+          orgId: params.orgId,
+          dataCenter: needsStoredDataCenter ? readStoredDataCenter(storedBlob) : params.dataCenter,
+        })
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
         rotatedSlackBotUserId = secret.botUserId
+        rotatedAuditMetadata = secret.auditMetadata
+
+        if (needsStoredIdentity) {
+          const previousIdentity = deriveStoredDisplayName(storedBlob)
+          if (
+            previousIdentity !== undefined &&
+            previousIdentity === access.credential.displayName &&
+            secret.displayName &&
+            secret.displayName !== previousIdentity
+          ) {
+            updates.displayName = secret.displayName
+          }
+        }
       } catch (error) {
         if (error instanceof ServiceAccountSecretError) {
           return { success: false, error: error.message, errorCode: 'validation' }
@@ -260,7 +313,10 @@ export async function performUpdateCredential(
       resourceId: params.credentialId,
       resourceName: access.credential.displayName,
       description: `Updated ${access.credential.type} credential "${access.credential.displayName}"`,
+      // Provider metadata first: the orchestration's own keys stay authoritative
+      // and can never be shadowed by a builder's audit payload.
       metadata: {
+        ...rotatedAuditMetadata,
         credentialType: access.credential.type,
         updatedFields,
       },

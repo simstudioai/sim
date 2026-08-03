@@ -1,3 +1,5 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   normalizeSalesforceMyDomainHost,
   SALESFORCE_MY_DOMAIN_HOST_REGEX,
@@ -8,10 +10,12 @@ import type {
   ClientCredentialAccountMintOptions,
   ClientCredentialAccountMintResult,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   isTransientProviderStatus,
   parseProviderJson,
+  providerFailureReason,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -24,16 +28,29 @@ import {
  */
 const SALESFORCE_TOKEN_TTL_SECONDS = 600
 
+const IDENTITY_STEP = 'salesforce_identity'
+
+const logger = createLogger('SalesforceServiceAccountMinter')
+
 interface SalesforceTokenResponse {
   access_token?: string
   instance_url?: string
   scope?: string
 }
 
+/**
+ * `/services/oauth2/userinfo` returns `user_id`, `organization_id`,
+ * `preferred_username`, and `name` in the same call the display name already
+ * needs, so capturing the run-as user id costs no extra request. `sub` is
+ * deliberately unused — Salesforce documents it as the UserInfo endpoint URL,
+ * not a subject identifier.
+ * @see https://help.salesforce.com/s/articleView?id=sf.remoteaccess_using_userinfo_endpoint.htm&type=5
+ */
 interface SalesforceUserinfoResponse {
   name?: string
   preferred_username?: string
   organization_id?: string
+  user_id?: string
 }
 
 /**
@@ -91,27 +108,43 @@ function salesforceTokenTtlSeconds(accessToken: string): number {
 
 /**
  * Best-effort identity lookup for the run-as integration user via the
- * standard userinfo endpoint. A failure never fails the mint — the caller
- * falls back to a host-derived display name.
+ * standard userinfo endpoint. A failure never fails the mint — the credential
+ * degrades to a host-derived display name with a `lookup_failed` principal, so
+ * the audit record shows the identity was not captured rather than implying
+ * none exists.
  */
 async function fetchSalesforceIdentity(
   accessToken: string,
   instanceUrl: string,
   host: string
 ): Promise<ClientCredentialAccountIdentity> {
-  const fallback: ClientCredentialAccountIdentity = {
-    displayName: `Salesforce ${host}`,
+  /**
+   * `label` keeps whatever human name userinfo did return. A response can carry
+   * `name`/`preferred_username` but no `user_id` — the principal is then
+   * unusable, but the label still beats the host fallback, so only the
+   * principal degrades and the credential does not silently lose its name.
+   */
+  const degraded = (reason: string, label?: string): ClientCredentialAccountIdentity => ({
+    displayName: label ?? `Salesforce ${host}`,
+    principal: { kind: 'lookup_failed', reason },
     auditMetadata: { salesforceMyDomainHost: host },
     storedMetadata: { myDomainHost: host, instanceUrl },
-  }
+  })
   try {
     const res = await fetchProvider(
       `${instanceUrl}/services/oauth2/userinfo`,
       { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
-      'salesforce_identity'
+      IDENTITY_STEP
     )
-    if (!res.ok) return fallback
-    const user = await parseProviderJson<SalesforceUserinfoResponse>(res, 'salesforce_identity')
+    if (!res.ok) {
+      logger.warn('Salesforce run-as identity lookup failed', {
+        step: IDENTITY_STEP,
+        status: res.status,
+        host,
+      })
+      return degraded(`HTTP ${res.status}`)
+    }
+    const user = await parseProviderJson<SalesforceUserinfoResponse>(res, IDENTITY_STEP)
     const username =
       typeof user.preferred_username === 'string' && user.preferred_username
         ? user.preferred_username
@@ -121,22 +154,37 @@ async function fetchSalesforceIdentity(
       typeof user.organization_id === 'string' && user.organization_id
         ? user.organization_id
         : undefined
+    const userId = typeof user.user_id === 'string' && user.user_id ? user.user_id : undefined
+    if (!userId) {
+      logger.warn('Salesforce userinfo response carried no user_id', {
+        step: IDENTITY_STEP,
+        status: res.status,
+        host,
+      })
+      return degraded('response missing user_id', name ?? username)
+    }
     return {
-      displayName: name ?? username ?? fallback.displayName,
+      displayName: name ?? username ?? `Salesforce ${host}`,
+      // The 18-char user id is immutable; `preferred_username` is renameable,
+      // so it is only a label.
+      principal: userPrincipal(userId, username),
       auditMetadata: {
         salesforceMyDomainHost: host,
         ...(orgId ? { salesforceOrgId: orgId } : {}),
-        ...(username ? { salesforceRunAsUsername: username } : {}),
       },
       storedMetadata: {
         myDomainHost: host,
         instanceUrl,
         ...(orgId ? { orgId } : {}),
-        ...(username ? { runAsUsername: username } : {}),
       },
     }
-  } catch {
-    return fallback
+  } catch (error) {
+    logger.warn('Salesforce run-as identity lookup threw', {
+      step: IDENTITY_STEP,
+      host,
+      error: getErrorMessage(error),
+    })
+    return degraded(providerFailureReason(error))
   }
 }
 

@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  mountedSecretNamesSchema,
+  secretMountScopeSchema,
+} from '@/lib/api/contracts/secret-mount-policy'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const scheduleStatusSchema = z.enum(['active', 'disabled', 'completed'])
@@ -74,6 +78,8 @@ export const workflowScheduleRowSchema = z.object({
   sourceTaskName: z.string().nullable(),
   sourceUserId: z.string().nullable(),
   sourceWorkspaceId: z.string().nullable(),
+  secretScope: secretMountScopeSchema,
+  mountedSecrets: mountedSecretNamesSchema,
   jobHistory: z.array(z.object({ timestamp: z.string(), summary: z.string() })).nullable(),
   contexts: z.array(scheduleContextSchema).nullable(),
   excludedDates: z.array(z.string()).nullable(),
@@ -113,6 +119,8 @@ export const createScheduleBodySchema = z
     endsAt: z.string().optional(),
     startDate: z.string().optional(),
     contexts: z.array(scheduleContextSchema).optional(),
+    secretScope: secretMountScopeSchema.optional(),
+    mountedSecrets: mountedSecretNamesSchema.optional(),
   })
   .superRefine((body, ctx) => {
     if (!body.cronExpression && !body.time) {
@@ -150,6 +158,8 @@ export const updateScheduleBodySchema = z.object({
   maxRuns: z.number().int().positive().nullable().optional(),
   endsAt: z.string().nullable().optional(),
   contexts: z.array(scheduleContextSchema).optional(),
+  secretScope: secretMountScopeSchema.optional(),
+  mountedSecrets: mountedSecretNamesSchema.optional(),
 })
 
 export type UpdateScheduleBody = z.input<typeof updateScheduleBodySchema>

@@ -415,6 +415,7 @@ export class ResolvedSecretTraceRegistry {
   private readonly activeEntries = new Map<string, ActiveSecretEntry>()
   private activeProvenanceEntryBytes = 0
   private complete = true
+  private pendingActivations = 0
   private readonly scope?: ResolvedSecretTraceScopeV1
   private readonly completeProvenanceEnvelopeBytes: number
 
@@ -540,22 +541,40 @@ export class ResolvedSecretTraceRegistry {
   }
 
   isComplete(): boolean {
-    return this.complete
+    return this.complete && this.pendingActivations === 0
+  }
+
+  isPermanentlyIncomplete(): boolean {
+    return !this.complete
   }
 
   markIncomplete(): void {
     this.complete = false
   }
 
+  /**
+   * Makes projections fail closed while an exact runtime substitution is being established.
+   * The returned completion callback is idempotent so every exit path can safely release it.
+   */
+  beginPendingActivation(): () => void {
+    this.pendingActivations += 1
+    let completed = false
+
+    return () => {
+      if (completed) return
+      completed = true
+      this.pendingActivations = Math.max(0, this.pendingActivations - 1)
+    }
+  }
+
   /** Serializes only encrypted active values; plaintext never enters execution state. */
   exportProvenance(): ResolvedSecretTraceProvenanceV1 {
-    const entries = this.complete
-      ? this.buildProvenanceEntries([...this.activeEntries.values()])
-      : []
+    const complete = this.isComplete()
+    const entries = complete ? this.buildProvenanceEntries([...this.activeEntries.values()]) : []
 
     return {
       version: 1,
-      complete: this.complete,
+      complete,
       entries,
       ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
     }
@@ -569,7 +588,7 @@ export class ResolvedSecretTraceRegistry {
     value: unknown,
     options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
   ): ResolvedSecretTraceProvenanceV1 {
-    if (!this.complete) return { version: 1, complete: false, entries: [] }
+    if (!this.isComplete()) return { version: 1, complete: false, entries: [] }
 
     const candidatesByPlaintext = new Map<string, ActiveSecretEntry>()
     const sortedActiveEntries = [...this.activeEntries.values()].sort(

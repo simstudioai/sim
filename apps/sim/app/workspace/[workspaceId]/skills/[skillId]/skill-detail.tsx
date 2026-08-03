@@ -15,6 +15,7 @@ import {
   UnsavedChangesModal,
   useUnsavedChangesGuard,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SkillEditorsCard } from '@/app/workspace/[workspaceId]/skills/[skillId]/components/skill-editors-card'
 import {
   type SkillFieldErrors,
@@ -199,7 +200,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   if ((skillsLoading || deleteSkill.isPending || deleteSkill.isSuccess) && !skill) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>
+        <SettingsEmptyState variant='inline'>Loading…</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
@@ -207,7 +208,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   if (!skill) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Skill not found.</p>
+        <SettingsEmptyState variant='inline'>Skill not found.</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }

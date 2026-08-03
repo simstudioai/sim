@@ -8,6 +8,7 @@ import {
   ChipConfirmModal,
   ChipCopyInput,
   ChipInput,
+  cn,
   Duplicate,
   Eye,
   EyeOff,
@@ -16,6 +17,11 @@ import {
   toast,
 } from '@sim/emcn'
 import { getDesktopBridge } from '@/lib/desktop'
+import {
+  RESOURCE_TILE_BASE,
+  RESOURCE_TILE_PLAIN,
+} from '@/app/workspace/[workspaceId]/components/resource-tile'
+import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
@@ -127,8 +133,8 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
         description='Saved on this device, encrypted. Chat can never read, choose, or type it.'
         actions={[
           {
+            id: 'delete',
             text: 'Forget',
-            variant: 'destructive' as const,
             onSelect: () => setConfirmingForget(true),
             disabled: busy,
           },
@@ -136,32 +142,27 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
       >
         <SettingsSection label='Login'>
           <div className='flex flex-col gap-4'>
-            <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-muted)] text-caption'>Site</span>
+            <SettingsField label='Site'>
               <div className='flex items-center gap-2.5'>
-                <div className='size-9 flex-shrink-0'>
-                  <div className='flex size-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-                    {credential.icon ? (
-                      // A `data:` URL copied from the source browser at import
-                      // time — never a network request, which would disclose
-                      // which sites the user has passwords for.
-                      <img src={credential.icon} alt='' className='size-full object-contain' />
-                    ) : (
-                      <Key className='size-5 text-[var(--text-icon)]' />
-                    )}
-                  </div>
+                <div className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}>
+                  {credential.icon ? (
+                    // A `data:` URL copied from the source browser at import
+                    // time — never a network request, which would disclose
+                    // which sites the user has passwords for.
+                    <img src={credential.icon} alt='' className='size-full object-contain' />
+                  ) : (
+                    <Key className='size-5 text-[var(--text-icon)]' />
+                  )}
                 </div>
                 <ChipCopyInput value={credential.origin} copyLabel='Copy site' />
               </div>
-            </div>
+            </SettingsField>
 
-            <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-muted)] text-caption'>Username</span>
+            <SettingsField label='Username'>
               <ChipCopyInput value={credential.username || '—'} copyLabel='Copy username' />
-            </div>
+            </SettingsField>
 
-            <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-muted)] text-caption'>Password</span>
+            <SettingsField label='Password'>
               <ChipInput
                 readOnly
                 aria-label='Password'
@@ -210,7 +211,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
                   </>
                 }
               />
-            </div>
+            </SettingsField>
           </div>
         </SettingsSection>
       </SettingsPanel>

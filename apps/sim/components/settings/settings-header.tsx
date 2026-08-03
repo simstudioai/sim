@@ -14,7 +14,7 @@ import {
   useState,
 } from 'react'
 import { Chip, ChipInput, ChipLink, cn, Search, Tooltip } from '@sim/emcn'
-import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
@@ -73,6 +73,9 @@ function computeSignature(config: SettingsHeaderConfig): string {
     back: config.back ? [config.back.text, config.back.icon ? 1 : 0] : null,
     actions: config.actions?.map((action) => [
       action.text,
+      // `id` participates in ordering, so a config that changes only the id
+      // must still re-render — the sort key cannot be wider than the signature.
+      action.id ?? '',
       action.textTone ?? '',
       action.variant ?? '',
       action.active ?? false,
@@ -180,11 +183,43 @@ export function SettingsActionChip({
 export function SettingsActionChips({ actions }: { actions: SettingsAction[] }) {
   return (
     <>
-      {actions.map((action) => (
+      {orderHeaderActions(actions).map(({ action }) => (
         <SettingsActionChip key={action.id ?? action.text} action={action} />
       ))}
     </>
   )
+}
+
+/**
+ * Every header reads left→right as
+ * `[secondary actions] → [Delete] → [Discard] → [Save]`.
+ *
+ * Delete is placed by its `id`, not by where the caller happened to put it, so a
+ * page with no primary action still can't leave a destructive chip in the slot a
+ * primary would occupy.
+ *
+ * The shell enforces it rather than trusting callsites, because the natural way
+ * to write the array — spreading {@link saveDiscardActions} first, then adding a
+ * Delete — produces the opposite order and puts a destructive chip to the right
+ * of the primary one. Ranking is stable, so an action's position within its own
+ * band is still the caller's to choose.
+ *
+ * Pairs each action with its ORIGINAL index: the shell dereferences
+ * `actions[index]` on a live ref to dodge stale closures, so a reordered render
+ * must not renumber them.
+ */
+export function orderHeaderActions(
+  actions: SettingsAction[] | undefined
+): { action: SettingsAction; index: number }[] {
+  const rank = (action: SettingsAction) => {
+    if (action.variant === 'primary') return 3
+    if (action.id === 'discard') return 2
+    if (action.id === 'delete') return 1
+    return 0
+  }
+  return (actions ?? [])
+    .map((action, index) => ({ action, index }))
+    .sort((a, b) => rank(a.action) - rank(b.action))
 }
 
 export function SettingsHeaderShell({ children }: { children: ReactNode }) {
@@ -203,13 +238,13 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
         ) : (
           <div />
         )}
-        <div className='flex h-[30px] items-center gap-1'>
+        <div className={HEADER_ACTION_CLUSTER}>
           {docsLink && (
             <ChipLink href={docsLink} target='_blank' rel='noopener noreferrer'>
               Docs
             </ChipLink>
           )}
-          {actions?.map((action, index) => (
+          {orderHeaderActions(actions).map(({ action, index }) => (
             <SettingsActionChip
               key={action.id ?? action.text}
               action={action}

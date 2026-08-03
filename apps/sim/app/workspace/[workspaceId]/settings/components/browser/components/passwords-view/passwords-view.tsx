@@ -7,20 +7,17 @@ import type {
   BrowserImportError,
   BrowserImportProfile,
 } from '@sim/desktop-bridge'
-import { ArrowLeft, ArrowRight, ChipConfirmModal, Key, Plus, toast } from '@sim/emcn'
+import { ArrowLeft, ChipConfirmModal, Key, Plus, toast } from '@sim/emcn'
 import { getDesktopBridge } from '@/lib/desktop'
 import { ImportModal } from '@/app/workspace/[workspaceId]/settings/components/browser/components/import-modal/import-modal'
 import { PasswordDetail } from '@/app/workspace/[workspaceId]/settings/components/browser/components/password-detail/password-detail'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import {
+  RESOURCE_LIST_GRID,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
-
-/** The integrations page's responsive card grid (see `integration-section.tsx`, `skills.tsx`). */
-const CARD_GRID = '-mx-2 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-2 gap-y-0.5'
-/** Card hit area; the row chrome inside it comes from {@link SettingsResourceRow}. */
-const CARD_CLASSES =
-  'w-full rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
 
 const IMPORT_ERROR_MESSAGES: Record<BrowserImportError, string> = {
   'unsupported-platform': 'Importing from another browser is only supported on macOS.',
@@ -193,32 +190,28 @@ export function PasswordsView({ credentials, onChange, onBack, onImported }: Pas
           </SettingsEmptyState>
         ) : (
           <>
-            <div className={CARD_GRID}>
+            <div className={RESOURCE_LIST_GRID}>
               {filtered.map((credential) => (
-                <button
+                <SettingsResourceRow
                   key={credential.id}
-                  type='button'
-                  className={CARD_CLASSES}
+                  icon={
+                    credential.icon ? (
+                      // A `data:` URL copied from the source browser at
+                      // import time — never a network request, which would
+                      // disclose which sites the user has passwords for.
+                      // Fills the tile like any other brand logo.
+                      <img src={credential.icon} alt='' className='object-contain' />
+                    ) : (
+                      <Key />
+                    )
+                  }
+                  iconFill
+                  title={siteLabel(credential.origin)}
+                  description={credential.username || 'No username'}
                   onClick={() => setSelectedId(credential.id)}
-                >
-                  <SettingsResourceRow
-                    icon={
-                      credential.icon ? (
-                        // A `data:` URL copied from the source browser at
-                        // import time — never a network request, which would
-                        // disclose which sites the user has passwords for.
-                        // Fills the tile like any other brand logo.
-                        <img src={credential.icon} alt='' className='object-contain' />
-                      ) : (
-                        <Key />
-                      )
-                    }
-                    iconFill
-                    title={siteLabel(credential.origin)}
-                    description={credential.username || 'No username'}
-                    trailing={<ArrowRight className='size-4 text-[var(--text-icon)]' />}
-                  />
-                </button>
+                  clickLabel={`Open ${siteLabel(credential.origin)}`}
+                  navigable
+                />
               ))}
             </div>
 

@@ -22,7 +22,10 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
@@ -526,11 +529,9 @@ export function RecentlyDeleted() {
       />
 
       {error ? (
-        <div className='flex h-full flex-col items-center justify-center gap-2'>
-          <p className='text-[var(--text-error)] text-sm leading-tight'>
-            {toError(error).message || 'Failed to load deleted items'}
-          </p>
-        </div>
+        <SettingsEmptyState tone='error'>
+          {toError(error).message || 'Failed to load deleted items'}
+        </SettingsEmptyState>
       ) : isLoading ? null : filtered.length === 0 ? (
         showNoResults ? (
           <SettingsEmptyState variant='inline'>
@@ -540,7 +541,7 @@ export function RecentlyDeleted() {
           <SettingsEmptyState>No deleted items</SettingsEmptyState>
         )
       ) : (
-        <div className='flex flex-col gap-2'>
+        <div className={RESOURCE_LIST_STACK}>
           {filtered.map((resource) => {
             const isRestoring = restoringIds.has(resource.id)
             const isRestored = restoredItems.has(resource.id)
@@ -561,22 +562,24 @@ export function RecentlyDeleted() {
                     Deleted {formatDate(resource.deletedAt)}
                   </>
                 }
+                badge={
+                  canRestore && isRestored ? (
+                    <span className='text-[var(--text-muted)] text-caption'>
+                      {PAUSED_AUTOMATION_TYPES.has(resource.type)
+                        ? 'Restored \u00b7 schedules and webhooks stay paused'
+                        : 'Restored'}
+                    </span>
+                  ) : undefined
+                }
                 trailing={
                   !canRestore ? null : isRestoring ? (
                     <Chip variant='primary' disabled>
                       Restoring...
                     </Chip>
                   ) : isRestored ? (
-                    <div className='flex items-center gap-2'>
-                      <span className='text-[var(--text-muted)] text-small'>
-                        {PAUSED_AUTOMATION_TYPES.has(resource.type)
-                          ? 'Restored \u00b7 schedules and webhooks stay paused'
-                          : 'Restored'}
-                      </span>
-                      <Chip variant='primary' onClick={() => handleView(resource)}>
-                        View
-                      </Chip>
-                    </div>
+                    <Chip variant='primary' onClick={() => handleView(resource)}>
+                      View
+                    </Chip>
                   ) : (
                     <Chip variant='primary' onClick={() => void handleRestore(resource)}>
                       Restore

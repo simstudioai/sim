@@ -2,17 +2,10 @@
  * @vitest-environment node
  */
 
-import {
-  environmentUtilsMockFns,
-  resetEnvFlagsMock,
-  resetEnvironmentUtilsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-
-const mockGetEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
 
 afterAll(resetEnvironmentUtilsMock)
 
@@ -21,6 +14,7 @@ const {
   mockForceFailHungToolCall,
   mockGetMothershipBaseURL,
   mockGetMothershipSourceEnvHeaders,
+  mockPrepareCopilotEnvironmentContext,
   mockPrepareExecutionContext,
   mockRunStreamLoop,
   mockPendingToolWaitBudgetMs,
@@ -32,6 +26,7 @@ const {
   mockForceFailHungToolCall: vi.fn(),
   mockGetMothershipBaseURL: vi.fn(),
   mockGetMothershipSourceEnvHeaders: vi.fn(),
+  mockPrepareCopilotEnvironmentContext: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
   mockPendingToolWaitBudgetMs: vi.fn(() => 60_000),
@@ -108,6 +103,10 @@ vi.mock('@/lib/copilot/persistence/tool-permission/auto-allow', () => ({
   addChatAutoAllowedTool: vi.fn(),
 }))
 
+vi.mock('@/lib/copilot/environment-context', () => ({
+  prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
+}))
+
 vi.mock('@/lib/copilot/tools/handlers/context', () => ({
   prepareExecutionContext: mockPrepareExecutionContext,
 }))
@@ -147,6 +146,7 @@ describe('runCopilotLifecycle', () => {
     mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
+    mockPrepareCopilotEnvironmentContext.mockResolvedValue({})
   })
 
   it('threads trace provenance through server execution context only', async () => {
@@ -155,7 +155,6 @@ describe('runCopilotLifecycle', () => {
       userId: 'user-1',
       workflowId: '',
       workspaceId: 'ws-1',
-      decryptedEnvVars: {},
     }
     let capturedExecutionContext: ExecutionContext | undefined
     let capturedRequestBody = ''
@@ -203,7 +202,6 @@ describe('runCopilotLifecycle', () => {
             workflowId: '',
             workspaceId: 'ws-1',
             chatId: 'chat-1',
-            decryptedEnvVars: {},
           },
         }
       )
@@ -257,7 +255,6 @@ describe('runCopilotLifecycle', () => {
             workflowId: 'wf-1',
             workspaceId: 'ws-1',
             chatId: 'chat-1',
-            decryptedEnvVars: {},
           },
         }
       )
@@ -277,7 +274,6 @@ describe('runCopilotLifecycle', () => {
       workflowId: '',
       workspaceId: 'ws-1',
       chatId: 'chat-1',
-      decryptedEnvVars: {},
     }
 
     mockRunStreamLoop.mockImplementationOnce(
@@ -349,7 +345,6 @@ describe('runCopilotLifecycle', () => {
       workflowId: '',
       workspaceId: 'ws-1',
       chatId: 'chat-1',
-      decryptedEnvVars: {},
     }
 
     mockRunStreamLoop.mockImplementationOnce(
@@ -402,7 +397,6 @@ describe('runCopilotLifecycle', () => {
       workflowId: '',
       workspaceId: 'ws-1',
       chatId: 'chat-1',
-      decryptedEnvVars: {},
     }
 
     mockRunStreamLoop.mockImplementationOnce(
@@ -444,7 +438,6 @@ describe('runCopilotLifecycle', () => {
       workflowId: '',
       workspaceId: 'ws-1',
       chatId: 'chat-1',
-      decryptedEnvVars: {},
     }
 
     mockRunStreamLoop.mockImplementationOnce(
@@ -480,9 +473,8 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
-  it('propagates payload userPermission into the generated execution context', async () => {
+  it('does not trust payload userPermission when building the execution context', async () => {
     let capturedExecContext: ExecutionContext | undefined
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
     mockRunStreamLoop.mockImplementationOnce(
       async (
         _fetchUrl: string,
@@ -508,9 +500,35 @@ describe('runCopilotLifecycle', () => {
         userId: 'user-1',
         workspaceId: 'ws-1',
         chatId: 'chat-1',
-        userPermission: 'write',
       })
     )
+    expect(capturedExecContext).not.toHaveProperty('userPermission')
+  })
+
+  it('uses only the trusted lifecycle userPermission option', async () => {
+    let capturedExecContext: ExecutionContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        _context: StreamingContext,
+        execContext: ExecutionContext
+      ): Promise<void> => {
+        capturedExecContext = execContext
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1', userPermission: 'admin' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        userPermission: 'read',
+      }
+    )
+
+    expect(capturedExecContext?.userPermission).toBe('read')
   })
 
   it('uses one server billing identity and immutable attribution on initial and resume legs', async () => {
@@ -529,7 +547,6 @@ describe('runCopilotLifecycle', () => {
     setEnvFlags({ isHosted: true })
     setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
     mockRunStreamLoop.mockImplementationOnce(
       async (
         _fetchUrl: string,
@@ -591,7 +608,6 @@ describe('runCopilotLifecycle', () => {
   it('runs legacy-v0 during Sim-first deployment without guessed billing aliases', async () => {
     setEnvFlags({ isHosted: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
 
     await runCopilotLifecycle(
       { message: 'hello', messageId: 'message-1' },
@@ -626,7 +642,6 @@ describe('runCopilotLifecycle', () => {
   it('runs modern hosted work without legacy compatibility storage', async () => {
     setEnvFlags({ isHosted: true })
     setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
 
     await runCopilotLifecycle(
       { message: 'hello', messageId: 'message-1' },
@@ -654,7 +669,6 @@ describe('runCopilotLifecycle', () => {
 
   it('does not emit trusted billing headers for a non-hosted lifecycle', async () => {
     mockEnv.COPILOT_API_KEY = 'user-or-self-hosted-key'
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
 
     await runCopilotLifecycle(
       { message: 'hello', messageId: 'message-1', billingRequestId: 'caller-controlled' },
@@ -685,7 +699,6 @@ describe('runCopilotLifecycle', () => {
 
   it('normalizes the initial request body with workspaceId from lifecycle options', async () => {
     let requestBody: Record<string, unknown> | undefined
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
     mockRunStreamLoop.mockImplementationOnce(
       async (_fetchUrl: string, fetchOptions: RequestInit): Promise<void> => {
         requestBody = JSON.parse(String(fetchOptions.body))
@@ -716,7 +729,6 @@ describe('runCopilotLifecycle', () => {
       workflowId: 'workflow-1',
       workspaceId: 'ws-1',
       chatId: 'chat-1',
-      decryptedEnvVars: {},
     }
 
     mockRunStreamLoop.mockImplementationOnce(
@@ -775,7 +787,6 @@ describe('runCopilotLifecycle', () => {
       workflowId: '',
       workspaceId: 'ws-1',
       chatId: 'chat-1',
-      decryptedEnvVars: {},
     }
 
     // 1) Initial stream pauses on an async tool checkpoint with a resolved
@@ -857,7 +868,6 @@ describe('runCopilotLifecycle', () => {
       workflowId: '',
       workspaceId: 'ws-1',
       chatId: 'chat-1',
-      decryptedEnvVars: {},
     }
 
     // Initial leg pauses on a resolved async tool checkpoint → enters resume.
@@ -927,7 +937,6 @@ describe('runCopilotLifecycle', () => {
       workflowId: '',
       workspaceId: 'ws-1',
       chatId: 'chat-1',
-      decryptedEnvVars: {},
     }
 
     mockRunStreamLoop.mockImplementationOnce(
@@ -990,7 +999,6 @@ describe('runCopilotLifecycle', () => {
       workflowId: '',
       workspaceId: 'ws-1',
       chatId: 'chat-1',
-      decryptedEnvVars: {},
     }
 
     mockRunStreamLoop.mockImplementationOnce(
@@ -1052,7 +1060,6 @@ describe('runCopilotLifecycle', () => {
       workflowId: '',
       workspaceId: 'ws-1',
       chatId: 'chat-1',
-      decryptedEnvVars: {},
     }
 
     mockRunStreamLoop.mockImplementationOnce(
@@ -1092,7 +1099,6 @@ describe('runCopilotLifecycle', () => {
         workflowId: '',
         workspaceId: 'ws-1',
         chatId: 'chat-1',
-        decryptedEnvVars: {},
       }
 
       // Mirror the real helper: settle the tool call into a terminal error

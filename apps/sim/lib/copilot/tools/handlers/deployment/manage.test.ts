@@ -169,12 +169,18 @@ describe('executePromoteToLive', () => {
     performActivateVersionMock.mockResolvedValue({
       success: true,
       deployedAt: new Date('2026-05-30T00:00:00.000Z'),
+      activeDeployment: {
+        deploymentVersionId: 'dv-3',
+        version: 3,
+        deployedAt: '2026-05-30T00:00:00.000Z',
+      },
       latestDeploymentAttempt: {
         id: 'op-1',
         deploymentVersionId: 'dv-3',
         version: 3,
         action: 'activate',
         status: 'active',
+        isCurrent: true,
         readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'ready' },
         requestedAt: '2026-05-30T00:00:00.000Z',
         activatedAt: '2026-05-30T00:00:00.000Z',
@@ -185,6 +191,8 @@ describe('executePromoteToLive', () => {
     const result = await executePromoteToLive({ workflowId: 'wf-1', version: 3 }, {
       userId: 'user-1',
       workflowId: 'wf-1',
+      executionId: 'execution-1',
+      toolCallId: 'call-1',
     } as ExecutionContext)
 
     expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'admin')
@@ -192,6 +200,7 @@ describe('executePromoteToLive', () => {
       workflowId: 'wf-1',
       version: 3,
       userId: 'user-1',
+      idempotencyKey: 'copilot:execution-1:tool-call:call-1',
     })
     expect(result.success).toBe(true)
     expect(result.output).toMatchObject({
@@ -200,6 +209,37 @@ describe('executePromoteToLive', () => {
       message: 'Promoted version 3 to live',
       lifecycleStatus: 'active',
       error: null,
+    })
+  })
+
+  it('does not report a historical active operation as a successful promotion', async () => {
+    performActivateVersionMock.mockResolvedValue({
+      success: true,
+      activeDeployment: null,
+      latestDeploymentAttempt: {
+        id: 'op-old',
+        deploymentVersionId: 'dv-3',
+        version: 3,
+        action: 'activate',
+        status: 'active',
+        isCurrent: false,
+        readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'ready' },
+        requestedAt: '2026-05-30T00:00:00.000Z',
+        activatedAt: '2026-05-30T00:00:00.000Z',
+        error: null,
+      },
+    })
+
+    const result = await executePromoteToLive({ workflowId: 'wf-1', version: 3 }, {
+      userId: 'user-1',
+      workflowId: 'wf-1',
+      executionId: 'execution-1',
+      toolCallId: 'call-1',
+    } as ExecutionContext)
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('historical'),
     })
   })
 
@@ -373,6 +413,46 @@ describe('executeCheckDeploymentStatus', () => {
       api: {
         isDeployed: false,
         needsRedeployment: false,
+      },
+    })
+  })
+
+  it('separates a historical active attempt from the current undeployed state', async () => {
+    getWorkflowDeploymentSummaryMock.mockResolvedValue({
+      activeDeployment: null,
+      latestDeploymentAttempt: {
+        id: 'op-historical',
+        deploymentVersionId: 'dv-old',
+        version: 1,
+        action: 'deploy',
+        status: 'active',
+        isCurrent: false,
+        readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'ready' },
+        requestedAt: '2026-05-28T00:00:00.000Z',
+        activatedAt: '2026-05-28T00:00:00.000Z',
+        error: null,
+      },
+      warnings: ['The latest successful deployment attempt is historical.'],
+    })
+    queueTableRows(schemaMock.workflow, [{ deployedAt: null }])
+
+    const result = await executeCheckDeploymentStatus({ workflowId: 'wf-1' }, {
+      userId: 'user-1',
+      workflowId: 'wf-1',
+    } as ExecutionContext)
+
+    expect(result.success).toBe(true)
+    expect(result.output).toMatchObject({
+      isDeployed: false,
+      api: {
+        isDeployed: false,
+        activeDeployment: null,
+        latestDeploymentAttempt: {
+          status: 'active',
+          isCurrent: false,
+        },
+        currentDeploymentAttempt: null,
+        warnings: [expect.stringContaining('historical')],
       },
     })
   })

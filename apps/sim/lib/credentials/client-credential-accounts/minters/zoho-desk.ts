@@ -12,6 +12,7 @@ import type {
   ClientCredentialAccountMintOptions,
   ClientCredentialAccountMintResult,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { tenantPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   isTransientProviderStatus,
@@ -255,7 +256,7 @@ export async function mintZohoDeskServiceAccountToken(
     return { accessToken: payload.access_token, expiresInSeconds, apiDomain, grantedScopes }
   }
 
-  const storedMetadata: Record<string, string> = { soid, apiDomain, dataCenter: dataCenter.id }
+  const storedMetadata: Record<string, string> = { apiDomain, dataCenter: dataCenter.id }
   if (grantedScopes?.length) {
     storedMetadata.grantedScopes = grantedScopes.join(' ')
   }
@@ -267,7 +268,10 @@ export async function mintZohoDeskServiceAccountToken(
     grantedScopes,
     identity: {
       displayName: `Zoho Desk org ${fields.orgId.trim()}`,
-      auditMetadata: { zohoDeskSoid: soid, zohoDeskClientId: fields.clientId },
+      // The Self Client grant is scoped to the organization (`soid`) and never
+      // hits the Accounts profile endpoint, so no agent identity exists here.
+      principal: tenantPrincipal(soid),
+      auditMetadata: { zohoDeskClientId: fields.clientId },
       storedMetadata,
     },
   }

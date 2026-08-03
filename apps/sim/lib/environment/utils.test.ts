@@ -1,16 +1,27 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, encryptionMock, encryptionMockFns, resetDbChainMock } from '@sim/testing'
+import { environment, workspaceEnvironment } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  encryptionMock,
+  encryptionMockFns,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCreateWorkspaceEnvCredentials,
+  mockCheckWorkspaceAccess,
+  mockGetAccessibleEnvCredentials,
   mockGetUserEntityPermissions,
   mockGetWorkspaceEnvKeyAdminAccess,
   mockRecordAudit,
 } = vi.hoisted(() => ({
   mockCreateWorkspaceEnvCredentials: vi.fn(),
+  mockCheckWorkspaceAccess: vi.fn(),
+  mockGetAccessibleEnvCredentials: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
   mockRecordAudit: vi.fn(),
@@ -27,22 +38,86 @@ vi.mock('@sim/audit', () => ({
 }))
 vi.mock('@/lib/credentials/environment', () => ({
   createWorkspaceEnvCredentials: mockCreateWorkspaceEnvCredentials,
-  getAccessibleEnvCredentials: vi.fn(),
+  getAccessibleEnvCredentials: mockGetAccessibleEnvCredentials,
   getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser: vi.fn(),
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: vi.fn(),
+  checkWorkspaceAccess: mockCheckWorkspaceAccess,
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 
 import {
   getEffectiveDecryptedEnv,
   getEffectiveEnvironmentSnapshot,
+  getPersonalAndWorkspaceEnv,
   invalidateEffectiveDecryptedEnvCache,
   upsertWorkspaceEnvVars,
   WorkspaceEnvAccessError,
 } from '@/lib/environment/utils'
+
+describe('getPersonalAndWorkspaceEnv access filtering', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: false,
+    })
+    mockGetAccessibleEnvCredentials.mockResolvedValue([])
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: `plain:${encryptedValue}`,
+    }))
+  })
+
+  it('filters every workspace secret when the caller has zero credential grants', async () => {
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getPersonalAndWorkspaceEnv('user-1', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({ PERSONAL_KEY: 'plain:personal-cipher' })
+    expect(snapshot.workspaceDecrypted).toEqual({})
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+  })
+
+  it('preserves legacy workspace secrets without credential rows for workspace admins', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: true,
+    })
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [{ variables: { LEGACY_KEY: 'legacy-cipher' } }])
+
+    const snapshot = await getPersonalAndWorkspaceEnv('admin-1', 'workspace-1')
+
+    expect(snapshot.workspaceDecrypted).toEqual({ LEGACY_KEY: 'plain:legacy-cipher' })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+  })
+
+  it('preserves shared-personal precedence when an accessible owner shares the same name', async () => {
+    mockGetAccessibleEnvCredentials.mockResolvedValue([
+      {
+        type: 'env_personal',
+        envKey: 'SHARED_KEY',
+        envOwnerUserId: 'owner-2',
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+    queueTableRows(environment, [{ variables: { SHARED_KEY: 'own-cipher' } }])
+    queueTableRows(environment, [{ userId: 'owner-2', variables: { SHARED_KEY: 'shared-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: {} }])
+
+    const snapshot = await getPersonalAndWorkspaceEnv('user-1', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({ SHARED_KEY: 'plain:shared-cipher' })
+    expect(snapshot.personalOwners).toEqual({ SHARED_KEY: 'owner-2' })
+  })
+})
 
 describe('upsertWorkspaceEnvVars', () => {
   beforeEach(() => {

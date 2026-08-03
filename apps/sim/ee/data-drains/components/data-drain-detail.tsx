@@ -150,8 +150,8 @@ export function DataDrainDetail({ organizationId, drain, onBack }: DataDrainDeta
     },
     { text: 'Test connection', onSelect: handleTest, disabled: testDrain.isPending },
     {
+      id: 'delete',
       text: 'Delete',
-      variant: 'destructive',
       onSelect: () => setShowDeleteConfirm(true),
       disabled: deleteDrain.isPending,
     },

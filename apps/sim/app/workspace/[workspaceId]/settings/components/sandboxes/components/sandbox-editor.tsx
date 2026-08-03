@@ -9,6 +9,7 @@ import {
   type SandboxDraft,
   type SandboxLanguage,
 } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
+import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import type { Sandbox } from '@/hooks/queries/sandboxes'
 
@@ -41,8 +42,7 @@ export function SandboxEditor({
     <div className='flex flex-col gap-7'>
       <SettingsSection label='Details'>
         <div className='flex flex-col gap-4'>
-          <div className='flex flex-col gap-1.5'>
-            <span className='text-[var(--text-muted)] text-caption'>Name</span>
+          <SettingsField label='Name'>
             <ChipInput
               value={draft.name}
               onChange={(event) => onChange({ ...draft, name: event.target.value })}
@@ -51,9 +51,8 @@ export function SandboxEditor({
               maxLength={64}
               autoComplete='off'
             />
-          </div>
-          <div className='flex flex-col gap-1.5'>
-            <span className='text-[var(--text-muted)] text-caption'>Language</span>
+          </SettingsField>
+          <SettingsField label='Language'>
             <ChipDropdown
               value={draft.language}
               onChange={(language) => onChange({ ...draft, language: language as SandboxLanguage })}
@@ -63,7 +62,7 @@ export function SandboxEditor({
               }))}
               disabled={disabled}
             />
-          </div>
+          </SettingsField>
         </div>
       </SettingsSection>
 

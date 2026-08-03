@@ -32,6 +32,7 @@ import type {
   UpdateDeploymentVersionParams,
   UpdateWorkspaceMcpServerParams,
 } from '../param-types'
+import { getCopilotDeploymentIdempotencyKey, getHistoricalDeploymentAttemptError } from './context'
 import { resolveWorkflowStateRef } from './state-refs'
 
 export async function executeCheckDeploymentStatus(
@@ -79,6 +80,9 @@ export async function executeCheckDeploymentStatus(
      */
     const isApiDeployed = deploymentSummary.activeDeployment !== null
     const needsRedeployment = isApiDeployed ? await checkNeedsRedeployment(workflowId) : false
+    const currentDeploymentAttempt = deploymentSummary.latestDeploymentAttempt?.isCurrent
+      ? deploymentSummary.latestDeploymentAttempt
+      : null
     const apiDetails = {
       isDeployed: isApiDeployed,
       deployedAt: apiDeploy[0]?.deployedAt || null,
@@ -87,6 +91,7 @@ export async function executeCheckDeploymentStatus(
       needsRedeployment,
       activeDeployment: deploymentSummary.activeDeployment,
       latestDeploymentAttempt: deploymentSummary.latestDeploymentAttempt,
+      currentDeploymentAttempt,
       warnings: deploymentSummary.warnings ?? [],
     }
 
@@ -557,13 +562,19 @@ export async function executePromoteToLive(
       workflowId,
       version,
       userId: context.userId,
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context),
     })
 
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to promote version' }
     }
+    const historicalAttemptError = getHistoricalDeploymentAttemptError(
+      result.latestDeploymentAttempt,
+      'promotion'
+    )
+    if (historicalAttemptError) return { success: false, error: historicalAttemptError }
 
-    const isActive = result.latestDeploymentAttempt?.status === 'active'
+    const isActive = result.activeDeployment?.version === version
     return {
       success: true,
       output: {

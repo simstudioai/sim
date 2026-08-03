@@ -274,7 +274,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/salesforce-service-account',
     helpText:
-      'The Connected App must have "Enable Client Credentials Flow" checked with a "Run As" integration user set under Edit Policies — every call executes with that user\'s permissions, and deactivating or freezing the user stops all runs.',
+      'The Connected App must have "Enable Client Credentials Flow" checked with a "Run As" integration user set under Edit Policies — every call executes with that user\'s permissions, and deactivating or freezing the user stops all runs. Selecting the "openid" scope lets Sim record which run-as user the credential authenticates as; without it the connection still works but the identity is not captured.',
   },
   [ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,

@@ -3,15 +3,27 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { decryptSecretMock } = vi.hoisted(() => ({
+const { decryptSecretMock, materializeLargeValueRefMock, storeLargeValueMock } = vi.hoisted(() => ({
   decryptSecretMock: vi.fn(),
+  materializeLargeValueRefMock: vi.fn(),
+  storeLargeValueMock: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: decryptSecretMock,
 }))
 
-import { projectExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+vi.mock('@/lib/execution/payloads/store', () => ({
+  materializeLargeValueRef: materializeLargeValueRefMock,
+  storeLargeValue: storeLargeValueMock,
+}))
+
+import {
+  externalizeExecutionData,
+  materializeExecutionData,
+  projectExecutionDataForDisplay,
+  TRACE_STORE_REF_KEY,
+} from '@/lib/logs/execution/trace-store'
 
 const CONTEXT = {
   workspaceId: 'workspace-1',
@@ -23,6 +35,55 @@ const CONTEXT = {
 beforeEach(() => {
   vi.clearAllMocks()
   decryptSecretMock.mockResolvedValue({ decrypted: '1234' })
+})
+
+describe('execution data storage', () => {
+  it('keeps the trusted Copilot binding when an externalized payload is unavailable', async () => {
+    const correlation = { copilotToolCallId: 'tool-call-1' }
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_bbbbbbbbbbbb',
+      kind: 'object',
+      size: 128,
+      key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_bbbbbbbbbbbb.json',
+      executionId: 'execution-1',
+      preview: { unsafe: 'must-not-remain-inline' },
+    } as const
+    storeLargeValueMock.mockResolvedValue(ref)
+    materializeLargeValueRefMock.mockRejectedValue(new Error('object unavailable'))
+
+    const slim = await externalizeExecutionData(
+      {
+        correlation,
+        hasTraceSpans: true,
+        traceSpanCount: 2,
+        finalOutput: { unsafe: 'must-not-remain-inline' },
+      },
+      CONTEXT
+    )
+
+    expect(slim).toEqual({
+      [TRACE_STORE_REF_KEY]: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_bbbbbbbbbbbb',
+        kind: 'object',
+        size: 128,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_bbbbbbbbbbbb.json',
+        executionId: 'execution-1',
+      },
+      correlation,
+      hasTraceSpans: true,
+      traceSpanCount: 2,
+    })
+
+    await expect(materializeExecutionData(slim, CONTEXT)).resolves.toEqual({
+      correlation,
+      hasTraceSpans: true,
+      traceSpanCount: 2,
+    })
+  })
 })
 
 describe('projectExecutionDataForDisplay', () => {

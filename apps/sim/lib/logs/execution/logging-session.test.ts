@@ -92,7 +92,12 @@ vi.mock('@/lib/logs/execution/logging-factory', () => ({
     models: {},
   }),
   createEnvironmentObject: vi.fn(),
-  createTriggerObject: vi.fn(),
+  createTriggerObject: vi.fn((type: string, additionalData?: Record<string, unknown>) => ({
+    type,
+    source: type,
+    timestamp: '2026-01-01T00:00:00.000Z',
+    ...(additionalData ? { data: additionalData } : {}),
+  })),
   loadDeployedWorkflowStateForLogging: vi.fn(),
   loadWorkflowStateForExecution: loadWorkflowStateForExecutionMock,
 }))
@@ -231,6 +236,40 @@ describe('LoggingSession start snapshots', () => {
 
     expect(startWorkflowExecutionMock).toHaveBeenCalledWith(
       expect.objectContaining({ actorUserId: 'authenticated-actor' })
+    )
+  })
+
+  it('persists only the server-validated execution correlation', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-1', 'copilot', 'req-1')
+    const trustedCorrelation = {
+      executionId: 'execution-1',
+      requestId: 'req-1',
+      source: 'workflow',
+      workflowId: 'workflow-1',
+      triggerType: 'copilot',
+      copilotToolCallId: 'trusted-tool-call',
+    }
+    session.setTrustedExecutionCorrelation(trustedCorrelation)
+
+    await session.start({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      triggerData: {
+        correlation: {
+          executionId: 'submitted-execution',
+          requestId: 'submitted-request',
+          source: 'workflow',
+          copilotToolCallId: 'submitted-tool-call',
+        },
+      },
+    })
+
+    expect(startWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: expect.objectContaining({
+          data: expect.objectContaining({ correlation: trustedCorrelation }),
+        }),
+      })
     )
   })
 

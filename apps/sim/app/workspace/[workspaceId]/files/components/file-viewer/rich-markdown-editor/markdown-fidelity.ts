@@ -172,9 +172,14 @@ function stripEmptyListItemLines(markdown: string): string {
  * Cleans up serializer output: drops empty list-item marker lines that would otherwise corrupt on
  * round-trip ({@link stripEmptyListItemLines}), restores callout markers the serializer
  * backslash-escapes (`> \[!NOTE\]` → `> [!NOTE]`), and collapses trailing blank lines to a single
- * newline. The table serializer's spurious surrounding blank lines are trimmed at the source
- * (PipeSafeTable), so no global leading-newline strip is needed here — avoiding clobbering content
- * that legitimately begins with whitespace.
+ * newline. Interior blank runs are NOT collapsed here — blank lines inside a fenced code block (or a
+ * verbatim raw-markdown-snippet) are significant, and a global collapse would corrupt them. Spurious
+ * interior blank runs between top-level blocks are removed upstream instead, by
+ * {@link parseMarkdownToDoc} stripping empty paragraphs, so a doc that has been through the editor
+ * never serializes with an interior blank run outside code in the first place. The table serializer's
+ * spurious surrounding blank lines are trimmed at the source (PipeSafeTable), so no global
+ * leading-newline strip is needed here — avoiding clobbering content that legitimately begins with
+ * whitespace.
  */
 export function postProcessSerializedMarkdown(markdown: string): string {
   return collapseAutolinkedUrls(
