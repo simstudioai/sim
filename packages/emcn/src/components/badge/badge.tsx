@@ -32,6 +32,13 @@ const badgeVariants = cva(
         sm: 'px-[7px] py-[1px] text-xs',
         md: 'px-[9px] py-0.5 text-caption',
         lg: 'px-[9px] py-[2.25px] text-caption',
+        /**
+         * A bare colour chip: fixed square, no padding, no text. For pickers
+         * that show a variant's colour rather than a label. Lives here so the
+         * badge stays the single owner of its chrome — consumers were
+         * otherwise erasing `sm`'s padding with `p-0` to fake it.
+         */
+        swatch: 'size-[14px] shrink-0 justify-center p-0',
       },
     },
     defaultVariants: {
@@ -57,18 +64,28 @@ const STATUS_VARIANTS = [
   'gray-secondary',
 ] as const
 
-/** Dot sizes corresponding to badge size variants */
-const DOT_SIZES: Record<string, string> = {
+type BadgeSize = NonNullable<VariantProps<typeof badgeVariants>['size']>
+
+/**
+ * Dot sizes corresponding to badge size variants.
+ *
+ * `Record<BadgeSize, …>`, not `Record<string, …>`: these maps are keyed off the
+ * same union CVA owns, and a loose index signature silently accepts a missing
+ * entry — a new size would render `dot` with no size class at all.
+ */
+const DOT_SIZES: Record<BadgeSize, string> = {
   sm: 'size-[5px]',
   md: 'size-1.5',
   lg: 'size-1.5',
+  swatch: 'size-[5px]',
 }
 
-/** Icon sizes corresponding to badge size variants */
-const ICON_SIZES: Record<string, string> = {
+/** Icon sizes corresponding to badge size variants. See {@link DOT_SIZES}. */
+const ICON_SIZES: Record<BadgeSize, string> = {
   sm: 'size-2.5',
   md: 'size-3',
   lg: 'size-3',
+  swatch: 'size-2.5',
 }
 
 export interface BadgeProps

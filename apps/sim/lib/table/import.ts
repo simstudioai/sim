@@ -13,10 +13,11 @@
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
 import { getColumnId } from '@/lib/table/column-keys'
-import type { ColumnType } from '@/lib/table/column-types'
+import { type ColumnType, columnTypeById } from '@/lib/table/column-types'
 import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
-import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
+import { parseDecimalNumber } from '@/lib/table/numeric'
+import type { ColumnDefinition, JsonValue, RowData, TableSchema } from '@/lib/table/types'
 
 /**
  * Field separators we sniff for, in tie-break priority order. Semicolon files are
@@ -291,14 +292,40 @@ export async function parseCsvBuffer(
  * column would also have to guess an ISO code from a symbol, and guessing wrong
  * mislabels every amount in the column.
  */
+/**
+ * The column definition an import creates for a header, from its sampled values.
+ *
+ * The single place that turns an inferred type into a persisted column, because
+ * the type alone is not the whole answer. Both import entry points call it —
+ * creating a table from a CSV, and appending a CSV that introduces new headers
+ * — and when the second had its own inline copy, an appended date column was
+ * persisted date-only while its rows were coerced WITH their times.
+ */
+export function inferredColumnDefinition(name: string, values: unknown[]): ColumnDefinition {
+  const type = inferColumnType(values)
+  return {
+    name,
+    type,
+    // An inferred date column keeps its times. The pattern that infers `date`
+    // accepts `2024-01-15T14:30`, so the file may genuinely contain them, and
+    // stamping the sidebar's date-only default would truncate every one of them
+    // on write. Set explicitly rather than left absent, so a fresh column is
+    // never in the "predates the key" state.
+    //
+    // Deliberately different from creating a Date column by hand: there the
+    // user sees the toggle and there is no data to lose yet.
+    ...(type === 'date' ? { includeTime: true } : {}),
+  }
+}
+
 export function inferColumnType(values: unknown[]): InferredCsvColumnType {
   const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
   if (nonEmpty.length === 0) return 'string'
 
-  const allNumber = nonEmpty.every((v) => {
-    const n = Number(v)
-    return !Number.isNaN(n) && String(v).trim() !== ''
-  })
+  // The same parser `coerceValue` uses below. If inference read `0x10` as a
+  // number while coercion rejected it, the column would be created as `number`
+  // and then have every one of those cells nulled on write.
+  const allNumber = nonEmpty.every((v) => parseDecimalNumber(v) !== null)
   if (allNumber) return 'number'
 
   const allBoolean = nonEmpty.every((v) => {
@@ -314,6 +341,17 @@ export function inferColumnType(values: unknown[]): InferredCsvColumnType {
   })
   if (allDate) return 'date'
 
+  // `email` and `phone` are deliberately NOT inferred, though both parse
+  // unambiguously enough to make it tempting.
+  //
+  // Inference reads a 100-row SAMPLE, but the write path coerces every row and
+  // nulls what a column's type rejects (`coerceRowValues`). A contact export
+  // whose first 100 rows are clean and whose row 250 holds `n/a`, `unknown`, or
+  // `jane@x.com; bob@x.com` would therefore have that cell silently destroyed —
+  // where inferring `string`, as here, imports it verbatim. The same hazard
+  // exists for `number`/`boolean`/`date` above and is accepted for them; it is
+  // materially likelier on contact data, which is exactly where these two types
+  // are used. Importing INTO a column the user typed themselves is unaffected.
   return 'string'
 }
 
@@ -360,10 +398,10 @@ export function inferSchemaFromCsv(
     seen.add(colName.toLowerCase())
     headerToColumn.set(header, colName)
 
-    return {
-      name: colName,
-      type: inferColumnType(sample.map((r) => r[header])),
-    } satisfies ColumnDefinition
+    return inferredColumnDefinition(
+      colName,
+      sample.map((r) => r[header])
+    )
   })
 
   return { columns, headerToColumn }
@@ -385,14 +423,20 @@ export function inferSchemaFromCsv(
 export function coerceValue(
   value: unknown,
   colType: CsvColumnType,
-  options?: NormalizeDateCellOptions & { currencyCode?: string }
+  options?: NormalizeDateCellOptions & {
+    currencyCode?: string
+    /** The target column, so a type whose coercion depends on its own metadata
+     *  (a `percent`'s precision) reads the column's value rather than the default. */
+    column?: Partial<ColumnDefinition>
+  }
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
   switch (colType) {
-    case 'number': {
-      const n = Number(value)
-      return Number.isNaN(n) ? null : n
-    }
+    case 'number':
+      // The same decimal parser inline edits use. Bare `Number()` read `0x10`
+      // as 16 and `Infinity` as infinity, so a CSV could import values the
+      // grid would reject if typed.
+      return parseDecimalNumber(value)
     // Importing into an existing currency column: the file carries the
     // formatted amount (`$1,234.56`) but the cell stores a bare number. The
     // column's currency is forwarded because it decides how a lone separator
@@ -406,7 +450,14 @@ export function coerceValue(
       return null
     }
     case 'date': {
-      return normalizeDateCellValue(String(value), options) ?? String(value)
+      const normalized = normalizeDateCellValue(String(value), options) ?? String(value)
+      // Then through the type itself, so a date-only column truncates the time
+      // here exactly as it does on every other write path. Skipping this let a
+      // CSV import be the one way to get an instant into a column whose schema
+      // says it holds calendar days.
+      const column: ColumnDefinition = { ...options?.column, name: '', type: 'date' }
+      const coerced = columnTypeById('date').coerce(normalized, column)
+      return coerced.ok ? (coerced.value as string) : normalized
     }
     case 'json': {
       if (typeof value === 'object') return value as Record<string, unknown> | unknown[]
@@ -416,8 +467,22 @@ export function coerceValue(
         return String(value)
       }
     }
-    default:
-      return String(value)
+    default: {
+      // Every other type, driven by the registry rather than a case per id.
+      //
+      // The distinction that matters is `jsonbCast`. A text-cast column keeps
+      // the raw string when its type cannot parse the value — that is this
+      // function's deliberate difference from the registry's `coerce`, and it
+      // is what lets the row error name the offending input. A column whose
+      // cast is `numeric` or `timestamptz` cannot: filters and sorts apply that
+      // cast to whatever is stored, so a single unparseable cell makes EVERY
+      // query against the column error in Postgres. Those null instead.
+      const definition = columnTypeById(colType)
+      const column: ColumnDefinition = { ...options?.column, name: '', type: definition.id }
+      const coerced = definition.coerce(value as JsonValue, column)
+      if (coerced.ok) return coerced.value as ReturnType<typeof coerceValue>
+      return definition.jsonbCast === null ? String(value) : null
+    }
   }
 }
 
@@ -594,6 +659,7 @@ export function coerceRowsForTable(
       const colType = (col.type as CsvColumnType) ?? 'string'
       coerced[getColumnId(col)] = coerceValue(value, colType, {
         ...options,
+        column: col,
         ...(col.currencyCode !== undefined ? { currencyCode: col.currencyCode } : {}),
       }) as RowData[string]
     }

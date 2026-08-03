@@ -18,7 +18,10 @@ import {
   columnTypeById,
   isColumnType,
   isValueCompatible,
+  ownersOfMetadataKey,
+  TYPE_SPECIFIC_COLUMN_KEYS,
 } from '@/lib/table/column-types'
+import { metadataMigrationFor } from '@/lib/table/column-types/registry.server'
 import type { ColumnDefinition } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
 
@@ -36,9 +39,9 @@ describe('registry shape', () => {
 
   it('falls back to string for an unknown type instead of throwing', () => {
     // A malformed or future schema must render as text, not crash mid-render.
-    expect(columnTypeById('percent').id).toBe('string')
+    expect(columnTypeById('geolocation').id).toBe('string')
     expect(columnTypeById(undefined).id).toBe('string')
-    expect(isColumnType('percent')).toBe(false)
+    expect(isColumnType('geolocation')).toBe(false)
     expect(isColumnType('currency')).toBe(true)
   })
 
@@ -81,6 +84,54 @@ describe('registry shape', () => {
     // no explanation.
     for (const definition of ALL_COLUMN_TYPES) {
       if (definition.typeaheadPattern) expect(definition.parseErrorMessage).toBeTruthy()
+    }
+  })
+})
+
+describe('metadata key ownership', () => {
+  it('has co-owners of a shared key agree on which writer handles it', () => {
+    // `metadataKeysIn` reads the answer off ANY one owner, so co-owners that
+    // disagreed would route the same key to different writers depending only
+    // on registration order. `precision` is shared by `number` and `percent`.
+    for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+      const owners = ownersOfMetadataKey(key)
+      if (owners.length < 2) continue
+      const handled = owners.map((o) =>
+        [...(o.genericMetadataUpdate ?? o.ownedMetadata)].sort().join(',')
+      )
+      expect(new Set(handled).size, `owners of "${key}" disagree`).toBe(1)
+    }
+  })
+
+  it('lists an owner for every declared key, and only real types', () => {
+    for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+      const owners = ownersOfMetadataKey(key)
+      expect(owners.length, `"${key}" has no owner`).toBeGreaterThan(0)
+      for (const owner of owners) {
+        expect(owner.ownedMetadata).toContain(key)
+      }
+    }
+  })
+})
+
+describe('client/server registry coupling', () => {
+  it('declares metadataRewritesCells exactly when the server half migrates', () => {
+    // The two halves are coupled by nothing but this assertion. A type that
+    // migrates cells without declaring it leaves clients showing stale rows
+    // after a metadata edit; declaring it without a migration makes them
+    // refetch for nothing.
+    for (const definition of ALL_COLUMN_TYPES) {
+      const declares = (definition.metadataRewritesCells ?? []).length > 0
+      const migrates = metadataMigrationFor(definition.id) !== undefined
+      expect(declares, `${definition.id} declares=${declares} migrates=${migrates}`).toBe(migrates)
+    }
+  })
+
+  it('only names keys it actually owns as cell-rewriting', () => {
+    for (const definition of ALL_COLUMN_TYPES) {
+      for (const key of definition.metadataRewritesCells ?? []) {
+        expect(definition.ownedMetadata).toContain(key)
+      }
     }
   })
 })
@@ -173,19 +224,19 @@ describe('metadata ownership', () => {
   const options = [{ id: 'opt_a', name: 'A' }]
 
   it.each`
-    label                      | definition                                                  | valid    | needle
-    ${'options on select'}     | ${column({ type: 'select', options })}                      | ${true}  | ${''}
-    ${'options on string'}     | ${column({ type: 'string', options })}                      | ${false} | ${'cannot define options'}
-    ${'options on currency'}   | ${column({ type: 'currency', options })}                    | ${false} | ${'cannot define options'}
-    ${'multiple on number'}    | ${column({ type: 'number', multiple: true })}               | ${false} | ${'cannot be multiple'}
-    ${'code on currency'}      | ${column({ type: 'currency', currencyCode: 'USD' })}        | ${true}  | ${''}
-    ${'code on number'}        | ${column({ type: 'number', currencyCode: 'USD' })}          | ${false} | ${'cannot define a currency'}
-    ${'code on select'}        | ${column({ type: 'select', currencyCode: 'USD', options })} | ${false} | ${'cannot define a currency'}
-    ${'unsupported code'}      | ${column({ type: 'currency', currencyCode: 'ZZZ' })}        | ${false} | ${'invalid currency code'}
-    ${'unique on select'}      | ${column({ type: 'select', unique: true, options })}        | ${false} | ${'cannot be unique'}
-    ${'unique on currency'}    | ${column({ type: 'currency', unique: true })}               | ${true}  | ${''}
-    ${'select with no option'} | ${column({ type: 'select' })}                               | ${false} | ${'at least one option'}
-    ${'unknown type'}          | ${column({ type: 'percent' as ColumnDefinition['type'] })}  | ${false} | ${'invalid type'}
+    label                      | definition                                                     | valid    | needle
+    ${'options on select'}     | ${column({ type: 'select', options })}                         | ${true}  | ${''}
+    ${'options on string'}     | ${column({ type: 'string', options })}                         | ${false} | ${'cannot define options'}
+    ${'options on currency'}   | ${column({ type: 'currency', options })}                       | ${false} | ${'cannot define options'}
+    ${'multiple on number'}    | ${column({ type: 'number', multiple: true })}                  | ${false} | ${'cannot be multiple'}
+    ${'code on currency'}      | ${column({ type: 'currency', currencyCode: 'USD' })}           | ${true}  | ${''}
+    ${'code on number'}        | ${column({ type: 'number', currencyCode: 'USD' })}             | ${false} | ${'cannot define a currency'}
+    ${'code on select'}        | ${column({ type: 'select', currencyCode: 'USD', options })}    | ${false} | ${'cannot define a currency'}
+    ${'unsupported code'}      | ${column({ type: 'currency', currencyCode: 'ZZZ' })}           | ${false} | ${'invalid currency code'}
+    ${'unique on select'}      | ${column({ type: 'select', unique: true, options })}           | ${false} | ${'cannot be unique'}
+    ${'unique on currency'}    | ${column({ type: 'currency', unique: true })}                  | ${true}  | ${''}
+    ${'select with no option'} | ${column({ type: 'select' })}                                  | ${false} | ${'at least one option'}
+    ${'unknown type'}          | ${column({ type: 'geolocation' as ColumnDefinition['type'] })} | ${false} | ${'invalid type'}
   `(
     'rejects $label',
     ({

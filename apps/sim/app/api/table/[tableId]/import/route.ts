@@ -27,7 +27,7 @@ import {
   dispatchAfterBatchInsert,
   generateColumnId,
   getMaxRowsPerTable,
-  inferColumnType,
+  inferredColumnDefinition,
   markTableJobRunning,
   releaseJobClaim,
   sanitizeName,
@@ -46,6 +46,7 @@ import {
   csvProxyBodyCapResponse,
   multipartErrorResponse,
   tableLockErrorResponse,
+  tableRequestErrorResponse,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSVExisting')
@@ -229,15 +230,21 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           suffix++
         }
         usedNames.add(columnName.toLowerCase())
-        const inferredType = inferColumnType(rows.map((r) => r[header]))
+        // Same helper the create-from-CSV path uses, so the two cannot answer
+        // differently. Inlining just the TYPE here persisted an appended date
+        // column as date-only while its rows were coerced with their times.
+        const inferred = inferredColumnDefinition(
+          columnName,
+          rows.map((r) => r[header])
+        )
         // Pre-assign the id so the prospective schema (used to coerce rows) and
         // the persisted column (created in importAppendRows) share the same key.
         const id = generateColumnId()
-        additions.push({ id, name: columnName, type: inferredType })
+        additions.push({ ...inferred, id })
         newColumns.push({
+          ...inferred,
           id,
-          name: columnName,
-          type: inferredType as TableSchema['columns'][number]['type'],
+          type: inferred.type as TableSchema['columns'][number]['type'],
           required: false,
           unique: false,
         })
@@ -339,11 +346,17 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           },
         })
       } catch (err) {
-        // This branch returns rather than rethrowing, so the outer catch's
-        // mapper is unreachable from here — map the lock error first or a 423
-        // degrades into a generic 500 (replace mode rethrows and maps fine).
+        // This branch returns rather than rethrowing, so NOTHING in the outer
+        // catch runs for an append failure — every mapper it applies has to be
+        // repeated here (replace mode rethrows and maps fine). A 423 lock
+        // violation and the service's own typed failures both degrade into a
+        // generic 500 without these two lines: `addTableColumnsWithTx` runs
+        // INSIDE `importAppendRows`, so an invalid column name or the column
+        // cap surfaces here, not out there.
         const lockError = tableLockErrorResponse(err)
         if (lockError) return lockError
+        const requestError = tableRequestErrorResponse(err)
+        if (requestError) return requestError
 
         const message = toError(err).message
         logger.warn(`[${requestId}] Append failed for table ${tableId}`, {
@@ -424,6 +437,14 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     const message = toError(error).message
     logger.error(`[${requestId}] CSV import into existing table failed:`, error)
+
+    // The table service says whether a failure is the caller's and what status
+    // it deserves. The substring list below still covers the CSV parser, which
+    // is not table-aware — but the service's own validation (an invalid column
+    // type, the column cap) matched none of those strings and was reported as a
+    // 500 with the message swallowed.
+    const requestError = tableRequestErrorResponse(error)
+    if (requestError) return requestError
 
     const isClientError =
       message.includes('CSV file has no') ||

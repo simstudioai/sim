@@ -2,6 +2,7 @@
  * Type definitions for user-defined tables.
  */
 
+import type { TypeSpecificColumnKey } from '@/lib/table/column-types/types'
 import type { COLUMN_TYPES, FILTER_OPS } from '@/lib/table/constants'
 
 export type ColumnValue = string | number | boolean | null | Date
@@ -27,12 +28,48 @@ export interface ColumnOption {
 }
 
 /**
+ * Colors a select option may be rendered in.
+ *
+ * Deliberately a closed set of `Badge` variant names, not free-form hex. Each
+ * name resolves to a `--badge-*-bg` / `--badge-*-text` pair that is already
+ * tuned for both light and dark, so an option stays legible in either theme —
+ * a stored hex would be chosen against one theme and fail in the other, and a
+ * value that no longer maps to a variant would fall back to `currentColor` and
+ * render as a black chip.
+ */
+export const SELECT_OPTION_COLORS = [
+  'gray',
+  'blue',
+  'green',
+  'amber',
+  'orange',
+  'red',
+  'purple',
+  'pink',
+  'teal',
+  'cyan',
+] as const
+
+export type SelectOptionColor = (typeof SELECT_OPTION_COLORS)[number]
+
+/** Whether `value` is one of the supported option colors. */
+export function isSelectOptionColor(value: unknown): value is SelectOptionColor {
+  return typeof value === 'string' && (SELECT_OPTION_COLORS as readonly string[]).includes(value)
+}
+
+/**
  * One choice in a `select`/`multiselect` column. `id` is stable — cell data
  * references it, so renaming an option never rewrites rows.
  */
 export interface SelectOption {
   id: string
   name: string
+  /**
+   * Pill color. Absent on options created before this key, which render in the
+   * neutral gray the whole feature used to use — so an existing column looks
+   * exactly as it did until someone picks a color.
+   */
+  color?: SelectOptionColor
 }
 
 export interface ColumnDefinition {
@@ -67,6 +104,33 @@ export interface ColumnDefinition {
    * single row. Absent means {@link DEFAULT_CURRENCY_CODE}.
    */
   currencyCode?: string
+  /**
+   * Decimal places a `number` or `percent` column renders to.
+   *
+   * Storage keeps the full value, so lowering this and raising it back recovers
+   * the original digits. It is NOT purely cosmetic at the boundary, though: CSV
+   * export renders through `formatForDisplay` (as it must, for select names and
+   * currency symbols), so a `precision: 1` column exports `12.6` for a stored
+   * `12.567`.
+   *
+   * Absent on a `number` column renders the value as stored, which is what
+   * every column predating this key does; only an explicit value forces
+   * fixed-width output.
+   */
+  precision?: number
+  /**
+   * Whether a `date` column carries a time of day.
+   *
+   * `false` stores a bare calendar day (`YYYY-MM-DD`) — the right shape for a
+   * birthday or due date, and the value stamped on newly created date columns.
+   * `true` stores a full wall-clock instant.
+   *
+   * **Absent is not the same as `false`.** A column predating this key holds
+   * instants, so treating it as date-only would truncate a stored time on the
+   * next write to any cell; only an explicit `false` truncates. Switching it
+   * off rewrites cells, so `date` declares a `migrateCellsForMetadata`.
+   */
+  includeTime?: boolean
 }
 
 /** The column `type` discriminator, named so callers don't index into the interface. */
@@ -778,7 +842,29 @@ export interface RenameColumnData {
   newName: string
 }
 
-export interface UpdateColumnTypeData {
+/**
+ * Every type-specific metadata key, all optional. `buildConvertedColumn` reads
+ * `data[key]` for each key in `TYPE_SPECIFIC_COLUMN_KEYS`, so deriving the
+ * payload's metadata slice from `ColumnDefinition` instead of restating the
+ * keys is what makes that indexed read a compile error until a newly declared
+ * key is carriable — rather than a key that silently cannot be set on a
+ * conversion.
+ */
+export type ColumnTypeMetadata = Partial<Pick<ColumnDefinition, TypeSpecificColumnKey>>
+
+/**
+ * A metadata write, where `null` means **remove this key**.
+ *
+ * Distinct from `undefined`, which means "this request does not touch the key".
+ * The difference is load-bearing for any key whose absence is itself meaningful:
+ * a `precision` that is absent renders a column's values as stored, so without
+ * a way to say "remove it" a precision could be set but never unset.
+ */
+export type ColumnMetadataPatch = {
+  [K in TypeSpecificColumnKey]?: ColumnDefinition[K] | null
+}
+
+export interface UpdateColumnTypeData extends ColumnMetadataPatch {
   tableId: string
   columnName: string
   /**
@@ -787,12 +873,6 @@ export interface UpdateColumnTypeData {
    */
   newName?: string
   newType: (typeof COLUMN_TYPES)[number]
-  /** Options to set when changing to a `select` type. */
-  options?: SelectOption[]
-  /** Whether the `select` column accepts multiple options per cell. */
-  multiple?: boolean
-  /** Currency to set when changing to the `currency` type. */
-  currencyCode?: string
   /**
    * The `unique` value the same request is about to set. Validated inside the
    * retype against the post-conversion values, because the conversion is what
@@ -827,11 +907,15 @@ export interface UpdateColumnOptionsData {
 }
 
 /**
- * Payload for `updateColumnCurrency`. Unlike an options update this rewrites no
- * cells — a currency cell stores a plain number, and `currencyCode` only
- * changes how it is rendered.
+ * Payload for `updateColumnMetadata` — writing a column's own type-specific
+ * keys without changing its type.
+ *
+ * Usually rewrites no cells: a currency cell stores a plain number and
+ * `currencyCode` only changes how it is rendered. A type whose metadata does
+ * change the stored shape (`date`'s `includeTime`) declares
+ * `migrateCellsForMetadata` and is rewritten in the same transaction.
  */
-export interface UpdateColumnCurrencyData {
+export interface UpdateColumnMetadataData {
   tableId: string
   columnName: string
   /**
@@ -842,7 +926,12 @@ export interface UpdateColumnCurrencyData {
   /** Constraints to apply in the SAME transaction as this write. */
   unique?: boolean
   required?: boolean
-  currencyCode: string
+  /**
+   * The type-specific keys to write. Every key must be owned by the column's
+   * type — `ownedMetadata` is the check, so this stays correct as types are
+   * added without naming a single key here. A `null` value removes the key.
+   */
+  metadata: ColumnMetadataPatch
 }
 
 export interface UpdateColumnConstraintsData {

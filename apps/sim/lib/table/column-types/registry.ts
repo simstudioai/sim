@@ -22,17 +22,29 @@
 import { booleanColumnType } from '@/lib/table/column-types/boolean'
 import { currencyColumnType } from '@/lib/table/column-types/currency'
 import { dateColumnType } from '@/lib/table/column-types/date'
+import { emailColumnType } from '@/lib/table/column-types/email'
 import { jsonColumnType } from '@/lib/table/column-types/json'
 import { numberColumnType } from '@/lib/table/column-types/number'
+import { percentColumnType } from '@/lib/table/column-types/percent'
+import { phoneColumnType } from '@/lib/table/column-types/phone'
 import {
   MULTI_SELECT_OPERATORS,
   SINGLE_SELECT_OPERATORS,
   selectColumnType,
 } from '@/lib/table/column-types/select'
 import { stringColumnType } from '@/lib/table/column-types/string'
-import type { ColumnType, ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import type {
+  ColumnType,
+  ColumnTypeDefinition,
+  TypeSpecificColumnKey,
+} from '@/lib/table/column-types/types'
 import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
-import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
+import type {
+  ColumnDefinition,
+  ColumnMetadataPatch,
+  ColumnTypeMetadata,
+  JsonValue,
+} from '@/lib/table/types'
 
 export { COLUMN_TYPES }
 export { MULTI_SELECT_OPERATORS, SINGLE_SELECT_OPERATORS }
@@ -49,6 +61,9 @@ export const COLUMN_TYPE_REGISTRY: Record<ColumnType, ColumnTypeDefinition> = {
   json: jsonColumnType,
   select: selectColumnType,
   currency: currencyColumnType,
+  percent: percentColumnType,
+  email: emailColumnType,
+  phone: phoneColumnType,
 }
 
 /** Every definition, in the same order as {@link COLUMN_TYPES}. */
@@ -111,7 +126,142 @@ export function typeMetadataOf(column: ColumnDefinition): Partial<ColumnDefiniti
   return metadata
 }
 
+/**
+ * Human description of a column's type, including the configuration that
+ * changes what its cells mean. Falls back to the type's plain label.
+ */
+export function describeColumnType(column: ColumnDefinition): string {
+  const definition = columnTypeOf(column)
+  return definition.describe?.(column) ?? definition.label
+}
+
 /** Wire operators a column accepts, or `null` for "all operators". */
 export function filterOperatorsFor(column: ColumnDefinition): ReadonlySet<string> | null {
   return columnTypeOf(column).filterOperatorsFor?.(column) ?? null
+}
+
+/** v2-grammar operators a column accepts, or `null` for "all operators". */
+export function predicateOperatorsFor(column: ColumnDefinition): ReadonlySet<string> | null {
+  return columnTypeOf(column).predicateOperatorsFor?.(column) ?? null
+}
+
+/**
+ * A search fragment normalized for this column, so a substring filter compares
+ * against the same shape the cell was stored in. Identity for types whose
+ * canonical form drops nothing.
+ */
+export function normalizeFilterFragment(column: ColumnDefinition, fragment: string): string {
+  return columnTypeOf(column).normalizeFilterFragment?.(fragment) ?? fragment
+}
+
+/** Whether a column's cells hold several values (a JSON array). */
+export function storesMultipleValues(column: ColumnDefinition): boolean {
+  return columnTypeOf(column).storesMultipleValues?.(column) ?? false
+}
+
+/**
+ * Metadata key → the type that owns it. Built once from `ownedMetadata`, which
+ * is already the declaration every type makes; deriving the reverse index here
+ * is what lets the routes ask "may this column carry this key?" without naming
+ * a single key themselves.
+ */
+const METADATA_KEY_OWNERS_BY_KEY = new Map<TypeSpecificColumnKey, ColumnTypeDefinition[]>()
+for (const definition of ALL_COLUMN_TYPES) {
+  for (const key of definition.ownedMetadata) {
+    const owners = METADATA_KEY_OWNERS_BY_KEY.get(key)
+    if (owners) owners.push(definition)
+    else METADATA_KEY_OWNERS_BY_KEY.set(key, [definition])
+  }
+}
+
+/**
+ * Every column type that owns a type-specific metadata key.
+ *
+ * A list, not a single entry: `precision` belongs to both `number` and
+ * `percent`. Keeping only the last writer made the rejection message name one
+ * arbitrary owner ("it applies to Percent columns"), hiding that Number takes
+ * it too.
+ */
+export function ownersOfMetadataKey(key: TypeSpecificColumnKey): ColumnTypeDefinition[] {
+  return METADATA_KEY_OWNERS_BY_KEY.get(key) ?? []
+}
+
+/**
+ * The type-specific metadata keys present in an update payload, split by which
+ * writer handles them.
+ *
+ * `generic` goes to `updateColumnMetadata` (schema write, plus the type's
+ * `migrateCellsForMetadata` when it declares one); `dedicated` is a key whose
+ * owner keeps its own writer — today only `select`'s `options` / `multiple`.
+ * Callers branch on which set is non-empty instead of testing key names.
+ */
+export function metadataKeysIn(updates: ColumnMetadataPatch): {
+  generic: TypeSpecificColumnKey[]
+  dedicated: TypeSpecificColumnKey[]
+} {
+  const generic: TypeSpecificColumnKey[] = []
+  const dedicated: TypeSpecificColumnKey[] = []
+  for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+    if (updates[key] === undefined) continue
+    // Any owner answers which writer handles the key — co-owners of a key
+    // agree on that, which `column-type-registry.test.ts` asserts.
+    const owner = METADATA_KEY_OWNERS_BY_KEY.get(key)?.[0]
+    const handled = owner?.genericMetadataUpdate ?? owner?.ownedMetadata ?? []
+    ;(handled.includes(key) ? generic : dedicated).push(key)
+  }
+  return { generic, dedicated }
+}
+
+/**
+ * A metadata patch with its clears dropped, for the paths that build a column
+ * from scratch rather than editing one.
+ *
+ * Creating a column and validating a prospective one have nothing to remove, so
+ * a `null` is simply not carried. The RETYPE path deliberately does not use
+ * this: `buildConvertedColumn` carries un-supplied keys forward from the old
+ * column, so a stripped `null` there reads as "not mentioned" and silently
+ * restores the value the caller just cleared.
+ */
+export function metadataWithoutClears(patch: ColumnMetadataPatch): ColumnTypeMetadata {
+  const resolved: ColumnTypeMetadata = {}
+  for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+    const value = patch[key]
+    if (value !== undefined && value !== null) Object.assign(resolved, { [key]: value })
+  }
+  return resolved
+}
+
+/**
+ * Whether writing `keys` on `column` rewrites its stored cells (rather than
+ * only how they render), so a client knows to invalidate cached row data.
+ */
+export function metadataRewritesCells(
+  column: ColumnDefinition,
+  keys: readonly TypeSpecificColumnKey[]
+): boolean {
+  const rewriting = columnTypeOf(column).metadataRewritesCells ?? []
+  return keys.some((key) => rewriting.includes(key))
+}
+
+/** Whether a column of `type` may carry `key`. */
+export function typeOwnsMetadataKey(type: string | undefined, key: TypeSpecificColumnKey): boolean {
+  return columnTypeById(type).ownedMetadata.includes(key)
+}
+
+/**
+ * The named metadata keys from an update payload, as a spreadable object.
+ *
+ * Skips keys the payload does not carry, so spreading the result never
+ * introduces an explicit `undefined` — which would otherwise read as "clear
+ * this key" to `filterUndefined` further down the write path.
+ */
+export function pickMetadata(
+  updates: ColumnMetadataPatch,
+  keys: readonly TypeSpecificColumnKey[]
+): ColumnMetadataPatch {
+  const picked: ColumnMetadataPatch = {}
+  for (const key of keys) {
+    if (updates[key] !== undefined) Object.assign(picked, { [key]: updates[key] })
+  }
+  return picked
 }

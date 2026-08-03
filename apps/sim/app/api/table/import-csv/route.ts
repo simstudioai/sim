@@ -35,6 +35,7 @@ import {
   multipartErrorResponse,
   normalizeColumn,
   rowWriteErrorResponse,
+  tableRequestErrorResponse,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSV')
@@ -253,6 +254,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // Row-write failures (e.g. the plan row-limit check) map to a 400 with the real reason.
     const rowWriteError = rowWriteErrorResponse(error)
     if (rowWriteError) return rowWriteError
+
+    // `createTable` validates the name, the schema, the per-column rules, and
+    // both plan caps — most of which the substring list below never named.
+    const requestError = tableRequestErrorResponse(error)
+    if (requestError) return requestError
 
     const message = toError(error).message
     const isClientError =

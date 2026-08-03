@@ -25,6 +25,11 @@ import type {
   TableViewConfig,
 } from '@/lib/table'
 import {
+  METADATA_KEY_OWNERS,
+  REQUIRED_METADATA_KEYS,
+  TYPE_SPECIFIC_COLUMN_KEYS,
+} from '@/lib/table/column-types/types'
+import {
   COLUMN_TYPES,
   FILTER_OPS,
   MAX_SELECT_OPTIONS,
@@ -33,6 +38,8 @@ import {
   TABLE_LIMITS,
 } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
+import type { ColumnMetadataPatch } from '@/lib/table/types'
+import { SELECT_OPTION_COLORS } from '@/lib/table/types'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
@@ -49,6 +56,8 @@ export const selectOptionSchema = z.object({
     .string()
     .min(1, 'Option name is required')
     .max(100, 'Option name must be 100 characters or less'),
+  /** Pill color; absent renders the neutral gray options used before colors. */
+  color: z.enum(SELECT_OPTION_COLORS).optional(),
 })
 
 export const selectOptionsSchema = z
@@ -64,15 +73,29 @@ export const selectOptionsSchema = z
  * table would make any divergence between the two runtimes' currency lists
  * reject an entire table schema over one column's code.
  */
+/**
+ * Decimal places for a `number` / `percent` column.
+ *
+ * Bounded here as well as server-side because this schema parses RESPONSES
+ * too — an out-of-range value stored by an older client would otherwise reject
+ * the whole table schema on read.
+ */
+export const precisionSchema = z
+  .number()
+  .int('precision must be a whole number of decimal places')
+  .min(0, 'precision cannot be negative')
+  .max(10, 'precision cannot exceed 10 decimal places')
+
 export const currencyCodeSchema = z
   .string()
   .regex(/^[A-Za-z]{3}$/, 'Must be a 3-letter ISO 4217 currency code, e.g. USD')
   .transform((code) => code.toUpperCase())
 
 /**
- * Cross-field rule: a `select` column must declare a non-empty option set;
- * other types must not carry options or `multiple`, and only a `currency`
- * column may carry `currencyCode`. Skipped when `type` is absent (a
+ * Cross-field rule: a `select` column must declare a non-empty option set, and
+ * no column may carry a type-specific key its type does not own. Ownership is
+ * read from `METADATA_KEY_OWNERS`, the same map the server enforces, so this
+ * needs no edit as keys are added. Skipped when `type` is absent (a
  * metadata-only update on an existing column).
  */
 function refineColumnOptions(
@@ -80,45 +103,51 @@ function refineColumnOptions(
     type?: (typeof COLUMN_TYPES)[number]
     options?: z.infer<typeof selectOptionsSchema>
     multiple?: boolean
-    currencyCode?: string
-  },
+  } & ColumnMetadataPatch,
   ctx: z.RefinementCtx
 ): void {
-  // `currencyCode` on a non-currency column is inert until a later
-  // convert-to-currency inherits it, silently overriding the currency the user
-  // picked in that request.
-  if (data.type !== undefined && data.type !== 'currency' && data.currencyCode !== undefined) {
+  // Keys the type cannot be created without, checked before the ownership sweep
+  // so the message is about what is missing rather than what is extra. Read
+  // from the registry's declaration, so a future type that requires its own
+  // metadata is enforced here with no edit.
+  // Deliberately NOT via the registry: this module is client-reachable, and
+  // importing the registry would pull `@sim/emcn/icons` into every client
+  // bundle that parses a table contract. The key list is icon-free by design.
+  for (const key of (data.type && REQUIRED_METADATA_KEYS[data.type]) ?? []) {
+    const supplied = data[key]
+    if (supplied !== undefined && !(Array.isArray(supplied) && supplied.length === 0)) continue
     ctx.addIssue({
       code: 'custom',
-      path: ['currencyCode'],
-      message: 'currencyCode is only allowed on currency columns',
+      path: [key],
+      message: `A ${data.type} column must define at least one ${key === 'options' ? 'option' : key}`,
     })
   }
-  if (data.type === 'select') {
-    if (!data.options || data.options.length === 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['options'],
-        message: 'A select column must define at least one option',
-      })
-    }
-    return
-  }
+  // Skipped when `type` is absent: a metadata-only update on an existing column
+  // carries no type to check ownership against, and the server re-checks it
+  // against the stored one.
   if (data.type === undefined) return
-  if (data.options && data.options.length > 0) {
+
+  // Every type-specific key, against the registry's ownership map. A key on a
+  // type that does not own it is inert until a later conversion inherits it and
+  // silently overrides what that request asked for — `currencyCode` riding onto
+  // a convert-to-currency is the case this originally guarded, and the sweep
+  // now covers each new key without an edit here.
+  for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+    // Only an ABSENT key is skipped. `false` is a real value for `includeTime`
+    // — it is the one that makes a date column date-only — so skipping falsy
+    // values (inherited from the old `if (data.multiple)` check) let
+    // `{ type: 'string', includeTime: false }` through the wire schema to fail
+    // later as a thrown service error instead of a clean 400.
+    if (data[key] === undefined) continue
+    // An empty option list is the "select must declare options" case, already
+    // reported above; it is not an ownership violation.
+    if (key === 'options' && (!data.options || data.options.length === 0)) continue
+    const owners = METADATA_KEY_OWNERS[key]
+    if (owners.includes(data.type)) continue
     ctx.addIssue({
       code: 'custom',
-      path: ['options'],
-      message: 'options are only allowed on select columns',
-    })
-  }
-  // `multiple` stored on a non-select column is inert until a later
-  // convert-to-select inherits it, silently producing a multiselect.
-  if (data.multiple) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['multiple'],
-      message: 'multiple is only allowed on select columns',
+      path: [key],
+      message: `${key} is only allowed on ${owners.join(' / ')} columns`,
     })
   }
 }
@@ -191,6 +220,10 @@ export const tableColumnSchema = z
     options: selectOptionsSchema.optional(),
     /** A `select` column that accepts multiple options per cell. */
     multiple: z.boolean().optional(),
+    /** Decimal places for a `number` / `percent` column. */
+    precision: precisionSchema.optional(),
+    /** Whether a `date` column carries a time of day. */
+    includeTime: z.boolean().optional(),
     /** ISO 4217 code for a `currency` column. */
     currencyCode: currencyCodeSchema.optional(),
   })
@@ -270,6 +303,8 @@ export const createTableColumnBodySchema = z.object({
       position: z.number().int().min(0).optional(),
       options: selectOptionsSchema.optional(),
       multiple: z.boolean().optional(),
+      precision: precisionSchema.optional(),
+      includeTime: z.boolean().optional(),
       currencyCode: currencyCodeSchema.optional(),
     })
     .superRefine(refineColumnOptions),
@@ -286,6 +321,11 @@ export const updateTableColumnBodySchema = z.object({
       unique: z.boolean().optional(),
       options: selectOptionsSchema.optional(),
       multiple: z.boolean().optional(),
+      /** `null` clears the setting, returning the column to rendering values as
+       *  stored. Only the UPDATE surface accepts it — on a create there is
+       *  nothing to clear. */
+      precision: precisionSchema.nullable().optional(),
+      includeTime: z.boolean().optional(),
       currencyCode: currencyCodeSchema.optional(),
     })
     .superRefine(refineColumnOptions),

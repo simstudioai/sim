@@ -114,11 +114,25 @@ describe('SQL Builder', () => {
       expect(out).not.toContain('::timestamp')
     })
 
-    it('falls back to ::numeric when column type is unknown', () => {
+    it('falls back to ::numeric for a field with no schema entry', () => {
+      // An UNKNOWN field keeps the legacy numeric default — ad-hoc numeric
+      // fields have always compared numerically, and switching them to
+      // lexicographic ordering would change a saved filter's row set silently.
+      // A known text-shaped type is a different question; see the case below.
       const out = render(buildFilterClause({ score: { $gte: 5 } }, TABLE, NO_COLUMNS))
       expect(out).toContain(`(${TABLE}.data->>'score')::numeric >= `)
       expect(out).not.toContain('::timestamp')
     })
+
+    it.each(['email', 'phone'] as const)(
+      'compares a %s column as text rather than casting it to numeric',
+      (type) => {
+        const cols: ColumnDefinition[] = [{ name: 'c', type }]
+        const out = render(buildFilterClause({ c: { $gte: 'a' } } as Filter, TABLE, cols))
+        expect(out).toContain(`${TABLE}.data->>'c' >= `)
+        expect(out).not.toContain('::numeric')
+      }
+    )
 
     it('handles $eq operator', () => {
       const out = render(buildFilterClause({ status: { $eq: 'active' } }, TABLE, NO_COLUMNS))
@@ -367,7 +381,7 @@ describe('SQL Builder', () => {
     it('throws when $lt on an unknown column (numeric fallback) receives a string', () => {
       expect(() =>
         buildFilterClause({ score: { $lt: 'high' } } as Filter, TABLE, NO_COLUMNS)
-      ).toThrow(/column "score" \(number\) requires a number, got string/)
+      ).toThrow(/requires a number, got string/)
     })
 
     it('accepts valid number on number column', () => {

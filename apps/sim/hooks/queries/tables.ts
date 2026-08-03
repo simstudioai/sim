@@ -86,6 +86,7 @@ import {
 } from '@/lib/api/contracts/tables'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
+  ColumnDefinition,
   CsvHeaderMapping,
   EnrichmentRunDetail,
   RowData,
@@ -101,6 +102,7 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { metadataKeysIn, metadataRewritesCells } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   areGroupDepsSatisfied,
@@ -1365,7 +1367,15 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
         const isRename = typeof (updates as { name?: string }).name === 'string'
         const nextColumns = previousDetail.schema.columns.map((c) => {
           if (getColumnId(c) !== columnName && c.name.toLowerCase() !== lower) return c
-          const next = { ...c, ...updates }
+          // A `null` in the payload CLEARS its key server-side, so the
+          // optimistic column must drop it too — spreading the null straight
+          // in would leave the grid rendering against a shape the server will
+          // never return.
+          const next: ColumnDefinition = { ...c }
+          for (const [key, value] of Object.entries(updates)) {
+            if (value === null) delete next[key as keyof ColumnDefinition]
+            else Object.assign(next, { [key]: value })
+          }
           if (isRename && next.id === undefined) next.id = getColumnId(c)
           return next
         })
@@ -1392,9 +1402,25 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       // schema-only path would leave the cache holding pre-migration values,
       // which the grid hides but emptiness checks, filters, and dependent-group
       // eligibility still act on. Everything else really is metadata-only.
+      // `includeTime` going false truncates every stored cell in the migration
+      // the service runs, so the metadata path is NOT always schema-only. Which
+      // keys do that is declared by the type (`metadataRewritesCells`) rather
+      // than listed here, so a future key that rewrites cells invalidates rows
+      // without an edit at this call site.
+      // Case-insensitive on the NAME, matching `onMutate`'s lookup. A
+      // mismatched lookup here silently skips the row invalidation an
+      // `includeTime` truncation needs, leaving the grid on pre-migration values.
+      const settledLower = variables.columnName.toLowerCase()
+      const updatedColumn = context?.previousDetail?.schema.columns.find(
+        (c) => getColumnId(c) === variables.columnName || c.name.toLowerCase() === settledLower
+      )
+      const { generic, dedicated } = metadataKeysIn(variables.updates)
       const rewritesRows =
         variables.updates.type !== undefined ||
         variables.updates.multiple !== undefined ||
+        (updatedColumn
+          ? metadataRewritesCells(updatedColumn, [...generic, ...dedicated])
+          : false) ||
         removesSelectOption(context?.previousDetail, variables)
       if (rewritesRows) invalidateTableSchema(queryClient, tableId)
       else invalidateTableSchemaOnly(queryClient, tableId)

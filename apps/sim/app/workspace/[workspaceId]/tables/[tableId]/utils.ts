@@ -1,6 +1,5 @@
 import type { ColumnDefinition, JsonValue } from '@/lib/table'
-import type { ColumnType } from '@/lib/table/column-types'
-import { columnTypeById, columnTypeOf } from '@/lib/table/column-types'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { formatDateCellDisplay, getWallClockParts, normalizeDateCellValue } from '@/lib/table/dates'
 
 /**
@@ -27,18 +26,20 @@ export function cleanCellValue(
   column: ColumnDefinition,
   timeZone?: string
 ): unknown {
-  // These three read the browser's own context (the viewer's timezone, a JSON
-  // draft that must throw so the editor can show a parse error, a checkbox's
-  // truthiness) so they cannot come from the shared coercion.
-  if (column.type === 'json') {
+  // These three read the browser's own context (the viewer's timezone, a
+  // structured draft that must THROW so the editor can show a parse error, a
+  // checkbox's truthiness) so they cannot come from the shared coercion. Keyed
+  // on the editor each type declares, not on its id.
+  const editor = columnTypeOf(column).editor
+  if (editor === 'json') {
     if (typeof value === 'string') {
       if (value === '') return null
       return JSON.parse(value)
     }
     return value
   }
-  if (column.type === 'boolean') return Boolean(value)
-  if (column.type === 'date') {
+  if (editor === 'toggle') return Boolean(value)
+  if (editor === 'date') {
     if (value === '' || value === null || value === undefined) return null
     return displayToStorage(String(value), timeZone)
   }
@@ -57,17 +58,21 @@ export function cleanCellValue(
  * row data already has the new mapping's value) would otherwise render
  * `[object Object]` via `String(value)`.
  */
-export function formatValueForInput(value: unknown, type: string): string {
+export function formatValueForInput(value: unknown, column: ColumnDefinition): string {
   if (value === null || value === undefined) return ''
-  const definition = columnTypeById(type)
+  const definition = columnTypeOf(column)
   // Shape-drift guard, kept ahead of the registry: a column whose declared type
   // lags its actual data (a workflow column mid-remap, where the schema cache
   // hasn't refetched but row data already holds the new mapping's value) would
   // otherwise render `[object Object]` through a scalar type's formatter.
-  if (typeof value === 'object' && !definition.storesOpaqueIds && type !== 'json') {
+  if (typeof value === 'object' && !definition.storesOpaqueIds && column.type !== 'json') {
     return JSON.stringify(value)
   }
-  return definition.formatForInput(value, { name: '', type: type as ColumnType })
+  // The WHOLE column, not a synthetic `{ name: '', type }`. A formatter may
+  // depend on the column's own metadata — `select` resolves ids through
+  // `options`, `currency` through `currencyCode` — and a synthesized stand-in
+  // silently drops it, so the editor opens on a value the cell does not hold.
+  return definition.formatForInput(value, column)
 }
 
 /** A canonical date-cell value split into its wall-clock editing parts. */

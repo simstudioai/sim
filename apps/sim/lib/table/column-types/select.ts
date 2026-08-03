@@ -1,5 +1,6 @@
 import { TagIcon } from '@sim/emcn/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import { ownedKeysOf } from '@/lib/table/column-types/types'
 import { MAX_SELECT_OPTIONS } from '@/lib/table/constants'
 import {
   optionIds,
@@ -31,22 +32,66 @@ export const MULTI_SELECT_OPERATORS: ReadonlySet<string> = new Set([
   '$empty',
 ])
 
+/**
+ * The same allowlists in the v2 bare-operator grammar. Not derived from the `$`
+ * sets by string surgery because the mapping is not 1:1 — `$empty` splits into
+ * `isEmpty`/`isNotEmpty`, and `isNull`/`isNotNull` have no `$` equivalent and
+ * are allowed on both: a strict null check is meaningful on any column.
+ */
+export const SINGLE_SELECT_PREDICATE_OPERATORS: ReadonlySet<string> = new Set([
+  'eq',
+  'ne',
+  'in',
+  'nin',
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
+])
+export const MULTI_SELECT_PREDICATE_OPERATORS: ReadonlySet<string> = new Set([
+  'contains',
+  'ncontains',
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
+])
+
 export const selectColumnType: ColumnTypeDefinition = {
   id: 'select',
   label: 'Select',
   icon: TagIcon,
   // Cells hold opaque option ids; comparison is by id, never by cast.
   jsonbCast: null,
+  // Resolves names to option ids, which is canonicalization — though the
+  // filter path short-circuits on `storesOpaqueIds` before reaching it.
+  canonicalizesValues: true,
+  // Comparing opaque option ids with `>`/`<` is meaningless. Unreachable today
+  // (both operator allowlists reject range ops first), but a future opaque-id
+  // type copying this file must not inherit a wrong answer.
+  orderable: false,
   storesOpaqueIds: true,
   supportsUnique: false,
   sampleValue: 'Option',
-  ownedMetadata: ['options', 'multiple'],
+  ownedMetadata: ownedKeysOf('select'),
+  // Both keep `updateColumnOptions`: changing them runs an option-removal guard
+  // and rewrites every cell between option ids and names, which the generic
+  // schema-only writer deliberately does not do.
+  genericMetadataUpdate: [],
   workflowInputType: 'string',
   editor: 'select',
   expandable: false,
 
   filterOperatorsFor(column) {
     return column.multiple ? MULTI_SELECT_OPERATORS : SINGLE_SELECT_OPERATORS
+  },
+
+  predicateOperatorsFor(column) {
+    return column.multiple ? MULTI_SELECT_PREDICATE_OPERATORS : SINGLE_SELECT_PREDICATE_OPERATORS
+  },
+
+  storesMultipleValues(column) {
+    return !!column.multiple
   },
 
   coerce(value, column) {
@@ -139,5 +184,16 @@ export const selectColumnType: ColumnTypeDefinition = {
 
   formatForInput(value, column) {
     return selectColumnType.formatForDisplay(value, column)
+  },
+
+  describe(column) {
+    return column.multiple ? 'Multi-select' : 'Select'
+  },
+
+  // Draws even when the cell is empty — an unset select shows a muted "None"
+  // so it still reads as a dropdown. The grid resolves ids to options off the
+  // column, which is why no value rides along here.
+  display() {
+    return { kind: 'select' }
   },
 }

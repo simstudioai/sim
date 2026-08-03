@@ -18,8 +18,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
-import { columnTypeOf } from '@/lib/table/column-types'
-import { resolveCurrencyCode } from '@/lib/table/currency'
+import { columnTypeOf, describeColumnType } from '@/lib/table/column-types'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import {
@@ -211,13 +210,11 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
       )}
     </>
   )
-  // Currency names its code — the modal edits the bare amount, so without it
-  // there is nothing on screen saying which currency the number is in.
-  const typeLabel =
-    column.type === 'currency'
-      ? `currency (${resolveCurrencyCode(column.currencyCode)})`
-      : column.type
-  const hint = `Type: ${typeLabel}${column.required ? '' : ' (optional)'}`
+  // The type's own description, which folds in the configuration that changes
+  // what a cell means — a currency's code, a date's time, a number's decimals.
+  // This also reads the registry's LABEL rather than the raw id, so the hint
+  // says "Text" and not "string".
+  const hint = `Type: ${describeColumnType(column)}${column.required ? '' : ' (optional)'}`
   const definition = columnTypeOf(column)
 
   if (definition.editor === 'toggle') {
@@ -243,7 +240,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   // The one type wanting a mono multi-line field; `editor: 'text'` covers both
   // this and a plain input, so it stays explicit rather than inventing a field
   // only one type would ever set.
-  if (column.type === 'json') {
+  if (definition.editor === 'json') {
     return (
       <ChipModalField
         type='textarea'
@@ -251,7 +248,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
         required={column.required}
         hint={hint}
         mono
-        value={formatValueForInput(value, column.type)}
+        value={formatValueForInput(value, column)}
         onChange={onChange}
         placeholder='{"key": "value"}'
         rows={4}
@@ -260,7 +257,12 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   }
 
   if (definition.editor === 'date') {
-    const parts = dateValueToLocalParts(formatValueForInput(value, 'date'))
+    const parts = dateValueToLocalParts(formatValueForInput(value, column))
+    // A date-only column must not offer a time the write path is going to
+    // truncate. `includeTime` absent means a column predating the key, which
+    // still stores instants — so only an explicit false drops the picker,
+    // matching `date.coerce`.
+    const withTime = column.includeTime !== false
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <div className='flex items-center gap-2'>
@@ -272,17 +274,23 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
             flush
             className='flex-1'
           />
-          <ChipTimePicker
-            value={parts.time?.slice(0, 5)}
-            onChange={(time) =>
-              onChange(
-                localPartsToDateValue(parts.day ?? todayLocalCalendarDate(timeZone), time, timeZone)
-              )
-            }
-            placeholder='Add time'
-            flush
-            className='w-[110px]'
-          />
+          {withTime && (
+            <ChipTimePicker
+              value={parts.time?.slice(0, 5)}
+              onChange={(time) =>
+                onChange(
+                  localPartsToDateValue(
+                    parts.day ?? todayLocalCalendarDate(timeZone),
+                    time,
+                    timeZone
+                  )
+                )
+              }
+              placeholder='Add time'
+              flush
+              className='w-[110px]'
+            />
+          )}
         </div>
       </ChipModalField>
     )
@@ -308,7 +316,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
       inputType={
         definition.inputMode === 'decimal' && !definition.acceptsFormattedInput ? 'number' : 'text'
       }
-      value={formatValueForInput(value, column.type)}
+      value={formatValueForInput(value, column)}
       onChange={onChange}
       placeholder={`Enter ${column.name}`}
     />

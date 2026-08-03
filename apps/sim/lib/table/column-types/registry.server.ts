@@ -207,6 +207,42 @@ async function migrateCellsToSelectIds(
 }
 
 /**
+ * Truncates a date column's stored cells to bare calendar days.
+ *
+ * Runs when `includeTime` is switched **off**. Without it the schema would
+ * claim date-only while cells still carried a time, so two rows on the same day
+ * would keep comparing unequal and the column would render times it says it
+ * does not have.
+ *
+ * A left-slice, not a cast: the stored form is a literal wall time with no
+ * zone, and `::timestamptz` would resolve it against the server's zone and
+ * shift the day. Switching `includeTime` back on is deliberately NOT reversible
+ * — the time of day is gone once truncated. The column sidebar warns before a
+ * save that would run this.
+ *
+ * The regex guard is what makes that irreversibility safe. `formatDateCellDisplay`
+ * and `storedDateToEditable` both document that unparseable legacy strings pass
+ * through and are stored as-is, so a column can hold `March 5, 2024`. Slicing
+ * ten characters off those would write `March 5, 2` over the original, set-based
+ * and unrecoverably. Rows without a `YYYY-MM-DD` prefix are left alone.
+ */
+async function truncateDateCellsToCalendarDay(
+  trx: DbTransaction,
+  tableId: string,
+  columnKey: string
+): Promise<void> {
+  await trx.execute(
+    sql`UPDATE ${userTableRows}
+        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
+          to_jsonb(left(data->>${columnKey}::text, 10)))
+        WHERE table_id = ${tableId}
+          AND jsonb_typeof(data->${columnKey}::text) = 'string'
+          AND length(data->>${columnKey}::text) > 10
+          AND data->>${columnKey}::text ~ '^\\d{4}-\\d{2}-\\d{2}'`
+  )
+}
+
+/**
  * Every column type plus its migrations. The `Record<ColumnType, …>`
  * annotation is the same completeness gate the client-safe registry uses: a
  * new type will not compile until it appears here too.
@@ -215,7 +251,20 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
   string: COLUMN_TYPE_REGISTRY.string,
   number: COLUMN_TYPE_REGISTRY.number,
   boolean: COLUMN_TYPE_REGISTRY.boolean,
-  date: COLUMN_TYPE_REGISTRY.date,
+  date: {
+    ...COLUMN_TYPE_REGISTRY.date,
+    // Only the off direction rewrites: turning `includeTime` ON leaves existing
+    // calendar days as they are (they simply have no time yet), while turning
+    // it OFF must strip times the schema no longer admits.
+    // Only an explicit transition TO date-only rewrites. Gating on
+    // `target.includeTime` being falsy also fired when the key was CLEARED
+    // (`null` → absent), and absent is the tri-state's "legacy column, holds
+    // instants" — the one state that must never be truncated.
+    migrateCellsForMetadata: ({ trx, tableId, columnKey, previous, target }) =>
+      previous.includeTime !== false && target.includeTime === false
+        ? truncateDateCellsToCalendarDay(trx, tableId, columnKey)
+        : Promise.resolve(),
+  },
   json: COLUMN_TYPE_REGISTRY.json,
   select: {
     ...COLUMN_TYPE_REGISTRY.select,
@@ -225,6 +274,9 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
       migrateSelectCellsToNames(trx, tableId, columnKey, previous.options ?? []),
   },
   currency: COLUMN_TYPE_REGISTRY.currency,
+  percent: COLUMN_TYPE_REGISTRY.percent,
+  email: COLUMN_TYPE_REGISTRY.email,
+  phone: COLUMN_TYPE_REGISTRY.phone,
 }
 
 /** The inbound migration for a target type, if it has one. */
@@ -235,4 +287,12 @@ export function migrationTo(type: ColumnType): ColumnCellMigration | undefined {
 /** The outbound migration for a source type, if it has one. */
 export function migrationFrom(type: ColumnType): ColumnCellMigration | undefined {
   return COLUMN_TYPE_SERVER_REGISTRY[type]?.migrateCellsFrom
+}
+
+/**
+ * The same-type migration a metadata change runs, if the type declares one.
+ * Absent for presentational metadata, which must never touch a row.
+ */
+export function metadataMigrationFor(type: ColumnType): ColumnCellMigration | undefined {
+  return COLUMN_TYPE_SERVER_REGISTRY[type]?.migrateCellsForMetadata
 }

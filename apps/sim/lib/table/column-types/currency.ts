@@ -1,5 +1,6 @@
 import { TypeCurrency } from '@sim/emcn/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import { ownedKeysOf } from '@/lib/table/column-types/types'
 import {
   formatCurrencyDisplay,
   formatCurrencyForInput,
@@ -13,10 +14,12 @@ export const currencyColumnType: ColumnTypeDefinition = {
   label: 'Currency',
   icon: TypeCurrency,
   jsonbCast: 'numeric',
+  canonicalizesValues: true,
+  orderable: true,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: 123,
-  ownedMetadata: ['currencyCode'],
+  ownedMetadata: ownedKeysOf('currency'),
   workflowInputType: 'number',
   editor: 'text',
   expandable: false,
@@ -58,6 +61,11 @@ export const currencyColumnType: ColumnTypeDefinition = {
 
   formatForInput(value) {
     return formatCurrencyForInput(value)
+  },
+
+  // The row modal edits the bare amount, so the code has to appear somewhere.
+  describe(column) {
+    return `Currency (${resolveCurrencyCode(column.currencyCode)})`
   },
 
   defaultMetadata(column) {

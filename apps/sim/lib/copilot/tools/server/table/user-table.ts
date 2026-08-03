@@ -34,18 +34,24 @@ import {
   sortSpecNamesToIds,
 } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
-import { columnTypeById } from '@/lib/table/column-types'
+import {
+  columnTypeById,
+  metadataKeysIn,
+  pickMetadata,
+  TYPE_SPECIFIC_COLUMN_KEYS,
+  validateTypeMetadata,
+} from '@/lib/table/column-types'
+import { validateMetadataUpdate } from '@/lib/table/columns/metadata'
 import {
   addTableColumn,
   deleteColumn,
   deleteColumns,
   renameColumn,
   updateColumnConstraints,
-  updateColumnCurrency,
+  updateColumnMetadata,
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table/columns/service'
-import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
@@ -74,6 +80,7 @@ import type {
   Filter,
   RowData,
   SelectOption,
+  SelectOptionColor,
   SortSpec,
   TableDefinition,
   TableDeleteJobPayload,
@@ -86,6 +93,7 @@ import type {
   WorkflowGroupInputMapping,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
+import { isSelectOptionColor } from '@/lib/table/types'
 import { markTableUpdateFailed, runTableUpdate } from '@/lib/table/update-runner'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 import {
@@ -350,12 +358,27 @@ export function normalizeSelectOptionsInput(
   }
   const resolveId = (name: string): string => idByName.get(name.toLowerCase()) ?? generateShortId()
 
+  // An option's existing color survives a re-send that omits it, so an edit
+  // that only renames options does not silently reset every pill to gray.
+  const colorByName = new Map<string, SelectOptionColor>()
+  for (const option of existing) {
+    if (option.color) colorByName.set(option.name.toLowerCase(), option.color)
+  }
+  const resolveColor = (name: string, supplied: unknown): SelectOptionColor | undefined => {
+    if (typeof supplied === 'string' && isSelectOptionColor(supplied)) return supplied
+    return colorByName.get(name.toLowerCase())
+  }
+
   return raw.map((entry) => {
-    if (typeof entry === 'string') return { id: resolveId(entry), name: entry }
-    const e = (entry ?? {}) as { id?: unknown; name?: unknown }
+    if (typeof entry === 'string') {
+      const color = resolveColor(entry, undefined)
+      return { id: resolveId(entry), name: entry, ...(color ? { color } : {}) }
+    }
+    const e = (entry ?? {}) as { id?: unknown; name?: unknown; color?: unknown }
     const name = typeof e.name === 'string' ? e.name : String(e.name ?? '')
     const id = typeof e.id === 'string' && e.id.length > 0 ? e.id : resolveId(name)
-    return { id, name }
+    const color = resolveColor(name, e.color)
+    return { id, name, ...(color ? { color } : {}) }
   })
 }
 
@@ -1569,11 +1592,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          if (col.currencyCode !== undefined && !isSupportedCurrencyCode(col.currencyCode)) {
-            return {
-              success: false,
-              message: `Invalid currency code "${col.currencyCode}". Use an ISO 4217 code, e.g. USD`,
-            }
+          // The new column's own type-specific metadata, checked by that type's
+          // `validateDefinition`. `addTableColumn` validates again inside its
+          // transaction; running it here first is what turns a bad value into a
+          // helpful agent-facing message rather than a generic write failure.
+          const metadataErrors = validateTypeMetadata(col as ColumnDefinition)
+          if (metadataErrors.length > 0) {
+            return { success: false, message: metadataErrors[0] }
           }
           // Agent authors select options by name; generate their stable ids here.
           const columnToAdd =
@@ -1678,24 +1703,22 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
           const rawOptions = (args as Record<string, unknown>).options
           const multiple = (args as Record<string, unknown>).multiple as boolean | undefined
-          const currencyCode = (args as Record<string, unknown>).currencyCode as string | undefined
+          // Every type-specific key the agent may have supplied, read off the
+          // loose arg bag by the registry's key list rather than named here — so
+          // a new column type's metadata is accepted the moment it is declared.
+          const rawMetadata: Partial<ColumnDefinition> = {}
+          for (const key of TYPE_SPECIFIC_COLUMN_KEYS) {
+            const value = (args as Record<string, unknown>)[key]
+            if (value !== undefined) Object.assign(rawMetadata, { [key]: value })
+          }
           if (
             newType === undefined &&
             uniqFlag === undefined &&
-            rawOptions === undefined &&
-            multiple === undefined &&
-            currencyCode === undefined
+            Object.keys(rawMetadata).length === 0
           ) {
             return {
               success: false,
-              message:
-                'At least one of newType, unique, options, multiple, or currencyCode must be provided',
-            }
-          }
-          if (currencyCode !== undefined && !isSupportedCurrencyCode(currencyCode)) {
-            return {
-              success: false,
-              message: `Invalid currency code "${currencyCode}". Use an ISO 4217 code, e.g. USD`,
+              message: `At least one of newType, unique, or ${TYPE_SPECIFIC_COLUMN_KEYS.join(', ')} must be provided`,
             }
           }
           const tableForUpdate = await getTableById(args.tableId)
@@ -1710,6 +1733,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           )
           const existingOptions = currentColumn?.options ?? []
           const options = normalizeSelectOptionsInput(rawOptions, existingOptions)
+          // Validate and write the NORMALIZED options, not the agent's raw
+          // name-only list: `validateDefinition` requires every option to carry
+          // an id, which is minted just above.
+          const metadataUpdates: Partial<ColumnDefinition> = {
+            ...rawMetadata,
+            ...(options !== undefined ? { options } : {}),
+          }
           // An agent restating the current type alongside new options must not
           // go through `updateColumnType` — it early-returns on an unchanged
           // type and would drop them. Mirrors the HTTP columns route.
@@ -1733,6 +1763,21 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: `Cannot set column "${colName}" as unique: ${resultingType} columns cannot be unique.`,
             }
           }
+          // Same registry-driven ownership + value check the HTTP routes apply,
+          // so the agent gets the type's own message ("Use an ISO 4217 code")
+          // instead of a bespoke one per key.
+          if (currentColumn) {
+            const metadataError = validateMetadataUpdate(
+              currentColumn,
+              resultingType,
+              metadataUpdates
+            )
+            if (metadataError) {
+              return { success: false, message: metadataError }
+            }
+          }
+          const { generic: genericMetadataKeys, dedicated: dedicatedMetadataKeys } =
+            metadataKeysIn(metadataUpdates)
           if (typeChanging) {
             assertNotAborted()
             result = await updateColumnType(
@@ -1740,33 +1785,37 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 tableId: args.tableId,
                 columnName: colName,
                 newType: newType as (typeof COLUMN_TYPES)[number],
-                options,
-                multiple,
-                ...(currencyCode !== undefined ? { currencyCode } : {}),
+                // Both key sets, exactly as the HTTP routes do. Passing
+                // `options`/`multiple` from the separately-normalized variables
+                // dropped an explicit clear: `normalizeSelectOptionsInput`
+                // answers `undefined` for a non-array, so an agent sending
+                // `options: null` reached the retype as "not mentioned" and the
+                // conversion carried the stale option set forward, where the
+                // route would have cleared it. `metadataUpdates` already holds
+                // the NORMALIZED options when any were supplied.
+                ...pickMetadata(metadataUpdates, [
+                  ...genericMetadataKeys,
+                  ...dedicatedMetadataKeys,
+                ]),
                 ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
               },
               requestId
             )
-          } else if (currencyCode !== undefined) {
-            // Re-denominating an existing currency column: schema-only, no cell
-            // rewrite. Mirrors the HTTP columns routes.
-            if (currentColumn?.type !== 'currency') {
-              return {
-                success: false,
-                message: `Column "${colName}" is not a currency column. Pass newType: "currency" with currencyCode to convert it.`,
-              }
-            }
+          } else if (genericMetadataKeys.length > 0) {
+            // Changing a column's own metadata without a type change —
+            // schema-only unless the type declares a cell rewrite. Mirrors the
+            // HTTP columns routes.
             assertNotAborted()
-            result = await updateColumnCurrency(
+            result = await updateColumnMetadata(
               {
                 tableId: args.tableId,
                 columnName: colName,
-                currencyCode,
+                metadata: pickMetadata(metadataUpdates, genericMetadataKeys),
                 ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
               },
               requestId
             )
-          } else if (options !== undefined || multiple !== undefined) {
+          } else if (dedicatedMetadataKeys.length > 0) {
             // Editing an existing select column's option set / mode without a
             // type change. `multiple` alone is a valid update — the catalog
             // documents it as independent — so fall back to the column's current

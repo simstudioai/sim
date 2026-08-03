@@ -11,7 +11,7 @@ import {
   type CsvHeaderMapping,
   coerceRowsForTable,
   createCsvParser,
-  inferColumnType,
+  inferredColumnDefinition,
   inferSchemaFromCsv,
   sanitizeName,
   type TableSchema,
@@ -217,7 +217,14 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
             suffix++
           }
           usedNames.add(columnName.toLowerCase())
-          additions.push({ name: columnName, type: inferColumnType(sample.map((r) => r[header])) })
+          // Shared with both import routes, so an appended date column is
+          // never persisted date-only while its rows carry times.
+          additions.push(
+            inferredColumnDefinition(
+              columnName,
+              sample.map((r) => r[header])
+            )
+          )
           updatedMapping[header] = columnName
         }
         const updated = await addImportColumns(

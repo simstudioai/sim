@@ -23,14 +23,23 @@ Every column has a type, which decides how its values are stored and validated.
 | **Text** | A free-form string | `"Acme Corp"` |
 | **Number** | A numeric value | `42` |
 | **Currency** | An amount in a currency you pick per column | `$1,234.56` |
+| **Percent** | A percentage | `25%` |
 | **Boolean** | `true` or `false` | `true` |
-| **Date** | A date | `2026-03-16` |
-| **JSON** | An object or array | `{ "tier": "pro" }` |
+| **Date** | A date, with or without a time | `2026-03-16` |
 | **Select** | One of a fixed set of options, or several | `Pro` |
+| **Email** | An email address | `person@example.com` |
+| **Phone** | A phone number | `+1 555 123 4567` |
+| **JSON** | An object or array | `{ "tier": "pro" }` |
 
 Types are enforced as you enter values, so a Number column only takes numbers.
 
-A Currency column stores a plain number and renders it in the currency you choose for that column, so filters, sorts, and exports all see the amount itself. Changing a column's currency relabels it — it does not convert the amounts.
+Currency and Percent columns both store a plain number, so filters, sorts, and exports see the amount itself rather than its formatting — `> 50%` is an ordinary numeric comparison. Changing a column's currency relabels it; it does not convert the amounts. Number and Percent columns take a decimal-place setting that changes how values are shown without rounding what is stored.
+
+Email and Phone columns tidy and check values as you enter them — addresses are lower-cased, phone numbers stripped to their digits — so the same value entered two ways matches. A value that isn't a valid address or number is rejected rather than stored.
+
+A Date column can carry a time of day or just a calendar date. Turning **Include time** off on a column that already has times will drop them.
+
+Select options can each be given a color, which is used for the pill shown in the cell.
 
 ## Editing a table
 

@@ -15,19 +15,19 @@ import {
   deleteColumn,
   renameColumn,
   updateColumnConstraints,
-  updateColumnCurrency,
+  updateColumnMetadata,
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table'
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
-import { columnTypeById } from '@/lib/table/column-types'
-import { isSupportedCurrencyCode } from '@/lib/table/currency'
+import { columnTypeById, metadataKeysIn, pickMetadata } from '@/lib/table/column-types'
+import { validateMetadataUpdate } from '@/lib/table/columns/metadata'
+import { TableRequestError } from '@/lib/table/errors'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   accessError,
   checkAccess,
   normalizeColumn,
-  rootErrorMessage,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 
@@ -78,18 +78,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       return validationErrorResponse(error, 'Invalid request data')
     }
 
-    const msg = rootErrorMessage(error)
-    if (
-      msg.includes('already exists') ||
-      msg.includes('maximum column') ||
-      msg.includes('Invalid column') ||
-      msg.includes('exceeds maximum') ||
-      msg.includes('option')
-    ) {
-      return NextResponse.json({ error: msg }, { status: 400 })
-    }
-    if (msg === 'Table not found') {
-      return NextResponse.json({ error: msg }, { status: 404 })
+    // One typed check instead of a per-message substring list: the service
+    // says whether a failure is the caller's and what status it deserves.
+    if (error instanceof TableRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
     logger.error(`[${requestId}] Error adding column to table ${tableId}:`, error)
@@ -145,14 +137,17 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       )
     }
 
+    // Which type-specific keys this payload carries, and which writer owns
+    // each. Read from the registry rather than named here, so a new metadata
+    // key routes correctly without touching this route.
+    const { generic: genericMetadataKeys, dedicated: dedicatedMetadataKeys } =
+      metadataKeysIn(updates)
+
     // A retype applies and validates the constraints itself, so the separate
     // constraint write only runs when the type is unchanged. The rename rides
     // whichever write actually runs last.
     const typedWriteRuns =
-      typeChanging ||
-      updates.currencyCode !== undefined ||
-      updates.options !== undefined ||
-      updates.multiple !== undefined
+      typeChanging || genericMetadataKeys.length > 0 || dedicatedMetadataKeys.length > 0
     const constraintsWriteRuns =
       !typedWriteRuns && (updates.required !== undefined || updates.unique !== undefined)
     const renameWithTypedWrite =
@@ -165,23 +160,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     // changing: an options-only update on an existing select column carries the
     // same hazard as a conversion does.
     const resultingType = updates.type ?? currentColumn?.type
-    if (updates.currencyCode !== undefined) {
-      if (resultingType !== 'currency') {
-        return NextResponse.json(
-          {
-            error: `Cannot set currency on column "${validated.columnName}" of type "${resultingType}"`,
-          },
-          { status: 400 }
-        )
-      }
-      if (!isSupportedCurrencyCode(updates.currencyCode)) {
-        return NextResponse.json(
-          {
-            error: `Invalid currency code "${updates.currencyCode}". Use an ISO 4217 code, e.g. USD`,
-          },
-          { status: 400 }
-        )
-      }
+    const metadataError = validateMetadataUpdate(currentColumn, resultingType, updates)
+    if (metadataError) {
+      return NextResponse.json({ error: metadataError }, { status: 400 })
     }
     // The rename runs last (see below), so a name already taken would fail after
     // the typed write committed. This is the only rename failure a caller can
@@ -224,9 +205,12 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
           tableId,
           columnName: columnRef,
           newType: updates.type as NonNullable<typeof updates.type>,
-          ...(updates.options !== undefined ? { options: updates.options } : {}),
-          ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
-          ...(updates.currencyCode !== undefined ? { currencyCode: updates.currencyCode } : {}),
+          // Every type-specific key the payload carries, whichever writer would
+          // own it standalone: a conversion applies its target's metadata in the
+          // same transaction rather than leaving it to a second write. Clears
+          // are forwarded as `null` — stripping them here made
+          // `buildConvertedColumn` fall back to the pre-conversion value.
+          ...pickMetadata(updates, [...genericMetadataKeys, ...dedicatedMetadataKeys]),
           // Forwarded so the conversion validates against the constraint this
           // same request is about to set, not the column's current one.
           ...(updates.required !== undefined ? { required: updates.required } : {}),
@@ -235,22 +219,23 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
         },
         requestId
       )
-    } else if (updates.currencyCode !== undefined) {
-      // Re-denominating an existing currency column: schema-only, no cell
-      // rewrite. Reached only when the type is unchanged — a conversion INTO
-      // currency carries the code through `updateColumnType` above.
-      updatedTable = await updateColumnCurrency(
+    } else if (genericMetadataKeys.length > 0) {
+      // Changing a column's own metadata — re-denominating a currency, changing
+      // a number's precision. Usually schema-only; the type declares a cell
+      // rewrite if it needs one. Reached only when the type is unchanged, since
+      // a conversion carries its metadata through `updateColumnType` above.
+      updatedTable = await updateColumnMetadata(
         {
           tableId,
           columnName: columnRef,
-          currencyCode: updates.currencyCode,
+          metadata: pickMetadata(updates, genericMetadataKeys),
           ...(updates.required !== undefined ? { required: updates.required } : {}),
           ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
           ...renameWithTypedWrite,
         },
         requestId
       )
-    } else if (updates.options !== undefined || updates.multiple !== undefined) {
+    } else if (dedicatedMetadataKeys.length > 0) {
       updatedTable = await updateColumnOptions(
         {
           tableId,
@@ -312,24 +297,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       return validationErrorResponse(error, 'Invalid request data')
     }
 
-    const msg = rootErrorMessage(error)
-    if (msg.includes('not found') || msg.includes('Table not found')) {
-      return NextResponse.json({ error: msg }, { status: 404 })
-    }
-    if (
-      msg.includes('already exists') ||
-      msg.includes('Cannot delete the last column') ||
-      msg.includes('Cannot set column') ||
-      msg.includes('Cannot set unique column') ||
-      msg.includes('Invalid column') ||
-      msg.includes('exceeds maximum') ||
-      msg.includes('incompatible') ||
-      msg.includes('duplicate') ||
-      msg.includes('option') ||
-      msg.includes('currency') ||
-      msg.includes('is already type')
-    ) {
-      return NextResponse.json({ error: msg }, { status: 400 })
+    // One typed check instead of a per-message substring list: the service
+    // says whether a failure is the caller's and what status it deserves.
+    if (error instanceof TableRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
     logger.error(`[${requestId}] Error updating column in table ${tableId}:`, error)
@@ -382,12 +353,10 @@ export const DELETE = withRouteHandler(
         return validationErrorResponse(error, 'Invalid request data')
       }
 
-      const msg = rootErrorMessage(error)
-      if (msg.includes('not found') || msg === 'Table not found') {
-        return NextResponse.json({ error: msg }, { status: 404 })
-      }
-      if (msg.includes('Cannot delete') || msg.includes('last column')) {
-        return NextResponse.json({ error: msg }, { status: 400 })
+      // One typed check instead of a per-message substring list: the service
+      // says whether a failure is the caller's and what status it deserves.
+      if (error instanceof TableRequestError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
       }
 
       logger.error(`[${requestId}] Error deleting column from table ${tableId}:`, error)

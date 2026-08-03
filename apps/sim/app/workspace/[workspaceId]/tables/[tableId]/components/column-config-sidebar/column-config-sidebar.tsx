@@ -6,11 +6,13 @@ import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
+import { typeOwnsMetadataKey } from '@/lib/table/column-types'
 import {
   DEFAULT_CURRENCY_CODE,
   getCurrencyOptions,
   resolveCurrencyCode,
 } from '@/lib/table/currency'
+import { clampPrecision, DEFAULT_PRECISION } from '@/lib/table/precision'
 import {
   FieldError,
   RequiredLabel,
@@ -21,7 +23,7 @@ import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
 
 /** Whether a column type carries an option set. */
 function isSelectType(type: ColumnDefinition['type']): boolean {
-  return type === 'select'
+  return typeOwnsMetadataKey(type, 'options')
 }
 
 /**
@@ -115,6 +117,22 @@ function ColumnConfigBody({
   const [typeInput, setTypeInput] = useState<ColumnDefinition['type']>(() =>
     config.mode === 'edit' ? (existingColumn?.type ?? 'string') : config.type
   )
+  // What "include time" means for the column as it stands today.
+  //
+  // Only an EXISTING date column answers from its own value, where absent means
+  // a column predating the key and therefore holding instants. Every other
+  // starting point — creating a column, or converting one that is not yet a
+  // date — takes the same date-only default a newly created date column gets.
+  //
+  // Read off a non-date column, `includeTime !== false` answers `true` (the key
+  // is simply absent there), which made converting a text column to Date
+  // silently opt it into times while creating one gave date-only. The seed and
+  // the dirty-check both read this so they cannot answer differently.
+  const baselineIncludeTime =
+    config.mode === 'edit' && existingColumn?.type === 'date'
+      ? existingColumn.includeTime !== false
+      : false
+
   const [uniqueInput, setUniqueInput] = useState<boolean>(() =>
     config.mode === 'edit' ? !!existingColumn?.unique : false
   )
@@ -129,6 +147,18 @@ function ColumnConfigBody({
       ? resolveCurrencyCode(existingColumn?.currencyCode)
       : DEFAULT_CURRENCY_CODE
   )
+  // The RAW string, not a number. A numeric state round-tripped through
+  // `Number()` on every keystroke cannot be cleared (`'' → 0`) and clamps
+  // mid-typing (`1`, then `2` → `10`, never `12`). The parse is derived below
+  // and never written back, so the field keeps whatever was typed — same shape
+  // as `usage-limit-field`. Empty means "no precision declared", which is what
+  // keeps a column rendering its values as stored.
+  const [precisionInput, setPrecisionInput] = useState<string>(() =>
+    config.mode === 'edit' && existingColumn?.precision !== undefined
+      ? String(existingColumn.precision)
+      : ''
+  )
+  const [includeTimeInput, setIncludeTimeInput] = useState<boolean>(() => baselineIncludeTime)
   const [showValidation, setShowValidation] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -136,7 +166,22 @@ function ColumnConfigBody({
   const saveDisabled = updateColumn.isPending || addColumn.isPending
   const trimmedName = nameInput.trim()
   const wantsOptions = isSelectType(typeInput)
-  const wantsCurrency = typeInput === 'currency'
+  // Which metadata controls to show is a registry question, not a list of type
+  // names: a type that later gains `precision` gets the control for free, and a
+  // type that loses it cannot leave a stale control behind.
+  const wantsCurrency = typeOwnsMetadataKey(typeInput, 'currencyCode')
+  const wantsPrecision = typeOwnsMetadataKey(typeInput, 'precision')
+  // `undefined` means "no precision declared" — the field is legitimately
+  // clearable back to rendering values as stored. Anything that is not a whole
+  // number is treated the same rather than clamped, because `clampPrecision`
+  // falls back to 0 for a non-integer: `2.5` is finite, so a `Number.isFinite`
+  // guard let it through and silently saved "zero decimal places".
+  const precisionNumber = Number(precisionInput)
+  const parsedPrecision =
+    precisionInput.trim() === '' || !Number.isInteger(precisionNumber)
+      ? undefined
+      : clampPrecision(precisionNumber)
+  const wantsIncludeTime = typeOwnsMetadataKey(typeInput, 'includeTime')
   const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
 
   /** Client-side option validation mirroring the server rules; returns an error message or null. */
@@ -171,6 +216,10 @@ function ColumnConfigBody({
           ...(wantsOptions ? { options: trimmedOptions } : {}),
           ...(wantsOptions && multipleInput ? { multiple: true } : {}),
           ...(wantsCurrency ? { currencyCode: currencyInput } : {}),
+          ...(wantsPrecision && parsedPrecision !== undefined
+            ? { precision: parsedPrecision }
+            : {}),
+          ...(wantsIncludeTime ? { includeTime: includeTimeInput } : {}),
         })
         toast.success(`Added "${trimmedName}"`)
         onClose()
@@ -191,6 +240,8 @@ function ColumnConfigBody({
       const multipleChanged = wantsOptions && !!existingColumn?.multiple !== multipleInput
       const currencyChanged =
         wantsCurrency && resolveCurrencyCode(existingColumn?.currencyCode) !== currencyInput
+      const precisionChanged = wantsPrecision && existingColumn?.precision !== parsedPrecision
+      const includeTimeChanged = wantsIncludeTime && baselineIncludeTime !== includeTimeInput
 
       const updates: {
         name?: string
@@ -199,6 +250,8 @@ function ColumnConfigBody({
         options?: SelectOption[]
         multiple?: boolean
         currencyCode?: string
+        precision?: number | null
+        includeTime?: boolean
       } = {
         ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
@@ -208,6 +261,15 @@ function ColumnConfigBody({
         ...(wantsOptions && (typeChanged || multipleChanged) ? { multiple: multipleInput } : {}),
         ...(wantsCurrency && (typeChanged || currencyChanged)
           ? { currencyCode: currencyInput }
+          : {}),
+        // `null` clears the key. Gating on `!== undefined` meant emptying the
+        // field sent nothing at all, so an existing precision could never be
+        // removed once set.
+        ...(wantsPrecision && (typeChanged || precisionChanged)
+          ? { precision: parsedPrecision ?? null }
+          : {}),
+        ...(wantsIncludeTime && (typeChanged || includeTimeChanged)
+          ? { includeTime: includeTimeInput }
           : {}),
       }
       if (Object.keys(updates).length === 0) {
@@ -302,6 +364,52 @@ function ColumnConfigBody({
                 searchPlaceholder='Search currencies'
                 maxHeight={260}
               />
+            </div>
+          </>
+        )}
+
+        {wantsPrecision && (
+          <>
+            <FieldDivider />
+            <div className='flex flex-col gap-[9.5px]'>
+              <Label htmlFor='column-sidebar-precision' className='pl-0.5'>
+                Decimal places
+              </Label>
+              <ChipInput
+                id='column-sidebar-precision'
+                type='number'
+                inputMode='numeric'
+                min={DEFAULT_PRECISION.min}
+                max={DEFAULT_PRECISION.max}
+                value={precisionInput}
+                onChange={(e) => setPrecisionInput(e.target.value)}
+                placeholder='As stored'
+                inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+              />
+            </div>
+          </>
+        )}
+
+        {wantsIncludeTime && (
+          <>
+            <FieldDivider />
+            <div className='flex flex-col gap-[9px]'>
+              <div className='flex items-center justify-between pl-0.5'>
+                <Label htmlFor='column-sidebar-include-time'>Include time</Label>
+                <Switch
+                  id='column-sidebar-include-time'
+                  checked={includeTimeInput}
+                  onCheckedChange={(v) => setIncludeTimeInput(!!v)}
+                />
+              </div>
+              {/* Turning this off rewrites every cell and cannot be undone by
+                  turning it back on — the times are gone. Shown only when the
+                  save would actually perform that rewrite. */}
+              {baselineIncludeTime && !includeTimeInput && (
+                <p className='pl-0.5 text-[var(--text-error)] text-caption'>
+                  Saving will remove the time from every cell in this column. This can’t be undone.
+                </p>
+              )}
             </div>
           </>
         )}

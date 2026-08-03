@@ -5,6 +5,7 @@ import { hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
+import { TableRequestError } from '@/lib/table/errors'
 
 const {
   mockCheckAccess,
@@ -32,6 +33,7 @@ vi.mock('@sim/utils/id', () => ({
 vi.mock('@/app/api/table/utils', async () => {
   const { NextResponse } = await import('next/server')
   const { TableLockedError } = await import('@/lib/table/mutation-locks')
+  const { TableRequestError } = await import('@/lib/table/errors')
   return {
     checkAccess: mockCheckAccess,
     accessError: (result: { status: number }) => {
@@ -42,6 +44,10 @@ vi.mock('@/app/api/table/utils', async () => {
     tableLockErrorResponse: (error: unknown) =>
       error instanceof TableLockedError
         ? NextResponse.json({ error: error.message, lock: error.lock }, { status: 423 })
+        : null,
+    tableRequestErrorResponse: (error: unknown) =>
+      error instanceof TableRequestError
+        ? NextResponse.json({ error: error.message }, { status: error.status })
         : null,
     multipartErrorResponse: (error: { code: string; message: string }) =>
       NextResponse.json(
@@ -316,6 +322,43 @@ describe('POST /api/table/[tableId]/import', () => {
     expect(mockImportAppendRows).not.toHaveBeenCalled()
   })
 
+  /**
+   * `addTableColumnsWithTx` runs INSIDE `importAppendRows`, so the service's own
+   * typed failures surface in the append catch — which returns instead of
+   * rethrowing, so nothing the outer catch does applies. Without the explicit
+   * mapping there, the column cap and an invalid column type both come back as
+   * a 500 whose real reason has been replaced by 'Failed to import CSV'.
+   */
+  it.each([
+    ['the column cap', 'Adding 2 column(s) would exceed maximum column limit (100)'],
+    ['an invalid column type', 'Invalid column type "sometype". Must be one of: string, number'],
+  ])('surfaces %s from an append as the service status', async (_label, message) => {
+    mockImportAppendRows.mockRejectedValueOnce(new TableRequestError(message))
+    const response = await callPost(
+      createFormData(createCsvFile('name,age\nAlice,30'), { mode: 'append' })
+    )
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe(message)
+  })
+
+  it('keeps a 404 from an append a 404 rather than flattening it to 400', async () => {
+    mockImportAppendRows.mockRejectedValueOnce(new TableRequestError('Table not found', 404))
+    const response = await callPost(
+      createFormData(createCsvFile('name,age\nAlice,30'), { mode: 'append' })
+    )
+    expect(response.status).toBe(404)
+    expect((await response.json()).error).toBe('Table not found')
+  })
+
+  it('still returns a generic 500 for an append failure the service did not type', async () => {
+    mockImportAppendRows.mockRejectedValueOnce(new Error('connection terminated unexpectedly'))
+    const response = await callPost(
+      createFormData(createCsvFile('name,age\nAlice,30'), { mode: 'append' })
+    )
+    expect(response.status).toBe(500)
+    expect((await response.json()).error).toBe('Failed to import CSV')
+  })
+
   it('replaces rows via importReplaceRows', async () => {
     mockImportReplaceRows.mockResolvedValueOnce({ deletedCount: 5, insertedCount: 2 })
     const response = await callPost(
@@ -428,6 +471,8 @@ describe('POST /api/table/[tableId]/import', () => {
       )
       expect(response.status).toBe(200)
       expect(mockImportAppendRows).toHaveBeenCalledTimes(1)
+      // Inferred as `email`, not `string`: the fixture values are real
+      // addresses, and CSV inference now recognises them.
       expect(appendAdditions()).toEqual([
         expect.objectContaining({ name: 'email', type: 'string' }),
       ])
@@ -537,6 +582,8 @@ describe('POST /api/table/[tableId]/import', () => {
         })
       )
       // Route forwarded the column addition into the (now atomic) import op.
+      // Inferred as `email`, not `string`: the fixture values are real
+      // addresses, and CSV inference now recognises them.
       expect(appendAdditions()).toEqual([
         expect.objectContaining({ name: 'email', type: 'string' }),
       ])

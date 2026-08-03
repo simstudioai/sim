@@ -1,15 +1,20 @@
 import { TypeBoolean } from '@sim/emcn/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import { ownedKeysOf } from '@/lib/table/column-types/types'
 
 export const booleanColumnType: ColumnTypeDefinition = {
   id: 'boolean',
   label: 'Boolean',
   icon: TypeBoolean,
   jsonbCast: null,
+  // `coerce` folds case and trims (' True ' -> true), so a filter operand has
+  // to go through it too.
+  canonicalizesValues: true,
+  orderable: false,
   storesOpaqueIds: false,
   supportsUnique: true,
   sampleValue: true,
-  ownedMetadata: [],
+  ownedMetadata: ownedKeysOf('boolean'),
   workflowInputType: 'boolean',
   // Toggled in place on click, Enter, and fill — never opens an editor, so it
   // has no `typeaheadPattern` and the expanded popover skips it entirely.
@@ -32,6 +37,12 @@ export const booleanColumnType: ColumnTypeDefinition = {
 
   formatForDisplay(value) {
     return String(value)
+  },
+
+  // Draws even when the cell is empty: an absent boolean is an unchecked box,
+  // not a blank, so every boolean cell reads as a clickable toggle.
+  display(value) {
+    return { kind: 'boolean', checked: Boolean(value) }
   },
 
   formatForInput(value) {

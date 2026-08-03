@@ -6,6 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createTable, getWorkspaceTableLimits, listTables, type TableSchema } from '@/lib/table'
+import { TableRequestError } from '@/lib/table/errors'
 import { normalizeColumn } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -172,6 +173,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (validationResponse) return validationResponse
 
     if (error instanceof Error) {
+      // One typed check: the service says whether a failure is the caller's
+      // and what status it deserves.
+      if (error instanceof TableRequestError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
       if (error.message.includes('maximum table limit')) {
         return NextResponse.json({ error: error.message }, { status: 403 })
       }

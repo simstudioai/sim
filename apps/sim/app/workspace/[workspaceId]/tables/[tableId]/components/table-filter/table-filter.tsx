@@ -6,6 +6,7 @@ import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import type { ColumnDefinition, FilterRule, TablePredicate } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { columnTypeOf, storesMultipleValues } from '@/lib/table/column-types'
 import {
   COMPARISON_OPERATORS,
   MULTI_SELECT_FILTER_OPERATORS,
@@ -25,7 +26,19 @@ const MULTI_SELECT_COMPARISON_OPERATORS = COMPARISON_OPERATORS.filter((o) =>
 )
 
 function selectFilterOperators(column: ColumnDefinition | undefined): Set<string> {
-  return column?.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
+  return column && storesMultipleValues(column)
+    ? MULTI_SELECT_FILTER_OPERATORS
+    : SINGLE_SELECT_FILTER_OPERATORS
+}
+
+/**
+ * Whether a column's filter value is picked from a declared option set rather
+ * than typed. Asks the registry, so a future opaque-id type gets the dropdown
+ * and the restricted operator list instead of a free-text box and the full
+ * operator menu that the server would then reject.
+ */
+function picksFromOptions(column: ColumnDefinition | undefined): boolean {
+  return column ? columnTypeOf(column).storesOpaqueIds : false
 }
 
 interface TableFilterProps {
@@ -88,13 +101,13 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
           if (r.id !== id) return r
           const previous = columnById.get(r.column)
           const next = columnById.get(columnId)
-          const wasSelect = previous?.type === 'select'
-          const isSelect = next?.type === 'select'
+          const wasSelect = picksFromOptions(previous)
+          const isSelect = picksFromOptions(next)
           if (!wasSelect && !isSelect) return { ...r, column: columnId }
           // Single- and multi-select take different operators, so a switch
           // between them has to fall back too, not just select ↔ non-select.
           const allowed = selectFilterOperators(next)
-          const fallback = next?.multiple ? 'contains' : 'eq'
+          const fallback = next && storesMultipleValues(next) ? 'contains' : 'eq'
           const operator = isSelect && !allowed.has(r.operator) ? fallback : r.operator
           return { ...r, column: columnId, operator, value: '' }
         })
@@ -204,17 +217,17 @@ const FilterRuleRow = memo(function FilterRuleRow({
       : columns
 
   const selectedColumn = columnById.get(rule.column)
-  const isSelect = selectedColumn?.type === 'select'
+  const isSelect = picksFromOptions(selectedColumn)
   const operatorOptions = !isSelect
     ? COMPARISON_OPERATORS
-    : selectedColumn?.multiple
+    : selectedColumn && storesMultipleValues(selectedColumn)
       ? MULTI_SELECT_COMPARISON_OPERATORS
       : SINGLE_SELECT_COMPARISON_OPERATORS
 
   // A stale id (option since deleted) stays selectable so the rule still shows.
   const selectValueOptions = isSelect
     ? (() => {
-        const opts = (selectedColumn.options ?? []).map((o) => ({ value: o.id, label: o.name }))
+        const opts = (selectedColumn?.options ?? []).map((o) => ({ value: o.id, label: o.name }))
         return rule.value && !opts.some((o) => o.value === rule.value)
           ? [...opts, { value: rule.value, label: rule.value }]
           : opts
@@ -297,8 +310,9 @@ function createRule(columns: ColumnDefinition[]): FilterRule {
     id: generateShortId(),
     logicalOperator: 'and',
     column: first ? getColumnId(first) : '',
-    // A multi-select can't be compared for equality — default it to membership.
-    operator: first?.type === 'select' && first.multiple ? 'contains' : 'eq',
+    // A multi-valued column can't be compared for equality — default it to
+    // membership.
+    operator: first && storesMultipleValues(first) ? 'contains' : 'eq',
     value: '',
   }
 }

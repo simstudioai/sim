@@ -5,6 +5,12 @@
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { columnMatchesRef } from '@/lib/table/column-keys'
+import {
+  columnTypeOf,
+  normalizeFilterFragment,
+  predicateOperatorsFor,
+  storesMultipleValues,
+} from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import {
   MULTI_SELECT_FILTER_OPERATORS,
@@ -56,8 +62,8 @@ export function filterRulesToFilter(
     // applied; the row just contributes no condition.
     if (!rule.column) continue
 
-    const isSelect = columns.find((c) => columnMatchesRef(c, rule.column))?.type === 'select'
-    const ruleValue = toRuleValue(rule.operator, rule.value, isSelect)
+    const ruleColumn = columns.find((c) => columnMatchesRef(c, rule.column))
+    const ruleValue = toRuleValue(rule.operator, rule.value, ruleColumn)
     const existing = currentGroup[rule.column]
     currentGroup[rule.column] =
       existing === undefined
@@ -107,8 +113,10 @@ export function pruneFilterForColumns(
   const rules = filterToRules(filter)
   const kept = rules.filter((rule) => {
     const column = columns.find((c) => columnMatchesRef(c, rule.column))
-    if (column?.type !== 'select') return true
-    const allowed = column.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
+    if (!column || !columnTypeOf(column).storesOpaqueIds) return true
+    const allowed = storesMultipleValues(column)
+      ? MULTI_SELECT_FILTER_OPERATORS
+      : SINGLE_SELECT_FILTER_OPERATORS
     return allowed.has(rule.operator)
   })
 
@@ -122,6 +130,12 @@ export function pruneFilterForColumns(
  * Predicate-grammar sibling of {@link pruneFilterForColumns}: drops conditions a
  * `select` column no longer accepts (operator stranded by a type/`multiple`
  * change), so a stale applied filter can't fail every subsequent rows query.
+ *
+ * Gated on `predicateOperatorsFor` — the **v2** allowlist — not on the UI sets
+ * its legacy sibling uses. The two grammars are deliberately not 1:1:
+ * `isNull`/`isNotNull` are meaningful on a select column and have no `$`
+ * equivalent, so gating this on the legacy set stripped a saved predicate that
+ * the rows query would have accepted, silently widening the filter.
  */
 export function prunePredicateForColumns(
   predicate: TablePredicate | null,
@@ -135,9 +149,9 @@ export function prunePredicateForColumns(
   const rules = predicateToFilterRules(predicate)
   const kept = rules.filter((rule) => {
     const column = columns.find((c) => columnMatchesRef(c, rule.column))
-    if (column?.type !== 'select') return true
-    const allowed = column.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
-    return allowed.has(rule.operator)
+    if (!column) return true
+    const allowed = predicateOperatorsFor(column)
+    return allowed === null || allowed.has(rule.operator)
   })
 
   if (kept.length === rules.length) return predicate
@@ -190,10 +204,10 @@ export function sortToRules(sort: Sort | null): SortRule[] {
   }))
 }
 
-function toRuleValue(operator: string, value: string, keepAsText = false): JsonValue {
+function toRuleValue(operator: string, value: string, column?: ColumnDefinition): JsonValue {
   if (operator === 'isEmpty') return { $empty: true }
   if (operator === 'isNotEmpty') return { $empty: false }
-  const parsedValue = parseValue(value, operator, keepAsText)
+  const parsedValue = parseValue(value, operator, column)
   return operator === 'eq' ? parsedValue : { [`$${operator}`]: parsedValue }
 }
 
@@ -239,25 +253,55 @@ function applyLogicalOperators(groups: FilterRule[][]): FilterRule[] {
 const ARRAY_OPERATORS = new Set(['in', 'nin'])
 const TEXT_MATCH_OPERATORS = new Set(['contains', 'ncontains', 'startsWith', 'endsWith'])
 
-function parseValue(value: string, operator: string, keepAsText = false): JsonValue {
+function parseValue(value: string, operator: string, column?: ColumnDefinition): JsonValue {
+  // An opaque identifier (a select option id) must never be coerced — see
+  // `filterRulesToFilter`.
+  const keepAsText = column ? columnTypeOf(column).storesOpaqueIds : false
+
   if (ARRAY_OPERATORS.has(operator)) {
     return value
       .split(',')
       .map((part) => part.trim())
-      .map((part) => (keepAsText ? part : parseScalar(part)))
+      .map((part) => (keepAsText ? part : parseFilterScalar(part, column)))
   }
 
-  // An opaque identifier (a select option id) must never be coerced — see
-  // `filterRulesToFilter`.
   if (keepAsText) return value
 
-  // Substring/prefix/suffix matches are textual — keep the raw string so a value
-  // like "123" isn't coerced to a number the SQL builder's ILIKE path can't use.
+  // Substring/prefix/suffix matches stay TEXT — a value like "123" must not be
+  // coerced to a number the SQL builder's ILIKE path can't use. But a fragment
+  // still has to be shaped like the stored value: a Phone cell keeps only its
+  // digits, so `contains '+44 20 7123'` compared raw against a stored
+  // `+442071234567` matches nothing.
   if (TEXT_MATCH_OPERATORS.has(operator)) {
-    return value
+    return column ? normalizeFilterFragment(column, value) : value
   }
 
-  return parseScalar(value)
+  return parseFilterScalar(value, column)
+}
+
+/**
+ * Reads a filter value the way the COLUMN would read a cell value.
+ *
+ * Gated on `canonicalizesValues`, not on `jsonbCast`. The cast only says how the
+ * comparison is performed; the question here is whether the STORED form differs
+ * from what the user typed. It does for every type that transforms on write:
+ * a Currency column stores `1234.56` for `$1,234.56` and a Percent `50` for
+ * `50%` (both of which `Number()` reads as NaN, so the operand met a numeric
+ * cast as a string and the filter was rejected), and an Email column stores
+ * `ada@example.com` for `Ada@Example.com` and a Phone `+442071234567` for
+ * `020 1234 5678` (both of which compare as TEXT, so the filter was accepted
+ * and then quietly matched nothing).
+ *
+ * Pass-through types keep `parseScalar`: on a `string` column a filter for
+ * `"123"` keeps its long-standing coercion, and an opaque option id is handled
+ * before this is reached.
+ */
+function parseFilterScalar(value: string, column?: ColumnDefinition): JsonValue {
+  if (!column || !columnTypeOf(column).canonicalizesValues) return parseScalar(value)
+  const coerced = columnTypeOf(column).coerce(value, column)
+  // An unparseable value falls through unchanged so the SQL builder reports it
+  // against the operand the user actually typed.
+  return coerced.ok ? coerced.value : parseScalar(value)
 }
 
 function parseScalar(value: string): JsonValue {
@@ -332,10 +376,10 @@ function normalizeSortDirection(direction: string): SortDirection {
 
 const VALUELESS_OPS = new Set<FilterOp>(['isEmpty', 'isNotEmpty', 'isNull', 'isNotNull'])
 
-function ruleToPredicate(rule: FilterRule, keepAsText = false): Predicate {
+function ruleToPredicate(rule: FilterRule, column?: ColumnDefinition): Predicate {
   const op = rule.operator as FilterOp
   if (VALUELESS_OPS.has(op)) return { field: rule.column, op }
-  return { field: rule.column, op, value: parseValue(rule.value, rule.operator, keepAsText) }
+  return { field: rule.column, op, value: parseValue(rule.value, rule.operator, column) }
 }
 
 /**
@@ -374,11 +418,8 @@ export function filterRulesToPredicate(
       // A genuinely blank builder row (no column picked yet) contributes nothing.
       continue
     }
-    // A select value is an opaque option id — never scalar-coerce it (an id
-    // that happens to look numeric would silently become a number and match
-    // nothing). Same rule as filterRulesToFilter.
-    const isSelect = columns.find((c) => columnMatchesRef(c, rule.column))?.type === 'select'
-    current.push(ruleToPredicate(rule, isSelect))
+    const ruleColumn = columns.find((c) => columnMatchesRef(c, rule.column))
+    current.push(ruleToPredicate(rule, ruleColumn))
   }
   if (current.length > 0) groups.push(current)
 
