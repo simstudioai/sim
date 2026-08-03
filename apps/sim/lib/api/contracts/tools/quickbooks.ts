@@ -26,6 +26,7 @@ const documentTransactionTypeSchema = z.enum([
   'credit_memo',
   'estimate',
   'invoice',
+  'payment',
   'purchase_order',
   'refund_receipt',
   'sales_receipt',

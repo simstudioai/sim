@@ -1543,6 +1543,11 @@ export const QUICKBOOKS_MASTER_DATA_PROPERTIES: Record<string, OutputProperty> =
   ...QUICKBOOKS_VENDOR_PROPERTIES,
   ...QUICKBOOKS_ITEM_PROPERTIES,
   ...QUICKBOOKS_EMPLOYEE_PROPERTIES,
+  PrintOnCheckName: {
+    type: 'string',
+    description: 'Vendor or employee name printed on checks',
+    optional: true,
+  },
   Name: {
     type: 'string',
     description: 'Account, item, class, or department name',

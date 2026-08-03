@@ -1,5 +1,6 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
   quickbooksCreateBillPaymentTool,
@@ -907,6 +908,35 @@ describe('QuickBooks BillPayment account compatibility', () => {
 })
 
 describe('QuickBooks purchasing block', () => {
+  it('hides and omits the unsupported Purchase/Expense vendor filter', () => {
+    const readVendorId = QuickBooksBlock.subBlocks.find(
+      (candidate) => candidate.id === 'readVendorId'
+    )
+    expect(
+      evaluateSubBlockCondition(readVendorId?.condition, {
+        operation: 'quickbooks_read_purchasing_transactions',
+        readMode: 'list',
+        purchasingTransactionType: 'bill',
+      })
+    ).toBe(true)
+    expect(
+      evaluateSubBlockCondition(readVendorId?.condition, {
+        operation: 'quickbooks_read_purchasing_transactions',
+        readMode: 'list',
+        purchasingTransactionType: 'purchase',
+      })
+    ).toBe(false)
+    expect(
+      QuickBooksBlock.tools.config!.params!({
+        operation: 'quickbooks_read_purchasing_transactions',
+        oauthCredential: 'credential-id',
+        purchasingTransactionType: 'purchase',
+        readMode: 'list',
+        readVendorId: '62',
+      })
+    ).toMatchObject({ transactionType: 'purchase', vendorId: undefined })
+  })
+
   it('keeps the shared purchasing-lines example valid for every supported operation', () => {
     const subBlock = QuickBooksBlock.subBlocks.find(
       (candidate) => candidate.id === 'purchasingLines'

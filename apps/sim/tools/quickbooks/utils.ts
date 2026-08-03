@@ -408,19 +408,52 @@ const QUICKBOOKS_TRANSACTION_LIST_VALUES = {
   },
 } as const
 
+function getQuickBooksTransactionListControl(
+  value: unknown,
+  values: Record<string, string>,
+  field: string
+): string | undefined {
+  if (value === undefined || value === 'default') return undefined
+  if (typeof value !== 'string' || !Object.hasOwn(values, value) || !values[value]) {
+    throw new Error(`Unsupported QuickBooks ${field}: ${String(value)}`)
+  }
+  return values[value]
+}
+
 function addQuickBooksTransactionListFilters(
   url: URL,
   params: QuickBooksRunFinancialReportParams
 ): void {
-  const transactionType = params.transactionType === 'default' ? undefined : params.transactionType
-  const groupBy = params.groupBy === 'default' ? undefined : params.groupBy
-  const accountsPayablePaid =
-    params.accountsPayablePaid === 'default' ? undefined : params.accountsPayablePaid
-  const accountsReceivablePaid =
-    params.accountsReceivablePaid === 'default' ? undefined : params.accountsReceivablePaid
-  const clearedStatus = params.clearedStatus === 'default' ? undefined : params.clearedStatus
-  const sourceAccountType =
-    params.sourceAccountType === 'default' ? undefined : params.sourceAccountType
+  const transactionType = getQuickBooksTransactionListControl(
+    params.transactionType,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.transactionType,
+    'transactionType'
+  )
+  const groupBy = getQuickBooksTransactionListControl(
+    params.groupBy,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.groupBy,
+    'groupBy'
+  )
+  const accountsPayablePaid = getQuickBooksTransactionListControl(
+    params.accountsPayablePaid,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.paidStatus,
+    'accountsPayablePaid'
+  )
+  const accountsReceivablePaid = getQuickBooksTransactionListControl(
+    params.accountsReceivablePaid,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.paidStatus,
+    'accountsReceivablePaid'
+  )
+  const clearedStatus = getQuickBooksTransactionListControl(
+    params.clearedStatus,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.clearedStatus,
+    'clearedStatus'
+  )
+  const sourceAccountType = getQuickBooksTransactionListControl(
+    params.sourceAccountType,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.sourceAccountType,
+    'sourceAccountType'
+  )
   const controls = {
     transaction_type: transactionType,
     group_by: groupBy,
@@ -436,37 +469,13 @@ function addQuickBooksTransactionListFilters(
     return
   }
 
-  if (transactionType) {
-    url.searchParams.set(
-      'transaction_type',
-      QUICKBOOKS_TRANSACTION_LIST_VALUES.transactionType[transactionType]
-    )
-  }
-  if (groupBy) {
-    url.searchParams.set('group_by', QUICKBOOKS_TRANSACTION_LIST_VALUES.groupBy[groupBy])
-  }
-  if (accountsPayablePaid) {
-    url.searchParams.set(
-      'appaid',
-      QUICKBOOKS_TRANSACTION_LIST_VALUES.paidStatus[accountsPayablePaid]
-    )
-  }
-  if (accountsReceivablePaid) {
-    url.searchParams.set(
-      'arpaid',
-      QUICKBOOKS_TRANSACTION_LIST_VALUES.paidStatus[accountsReceivablePaid]
-    )
-  }
-  if (clearedStatus) {
-    url.searchParams.set('cleared', QUICKBOOKS_TRANSACTION_LIST_VALUES.clearedStatus[clearedStatus])
-  }
+  if (transactionType) url.searchParams.set('transaction_type', transactionType)
+  if (groupBy) url.searchParams.set('group_by', groupBy)
+  if (accountsPayablePaid) url.searchParams.set('appaid', accountsPayablePaid)
+  if (accountsReceivablePaid) url.searchParams.set('arpaid', accountsReceivablePaid)
+  if (clearedStatus) url.searchParams.set('cleared', clearedStatus)
   if (controls.docnum) url.searchParams.set('docnum', controls.docnum)
-  if (sourceAccountType) {
-    url.searchParams.set(
-      'source_account_type',
-      QUICKBOOKS_TRANSACTION_LIST_VALUES.sourceAccountType[sourceAccountType]
-    )
-  }
+  if (sourceAccountType) url.searchParams.set('source_account_type', sourceAccountType)
 }
 
 export function buildQuickBooksReportUrl(params: QuickBooksRunFinancialReportParams): URL {

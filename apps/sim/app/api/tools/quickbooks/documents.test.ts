@@ -153,6 +153,30 @@ describe('QuickBooks document API routes', () => {
     expect(String(mockFetch.mock.calls[0][0])).toContain('/invoice/A%2FB/pdf')
   })
 
+  it('accepts Payment through the canonical PDF route contract', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response('%PDF-1.4 fixture', {
+        headers: { 'content-type': 'application/pdf' },
+      })
+    )
+
+    const response = await downloadTransactionPdf(
+      createMockRequest('POST', {
+        ...auth,
+        transactionType: 'payment',
+        transactionId: '42',
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      output: { transactionType: 'payment', transactionId: '42' },
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(String(mockFetch.mock.calls[0][0])).toContain('/payment/42/pdf')
+  })
+
   it('rejects non-PDF and oversized PDF responses', async () => {
     mockFetch.mockResolvedValueOnce(
       new Response('not a PDF', { headers: { 'content-type': 'text/plain' } })

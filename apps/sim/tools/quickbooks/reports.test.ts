@@ -155,6 +155,23 @@ describe('QuickBooks financial report request construction', () => {
     })
   })
 
+  it.each([
+    ['transactionType', 'bogus'],
+    ['groupBy', 'bogus'],
+    ['accountsPayablePaid', 'bogus'],
+    ['accountsReceivablePaid', 'bogus'],
+    ['clearedStatus', 'bogus'],
+    ['sourceAccountType', 'bogus'],
+  ] as const)('rejects unsupported Transaction List %s values before fetch', (field, value) => {
+    expect(() =>
+      buildQuickBooksReportUrl({
+        ...authParams,
+        reportType: 'transaction_list',
+        [field]: value,
+      } as QuickBooksRunFinancialReportParams)
+    ).toThrow(`Unsupported QuickBooks ${field}`)
+  })
+
   it('omits blank and default controls', () => {
     const url = buildQuickBooksReportUrl({
       ...authParams,
@@ -191,7 +208,7 @@ describe('QuickBooks financial report request construction', () => {
     ).toThrow(message)
   })
 
-  it('contains exactly the sandbox-verified 15-report support matrix', () => {
+  it('contains exactly the fixed 15-report support matrix', () => {
     expect(Object.keys(QUICKBOOKS_REPORTS)).toEqual(reportEndpoints.map(([type]) => type))
     expect(Object.keys(QUICKBOOKS_REPORTS)).not.toContain('general_ledger')
     expect(quickbooksRunFinancialReportTool.params).toHaveProperty('transactionType')

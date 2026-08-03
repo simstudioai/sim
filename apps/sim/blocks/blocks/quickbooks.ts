@@ -774,11 +774,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       description:
         'Supported for purchase orders, bills, bill payments, and vendor credits. Purchase/Expense filtering is not exposed because its reference contract differs.',
       mode: 'advanced',
-      condition: {
+      condition: (values) => ({
         field: 'operation',
         value: PURCHASING_READ_OPERATION,
-        and: { field: 'readMode', value: 'list' },
-      },
+        and:
+          values?.purchasingTransactionType === 'purchase'
+            ? { field: 'purchasingTransactionType', value: 'purchase', not: true }
+            : { field: 'readMode', value: 'list' },
+      }),
     },
     {
       id: 'transactionType',
@@ -2090,7 +2093,10 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             readMode: params.readMode,
             startDate: optionalValue(params.readStartDate),
             endDate: optionalValue(params.readEndDate),
-            vendorId: optionalValue(params.readVendorId),
+            vendorId:
+              params.purchasingTransactionType === 'purchase'
+                ? undefined
+                : optionalValue(params.readVendorId),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
