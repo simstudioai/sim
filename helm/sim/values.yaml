@@ -1195,6 +1195,17 @@ networkPolicy:
     - "169.254.169.254/32"
     - "169.254.170.2/32"
 
+  # Allow egress to any destination and port instead of the default
+  # HTTPS-only rule set (cloud metadata endpoints stay blocked either way).
+  #
+  # Off by default: this chart is deliberately stricter than the common chart
+  # default, which permits unrestricted egress. Leave it false and enumerate
+  # what you need under `egress` below. Turn it on when you run managed
+  # datastores on non-443 ports (Redis, Postgres) and would rather not maintain
+  # CIDR lists — the bundled Postgres and Redis are already allowed by pod
+  # selector and do not need it.
+  allowExternalEgress: false
+
 # Shared storage for enterprise workflows requiring data sharing between pods
 sharedStorage:
   enabled: false

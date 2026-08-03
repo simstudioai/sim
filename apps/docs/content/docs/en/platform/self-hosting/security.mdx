@@ -85,6 +85,16 @@ networkPolicy:
   This applies even when `REDIS_URL` reaches the pod through a Secret rather than `values.yaml` — the chart cannot see the host, so it cannot generate the rule. A deployment that accepts the URL but has no matching egress rule will fail to reach Redis with `networkPolicy.enabled: true`.
 </Callout>
 
+If maintaining CIDR lists is not worth it, drop the port restriction instead:
+
+```yaml
+networkPolicy:
+  enabled: true
+  allowExternalEgress: true
+```
+
+Cloud metadata endpoints stay blocked either way. This defaults to `false` because Sim's chart is deliberately stricter than the common chart default, which permits unrestricted egress.
+
 ### Pod Security Standards
 
 All workloads set `runAsNonRoot`, drop all Linux capabilities, disable privilege escalation, and use `seccompProfile: RuntimeDefault` — the four controls the `restricted` profile requires. Label the namespace to enforce it:

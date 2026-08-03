@@ -122,6 +122,17 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
+  {{- if .Values.networkPolicy.allowExternalEgress }}
+  # Unrestricted egress (still excluding cloud metadata endpoints). Opt-in for
+  # deployments running managed datastores on non-443 ports.
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egressExceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
+  {{- else }}
   # Allow HTTPS egress for external APIs (excludes cloud metadata endpoints)
   - to:
     - ipBlock:
@@ -133,6 +144,7 @@ spec:
     ports:
     - protocol: TCP
       port: 443
+  {{- end }}
   # Allow custom egress rules
   {{- with .Values.networkPolicy.egress }}
   {{- toYaml . | nindent 2 }}
@@ -214,6 +226,17 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
+  {{- if .Values.networkPolicy.allowExternalEgress }}
+  # Unrestricted egress (still excluding cloud metadata endpoints). Opt-in for
+  # deployments running managed datastores on non-443 ports.
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egressExceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
+  {{- else }}
   # Allow HTTPS egress for external APIs (excludes cloud metadata endpoints)
   - to:
     - ipBlock:
@@ -225,6 +248,7 @@ spec:
     ports:
     - protocol: TCP
       port: 443
+  {{- end }}
   # Allow custom egress rules
   {{- with .Values.networkPolicy.egress }}
   {{- toYaml . | nindent 2 }}

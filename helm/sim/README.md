@@ -235,6 +235,8 @@ Before installing in production, confirm each of the following:
           - protocol: TCP
             port: 5432           # managed Postgres
   ```
+
+  If you would rather not maintain CIDR lists, `networkPolicy.allowExternalEgress: true` drops the port restriction entirely while still blocking the cloud metadata endpoints. It defaults to `false` — this chart is deliberately stricter than the common chart default of unrestricted egress.
 * **Network policy ingress** — `networkPolicy.ingressFrom` defaults to `[{}]` (an empty peer selector), which allows ingress traffic from **any pod in the cluster**, not just your ingress controller. This is a deliberate simple default, not a locked-down one. On a shared or multi-tenant cluster, scope it down, e.g. to the ingress-nginx namespace:
   ```yaml
   networkPolicy:
