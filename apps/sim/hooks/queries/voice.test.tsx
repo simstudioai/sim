@@ -5,7 +5,7 @@ import { act, type ReactNode } from 'react'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockRequestJson } = vi.hoisted(() => ({ mockRequestJson: vi.fn() }))
 
@@ -13,11 +13,15 @@ vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
 
 import { useVoiceSettings, voiceSettingsKeys } from '@/hooks/queries/voice'
 
+/** Trees rendered by a test, torn down in afterEach so observers do not leak across tests. */
+const mountedRoots: Root[] = []
+
 function renderHookWithClient<T>(useHook: () => T): { getResult: () => T } {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const container = document.createElement('div')
   const root: Root = createRoot(container)
+  mountedRoots.push(root)
   let result: T | undefined
 
   function Probe() {
@@ -47,6 +51,12 @@ async function flush() {
     }
   })
 }
+
+afterEach(() => {
+  act(() => {
+    for (const root of mountedRoots.splice(0)) root.unmount()
+  })
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
