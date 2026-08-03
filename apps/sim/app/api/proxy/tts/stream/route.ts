@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { ttsStreamContract } from '@/lib/api/contracts/media/tts-stream'
 import { parseRequest } from '@/lib/api/server'
@@ -157,8 +157,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * entry's stable fields — without this, two synthesis calls of equal length
      * in the same workspace would collide and the second would silently go
      * unbilled. Each call is a separate charge from ElevenLabs, so each needs
-     * its own row rather than being deduplicated. `randomUUID` rather than
+     * its own row rather than being deduplicated. `generateId` rather than
      * `generateRequestId`, whose fallback truncates to 8 characters.
+     *
+     * A ledger failure fails the request rather than streaming anyway: the
+     * caller is anonymous, so serving audio we could not charge for is exactly
+     * the unmetered spend this route exists to prevent. The vendor call is
+     * already paid for at this point, but the caller gains nothing from it, so
+     * there is no incentive to farm ledger outages.
      *
      * No threshold settlement here: it runs per metered event elsewhere and is
      * far too heavy for a per-sentence realtime path. The workflow execution
@@ -175,12 +181,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             source: 'voice-output',
             description: `Voice output (${text.length} characters)`,
             cost: (text.length / 1000) * TTS_COST_PER_1K_CHARS * getCostMultiplier(),
-            sourceReference: `voice-output:${chatId}:${randomUUID()}`,
+            sourceReference: `voice-output:${chatId}:${generateId()}`,
           },
         ],
       })
     } catch (err) {
-      logger.warn('Failed to record voice output usage, continuing:', err)
+      logger.error('Failed to record voice output usage, refusing to stream:', err)
+      return new Response('Unable to record usage for this request', { status: 500 })
     }
 
     const { readable, writable } = new TransformStream({

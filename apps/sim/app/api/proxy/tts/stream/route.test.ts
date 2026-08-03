@@ -257,6 +257,16 @@ describe('POST /api/proxy/tts/stream — attribution', () => {
     expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 
+  it('refuses to stream audio it could not record a charge for', async () => {
+    queueTableRows(schemaMock.chat, [publicChatRow])
+    mockRecordUsage.mockRejectedValue(new Error('ledger unavailable'))
+
+    const res = await POST(createMockRequest('POST', validBody()))
+
+    expect(res.status).toBe(500)
+    expect(res.headers.get('Content-Type')).not.toBe('audio/mpeg')
+  })
+
   it('rejects an unknown chat without touching the platform key', async () => {
     queueTableRows(schemaMock.chat, [])
 
