@@ -45,6 +45,7 @@ import {
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import { withRetry } from '@/executor/utils/retry'
 import {
   buildUnifiedParentIterations,
   getIterationContext,
@@ -181,9 +182,19 @@ export class BlockExecutor {
 
     let streamingPartialOutput: Record<string, any> | undefined
     try {
-      const output = handler.executeWithNode
-        ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
-        : await handler.execute(ctx, block, resolvedInputs)
+      const isLLMBlock = isAgentBlockType(block.metadata?.id) ||
+        block.metadata?.id === BlockType.EVALUATOR ||
+        block.metadata?.id === BlockType.ROUTER ||
+        block.metadata?.id === BlockType.ROUTER_V2
+      const output = isLLMBlock
+        ? await withRetry(
+            () => handler.executeWithNode
+              ? handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
+              : handler.execute(ctx, block, resolvedInputs)
+          )
+        : await (handler.executeWithNode
+            ? handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
+            : handler.execute(ctx, block, resolvedInputs))
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
