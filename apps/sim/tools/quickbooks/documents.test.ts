@@ -4,9 +4,12 @@ import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
   getQuickBooksAttachmentTarget,
   parseQuickBooksAttachableResponse,
+  QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES,
   sanitizeQuickBooksFileName,
   validateQuickBooksAttachmentFileType,
 } from '@/tools/quickbooks/documents_utils'
+import { quickbooksDownloadAttachmentTool } from '@/tools/quickbooks/download_attachment'
+import { quickbooksDownloadTransactionPdfTool } from '@/tools/quickbooks/download_transaction_pdf'
 import { quickbooksEmailTransactionTool } from '@/tools/quickbooks/email_transaction'
 import { quickbooksReadAttachmentsTool } from '@/tools/quickbooks/read_attachments'
 import type {
@@ -249,6 +252,16 @@ describe('QuickBooks document validation and block parity', () => {
     expect(() => getQuickBooksAttachmentTarget('arbitrary' as never)).toThrow(
       'attachment target type'
     )
+  })
+
+  it('allows bounded 100 MiB file outputs to pass through the tool executor', () => {
+    expect(quickbooksDownloadTransactionPdfTool.request.maxResponseBytes).toBe(
+      QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES
+    )
+    expect(quickbooksDownloadAttachmentTool.request.maxResponseBytes).toBe(
+      QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES
+    )
+    expect(QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES).toBeGreaterThan((100 * 1024 * 1024 * 4) / 3)
   })
 
   it('exposes exactly 45 operation/tool pairs and a canonical single-file input pair', () => {

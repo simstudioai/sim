@@ -1,3 +1,4 @@
+import { QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES } from '@/tools/quickbooks/documents_utils'
 import type {
   QuickBooksDownloadAttachmentParams,
   QuickBooksFileResponse,
@@ -49,6 +50,7 @@ export const quickbooksDownloadAttachmentTool: ToolConfig<
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => params,
+    maxResponseBytes: QUICKBOOKS_FILE_TOOL_RESPONSE_MAX_BYTES,
   },
   outputs: {
     ...QUICKBOOKS_FILE_OUTPUTS,
