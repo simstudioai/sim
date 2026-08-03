@@ -2,12 +2,16 @@ import { filterUndefined } from '@sim/utils/object'
 import Decimal from 'decimal.js'
 import type {
   QuickBooksBillAllocationInput,
+  QuickBooksBillLineInput,
+  QuickBooksBillLinkInput,
   QuickBooksCreateBillParams,
   QuickBooksCreateBillPaymentParams,
   QuickBooksCreatePurchaseOrderParams,
   QuickBooksCreatePurchaseParams,
   QuickBooksCreateVendorCreditParams,
+  QuickBooksLinkedBillLine,
   QuickBooksPurchasingLineInput,
+  QuickBooksPurchasingTransaction,
   QuickBooksUpdateBillParams,
   QuickBooksUpdateBillPaymentParams,
   QuickBooksUpdatePurchaseOrderParams,
@@ -33,6 +37,7 @@ const ITEM_LINE_KEYS = new Set([
   'quantity',
   'unitPrice',
 ])
+const BILL_LINK_KEYS = ['purchaseOrderId', 'purchaseOrderLineId'] as const
 const BILL_ALLOCATION_KEYS = new Set(['billId', 'amount'])
 
 function parseJsonArray(value: unknown, fieldName: string): unknown[] | undefined {
@@ -89,10 +94,11 @@ function optionalStringValue(value: unknown, fieldName: string): string | undefi
   return optionalQuickBooksString(value)
 }
 
-export function parseQuickBooksPurchasingLines(
+function parseQuickBooksPurchasingLinesInternal(
   value: unknown,
-  fieldName = 'lines'
-): QuickBooksPurchasingLineInput[] | undefined {
+  fieldName: string,
+  allowBillLinks: boolean
+): QuickBooksBillLineInput[] | undefined {
   const parsed = parseJsonArray(value, fieldName)
   if (!parsed) return undefined
   if (parsed.length === 0) throw new Error(`${fieldName} must contain at least one line`)
@@ -100,68 +106,148 @@ export function parseQuickBooksPurchasingLines(
     throw new Error(`${fieldName} cannot contain more than ${MAX_PURCHASING_LINES} lines`)
   }
 
+  const linkedPairs = new Set<string>()
   return parsed.map((rawLine, index) => {
     const itemName = `${fieldName}[${index}]`
     const line = assertObject(rawLine, itemName)
+    const allowedKeys =
+      line.lineType === 'account' ? new Set(ACCOUNT_LINE_KEYS) : new Set(ITEM_LINE_KEYS)
+    if (allowBillLinks) {
+      for (const key of BILL_LINK_KEYS) allowedKeys.add(key)
+    }
+
+    let parsedLine: QuickBooksBillLineInput
     if (line.lineType === 'account') {
-      assertAllowedKeys(line, ACCOUNT_LINE_KEYS, itemName)
-      return {
+      assertAllowedKeys(line, allowedKeys, itemName)
+      parsedLine = {
         lineType: 'account',
         amount: requiredPositiveNumber(line.amount, `${itemName}.amount`),
         accountId: requiredStringValue(line.accountId, `${itemName}.accountId`),
         description: optionalStringValue(line.description, `${itemName}.description`),
       }
-    }
-    if (line.lineType !== 'item') {
+    } else if (line.lineType === 'item') {
+      assertAllowedKeys(line, allowedKeys, itemName)
+      const amount = requiredPositiveNumber(line.amount, `${itemName}.amount`)
+      const quantity = optionalPositiveNumber(line.quantity, `${itemName}.quantity`)
+      const unitPrice = optionalPositiveNumber(line.unitPrice, `${itemName}.unitPrice`)
+      if (
+        quantity !== undefined &&
+        unitPrice !== undefined &&
+        !new Decimal(quantity).times(unitPrice).toDecimalPlaces(2).equals(new Decimal(amount))
+      ) {
+        throw new Error(`${itemName}.amount must equal quantity multiplied by unitPrice`)
+      }
+      parsedLine = {
+        lineType: 'item',
+        amount,
+        itemId: requiredStringValue(line.itemId, `${itemName}.itemId`),
+        description: optionalStringValue(line.description, `${itemName}.description`),
+        quantity,
+        unitPrice,
+      }
+    } else {
       throw new Error(`${itemName}.lineType must be account or item`)
     }
-    assertAllowedKeys(line, ITEM_LINE_KEYS, itemName)
-    const amount = requiredPositiveNumber(line.amount, `${itemName}.amount`)
-    const quantity = optionalPositiveNumber(line.quantity, `${itemName}.quantity`)
-    const unitPrice = optionalPositiveNumber(line.unitPrice, `${itemName}.unitPrice`)
-    if (
-      quantity !== undefined &&
-      unitPrice !== undefined &&
-      !new Decimal(quantity).times(unitPrice).toDecimalPlaces(2).equals(new Decimal(amount))
-    ) {
-      throw new Error(`${itemName}.amount must equal quantity multiplied by unitPrice`)
+
+    if (allowBillLinks) {
+      const hasPurchaseOrderId = Object.hasOwn(line, 'purchaseOrderId')
+      const hasPurchaseOrderLineId = Object.hasOwn(line, 'purchaseOrderLineId')
+      if (hasPurchaseOrderId !== hasPurchaseOrderLineId) {
+        throw new Error(
+          `${itemName}.purchaseOrderId and ${itemName}.purchaseOrderLineId must be supplied together`
+        )
+      }
+      if (hasPurchaseOrderId) {
+        const purchaseOrderId = requiredStringValue(
+          line.purchaseOrderId,
+          `${itemName}.purchaseOrderId`
+        )
+        const purchaseOrderLineId = requiredStringValue(
+          line.purchaseOrderLineId,
+          `${itemName}.purchaseOrderLineId`
+        )
+        const pairKey = `${purchaseOrderId}\0${purchaseOrderLineId}`
+        if (linkedPairs.has(pairKey)) {
+          throw new Error(
+            `${fieldName} contains duplicate Purchase Order line link "${purchaseOrderId}:${purchaseOrderLineId}"`
+          )
+        }
+        linkedPairs.add(pairKey)
+        parsedLine.purchaseOrderId = purchaseOrderId
+        parsedLine.purchaseOrderLineId = purchaseOrderLineId
+      }
     }
-    return {
-      lineType: 'item',
-      amount,
-      itemId: requiredStringValue(line.itemId, `${itemName}.itemId`),
-      description: optionalStringValue(line.description, `${itemName}.description`),
-      quantity,
-      unitPrice,
-    }
+
+    return parsedLine
   })
+}
+
+export function parseQuickBooksPurchasingLines(
+  value: unknown,
+  fieldName = 'lines'
+): QuickBooksPurchasingLineInput[] | undefined {
+  return parseQuickBooksPurchasingLinesInternal(value, fieldName, false)
+}
+
+export function parseQuickBooksBillLines(
+  value: unknown,
+  fieldName = 'lines'
+): QuickBooksBillLineInput[] | undefined {
+  return parseQuickBooksPurchasingLinesInternal(value, fieldName, true)
+}
+
+function buildQuickBooksPurchasingLine(
+  line: QuickBooksPurchasingLineInput
+): Record<string, unknown> {
+  if (line.lineType === 'account') {
+    return filterUndefined({
+      Amount: line.amount,
+      Description: line.description,
+      DetailType: 'AccountBasedExpenseLineDetail',
+      AccountBasedExpenseLineDetail: {
+        AccountRef: quickBooksReference(line.accountId!, 'accountId'),
+      },
+    })
+  }
+  return filterUndefined({
+    Amount: line.amount,
+    Description: line.description,
+    DetailType: 'ItemBasedExpenseLineDetail',
+    ItemBasedExpenseLineDetail: filterUndefined({
+      ItemRef: quickBooksReference(line.itemId!, 'itemId'),
+      Qty: line.quantity,
+      UnitPrice: line.unitPrice,
+    }),
+  })
+}
+
+function buildValidatedQuickBooksBillLines(lines: QuickBooksBillLineInput[]): unknown[] {
+  return lines.map((line) => ({
+    ...buildQuickBooksPurchasingLine(line),
+    ...(line.purchaseOrderId && line.purchaseOrderLineId
+      ? {
+          LinkedTxn: [
+            {
+              TxnId: line.purchaseOrderId,
+              TxnType: 'PurchaseOrder',
+              TxnLineId: line.purchaseOrderLineId,
+            },
+          ],
+        }
+      : {}),
+  }))
 }
 
 export function buildQuickBooksPurchasingLines(lines: QuickBooksPurchasingLineInput[]): unknown[] {
   const validated = parseQuickBooksPurchasingLines(lines)
   if (!validated) throw new Error('lines are required')
-  return validated.map((line) => {
-    if (line.lineType === 'account') {
-      return filterUndefined({
-        Amount: line.amount,
-        Description: line.description,
-        DetailType: 'AccountBasedExpenseLineDetail',
-        AccountBasedExpenseLineDetail: {
-          AccountRef: quickBooksReference(line.accountId!, 'accountId'),
-        },
-      })
-    }
-    return filterUndefined({
-      Amount: line.amount,
-      Description: line.description,
-      DetailType: 'ItemBasedExpenseLineDetail',
-      ItemBasedExpenseLineDetail: filterUndefined({
-        ItemRef: quickBooksReference(line.itemId!, 'itemId'),
-        Qty: line.quantity,
-        UnitPrice: line.unitPrice,
-      }),
-    })
-  })
+  return validated.map(buildQuickBooksPurchasingLine)
+}
+
+export function buildQuickBooksBillLines(lines: QuickBooksBillLineInput[]): unknown[] {
+  const validated = parseQuickBooksBillLines(lines)
+  if (!validated) throw new Error('lines are required')
+  return buildValidatedQuickBooksBillLines(validated)
 }
 
 export function parseQuickBooksBillAllocations(
@@ -255,10 +341,96 @@ export function buildQuickBooksUpdatePurchaseOrderBody(
 export function buildQuickBooksCreateBillBody(
   params: QuickBooksCreateBillParams
 ): Record<string, unknown> {
+  const lines = parseQuickBooksBillLines(params.lines)
+  if (!lines) throw new Error('lines are required')
+  const purchaseOrderIds = [
+    ...new Set(lines.flatMap((line) => (line.purchaseOrderId ? [line.purchaseOrderId] : []))),
+  ]
   return {
     ...purchasingHeader(params),
     VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
-    Line: buildQuickBooksPurchasingLines(params.lines),
+    Line: buildValidatedQuickBooksBillLines(lines),
+    ...(purchaseOrderIds.length > 0
+      ? {
+          LinkedTxn: purchaseOrderIds.map((TxnId) => ({
+            TxnId,
+            TxnType: 'PurchaseOrder',
+          })),
+        }
+      : {}),
+  }
+}
+
+export function verifyQuickBooksBillLinks(
+  record: QuickBooksPurchasingTransaction,
+  lines: QuickBooksBillLineInput[],
+  recordId: string
+): {
+  linkingRequested: boolean
+  linkingSucceeded: boolean | null
+  linkedLines: QuickBooksLinkedBillLine[]
+  missingLinks: QuickBooksBillLinkInput[]
+  linkingWarning?: string
+} {
+  const validated = parseQuickBooksBillLines(lines)
+  if (!validated) throw new Error('lines are required')
+  const requested = validated.flatMap((line) =>
+    line.purchaseOrderId && line.purchaseOrderLineId
+      ? [
+          {
+            purchaseOrderId: line.purchaseOrderId,
+            purchaseOrderLineId: line.purchaseOrderLineId,
+          },
+        ]
+      : []
+  )
+  if (requested.length === 0) {
+    return {
+      linkingRequested: false,
+      linkingSucceeded: null,
+      linkedLines: [],
+      missingLinks: [],
+    }
+  }
+
+  const returnedLinks = new Map<string, string | undefined>()
+  for (const billLine of record.Line ?? []) {
+    for (const link of billLine.LinkedTxn ?? []) {
+      if (link.TxnType?.trim() !== 'PurchaseOrder') continue
+      const purchaseOrderId = link.TxnId?.trim()
+      const purchaseOrderLineId = link.TxnLineId?.trim()
+      if (!purchaseOrderId || !purchaseOrderLineId) continue
+      const billLineId =
+        typeof billLine.Id === 'string' ? billLine.Id.trim() || undefined : undefined
+      returnedLinks.set(`${purchaseOrderId}\0${purchaseOrderLineId}`, billLineId)
+    }
+  }
+
+  const linkedLines: QuickBooksLinkedBillLine[] = []
+  const missingLinks: QuickBooksBillLinkInput[] = []
+  for (const requestedLink of requested) {
+    const key = `${requestedLink.purchaseOrderId}\0${requestedLink.purchaseOrderLineId}`
+    if (returnedLinks.has(key)) {
+      linkedLines.push({
+        ...requestedLink,
+        billLineId: returnedLinks.get(key),
+      })
+    } else {
+      missingLinks.push(requestedLink)
+    }
+  }
+
+  const linkingSucceeded = missingLinks.length === 0
+  return {
+    linkingRequested: true,
+    linkingSucceeded,
+    linkedLines,
+    missingLinks,
+    ...(linkingSucceeded
+      ? {}
+      : {
+          linkingWarning: `QuickBooks created Bill ${recordId}, but did not establish ${missingLinks.length} requested Purchase Order line link(s). Review missingLinks before continuing.`,
+        }),
   }
 }
 

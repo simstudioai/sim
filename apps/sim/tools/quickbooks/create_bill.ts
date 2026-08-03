@@ -1,12 +1,16 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
-import { buildQuickBooksCreateBillBody } from '@/tools/quickbooks/purchasing_utils'
+import {
+  buildQuickBooksCreateBillBody,
+  verifyQuickBooksBillLinks,
+} from '@/tools/quickbooks/purchasing_utils'
 import type {
   QuickBooksCreateBillParams,
-  QuickBooksMutationResponse,
+  QuickBooksCreateBillResponse,
   QuickBooksPurchasingTransaction,
 } from '@/tools/quickbooks/types'
 import {
+  QUICKBOOKS_CREATE_BILL_LINK_OUTPUTS,
   QUICKBOOKS_MUTATION_OUTPUTS,
   QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES,
 } from '@/tools/quickbooks/types'
@@ -20,11 +24,11 @@ import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksCreateBillTool: ToolConfig<
   QuickBooksCreateBillParams,
-  QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
+  QuickBooksCreateBillResponse
 > = {
   id: 'quickbooks_create_bill',
   name: 'QuickBooks Create Bill',
-  description: 'Create a vendor bill without paying it',
+  description: 'Create a vendor bill with optional Purchase Order line links without paying it',
   version: '1.0.0',
   params: {
     accessToken: {
@@ -49,7 +53,8 @@ export const quickbooksCreateBillTool: ToolConfig<
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Bounded account-based or item-based expense lines',
+      description:
+        'Bounded account-based or item-based expense lines with optional paired Purchase Order and line IDs',
     },
     apAccountId: {
       type: 'string',
@@ -103,8 +108,24 @@ export const quickbooksCreateBillTool: ToolConfig<
     retry: { enabled: false },
     maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
-  transformResponse: (r) =>
-    transformQuickBooksMutationResponse<QuickBooksPurchasingTransaction>(r, 'Bill'),
+  transformResponse: async (response, params) => {
+    if (!params) throw new Error('QuickBooks Create Bill parameters are required')
+    const transformed = await transformQuickBooksMutationResponse<QuickBooksPurchasingTransaction>(
+      response,
+      'Bill'
+    )
+    return {
+      ...transformed,
+      output: {
+        ...transformed.output,
+        ...verifyQuickBooksBillLinks(
+          transformed.output.record,
+          params.lines,
+          transformed.output.recordId
+        ),
+      },
+    }
+  },
   outputs: {
     record: {
       type: 'json',
@@ -112,5 +133,6 @@ export const quickbooksCreateBillTool: ToolConfig<
       properties: QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES,
     },
     ...QUICKBOOKS_MUTATION_OUTPUTS,
+    ...QUICKBOOKS_CREATE_BILL_LINK_OUTPUTS,
   },
 }

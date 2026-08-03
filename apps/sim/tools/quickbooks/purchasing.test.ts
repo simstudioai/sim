@@ -1,5 +1,6 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
   quickbooksCreateBillPaymentTool,
@@ -26,9 +27,13 @@ import {
   buildQuickBooksUpdatePurchaseOrderBody,
   buildQuickBooksUpdateVendorCreditBody,
   parseQuickBooksBillAllocations,
+  parseQuickBooksBillLines,
   parseQuickBooksPurchasingLines,
+  verifyQuickBooksBillLinks,
 } from '@/tools/quickbooks/purchasing_utils'
 import type {
+  QuickBooksBillLineInput,
+  QuickBooksCreateBillParams,
   QuickBooksCreateBillPaymentParams,
   QuickBooksCreatePurchaseOrderParams,
   QuickBooksCreatePurchaseParams,
@@ -50,6 +55,11 @@ const itemLine = {
   quantity: 3,
   unitPrice: 20,
 }
+const linkedAccountLine: QuickBooksBillLineInput = {
+  ...accountLine,
+  purchaseOrderId: '100',
+  purchaseOrderLineId: '1',
+}
 
 beforeEach(() => setEnv({ QUICKBOOKS_ENV: 'sandbox' }))
 afterEach(() => {
@@ -58,6 +68,32 @@ afterEach(() => {
 })
 
 describe('QuickBooks purchasing reader', () => {
+  it('supports a vendor filter only for verified purchasing entities', () => {
+    const requestUrl = quickbooksReadPurchasingTransactionsTool.request.url as (
+      params: QuickBooksReadPurchasingTransactionsParams
+    ) => string
+    const url = new URL(
+      requestUrl({
+        ...authParams,
+        transactionType: 'bill',
+        readMode: 'list',
+        vendorId: '62',
+        startPosition: 1,
+        maxResults: 25,
+      })
+    )
+    expect(url.searchParams.get('query')).toContain("WHERE VendorRef = '62'")
+    expect(() =>
+      requestUrl({
+        ...authParams,
+        transactionType: 'purchase',
+        readMode: 'list',
+        vendorId: '62',
+        startPosition: 1,
+        maxResults: 25,
+      })
+    ).toThrow('does not support vendorId')
+  })
   const listParams: QuickBooksReadPurchasingTransactionsParams = {
     ...authParams,
     transactionType: 'bill',
@@ -217,6 +253,68 @@ describe('QuickBooks purchasing line and allocation validation', () => {
     ).toThrow('more than 100')
   })
 
+  it('parses trimmed Bill-only Purchase Order line links and rejects invalid pairs', () => {
+    expect(
+      parseQuickBooksBillLines(
+        JSON.stringify([
+          {
+            ...accountLine,
+            purchaseOrderId: ' 100 ',
+            purchaseOrderLineId: ' 1 ',
+          },
+          itemLine,
+        ])
+      )
+    ).toEqual([linkedAccountLine, itemLine])
+
+    expect(() =>
+      parseQuickBooksBillLines(JSON.stringify([{ ...accountLine, purchaseOrderId: '100' }]))
+    ).toThrow('must be supplied together')
+    expect(() =>
+      parseQuickBooksBillLines(
+        JSON.stringify([
+          { ...linkedAccountLine },
+          { ...itemLine, purchaseOrderId: '100', purchaseOrderLineId: '1' },
+        ])
+      )
+    ).toThrow('duplicate Purchase Order line link')
+    expect(() =>
+      parseQuickBooksBillLines(
+        JSON.stringify([{ ...accountLine, purchaseOrderId: ' ', purchaseOrderLineId: '1' }])
+      )
+    ).toThrow('purchaseOrderId is required')
+    expect(() => parseQuickBooksBillLines(Array.from({ length: 101 }, () => accountLine))).toThrow(
+      'more than 100'
+    )
+  })
+
+  it('keeps Purchase Order links exclusive to Bill lines', () => {
+    expect(() => parseQuickBooksPurchasingLines([linkedAccountLine])).toThrow('unsupported field')
+    expect(() =>
+      buildQuickBooksCreatePurchaseOrderBody({
+        ...authParams,
+        vendorId: '30',
+        apAccountId: '33',
+        lines: [linkedAccountLine],
+      })
+    ).toThrow('unsupported field')
+    expect(() =>
+      buildQuickBooksCreateVendorCreditBody({
+        ...authParams,
+        vendorId: '30',
+        lines: [linkedAccountLine],
+      })
+    ).toThrow('unsupported field')
+    expect(() =>
+      buildQuickBooksCreatePurchaseBody({
+        ...authParams,
+        paymentType: 'cash',
+        paymentAccountId: '35',
+        lines: [linkedAccountLine],
+      })
+    ).toThrow('unsupported field')
+  })
+
   it('parses bounded unique Bill allocations and requires exact totals', () => {
     expect(
       parseQuickBooksBillAllocations('[{"billId":"12","amount":75},{"billId":"13","amount":25}]')
@@ -289,6 +387,125 @@ describe('QuickBooks purchasing mutation bodies', () => {
         lines: [accountLine],
       })
     ).toMatchObject({ VendorRef: { value: '30' } })
+  })
+
+  it('keeps standalone Bills unchanged and builds explicit line and transaction PO links', () => {
+    const standalone: QuickBooksCreateBillParams = {
+      ...authParams,
+      vendorId: '30',
+      apAccountId: '33',
+      lines: [accountLine],
+    }
+    expect(buildQuickBooksCreateBillBody(standalone)).toEqual({
+      VendorRef: { value: '30' },
+      APAccountRef: { value: '33' },
+      Line: [
+        {
+          Amount: 125,
+          Description: 'Sanitized supplies',
+          DetailType: 'AccountBasedExpenseLineDetail',
+          AccountBasedExpenseLineDetail: { AccountRef: { value: '7' } },
+        },
+      ],
+    })
+
+    const linkedBody = buildQuickBooksCreateBillBody({
+      ...authParams,
+      vendorId: '30',
+      lines: [
+        linkedAccountLine,
+        {
+          ...itemLine,
+          purchaseOrderId: '200',
+          purchaseOrderLineId: '2',
+        },
+        { ...accountLine, amount: 5 },
+        {
+          ...accountLine,
+          amount: 10,
+          purchaseOrderId: '100',
+          purchaseOrderLineId: '3',
+        },
+      ],
+    })
+    expect(linkedBody.LinkedTxn).toEqual([
+      { TxnId: '100', TxnType: 'PurchaseOrder' },
+      { TxnId: '200', TxnType: 'PurchaseOrder' },
+    ])
+    expect(linkedBody.Line).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          LinkedTxn: [{ TxnId: '100', TxnType: 'PurchaseOrder', TxnLineId: '1' }],
+        }),
+        expect.objectContaining({
+          LinkedTxn: [{ TxnId: '200', TxnType: 'PurchaseOrder', TxnLineId: '2' }],
+        }),
+        expect.not.objectContaining({ LinkedTxn: expect.anything() }),
+      ])
+    )
+    expect(JSON.stringify(linkedBody.Line)).not.toMatch(/"(?:Id|LineNum)"/)
+  })
+
+  it('reports complete, partial, missing, and unrequested PO linking without hiding Bill creation', () => {
+    const requestedLines: QuickBooksBillLineInput[] = [
+      linkedAccountLine,
+      { ...itemLine, purchaseOrderId: '200', purchaseOrderLineId: '2' },
+    ]
+    const completeRecord = {
+      Id: '500',
+      SyncToken: '0',
+      Line: [
+        {
+          Id: '10',
+          LinkedTxn: [{ TxnId: '100', TxnType: 'PurchaseOrder', TxnLineId: '1' }],
+        },
+        {
+          Id: '11',
+          LinkedTxn: [{ TxnId: '200', TxnType: 'PurchaseOrder', TxnLineId: '2' }],
+        },
+      ],
+    }
+    expect(verifyQuickBooksBillLinks(completeRecord, requestedLines, '500')).toEqual({
+      linkingRequested: true,
+      linkingSucceeded: true,
+      linkedLines: [
+        { purchaseOrderId: '100', purchaseOrderLineId: '1', billLineId: '10' },
+        { purchaseOrderId: '200', purchaseOrderLineId: '2', billLineId: '11' },
+      ],
+      missingLinks: [],
+    })
+
+    const partial = verifyQuickBooksBillLinks(
+      { ...completeRecord, Line: completeRecord.Line.slice(0, 1) },
+      requestedLines,
+      '500'
+    )
+    expect(partial).toMatchObject({
+      linkingRequested: true,
+      linkingSucceeded: false,
+      linkedLines: [{ purchaseOrderId: '100', purchaseOrderLineId: '1', billLineId: '10' }],
+      missingLinks: [{ purchaseOrderId: '200', purchaseOrderLineId: '2' }],
+    })
+    expect(partial.linkingWarning).toContain('created Bill 500')
+    expect(partial.linkingWarning).toContain('did not establish 1 requested')
+
+    expect(
+      verifyQuickBooksBillLinks({ Id: '501', SyncToken: '0' }, requestedLines, '501')
+    ).toMatchObject({
+      linkingRequested: true,
+      linkingSucceeded: false,
+      linkedLines: [],
+      missingLinks: [
+        { purchaseOrderId: '100', purchaseOrderLineId: '1' },
+        { purchaseOrderId: '200', purchaseOrderLineId: '2' },
+      ],
+    })
+    expect(verifyQuickBooksBillLinks({ Id: '502', SyncToken: '0' }, [accountLine], '502')).toEqual({
+      linkingRequested: false,
+      linkingSucceeded: null,
+      linkedLines: [],
+      missingLinks: [],
+    })
   })
 
   it('maps check and credit-card BillPayments', () => {
@@ -428,11 +645,45 @@ describe('QuickBooks purchasing mutation bodies', () => {
     expect(url.searchParams.get('requestid')).toBe('request-1')
     expect(tool.request.retry).toEqual({ enabled: false })
     expect(tool.postProcess).toBeUndefined()
+    const transform = tool.transformResponse as (
+      response: Response,
+      params?: QuickBooksCreateBillParams
+    ) => Promise<unknown>
     await expect(
-      tool.transformResponse!(
-        Response.json({ [wrapper]: { Id: '12', SyncToken: '0' }, time: 'test-time' })
+      transform(
+        Response.json({ [wrapper]: { Id: '12', SyncToken: '0' }, time: 'test-time' }),
+        tool.id === 'quickbooks_create_bill'
+          ? { ...authParams, vendorId: '30', lines: [accountLine] }
+          : undefined
       )
     ).resolves.toMatchObject({ output: { recordId: '12', syncToken: '0' } })
+  })
+
+  it('returns the created Bill and truthful link status from the tool response', async () => {
+    await expect(
+      quickbooksCreateBillTool.transformResponse!(
+        Response.json({
+          Bill: {
+            Id: '600',
+            SyncToken: '0',
+            Line: [{ Id: '1', LinkedTxn: [] }],
+          },
+          time: 'test-time',
+        }),
+        { ...authParams, vendorId: '30', lines: [linkedAccountLine] }
+      )
+    ).resolves.toMatchObject({
+      success: true,
+      output: {
+        record: { Id: '600' },
+        recordId: '600',
+        linkingRequested: true,
+        linkingSucceeded: false,
+        linkedLines: [],
+        missingLinks: [{ purchaseOrderId: '100', purchaseOrderLineId: '1' }],
+        linkingWarning: expect.stringContaining('created Bill 600'),
+      },
+    })
   })
 
   it.each([
@@ -657,6 +908,45 @@ describe('QuickBooks BillPayment account compatibility', () => {
 })
 
 describe('QuickBooks purchasing block', () => {
+  it('hides and omits the unsupported Purchase/Expense vendor filter', () => {
+    const readVendorId = QuickBooksBlock.subBlocks.find(
+      (candidate) => candidate.id === 'readVendorId'
+    )
+    expect(
+      evaluateSubBlockCondition(readVendorId?.condition, {
+        operation: 'quickbooks_read_purchasing_transactions',
+        readMode: 'list',
+        purchasingTransactionType: 'bill',
+      })
+    ).toBe(true)
+    expect(
+      evaluateSubBlockCondition(readVendorId?.condition, {
+        operation: 'quickbooks_read_purchasing_transactions',
+        readMode: 'list',
+        purchasingTransactionType: 'purchase',
+      })
+    ).toBe(false)
+    expect(
+      QuickBooksBlock.tools.config!.params!({
+        operation: 'quickbooks_read_purchasing_transactions',
+        oauthCredential: 'credential-id',
+        purchasingTransactionType: 'purchase',
+        readMode: 'list',
+        readVendorId: '62',
+      })
+    ).toMatchObject({ transactionType: 'purchase', vendorId: undefined })
+  })
+
+  it('keeps the shared purchasing-lines example valid for every supported operation', () => {
+    const subBlock = QuickBooksBlock.subBlocks.find(
+      (candidate) => candidate.id === 'purchasingLines'
+    )
+
+    expect(subBlock?.placeholder).not.toContain('purchaseOrderId')
+    expect(subBlock?.placeholder).not.toContain('purchaseOrderLineId')
+    expect(subBlock?.wandConfig?.prompt).toContain('For Create Bill only')
+  })
+
   it('does not force array-valued wand prompts through JSON-object generation', () => {
     for (const id of ['purchasingLines', 'billAllocations']) {
       const subBlock = QuickBooksBlock.subBlocks.find((candidate) => candidate.id === id)
@@ -684,6 +974,43 @@ describe('QuickBooks purchasing block', () => {
     })
     expect(
       QuickBooksBlock.tools.config!.params!({
+        operation: 'quickbooks_create_bill',
+        oauthCredential: 'credential-id',
+        vendorId: '30',
+        purchasingLines: JSON.stringify([
+          {
+            ...accountLine,
+            purchaseOrderId: ' 100 ',
+            purchaseOrderLineId: ' 1 ',
+          },
+        ]),
+      })
+    ).toMatchObject({
+      credential: 'credential-id',
+      lines: [
+        {
+          ...accountLine,
+          purchaseOrderId: '100',
+          purchaseOrderLineId: '1',
+        },
+      ],
+    })
+    expect(() =>
+      QuickBooksBlock.tools.config!.params!({
+        operation: 'quickbooks_create_purchase_order',
+        oauthCredential: 'credential-id',
+        vendorId: '30',
+        purchasingLines: JSON.stringify([
+          {
+            ...accountLine,
+            purchaseOrderId: '100',
+            purchaseOrderLineId: '1',
+          },
+        ]),
+      })
+    ).toThrow('unsupported field "purchaseOrderId"')
+    expect(
+      QuickBooksBlock.tools.config!.params!({
         operation: 'quickbooks_create_purchase',
         oauthCredential: 'credential-id',
         purchasePaymentType: 'cash',
@@ -703,15 +1030,30 @@ describe('QuickBooks purchasing block', () => {
     ).toMatchObject({ currentPaymentType: 'check', privateNote: 'Updated' })
   })
 
-  it('exposes exactly 39 operations with tool/access parity and no old list tools', () => {
+  it('exposes exactly 47 operations with tool/access parity and no old list tools', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     const operationIds = (operation?.options ?? []).map((option) => option.id)
-    expect(operationIds).toHaveLength(39)
-    expect(new Set(operationIds).size).toBe(39)
+    expect(operationIds).toHaveLength(47)
+    expect(new Set(operationIds).size).toBe(47)
     expect(operationIds).toEqual(QuickBooksBlock.tools.access)
     expect(operationIds).not.toContain('quickbooks_list_bills')
     expect(operationIds).not.toContain('quickbooks_list_purchase_orders')
     expect(operationIds).toContain('quickbooks_read_purchasing_transactions')
+  })
+
+  it('conditions observable linking outputs on Create Bill only', () => {
+    for (const outputId of [
+      'linkingRequested',
+      'linkingSucceeded',
+      'linkedLines',
+      'missingLinks',
+      'linkingWarning',
+    ]) {
+      expect(QuickBooksBlock.outputs[outputId]?.condition).toEqual({
+        field: 'operation',
+        value: 'quickbooks_create_bill',
+      })
+    }
   })
 
   it('requires the existing Purchase payment type without fabricating a default', () => {
