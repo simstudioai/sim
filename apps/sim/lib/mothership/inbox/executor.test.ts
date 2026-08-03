@@ -15,11 +15,17 @@ const {
   mockGetUserEntityPermissions,
   mockRunHeadlessCopilotLifecycle,
   mockSendInboxResponse,
+  mockGetAccessibleWorkspacesForCopilot,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockRunHeadlessCopilotLifecycle: vi.fn(),
   mockSendInboxResponse: vi.fn(),
+  mockGetAccessibleWorkspacesForCopilot: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/chat/accessible-workspaces', () => ({
+  getAccessibleWorkspacesForCopilot: mockGetAccessibleWorkspacesForCopilot,
 }))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
@@ -131,6 +137,10 @@ describe('Inbox raw-secret actor', () => {
       toolCalls: [],
       chatId: 'chat-1',
     })
+    mockGetAccessibleWorkspacesForCopilot.mockResolvedValue([
+      { id: 'workspace-1', name: 'Production', permission: 'write' },
+      { id: 'workspace-2', name: 'Marketing', permission: 'read' },
+    ])
     mockSendInboxResponse.mockResolvedValue('response-1')
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ id: 'task-1' }])
@@ -146,7 +156,12 @@ describe('Inbox raw-secret actor', () => {
     await executeInboxTask('task-1')
 
     expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledWith(
-      expect.any(Object),
+      expect.objectContaining({
+        accessibleWorkspaces: [
+          { id: 'workspace-1', name: 'Production', permission: 'write' },
+          { id: 'workspace-2', name: 'Marketing', permission: 'read' },
+        ],
+      }),
       expect.objectContaining({
         userId: 'member-1',
         secretActorUserId: 'member-1',
@@ -176,6 +191,9 @@ describe('Inbox raw-secret actor', () => {
         },
       })
     )
+    const [payload] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
+    expect(payload).not.toHaveProperty('accessibleWorkspaces')
+    expect(mockGetAccessibleWorkspacesForCopilot).not.toHaveBeenCalled()
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 })

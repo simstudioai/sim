@@ -5,6 +5,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { getActivelyBannedUserIds, isEmailBlocked } from '@/lib/auth/ban'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { getAccessibleWorkspacesForCopilot } from '@/lib/copilot/chat/accessible-workspaces'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
@@ -216,14 +217,21 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
     const workspaceAccess = await checkWorkspaceAccess(ws.id, userId)
     const userPermission = workspaceAccess.permission
-    const [attachmentResult, workspaceContext, integrationTools, billingAttribution, entitlements] =
-      await Promise.all([
-        fetchAttachments(),
-        generateWorkspaceContext(ws.id, userId, { workspaceAccess }),
-        buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
-        resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
-        computeWorkspaceEntitlements(ws.id, userId),
-      ])
+    const [
+      attachmentResult,
+      workspaceContext,
+      accessibleWorkspaces,
+      integrationTools,
+      billingAttribution,
+      entitlements,
+    ] = await Promise.all([
+      fetchAttachments(),
+      generateWorkspaceContext(ws.id, userId, { workspaceAccess }),
+      actor.secretActorUserId ? getAccessibleWorkspacesForCopilot(userId) : Promise.resolve([]),
+      buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
+      resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
+      computeWorkspaceEntitlements(ws.id, userId),
+    ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
 
     const truncatedTask = {
@@ -241,6 +249,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       messageId: userMessageId,
       isHosted,
       workspaceContext,
+      ...(accessibleWorkspaces.length > 0 ? { accessibleWorkspaces } : {}),
       ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(userPermission ? { userPermission } : {}),

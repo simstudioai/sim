@@ -6,6 +6,7 @@ import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { requireBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
+import { getAccessibleWorkspacesForCopilot } from '@/lib/copilot/chat/accessible-workspaces'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { processContextsServer } from '@/lib/copilot/chat/process-contents'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
@@ -266,25 +267,32 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
       return [...byName.values()]
     })
-    const [workspaceContext, integrationTools, mothershipTools, entitlements, agentContexts] =
-      await Promise.all([
-        generateWorkspaceContext(workspaceId, userId, { workspaceAccess }),
-        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-        mothershipToolsPromise,
-        computeWorkspaceEntitlements(workspaceId, userId),
-        processContextsServer(
-          nonMcpAgentMentions,
-          userId,
-          lastUserMessage,
-          workspaceId,
-          effectiveChatId
-        ).catch((error) => {
-          reqLogger.warn('Failed to resolve agent contexts for execution', {
-            error: toError(error).message,
-          })
-          return []
-        }),
-      ])
+    const [
+      workspaceContext,
+      accessibleWorkspaces,
+      integrationTools,
+      mothershipTools,
+      entitlements,
+      agentContexts,
+    ] = await Promise.all([
+      generateWorkspaceContext(workspaceId, userId, { workspaceAccess }),
+      getAccessibleWorkspacesForCopilot(userId),
+      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+      mothershipToolsPromise,
+      computeWorkspaceEntitlements(workspaceId, userId),
+      processContextsServer(
+        nonMcpAgentMentions,
+        userId,
+        lastUserMessage,
+        workspaceId,
+        effectiveChatId
+      ).catch((error) => {
+        reqLogger.warn('Failed to resolve agent contexts for execution', {
+          error: toError(error).message,
+        })
+        return []
+      }),
+    ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,
@@ -300,6 +308,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messageId,
       isHosted: true,
       workspaceContext,
+      ...(accessibleWorkspaces.length > 0 ? { accessibleWorkspaces } : {}),
       ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
       ...(userMetadata ? { userMetadata } : {}),
       ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),

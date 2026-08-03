@@ -6,6 +6,7 @@ import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { getBlockVisibilityForCopilot, visibilitySignature } from '@/lib/copilot/block-visibility'
+import type { AccessibleWorkspace } from '@/lib/copilot/chat/accessible-workspaces'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import {
   filterExposedIntegrationTools,
@@ -47,6 +48,7 @@ interface BuildPayloadParams {
   prefetch?: boolean
   implicitFeedback?: string
   workspaceContext?: string
+  accessibleWorkspaces?: AccessibleWorkspace[]
   vfs?: VfsSnapshotV1
   userPermission?: string
   /** Plan/flag-gated org capabilities (e.g. "custom-blocks") the mothership gates tools/prompts on. */
@@ -452,6 +454,9 @@ export async function buildCopilotRequestPayload(
     ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
     ...(commands && commands.length > 0 ? { commands } : {}),
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
+    ...(params.accessibleWorkspaces?.length
+      ? { accessibleWorkspaces: params.accessibleWorkspaces }
+      : {}),
     ...(params.vfs ? { vfs: params.vfs } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
     ...(params.entitlements?.length ? { entitlements: params.entitlements } : {}),

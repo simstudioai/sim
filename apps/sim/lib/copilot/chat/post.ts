@@ -10,6 +10,10 @@ import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import {
+  type AccessibleWorkspace,
+  getAccessibleWorkspacesForCopilot,
+} from '@/lib/copilot/chat/accessible-workspaces'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
@@ -278,6 +282,7 @@ type UnifiedChatBranch =
         prefetch?: boolean
         implicitFeedback?: string
         workspaceContext?: string
+        accessibleWorkspaces?: AccessibleWorkspace[]
         vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
         browserCapable?: boolean
@@ -314,6 +319,7 @@ type UnifiedChatBranch =
         userTimezone?: string
         userMetadata?: { name?: string; email?: string; timezone?: string }
         workspaceContext?: string
+        accessibleWorkspaces?: AccessibleWorkspace[]
         vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
         browserCapable?: boolean
@@ -787,6 +793,7 @@ async function resolveBranch(params: {
             prefetch: payloadParams.prefetch,
             implicitFeedback: payloadParams.implicitFeedback,
             workspaceContext: payloadParams.workspaceContext,
+            accessibleWorkspaces: payloadParams.accessibleWorkspaces,
             vfs: payloadParams.vfs,
             userPermission: payloadParams.userPermission,
             entitlements: payloadParams.entitlements,
@@ -849,6 +856,7 @@ async function resolveBranch(params: {
           fileAttachments: payloadParams.fileAttachments,
           chatId: payloadParams.chatId,
           workspaceContext: payloadParams.workspaceContext,
+          accessibleWorkspaces: payloadParams.accessibleWorkspaces,
           vfs: payloadParams.vfs,
           userPermission: payloadParams.userPermission,
           entitlements: payloadParams.entitlements,
@@ -1082,6 +1090,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       const entitlementsPromise = workspaceId
         ? computeWorkspaceEntitlements(workspaceId, authenticatedUserId)
         : Promise.resolve([])
+      const accessibleWorkspacesPromise = getAccessibleWorkspacesForCopilot(authenticatedUserId)
       // Wrap the pre-LLM prep work in spans so the trace waterfall shows
       // where time is going between "request received" and "llm.stream
       // opens". Previously these ran bare under the root and inflated the
@@ -1136,15 +1145,23 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.context
       )
 
-      const [agentContexts, userPermission, entitlements, workspaceSnapshot, , executionContext] =
-        await Promise.all([
-          agentContextsPromise,
-          userPermissionPromise,
-          entitlementsPromise,
-          workspaceContextPromise,
-          persistUserMessagePromise,
-          executionContextPromise,
-        ])
+      const [
+        agentContexts,
+        userPermission,
+        entitlements,
+        accessibleWorkspaces,
+        workspaceSnapshot,
+        ,
+        executionContext,
+      ] = await Promise.all([
+        agentContextsPromise,
+        userPermissionPromise,
+        entitlementsPromise,
+        accessibleWorkspacesPromise,
+        workspaceContextPromise,
+        persistUserMessagePromise,
+        executionContextPromise,
+      ])
       // Both halves come from one primary-db fetch (workspace-context.ts):
       // `workspaceContext` is the markdown transition fallback, `vfs` is the
       // typed snapshot Go diffs into baseline+delta messages.
@@ -1189,6 +1206,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 prefetch: body.prefetch,
                 implicitFeedback: body.implicitFeedback,
                 workspaceContext,
+                accessibleWorkspaces,
                 vfs,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
                 browserCapable:
@@ -1210,6 +1228,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userTimezone: body.userTimezone,
                 userMetadata,
                 workspaceContext,
+                accessibleWorkspaces,
                 vfs,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
                 browserCapable:

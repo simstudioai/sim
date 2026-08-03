@@ -274,6 +274,10 @@ describe('buildCopilotRequestPayload', () => {
         model: 'claude-opus-4-8',
         workspaceId: 'ws-1',
         workspaceContext: 'workspace inventory',
+        accessibleWorkspaces: [
+          { id: 'ws-1', name: 'Production', permission: 'admin' },
+          { id: 'ws-2', name: 'Marketing', permission: 'read' },
+        ],
       },
       { selectedModel: 'claude-opus-4-8' }
     )
@@ -282,6 +286,10 @@ describe('buildCopilotRequestPayload', () => {
       expect.objectContaining({
         workspaceId: 'ws-1',
         workspaceContext: 'workspace inventory',
+        accessibleWorkspaces: [
+          { id: 'ws-1', name: 'Production', permission: 'admin' },
+          { id: 'ws-2', name: 'Marketing', permission: 'read' },
+        ],
       })
     )
   })

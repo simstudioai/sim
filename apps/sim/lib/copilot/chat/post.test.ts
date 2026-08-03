@@ -35,6 +35,7 @@ const {
   finalizeAssistantTurn,
   appendCopilotChatMessages,
   mockPublishStatusChanged,
+  getAccessibleWorkspacesForCopilot,
 } = vi.hoisted(() => ({
   generateWorkspaceSnapshot: vi.fn(),
   processContextsServer: vi.fn(),
@@ -49,6 +50,7 @@ const {
   finalizeAssistantTurn: vi.fn(),
   appendCopilotChatMessages: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
+  getAccessibleWorkspacesForCopilot: vi.fn(),
 }))
 
 const getSession = authMockFns.mockGetSession
@@ -75,6 +77,10 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 vi.mock('@/lib/copilot/chat/workspace-context', () => ({
   generateWorkspaceSnapshot,
+}))
+
+vi.mock('@/lib/copilot/chat/accessible-workspaces', () => ({
+  getAccessibleWorkspacesForCopilot,
 }))
 
 vi.mock('@/lib/copilot/chat/process-contents', () => ({
@@ -147,6 +153,10 @@ describe('handleUnifiedChatPost', () => {
       markdown: 'workspace context',
       snapshot: { workflows: [{ id: 'wf-1', name: 'Alpha', path: 'workflows/Alpha' }] },
     })
+    getAccessibleWorkspacesForCopilot.mockResolvedValue([
+      { id: 'ws-1', name: 'Production', permission: 'write' },
+      { id: 'ws-2', name: 'Marketing', permission: 'read' },
+    ])
     processContextsServer.mockResolvedValue([])
     resolveActiveResourceContext.mockResolvedValue(null)
     buildCopilotRequestPayload.mockImplementation(async (params: Record<string, unknown>) => params)
@@ -187,6 +197,10 @@ describe('handleUnifiedChatPost', () => {
       expect.objectContaining({
         model: 'claude-opus-4-8',
         workspaceContext: 'workspace context',
+        accessibleWorkspaces: [
+          { id: 'ws-1', name: 'Production', permission: 'write' },
+          { id: 'ws-2', name: 'Marketing', permission: 'read' },
+        ],
         // Regression guard: the branch must forward the typed snapshot, not drop it.
         vfs: expect.objectContaining({ workflows: expect.any(Array) }),
       }),
@@ -229,6 +243,10 @@ describe('handleUnifiedChatPost', () => {
       expect.objectContaining({
         workspaceId: 'ws-1',
         workspaceContext: 'workspace context',
+        accessibleWorkspaces: [
+          { id: 'ws-1', name: 'Production', permission: 'write' },
+          { id: 'ws-2', name: 'Marketing', permission: 'read' },
+        ],
         // Regression guard: the branch must forward the typed snapshot, not drop it.
         vfs: expect.objectContaining({ workflows: expect.any(Array) }),
       }),

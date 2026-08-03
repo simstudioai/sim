@@ -18,6 +18,7 @@ const {
   mockRequestExplicitStreamAbort,
   mockRequireBillingAttributionHeader,
   mockRunHeadlessCopilotLifecycle,
+  mockGetAccessibleWorkspacesForCopilot,
 } = vi.hoisted(() => ({
   mockAssertActiveWorkspaceAccess: vi.fn(),
   mockBuildIntegrationToolSchemas: vi.fn(),
@@ -32,6 +33,11 @@ const {
   mockRequestExplicitStreamAbort: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockRunHeadlessCopilotLifecycle: vi.fn(),
+  mockGetAccessibleWorkspacesForCopilot: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/chat/accessible-workspaces', () => ({
+  getAccessibleWorkspacesForCopilot: mockGetAccessibleWorkspacesForCopilot,
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -170,6 +176,10 @@ describe('mothership private trace provenance transport', () => {
       decryptionFailures: [],
     })
     mockGenerateWorkspaceContext.mockResolvedValue({})
+    mockGetAccessibleWorkspacesForCopilot.mockResolvedValue([
+      { id: 'workspace-1', name: 'Production', permission: 'write' },
+      { id: 'workspace-2', name: 'Marketing', permission: 'read' },
+    ])
     mockBuildIntegrationToolSchemas.mockResolvedValue([])
     mockBuildSelectedMcpToolSchemas.mockResolvedValue([])
     mockBuildTaggedMcpToolSchemas.mockResolvedValue([])
@@ -219,7 +229,12 @@ describe('mothership private trace provenance transport', () => {
     expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
     expect(mockGetPersonalAndWorkspaceEnv).not.toHaveBeenCalled()
     expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledWith(
-      expect.any(Object),
+      expect.objectContaining({
+        accessibleWorkspaces: [
+          { id: 'workspace-1', name: 'Production', permission: 'write' },
+          { id: 'workspace-2', name: 'Marketing', permission: 'read' },
+        ],
+      }),
       expect.objectContaining({ environmentContext: undefined })
     )
   })
