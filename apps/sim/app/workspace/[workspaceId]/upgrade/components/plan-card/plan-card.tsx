@@ -1,5 +1,6 @@
 'use client'
 import { Check, ChipTag, Credit, chipVariants, cn, Info, RefreshCw } from '@sim/emcn'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 /**
  * Props for {@link UpgradePlanCard}.
@@ -125,10 +126,7 @@ export function UpgradePlanCard({
         )}
       </div>
 
-      {/* Section header + divider matching integrations/skills separator language */}
-      <div className='flex flex-col'>
-        <span className='pl-0.5 text-[var(--text-muted)] text-small'>{segmentLabel}</span>
-        <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
+      <SettingsSection label={segmentLabel}>
         <ul className='flex flex-col gap-2'>
           {features.map((feature) => (
             <li key={feature} className='flex items-center gap-2'>
@@ -137,7 +135,7 @@ export function UpgradePlanCard({
             </li>
           ))}
         </ul>
-      </div>
+      </SettingsSection>
     </article>
   )
 }

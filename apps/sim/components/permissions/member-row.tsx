@@ -1,7 +1,7 @@
 'use client'
 
-import { Avatar, AvatarFallback, Chip, ChipDropdown, cn } from '@sim/emcn'
-import { getUserColor } from '@/lib/workspaces/colors'
+import { Chip, ChipDropdown, cn } from '@sim/emcn'
+import { MemberAvatar } from '@/components/permissions/member-avatar'
 import type { MemberRole } from './member-role-options'
 import { RoleLockTooltip } from './role-lock'
 
@@ -49,20 +49,16 @@ export function MemberRow<TRole extends string = MemberRole>({
   return (
     <div
       className={cn(
-        'grid items-center gap-2',
+        '-mx-2 grid items-center gap-2 rounded-lg p-2',
         canManage ? 'grid-cols-[1fr_120px_72px]' : 'grid-cols-[1fr_200px]'
       )}
     >
       <div className='flex min-w-0 items-center gap-2.5'>
-        <Avatar className='size-9 flex-shrink-0'>
-          <AvatarFallback
-            style={{ background: getUserColor(member.userId || member.userEmail || '') }}
-            className='border border-[var(--border-1)] text-small text-white'
-          >
-            {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className='flex min-w-0 flex-col'>
+        <MemberAvatar
+          name={member.userName || member.userEmail || '?'}
+          colorSeed={member.userId || member.userEmail || ''}
+        />
+        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
           <span className='truncate text-[var(--text-body)] text-sm'>
             {member.userName || member.userEmail || member.userId}
           </span>

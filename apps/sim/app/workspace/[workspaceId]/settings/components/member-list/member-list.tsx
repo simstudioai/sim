@@ -1,40 +1,14 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { MemberAvatar } from '@/components/permissions/member-avatar'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { RESOURCE_LIST_STACK } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
-const ROW_CLASSES = 'flex items-center gap-2.5 p-2'
+const ROW_CLASSES = '-mx-2 flex items-center gap-2.5 rounded-lg p-2'
 const ROW_EMAIL_CLASSES = 'min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'
 const ROW_STATUS_CLASSES = 'flex-shrink-0 text-[var(--text-muted)] text-caption'
-
-interface MemberAvatarProps {
-  name: string
-  image: string | null
-}
-
-/**
- * 14px circular avatar used in member rows. Falls back to the first letter of
- * the member's name when no image is available.
- */
-export function MemberAvatar({ name, image }: MemberAvatarProps) {
-  if (image) {
-    return (
-      <img
-        src={image}
-        alt={name}
-        referrerPolicy='no-referrer'
-        className='size-[14px] flex-shrink-0 rounded-full border border-[var(--border)] object-cover'
-      />
-    )
-  }
-
-  return (
-    <span className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-      {name.charAt(0).toUpperCase()}
-    </span>
-  )
-}
 
 interface MemberRowProps {
   name: string
@@ -91,7 +65,7 @@ export function MemberSection({
       {isEmpty ? (
         <SettingsEmptyState variant='inline'>{emptyText}</SettingsEmptyState>
       ) : (
-        <div className='-mx-2 flex flex-col gap-y-0.5'>{children}</div>
+        <div className={RESOURCE_LIST_STACK}>{children}</div>
       )}
     </SettingsSection>
   )

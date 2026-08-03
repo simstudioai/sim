@@ -47,6 +47,7 @@ import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/compo
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useBillingUsageNotifications,
@@ -637,7 +638,7 @@ export function Billing({
                   <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
                     {invoice.description ?? ''}
                   </span>
-                  <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+                  <ArrowRight className={RESOURCE_ROW_ARROW_CLASSES} />
                 </>
               )
 

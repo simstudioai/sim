@@ -48,6 +48,7 @@ import {
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { RESOURCE_LIST_STACK } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { getAllBlocks } from '@/blocks'
@@ -451,7 +452,7 @@ function AddMembersModal({
                           key={member.userId}
                           type='button'
                           onClick={() => handleToggleMember(member.userId)}
-                          className='flex items-center gap-2.5 rounded-sm p-2 text-left hover-hover:bg-[var(--surface-active)]'
+                          className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
                           <MemberAvatar name={name} image={member.user?.image ?? null} />
@@ -1619,7 +1620,7 @@ export function GroupDetail({
                     />
                   </div>
                   {viewingGroup.workspaces.length > 0 && (
-                    <div className='-mx-2 flex flex-col gap-y-0.5'>
+                    <div className={RESOURCE_LIST_STACK}>
                       {viewingGroup.workspaces.map((ws) => (
                         <MemberRow
                           key={ws.id}
@@ -1654,17 +1655,17 @@ export function GroupDetail({
                     </Chip>
                   </div>
                   {membersLoading ? (
-                    <div className='-mx-2 flex flex-col gap-y-0.5'>
+                    <div className={RESOURCE_LIST_STACK}>
                       {[1, 2].map((i) => (
-                        <div key={i} className='flex items-center gap-2.5 p-2'>
-                          <Skeleton className='size-[14px] flex-shrink-0 rounded-full' />
+                        <div key={i} className='-mx-2 flex items-center gap-2.5 rounded-lg p-2'>
+                          <Skeleton className='size-9 flex-shrink-0 rounded-full' />
                           <Skeleton className='h-[14px] w-[180px]' />
                         </div>
                       ))}
                     </div>
                   ) : (
                     members.length > 0 && (
-                      <div className='-mx-2 flex flex-col gap-y-0.5'>
+                      <div className={RESOURCE_LIST_STACK}>
                         {members.map((member) => (
                           <MemberRow
                             key={member.id}

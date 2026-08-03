@@ -7,6 +7,15 @@ export const SANDBOX_UPGRADE_TITLE = 'Sandboxes require an active Max plan'
 export const SANDBOX_UPGRADE_DESCRIPTION =
   'Upgrade to Max and ensure billing is active to install Python or npm packages that your Function blocks can import.'
 
+/** Delete-confirmation copy, matching the custom tool detail's wording. */
+export const SANDBOX_DELETE_CONFIRM_TEXT = [
+  {
+    text: 'This will permanently delete the sandbox and remove it from any Function blocks that are using it.',
+    error: true,
+  },
+  ' This action cannot be undone.',
+] as const
+
 /** Ordered to match the Function block's own `language` dropdown. */
 export const LANGUAGE_OPTIONS = [
   { label: 'JavaScript', value: 'javascript' },

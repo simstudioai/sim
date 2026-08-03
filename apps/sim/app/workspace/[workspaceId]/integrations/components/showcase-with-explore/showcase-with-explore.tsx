@@ -1,7 +1,7 @@
 'use client'
 
 import { Chip } from '@sim/emcn'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'

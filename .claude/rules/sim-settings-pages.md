@@ -107,19 +107,14 @@ token (if the pixel value matches one exactly) or a sign the page never migrated
 grep `text-\[1[0-8]px\]` under `apps/sim/app/workspace/*/settings/**` and
 `apps/sim/ee/**` to find stragglers.
 
-For a two-line list row (title/value on top, a muted subtitle below — a name +
-email, a tool name + description, a server name + status), the established
-pairing is:
+Watch `text-xs`: it is 11px here, so a "caption" written as `text-xs` is a pixel
+short. See `sim-styling.md` for the full scale.
 
-- **Title / row value**: `text-[var(--text-body)] text-sm`
-- **Subtitle / muted description**: `text-[var(--text-muted)] text-caption`
-
-This is not a stylistic guess — it is the tokenized form of the literal-pixel
-pairing (`text-[14px] text-[var(--text-body)]` / `text-[12px]
-text-[var(--text-muted)]`) already used for this exact row shape across
-`member-list.tsx`, `api-keys.tsx`, `mcp.tsx`, `billing.tsx`,
-`workflow-mcp-servers.tsx`, and others — keep new rows consistent with it rather
-than inventing a new size pairing.
+The two-line list row (title over a muted subtitle — a name + email, a tool name
++ description, a server name + status) is **not something you build**: it is
+`SettingsResourceRow`, which owns the pairing
+(`text-[var(--text-body)] text-sm` over `text-[var(--text-muted)] text-caption`).
+See "The resource row" below.
 
 For a toggle row (a `Switch` with a title and optional description), use the emcn
 `Label` component for the title — never a hand-rolled `<span>` — paired with
@@ -145,21 +140,98 @@ independently-defined tokens (not interchangeable — they resolve to different
 colors) and both see legitimate use across settings pages; this rule only pins
 down the **row title/subtitle** shape above, not every text element on every page.
 
+## The resource row
+
+**`SettingsResourceRow`** (`…/components/settings-resource-row`) is *the* list row
+for every settings resource — and for skills, integrations, and the `ee/` surfaces
+too. It owns the tile, the title/subtitle tokens, the row padding and bleed
+(`-mx-2 … rounded-lg p-2`), the hover band, the hit area, the focus ring, and the
+navigation chevron. Never hand-roll any of it, and never wrap the row in your own
+`<button>` or `<Link>` — that is what `onClick`/`href` are for.
+
+```tsx
+<div className={RESOURCE_LIST_STACK}>
+  {items.map((item) => (
+    <SettingsResourceRow
+      key={item.id}
+      icon={<Wrench className='text-[var(--text-icon)]' />}
+      iconFilled
+      title={item.name}
+      description={item.summary}
+      onClick={() => open(item.id)}   // or href={`…/${item.id}`}
+      clickLabel={`Open ${item.name}`}
+      navigable
+    />
+  ))}
+</div>
+```
+
+- `icon?` + `iconVariant` — `tile` (default, the 36px bordered tile), `plain` (a
+  bare 14px glyph), `custom` (you supply the whole tile, e.g. the brand-tinted
+  `IntegrationTile`). Omit `icon` entirely for resources with no identity glyph
+  (an API key, a permission group). `iconFilled` uses the skills/tools fill;
+  `iconFill` lets an uploaded image reach the tile edge.
+- `onClick` / `href` — makes the **whole row** activatable via a stretched
+  overlay. Prefer `href` when the destination is a route, so the row keeps
+  prefetch, middle-click, and open-in-new-tab. `clickLabel` is the accessible
+  name and is **required** alongside either: the overlay has no text of its own.
+- `navigable` — appends the one canonical chevron. Set it on rows that open a
+  detail page; leave it off when `onClick` acts in place (revealing a folder).
+  Never import an arrow yourself: `lucide-react` and `@sim/emcn/icons` ship
+  visibly different glyphs, and the row already picked one.
+- `trailing` vs `badge` — `trailing` is for **interactive** controls (a `Chip`, a
+  `RowActionsMenu`) and sits above the hit area. `badge` is for **decoration** (a
+  status tag) and is click-through. Putting a badge in `trailing` turns the row's
+  right edge into a dead zone.
+- `RESOURCE_LIST_STACK` / `RESOURCE_LIST_GRID` — the single-column and two-up
+  containers. A `SettingsResourceRow` carries its own `-mx-2` bleed and padding,
+  so a container holding one only sets rhythm: never add a second `-mx-2` (they
+  stack into a 16px bleed) and never a different gap. A list of hand-rolled rows
+  is the opposite — there the container owns the bleed. Note `-mx-2` inside a
+  fixed-height `overflow-y-auto` box forces a horizontal scrollbar; drop the
+  bleed there.
+
+**Three-dots vs. chevron** is not a taste call:
+
+- Opens a **detail page** → `navigable` + a whole-row click, and no `Delete` in
+  the row (it lives in the detail header).
+- **No detail page** → a `RowActionsMenu` in `trailing`, and no `navigable`
+  chevron. The row may still take an `onClick` for an in-place action — a folder
+  mount reveals itself in Finder and also carries a `...` menu — but a row must
+  never offer both a chevron and a menu.
+
 ## Other shared settings primitives (do not re-roll these)
 
+- **`SettingsSection`** (`…/components/settings-section`) — muted label, hairline
+  divider, body. Also carries `headerAccessory` and `action` slots. Never
+  re-derive the label/divider chrome; `sim-styling.md` owns those tokens.
+- **`SettingsField`** (`…/components/settings-field`) — a read-only label/value
+  pair in a detail body: muted caption over the value. Pair it with
+  `SETTINGS_FIELD_VALUE_CLASSES` for the value text.
 - **`SettingsEmptyState`** (`…/components/settings-empty-state`) — the canonical
-  muted status message. `variant='fill'` (default) centers in the available
-  height (empty list, or a not-entitled/loading gate); `variant='inline'` sits in
-  flow (a search "no results"). Never hand-roll
-  `<div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>`
-  or `<div className='py-4 text-center …'>`. It owns the `--text-muted` + `text-sm`
-  tokens, so it also keeps these messages consistent across pages.
+  muted status message, for empty lists, "no results", loading gates, **and
+  failed loads** (`tone='error'`). `variant='fill'` (default) centers in the
+  available height; `variant='inline'` sits in flow. Never hand-roll
+  `<div className='flex h-full items-center justify-center …'>` or
+  `<div className='py-4 text-center …'>`.
 - **`RowActionsMenu`** (`…/components/row-actions-menu`) — the trailing `...`
   actions menu for a list row. Pass `label` (aria-label) and
   `actions: RowAction[]` (`{ label, onSelect, destructive?, disabled? }`); the
   component renders the canonical flush `...` trigger + `DropdownMenuContent`.
   Conditional items become array spreads: `...(canManage ? [{…}] : [])`. Never
   hand-roll the `<DropdownMenu>` + `<MoreHorizontal>` trigger per page.
+- **`RESOURCE_TILE_BASE`** + one of `RESOURCE_TILE_FILL` / `RESOURCE_TILE_PLAIN`
+  (`…/components/resource-tile`) — the 36px tile chrome, for the rare tile
+  outside a row (a detail heading). `ResourceTile` wraps the filled pairing.
+- **`MemberAvatar`** (`@/components/permissions/member-avatar`) — the one avatar
+  for any member row.
+
+## Deleting a resource
+
+Delete lives in the **detail header**, as
+`{ text: 'Delete', variant: 'destructive', onSelect: … }` behind a
+`ChipConfirmModal` — never `textTone: 'error'`, never a bare `Chip`, and never
+unconfirmed. A list row does not carry Delete when the resource has a detail page.
 
 ## Save / Discard + unsaved-changes guard
 
@@ -246,4 +318,9 @@ A settings page is design-system-clean when:
 - [ ] If it has editable state: Save/Discard go through `SaveDiscardActions`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
 - [ ] No business logic, handlers, or conditional rendering changed by the migration.
 - [ ] No literal `text-[Npx]` classes — named scale tokens only (see "Text-scale tokens" above).
+- [ ] Every **resource** list row (a thing with an identity — a tool, a server, a key, a credential) is a `SettingsResourceRow` in a `RESOURCE_LIST_STACK`/`RESOURCE_LIST_GRID` — no wrapper `<button>`/`<Link>`, no hand-passed arrow, no re-derived title/subtitle spans. Rows with a genuinely different shape stay bespoke: multi-line bodies (inbox tasks), tabular columns (billing invoices, credit usage), and grids (secrets).
+- [ ] Rows that open a detail page use `navigable` + `clickLabel`; flat records use `RowActionsMenu`. Not both.
+- [ ] Decorative trailing content is in `badge`, not `trailing`.
+- [ ] Labeled sections use `SettingsSection`; read-only fields use `SettingsField`; empty/loading/error use `SettingsEmptyState`.
+- [ ] Delete is a `destructive` header action behind a `ChipConfirmModal`.
 - [ ] `tsc`, `biome`, and the page's tests pass.

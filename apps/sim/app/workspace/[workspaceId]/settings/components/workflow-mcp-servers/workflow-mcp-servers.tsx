@@ -27,6 +27,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Clipboard, Plus, Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { McpIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -39,8 +40,16 @@ import {
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SETTINGS_FIELD_VALUE_CLASSES,
+  SettingsField,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-field'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
 import { useApiKeys } from '@/hooks/queries/api-keys'
@@ -65,11 +74,22 @@ interface ServerDetailViewProps {
   workspaceId: string
   serverId: string
   onBack: () => void
+  /** Opens the parent's delete confirmation — the modal lives with the mutation.
+   *  Absent until the parent's list resolves, so a deep link never shows an inert Delete. */
+  onDelete?: () => void
+  isDeleting: boolean
 }
 
 type McpClientType = 'sim' | 'cursor' | 'claude-code' | 'claude-desktop' | 'vscode'
 
-function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDetailViewProps) {
+function ServerDetailView({
+  canManage,
+  workspaceId,
+  serverId,
+  onBack,
+  onDelete,
+  isDeleting,
+}: ServerDetailViewProps) {
   const { data, isLoading, error } = useWorkflowMcpServer(workspaceId, serverId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
     useDeployedWorkflows(workspaceId)
@@ -364,7 +384,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
     return (
       <SettingsPanel back={{ text: 'MCP servers', icon: ArrowLeft, onSelect: onBack }}>
         <div className='flex min-h-0 flex-1 items-center justify-center'>
-          <p className='text-[var(--text-error)] text-xs leading-tight'>
+          <p className='text-[var(--text-error)] text-caption leading-tight'>
             Failed to load server details
           </p>
         </div>
@@ -393,6 +413,16 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
                     ? 'All deployed workflows have been added to this server.'
                     : undefined,
                 },
+                ...(onDelete
+                  ? [
+                      {
+                        text: isDeleting ? 'Deleting...' : 'Delete',
+                        variant: 'destructive' as const,
+                        onSelect: onDelete,
+                        disabled: isDeleting,
+                      },
+                    ]
+                  : []),
               ]
             : []
         }
@@ -410,7 +440,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
           <div className='min-h-[300px] pt-4'>
             {activeServerTab === 'workflows' && (
               <div className='flex flex-col gap-4.5'>
-                <span className='font-medium text-[var(--text-primary)] text-sm'>Workflows</span>
+                <span className='text-[var(--text-muted)] text-small'>Workflows</span>
 
                 {tools.length === 0 ? (
                   <p className='text-[var(--text-muted)] text-sm'>
@@ -449,7 +479,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
                 )}
 
                 {deployedWorkflows.length === 0 && !isLoadingWorkflows && (
-                  <p className='mt-1 text-[var(--text-muted)] text-xs'>
+                  <p className='mt-1 text-[var(--text-muted)] text-caption'>
                     Deploy a workflow first to add it to this server.
                   </p>
                 )}
@@ -459,43 +489,32 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
             {activeServerTab === 'details' && (
               <div className='flex flex-col gap-4.5'>
                 <div className='grid grid-cols-[1fr_1fr_1fr] gap-x-6 gap-y-3.5'>
-                  <div className='flex flex-col gap-1'>
-                    <span className='font-medium text-[var(--text-primary)] text-sm'>
-                      Server Name
-                    </span>
-                    <p className='text-[var(--text-secondary)] text-base'>{server.name}</p>
-                  </div>
-                  <div className='flex flex-col gap-1'>
-                    <span className='font-medium text-[var(--text-primary)] text-sm'>
-                      Transport
-                    </span>
-                    <p className='text-[var(--text-secondary)] text-base'>Streamable-HTTP</p>
-                  </div>
-                  <div className='flex flex-col gap-1'>
-                    <span className='font-medium text-[var(--text-primary)] text-sm'>Access</span>
-                    <p className='text-[var(--text-secondary)] text-base'>
+                  <SettingsField label='Server Name'>
+                    <p className={SETTINGS_FIELD_VALUE_CLASSES}>{server.name}</p>
+                  </SettingsField>
+                  <SettingsField label='Transport'>
+                    <p className={SETTINGS_FIELD_VALUE_CLASSES}>Streamable-HTTP</p>
+                  </SettingsField>
+                  <SettingsField label='Access'>
+                    <p className={SETTINGS_FIELD_VALUE_CLASSES}>
                       {server.isPublic ? 'Public' : 'API Key'}
                     </p>
-                  </div>
+                  </SettingsField>
                 </div>
 
                 {server.description?.trim() && (
-                  <div className='flex flex-col gap-1'>
-                    <span className='font-medium text-[var(--text-primary)] text-sm'>
-                      Description
-                    </span>
-                    <p className='text-[var(--text-secondary)] text-base'>{server.description}</p>
-                  </div>
+                  <SettingsField label='Description'>
+                    <p className={SETTINGS_FIELD_VALUE_CLASSES}>{server.description}</p>
+                  </SettingsField>
                 )}
 
-                <div className='flex flex-col gap-1'>
-                  <span className='font-medium text-[var(--text-primary)] text-sm'>URL</span>
-                  <p className='break-all text-[var(--text-secondary)] text-base'>{mcpServerUrl}</p>
-                </div>
+                <SettingsField label='URL'>
+                  <p className={`break-all ${SETTINGS_FIELD_VALUE_CLASSES}`}>{mcpServerUrl}</p>
+                </SettingsField>
 
                 <div>
                   <div className='mb-[6.5px] flex items-center justify-between'>
-                    <span className='block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
+                    <span className='block pl-0.5 text-[var(--text-muted)] text-small'>
                       MCP Client
                     </span>
                   </div>
@@ -563,7 +582,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
                         )}
                       </Button>
                       {addToWorkspaceMutation.isError && (
-                        <p className='text-[var(--text-error)] text-xs'>
+                        <p className='text-[var(--text-error)] text-caption'>
                           {addToWorkspaceMutation.error?.message || 'Failed to add server'}
                         </p>
                       )}
@@ -609,7 +628,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
                       )}
                     </div>
                     {!server.isPublic && (
-                      <p className='mt-2 text-[var(--text-muted)] text-xs'>
+                      <p className='mt-2 text-[var(--text-muted)] text-caption'>
                         Replace $SIM_API_KEY with your API key
                         {canManage && (
                           <>
@@ -704,7 +723,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
                         </div>
                         <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                           <div className='flex flex-col gap-1.5'>
-                            <Label className='text-sm'>Description</Label>
+                            <Label>Description</Label>
                             <ChipInput
                               value={editingParameterDescriptions[name] || ''}
                               onChange={(e) =>
@@ -835,7 +854,7 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
                   <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
                   <ButtonGroupItem value='public'>Public</ButtonGroupItem>
                 </ButtonGroup>
-                <p className='text-[var(--text-muted)] text-xs'>
+                <p className='text-[var(--text-muted)] text-caption'>
                   {editServerIsPublic
                     ? 'Anyone with the URL can call this server without authentication'
                     : 'Requests must include your Sim API key in the X-API-Key header'}
@@ -926,6 +945,12 @@ export function WorkflowMcpServers() {
         workspaceId,
         serverId: serverToDelete.id,
       })
+      // Deleting from the detail view leaves a dead id in the URL; on reload the
+      // detail branch mounts against a server that no longer exists.
+      if (selectedServerId === serverToDelete.id) {
+        void setServerTab(null, { history: 'replace' })
+        void setSelectedServerId(null, { history: 'replace' })
+      }
     } catch (err) {
       logger.error('Failed to delete server:', err)
     } finally {
@@ -951,17 +976,40 @@ export function WorkflowMcpServers() {
   const selectedServerResolves =
     selectedServerId !== null && (isLoading || servers.some((s) => s.id === selectedServerId))
 
+  // Delete is reachable from both the list and the detail header, so the confirm
+  // modal has to render in whichever branch is mounted.
+  const deleteConfirmModal = canAdmin ? (
+    <ChipConfirmModal
+      open={!!serverToDelete}
+      onOpenChange={(open) => !open && setServerToDelete(null)}
+      srTitle='Delete MCP Server'
+      title='Delete MCP Server'
+      text={[
+        'Are you sure you want to delete ',
+        { text: serverToDelete?.name ?? 'this server', bold: true },
+        '? This action cannot be undone.',
+      ]}
+      confirm={{ label: 'Delete', onClick: handleDeleteServer }}
+    />
+  ) : null
+
   if (selectedServerId && selectedServerResolves) {
+    const selectedServer = servers.find((s) => s.id === selectedServerId)
     return (
-      <ServerDetailView
-        canManage={canAdmin}
-        workspaceId={workspaceId}
-        serverId={selectedServerId}
-        onBack={() => {
-          void setServerTab(null, { history: 'replace' })
-          void setSelectedServerId(null, { history: 'replace' })
-        }}
-      />
+      <>
+        <ServerDetailView
+          canManage={canAdmin}
+          workspaceId={workspaceId}
+          serverId={selectedServerId}
+          onBack={() => {
+            void setServerTab(null, { history: 'replace' })
+            void setSelectedServerId(null, { history: 'replace' })
+          }}
+          onDelete={selectedServer ? () => setServerToDelete(selectedServer) : undefined}
+          isDeleting={deletingServers.has(selectedServerId)}
+        />
+        {deleteConfirmModal}
+      </>
     )
   }
 
@@ -989,62 +1037,41 @@ export function WorkflowMcpServers() {
       >
         <div className='min-h-0 flex-1'>
           {error ? (
-            <div className='flex h-full flex-col items-center justify-center gap-2'>
-              <p className='text-[var(--text-error)] text-sm leading-tight'>
-                {getErrorMessage(error, 'Failed to load MCP servers')}
-              </p>
-            </div>
+            <SettingsEmptyState tone='error'>
+              {getErrorMessage(error, 'Failed to load MCP servers')}
+            </SettingsEmptyState>
           ) : isLoading ? null : !hasServers ? (
             <SettingsEmptyState>
               {canAdmin ? 'Click "Add server" above to get started' : 'No MCP servers configured'}
             </SettingsEmptyState>
           ) : (
-            <div className='flex flex-col gap-2'>
+            <div className={RESOURCE_LIST_STACK}>
               {filteredServers.map((server) => {
                 const count = server.toolCount || 0
                 const toolsLabel = `${count} tool${count !== 1 ? 's' : ''}`
-                const isDeleting = deletingServers.has(server.id)
                 return (
-                  <div key={server.id} className='flex items-center justify-between gap-3'>
-                    <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                      <div className='flex items-center gap-1.5'>
-                        <span className='max-w-[200px] truncate text-[var(--text-body)] text-sm'>
-                          {server.name}
-                        </span>
-                        {server.isPublic && (
-                          <Badge variant='outline' size='sm'>
-                            Public
-                          </Badge>
-                        )}
-                      </div>
-                      <p className='truncate text-[var(--text-muted)] text-caption'>{toolsLabel}</p>
-                    </div>
-                    <div className='flex flex-shrink-0 items-center gap-1'>
-                      <RowActionsMenu
-                        label='Server actions'
-                        actions={[
-                          {
-                            label: 'Details',
-                            onSelect: () => {
-                              // A lingering ?server-tab= (dead deep link) must not re-target the next open — reset it in the same batched push.
-                              void setServerTab(null)
-                              void setSelectedServerId(server.id)
-                            },
-                          },
-                          ...(canAdmin
-                            ? [
-                                {
-                                  label: 'Delete',
-                                  destructive: true,
-                                  disabled: isDeleting,
-                                  onSelect: () => setServerToDelete(server),
-                                },
-                              ]
-                            : []),
-                        ]}
-                      />
-                    </div>
-                  </div>
+                  <SettingsResourceRow
+                    key={server.id}
+                    icon={<McpIcon />}
+                    title={server.name}
+                    description={toolsLabel}
+                    onClick={() => {
+                      // A lingering ?server-tab= (dead deep link) must not re-target the next open — reset it in the same batched push.
+                      void setServerTab(null)
+                      void setSelectedServerId(server.id)
+                    }}
+                    clickLabel={`Open ${server.name}`}
+                    navigable
+                    // The badge sits at the row's end, not beside the name — the
+                    // title truncates, so a long name would clip it out of view.
+                    badge={
+                      server.isPublic ? (
+                        <Badge variant='outline' size='sm'>
+                          Public
+                        </Badge>
+                      ) : undefined
+                    }
+                  />
                 )
               })}
               {showNoResults && (
@@ -1066,20 +1093,7 @@ export function WorkflowMcpServers() {
         />
       )}
 
-      {canAdmin && (
-        <ChipConfirmModal
-          open={!!serverToDelete}
-          onOpenChange={(open) => !open && setServerToDelete(null)}
-          srTitle='Delete MCP Server'
-          title='Delete MCP Server'
-          text={[
-            'Are you sure you want to delete ',
-            { text: serverToDelete?.name ?? 'this server', bold: true },
-            '? This action cannot be undone.',
-          ]}
-          confirm={{ label: 'Delete', onClick: handleDeleteServer }}
-        />
-      )}
+      {deleteConfirmModal}
     </>
   )
 }
