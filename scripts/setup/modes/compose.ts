@@ -19,6 +19,7 @@ import {
   promptUnlocks,
 } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
+import { APP_SIGNUP_URL, APP_URL } from '../urls.ts'
 
 const REQUIRED_PORTS = [3000, 3002] as const
 
@@ -118,7 +119,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   if (!quick) {
     const storage = await promptStorage(root.vars, true)
     if (storage) Object.assign(values, storage)
-    const appUrl = root.vars.get('NEXT_PUBLIC_APP_URL') ?? 'http://localhost:3000'
+    const appUrl = root.vars.get('NEXT_PUBLIC_APP_URL') ?? APP_URL
     Object.assign(values, await promptSignInProviders(root.vars, appUrl))
     Object.assign(values, await promptEmail(root.vars))
     const security = await promptSecurity(root.vars)
@@ -152,11 +153,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
 
   const spin = p.spinner()
   spin.start('Waiting for Sim to come up (first run pulls images and migrates)…')
-  const appHealthy = await waitFor(
-    () => httpHealth('http://localhost:3000/api/health'),
-    300_000,
-    3000
-  )
+  const appHealthy = await waitFor(() => httpHealth(`${APP_URL}/api/health`), 300_000, 3000)
   const realtimeHealthy =
     appHealthy && (await waitFor(() => httpHealth('http://localhost:3002/health'), 60_000, 2000))
   if (!appHealthy || !realtimeHealthy) {
@@ -165,7 +162,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
       `${!appHealthy ? 'the app (:3000)' : 'realtime (:3002)'} never answered its health check.`,
       [
         `follow the logs: ${theme.command(`docker compose -f ${composeFile} logs -f`)}`,
-        'first boots on slow disks can exceed the wait — if containers are still starting, just wait and open http://localhost:3000',
+        `first boots on slow disks can exceed the wait — if containers are still starting, just wait and open ${APP_SIGNUP_URL}`,
       ]
     )
   }

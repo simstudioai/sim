@@ -21,8 +21,7 @@ import {
   promptUnlocks,
 } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
-
-const APP_URL = 'http://localhost:3000'
+import { APP_URL } from '../urls.ts'
 
 /**
  * A migrate failure on a never-migrated database means setup failed — abort.
