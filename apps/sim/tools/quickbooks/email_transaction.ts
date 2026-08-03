@@ -56,7 +56,7 @@ export const quickbooksEmailTransactionTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Optional single recipient override; otherwise QuickBooks uses the stored recipient',
+        'Required for Customer Payments; otherwise an optional single recipient override',
     },
     confirmSend: {
       type: 'boolean',
@@ -82,6 +82,9 @@ export const quickbooksEmailTransactionTool: ToolConfig<
         `${resource}/${encodeURIComponent(id)}/send`
       )
       const recipient = validateQuickBooksRecipient(params.recipient)
+      if (params.transactionType === 'payment' && !recipient) {
+        throw new Error('recipient is required when emailing a QuickBooks Customer Payment')
+      }
       if (recipient) url.searchParams.set('sendTo', recipient)
       return url.toString()
     },

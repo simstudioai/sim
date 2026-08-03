@@ -1,5 +1,6 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import {
   quickbooksCreateBillPaymentTool,
@@ -67,6 +68,32 @@ afterEach(() => {
 })
 
 describe('QuickBooks purchasing reader', () => {
+  it('supports a vendor filter only for verified purchasing entities', () => {
+    const requestUrl = quickbooksReadPurchasingTransactionsTool.request.url as (
+      params: QuickBooksReadPurchasingTransactionsParams
+    ) => string
+    const url = new URL(
+      requestUrl({
+        ...authParams,
+        transactionType: 'bill',
+        readMode: 'list',
+        vendorId: '62',
+        startPosition: 1,
+        maxResults: 25,
+      })
+    )
+    expect(url.searchParams.get('query')).toContain("WHERE VendorRef = '62'")
+    expect(() =>
+      requestUrl({
+        ...authParams,
+        transactionType: 'purchase',
+        readMode: 'list',
+        vendorId: '62',
+        startPosition: 1,
+        maxResults: 25,
+      })
+    ).toThrow('does not support vendorId')
+  })
   const listParams: QuickBooksReadPurchasingTransactionsParams = {
     ...authParams,
     transactionType: 'bill',
@@ -881,6 +908,35 @@ describe('QuickBooks BillPayment account compatibility', () => {
 })
 
 describe('QuickBooks purchasing block', () => {
+  it('hides and omits the unsupported Purchase/Expense vendor filter', () => {
+    const readVendorId = QuickBooksBlock.subBlocks.find(
+      (candidate) => candidate.id === 'readVendorId'
+    )
+    expect(
+      evaluateSubBlockCondition(readVendorId?.condition, {
+        operation: 'quickbooks_read_purchasing_transactions',
+        readMode: 'list',
+        purchasingTransactionType: 'bill',
+      })
+    ).toBe(true)
+    expect(
+      evaluateSubBlockCondition(readVendorId?.condition, {
+        operation: 'quickbooks_read_purchasing_transactions',
+        readMode: 'list',
+        purchasingTransactionType: 'purchase',
+      })
+    ).toBe(false)
+    expect(
+      QuickBooksBlock.tools.config!.params!({
+        operation: 'quickbooks_read_purchasing_transactions',
+        oauthCredential: 'credential-id',
+        purchasingTransactionType: 'purchase',
+        readMode: 'list',
+        readVendorId: '62',
+      })
+    ).toMatchObject({ transactionType: 'purchase', vendorId: undefined })
+  })
+
   it('keeps the shared purchasing-lines example valid for every supported operation', () => {
     const subBlock = QuickBooksBlock.subBlocks.find(
       (candidate) => candidate.id === 'purchasingLines'
@@ -974,11 +1030,11 @@ describe('QuickBooks purchasing block', () => {
     ).toMatchObject({ currentPaymentType: 'check', privateNote: 'Updated' })
   })
 
-  it('exposes exactly 45 operations with tool/access parity and no old list tools', () => {
+  it('exposes exactly 47 operations with tool/access parity and no old list tools', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     const operationIds = (operation?.options ?? []).map((option) => option.id)
-    expect(operationIds).toHaveLength(45)
-    expect(new Set(operationIds).size).toBe(45)
+    expect(operationIds).toHaveLength(47)
+    expect(new Set(operationIds).size).toBe(47)
     expect(operationIds).toEqual(QuickBooksBlock.tools.access)
     expect(operationIds).not.toContain('quickbooks_list_bills')
     expect(operationIds).not.toContain('quickbooks_list_purchase_orders')

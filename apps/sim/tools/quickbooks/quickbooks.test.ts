@@ -11,6 +11,7 @@ import {
   quickbooksCreateCreditMemoTool,
   quickbooksCreateCustomerPaymentTool,
   quickbooksCreateDepositTool,
+  quickbooksCreateEmployeeTool,
   quickbooksCreateEstimateTool,
   quickbooksCreateInvoiceTool,
   quickbooksCreateJournalEntryTool,
@@ -32,6 +33,7 @@ import {
   quickbooksUpdateCreditMemoTool,
   quickbooksUpdateCustomerPaymentTool,
   quickbooksUpdateDepositTool,
+  quickbooksUpdateEmployeeTool,
   quickbooksUpdateEstimateTool,
   quickbooksUpdateInvoiceTool,
   quickbooksUpdateJournalEntryTool,
@@ -69,6 +71,7 @@ import { quickbooksUpdateItemTool } from '@/tools/quickbooks/update_item'
 import { quickbooksUpdateVendorTool } from '@/tools/quickbooks/update_vendor'
 import {
   buildQuickBooksEntityUrl,
+  buildQuickBooksMasterDataQueryUrl,
   buildQuickBooksQueryUrl,
   parseQuickBooksAddress,
   transformQuickBooksListResponse,
@@ -124,6 +127,20 @@ describe('QuickBooks request construction', () => {
     const entityUrl = buildQuickBooksEntityUrl('123456789', 'customer', ' A/B ')
     expect(entityUrl.pathname).toBe('/v3/company/123456789/customer/A%2FB')
     expect(entityUrl.searchParams.get('minorversion')).toBe('75')
+  })
+
+  it('adds only the typed master-data active filter', () => {
+    const url = buildQuickBooksMasterDataQueryUrl({
+      ...authParams,
+      recordType: 'employee',
+      readMode: 'list',
+      activeStatus: 'inactive',
+      startPosition: 1,
+      maxResults: 25,
+    })
+    expect(url.searchParams.get('query')).toBe(
+      'SELECT * FROM Employee WHERE Active = false STARTPOSITION 1 MAXRESULTS 25'
+    )
   })
 
   it.each([
@@ -897,6 +914,7 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksCreateCustomerTool,
     quickbooksCreateCustomerPaymentTool,
     quickbooksCreateDepositTool,
+    quickbooksCreateEmployeeTool,
     quickbooksCreateEstimateTool,
     quickbooksCreateItemTool,
     quickbooksCreateInvoiceTool,
@@ -923,6 +941,7 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksUpdateCustomerTool,
     quickbooksUpdateCustomerPaymentTool,
     quickbooksUpdateDepositTool,
+    quickbooksUpdateEmployeeTool,
     quickbooksUpdateEstimateTool,
     quickbooksUpdateItemTool,
     quickbooksUpdateInvoiceTool,
@@ -937,7 +956,7 @@ describe('QuickBooks tool and block boundaries', () => {
     quickbooksVoidInvoiceTool,
   ]
 
-  it('declares exactly 45 bounded tools with hidden company credentials and no retries', () => {
+  it('declares exactly 47 bounded tools with hidden company credentials and no retries', () => {
     expect(tools.map((tool) => tool.id).sort()).toEqual([...QuickBooksBlock.tools.access].sort())
     for (const tool of tools) {
       expect(tool.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
@@ -950,13 +969,15 @@ describe('QuickBooks tool and block boundaries', () => {
     }
   })
 
-  it('exposes the 45 compact operations and unique subblock IDs', () => {
+  it('exposes the 47 compact operations and unique subblock IDs', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     expect(operation?.options).toEqual([
       { label: 'Get Company Info', id: 'quickbooks_get_company_info' },
       { label: 'Read Master Data', id: 'quickbooks_read_master_data' },
       { label: 'Create Customer', id: 'quickbooks_create_customer' },
       { label: 'Update Customer', id: 'quickbooks_update_customer' },
+      { label: 'Create Employee', id: 'quickbooks_create_employee' },
+      { label: 'Update Employee', id: 'quickbooks_update_employee' },
       { label: 'Create Vendor', id: 'quickbooks_create_vendor' },
       { label: 'Update Vendor', id: 'quickbooks_update_vendor' },
       { label: 'Create Item', id: 'quickbooks_create_item' },
@@ -1226,6 +1247,7 @@ describe('QuickBooks tool and block boundaries', () => {
       field: 'operation',
       value: [
         'quickbooks_update_customer',
+        'quickbooks_update_employee',
         'quickbooks_update_item',
         'quickbooks_update_vendor',
         'quickbooks_update_estimate',

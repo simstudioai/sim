@@ -14587,6 +14587,14 @@
           "description": "Sparse-update a customer in the connected QuickBooks Online company"
         },
         {
+          "name": "Create Employee",
+          "description": "Create a non-payroll employee profile in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Employee",
+          "description": "Sparse-update a non-payroll employee profile in the connected QuickBooks Online company"
+        },
+        {
           "name": "Create Vendor",
           "description": "Create a vendor in the connected QuickBooks Online company"
         },
@@ -14751,7 +14759,7 @@
           "description": "Download a QuickBooks file attachment through its short-lived URL"
         }
       ],
-      "operationCount": 45,
+      "operationCount": 47,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

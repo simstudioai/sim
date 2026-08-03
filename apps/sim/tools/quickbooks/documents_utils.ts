@@ -13,6 +13,7 @@ export const QUICKBOOKS_DOCUMENT_TRANSACTIONS = {
   credit_memo: { entity: 'CreditMemo', resource: 'creditmemo' },
   estimate: { entity: 'Estimate', resource: 'estimate' },
   invoice: { entity: 'Invoice', resource: 'invoice' },
+  payment: { entity: 'Payment', resource: 'payment' },
   purchase_order: { entity: 'PurchaseOrder', resource: 'purchaseorder' },
   refund_receipt: { entity: 'RefundReceipt', resource: 'refundreceipt' },
   sales_receipt: { entity: 'SalesReceipt', resource: 'salesreceipt' },

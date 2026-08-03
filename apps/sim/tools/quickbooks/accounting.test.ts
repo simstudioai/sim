@@ -33,6 +33,25 @@ beforeEach(() => setEnv({ QUICKBOOKS_ENV: 'sandbox' }))
 afterEach(resetEnvMock)
 
 describe('QuickBooks accounting reader', () => {
+  it('builds a bounded transaction-date range', () => {
+    const requestUrl = quickbooksReadAccountingTransactionsTool.request.url as (
+      params: QuickBooksReadAccountingTransactionsParams
+    ) => string
+    const url = new URL(
+      requestUrl({
+        ...authParams,
+        transactionType: 'journal_entry',
+        readMode: 'list',
+        startDate: '2026-01-01',
+        endDate: '2026-01-31',
+        startPosition: 1,
+        maxResults: 25,
+      })
+    )
+    expect(url.searchParams.get('query')).toContain(
+      "WHERE TxnDate >= '2026-01-01' AND TxnDate <= '2026-01-31'"
+    )
+  })
   const listParams: QuickBooksReadAccountingTransactionsParams = {
     ...authParams,
     transactionType: 'journal_entry',
@@ -351,11 +370,11 @@ describe('QuickBooks accounting block', () => {
     })
   })
 
-  it('exposes exactly 45 operations with tool/access parity', () => {
+  it('exposes exactly 47 operations with tool/access parity', () => {
     const operation = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
     const operationIds = (operation?.options ?? []).map((option) => option.id)
-    expect(operationIds).toHaveLength(45)
-    expect(new Set(operationIds).size).toBe(45)
+    expect(operationIds).toHaveLength(47)
+    expect(new Set(operationIds).size).toBe(47)
     expect(operationIds).toEqual(QuickBooksBlock.tools.access)
   })
 

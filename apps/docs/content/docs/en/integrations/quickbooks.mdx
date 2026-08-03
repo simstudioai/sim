@@ -80,6 +80,7 @@ List or read one account, class, customer, department, employee, item, or vendor
 | `recordId` | string | No | QuickBooks record ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
 | `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `activeStatus` | string | No | List records using the QuickBooks default, active, or inactive status |
 
 #### Output
 
@@ -116,7 +117,7 @@ List or read one account, class, customer, department, employee, item, or vendor
 |   ↳ `BillAddr` | json | Customer or vendor billing address |
 |   ↳ `ShipAddr` | json | Customer shipping address |
 |   ↳ `Balance` | number | Customer or vendor balance |
-|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `PrintOnCheckName` | string | Vendor or employee name printed on checks |
 |   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
 |   ↳ `AcctNum` | string | Vendor account number |
 |   ↳ `Description` | string | Item sales description |
@@ -138,6 +139,8 @@ List or read one account, class, customer, department, employee, item, or vendor
 |   ↳ `InvStartDate` | string | Inventory tracking start date |
 |   ↳ `PrimaryAddr` | json | Employee primary address |
 |   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
 |   ↳ `SubClass` | boolean | Whether the Class is nested under another Class |
 |   ↳ `SubDepartment` | boolean | Whether the Department is nested under another Department |
 | `items` | array | QuickBooks master-data records returned by a list read |
@@ -170,7 +173,7 @@ List or read one account, class, customer, department, employee, item, or vendor
 |   ↳ `BillAddr` | json | Customer or vendor billing address |
 |   ↳ `ShipAddr` | json | Customer shipping address |
 |   ↳ `Balance` | number | Customer or vendor balance |
-|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `PrintOnCheckName` | string | Vendor or employee name printed on checks |
 |   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
 |   ↳ `AcctNum` | string | Vendor account number |
 |   ↳ `Description` | string | Item sales description |
@@ -192,6 +195,8 @@ List or read one account, class, customer, department, employee, item, or vendor
 |   ↳ `InvStartDate` | string | Inventory tracking start date |
 |   ↳ `PrimaryAddr` | json | Employee primary address |
 |   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
 |   ↳ `SubClass` | boolean | Whether the Class is nested under another Class |
 |   ↳ `SubDepartment` | boolean | Whether the Department is nested under another Department |
 | `startPosition` | number | One-based position of the first record in this page |
@@ -295,6 +300,94 @@ Sparse-update a customer in the connected QuickBooks Online company
 |   ↳ `CurrencyRef` | json | Customer currency reference |
 |     ↳ `value` | string | QuickBooks entity ID |
 |     ↳ `name` | string | QuickBooks entity display name |
+
+### `quickbooks_create_employee`
+
+Create a non-payroll employee profile in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Yes | Unique employee display name |
+| `givenName` | string | No | Employee given name |
+| `familyName` | string | No | Employee family name |
+| `primaryEmail` | string | No | Employee primary email address |
+| `primaryPhone` | string | No | Employee primary phone number |
+| `primaryAddress` | json | No | Employee primary address |
+| `printOnCheckName` | string | No | Employee name printed on checks |
+| `billableTime` | boolean | No | Whether employee time is billable |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created QuickBooks Employee record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `DisplayName` | string | Employee display name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `PrintOnCheckName` | string | Employee name printed on checks |
+|   ↳ `PrimaryEmailAddr` | json | Employee primary email address |
+|   ↳ `PrimaryPhone` | json | Employee primary phone number |
+|   ↳ `PrimaryAddr` | json | Employee primary address |
+|   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+
+### `quickbooks_update_employee`
+
+Sparse-update a non-payroll employee profile in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | ID of the employee to update |
+| `syncToken` | string | Yes | Current employee sync token |
+| `displayName` | string | No | Replacement employee display name |
+| `givenName` | string | No | Replacement employee given name |
+| `familyName` | string | No | Replacement employee family name |
+| `primaryEmail` | string | No | Replacement employee primary email address |
+| `primaryPhone` | string | No | Replacement employee primary phone number |
+| `primaryAddress` | json | No | Replacement employee primary address |
+| `printOnCheckName` | string | No | Replacement employee name printed on checks |
+| `billableTime` | boolean | No | Whether employee time is billable |
+| `activeStatus` | string | No | Employee status change: unchanged, active, or inactive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Latest sync token required for a subsequent update |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated QuickBooks Employee record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `DisplayName` | string | Employee display name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `PrintOnCheckName` | string | Employee name printed on checks |
+|   ↳ `PrimaryEmailAddr` | json | Employee primary email address |
+|   ↳ `PrimaryPhone` | json | Employee primary phone number |
+|   ↳ `PrimaryAddr` | json | Employee primary address |
+|   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
 
 ### `quickbooks_create_vendor`
 
@@ -524,6 +617,9 @@ List or read one estimate, invoice, sales receipt, payment, credit memo, or refu
 | `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
 | `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
+| `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
+| `customerId` | string | No | List transactions for one QuickBooks customer ID |
 
 #### Output
 
@@ -1417,6 +1513,9 @@ List or read one purchase order, bill, bill payment, vendor credit, or purchase
 | `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
 | `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
+| `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
+| `vendorId` | string | No | List transactions for one supported QuickBooks vendor ID |
 
 #### Output
 
@@ -2282,6 +2381,8 @@ List or read one journal entry, deposit, or transfer
 | `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
 | `startPosition` | number | No | One-based position of the first list record to return |
 | `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
+| `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
 
 #### Output
 
@@ -2537,6 +2638,13 @@ Run a fixed QuickBooks financial report with verified accountant-focused filters
 | `departmentId` | string | No | Single QuickBooks department ID filter |
 | `agingMethod` | string | No | Age open balances from the report date or current date |
 | `agingDays` | number | No | Positive number of days in each aging period |
+| `transactionType` | string | No | Transaction type filter for Transaction List |
+| `groupBy` | string | No | Grouping dimension for Transaction List |
+| `accountsPayablePaid` | string | No | Accounts-payable paid status for Transaction List |
+| `accountsReceivablePaid` | string | No | Accounts-receivable paid status for Transaction List |
+| `clearedStatus` | string | No | Cleared status filter for Transaction List |
+| `documentNumber` | string | No | Document number filter for Transaction List |
+| `sourceAccountType` | string | No | Source account type filter for Transaction List |
 
 #### Output
 
@@ -2584,7 +2692,7 @@ Send a supported QuickBooks transaction by email. This causes an external email 
 | --------- | ---- | -------- | ----------- |
 | `transactionType` | string | Yes | Supported transaction type to email |
 | `transactionId` | string | Yes | QuickBooks transaction ID |
-| `recipient` | string | No | Optional single recipient override; otherwise QuickBooks uses the stored recipient |
+| `recipient` | string | No | Required for Customer Payments; otherwise an optional single recipient override |
 | `confirmSend` | boolean | Yes | Explicit confirmation that an external email should be sent |
 
 #### Output

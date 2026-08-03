@@ -30,6 +30,7 @@ describe('QuickBooks document tools', () => {
     ['credit_memo', 'creditmemo'],
     ['estimate', 'estimate'],
     ['invoice', 'invoice'],
+    ['payment', 'payment'],
     ['purchase_order', 'purchaseorder'],
     ['refund_receipt', 'refundreceipt'],
     ['sales_receipt', 'salesreceipt'],
@@ -68,6 +69,10 @@ describe('QuickBooks document tools', () => {
     expect(() => requestUrl({ ...base, recipient: 'a@example.com\r\nBcc:x@example.com' })).toThrow(
       'one valid email'
     )
+    expect(() => requestUrl({ ...base, transactionType: 'payment' })).toThrow(
+      'recipient is required when emailing a QuickBooks Customer Payment'
+    )
+    expect(new URL(requestUrl(base)).searchParams.has('sendTo')).toBe(false)
   })
 
   it('preserves a verified native record from a successful email response', async () => {
@@ -348,11 +353,11 @@ describe('QuickBooks document validation and block parity', () => {
     })
   })
 
-  it('exposes exactly 45 operation/tool pairs and a canonical single-file input pair', () => {
+  it('exposes exactly 47 operation/tool pairs and a canonical single-file input pair', () => {
     const operation = QuickBooksBlock.subBlocks.find((block) => block.id === 'operation')
-    expect(operation?.options).toHaveLength(45)
-    expect(QuickBooksBlock.tools?.access).toHaveLength(45)
-    expect(new Set(QuickBooksBlock.tools?.access).size).toBe(45)
+    expect(operation?.options).toHaveLength(47)
+    expect(QuickBooksBlock.tools?.access).toHaveLength(47)
+    expect(new Set(QuickBooksBlock.tools?.access).size).toBe(47)
     expect(operation?.options?.map((option) => option.id).sort()).toEqual(
       [...(QuickBooksBlock.tools?.access ?? [])].sort()
     )
@@ -368,6 +373,13 @@ describe('QuickBooks document validation and block parity', () => {
       'attachmentFileReference',
     ])
     expect(fileBlocks.every((block) => block.required !== undefined)).toBe(true)
+    const recipient = QuickBooksBlock.subBlocks.find((block) => block.id === 'recipientOverride')
+    expect(recipient?.mode).toBeUndefined()
+    expect(recipient?.required).toEqual({
+      field: 'operation',
+      value: 'quickbooks_email_transaction',
+      and: { field: 'documentTransactionType', value: 'payment' },
+    })
   })
 
   it('maps document params after dynamic references resolve', () => {

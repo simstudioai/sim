@@ -116,6 +116,48 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Positive number of days in each aging period',
     },
+    transactionType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Transaction type filter for Transaction List',
+    },
+    groupBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Grouping dimension for Transaction List',
+    },
+    accountsPayablePaid: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Accounts-payable paid status for Transaction List',
+    },
+    accountsReceivablePaid: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Accounts-receivable paid status for Transaction List',
+    },
+    clearedStatus: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cleared status filter for Transaction List',
+    },
+    documentNumber: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Document number filter for Transaction List',
+    },
+    sourceAccountType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Source account type filter for Transaction List',
+    },
   },
   oauth: {
     required: true,
