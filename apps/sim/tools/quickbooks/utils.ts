@@ -8,15 +8,30 @@ import {
 } from '@/tools/quickbooks/client'
 import { sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 import type {
+  QuickBooksAccountingMethod,
+  QuickBooksAccountingTransactionType,
   QuickBooksActiveStatus,
   QuickBooksAddress,
+  QuickBooksAgingMethod,
   QuickBooksCustomer,
+  QuickBooksEmployee,
   QuickBooksListResponse,
   QuickBooksMasterDataRecordType,
   QuickBooksMutationResponse,
   QuickBooksPaginationParams,
   QuickBooksPurchasingTransactionType,
+  QuickBooksReadAccountingTransactionsParams,
+  QuickBooksReadMasterDataParams,
+  QuickBooksReadPurchasingTransactionsParams,
+  QuickBooksReadSalesTransactionsParams,
   QuickBooksReference,
+  QuickBooksReportColumns,
+  QuickBooksReportHeader,
+  QuickBooksReportRows,
+  QuickBooksReportSummarizeBy,
+  QuickBooksReportType,
+  QuickBooksRunFinancialReportParams,
+  QuickBooksRunFinancialReportResponse,
   QuickBooksSalesTransactionType,
   QuickBooksVendor,
   QuickBooksWritableItemType,
@@ -26,17 +41,22 @@ export type QuickBooksQueryEntity =
   | 'Account'
   | 'Bill'
   | 'BillPayment'
+  | 'Class'
   | 'CreditMemo'
   | 'Customer'
+  | 'Deposit'
+  | 'Department'
   | 'Employee'
   | 'Estimate'
   | 'Invoice'
   | 'Item'
+  | 'JournalEntry'
   | 'Payment'
   | 'PurchaseOrder'
   | 'Purchase'
   | 'RefundReceipt'
   | 'SalesReceipt'
+  | 'Transfer'
   | 'Vendor'
   | 'VendorCredit'
 
@@ -61,7 +81,9 @@ function assertQuickBooksEntity<T>(candidate: unknown, entity: QuickBooksQueryEn
 
 export const QUICKBOOKS_MASTER_DATA_ENTITIES = {
   account: { entity: 'Account', resource: 'account' },
+  class: { entity: 'Class', resource: 'class' },
   customer: { entity: 'Customer', resource: 'customer' },
+  department: { entity: 'Department', resource: 'department' },
   employee: { entity: 'Employee', resource: 'employee' },
   item: { entity: 'Item', resource: 'item' },
   vendor: { entity: 'Vendor', resource: 'vendor' },
@@ -69,6 +91,496 @@ export const QUICKBOOKS_MASTER_DATA_ENTITIES = {
   QuickBooksMasterDataRecordType,
   { entity: QuickBooksQueryEntity; resource: string }
 >
+
+type QuickBooksReportFilter =
+  | 'customerId'
+  | 'vendorId'
+  | 'accountId'
+  | 'itemId'
+  | 'classId'
+  | 'departmentId'
+
+type QuickBooksReportDateMode = 'range' | 'as_of'
+
+interface QuickBooksReportDefinition {
+  endpoint: string
+  dateMode: QuickBooksReportDateMode
+  accountingMethod: boolean
+  summarizeBy: readonly Exclude<QuickBooksReportSummarizeBy, 'default'>[]
+  filters: readonly QuickBooksReportFilter[]
+  aging: boolean
+}
+
+const TIME_SUMMARIES = ['total', 'day', 'week', 'month', 'quarter', 'year'] as const
+const ALL_SUMMARIES = [
+  ...TIME_SUMMARIES,
+  'customer',
+  'vendor',
+  'item',
+  'class',
+  'department',
+] as const
+const CUSTOMER_SALES_SUMMARIES = [
+  ...TIME_SUMMARIES,
+  'customer',
+  'item',
+  'class',
+  'department',
+] as const
+const VENDOR_EXPENSE_SUMMARIES = [
+  ...TIME_SUMMARIES,
+  'customer',
+  'vendor',
+  'class',
+  'department',
+] as const
+
+export const QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES = [
+  'balance_sheet',
+  'cash_flow',
+  'profit_and_loss',
+] as const satisfies readonly QuickBooksReportType[]
+
+export const QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES = [
+  'sales_by_customer',
+  'sales_by_item',
+] as const satisfies readonly QuickBooksReportType[]
+
+export const QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES = [
+  'expenses_by_vendor',
+] as const satisfies readonly QuickBooksReportType[]
+
+export const QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES = [
+  'trial_balance',
+] as const satisfies readonly QuickBooksReportType[]
+
+export const QUICKBOOKS_REPORTS = {
+  ap_aging_detail: {
+    endpoint: 'AgedPayableDetail',
+    dateMode: 'as_of',
+    accountingMethod: false,
+    summarizeBy: [],
+    filters: ['vendorId', 'departmentId'],
+    aging: true,
+  },
+  ap_aging_summary: {
+    endpoint: 'AgedPayables',
+    dateMode: 'as_of',
+    accountingMethod: false,
+    summarizeBy: [],
+    filters: ['vendorId', 'departmentId'],
+    aging: true,
+  },
+  ar_aging_detail: {
+    endpoint: 'AgedReceivableDetail',
+    dateMode: 'as_of',
+    accountingMethod: false,
+    summarizeBy: [],
+    filters: ['customerId', 'departmentId'],
+    aging: true,
+  },
+  ar_aging_summary: {
+    endpoint: 'AgedReceivables',
+    dateMode: 'as_of',
+    accountingMethod: false,
+    summarizeBy: [],
+    filters: ['customerId', 'departmentId'],
+    aging: true,
+  },
+  balance_sheet: {
+    endpoint: 'BalanceSheet',
+    dateMode: 'range',
+    accountingMethod: true,
+    summarizeBy: ALL_SUMMARIES,
+    filters: ['customerId', 'vendorId', 'itemId', 'classId', 'departmentId'],
+    aging: false,
+  },
+  cash_flow: {
+    endpoint: 'CashFlow',
+    dateMode: 'range',
+    accountingMethod: false,
+    summarizeBy: ALL_SUMMARIES,
+    filters: ['customerId', 'vendorId', 'itemId', 'classId', 'departmentId'],
+    aging: false,
+  },
+  customer_balance: {
+    endpoint: 'CustomerBalance',
+    dateMode: 'as_of',
+    accountingMethod: false,
+    summarizeBy: [],
+    filters: ['customerId', 'departmentId'],
+    aging: false,
+  },
+  expenses_by_vendor: {
+    endpoint: 'VendorExpenses',
+    dateMode: 'range',
+    accountingMethod: true,
+    summarizeBy: VENDOR_EXPENSE_SUMMARIES,
+    filters: ['customerId', 'vendorId', 'classId', 'departmentId'],
+    aging: false,
+  },
+  profit_and_loss: {
+    endpoint: 'ProfitAndLoss',
+    dateMode: 'range',
+    accountingMethod: true,
+    summarizeBy: ALL_SUMMARIES,
+    filters: ['customerId', 'vendorId', 'accountId', 'itemId', 'classId', 'departmentId'],
+    aging: false,
+  },
+  profit_and_loss_detail: {
+    endpoint: 'ProfitAndLossDetail',
+    dateMode: 'range',
+    accountingMethod: true,
+    summarizeBy: [],
+    filters: ['customerId', 'vendorId', 'accountId', 'classId', 'departmentId'],
+    aging: false,
+  },
+  sales_by_customer: {
+    endpoint: 'CustomerSales',
+    dateMode: 'range',
+    accountingMethod: true,
+    summarizeBy: CUSTOMER_SALES_SUMMARIES,
+    filters: ['customerId', 'itemId', 'classId', 'departmentId'],
+    aging: false,
+  },
+  sales_by_item: {
+    endpoint: 'ItemSales',
+    dateMode: 'range',
+    accountingMethod: true,
+    summarizeBy: CUSTOMER_SALES_SUMMARIES,
+    filters: ['customerId', 'itemId', 'classId', 'departmentId'],
+    aging: false,
+  },
+  trial_balance: {
+    endpoint: 'TrialBalance',
+    dateMode: 'range',
+    accountingMethod: true,
+    summarizeBy: TIME_SUMMARIES,
+    filters: [],
+    aging: false,
+  },
+  transaction_list: {
+    endpoint: 'TransactionList',
+    dateMode: 'range',
+    accountingMethod: false,
+    summarizeBy: [],
+    filters: ['customerId', 'vendorId', 'departmentId'],
+    aging: false,
+  },
+  vendor_balance: {
+    endpoint: 'VendorBalance',
+    dateMode: 'as_of',
+    accountingMethod: false,
+    summarizeBy: [],
+    filters: ['vendorId', 'departmentId'],
+    aging: false,
+  },
+} as const satisfies Record<QuickBooksReportType, QuickBooksReportDefinition>
+
+export type QuickBooksReportControl =
+  | 'startDate'
+  | 'endDate'
+  | 'accountingMethod'
+  | 'summarizeBy'
+  | QuickBooksReportFilter
+  | 'aging'
+
+export function getQuickBooksReportTypesSupporting(
+  control: QuickBooksReportControl
+): QuickBooksReportType[] {
+  return (
+    Object.entries(QUICKBOOKS_REPORTS) as Array<[QuickBooksReportType, QuickBooksReportDefinition]>
+  )
+    .filter(([, definition]) => {
+      if (control === 'startDate') return definition.dateMode === 'range'
+      if (control === 'endDate') return true
+      if (control === 'accountingMethod') return definition.accountingMethod
+      if (control === 'summarizeBy') return definition.summarizeBy.length > 0
+      if (control === 'aging') return definition.aging
+      return definition.filters.includes(control)
+    })
+    .map(([reportType]) => reportType)
+}
+
+const QUICKBOOKS_REPORT_SUMMARIZE_VALUES: Record<
+  Exclude<QuickBooksReportSummarizeBy, 'default'>,
+  string
+> = {
+  total: 'Total',
+  day: 'Days',
+  week: 'Week',
+  month: 'Month',
+  quarter: 'Quarter',
+  year: 'Year',
+  customer: 'Customers',
+  vendor: 'Vendors',
+  item: 'ProductsAndServices',
+  class: 'Classes',
+  department: 'Departments',
+}
+
+const QUICKBOOKS_ACCOUNTING_METHOD_VALUES: Record<
+  Exclude<QuickBooksAccountingMethod, 'default'>,
+  string
+> = {
+  cash: 'Cash',
+  accrual: 'Accrual',
+}
+
+const QUICKBOOKS_AGING_METHOD_VALUES: Record<Exclude<QuickBooksAgingMethod, 'default'>, string> = {
+  report_date: 'Report_Date',
+  current: 'Current',
+}
+
+const QUICKBOOKS_REPORT_FILTER_PARAMS: Record<QuickBooksReportFilter, string> = {
+  customerId: 'customer',
+  vendorId: 'vendor',
+  accountId: 'account',
+  itemId: 'item',
+  classId: 'class',
+  departmentId: 'department',
+}
+
+const QUICKBOOKS_TRANSACTION_LIST_VALUES = {
+  transactionType: {
+    default: '',
+    bill: 'Bill',
+    bill_payment_check: 'BillPaymentCheck',
+    bill_payment_credit_card: 'BillPaymentCreditCard',
+    cash_purchase: 'CashPurchase',
+    check: 'Check',
+    credit_card_charge: 'CreditCardCharge',
+    credit_card_credit: 'CreditCardCredit',
+    credit_memo: 'CreditMemo',
+    deposit: 'Deposit',
+    estimate: 'Estimate',
+    invoice: 'Invoice',
+    journal_entry: 'JournalEntry',
+    payment: 'ReceivePayment',
+    purchase_order: 'PurchaseOrder',
+    sales_receipt: 'SalesReceipt',
+    transfer: 'Transfer',
+    vendor_credit: 'VendorCredit',
+  },
+  groupBy: {
+    default: '',
+    account: 'Account',
+    customer: 'Customer',
+    day: 'Day',
+    department: 'Location',
+    employee: 'Employee',
+    month: 'Month',
+    name: 'Name',
+    none: 'None',
+    payment_method: 'Payment Method',
+    quarter: 'Quarter',
+    transaction_type: 'Transaction Type',
+    vendor: 'Vendor',
+    week: 'Week',
+    year: 'Year',
+  },
+  paidStatus: { default: '', all: 'All', paid: 'Paid', unpaid: 'Unpaid' },
+  clearedStatus: {
+    default: '',
+    cleared: 'Cleared',
+    deposited: 'Deposited',
+    reconciled: 'Reconciled',
+    uncleared: 'Uncleared',
+  },
+  sourceAccountType: {
+    default: '',
+    accounts_payable: 'AccountsPayable',
+    accounts_receivable: 'AccountsReceivable',
+    bank: 'Bank',
+    cost_of_goods_sold: 'CostOfGoodsSold',
+    credit_card: 'CreditCard',
+    equity: 'Equity',
+    expense: 'Expense',
+    fixed_asset: 'FixedAsset',
+    income: 'Income',
+    long_term_liability: 'LongTermLiability',
+    non_posting: 'NonPosting',
+    other_asset: 'OtherAsset',
+    other_current_asset: 'OtherCurrentAsset',
+    other_current_liability: 'OtherCurrentLiability',
+    other_expense: 'OtherExpense',
+    other_income: 'OtherIncome',
+  },
+} as const
+
+function getQuickBooksTransactionListControl(
+  value: unknown,
+  values: Record<string, string>,
+  field: string
+): string | undefined {
+  if (value === undefined || value === 'default') return undefined
+  if (typeof value !== 'string' || !Object.hasOwn(values, value) || !values[value]) {
+    throw new Error(`Unsupported QuickBooks ${field}: ${String(value)}`)
+  }
+  return values[value]
+}
+
+function addQuickBooksTransactionListFilters(
+  url: URL,
+  params: QuickBooksRunFinancialReportParams
+): void {
+  const transactionType = getQuickBooksTransactionListControl(
+    params.transactionType,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.transactionType,
+    'transactionType'
+  )
+  const groupBy = getQuickBooksTransactionListControl(
+    params.groupBy,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.groupBy,
+    'groupBy'
+  )
+  const accountsPayablePaid = getQuickBooksTransactionListControl(
+    params.accountsPayablePaid,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.paidStatus,
+    'accountsPayablePaid'
+  )
+  const accountsReceivablePaid = getQuickBooksTransactionListControl(
+    params.accountsReceivablePaid,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.paidStatus,
+    'accountsReceivablePaid'
+  )
+  const clearedStatus = getQuickBooksTransactionListControl(
+    params.clearedStatus,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.clearedStatus,
+    'clearedStatus'
+  )
+  const sourceAccountType = getQuickBooksTransactionListControl(
+    params.sourceAccountType,
+    QUICKBOOKS_TRANSACTION_LIST_VALUES.sourceAccountType,
+    'sourceAccountType'
+  )
+  const controls = {
+    transaction_type: transactionType,
+    group_by: groupBy,
+    appaid: accountsPayablePaid,
+    arpaid: accountsReceivablePaid,
+    cleared: clearedStatus,
+    docnum: optionalQuickBooksString(params.documentNumber),
+    source_account_type: sourceAccountType,
+  }
+  const supplied = Object.entries(controls).find(([, value]) => value !== undefined)
+  if (params.reportType !== 'transaction_list') {
+    if (supplied) throw new Error(`${params.reportType} does not support ${supplied[0]}`)
+    return
+  }
+
+  if (transactionType) url.searchParams.set('transaction_type', transactionType)
+  if (groupBy) url.searchParams.set('group_by', groupBy)
+  if (accountsPayablePaid) url.searchParams.set('appaid', accountsPayablePaid)
+  if (accountsReceivablePaid) url.searchParams.set('arpaid', accountsReceivablePaid)
+  if (clearedStatus) url.searchParams.set('cleared', clearedStatus)
+  if (controls.docnum) url.searchParams.set('docnum', controls.docnum)
+  if (sourceAccountType) url.searchParams.set('source_account_type', sourceAccountType)
+}
+
+export function buildQuickBooksReportUrl(params: QuickBooksRunFinancialReportParams): URL {
+  const definition = QUICKBOOKS_REPORTS[params.reportType]
+  if (!definition) {
+    throw new Error(`Unsupported QuickBooks report type: ${String(params.reportType)}`)
+  }
+
+  const startDate = validateQuickBooksDate(params.startDate, 'startDate')
+  const endDate = validateQuickBooksDate(params.endDate, 'endDate')
+  if (startDate && definition.dateMode !== 'range') {
+    throw new Error(`${params.reportType} does not support startDate`)
+  }
+  if (startDate && endDate && startDate > endDate) {
+    throw new Error('startDate cannot be after endDate')
+  }
+
+  const url = buildQuickBooksCompanyUrl(params.realmId, `reports/${definition.endpoint}`)
+  if (startDate) url.searchParams.set('start_date', startDate)
+  if (endDate) {
+    url.searchParams.set(definition.dateMode === 'as_of' ? 'report_date' : 'end_date', endDate)
+  }
+
+  const accountingMethod = params.accountingMethod ?? 'default'
+  if (accountingMethod !== 'default') {
+    if (!definition.accountingMethod) {
+      throw new Error(`${params.reportType} does not support accountingMethod`)
+    }
+    const value = QUICKBOOKS_ACCOUNTING_METHOD_VALUES[accountingMethod]
+    if (!value) throw new Error(`Unsupported QuickBooks accounting method: ${accountingMethod}`)
+    url.searchParams.set('accounting_method', value)
+  }
+
+  const summarizeBy = params.summarizeBy ?? 'default'
+  if (summarizeBy !== 'default') {
+    if (!(definition.summarizeBy as readonly string[]).includes(summarizeBy)) {
+      throw new Error(`${params.reportType} does not support summarizeBy=${summarizeBy}`)
+    }
+    const value = QUICKBOOKS_REPORT_SUMMARIZE_VALUES[summarizeBy]
+    if (!value) throw new Error(`Unsupported QuickBooks report summarization: ${summarizeBy}`)
+    url.searchParams.set('summarize_column_by', value)
+  }
+
+  for (const filter of Object.keys(QUICKBOOKS_REPORT_FILTER_PARAMS) as QuickBooksReportFilter[]) {
+    const value = optionalQuickBooksString(params[filter])
+    if (!value) continue
+    if (!(definition.filters as readonly QuickBooksReportFilter[]).includes(filter)) {
+      throw new Error(`${params.reportType} does not support ${filter}`)
+    }
+    url.searchParams.set(QUICKBOOKS_REPORT_FILTER_PARAMS[filter], value)
+  }
+
+  const agingMethod = params.agingMethod ?? 'default'
+  if (agingMethod !== 'default') {
+    if (!definition.aging) throw new Error(`${params.reportType} does not support agingMethod`)
+    const value = QUICKBOOKS_AGING_METHOD_VALUES[agingMethod]
+    if (!value) throw new Error(`Unsupported QuickBooks aging method: ${agingMethod}`)
+    url.searchParams.set('aging_method', value)
+  }
+  if (params.agingDays !== undefined) {
+    if (!definition.aging) throw new Error(`${params.reportType} does not support agingDays`)
+    if (!Number.isInteger(params.agingDays) || params.agingDays < 1) {
+      throw new Error('agingDays must be a positive integer')
+    }
+    url.searchParams.set('aging_period', String(params.agingDays))
+  }
+
+  addQuickBooksTransactionListFilters(url, params)
+
+  return url
+}
+
+interface QuickBooksReportEnvelope {
+  Header?: QuickBooksReportHeader
+  Columns?: QuickBooksReportColumns
+  Rows?: QuickBooksReportRows
+}
+
+function assertQuickBooksReportSection<T>(value: unknown, section: string): T {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`QuickBooks report response is missing or has malformed ${section}`)
+  }
+  return value as T
+}
+
+export async function transformQuickBooksReportResponse(
+  response: Response,
+  reportType: QuickBooksReportType
+): Promise<QuickBooksRunFinancialReportResponse> {
+  const data = await parseQuickBooksJson<QuickBooksReportEnvelope>(
+    response,
+    `QuickBooks ${reportType} report response`
+  )
+  const header = assertQuickBooksReportSection<QuickBooksReportHeader>(data.Header, 'Header')
+  return {
+    success: true,
+    output: {
+      reportType,
+      header,
+      columns: assertQuickBooksReportSection<QuickBooksReportColumns>(data.Columns, 'Columns'),
+      rows: assertQuickBooksReportSection<QuickBooksReportRows>(data.Rows, 'Rows'),
+      time: typeof header.Time === 'string' ? header.Time : null,
+    },
+  }
+}
 
 export const QUICKBOOKS_SALES_ENTITIES = {
   credit_memo: { entity: 'CreditMemo', resource: 'creditmemo' },
@@ -110,16 +622,148 @@ export function buildQuickBooksQueryUrl(
   realmId: string,
   entity: QuickBooksQueryEntity,
   startPosition: number,
-  maxResults: number
+  maxResults: number,
+  filters: readonly QuickBooksQueryFilter[] = []
 ): URL {
   const pagination = validateQuickBooksPagination(startPosition, maxResults)
   const url = buildQuickBooksCompanyUrl(realmId, 'query')
+  const where =
+    filters.length > 0
+      ? ` WHERE ${filters.map((filter) => buildQuickBooksQueryFilter(filter)).join(' AND ')}`
+      : ''
   url.searchParams.set(
     'query',
-    `SELECT * FROM ${entity} STARTPOSITION ${pagination.startPosition} MAXRESULTS ${pagination.maxResults}`
+    `SELECT * FROM ${entity}${where} STARTPOSITION ${pagination.startPosition} MAXRESULTS ${pagination.maxResults}`
   )
   return url
 }
+
+type QuickBooksQueryField = 'Active' | 'CustomerRef' | 'EntityRef' | 'TxnDate' | 'VendorRef'
+type QuickBooksQueryOperator = '=' | '>=' | '<='
+
+interface QuickBooksQueryFilter {
+  field: QuickBooksQueryField
+  operator: QuickBooksQueryOperator
+  value: string | boolean
+}
+
+function buildQuickBooksQueryFilter(filter: QuickBooksQueryFilter): string {
+  if (typeof filter.value === 'boolean') {
+    return `${filter.field} ${filter.operator} ${String(filter.value)}`
+  }
+  const value = requiredQuickBooksString(filter.value, filter.field)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+  return `${filter.field} ${filter.operator} '${value}'`
+}
+
+function getQuickBooksDateRangeFilters(
+  startDate: string | undefined,
+  endDate: string | undefined
+): QuickBooksQueryFilter[] {
+  const start = validateQuickBooksDate(startDate, 'startDate')
+  const end = validateQuickBooksDate(endDate, 'endDate')
+  if (start && end && start > end) throw new Error('startDate cannot be after endDate')
+  return [
+    ...(start ? [{ field: 'TxnDate', operator: '>=', value: start } as const] : []),
+    ...(end ? [{ field: 'TxnDate', operator: '<=', value: end } as const] : []),
+  ]
+}
+
+export function buildQuickBooksMasterDataQueryUrl(params: QuickBooksReadMasterDataParams): URL {
+  const config = getQuickBooksMasterDataEntity(params.recordType)
+  const activeStatus = params.activeStatus ?? 'default'
+  if (!['default', 'active', 'inactive'].includes(activeStatus)) {
+    throw new Error(`Unsupported QuickBooks active status filter: ${String(activeStatus)}`)
+  }
+  const filters: QuickBooksQueryFilter[] =
+    activeStatus === 'default'
+      ? []
+      : [{ field: 'Active', operator: '=', value: activeStatus === 'active' }]
+  return buildQuickBooksQueryUrl(
+    params.realmId,
+    config.entity,
+    params.startPosition ?? 1,
+    params.maxResults ?? 25,
+    filters
+  )
+}
+
+export function buildQuickBooksSalesQueryUrl(params: QuickBooksReadSalesTransactionsParams): URL {
+  const config = getQuickBooksSalesEntity(params.transactionType)
+  const filters = getQuickBooksDateRangeFilters(params.startDate, params.endDate)
+  const customerId = optionalQuickBooksString(params.customerId)
+  if (customerId) filters.push({ field: 'CustomerRef', operator: '=', value: customerId })
+  return buildQuickBooksQueryUrl(
+    params.realmId,
+    config.entity,
+    params.startPosition ?? 1,
+    params.maxResults ?? 25,
+    filters
+  )
+}
+
+const QUICKBOOKS_PURCHASING_VENDOR_FILTER_TYPES = new Set<QuickBooksPurchasingTransactionType>([
+  'bill',
+  'bill_payment',
+  'purchase_order',
+  'vendor_credit',
+])
+
+export function buildQuickBooksPurchasingQueryUrl(
+  params: QuickBooksReadPurchasingTransactionsParams
+): URL {
+  const config = getQuickBooksPurchasingEntity(params.transactionType)
+  const filters = getQuickBooksDateRangeFilters(params.startDate, params.endDate)
+  const vendorId = optionalQuickBooksString(params.vendorId)
+  if (vendorId) {
+    if (!QUICKBOOKS_PURCHASING_VENDOR_FILTER_TYPES.has(params.transactionType)) {
+      throw new Error(`${params.transactionType} does not support vendorId filtering`)
+    }
+    filters.push({ field: 'VendorRef', operator: '=', value: vendorId })
+  }
+  return buildQuickBooksQueryUrl(
+    params.realmId,
+    config.entity,
+    params.startPosition ?? 1,
+    params.maxResults ?? 25,
+    filters
+  )
+}
+
+export function buildQuickBooksAccountingQueryUrl(
+  params: QuickBooksReadAccountingTransactionsParams
+): URL {
+  const config = getQuickBooksAccountingEntity(params.transactionType)
+  return buildQuickBooksQueryUrl(
+    params.realmId,
+    config.entity,
+    params.startPosition ?? 1,
+    params.maxResults ?? 25,
+    getQuickBooksDateRangeFilters(params.startDate, params.endDate)
+  )
+}
+
+export function assertQuickBooksListOnlyFilters(
+  readMode: 'list' | 'by_id',
+  filters: Record<string, unknown>
+): void {
+  if (readMode !== 'by_id') return
+  const provided = Object.entries(filters).find(([, value]) => {
+    if (value === undefined || value === null || value === '') return false
+    return value !== 'default'
+  })
+  if (provided) throw new Error(`${provided[0]} is supported only for List mode`)
+}
+
+export const QUICKBOOKS_ACCOUNTING_ENTITIES = {
+  deposit: { entity: 'Deposit', resource: 'deposit' },
+  journal_entry: { entity: 'JournalEntry', resource: 'journalentry' },
+  transfer: { entity: 'Transfer', resource: 'transfer' },
+} as const satisfies Record<
+  QuickBooksAccountingTransactionType,
+  { entity: QuickBooksQueryEntity; resource: string }
+>
 
 export function getQuickBooksMasterDataEntity(recordType: QuickBooksMasterDataRecordType) {
   const config = QUICKBOOKS_MASTER_DATA_ENTITIES[recordType]
@@ -144,6 +788,18 @@ export function getQuickBooksPurchasingEntity(
   if (!config) {
     throw new Error(
       `Unsupported QuickBooks purchasing transaction type: ${String(transactionType)}`
+    )
+  }
+  return config
+}
+
+export function getQuickBooksAccountingEntity(
+  transactionType: QuickBooksAccountingTransactionType
+) {
+  const config = QUICKBOOKS_ACCOUNTING_ENTITIES[transactionType]
+  if (!config) {
+    throw new Error(
+      `Unsupported QuickBooks accounting transaction type: ${String(transactionType)}`
     )
   }
   return config
@@ -294,6 +950,72 @@ export function sanitizeQuickBooksVendor(vendor: QuickBooksVendor): QuickBooksVe
 
 export function sanitizeQuickBooksCustomer(customer: QuickBooksCustomer): QuickBooksCustomer {
   return omit(customer, ['TaxIdentifier']) as QuickBooksCustomer
+}
+
+export function sanitizeQuickBooksEmployee(employee: QuickBooksEmployee): QuickBooksEmployee {
+  const id = typeof employee.Id === 'string' ? employee.Id.trim() : ''
+  if (!id) throw new Error('QuickBooks Employee response is missing Id')
+
+  const sanitized: QuickBooksEmployee = { Id: id }
+  for (const key of [
+    'SyncToken',
+    'DisplayName',
+    'GivenName',
+    'MiddleName',
+    'FamilyName',
+    'Suffix',
+    'Title',
+    'PrintOnCheckName',
+  ] as const) {
+    const value = employee[key]
+    if (typeof value === 'string') sanitized[key] = value
+  }
+  if (typeof employee.domain === 'string') sanitized.domain = employee.domain
+  for (const key of ['Active', 'BillableTime', 'sparse'] as const) {
+    const value = employee[key]
+    if (typeof value === 'boolean') sanitized[key] = value
+  }
+  for (const key of ['PrimaryPhone', 'Mobile'] as const) {
+    const value = employee[key]
+    if (value && typeof value.FreeFormNumber === 'string') {
+      sanitized[key] = { FreeFormNumber: value.FreeFormNumber }
+    }
+  }
+  if (employee.PrimaryEmailAddr && typeof employee.PrimaryEmailAddr.Address === 'string') {
+    sanitized.PrimaryEmailAddr = { Address: employee.PrimaryEmailAddr.Address }
+  }
+  if (employee.PrimaryAddr && typeof employee.PrimaryAddr === 'object') {
+    const address: QuickBooksAddress = {}
+    for (const key of [
+      'Id',
+      'Line1',
+      'Line2',
+      'Line3',
+      'Line4',
+      'Line5',
+      'City',
+      'Country',
+      'CountrySubDivisionCode',
+      'PostalCode',
+      'Lat',
+      'Long',
+    ] as const) {
+      const value = employee.PrimaryAddr[key]
+      if (typeof value === 'string') address[key] = value
+    }
+    if (Object.keys(address).length > 0) sanitized.PrimaryAddr = address
+  }
+  if (employee.MetaData && typeof employee.MetaData === 'object') {
+    sanitized.MetaData = {
+      ...(typeof employee.MetaData.CreateTime === 'string'
+        ? { CreateTime: employee.MetaData.CreateTime }
+        : {}),
+      ...(typeof employee.MetaData.LastUpdatedTime === 'string'
+        ? { LastUpdatedTime: employee.MetaData.LastUpdatedTime }
+        : {}),
+    }
+  }
+  return sanitized
 }
 
 export function quickBooksWritableItemType(itemType: QuickBooksWritableItemType): string {

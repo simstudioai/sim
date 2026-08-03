@@ -1,3 +1,5 @@
+import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 export interface QuickBooksReference {
@@ -52,6 +54,34 @@ export interface QuickBooksAccount {
   [key: string]: unknown
 }
 
+export interface QuickBooksClass {
+  Id: string
+  SyncToken?: string
+  Name?: string
+  SubClass?: boolean
+  ParentRef?: QuickBooksReference
+  FullyQualifiedName?: string
+  Active?: boolean
+  MetaData?: QuickBooksMetaData
+  domain?: string
+  sparse?: boolean
+  [key: string]: unknown
+}
+
+export interface QuickBooksDepartment {
+  Id: string
+  SyncToken?: string
+  Name?: string
+  SubDepartment?: boolean
+  ParentRef?: QuickBooksReference
+  FullyQualifiedName?: string
+  Active?: boolean
+  MetaData?: QuickBooksMetaData
+  domain?: string
+  sparse?: boolean
+  [key: string]: unknown
+}
+
 export interface QuickBooksCustomer {
   Id: string
   SyncToken?: string
@@ -100,6 +130,7 @@ export interface QuickBooksEmployee {
   PrimaryAddr?: QuickBooksAddress
   BillableTime?: boolean
   MetaData?: QuickBooksMetaData
+  domain?: string
   sparse?: boolean
 }
 
@@ -179,6 +210,25 @@ export interface QuickBooksVendor {
   [key: string]: unknown
 }
 
+export interface QuickBooksLinkedTransaction {
+  TxnId?: string
+  TxnType?: string
+  TxnLineId?: string
+  [key: string]: unknown
+}
+
+export interface QuickBooksTransactionLine {
+  Id?: string
+  LineNum?: number
+  Description?: string
+  Amount?: number
+  DetailType?: string
+  LinkedTxn?: QuickBooksLinkedTransaction[]
+  AccountBasedExpenseLineDetail?: Record<string, unknown>
+  ItemBasedExpenseLineDetail?: Record<string, unknown>
+  [key: string]: unknown
+}
+
 export interface QuickBooksTransaction {
   Id: string
   SyncToken?: string
@@ -191,6 +241,8 @@ export interface QuickBooksTransaction {
   VendorRef?: QuickBooksReference
   APAccountRef?: QuickBooksReference
   AccountRef?: QuickBooksReference
+  FromAccountRef?: QuickBooksReference
+  ToAccountRef?: QuickBooksReference
   EntityRef?: QuickBooksReference & { type?: string }
   DepositToAccountRef?: QuickBooksReference
   PaymentMethodRef?: QuickBooksReference
@@ -201,12 +253,14 @@ export interface QuickBooksTransaction {
   CreditCardPayment?: { CCAccountRef?: QuickBooksReference; [key: string]: unknown }
   CurrencyRef?: QuickBooksReference
   ExchangeRate?: number
-  Line?: Array<Record<string, unknown>>
-  LinkedTxn?: Array<{ TxnId?: string; TxnType?: string }>
+  Line?: QuickBooksTransactionLine[]
+  LinkedTxn?: QuickBooksLinkedTransaction[]
+  Amount?: number
   TotalAmt?: number
   Balance?: number
   UnappliedAmt?: number
   PrivateNote?: string
+  Adjustment?: boolean
   TxnStatus?: string
   TxnTaxDetail?: Record<string, unknown>
   MetaData?: QuickBooksMetaData
@@ -218,19 +272,29 @@ export type QuickBooksPurchaseOrder = QuickBooksTransaction
 export type QuickBooksBill = QuickBooksTransaction
 export type QuickBooksSalesTransaction = QuickBooksTransaction
 export type QuickBooksPurchasingTransaction = QuickBooksTransaction
+export type QuickBooksAccountingTransaction = QuickBooksTransaction
 
 export interface QuickBooksAuthParams {
   accessToken: string
   realmId: string
 }
 
-export type QuickBooksMasterDataRecordType = 'account' | 'customer' | 'vendor' | 'item' | 'employee'
+export type QuickBooksMasterDataRecordType =
+  | 'account'
+  | 'class'
+  | 'customer'
+  | 'department'
+  | 'employee'
+  | 'item'
+  | 'vendor'
 
 export type QuickBooksMasterDataReadMode = 'list' | 'by_id'
 
 export type QuickBooksMasterDataRecord =
   | QuickBooksAccount
+  | QuickBooksClass
   | QuickBooksCustomer
+  | QuickBooksDepartment
   | QuickBooksVendor
   | QuickBooksItem
   | QuickBooksEmployee
@@ -246,6 +310,7 @@ export interface QuickBooksReadMasterDataParams extends QuickBooksAuthParams {
   recordId?: string
   startPosition?: number
   maxResults?: number
+  activeStatus?: QuickBooksReadActiveStatus
 }
 
 export type QuickBooksSalesTransactionType =
@@ -262,6 +327,9 @@ export interface QuickBooksReadSalesTransactionsParams extends QuickBooksAuthPar
   transactionId?: string
   startPosition?: number
   maxResults?: number
+  startDate?: string
+  endDate?: string
+  customerId?: string
 }
 
 export type QuickBooksPurchasingTransactionType =
@@ -277,6 +345,366 @@ export interface QuickBooksReadPurchasingTransactionsParams extends QuickBooksAu
   transactionId?: string
   startPosition?: number
   maxResults?: number
+  startDate?: string
+  endDate?: string
+  vendorId?: string
+}
+
+export type QuickBooksAccountingTransactionType = 'journal_entry' | 'deposit' | 'transfer'
+
+export interface QuickBooksReadAccountingTransactionsParams extends QuickBooksAuthParams {
+  transactionType: QuickBooksAccountingTransactionType
+  readMode: QuickBooksMasterDataReadMode
+  transactionId?: string
+  startPosition?: number
+  maxResults?: number
+  startDate?: string
+  endDate?: string
+}
+
+export type QuickBooksReportType =
+  | 'balance_sheet'
+  | 'profit_and_loss'
+  | 'profit_and_loss_detail'
+  | 'trial_balance'
+  | 'cash_flow'
+  | 'ap_aging_summary'
+  | 'ap_aging_detail'
+  | 'ar_aging_summary'
+  | 'ar_aging_detail'
+  | 'vendor_balance'
+  | 'customer_balance'
+  | 'sales_by_customer'
+  | 'sales_by_item'
+  | 'expenses_by_vendor'
+  | 'transaction_list'
+
+export type QuickBooksAccountingMethod = 'default' | 'cash' | 'accrual'
+
+export type QuickBooksReportSummarizeBy =
+  | 'default'
+  | 'total'
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'quarter'
+  | 'year'
+  | 'customer'
+  | 'vendor'
+  | 'item'
+  | 'class'
+  | 'department'
+
+export type QuickBooksAgingMethod = 'default' | 'report_date' | 'current'
+
+export type QuickBooksTransactionListPaidStatus = 'default' | 'all' | 'paid' | 'unpaid'
+export type QuickBooksTransactionListClearedStatus =
+  | 'default'
+  | 'cleared'
+  | 'uncleared'
+  | 'reconciled'
+  | 'deposited'
+export type QuickBooksTransactionListGroupBy =
+  | 'default'
+  | 'account'
+  | 'customer'
+  | 'day'
+  | 'employee'
+  | 'department'
+  | 'month'
+  | 'name'
+  | 'none'
+  | 'payment_method'
+  | 'quarter'
+  | 'transaction_type'
+  | 'vendor'
+  | 'week'
+  | 'year'
+
+export type QuickBooksTransactionListTransactionType =
+  | 'default'
+  | 'bill'
+  | 'bill_payment_check'
+  | 'bill_payment_credit_card'
+  | 'cash_purchase'
+  | 'check'
+  | 'credit_card_charge'
+  | 'credit_card_credit'
+  | 'credit_memo'
+  | 'deposit'
+  | 'estimate'
+  | 'invoice'
+  | 'journal_entry'
+  | 'payment'
+  | 'purchase_order'
+  | 'sales_receipt'
+  | 'transfer'
+  | 'vendor_credit'
+
+export type QuickBooksTransactionListSourceAccountType =
+  | 'default'
+  | 'accounts_payable'
+  | 'accounts_receivable'
+  | 'bank'
+  | 'cost_of_goods_sold'
+  | 'credit_card'
+  | 'equity'
+  | 'expense'
+  | 'fixed_asset'
+  | 'income'
+  | 'long_term_liability'
+  | 'non_posting'
+  | 'other_asset'
+  | 'other_current_asset'
+  | 'other_current_liability'
+  | 'other_expense'
+  | 'other_income'
+
+export interface QuickBooksRunFinancialReportParams extends QuickBooksAuthParams {
+  reportType: QuickBooksReportType
+  startDate?: string
+  endDate?: string
+  accountingMethod?: QuickBooksAccountingMethod
+  summarizeBy?: QuickBooksReportSummarizeBy
+  customerId?: string
+  vendorId?: string
+  accountId?: string
+  itemId?: string
+  classId?: string
+  departmentId?: string
+  agingMethod?: QuickBooksAgingMethod
+  agingDays?: number
+  transactionType?: QuickBooksTransactionListTransactionType
+  groupBy?: QuickBooksTransactionListGroupBy
+  accountsPayablePaid?: QuickBooksTransactionListPaidStatus
+  accountsReceivablePaid?: QuickBooksTransactionListPaidStatus
+  clearedStatus?: QuickBooksTransactionListClearedStatus
+  documentNumber?: string
+  sourceAccountType?: QuickBooksTransactionListSourceAccountType
+}
+
+export type QuickBooksDocumentTransactionType =
+  | 'credit_memo'
+  | 'estimate'
+  | 'invoice'
+  | 'payment'
+  | 'purchase_order'
+  | 'refund_receipt'
+  | 'sales_receipt'
+
+export type QuickBooksAttachmentTargetType =
+  | 'bill'
+  | 'bill_payment'
+  | 'credit_memo'
+  | 'deposit'
+  | 'estimate'
+  | 'invoice'
+  | 'item'
+  | 'journal_entry'
+  | 'payment'
+  | 'purchase'
+  | 'purchase_order'
+  | 'refund_receipt'
+  | 'sales_receipt'
+  | 'vendor_credit'
+
+export type QuickBooksAttachmentReadMode = 'list' | 'by_id'
+export type QuickBooksAttachmentKind = 'file' | 'note'
+
+export interface QuickBooksAttachableReference {
+  EntityRef?: QuickBooksReference & { type?: string }
+  IncludeOnSend?: boolean
+  [key: string]: unknown
+}
+
+export interface QuickBooksAttachable {
+  Id: string
+  SyncToken?: string
+  FileName?: string
+  ContentType?: string
+  Size?: number
+  Note?: string
+  Category?: string
+  AttachableRef?: QuickBooksAttachableReference[]
+  MetaData?: QuickBooksMetaData
+  domain?: string
+  sparse?: boolean
+  [key: string]: unknown
+}
+
+export interface QuickBooksEmailTransactionParams extends QuickBooksAuthParams {
+  transactionType: QuickBooksDocumentTransactionType
+  transactionId: string
+  recipient?: string
+  confirmSend: boolean
+}
+
+export interface QuickBooksDownloadTransactionPdfParams extends QuickBooksAuthParams {
+  transactionType: QuickBooksDocumentTransactionType
+  transactionId: string
+  fileName?: string
+  _context?: {
+    workspaceId?: string
+    workflowId?: string
+    executionId?: string
+  }
+}
+
+export interface QuickBooksReadAttachmentsParams extends QuickBooksAuthParams {
+  readMode: QuickBooksAttachmentReadMode
+  targetType?: QuickBooksAttachmentTargetType
+  targetId?: string
+  attachmentId?: string
+  startPosition?: number
+  maxResults?: number
+}
+
+export interface QuickBooksAddAttachmentParams extends QuickBooksAuthParams {
+  attachmentKind: QuickBooksAttachmentKind
+  targetType: QuickBooksAttachmentTargetType
+  targetId: string
+  file?: RawFileInput
+  fileName?: string
+  contentType?: string
+  description?: string
+  note?: string
+}
+
+export interface QuickBooksDownloadAttachmentParams extends QuickBooksAuthParams {
+  attachmentId: string
+  fileName?: string
+  _context?: {
+    workspaceId?: string
+    workflowId?: string
+    executionId?: string
+  }
+}
+
+export interface QuickBooksReportOption {
+  Name?: string
+  Value?: string
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportHeader {
+  Time?: string
+  ReportName?: string
+  DateMacro?: string
+  ReportBasis?: string
+  StartPeriod?: string
+  EndPeriod?: string
+  SummarizeColumnsBy?: string
+  Currency?: string
+  Customer?: string
+  Vendor?: string
+  Account?: string
+  Item?: string
+  Class?: string
+  Department?: string
+  Option?: QuickBooksReportOption[]
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportColumnMetaData {
+  Name?: string
+  Value?: string
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportColumn {
+  ColTitle?: string
+  ColType?: string
+  MetaData?: QuickBooksReportColumnMetaData[]
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportColumns {
+  Column?: QuickBooksReportColumn[]
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportColumnData {
+  value?: string
+  id?: string
+  href?: string
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportRowSummary {
+  ColData?: QuickBooksReportColumnData[]
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportRowHeader {
+  ColData?: QuickBooksReportColumnData[]
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportRow {
+  type?: string
+  group?: string
+  Header?: QuickBooksReportRowHeader
+  ColData?: QuickBooksReportColumnData[]
+  Rows?: QuickBooksReportRows
+  Summary?: QuickBooksReportRowSummary
+  [key: string]: unknown
+}
+
+export interface QuickBooksReportRows {
+  Row?: QuickBooksReportRow[]
+  [key: string]: unknown
+}
+
+export type QuickBooksJournalPostingType = 'debit' | 'credit'
+export type QuickBooksJournalEntityType = 'customer' | 'vendor' | 'employee'
+
+export interface QuickBooksJournalLineInput {
+  postingType: QuickBooksJournalPostingType
+  amount: number
+  accountId: string
+  description?: string
+  entityType?: QuickBooksJournalEntityType
+  entityId?: string
+}
+
+export interface QuickBooksDepositLineInput {
+  amount: number
+  accountId: string
+  description?: string
+}
+
+export interface QuickBooksCreateJournalEntryParams extends QuickBooksAuthParams {
+  lines: QuickBooksJournalLineInput[]
+  confirmPosting: boolean
+  transactionDate?: string
+  documentNumber?: string
+  privateNote?: string
+  requestId?: string
+}
+
+export interface QuickBooksUpdateJournalEntryParams extends QuickBooksAuthParams {
+  journalEntryId: string
+  syncToken: string
+  confirmPosting: boolean
+  transactionDate?: string
+  documentNumber?: string
+  privateNote?: string
+}
+
+export interface QuickBooksCreateDepositParams extends QuickBooksAuthParams {
+  depositAccountId: string
+  lines: QuickBooksDepositLineInput[]
+  transactionDate?: string
+  privateNote?: string
+  requestId?: string
+}
+
+export interface QuickBooksUpdateDepositParams extends QuickBooksAuthParams {
+  depositId: string
+  syncToken: string
+  depositAccountId: string
+  transactionDate?: string
+  privateNote?: string
 }
 
 export type QuickBooksPurchasingLineType = 'account' | 'item'
@@ -289,6 +717,20 @@ export interface QuickBooksPurchasingLineInput {
   description?: string
   quantity?: number
   unitPrice?: number
+}
+
+export interface QuickBooksBillLineInput extends QuickBooksPurchasingLineInput {
+  purchaseOrderId?: string
+  purchaseOrderLineId?: string
+}
+
+export interface QuickBooksBillLinkInput {
+  purchaseOrderId: string
+  purchaseOrderLineId: string
+}
+
+export interface QuickBooksLinkedBillLine extends QuickBooksBillLinkInput {
+  billLineId?: string
 }
 
 export interface QuickBooksBillAllocationInput {
@@ -318,7 +760,7 @@ export interface QuickBooksUpdatePurchaseOrderParams extends QuickBooksAuthParam
 
 export interface QuickBooksCreateBillParams extends QuickBooksAuthParams {
   vendorId: string
-  lines: QuickBooksPurchasingLineInput[]
+  lines: QuickBooksBillLineInput[]
   apAccountId?: string
   transactionDate?: string
   dueDate?: string
@@ -504,6 +946,7 @@ export interface QuickBooksVoidTransactionParams extends QuickBooksAuthParams {
 }
 
 export type QuickBooksActiveStatus = 'unchanged' | 'active' | 'inactive'
+export type QuickBooksReadActiveStatus = 'default' | 'active' | 'inactive'
 
 export interface QuickBooksCreateCustomerParams extends QuickBooksAuthParams {
   displayName: string
@@ -521,6 +964,26 @@ export interface QuickBooksCreateCustomerParams extends QuickBooksAuthParams {
 export interface QuickBooksUpdateCustomerParams
   extends Omit<QuickBooksCreateCustomerParams, 'displayName'> {
   customerId: string
+  syncToken: string
+  displayName?: string
+  activeStatus?: QuickBooksActiveStatus
+}
+
+export interface QuickBooksCreateEmployeeParams extends QuickBooksAuthParams {
+  displayName: string
+  requestId?: string
+  givenName?: string
+  familyName?: string
+  primaryEmail?: string
+  primaryPhone?: string
+  primaryAddress?: QuickBooksAddress
+  printOnCheckName?: string
+  billableTime?: boolean
+}
+
+export interface QuickBooksUpdateEmployeeParams
+  extends Omit<QuickBooksCreateEmployeeParams, 'displayName' | 'requestId'> {
+  employeeId: string
   syncToken: string
   displayName?: string
   activeStatus?: QuickBooksActiveStatus
@@ -629,6 +1092,74 @@ export interface QuickBooksReadPurchasingTransactionsResponse extends ToolRespon
   }
 }
 
+export interface QuickBooksReadAccountingTransactionsResponse extends ToolResponse {
+  output: {
+    transactionType: QuickBooksAccountingTransactionType
+    item?: QuickBooksAccountingTransaction
+    items?: QuickBooksAccountingTransaction[]
+    startPosition?: number
+    maxResults?: number
+    nextStartPosition?: number
+    hasMore?: boolean
+    time: string | null
+  }
+}
+
+export interface QuickBooksRunFinancialReportResponse extends ToolResponse {
+  output: {
+    reportType: QuickBooksReportType
+    header: QuickBooksReportHeader
+    columns: QuickBooksReportColumns
+    rows: QuickBooksReportRows
+    time: string | null
+  }
+}
+
+export interface QuickBooksEmailTransactionResponse extends ToolResponse {
+  output: {
+    transactionType: QuickBooksDocumentTransactionType
+    transactionId: string
+    sent: true
+    record?: QuickBooksTransaction
+    time: string | null
+  }
+}
+
+export interface QuickBooksReadAttachmentsResponse extends ToolResponse {
+  output: {
+    item?: QuickBooksAttachable
+    items?: QuickBooksAttachable[]
+    startPosition?: number
+    maxResults?: number
+    nextStartPosition?: number
+    hasMore?: boolean
+    time: string | null
+  }
+}
+
+export interface QuickBooksAddAttachmentResponse extends ToolResponse {
+  output: {
+    attachment: QuickBooksAttachable
+    attachmentId: string
+    attachmentKind: QuickBooksAttachmentKind
+    targetType: QuickBooksAttachmentTargetType
+    targetId: string
+    time: string | null
+  }
+}
+
+export interface QuickBooksFileResponse extends ToolResponse {
+  output: {
+    file: UserFile
+    transactionType?: QuickBooksDocumentTransactionType
+    transactionId?: string
+    attachmentId?: string
+    fileName: string
+    mimeType: string
+    size: number
+  }
+}
+
 export interface QuickBooksMutationResponse<T extends { Id: string; SyncToken?: string }>
   extends ToolResponse {
   output: {
@@ -636,6 +1167,17 @@ export interface QuickBooksMutationResponse<T extends { Id: string; SyncToken?: 
     recordId: string
     syncToken: string
     time: string | null
+  }
+}
+
+export interface QuickBooksCreateBillResponse
+  extends QuickBooksMutationResponse<QuickBooksPurchasingTransaction> {
+  output: QuickBooksMutationResponse<QuickBooksPurchasingTransaction>['output'] & {
+    linkingRequested: boolean
+    linkingSucceeded: boolean | null
+    linkedLines: QuickBooksLinkedBillLine[]
+    missingLinks: QuickBooksBillLinkInput[]
+    linkingWarning?: string
   }
 }
 
@@ -655,9 +1197,19 @@ export type QuickBooksResponse =
   | QuickBooksReadMasterDataResponse
   | QuickBooksReadSalesTransactionsResponse
   | QuickBooksReadPurchasingTransactionsResponse
-  | QuickBooksMutationResponse<QuickBooksCustomer | QuickBooksVendor | QuickBooksItem>
+  | QuickBooksReadAccountingTransactionsResponse
+  | QuickBooksRunFinancialReportResponse
+  | QuickBooksEmailTransactionResponse
+  | QuickBooksReadAttachmentsResponse
+  | QuickBooksAddAttachmentResponse
+  | QuickBooksFileResponse
+  | QuickBooksMutationResponse<
+      QuickBooksCustomer | QuickBooksEmployee | QuickBooksVendor | QuickBooksItem
+    >
   | QuickBooksMutationResponse<QuickBooksSalesTransaction>
   | QuickBooksMutationResponse<QuickBooksPurchasingTransaction>
+  | QuickBooksCreateBillResponse
+  | QuickBooksMutationResponse<QuickBooksAccountingTransaction>
   | QuickBooksVoidResponse
 
 export const QUICKBOOKS_REFERENCE_PROPERTIES: Record<string, OutputProperty> = {
@@ -745,6 +1297,55 @@ export const QUICKBOOKS_LIST_OUTPUTS: Record<string, OutputProperty> = {
     optional: true,
     nullable: true,
   },
+}
+
+export const QUICKBOOKS_ATTACHABLE_PROPERTIES: Record<string, OutputProperty> = {
+  Id: { type: 'string', description: 'QuickBooks attachment ID' },
+  SyncToken: { type: 'string', description: 'Attachment sync token', optional: true },
+  FileName: { type: 'string', description: 'Attached file name', optional: true },
+  ContentType: { type: 'string', description: 'Attached file MIME type', optional: true },
+  Size: { type: 'number', description: 'Attached file size in bytes', optional: true },
+  Note: { type: 'string', description: 'Attachment note or description', optional: true },
+  Category: {
+    type: 'string',
+    description: 'Native QuickBooks attachment category',
+    optional: true,
+  },
+  AttachableRef: {
+    type: 'array',
+    description: 'QuickBooks entities referenced by this attachment',
+    optional: true,
+    items: {
+      type: 'json',
+      properties: {
+        EntityRef: {
+          type: 'json',
+          description: 'Attached entity type and operational ID',
+          optional: true,
+        },
+        IncludeOnSend: {
+          type: 'boolean',
+          description: 'Whether QuickBooks includes the attachment when sending',
+          optional: true,
+        },
+      },
+    },
+  },
+  MetaData: {
+    type: 'json',
+    description: 'Attachment creation and update timestamps',
+    optional: true,
+    properties: QUICKBOOKS_METADATA_PROPERTIES,
+  },
+  domain: { type: 'string', description: 'QuickBooks domain', optional: true },
+  sparse: { type: 'boolean', description: 'Whether this is a sparse entity', optional: true },
+}
+
+export const QUICKBOOKS_FILE_OUTPUTS: Record<string, OutputProperty> = {
+  file: { type: 'file', description: 'Downloaded file stored in execution files' },
+  fileName: { type: 'string', description: 'Safe downloaded filename' },
+  mimeType: { type: 'string', description: 'Downloaded file MIME type' },
+  size: { type: 'number', description: 'Downloaded file size in bytes' },
 }
 
 export const QUICKBOOKS_ENTITY_BASE_PROPERTIES: Record<string, OutputProperty> = {
@@ -911,6 +1512,11 @@ export const QUICKBOOKS_EMPLOYEE_PROPERTIES: Record<string, OutputProperty> = {
   DisplayName: { type: 'string', description: 'Employee display name', optional: true },
   GivenName: { type: 'string', description: 'Given name', optional: true },
   FamilyName: { type: 'string', description: 'Family name', optional: true },
+  PrintOnCheckName: {
+    type: 'string',
+    description: 'Employee name printed on checks',
+    optional: true,
+  },
   PrimaryEmailAddr: {
     type: 'json',
     description: 'Employee primary email address',
@@ -927,6 +1533,8 @@ export const QUICKBOOKS_EMPLOYEE_PROPERTIES: Record<string, OutputProperty> = {
     description: 'Whether employee time is billable',
     optional: true,
   },
+  domain: { type: 'string', description: 'QuickBooks domain', optional: true },
+  sparse: { type: 'boolean', description: 'Whether this is a sparse entity', optional: true },
 }
 
 export const QUICKBOOKS_MASTER_DATA_PROPERTIES: Record<string, OutputProperty> = {
@@ -935,16 +1543,25 @@ export const QUICKBOOKS_MASTER_DATA_PROPERTIES: Record<string, OutputProperty> =
   ...QUICKBOOKS_VENDOR_PROPERTIES,
   ...QUICKBOOKS_ITEM_PROPERTIES,
   ...QUICKBOOKS_EMPLOYEE_PROPERTIES,
-  Name: { type: 'string', description: 'Account or item name', optional: true },
+  PrintOnCheckName: {
+    type: 'string',
+    description: 'Vendor or employee name printed on checks',
+    optional: true,
+  },
+  Name: {
+    type: 'string',
+    description: 'Account, item, class, or department name',
+    optional: true,
+  },
   ParentRef: {
     type: 'json',
-    description: 'Parent account, item, or category reference',
+    description: 'Parent account, item, class, or department reference',
     optional: true,
     properties: QUICKBOOKS_REFERENCE_PROPERTIES,
   },
   FullyQualifiedName: {
     type: 'string',
-    description: 'Hierarchical qualified account or item name',
+    description: 'Hierarchical qualified account, item, class, or department name',
     optional: true,
   },
   CurrencyRef: {
@@ -987,6 +1604,97 @@ export const QUICKBOOKS_MASTER_DATA_PROPERTIES: Record<string, OutputProperty> =
     type: 'number',
     description: 'Customer or vendor balance',
     optional: true,
+  },
+  SubClass: {
+    type: 'boolean',
+    description: 'Whether the Class is nested under another Class',
+    optional: true,
+  },
+  SubDepartment: {
+    type: 'boolean',
+    description: 'Whether the Department is nested under another Department',
+    optional: true,
+  },
+}
+
+export const QUICKBOOKS_REPORT_HEADER_PROPERTIES: Record<string, OutputProperty> = {
+  Time: { type: 'string', description: 'QuickBooks report generation timestamp', optional: true },
+  ReportName: { type: 'string', description: 'Native QuickBooks report name', optional: true },
+  DateMacro: {
+    type: 'string',
+    description: 'QuickBooks date macro, when returned',
+    optional: true,
+  },
+  ReportBasis: { type: 'string', description: 'Cash or accrual basis', optional: true },
+  StartPeriod: { type: 'string', description: 'Report start date', optional: true },
+  EndPeriod: { type: 'string', description: 'Report end or as-of date', optional: true },
+  SummarizeColumnsBy: {
+    type: 'string',
+    description: 'Dimension or time period used for report columns',
+    optional: true,
+  },
+  Currency: { type: 'string', description: 'Report currency', optional: true },
+  Customer: { type: 'string', description: 'Applied customer filter', optional: true },
+  Vendor: { type: 'string', description: 'Applied vendor filter', optional: true },
+  Account: { type: 'string', description: 'Applied account filter', optional: true },
+  Item: { type: 'string', description: 'Applied item filter', optional: true },
+  Class: { type: 'string', description: 'Applied class filter', optional: true },
+  Department: { type: 'string', description: 'Applied department filter', optional: true },
+  Option: {
+    type: 'array',
+    description: 'Native QuickBooks report options, including no-data indicators when present',
+    optional: true,
+    items: { type: 'json' },
+  },
+}
+
+export const QUICKBOOKS_REPORT_COLUMNS_PROPERTIES: Record<string, OutputProperty> = {
+  Column: {
+    type: 'array',
+    description: 'Native report column definitions with titles, types, and metadata',
+    optional: true,
+    items: {
+      type: 'json',
+      properties: {
+        ColTitle: { type: 'string', description: 'Column title', optional: true },
+        ColType: { type: 'string', description: 'QuickBooks column data type', optional: true },
+        MetaData: {
+          type: 'array',
+          description: 'Native column metadata name/value entries',
+          optional: true,
+          items: { type: 'json' },
+        },
+      },
+    },
+  },
+}
+
+export const QUICKBOOKS_REPORT_ROWS_PROPERTIES: Record<string, OutputProperty> = {
+  Row: {
+    type: 'array',
+    description:
+      'Native hierarchical report rows; section rows may contain Header, nested Rows, and Summary, while data rows contain ColData values, IDs, and links',
+    optional: true,
+    items: {
+      type: 'json',
+      properties: {
+        type: { type: 'string', description: 'QuickBooks row type', optional: true },
+        group: { type: 'string', description: 'QuickBooks section group', optional: true },
+        Header: { type: 'json', description: 'Section header column data', optional: true },
+        ColData: {
+          type: 'array',
+          description: 'Row values with optional operational IDs and links',
+          optional: true,
+          items: { type: 'json' },
+        },
+        Rows: {
+          type: 'json',
+          description: 'Nested native QuickBooks report rows',
+          optional: true,
+        },
+        Summary: { type: 'json', description: 'Section summary column data', optional: true },
+      },
+    },
   },
 }
 
@@ -1053,6 +1761,40 @@ export const QUICKBOOKS_SALES_TRANSACTION_PROPERTIES: Record<string, OutputPrope
   },
 }
 
+export const QUICKBOOKS_LINKED_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
+  TxnId: { type: 'string', description: 'Linked QuickBooks transaction ID', optional: true },
+  TxnType: { type: 'string', description: 'Linked QuickBooks transaction type', optional: true },
+  TxnLineId: {
+    type: 'string',
+    description: 'Linked QuickBooks transaction line ID',
+    optional: true,
+  },
+}
+
+export const QUICKBOOKS_PURCHASING_LINE_PROPERTIES: Record<string, OutputProperty> = {
+  Id: { type: 'string', description: 'QuickBooks transaction line ID', optional: true },
+  LineNum: { type: 'number', description: 'QuickBooks transaction line number', optional: true },
+  Description: { type: 'string', description: 'Transaction line description', optional: true },
+  Amount: { type: 'number', description: 'Transaction line amount', optional: true },
+  DetailType: { type: 'string', description: 'QuickBooks line detail type', optional: true },
+  LinkedTxn: {
+    type: 'array',
+    description: 'Transactions linked to this QuickBooks line',
+    optional: true,
+    items: { type: 'json', properties: QUICKBOOKS_LINKED_TRANSACTION_PROPERTIES },
+  },
+  AccountBasedExpenseLineDetail: {
+    type: 'json',
+    description: 'Native QuickBooks account-based expense details',
+    optional: true,
+  },
+  ItemBasedExpenseLineDetail: {
+    type: 'json',
+    description: 'Native QuickBooks item-based expense details',
+    optional: true,
+  },
+}
+
 export const QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
   Id: { type: 'string', description: 'QuickBooks purchasing transaction ID' },
   SyncToken: { type: 'string', description: 'Current transaction sync token', optional: true },
@@ -1109,17 +1851,91 @@ export const QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES: Record<string, Output
     type: 'array',
     description: 'Native QuickBooks expense or allocation lines',
     optional: true,
-    items: { type: 'json' },
+    items: { type: 'json', properties: QUICKBOOKS_PURCHASING_LINE_PROPERTIES },
   },
   LinkedTxn: {
     type: 'array',
     description: 'Transactions linked by QuickBooks',
     optional: true,
-    items: { type: 'json' },
+    items: { type: 'json', properties: QUICKBOOKS_LINKED_TRANSACTION_PROPERTIES },
   },
   TotalAmt: { type: 'number', description: 'Transaction total amount', optional: true },
   Balance: { type: 'number', description: 'Remaining transaction balance', optional: true },
   PrivateNote: { type: 'string', description: 'Internal transaction note', optional: true },
+  MetaData: {
+    type: 'json',
+    description: 'Transaction creation and update timestamps',
+    optional: true,
+    properties: QUICKBOOKS_METADATA_PROPERTIES,
+  },
+}
+
+export const QUICKBOOKS_EMAILABLE_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
+  ...QUICKBOOKS_SALES_TRANSACTION_PROPERTIES,
+  ...QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES,
+  Id: { type: 'string', description: 'QuickBooks transaction ID' },
+  DueDate: { type: 'string', description: 'Transaction due date', optional: true },
+  POStatus: { type: 'string', description: 'Purchase order status', optional: true },
+  Line: {
+    type: 'array',
+    description: 'Native QuickBooks sales or purchasing transaction lines',
+    optional: true,
+    items: {
+      type: 'json',
+      properties: {
+        ...QUICKBOOKS_PURCHASING_LINE_PROPERTIES,
+        SalesItemLineDetail: {
+          type: 'json',
+          description: 'Native QuickBooks sales item line details',
+          optional: true,
+        },
+        DescriptionLineDetail: {
+          type: 'json',
+          description: 'Native QuickBooks description line details',
+          optional: true,
+        },
+      },
+    },
+  },
+}
+
+export const QUICKBOOKS_ACCOUNTING_TRANSACTION_PROPERTIES: Record<string, OutputProperty> = {
+  Id: { type: 'string', description: 'QuickBooks accounting transaction ID' },
+  SyncToken: { type: 'string', description: 'Current transaction sync token', optional: true },
+  DocNumber: { type: 'string', description: 'Transaction document number', optional: true },
+  TxnDate: { type: 'string', description: 'Transaction date', optional: true },
+  PrivateNote: { type: 'string', description: 'Internal transaction note', optional: true },
+  Adjustment: {
+    type: 'boolean',
+    description: 'Whether the journal entry is an adjusting entry',
+    optional: true,
+  },
+  DepositToAccountRef: {
+    type: 'json',
+    description: 'Account receiving a deposit',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  FromAccountRef: {
+    type: 'json',
+    description: 'Transfer source account',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  ToAccountRef: {
+    type: 'json',
+    description: 'Transfer destination account',
+    optional: true,
+    properties: QUICKBOOKS_REFERENCE_PROPERTIES,
+  },
+  Line: {
+    type: 'array',
+    description: 'Native QuickBooks journal or deposit lines',
+    optional: true,
+    items: { type: 'json' },
+  },
+  Amount: { type: 'number', description: 'Transfer amount', optional: true },
+  TotalAmt: { type: 'number', description: 'Transaction total amount', optional: true },
   MetaData: {
     type: 'json',
     description: 'Transaction creation and update timestamps',
@@ -1139,6 +1955,48 @@ export const QUICKBOOKS_MUTATION_OUTPUTS: Record<string, OutputProperty> = {
     description: 'QuickBooks response timestamp',
     optional: true,
     nullable: true,
+  },
+}
+
+export const QUICKBOOKS_BILL_LINK_INPUT_PROPERTIES: Record<string, OutputProperty> = {
+  purchaseOrderId: { type: 'string', description: 'Requested Purchase Order ID' },
+  purchaseOrderLineId: { type: 'string', description: 'Requested Purchase Order line ID' },
+}
+
+export const QUICKBOOKS_CREATE_BILL_LINK_OUTPUTS: Record<string, OutputProperty> = {
+  linkingRequested: {
+    type: 'boolean',
+    description: 'Whether any Purchase Order line links were requested',
+  },
+  linkingSucceeded: {
+    type: 'boolean',
+    description: 'Whether QuickBooks returned every requested Purchase Order line link',
+    nullable: true,
+  },
+  linkedLines: {
+    type: 'array',
+    description: 'Requested Purchase Order line links confirmed by QuickBooks',
+    items: {
+      type: 'json',
+      properties: {
+        ...QUICKBOOKS_BILL_LINK_INPUT_PROPERTIES,
+        billLineId: {
+          type: 'string',
+          description: 'Created Bill line ID carrying the confirmed link',
+          optional: true,
+        },
+      },
+    },
+  },
+  missingLinks: {
+    type: 'array',
+    description: 'Requested Purchase Order line links omitted by QuickBooks',
+    items: { type: 'json', properties: QUICKBOOKS_BILL_LINK_INPUT_PROPERTIES },
+  },
+  linkingWarning: {
+    type: 'string',
+    description: 'Warning that the Bill was created without every requested Purchase Order link',
+    optional: true,
   },
 }
 
