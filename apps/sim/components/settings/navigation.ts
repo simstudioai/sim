@@ -24,7 +24,7 @@ import {
   Wrench,
 } from '@sim/emcn/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
-import { CodeIcon, McpIcon } from '@/components/icons'
+import { CodeIcon, McpIcon, SproutIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
   isAccessControlEnabled,
@@ -690,7 +690,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   },
   {
     label: 'Self-host',
-    icon: Server,
+    icon: SproutIcon,
     unified: {
       id: 'self-host',
       description: 'Manage this deployment from the Sim managed service.',

@@ -8944,3 +8944,24 @@ export function ZohoDeskIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+/**
+ * The Self-host settings mark — a sprout, for a deployment you grow yourself.
+ *
+ * Text rather than an SVG because the icon set ships no botanical glyph. It is
+ * consequently the one nav mark that keeps its own colors instead of inheriting
+ * `--text-icon`, and it renders in the host platform's emoji font. The explicit
+ * font size pins the glyph to the 14px the line icons around it optically read
+ * as, independent of whatever the consumer's `size-*` box sets.
+ */
+export function SproutIcon({ className }: { className?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center justify-center text-sm leading-none ${className ?? ''}`}
+      role='img'
+      aria-label='Self-host'
+    >
+      🌱
+    </span>
+  )
+}

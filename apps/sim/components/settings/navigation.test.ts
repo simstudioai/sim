@@ -1,7 +1,9 @@
 /**
  * @vitest-environment node
  */
+import { createElement } from 'react'
 import { resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   ACCOUNT_SETTINGS_ITEMS,
@@ -175,6 +177,16 @@ describe('settings navigation boundaries', () => {
         },
       }).map(({ id }) => id)
     ).not.toContain('self-host')
+  })
+
+  /**
+   * The sprout is a text glyph, not an SVG line icon — a swap back to an icon
+   * component would silently drop the mark this section is recognized by.
+   */
+  it('marks the Self-host section with the sprout glyph', () => {
+    const selfHost = buildUnifiedSettingsNavigation().find(({ id }) => id === 'self-host')
+
+    expect(renderToStaticMarkup(createElement(selfHost!.icon, {}))).toContain('\u{1F331}')
   })
 
   it('keeps the Sandboxes section on the pre-Daytona E2B flag alone', () => {
