@@ -51,7 +51,7 @@ describe('unified settings navigation', () => {
       { id: 'sandboxes', label: 'Sandboxes', section: 'workspace' },
       { id: 'inbox', label: 'Sim Mailer', section: 'workspace' },
       { id: 'recently-deleted', label: 'Recently deleted', section: 'workspace' },
-      { id: 'self-host', label: 'Self-host', section: 'workspace' },
+      { id: 'self-host', label: 'Self hosting', section: 'platform' },
       { id: 'sso', label: 'Single sign-on', section: 'organization' },
       { id: 'sessions', label: 'Session policies', section: 'organization' },
       { id: 'data-retention', label: 'Data retention', section: 'organization' },
@@ -88,7 +88,6 @@ describe('unified settings navigation', () => {
       'apikeys',
       'sandboxes',
       'recently-deleted',
-      'self-host',
     ])
     expect(idsForSection('organization')).toEqual([
       'organization',
@@ -102,7 +101,7 @@ describe('unified settings navigation', () => {
       'data-retention',
       'data-drains',
     ])
-    expect(idsForSection('platform')).toEqual(['admin', 'mothership'])
+    expect(idsForSection('platform')).toEqual(['admin', 'mothership', 'self-host'])
   })
 
   it('derives every unified item from exactly one registry entry', () => {

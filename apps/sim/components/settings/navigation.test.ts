@@ -180,13 +180,17 @@ describe('settings navigation boundaries', () => {
   })
 
   /**
-   * The sprout is a text glyph, not an SVG line icon — a swap back to an icon
-   * component would silently drop the mark this section is recognized by.
+   * The mark must be a line icon that inherits `--text-icon` like every other
+   * nav glyph — an emoji would render in the platform's own colors and be the
+   * one colored item in a monochrome icon column.
    */
-  it('marks the Self-host section with the sprout glyph', () => {
+  it('marks the Self hosting section with a currentColor line icon', () => {
     const selfHost = buildUnifiedSettingsNavigation().find(({ id }) => id === 'self-host')
+    const markup = renderToStaticMarkup(createElement(selfHost!.icon, {}))
 
-    expect(renderToStaticMarkup(createElement(selfHost!.icon, {}))).toContain('\u{1F331}')
+    expect(selfHost?.label).toBe('Self hosting')
+    expect(markup).toContain('<svg')
+    expect(markup).toContain('stroke="currentColor"')
   })
 
   it('keeps the Sandboxes section on the pre-Daytona E2B flag alone', () => {
