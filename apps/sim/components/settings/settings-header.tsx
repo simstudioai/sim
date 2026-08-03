@@ -18,6 +18,17 @@ import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
+/**
+ * A collapsed desktop sidebar removes the content shell's 8px top gutter and the
+ * pane's 1px border. Top-level settings headers have no left-side control to keep
+ * clear of the traffic lights, so they reserve only those missing 9px instead of
+ * the full title-bar lane. Their actions and body therefore stay at the same
+ * window-relative height as the expanded layout. Detail headers with a Back
+ * control retain the full lane inset.
+ */
+const COLLAPSED_DESKTOP_TOP_LEVEL_INSET =
+  '[[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:[--workspace-content-title-bar-inset:9px]'
+
 export interface SettingsAction {
   /** Stable render identity. Falls back to `text`, which remounts the chip whenever the label flips (Save → Saving...). */
   id?: string
@@ -195,7 +206,13 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className={cn(PAGE_HEADER_BAR, 'justify-between')}>
+      <div
+        className={cn(
+          PAGE_HEADER_BAR,
+          'justify-between',
+          !back && COLLAPSED_DESKTOP_TOP_LEVEL_INSET
+        )}
+      >
         {back ? (
           <Chip leftIcon={back.icon} onClick={() => configRef?.current.back?.onSelect()}>
             {back.text}

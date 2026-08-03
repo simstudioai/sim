@@ -3,6 +3,7 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   BrowserPanelAnchor,
+  BrowserPanelBounds,
   BrowserPanelSnapshot,
   BrowserTabState,
 } from '@sim/browser-protocol'
@@ -49,10 +50,12 @@ import {
   reportBrowserPanelFocused,
   reportBrowserTheme,
   sendBrowserPanelAction,
+  setBrowserPanelOccluded,
   setBrowserTabPinned,
   showBrowserCredentialChooser,
   showBrowserTabContextMenu,
   showBrowserToolbarMenu,
+  supportsAtomicBrowserPanelOcclusion,
 } from '@/lib/browser-agent/transport'
 import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import {
@@ -66,6 +69,10 @@ import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
 import {
   type BrowserPanelOverlayController,
+  type BrowserPanelSnapshotLayer,
+  createBrowserPanelGeometryOcclusionLease,
+  hasNativeSurfaceOcclusion,
+  mutationsTouchNativeSurfaceOcclusion,
   useBrowserPanelOcclusion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserTabStrip } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-strip'
@@ -155,7 +162,8 @@ export function clearOmniboxSelection(input: HTMLInputElement): void {
 
 /** Places the replacement on the native view's exact, unclipped viewport rectangle. */
 export function browserPanelSnapshotStyle(
-  snapshot: BrowserPanelSnapshot
+  snapshot: BrowserPanelSnapshot,
+  layer: BrowserPanelSnapshotLayer = 'popover'
 ): CSSProperties | undefined {
   const bounds = snapshot.viewportBounds
   if (!bounds) return undefined
@@ -166,16 +174,18 @@ export function browserPanelSnapshotStyle(
     width: bounds.width,
     height: bounds.height,
     maxWidth: 'none',
+    zIndex: layer === 'modal' ? 'calc(var(--z-modal) - 1)' : 'calc(var(--z-popover) - 1)',
   }
 }
 
 interface BrowserPanelSnapshotImageProps {
   snapshot: BrowserPanelSnapshot
+  layer: BrowserPanelSnapshotLayer
   onError: () => void
 }
 
-function BrowserPanelSnapshotImage({ snapshot, onError }: BrowserPanelSnapshotImageProps) {
-  const style = browserPanelSnapshotStyle(snapshot)
+function BrowserPanelSnapshotImage({ snapshot, layer, onError }: BrowserPanelSnapshotImageProps) {
+  const style = browserPanelSnapshotStyle(snapshot, layer)
   const image = (
     <img
       src={snapshot.dataUrl}
@@ -186,7 +196,7 @@ function BrowserPanelSnapshotImage({ snapshot, onError }: BrowserPanelSnapshotIm
       style={style}
       className={cn(
         'pointer-events-none select-none object-fill',
-        style ? 'z-[calc(var(--z-popover)-1)] block' : 'absolute inset-0 size-full max-w-none'
+        style ? 'block' : 'absolute inset-0 size-full max-w-none'
       )}
     />
   )
@@ -324,10 +334,11 @@ export function BrowserSession({
   const {
     activeOverlay,
     snapshot: panelSnapshot,
+    snapshotLayer,
     requestOverlay,
     closeOverlay,
     onSnapshotError,
-  } = useBrowserPanelOcclusion(scopeId, activeTabId)
+  } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible)
 
   // The resource picker lives above this component in the panel tab bar. Give
   // that one external browser overlay access to the same capture/hide handshake
@@ -532,6 +543,31 @@ export function BrowserSession({
     let rafId: number | null = null
     let forceNextReport = false
     let last = ''
+    let disposed = false
+    let occlusionRequest = 0
+    const atomicPanelOcclusion = supportsAtomicBrowserPanelOcclusion()
+    let occlusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
+    // A full-screen marker can exist before this Browser reports its first
+    // rect. In that path this bounds effect acquires a serialized hidden lease
+    // before attaching geometry, including rollback if the marker disappears
+    // while Electron is still processing the hide.
+    const geometryOcclusionLease = createBrowserPanelGeometryOcclusionLease((occluded) =>
+      setBrowserPanelOccluded(occluded, scopeId, occluded).catch(() => false)
+    )
+
+    const commitGeometry = (
+      bounds: BrowserPanelBounds,
+      anchor: BrowserPanelAnchor | null,
+      force: boolean
+    ) => {
+      if (disposed) return
+      setPanelVisible(true)
+      const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
+      if (force || key !== last) {
+        last = key
+        reportBrowserPanelBounds(bounds, anchor, scopeId)
+      }
+    }
 
     const reportGeometry = (force: boolean) => {
       const rect = host.getBoundingClientRect()
@@ -546,6 +582,9 @@ export function BrowserSession({
       // floats above all renderer content — hides now instead of lingering
       // at its last sliver of a rect until the visibility lease expires.
       if (bounds.width <= 0 || bounds.height <= 0) {
+        occlusionRequest++
+        geometryOcclusionLease.assumeRevealed()
+        void geometryOcclusionLease.setDesired(false)
         setPanelVisible(false)
         if (last !== 'hidden') {
           last = 'hidden'
@@ -553,12 +592,38 @@ export function BrowserSession({
         }
         return
       }
-      setPanelVisible(true)
-      const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
-      if (force || key !== last) {
-        last = key
-        reportBrowserPanelBounds(bounds, describeAnchor(panel), scopeId)
+
+      const anchor = describeAnchor(panel)
+      const nativeSurfaceOcclusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
+      const request = ++occlusionRequest
+
+      if (
+        nativeSurfaceOcclusionPresent ||
+        geometryOcclusionLease.isOccluded() ||
+        geometryOcclusionLease.isTransitioning()
+      ) {
+        // A Browser becoming visible while a modal is already mounted has no
+        // painted snapshot to swap. Establish the native hidden lease first,
+        // then report bounds: the WebContentsView is attached hidden from its
+        // very first compositor frame. This also reasserts the lease after a
+        // minimized/throttled window temporarily loses its bounds.
+        void geometryOcclusionLease.setDesired(nativeSurfaceOcclusionPresent).then((settled) => {
+          if (disposed) return
+          const latestOcclusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
+          if (
+            request !== occlusionRequest ||
+            latestOcclusionPresent !== nativeSurfaceOcclusionPresent
+          ) {
+            scheduleGeometryReport(true)
+            return
+          }
+          if (!settled) return
+          commitGeometry(bounds, anchor, force)
+        })
+        return
       }
+
+      commitGeometry(bounds, anchor, force)
     }
 
     const scheduleGeometryReport = (force = false) => {
@@ -578,7 +643,22 @@ export function BrowserSession({
     // for the next one-second lease heartbeat; menu shortcuts arrive sooner.
     const handleWindowFocus = () => scheduleGeometryReport(true)
     const resizeObserver = new ResizeObserver(() => reportGeometry(false))
+    const occlusionObserver = new MutationObserver((records) => {
+      if (!mutationsTouchNativeSurfaceOcclusion(records)) return
+      const next = hasNativeSurfaceOcclusion()
+      if (next === occlusionPresent) return
+      occlusionPresent = next
+      scheduleGeometryReport(true)
+    })
     resizeObserver.observe(host)
+    if (atomicPanelOcclusion) {
+      occlusionObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-native-surface-occlusion'],
+      })
+    }
     window.addEventListener('resize', handleGeometryChange)
     window.addEventListener('scroll', handleGeometryChange, true)
     window.addEventListener('focus', handleWindowFocus)
@@ -591,7 +671,10 @@ export function BrowserSession({
     scheduleGeometryReport(true)
 
     return () => {
+      disposed = true
+      occlusionRequest++
       resizeObserver.disconnect()
+      occlusionObserver.disconnect()
       window.removeEventListener('resize', handleGeometryChange)
       window.removeEventListener('scroll', handleGeometryChange, true)
       window.removeEventListener('focus', handleWindowFocus)
@@ -599,6 +682,8 @@ export function BrowserSession({
       if (rafId !== null) {
         cancelAnimationFrame(rafId)
       }
+      geometryOcclusionLease.assumeRevealed()
+      void geometryOcclusionLease.setDesired(false)
       reportBrowserPanelBounds(null, null, scopeId)
     }
   }, [visible, suspended, scopeId])
@@ -1003,9 +1088,14 @@ export function BrowserSession({
       </div>
       {/* Host area: the real page is overlaid exactly on this rect. */}
       <div ref={hostRef} className='relative flex-1 overflow-hidden bg-[var(--bg)]'>
-        {panelSnapshot && (!activeTabId || panelSnapshot.tabId === activeTabId) && (
-          <BrowserPanelSnapshotImage snapshot={panelSnapshot} onError={onSnapshotError} />
-        )}
+        {panelSnapshot &&
+          (snapshotLayer === 'modal' || !activeTabId || panelSnapshot.tabId === activeTabId) && (
+            <BrowserPanelSnapshotImage
+              snapshot={panelSnapshot}
+              layer={snapshotLayer}
+              onError={onSnapshotError}
+            />
+          )}
         {!pageState && (
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-2'>
             <Globe className='size-[18px] text-[var(--text-tertiary)]' />

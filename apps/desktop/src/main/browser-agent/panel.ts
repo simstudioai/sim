@@ -62,6 +62,8 @@ let panelBounds: BrowserPanelBounds | null = null
 let panelAnchor: BrowserPanelAnchor | null = null
 /** True only after a replacement frame has painted in Sim's renderer. */
 let panelOccluded = false
+/** Window whose renderer currently owns the native-surface replacement lease. */
+let occlusionOwnerWindow: BrowserWindow | null = null
 /** Invalidates captures when ownership, scope, or panel visibility changes. */
 let panelCaptureGeneration = 0
 let panelLeaseAt = 0
@@ -293,6 +295,7 @@ function detachAttachedView(): void {
 /** Reveals the native view and invalidates every frame captured for its old state. */
 function resetOcclusion(): void {
   panelOccluded = false
+  occlusionOwnerWindow = null
   occludableFrame = null
   panelCaptureGeneration++
 }
@@ -553,16 +556,108 @@ export async function capturePanelSnapshot(
 export function setPanelOccluded(
   occluded: boolean,
   ownerWindow?: BrowserWindow,
-  scopeId = activePanelScopeId
+  scopeId = activePanelScopeId,
+  force = false
 ): boolean {
-  if (!panelUpdateAllowed(ownerWindow, scopeId)) return false
-  if (occluded && (panelBounds === null || host.activeTab() === null)) return false
-  if (panelOccluded === occluded) return true
-  if (occluded) {
-    layout()
-    if (!occludableFrame || !frameGeometryIsCurrent(occludableFrame)) return false
+  if (!scopeId) return false
+
+  if (scopeId !== activePanelScopeId) {
+    const currentOwner = occlusionOwnerWindow ?? panelOwner() ?? host.getMainWindow()
+    const requesterOwnsNativeSurface =
+      !ownerWindow || currentOwner === null || ownerWindow === currentOwner
+
+    // Every app window has its own renderer modal state, but the Browser is a
+    // singleton native surface hosted by only one of them. A background
+    // renderer on another chat therefore has nothing local to hide or reveal.
+    // Acknowledge its forced modal lease as a scoped no-op so its strict
+    // pre-paint gate can proceed, while still rejecting stale requests from
+    // the window that actually owns the native surface.
+    if (!requesterOwnsNativeSurface && !occluded) return true
+    if (
+      !requesterOwnsNativeSurface &&
+      force &&
+      ownerWindow &&
+      !ownerWindow.isDestroyed() &&
+      !ownerWindow.isFocused()
+    ) {
+      return true
+    }
+    return false
   }
-  panelOccluded = occluded
+
+  // Once ownership has transferred, an old renderer still needs to retire its
+  // local replacement when its modal closes. The old lease was released by
+  // the transfer, so revealing an already-visible panel is a scoped no-op.
+  if (!occluded && !panelOccluded) return true
+  // Another focused window may have replaced this renderer's lease with its
+  // own modal lease. Retiring the displaced renderer's local snapshot is also
+  // a no-op: it must not reveal the CURRENT owner's still-occluded view.
+  if (!occluded && ownerWindow && occlusionOwnerWindow && ownerWindow !== occlusionOwnerWindow) {
+    return true
+  }
+
+  const panelAllowed = panelUpdateAllowed(ownerWindow, scopeId)
+  const focusedForceTransfer =
+    occluded &&
+    force &&
+    !panelAllowed &&
+    Boolean(ownerWindow && !ownerWindow.isDestroyed() && ownerWindow.isFocused())
+  const forceWithoutLocalSurface =
+    occluded &&
+    force &&
+    !panelAllowed &&
+    Boolean(ownerWindow && !ownerWindow.isDestroyed() && !ownerWindow.isFocused())
+  // An unfocused non-owner window has no native view in its compositor. It can
+  // safely open its own renderer modal without mutating the focused/owning
+  // window's lease. If it later gains focus while the marker remains, the
+  // bounds-report guard establishes a real hidden lease before transfer.
+  if (forceWithoutLocalSurface) return true
+  if (!panelAllowed && !focusedForceTransfer) return false
+
+  // A focused second window can open a modal before its next rAF reports new
+  // panel bounds. Transfer a HIDDEN, bounds-less lease atomically: the old
+  // window stops painting now and the new window's first bounds attach the
+  // singleton already hidden. Clearing the old rect also prevents a reveal at
+  // another window's geometry if the modal closes unusually quickly.
+  if (focusedForceTransfer && ownerWindow) {
+    panelOwnerWindow = ownerWindow
+    panelBounds = null
+    panelAnchor = null
+    panelLeaseAt = 0
+    panelOccluded = true
+    occlusionOwnerWindow = ownerWindow
+    occludableFrame = null
+    panelCaptureGeneration++
+    layout()
+    return true
+  }
+
+  if (!occluded) {
+    if (ownerWindow && occlusionOwnerWindow && ownerWindow !== occlusionOwnerWindow) return false
+    panelOccluded = false
+    occlusionOwnerWindow = null
+    occludableFrame = null
+    layout()
+    return true
+  }
+
+  // A pre-paint modal handshake can arrive one React commit before the panel
+  // reports its first bounds. A forced lease must still stick in that state so
+  // a view attached later in the same frame starts hidden, rather than briefly
+  // punching through the already-visible renderer effect.
+  if (occluded && (panelBounds === null || host.activeTab() === null) && !force) return false
+  if (panelOccluded) {
+    return !ownerWindow || !occlusionOwnerWindow || ownerWindow === occlusionOwnerWindow
+  }
+  layout()
+  // The lossless frame is the normal path. A full-screen renderer effect
+  // may explicitly force the final fallback after capture/geometry retries:
+  // a temporarily blank/blurred host is preferable to a native rectangle
+  // punching above a modal or global takeover. Ordinary popovers never force
+  // this path because they must remain pixel-neutral.
+  if ((!occludableFrame || !frameGeometryIsCurrent(occludableFrame)) && !force) return false
+  panelOccluded = true
+  occlusionOwnerWindow = ownerWindow ?? panelWindow()
   occludableFrame = null
   layout()
   return true
@@ -590,7 +685,12 @@ export function setPanelBounds(
   // must not pull the browser out from under the window displaying it.
   if (bounds === null && !panelUpdateAllowed(ownerWindow)) return
   if (bounds !== null) {
-    panelOwnerWindow = ownerWindow ?? host.getMainWindow()
+    const nextOwner = ownerWindow ?? host.getMainWindow()
+    // Occlusion belongs to a renderer window, not to the mutable singleton.
+    // Moving the native view to another window releases the previous window's
+    // lease; the new owner must establish its own if it also has a modal.
+    if (occlusionOwnerWindow && nextOwner !== occlusionOwnerWindow) resetOcclusion()
+    panelOwnerWindow = nextOwner
   } else {
     panelOwnerWindow = null
   }

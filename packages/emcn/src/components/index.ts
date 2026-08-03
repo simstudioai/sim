@@ -145,6 +145,9 @@ export {
   ModalTabsTrigger,
   ModalTitle,
   ModalTrigger,
+  NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
+  type NativeSurfaceOcclusionPrepareDetail,
+  useNativeSurfaceOcclusionReady,
 } from './modal/modal'
 export {
   Popover,

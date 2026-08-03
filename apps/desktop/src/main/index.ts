@@ -629,9 +629,23 @@ function main(): void {
           const win = windowForContents(sender)
           return win ? captureBrowserAgentPanelSnapshot(win, scopeId) : Promise.resolve(null)
         },
-        setOccluded: (sender, occluded, scopeId) => {
+        setOccluded: (sender, occluded, scopeId, force) => {
           const win = windowForContents(sender)
-          return win ? setBrowserAgentPanelOccluded(occluded, win, scopeId) : false
+          if (!win) return false
+          // A modal in a stale renderer must not resurrect a soft-deleted
+          // Browser scope. There is no local native surface for that scope;
+          // acknowledge only its forced hide/any reveal as scoped no-ops.
+          if (isBrowserScopeSuspended(scopeId)) return !occluded || force === true
+          // The focused window may open a modal before its next bounds frame
+          // has transferred the singleton Browser from another app window.
+          // Move the session scope first so the forced hide establishes the
+          // new owner's hidden lease, rather than acknowledging a background
+          // no-op and then attaching the view visibly on the bounds report.
+          const resolvedScopeId =
+            occluded && force && focusedAppWindow() === win
+              ? activateAgentBrowserScope(scopeId)
+              : scopeId
+          return setBrowserAgentPanelOccluded(occluded, win, resolvedScopeId, force)
         },
       },
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),

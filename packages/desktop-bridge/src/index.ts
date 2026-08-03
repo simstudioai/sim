@@ -129,6 +129,8 @@ export interface SimDesktopTerminalApi {
  * over the chat's browser panel so the user interacts with the real page.
  */
 export interface SimDesktopBrowserAgentApi {
+  /** New shells can atomically force-hide a native page before renderer effects paint. */
+  readonly supportsAtomicPanelOcclusion?: true
   /**
    * Execute one browser tool. Resolves with the tool's outcome; never
    * rejects for tool-level failures (those ride `ok: false`).
@@ -173,8 +175,8 @@ export interface SimDesktopBrowserAgentApi {
   ): void
   /** Capture the current page before opening renderer-owned UI above it. */
   capturePanelSnapshot(scopeId: string): Promise<BrowserPanelSnapshot | null>
-  /** Hide/reveal the native page only after its replacement frame has painted. */
-  setPanelOccluded(occluded: boolean, scopeId: string): Promise<boolean>
+  /** Hide/reveal the native page after its replacement frame has painted. */
+  setPanelOccluded(occluded: boolean, scopeId: string, force?: boolean): Promise<boolean>
   /** Report whether renderer-owned browser chrome owns the user's interaction context. */
   setPanelFocused(focused: boolean, scopeId: string): void
   /** Mirror Sim's light/dark/system preference into embedded pages. */

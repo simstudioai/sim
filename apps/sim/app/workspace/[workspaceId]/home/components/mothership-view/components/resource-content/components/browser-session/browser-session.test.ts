@@ -33,6 +33,22 @@ describe('browserPanelSnapshotStyle', () => {
       width: 799.5,
       height: 701.5,
       maxWidth: 'none',
+      zIndex: 'calc(var(--z-popover) - 1)',
+    })
+  })
+
+  it('places modal replacements below the real modal backdrop', () => {
+    expect(
+      browserPanelSnapshotStyle(
+        {
+          ...snapshot,
+          viewportBounds: { x: 500, y: 64, width: 800, height: 702 },
+        },
+        'modal'
+      )
+    ).toMatchObject({
+      position: 'fixed',
+      zIndex: 'calc(var(--z-modal) - 1)',
     })
   })
 

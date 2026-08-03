@@ -666,6 +666,11 @@ export function disposeBrowserScope(scopeId: string): void {
  * No empty-strip/session-closed events are published: soft deletion removes
  * the resource's UI separately, and those events would overwrite its retained
  * renderer descriptor before the chat can be restored.
+ *
+ * The persist is best-effort: suspension accompanies chat deletion, and a
+ * descriptor that could not be saved must never leave the deleted chat's
+ * pages loaded invisibly. A restore after a failed save falls back to the
+ * last successfully saved descriptor.
  */
 export function suspendBrowserScope(scopeId: string): boolean {
   const resolved = resolveBrowserScopeId(scopeId)
@@ -675,12 +680,10 @@ export function suspendBrowserScope(scopeId: string): boolean {
     return true
   }
 
-  let persisted = true
   withBrowserScope(resolved, () => {
-    if (hasSession()) persisted = persistBrowserSession()
-    if (persisted) closeLiveTabs()
+    if (hasSession()) persistBrowserSession()
+    closeLiveTabs()
   })
-  if (!persisted) return false
 
   suspendedBrowserScopes.add(resolved)
   browserScopeStates.delete(resolved)

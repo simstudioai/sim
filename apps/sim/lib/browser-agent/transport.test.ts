@@ -76,6 +76,7 @@ vi.mock('@/lib/desktop', () => ({
   isBrowserAgentEnabled: () => true,
   getDesktopBridge: () => ({
     browserAgent: {
+      supportsAtomicPanelOcclusion: true,
       activateScope,
       executeTool: vi.fn(),
       capturePanelSnapshot,
@@ -152,6 +153,7 @@ import {
   showBrowserCredentialChooser,
   showBrowserTabContextMenu,
   showBrowserToolbarMenu,
+  supportsAtomicBrowserPanelOcclusion,
   suspendBrowserScope,
 } from '@/lib/browser-agent/transport'
 
@@ -208,7 +210,7 @@ describe('browser panel transport', () => {
     ])
   })
 
-  it('captures and swaps the native panel within the requested chat scope', async () => {
+  it('captures and swaps the native panel with explicit force semantics', async () => {
     const snapshot = {
       dataUrl: 'data:image/png;base64,c2lt',
       tabId: 'tab-1',
@@ -220,13 +222,19 @@ describe('browser panel transport', () => {
 
     await expect(captureBrowserPanelSnapshot('chat-a')).resolves.toEqual(snapshot)
     await expect(setBrowserPanelOccluded(true, 'chat-a')).resolves.toBe(true)
-    await expect(setBrowserPanelOccluded(false, 'chat-a')).resolves.toBe(true)
+    await expect(setBrowserPanelOccluded(false, 'chat-a', false)).resolves.toBe(true)
+    await expect(setBrowserPanelOccluded(true, 'chat-a', true)).resolves.toBe(true)
 
     expect(capturePanelSnapshot).toHaveBeenCalledWith('chat-a')
     expect(setPanelOccluded.mock.calls).toEqual([
-      [true, 'chat-a'],
-      [false, 'chat-a'],
+      [true, 'chat-a', false],
+      [false, 'chat-a', false],
+      [true, 'chat-a', true],
     ])
+  })
+
+  it('advertises support for the strict native-surface barrier', () => {
+    expect(supportsAtomicBrowserPanelOcclusion()).toBe(true)
   })
 
   it('forwards tab pinning to the native browser', () => {

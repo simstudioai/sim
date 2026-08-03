@@ -119,14 +119,157 @@ describe('panel chat scope', () => {
     })
   })
 
-  it('does not hide the native page behind a replacement captured at stale bounds', async () => {
-    const { win } = showPanel(panel)
+  it('force-hides the native page when its replacement was captured at stale bounds', async () => {
+    const { win, view } = showPanel(panel)
     const scopeId = panel.getActivePanelScopeId()
 
     await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.not.toBeNull()
     panel.setPanelBounds({ x: 399, y: 64, width: 601, height: 786 }, win)
+    vi.mocked(view.setVisible).mockClear()
 
     expect(panel.setPanelOccluded(true, win, scopeId)).toBe(false)
+    expect(view.setVisible).not.toHaveBeenCalled()
+
+    expect(panel.setPanelOccluded(true, win, scopeId, true)).toBe(true)
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+  })
+
+  it('force-hides the native page without a captured replacement frame', () => {
+    const { win, view } = showPanel(panel)
+    const scopeId = panel.getActivePanelScopeId()
+    vi.mocked(view.setVisible).mockClear()
+
+    expect(panel.setPanelOccluded(true, win, scopeId)).toBe(false)
+    expect(view.setVisible).not.toHaveBeenCalled()
+
+    expect(panel.setPanelOccluded(true, win, scopeId, true)).toBe(true)
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+  })
+
+  it('applies a forced hide before the panel reports its first bounds', () => {
+    const win = new BrowserWindow()
+    const view = new WebContentsView()
+    const active = { id: 'tab-1', scopeId: 'chat-test', view, pinned: false }
+    panel.initPanel({
+      getMainWindow: () => win,
+      activeTab: () => active,
+      backgroundColor: () => '#0c0c0c',
+      ensureInitialTab: () => {},
+      onViewDetached: () => {},
+    })
+    panel.activatePanelScope('chat-test')
+
+    expect(panel.setPanelOccluded(true, win, 'chat-test')).toBe(false)
+    expect(panel.setPanelOccluded(true, win, 'chat-test', true)).toBe(true)
+
+    panel.setPanelBounds(PANEL_RECT, win)
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+  })
+
+  it('transfers a hidden lease to a focused window before its bounds arrive', () => {
+    const { win, view } = showPanel(panel)
+    const other = new BrowserWindow()
+    const scopeId = panel.getActivePanelScopeId()
+    vi.mocked(other.isFocused).mockReturnValue(true)
+    vi.mocked(view.setVisible).mockClear()
+
+    expect(panel.setPanelOccluded(true, other, scopeId)).toBe(false)
+    expect(panel.setPanelOccluded(true, other, scopeId, true)).toBe(true)
+    expect(win.contentView.removeChildView).toHaveBeenCalledWith(view)
+
+    panel.setPanelBounds(PANEL_RECT, other)
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+    expect(panel.setPanelOccluded(false, other, scopeId)).toBe(true)
+    expect(view.setVisible).toHaveBeenLastCalledWith(true)
+    expect(panel.setPanelOccluded(false, win, scopeId)).toBe(true)
+  })
+
+  it('acknowledges forced occlusion in an unfocused window that has no local native view', () => {
+    const { win, view } = showPanel(panel)
+    const other = new BrowserWindow()
+    const scopeId = panel.getActivePanelScopeId()
+    vi.mocked(other.isFocused).mockReturnValue(false)
+    vi.mocked(view.setVisible).mockClear()
+
+    expect(panel.setPanelOccluded(true, other, scopeId, true)).toBe(true)
+    expect(view.setVisible).not.toHaveBeenCalled()
+    expect(panel.setPanelOccluded(false, other, scopeId)).toBe(true)
+    expect(view.setVisible).not.toHaveBeenCalled()
+    expect(panel.setPanelOccluded(false, win, scopeId)).toBe(true)
+  })
+
+  it('acknowledges cross-scope modal leases only for a window without the singleton view', () => {
+    const { win, view } = showPanel(panel)
+    const other = new BrowserWindow()
+    vi.mocked(other.isFocused).mockReturnValue(false)
+    vi.mocked(view.setVisible).mockClear()
+
+    expect(panel.setPanelOccluded(true, other, 'chat-in-other-window', true)).toBe(true)
+    expect(panel.setPanelOccluded(false, other, 'chat-in-other-window')).toBe(true)
+    expect(view.setVisible).not.toHaveBeenCalled()
+
+    vi.mocked(other.isFocused).mockReturnValue(true)
+    expect(panel.setPanelOccluded(true, other, 'focused-other-chat', true)).toBe(false)
+
+    // A stale scope from the real owner must never mutate or falsely
+    // acknowledge the currently hosted native surface.
+    expect(panel.setPanelOccluded(true, win, 'stale-owner-chat', true)).toBe(false)
+    expect(panel.setPanelOccluded(false, win, 'stale-owner-chat')).toBe(false)
+    expect(view.setVisible).not.toHaveBeenCalled()
+  })
+
+  it('releases the old window occlusion lease when panel ownership moves', async () => {
+    const { win, view } = showPanel(panel)
+    const other = new BrowserWindow()
+    const scopeId = panel.getActivePanelScopeId()
+
+    await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.not.toBeNull()
+    expect(panel.setPanelOccluded(true, win, scopeId)).toBe(true)
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+
+    panel.setPanelBounds(PANEL_RECT, other)
+    expect(view.setVisible).toHaveBeenLastCalledWith(true)
+    // The displaced renderer can retire its stale local snapshot without
+    // changing the new owner's already-visible native view.
+    expect(panel.setPanelOccluded(false, win, scopeId)).toBe(true)
+    expect(view.setVisible).toHaveBeenLastCalledWith(true)
+  })
+
+  it('lets a displaced window retire its snapshot without revealing the current modal lease', async () => {
+    const { win, view } = showPanel(panel)
+    const other = new BrowserWindow()
+    const scopeId = panel.getActivePanelScopeId()
+
+    await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.not.toBeNull()
+    expect(panel.setPanelOccluded(true, win, scopeId)).toBe(true)
+
+    vi.mocked(other.isFocused).mockReturnValue(true)
+    expect(panel.setPanelOccluded(true, other, scopeId, true)).toBe(true)
+    panel.setPanelBounds(PANEL_RECT, other)
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+
+    expect(panel.setPanelOccluded(false, win, scopeId)).toBe(true)
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+    expect(panel.setPanelOccluded(false, other, scopeId)).toBe(true)
+    expect(view.setVisible).toHaveBeenLastCalledWith(true)
+  })
+
+  it('lets the prior scope retire after a focused window establishes the next hidden lease', () => {
+    const { win, view } = showPanel(panel)
+    const other = new BrowserWindow()
+    const previousScope = panel.getActivePanelScopeId()
+    const nextScope = 'chat-in-focused-window'
+    vi.mocked(other.isFocused).mockReturnValue(true)
+
+    panel.activatePanelScope(nextScope)
+    expect(panel.setPanelOccluded(true, other, nextScope, true)).toBe(true)
+    panel.setPanelBounds(PANEL_RECT, other, undefined, nextScope)
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+
+    expect(panel.setPanelOccluded(false, win, previousScope)).toBe(true)
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+    expect(panel.setPanelOccluded(false, other, nextScope)).toBe(true)
+    expect(view.setVisible).toHaveBeenLastCalledWith(true)
   })
 
   it('treats an unpainted blank tab as a valid backdrop snapshot', async () => {
@@ -152,6 +295,7 @@ describe('panel chat scope', () => {
     vi.mocked(view.setVisible).mockClear()
 
     expect(panel.setPanelOccluded(true, win, 'some-other-chat')).toBe(false)
+    expect(panel.setPanelOccluded(true, win, 'some-other-chat', true)).toBe(false)
     expect(view.setVisible).not.toHaveBeenCalled()
   })
 })

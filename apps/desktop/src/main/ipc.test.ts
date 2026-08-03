@@ -778,10 +778,28 @@ describe('registerIpcHandlers', () => {
     await expect(
       invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, true, 'chat-a')
     ).resolves.toBe(true)
-    expect(deps.browserPanel.setOccluded).toHaveBeenCalledWith(activeSender.sender, true, 'chat-a')
+    expect(deps.browserPanel.setOccluded).toHaveBeenCalledWith(
+      activeSender.sender,
+      true,
+      'chat-a',
+      false
+    )
+
+    await expect(
+      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, true, 'chat-a', true)
+    ).resolves.toBe(true)
+    expect(deps.browserPanel.setOccluded).toHaveBeenLastCalledWith(
+      activeSender.sender,
+      true,
+      'chat-a',
+      true
+    )
 
     await expect(
       invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, 'yes', 'chat-a')
+    ).resolves.toBe(false)
+    await expect(
+      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, true, 'chat-a', 'yes')
     ).resolves.toBe(false)
   })
 

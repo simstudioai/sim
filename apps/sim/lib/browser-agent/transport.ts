@@ -469,12 +469,18 @@ export function captureBrowserPanelSnapshot(
   return bridge()?.capturePanelSnapshot(scopeId) ?? Promise.resolve(null)
 }
 
+/** Whether the installed shell supports the strict pre-paint force-hide fallback. */
+export function supportsAtomicBrowserPanelOcclusion(): boolean {
+  return bridge()?.supportsAtomicPanelOcclusion === true
+}
+
 /** Hides or reveals the native page after the renderer's replacement has painted. */
 export function setBrowserPanelOccluded(
   occluded: boolean,
-  scopeId = currentBrowserScopeId()
+  scopeId = currentBrowserScopeId(),
+  force = false
 ): Promise<boolean> {
-  return bridge()?.setPanelOccluded(occluded, scopeId) ?? Promise.resolve(false)
+  return bridge()?.setPanelOccluded(occluded, scopeId, force) ?? Promise.resolve(false)
 }
 
 /**

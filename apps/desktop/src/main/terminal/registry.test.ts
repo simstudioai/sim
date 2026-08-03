@@ -338,7 +338,7 @@ describe('TerminalRegistry', () => {
     expect(restored.activeTerminalId).toBe('1')
   })
 
-  it('keeps live PTYs when their descriptor cannot be saved', () => {
+  it('kills live PTYs even when their descriptor cannot be saved', () => {
     const persistence: TerminalScopePersistence = {
       load: vi.fn(),
       save: vi.fn(() => false),
@@ -348,9 +348,28 @@ describe('TerminalRegistry', () => {
     const terminals = new TerminalRegistry(persistence)
     terminals.start('chat-deleted', { cols: 80, rows: 24 })
 
-    expect(terminals.suspendScope('chat-deleted')).toBe(false)
-    expect(stubSessions[0].disposed).toBe(false)
-    expect(terminals.peekTabs('chat-deleted').tabs).toHaveLength(1)
+    // Suspension accompanies chat deletion: a failed descriptor save must
+    // never leave the deleted chat's shells running invisibly.
+    expect(terminals.suspendScope('chat-deleted')).toBe(true)
+    expect(stubSessions[0].disposed).toBe(true)
+    expect(terminals.peekTabs('chat-deleted')).toEqual({ tabs: [], activeTerminalId: null })
+  })
+
+  it('kills live PTYs even when the descriptor save throws', () => {
+    const persistence: TerminalScopePersistence = {
+      load: vi.fn(),
+      save: vi.fn(() => true),
+      migrate: vi.fn(() => true),
+      disposeScope: vi.fn(),
+    }
+    const terminals = new TerminalRegistry(persistence)
+    terminals.start('chat-deleted', { cols: 80, rows: 24 })
+    vi.mocked(persistence.save).mockImplementation(() => {
+      throw new Error('keychain locked')
+    })
+
+    expect(terminals.suspendScope('chat-deleted')).toBe(true)
+    expect(stubSessions[0].disposed).toBe(true)
   })
 
   it('routes renderer shortcuts only to the focused terminal scope', () => {

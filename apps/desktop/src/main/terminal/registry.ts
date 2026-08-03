@@ -237,6 +237,11 @@ export class TerminalRegistry {
    * Persists and stops one durable chat's live PTYs while retaining its saved
    * descriptor. A later start recreates fresh shells in the remembered cwd
    * order; process state and scrollback remain intentionally ephemeral.
+   *
+   * The persist is best-effort: suspension accompanies chat deletion, and a
+   * descriptor that could not be saved must never leave the deleted chat's
+   * shells running invisibly. A restore after a failed save falls back to the
+   * last successfully saved descriptor, or a fresh shell.
    */
   suspendScope(scope: string): boolean {
     const entry = this.entries.get(scope)
@@ -245,9 +250,9 @@ export class TerminalRegistry {
       return true
     }
     try {
-      if (!this.persistEntry(entry)) return false
+      this.persistEntry(entry)
     } catch {
-      return false
+      // Best-effort by design; teardown below must still run.
     }
 
     this.suspendedScopes.add(scope)

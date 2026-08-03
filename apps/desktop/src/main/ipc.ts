@@ -264,7 +264,12 @@ export interface IpcDeps {
     ) => void
     setFocused: (sender: WebContents, focused: boolean, scopeId: string) => void
     captureSnapshot: (sender: WebContents, scopeId: string) => Promise<BrowserPanelSnapshot | null>
-    setOccluded: (sender: WebContents, occluded: boolean, scopeId: string) => boolean
+    setOccluded: (
+      sender: WebContents,
+      occluded: boolean,
+      scopeId: string,
+      force?: boolean
+    ) => boolean
   }
   beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
   updates: {
@@ -1014,11 +1019,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       requires: 'browser',
       passSender: true,
       denied: false,
-      handler: (sender, occluded, rawScope) => {
+      handler: (sender, occluded, rawScope, force = false) => {
         const contents = sender as WebContents
         const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
-        return scope && typeof occluded === 'boolean'
-          ? deps.browserPanel.setOccluded(contents, occluded, scope)
+        return scope && typeof occluded === 'boolean' && typeof force === 'boolean'
+          ? deps.browserPanel.setOccluded(contents, occluded, scope, force)
           : false
       },
     },

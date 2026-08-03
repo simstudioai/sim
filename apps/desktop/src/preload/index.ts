@@ -177,6 +177,7 @@ const api: SimDesktopApi = {
     },
   },
   browserAgent: {
+    supportsAtomicPanelOcclusion: true,
     executeTool: (
       toolCallId: string,
       tool: BrowserToolName,
@@ -215,8 +216,8 @@ const api: SimDesktopApi = {
     },
     capturePanelSnapshot: (scopeId: string): Promise<BrowserPanelSnapshot | null> =>
       ipcRenderer.invoke('browser-agent:capture-panel-snapshot', scopeId),
-    setPanelOccluded: (occluded: boolean, scopeId: string): Promise<boolean> =>
-      ipcRenderer.invoke('browser-agent:set-panel-occluded', occluded, scopeId),
+    setPanelOccluded: (occluded: boolean, scopeId: string, force?: boolean): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:set-panel-occluded', occluded, scopeId, force ?? false),
     setPanelFocused: (focused: boolean, scopeId: string): void => {
       ipcRenderer.send('browser-agent:set-panel-focused', focused, scopeId)
     },

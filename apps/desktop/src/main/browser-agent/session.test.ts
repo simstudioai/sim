@@ -565,6 +565,23 @@ describe('browser-agent session', () => {
     expect(restoredTab?.pendingRestoreUrl).toBe('https://retained.example/')
   })
 
+  it('closes live pages even when the suspend descriptor cannot be saved', () => {
+    const { persistence } = memoryBrowserPersistence()
+    vi.mocked(persistence.save).mockReturnValue(false)
+    session = freshSession(win, {}, persistence)
+    const tab = session.withBrowserScope('chat-deleted', () => session.ensureTab())
+
+    // Suspension accompanies chat deletion: a failed descriptor save must
+    // never leave the deleted chat's pages loaded invisibly.
+    expect(session.suspendBrowserScope('chat-deleted')).toBe(true)
+
+    expect((tab.view as unknown as MockView).webContents.close).toHaveBeenCalledOnce()
+    expect(session.withBrowserScope('chat-deleted', () => session.peekTabsState())).toMatchObject({
+      tabs: [],
+      activeTabId: null,
+    })
+  })
+
   it('normalizes browser shortcuts to Command on macOS and Control elsewhere', () => {
     const input = {
       type: 'keyDown',

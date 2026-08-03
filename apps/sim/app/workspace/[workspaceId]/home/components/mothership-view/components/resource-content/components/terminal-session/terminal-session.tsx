@@ -22,7 +22,13 @@ import {
   type TerminalThemePalette,
   type TerminalThemeProfile,
 } from '@sim/desktop-bridge'
-import { cn, TabStrip, type TabStripItem, toast } from '@sim/emcn'
+import {
+  cn,
+  NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
+  TabStrip,
+  type TabStripItem,
+  toast,
+} from '@sim/emcn'
 import { TerminalWindow } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { FitAddon } from '@xterm/addon-fit'
@@ -71,6 +77,20 @@ const logger = createLogger('TerminalSession')
 const EMPTY_TERMINAL_TABS: TerminalTabsState = { tabs: [], activeTerminalId: null }
 const TERMINAL_BASE_FONT_SIZE = 12
 const TERMINAL_ZOOM_BOUNDS = { min: 50, max: 300 } as const
+
+/**
+ * Radix keeps closed menus mounted for their exit animation. A full-screen
+ * effect starts in a layout effect, so hide the active menu hierarchy in the
+ * DOM before React begins its normal close lifecycle; otherwise its popover
+ * z-index leaves the fading menu floating above the effect.
+ */
+function hideMountedMenuSurfaces(): void {
+  for (const menu of document.querySelectorAll<HTMLElement>(
+    '[data-native-surface-overlay][role="menu"]'
+  )) {
+    menu.style.setProperty('visibility', 'hidden', 'important')
+  }
+}
 
 /**
  * How long a command must run before the tab names it.
@@ -588,6 +608,20 @@ const TerminalView = memo(function TerminalView({
     handleContextMenu,
     closeMenu,
   } = useContextMenu()
+
+  // Renderer-owned xterm is naturally blurred/tinted by the real modal
+  // backdrop. Its portaled context menu sits above that backdrop, though, so
+  // dismiss it during the same pre-paint handshake instead of letting terminal
+  // chrome float over a newly opened full-screen modal.
+  useEffect(() => {
+    if (!onscreen) return
+    const handlePrepare = () => {
+      if (isMenuOpen || menuRef.current) hideMountedMenuSurfaces()
+      if (isMenuOpen) closeMenu()
+    }
+    window.addEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
+    return () => window.removeEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
+  }, [closeMenu, isMenuOpen, onscreen])
   // Snapshot at open time: opening the dropdown moves focus away from xterm,
   // but Add to chat must keep the exact text and rows the user right-clicked.
   const [selectionSnapshot, setSelectionSnapshot] = useState<TerminalSelectionSnapshot | null>(null)
@@ -854,6 +888,16 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
     handleContextMenu,
     closeMenu: closeContextMenu,
   } = useContextMenu()
+
+  useEffect(() => {
+    if (!visible) return
+    const handlePrepare = () => {
+      if (isContextMenuOpen || contextMenuRef.current) hideMountedMenuSurfaces()
+      if (isContextMenuOpen) closeContextMenu()
+    }
+    window.addEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
+    return () => window.removeEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
+  }, [closeContextMenu, isContextMenuOpen, visible])
   const contextTab = tabs.find((tab) => tab.terminalId === contextTerminalId)
 
   const handleNew = useCallback(() => {
