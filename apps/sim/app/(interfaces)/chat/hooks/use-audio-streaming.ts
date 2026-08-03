@@ -2,8 +2,46 @@
 
 import { type RefObject, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { DEFAULT_TTS_MODEL_ID, MAX_TTS_TEXT_LENGTH } from '@/lib/api/contracts/media/tts-stream'
 
 const logger = createLogger('UseAudioStreaming')
+
+/** Prefer breaking on a boundary this far into the chunk before splitting mid-word. */
+const MIN_SPLIT_RATIO = 0.6
+
+/**
+ * Splits text into pieces the TTS relay will accept.
+ *
+ * The caller sentence-splits on Western `.!?` only, so text that never matches
+ * — CJK punctuation, or a list with no terminal punctuation — reaches this hook
+ * as one accumulated block that can exceed the relay's per-request cap. Without
+ * splitting, the relay rejects it and the whole message plays no audio.
+ */
+export function splitForSynthesis(text: string, max: number = MAX_TTS_TEXT_LENGTH): string[] {
+  if (text.length <= max) return [text]
+
+  const chunks: string[] = []
+  let rest = text
+
+  while (rest.length > max) {
+    const window = rest.slice(0, max)
+    const boundary = Math.max(
+      window.lastIndexOf(' '),
+      window.lastIndexOf('\n'),
+      window.lastIndexOf('。'),
+      window.lastIndexOf('，'),
+      window.lastIndexOf('、')
+    )
+    const cut = boundary >= max * MIN_SPLIT_RATIO ? boundary + 1 : max
+    const piece = rest.slice(0, cut).trim()
+    if (piece) chunks.push(piece)
+    rest = rest.slice(cut)
+  }
+
+  const tail = rest.trim()
+  if (tail) chunks.push(tail)
+  return chunks
+}
 
 declare global {
   interface Window {
@@ -79,7 +117,7 @@ export function useAudioStreaming(sharedAudioContextRef?: RefObject<AudioContext
     const { text, options } = item
     const {
       voiceId,
-      modelId = 'eleven_flash_v2_5',
+      modelId = DEFAULT_TTS_MODEL_ID,
       chatId,
       onAudioStart,
       onAudioEnd,
@@ -156,7 +194,9 @@ export function useAudioStreaming(sharedAudioContextRef?: RefObject<AudioContext
         abortControllerRef.current = new AbortController()
       }
 
-      audioQueueRef.current.push({ text, options })
+      for (const piece of splitForSynthesis(text)) {
+        audioQueueRef.current.push({ text: piece, options })
+      }
       processAudioQueue()
     },
     [processAudioQueue]

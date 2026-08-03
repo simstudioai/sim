@@ -1,9 +1,6 @@
 import { createHash } from 'node:crypto'
-import { db } from '@sim/db'
-import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { speechTokenBodySchema } from '@/lib/api/contracts/media/speech'
 import { parseOptionalJsonBody } from '@/lib/api/server'
@@ -18,10 +15,10 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
+import { resolveDeployedChatCaller } from '@/lib/chat/deployed-chat-caller'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import { validateAuthToken } from '@/lib/core/security/deployment'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
@@ -55,51 +52,6 @@ function hashVoiceToken(token: string): string {
 
 const rateLimiter = new RateLimiter()
 
-async function validateChatAuth(
-  request: NextRequest,
-  chatId: string
-): Promise<{ valid: boolean; ownerId?: string; workspaceId?: string | null }> {
-  try {
-    const chatResult = await db
-      .select({
-        id: chat.id,
-        userId: chat.userId,
-        isActive: chat.isActive,
-        authType: chat.authType,
-        password: chat.password,
-        workspaceId: workflow.workspaceId,
-      })
-      .from(chat)
-      .leftJoin(workflow, eq(workflow.id, chat.workflowId))
-      .where(eq(chat.id, chatId))
-      .limit(1)
-
-    if (chatResult.length === 0 || !chatResult[0].isActive) {
-      return { valid: false }
-    }
-
-    const chatData = chatResult[0]
-
-    if (chatData.authType === 'public') {
-      return { valid: true, ownerId: chatData.userId, workspaceId: chatData.workspaceId }
-    }
-
-    const cookieName = `chat_auth_${chatId}`
-    const authCookie = request.cookies.get(cookieName)
-    if (
-      authCookie &&
-      validateAuthToken(authCookie.value, chatId, chatData.authType, chatData.password)
-    ) {
-      return { valid: true, ownerId: chatData.userId, workspaceId: chatData.workspaceId }
-    }
-
-    return { valid: false }
-  } catch (error) {
-    logger.error('Error validating chat auth for STT:', error)
-    return { valid: false }
-  }
-}
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const parsedBody = await parseOptionalJsonBody(request, MAX_SPEECH_TOKEN_BODY_BYTES)
@@ -113,8 +65,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let billingAttribution: BillingAttributionSnapshot | undefined
 
     if (chatId) {
-      const chatAuth = await validateChatAuth(request, chatId)
-      if (!chatAuth.valid) {
+      const chatAuth = await resolveDeployedChatCaller(request, chatId)
+      if (!chatAuth.authorized) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
       /**

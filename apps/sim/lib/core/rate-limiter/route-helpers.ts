@@ -90,6 +90,23 @@ export async function enforceWorkspaceRateLimit(
 }
 
 /**
+ * Apply a per-deployed-chat token bucket. Use for endpoints an anonymous public
+ * chat visitor can reach: the chat id is server-held state, so this bounds spend
+ * per chat regardless of how many source addresses the traffic claims.
+ */
+export async function enforceChatRateLimit(
+  bucketName: string,
+  chatId: string,
+  config: TokenBucketConfig = DEFAULT_USER_ROUTE_LIMIT
+): Promise<NextResponse | null> {
+  const key = `route:${bucketName}:chat:${chatId}`
+  const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
+  if (allowed) return null
+  logger.warn('Chat rate limit exceeded', { bucket: bucketName, chatId })
+  return buildRateLimitResponse(resetAt)
+}
+
+/**
  * Apply a per-user limit when a userId is present, else fall back to per-IP.
  * Use for routes whose auth path may legitimately resolve without a userId
  * (e.g. internal JWT calls with `requireWorkflowId: false`) so missing-userId

@@ -3,6 +3,7 @@
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { DEFAULT_TTS_VOICE_ID } from '@/lib/api/contracts/media/tts-stream'
 import { noop } from '@/lib/core/utils/request'
 import {
   AGENT_STREAM_PROTOCOL_HEADER,
@@ -49,7 +50,7 @@ interface ChatRequestPayload {
 }
 
 const DEFAULT_VOICE_SETTINGS = {
-  voiceId: 'cgSgspJ2msm6clMCkdW9', // Default ElevenLabs voice (Jessica) — Flash v2.5-optimized
+  voiceId: DEFAULT_TTS_VOICE_ID,
 }
 
 /**
