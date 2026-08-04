@@ -29,6 +29,7 @@ import {
   ManageCredential,
   ManageCustomTool,
   ManageMcpTool,
+  ManageSandbox,
   ManageScheduledTask,
   ManageSkill,
   MaterializeFile,
@@ -84,6 +85,7 @@ import {
 import { executeManageCredential } from '../tools/handlers/management/manage-credential'
 import { executeManageCustomTool } from '../tools/handlers/management/manage-custom-tool'
 import { executeManageMcpTool } from '../tools/handlers/management/manage-mcp-tool'
+import { executeManageSandbox } from '../tools/handlers/management/manage-sandbox'
 import { executeManageSkill } from '../tools/handlers/management/manage-skill'
 import { executeMaterializeFile } from '../tools/handlers/materialize-file'
 import { executeOAuthGetAuthLink, executeOAuthRequestAccess } from '../tools/handlers/oauth'
@@ -192,6 +194,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
 
     [ManageCustomTool.id]: h(executeManageCustomTool),
     [ManageMcpTool.id]: h(executeManageMcpTool),
+    [ManageSandbox.id]: h(executeManageSandbox),
     [ManageSkill.id]: h(executeManageSkill),
     [ManageCredential.id]: h(executeManageCredential),
     [OauthGetAuthLink.id]: h(executeOAuthGetAuthLink),

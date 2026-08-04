@@ -28,7 +28,7 @@ const dependencyListSchema = z
   .array(z.string().max(2000, 'a dependency line is unreasonably long'))
   .max(1000, 'too many lines — paste a shorter dependency list')
 
-const sandboxNameSchema = z
+export const sandboxNameSchema = z
   .string()
   .trim()
   .min(1, 'Name is required')

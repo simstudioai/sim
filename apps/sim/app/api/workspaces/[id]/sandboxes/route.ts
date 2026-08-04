@@ -1,36 +1,25 @@
-import { db } from '@sim/db'
-import { workspaceSandbox } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createSandboxContract } from '@/lib/api/contracts/sandboxes'
 import { parseRequest } from '@/lib/api/server'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  createWorkspaceSandbox,
   currentSandboxStrategy,
-  isSandboxNameTaken,
   listWorkspaceSandboxes,
-  readWorkspaceSandbox,
-  scheduleSandboxBuild,
 } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import {
   authorizeSandboxMutation,
   authorizeSandboxRead,
-  buildSpecOrResponse,
-  isNameConflictError,
-  nameConflictResponse,
+  sandboxFailureResponse,
 } from '@/app/api/workspaces/[id]/sandboxes/authorize'
-
-const logger = createLogger('WorkspaceSandboxesAPI')
 
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const workspaceId = (await context.params).id
 
-    const viewer = await authorizeSandboxRead(request, workspaceId)
-    if (!viewer.ok) return viewer.response
+    const denied = await authorizeSandboxRead(workspaceId)
+    if (denied) return denied
 
     // The list itself is not plan-gated: a workspace that downgraded must still
     // see (and keep executing) what it already built. `entitled` drives whether
@@ -59,43 +48,15 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { name, language, dependencies } = parsed.data.body
 
-    const built = buildSpecOrResponse(language, dependencies)
-    if (!built.ok) return built.response
-    const { spec } = built
+    const result = await createWorkspaceSandbox({
+      workspaceId,
+      userId: authorized.actor.userId,
+      name,
+      language,
+      dependencies,
+    })
+    if (!result.ok) return sandboxFailureResponse(result.failure)
 
-    if (await isSandboxNameTaken(workspaceId, name)) {
-      return nameConflictResponse(name)
-    }
-
-    const id = generateId()
-    try {
-      await db.insert(workspaceSandbox).values({
-        id,
-        workspaceId,
-        name,
-        language: spec.language,
-        dependencies: spec.dependencies,
-        specHash: spec.specHash,
-        createdBy: authorized.actor.userId,
-      })
-    } catch (error) {
-      // The unique index is the real arbiter — the pre-check above only exists to
-      // return a friendlier message when there is no race.
-      if (isNameConflictError(error)) return nameConflictResponse(name)
-      logger.error('Failed to insert sandbox', { workspaceId, error: getErrorMessage(error) })
-      throw error
-    }
-
-    await scheduleSandboxBuild(spec)
-    logger.info('Created workspace sandbox', { workspaceId, sandboxId: id, language })
-
-    const sandbox = await readWorkspaceSandbox(workspaceId, id)
-    if (!sandbox) {
-      return NextResponse.json(
-        { error: 'Failed to read back the created sandbox' },
-        { status: 500 }
-      )
-    }
-    return NextResponse.json({ sandbox })
+    return NextResponse.json({ sandbox: result.sandbox })
   }
 )

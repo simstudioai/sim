@@ -308,6 +308,7 @@ describe('getToolDisplayTitle for managed resources', () => {
     ],
     ['manage_mcp_tool', { operation: 'edit', config: { name: 'Linear' } }, 'Updating Linear'],
     ['manage_skill', { operation: 'delete', name: 'sales-research' }, 'Deleting sales-research'],
+    ['manage_sandbox', { operation: 'add', name: 'data-tools' }, 'Creating data-tools'],
     [
       'manage_scheduled_task',
       { operation: 'create', args: { title: 'Morning Digest' } },
@@ -326,6 +327,7 @@ describe('getToolDisplayTitle for managed resources', () => {
     ['manage_custom_tool', { operation: 'list' }, 'Viewing custom tools'],
     ['manage_mcp_tool', { operation: 'list' }, 'Viewing MCP servers'],
     ['manage_skill', { operation: 'list' }, 'Viewing skills'],
+    ['manage_sandbox', { operation: 'list' }, 'Viewing sandboxes'],
     ['manage_scheduled_task', { operation: 'get' }, 'Reading scheduled task'],
     ['manage_scheduled_task', { operation: 'list' }, 'Viewing scheduled tasks'],
   ])('uses verb + resource name for %s', (toolName, args, expected) => {
