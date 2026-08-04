@@ -187,16 +187,21 @@ function renderBlockNodes(
     const key = `${blockStart}-${si}`
 
     if ('code' in seg) {
-      if (!didPlace && revealed >= start && revealed < end) {
-        nodes.push(<Caret key={`${key}-c`} who={AGENT} />)
-        didPlace = true
-      }
+      // Type the chip in character by character, at the same cadence as the surrounding text, with
+      // the caret moving through it. The box reserves its full width up front (the unrevealed tail is
+      // visibility:hidden inside it) so the card never reflows. Revealing it as one chunk instead made
+      // it either freeze-and-jump (caret parked before an empty gap) or fly past as a skipped unit.
+      const reached = revealed >= start
+      const shown = reached ? Math.min(raw.length, revealed - start) : 0
+      const atBoundary = !didPlace && reached && shown < raw.length
+      if (atBoundary) didPlace = true
       nodes.push(
-        <code
-          key={key}
-          style={{ ...codeStyle, visibility: revealed >= end ? 'visible' : 'hidden' }}
-        >
-          {raw}
+        <code key={key} style={{ ...codeStyle, visibility: reached ? 'visible' : 'hidden' }}>
+          {reached ? raw.slice(0, shown) : raw}
+          {atBoundary && <Caret key={`${key}-c`} who={AGENT} />}
+          {reached && shown < raw.length && (
+            <span style={{ visibility: 'hidden' }}>{raw.slice(shown)}</span>
+          )}
         </code>
       )
     } else {
@@ -254,13 +259,27 @@ function AgentDoc({ revealed }: { revealed: number }) {
 
   for (let bi = 0; bi < AGENT_BLOCKS.length; bi++) {
     const block = AGENT_BLOCKS[bi]
-    const res = renderBlockNodes(block, offset, revealed, placed, bi === AGENT_BLOCKS.length - 1)
+    const blockStart = offset
+    const res = renderBlockNodes(
+      block,
+      blockStart,
+      revealed,
+      placed,
+      bi === AGENT_BLOCKS.length - 1
+    )
     placed = res.placed
-    offset += block.segs.reduce((m, s) => m + segText(s).length, 0)
+    offset = blockStart + block.segs.reduce((m, s) => m + segText(s).length, 0)
 
     if (block.kind === 'li') {
+      // The bullet is the <li>'s own list marker, so hiding the item's text with visibility:hidden
+      // would still leave an empty bullet showing. Hide the whole item until the caret reaches it, so
+      // each bullet appears with its line rather than all of them up front. The hidden item still
+      // reserves its height, so the card never changes size.
       list.push(
-        <li key={`li-${bi}`} style={{ marginTop: 0 }}>
+        <li
+          key={`li-${bi}`}
+          style={{ marginTop: 0, visibility: revealed >= blockStart ? 'visible' : 'hidden' }}
+        >
           {res.nodes}
         </li>
       )
