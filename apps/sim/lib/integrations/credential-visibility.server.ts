@@ -3,6 +3,7 @@ import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-acco
 import {
   getIntegrationTypesForOAuthServiceId,
   isOAuthServiceAllowedByIntegrationTypes,
+  resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
 import {
   getIntegrationAvailability,
@@ -102,9 +103,13 @@ export function createIntegrationCredentialVisibility({
       return owners.some(
         (service) =>
           isServiceAllowed(service) &&
-          visibleAvailability(service).some(
-            (availability) => availability.state !== 'misconfigured'
-          )
+          visibleAvailability(service).some((availability) => {
+            const state = resolveIntegrationAvailabilityStateForVisibility(
+              availability,
+              blockVisibility
+            )
+            return state === 'ready' || state === 'limited'
+          })
       )
     }
 

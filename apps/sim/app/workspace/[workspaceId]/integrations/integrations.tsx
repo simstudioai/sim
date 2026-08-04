@@ -86,7 +86,11 @@ function IntegrationItem({
       iconVariant='custom'
       icon={<IntegrationTile blockType={blockType} icon={Icon} />}
       title={name}
-      description={unavailable ? 'Unavailable in this deployment' : description || undefined}
+      description={
+        unavailable
+          ? 'Unavailable in this deployment. Contact your administrator.'
+          : description || undefined
+      }
       href={`/workspace/${workspaceId}/integrations/${slug}`}
       clickLabel={`Open ${name}`}
       navigable={!unavailable}

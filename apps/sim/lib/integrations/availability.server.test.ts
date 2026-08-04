@@ -64,6 +64,15 @@ describe('integration availability', () => {
     })
   })
 
+  it('keeps an ungated service-account path available when OAuth is partial', () => {
+    expect(availabilityFor('notion_v2', { NOTION_CLIENT_ID: 'client' })).toMatchObject({
+      state: 'limited',
+      oauthAvailable: false,
+      serviceAccountAvailable: true,
+      missingFields: ['NOTION_CLIENT_SECRET'],
+    })
+  })
+
   it('marks an unconfigured OAuth-only integration unavailable', () => {
     expect(availabilityFor('x')).toMatchObject({
       state: 'unavailable',

@@ -132,10 +132,10 @@ function resolveOAuthIntegrationAvailability(
   const state: IntegrationAvailabilityState =
     oauth.state === 'ready'
       ? 'ready'
-      : oauth.state === 'partial' || oauth.state === 'invalid'
-        ? 'misconfigured'
-        : serviceAccountAvailable
-          ? 'limited'
+      : serviceAccountAvailable
+        ? 'limited'
+        : oauth.state === 'partial' || oauth.state === 'invalid'
+          ? 'misconfigured'
           : 'unavailable'
 
   return {

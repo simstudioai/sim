@@ -1,18 +1,15 @@
 /**
- * Environment utility functions for consistent environment detection across the application
+ * Loaded by `next.config.ts` before the `@/` alias is available, so
+ * config-boundary dependencies in this module must use relative imports.
  */
 
-import {
-  hasEnvCapabilityValue,
-  inspectCapability,
-  SANDBOX_CAPABILITY,
-} from '@/lib/core/config/env-capabilities'
 import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
   type EnterpriseFeature,
   resolveEnterpriseEntitlement,
 } from './enterprise-entitlements'
 import { env, envBoolean, getEnv, isFalsy, isTruthy } from './env'
+import { hasEnvCapabilityValue, inspectCapability, SANDBOX_CAPABILITY } from './env-capabilities'
 
 /**
  * Is the application running in production mode

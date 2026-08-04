@@ -126,6 +126,40 @@ describe('integration credential visibility', () => {
     expect(revealed.isCredentialVisible(credential)).toBe(true)
   })
 
+  it('projects partial OAuth state through a revealed service-account preview', () => {
+    getIntegrationAvailabilityMock.mockReturnValue([
+      availability('slack', 'misconfigured', {
+        oauthAvailable: false,
+        serviceAccountAvailable: false,
+      }),
+    ])
+    const visibility = createIntegrationCredentialVisibility({
+      allowedIntegrationTypes: new Set(['slack']),
+      blockVisibility: {
+        revealed: new Set(['slack_v2']),
+        disabled: new Set(),
+        previewTagged: new Set(['slack_v2']),
+      },
+      oauthServices: SERVICES,
+    })
+    const disabled = createIntegrationCredentialVisibility({
+      allowedIntegrationTypes: new Set(['slack']),
+      blockVisibility: {
+        revealed: new Set(['slack_v2']),
+        disabled: new Set(['slack_v2']),
+        previewTagged: new Set(['slack_v2']),
+      },
+      oauthServices: SERVICES,
+    })
+
+    const credential = {
+      providerId: 'slack-custom-bot',
+      type: 'service_account',
+    } as const
+    expect(visibility.isCredentialVisible(credential)).toBe(true)
+    expect(disabled.isCredentialVisible(credential)).toBe(false)
+  })
+
   it('leaves non-integration credentials visible', () => {
     const visibility = createIntegrationCredentialVisibility({
       allowedIntegrationTypes: new Set(),
