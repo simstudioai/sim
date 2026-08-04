@@ -285,6 +285,16 @@ function restoreUnresolvedSentinels(value: string, items: SentinelOccurrence[]):
   return value.replace(/\$[0-9A-Za-z]*\$/g, (sentinel) => rawBySentinel.get(sentinel) ?? sentinel)
 }
 
+const UNSAFE_JAVASCRIPT_SOURCE_CHARACTERS = /[<>\u2028\u2029]/g
+
+/** Serializes a string literal without embedding HTML terminators or JavaScript line separators. */
+function serializeJavaScriptStringLiteral(value: string): string {
+  return JSON.stringify(value).replace(
+    UNSAFE_JAVASCRIPT_SOURCE_CHARACTERS,
+    (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`
+  )
+}
+
 function buildStringExpression(
   value: string,
   items: SentinelOccurrence[],
@@ -306,13 +316,13 @@ function buildStringExpression(
     const resolved = resolve(item.occurrence)
     if (!resolved) continue
     matched = true
-    parts.push(JSON.stringify(restore(value.slice(cursor, match.index))))
+    parts.push(serializeJavaScriptStringLiteral(restore(value.slice(cursor, match.index))))
     parts.push(resolved.bindingName)
     cursor = match.index + match[0].length
     consumed.add(item.occurrence)
   }
   if (!matched) return undefined
-  parts.push(JSON.stringify(restore(value.slice(cursor))))
+  parts.push(serializeJavaScriptStringLiteral(restore(value.slice(cursor))))
   return `(${parts.join(' + ')})`
 }
 
@@ -593,7 +603,7 @@ export async function compileJavaScriptPlaceholders(
       }
       const segmentExpression = (value: string, items: SentinelOccurrence[]): string =>
         buildStringExpression(value, items, context.resolve, consumed) ??
-        JSON.stringify(restoreUnresolvedSentinels(value, items))
+        serializeJavaScriptStringLiteral(restoreUnresolvedSentinels(value, items))
       const cookedSegments = tokens.map((token, index) =>
         hasInvalidTemplateEscape(token)
           ? 'undefined'
@@ -684,7 +694,7 @@ export async function compileJavaScriptPlaceholders(
       edits.push({
         start: node.getStart(sourceFile),
         end: node.getEnd(),
-        text: `new ${intrinsics.name}.RegExp(${expression}, ${JSON.stringify(parsed.flags)})`,
+        text: `new ${intrinsics.name}.RegExp(${expression}, ${serializeJavaScriptStringLiteral(parsed.flags)})`,
       })
       return
     }

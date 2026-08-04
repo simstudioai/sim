@@ -205,6 +205,36 @@ describe('code placeholder compiler', () => {
     })
   })
 
+  it('round-trips source-sensitive string and tagged-template characters', async () => {
+    const sourceText = `</script>${String.fromCharCode(0x2028, 0x2029)}`
+    const secret = `secret"\\\n${sourceText}`
+    const literalText = `before ${sourceText} {{KEY}} after`
+    const compiled = await compileCodePlaceholders({
+      code: [
+        `const quoted = ${JSON.stringify(literalText)}`,
+        'const tag = (strings) => ({ cooked: strings[0], raw: strings.raw[0] })',
+        `const tagged = tag\`${literalText}\``,
+        'return { quoted, tagged }',
+      ].join('\n'),
+      language: CodeLanguage.JavaScript,
+      environmentVariables: { KEY: secret },
+    })
+
+    const expected = `before ${sourceText} ${secret} after`
+    expect(compiled.code).toContain('\\u003c/script\\u003e')
+    expect(compiled.code).toContain('\\u2028\\u2029')
+    expect(compiled.code).not.toContain('</script>')
+    expect(compiled.code).not.toContain(String.fromCharCode(0x2028))
+    expect(compiled.code).not.toContain(String.fromCharCode(0x2029))
+    expect(compiled.code).not.toContain(secret)
+    await expect(
+      executeJavaScript(compiled.code, compiled.bindings, compiled.runtimeBindings)
+    ).resolves.toEqual({
+      quoted: expected,
+      tagged: { cooked: expected, raw: expected },
+    })
+  })
+
   it('leaves JavaScript comments and missing placeholders untouched', async () => {
     const code = [
       '// {{COMMENT}}',
