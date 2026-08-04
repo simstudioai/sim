@@ -94,6 +94,28 @@ function isSameKnowledgeDocumentUpload(
   )
 }
 
+export type BoundKnowledgeDocument =
+  | { status: 'absent' }
+  | { status: 'bound'; document: CreatedKnowledgeDocument }
+  | { status: 'conflict' }
+
+/**
+ * Resolves what a stateless upload id is already bound to. Callers use this to answer a
+ * completion retry from existing state before doing any work that can fail independently
+ * of the upload — resolving a billing payer, or deleting the uploaded object.
+ */
+export async function findBoundKnowledgeDocument(params: {
+  documentId: string
+  knowledgeBaseId: string
+  document: KnowledgeDocumentInput
+}): Promise<BoundKnowledgeDocument> {
+  const existing = await getDocumentByUploadId(params.documentId, params.knowledgeBaseId)
+  if (!existing) return { status: 'absent' }
+  return isSameKnowledgeDocumentUpload(existing, params.document)
+    ? { status: 'bound', document: existing }
+    : { status: 'conflict' }
+}
+
 function auditUpload(
   params: KnowledgeOperationContext & { knowledgeBase: KnowledgeBaseTarget },
   entry: { resourceId: string; resourceName: string; description: string; metadata: object }
@@ -157,12 +179,16 @@ export async function performUploadKnowledgeDocument(
 
   let created: CreatedKnowledgeDocument
   if (params.documentId) {
-    const existing = await getDocumentByUploadId(params.documentId, knowledgeBase.id)
-    if (existing) {
-      if (!isSameKnowledgeDocumentUpload(existing, document)) {
-        return fail('Upload id is already bound to a different document', 'conflict')
-      }
-      return { success: true, document: existing, created: false }
+    const bound = await findBoundKnowledgeDocument({
+      documentId: params.documentId,
+      knowledgeBaseId: knowledgeBase.id,
+      document,
+    })
+    if (bound.status === 'conflict') {
+      return fail('Upload id is already bound to a different document', 'conflict')
+    }
+    if (bound.status === 'bound') {
+      return { success: true, document: bound.document, created: false }
     }
   }
 
@@ -183,11 +209,16 @@ export async function performUploadKnowledgeDocument(
         )
   } catch (error) {
     if (params.documentId) {
-      const existing = await getDocumentByUploadId(params.documentId, knowledgeBase.id)
-      if (existing) {
-        return isSameKnowledgeDocumentUpload(existing, document)
-          ? { success: true, document: existing, created: false }
-          : fail('Upload id is already bound to a different document', 'conflict')
+      const bound = await findBoundKnowledgeDocument({
+        documentId: params.documentId,
+        knowledgeBaseId: knowledgeBase.id,
+        document,
+      })
+      if (bound.status === 'conflict') {
+        return fail('Upload id is already bound to a different document', 'conflict')
+      }
+      if (bound.status === 'bound') {
+        return { success: true, document: bound.document, created: false }
       }
     }
     return classifyKnowledgeFailure(

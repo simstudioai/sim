@@ -5,52 +5,44 @@ import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckRateLimit,
   mockCreateUploadSession,
-  mockResolveKnowledgeDocumentUploadAccess,
-  mockResolveKnowledgeDocumentUploadBilling,
+  mockRequireKnowledgeDocumentUploadAccess,
+  mockRequireKnowledgeDocumentUploadActor,
+  mockRequireKnowledgeDocumentUploadBilling,
 } = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
   mockCreateUploadSession: vi.fn(),
-  mockResolveKnowledgeDocumentUploadAccess: vi.fn(),
-  mockResolveKnowledgeDocumentUploadBilling: vi.fn(),
+  mockRequireKnowledgeDocumentUploadAccess: vi.fn(),
+  mockRequireKnowledgeDocumentUploadActor: vi.fn(),
+  mockRequireKnowledgeDocumentUploadBilling: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({ checkRateLimit: mockCheckRateLimit }))
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
 vi.mock('@/lib/uploads/multipart-session/service', () => ({
   createUploadSession: mockCreateUploadSession,
 }))
+vi.mock('@/app/api/knowledge/[id]/documents/uploads/utils', () => ({
+  requireKnowledgeDocumentUploadAccess: mockRequireKnowledgeDocumentUploadAccess,
+  requireKnowledgeDocumentUploadActor: mockRequireKnowledgeDocumentUploadActor,
+  requireKnowledgeDocumentUploadBilling: mockRequireKnowledgeDocumentUploadBilling,
+}))
+vi.mock('@/app/api/files/uploads/utils', () => ({ uploadSessionErrorResponse: vi.fn() }))
 vi.mock('@/app/api/v2/knowledge/[id]/documents/uploads/utils', () => ({
-  resolveKnowledgeDocumentUploadAccess: mockResolveKnowledgeDocumentUploadAccess,
-  resolveKnowledgeDocumentUploadBilling: mockResolveKnowledgeDocumentUploadBilling,
   toV2KnowledgeDocumentUpload: (session: Record<string, unknown>) => ({
     ...session,
     name: session.fileName,
     contentType: session.contentType,
     size: session.fileSize,
-    expiresAt: '2026-08-04T21:00:00.000Z',
+    expiresAt: '2026-08-05T00:00:00.000Z',
     document: null,
   }),
 }))
 
-import { POST } from '@/app/api/v2/knowledge/[id]/documents/uploads/route'
+import { POST } from '@/app/api/knowledge/[id]/documents/uploads/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
-const RATE_LIMIT = {
-  allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2026-08-03T22:00:00.000Z'),
-}
 
 function request() {
   return POST(
-    new NextRequest('http://localhost:3000/api/v2/knowledge/kb-1/documents/uploads', {
+    new NextRequest('http://localhost:3000/api/knowledge/kb-1/documents/uploads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -66,14 +58,14 @@ function request() {
   )
 }
 
-describe('POST /api/v2/knowledge/[id]/documents/uploads', () => {
+describe('POST /api/knowledge/[id]/documents/uploads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT)
-    mockResolveKnowledgeDocumentUploadAccess.mockResolvedValue({
-      kb: { id: 'kb-1', name: 'Docs' },
+    mockRequireKnowledgeDocumentUploadActor.mockResolvedValue({ id: 'user-1' })
+    mockRequireKnowledgeDocumentUploadAccess.mockResolvedValue({
+      knowledgeBase: { id: 'kb-1', name: 'Docs', workspaceId: WORKSPACE_ID },
     })
-    mockResolveKnowledgeDocumentUploadBilling.mockResolvedValue({ actorUserId: 'user-1' })
+    mockRequireKnowledgeDocumentUploadBilling.mockResolvedValue({ actorUserId: 'user-1' })
     mockCreateUploadSession.mockResolvedValue({
       id: 'upload-1',
       knowledgeBaseId: 'kb-1',
@@ -88,18 +80,15 @@ describe('POST /api/v2/knowledge/[id]/documents/uploads', () => {
     })
   })
 
-  it('authorizes the knowledge base and runs usage billing before accepting storage', async () => {
+  it('authorizes and bills before allocating a first-party upload session', async () => {
     const response = await request()
 
     expect(response.status).toBe(201)
-    expect(mockResolveKnowledgeDocumentUploadAccess).toHaveBeenCalledWith(
-      expect.objectContaining({
-        knowledgeBaseId: 'kb-1',
-        workspaceId: WORKSPACE_ID,
-        userId: 'user-1',
-      })
-    )
-    expect(mockResolveKnowledgeDocumentUploadBilling).toHaveBeenCalled()
+    expect(mockRequireKnowledgeDocumentUploadAccess).toHaveBeenCalledWith({
+      knowledgeBaseId: 'kb-1',
+      workspaceId: WORKSPACE_ID,
+      userId: 'user-1',
+    })
     expect(mockCreateUploadSession).toHaveBeenCalledWith({
       workspaceId: WORKSPACE_ID,
       userId: 'user-1',
@@ -113,20 +102,20 @@ describe('POST /api/v2/knowledge/[id]/documents/uploads', () => {
         processingOptions: { recipe: 'default', lang: 'en' },
       },
     })
-    expect(mockResolveKnowledgeDocumentUploadBilling.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mockRequireKnowledgeDocumentUploadBilling.mock.invocationCallOrder[0]).toBeLessThan(
       mockCreateUploadSession.mock.invocationCallOrder[0]
     )
   })
 
-  it('does not run billing or create provider state when knowledge write access is denied', async () => {
-    mockResolveKnowledgeDocumentUploadAccess.mockResolvedValue(
-      NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 })
+  it('does not bill or allocate storage when write access is denied', async () => {
+    mockRequireKnowledgeDocumentUploadAccess.mockResolvedValue(
+      NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     )
 
     const response = await request()
 
     expect(response.status).toBe(403)
-    expect(mockResolveKnowledgeDocumentUploadBilling).not.toHaveBeenCalled()
+    expect(mockRequireKnowledgeDocumentUploadBilling).not.toHaveBeenCalled()
     expect(mockCreateUploadSession).not.toHaveBeenCalled()
   })
 })

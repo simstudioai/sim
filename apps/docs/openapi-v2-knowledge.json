@@ -1452,6 +1452,22 @@
             "minimum": 1,
             "maximum": 104857600,
             "description": "Exact file size in bytes."
+          },
+          "tag1": { "type": "string", "maxLength": 1000 },
+          "tag2": { "type": "string", "maxLength": 1000 },
+          "tag3": { "type": "string", "maxLength": 1000 },
+          "tag4": { "type": "string", "maxLength": 1000 },
+          "tag5": { "type": "string", "maxLength": 1000 },
+          "tag6": { "type": "string", "maxLength": 1000 },
+          "tag7": { "type": "string", "maxLength": 1000 },
+          "processingOptions": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "recipe": { "type": "string", "maxLength": 255 },
+              "lang": { "type": "string", "maxLength": 35 }
+            },
+            "description": "Optional processing recipe and language, bound into the signed upload state."
           }
         }
       },

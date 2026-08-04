@@ -7,19 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockCheckRateLimit,
   mockCompleteUploadSession,
-  mockDeleteFile,
-  mockDeleteFileMetadata,
-  mockPerformUploadKnowledgeDocument,
-  mockRecordKnowledgeBaseFileOwnership,
+  mockFinalizeKnowledgeDocumentUpload,
   mockResolveKnowledgeDocumentUploadAccess,
   mockResolveKnowledgeDocumentUploadAttribution,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockCompleteUploadSession: vi.fn(),
-  mockDeleteFile: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
-  mockPerformUploadKnowledgeDocument: vi.fn(),
-  mockRecordKnowledgeBaseFileOwnership: vi.fn(),
+  mockFinalizeKnowledgeDocumentUpload: vi.fn(),
   mockResolveKnowledgeDocumentUploadAccess: vi.fn(),
   mockResolveKnowledgeDocumentUploadAttribution: vi.fn(),
 }))
@@ -28,20 +22,12 @@ vi.mock('@/app/api/v1/middleware', () => ({ checkRateLimit: mockCheckRateLimit }
 vi.mock('@/app/api/v2/lib/gate', () => ({
   v2ApiGateError: vi.fn().mockResolvedValue(null),
 }))
-vi.mock('@/lib/knowledge/orchestration', () => ({
-  performUploadKnowledgeDocument: mockPerformUploadKnowledgeDocument,
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-  recordKnowledgeBaseFileOwnership: mockRecordKnowledgeBaseFileOwnership,
-}))
 vi.mock('@/lib/uploads/multipart-session/service', () => ({
   completeUploadSession: mockCompleteUploadSession,
 }))
 vi.mock('@/app/api/v2/knowledge/[id]/documents/uploads/utils', () => ({
+  finalizeKnowledgeDocumentUpload: mockFinalizeKnowledgeDocumentUpload,
   getOwnedKnowledgeDocumentUpload: vi.fn(() => SESSION),
-  knowledgeDocumentFileUrl: vi.fn(() => FILE_URL),
   resolveKnowledgeDocumentUploadAccess: mockResolveKnowledgeDocumentUploadAccess,
   resolveKnowledgeDocumentUploadAttribution: mockResolveKnowledgeDocumentUploadAttribution,
   toV2KnowledgeDocumentUpload: (session: Record<string, unknown>, document: unknown) => ({
@@ -54,6 +40,7 @@ vi.mock('@/app/api/v2/knowledge/[id]/documents/uploads/utils', () => ({
   }),
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -74,7 +61,10 @@ const SESSION = {
   partSize: 8 * 1024 * 1024,
   partCount: 1,
   status: 'uploading',
-  metadata: {},
+  metadata: {
+    tag1: 'product',
+    processingOptions: { recipe: 'default', lang: 'en' },
+  },
   uploadToken: 'token',
   createdAt: new Date('2026-08-03T21:00:00.000Z'),
   expiresAt: new Date('2026-08-04T21:00:00.000Z'),
@@ -127,13 +117,9 @@ describe('POST knowledge-document multipart completion', () => {
       kb: { id: 'kb-1', name: 'Docs' },
     })
     mockResolveKnowledgeDocumentUploadAttribution.mockResolvedValue({ actorUserId: 'payer-1' })
-    mockRecordKnowledgeBaseFileOwnership.mockResolvedValue(undefined)
-    mockDeleteFile.mockResolvedValue(undefined)
-    mockDeleteFileMetadata.mockResolvedValue(true)
-    mockPerformUploadKnowledgeDocument.mockResolvedValue({
-      success: true,
-      document: DOCUMENT,
-      created: true,
+    mockFinalizeKnowledgeDocumentUpload.mockResolvedValue({
+      value: DOCUMENT,
+      completedFileId: DOCUMENT.id,
     })
     mockCompleteUploadSession.mockImplementation(async ({ session, finalize }) => {
       const finalized = await finalize(session)
@@ -145,63 +131,45 @@ describe('POST knowledge-document multipart completion', () => {
     })
   })
 
-  it('records knowledge ownership and invokes the shared document orchestration', async () => {
-    const response = await request()
-
-    expect(response.status).toBe(200)
-    expect(mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledWith({
-      key: 'kb/guide.pdf',
-      userId: 'user-1',
-      workspaceId: WORKSPACE_ID,
-      originalName: 'guide.pdf',
-      contentType: 'application/pdf',
-      size: 1024,
-    })
-    expect(mockPerformUploadKnowledgeDocument).toHaveBeenCalledWith(
-      expect.objectContaining({
-        documentId: 'upload-1',
-        startProcessing: 'queue',
-        uploadedBy: 'payer-1',
-        document: {
-          filename: 'guide.pdf',
-          fileUrl: FILE_URL,
-          fileSize: 1024,
-          mimeType: 'application/pdf',
-        },
-      })
-    )
-    expect(mockDeleteFile).not.toHaveBeenCalled()
-    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
-  })
-
-  it('finalizes an already-admitted upload without re-running usage admission', async () => {
-    mockPerformUploadKnowledgeDocument.mockResolvedValue({
-      success: true,
-      document: DOCUMENT,
-      created: false,
-    })
-
+  it('delegates completion to the shared finalizer and returns the bound document', async () => {
     const response = await request()
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ data: { document: { id: 'upload-1' } } })
-    expect(mockDeleteFile).not.toHaveBeenCalled()
+    expect(mockFinalizeKnowledgeDocumentUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        claimed: SESSION,
+        knowledgeBaseId: 'kb-1',
+        knowledgeBaseName: 'Docs',
+        workspaceId: WORKSPACE_ID,
+        userId: 'user-1',
+        source: 'api',
+      })
+    )
   })
 
-  it('removes the committed object and ownership binding when document creation fails', async () => {
-    mockPerformUploadKnowledgeDocument.mockResolvedValue({
-      success: false,
-      errorCode: 'payload_too_large',
-      error: 'Storage limit exceeded',
+  it('resolves the payer lazily, only when the finalizer asks for one', async () => {
+    await request()
+
+    expect(mockResolveKnowledgeDocumentUploadAttribution).not.toHaveBeenCalled()
+
+    const { resolveAttribution } = mockFinalizeKnowledgeDocumentUpload.mock.calls[0][0]
+    await resolveAttribution()
+
+    expect(mockResolveKnowledgeDocumentUploadAttribution).toHaveBeenCalledWith({
+      workspaceId: WORKSPACE_ID,
+      userId: 'user-1',
+      rateLimit: RATE_LIMIT,
     })
+  })
+
+  it('maps an orchestration failure from the finalizer onto its v2 status', async () => {
+    mockFinalizeKnowledgeDocumentUpload.mockRejectedValue(
+      new OrchestrationError('payload_too_large', 'Storage limit exceeded')
+    )
 
     const response = await request()
 
     expect(response.status).toBe(413)
-    expect(mockDeleteFile).toHaveBeenCalledWith({
-      key: 'kb/guide.pdf',
-      context: 'knowledge-base',
-    })
-    expect(mockDeleteFileMetadata).toHaveBeenCalledWith('kb/guide.pdf')
   })
 })

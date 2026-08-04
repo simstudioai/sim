@@ -42,7 +42,7 @@ export const POST = withRouteHandler(
       })
       if (!parsed.success) return parsed.response
       const { id: knowledgeBaseId } = parsed.data.params
-      const { workspaceId, name, contentType, size } = parsed.data.body
+      const { workspaceId, name, contentType, size, ...metadata } = parsed.data.body
 
       const access = await resolveKnowledgeDocumentUploadAccess({
         knowledgeBaseId,
@@ -72,6 +72,7 @@ export const POST = withRouteHandler(
         fileName: name,
         contentType,
         fileSize: size,
+        metadata,
       })
       return v2Data(toV2KnowledgeDocumentUpload(session, null), { rateLimit, status: 201 })
     } catch (error) {

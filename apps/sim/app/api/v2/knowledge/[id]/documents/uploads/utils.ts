@@ -1,20 +1,27 @@
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type {
   V2KnowledgeDocumentSummary,
   V2KnowledgeDocumentUpload,
 } from '@/lib/api/contracts/v2/knowledge'
+import { v2KnowledgeDocumentUploadMetadataSchema } from '@/lib/api/contracts/v2/knowledge'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import {
   checkAttributedUsageLimits,
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import type { CreatedKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
+import { findBoundKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
   getOwnedUploadSession,
   type UploadSessionRecord,
 } from '@/lib/uploads/multipart-session/service'
+import { deleteFileMetadata, recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import { resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
 import type { RateLimitResult } from '@/app/api/v1/middleware'
 import { v2Error } from '@/app/api/v2/lib/response'
@@ -136,4 +143,94 @@ export function knowledgeDocumentFileUrl(session: UploadSessionRecord): string {
   }
   const providerPrefix = session.storageProvider === 'local' ? '' : `${session.storageProvider}/`
   return `/api/files/serve/${providerPrefix}${encodeURIComponent(session.storageKey)}?context=knowledge-base`
+}
+
+/**
+ * Binds a completed multipart session to its knowledge document. Shared by the public v2
+ * and session-authenticated routes so both get identical completion semantics.
+ *
+ * Ordering is load-bearing. A retry is answered from the already-bound document before any
+ * work that can fail independently of the upload runs, so a payer that became unresolvable
+ * after the session was created cannot turn a valid retry into an error. Cleanup is likewise
+ * gated on the upload still being unbound — uploaded bytes are never deleted out from under
+ * a live document row.
+ */
+export async function finalizeKnowledgeDocumentUpload(params: {
+  claimed: UploadSessionRecord
+  knowledgeBaseId: string
+  knowledgeBaseName: string | null
+  workspaceId: string
+  userId: string
+  resolveAttribution: () => Promise<BillingAttributionSnapshot>
+  source: 'api' | 'ui'
+  requestId: string
+  request: NextRequest
+  actorName?: string | null
+  actorEmail?: string | null
+}): Promise<{ value: CreatedKnowledgeDocument; completedFileId: string }> {
+  const { claimed, knowledgeBaseId, workspaceId, requestId } = params
+  const { processingOptions, ...documentTags } = v2KnowledgeDocumentUploadMetadataSchema.parse(
+    claimed.metadata
+  )
+  const document = {
+    filename: claimed.fileName,
+    fileUrl: knowledgeDocumentFileUrl(claimed),
+    fileSize: claimed.fileSize,
+    mimeType: claimed.contentType,
+    ...documentTags,
+  }
+
+  const bound = await findBoundKnowledgeDocument({
+    documentId: claimed.id,
+    knowledgeBaseId,
+    document,
+  })
+  if (bound.status === 'bound') {
+    return { value: bound.document, completedFileId: bound.document.id }
+  }
+  if (bound.status === 'conflict') {
+    throw new OrchestrationError('conflict', 'Upload id is already bound to a different document')
+  }
+
+  const billingAttribution = await params.resolveAttribution()
+  try {
+    await recordKnowledgeBaseFileOwnership({
+      key: claimed.storageKey,
+      userId: params.userId,
+      workspaceId,
+      originalName: claimed.fileName,
+      contentType: claimed.contentType,
+      size: claimed.fileSize,
+    })
+    const outcome = await performUploadKnowledgeDocument({
+      knowledgeBase: { id: knowledgeBaseId, name: params.knowledgeBaseName, workspaceId },
+      document,
+      documentId: claimed.id,
+      startProcessing: 'queue',
+      processingOptions,
+      billingAttribution,
+      uploadedBy: billingAttribution.actorUserId,
+      userId: params.userId,
+      ...(params.actorName ? { actorName: params.actorName } : {}),
+      ...(params.actorEmail ? { actorEmail: params.actorEmail } : {}),
+      source: params.source,
+      requestId,
+      request: params.request,
+    })
+    if (!outcome.success) {
+      throw new OrchestrationError(outcome.errorCode, outcome.error)
+    }
+    return { value: outcome.document, completedFileId: outcome.document.id }
+  } catch (error) {
+    const rebound = await findBoundKnowledgeDocument({
+      documentId: claimed.id,
+      knowledgeBaseId,
+      document,
+    })
+    if (rebound.status === 'absent') {
+      await deleteFile({ key: claimed.storageKey, context: 'knowledge-base' })
+      await deleteFileMetadata(claimed.storageKey)
+    }
+    throw error
+  }
 }

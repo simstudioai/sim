@@ -164,12 +164,40 @@ export const v2KnowledgeDocumentUploadParamsSchema = knowledgeBaseParamsSchema.e
 })
 export type V2KnowledgeDocumentUploadParams = z.output<typeof v2KnowledgeDocumentUploadParamsSchema>
 
+const knowledgeDocumentUploadTagSchema = z
+  .string()
+  .max(1000, 'Knowledge document tag values cannot exceed 1000 characters')
+  .optional()
+
+export const v2KnowledgeDocumentUploadMetadataSchema = z
+  .object({
+    tag1: knowledgeDocumentUploadTagSchema,
+    tag2: knowledgeDocumentUploadTagSchema,
+    tag3: knowledgeDocumentUploadTagSchema,
+    tag4: knowledgeDocumentUploadTagSchema,
+    tag5: knowledgeDocumentUploadTagSchema,
+    tag6: knowledgeDocumentUploadTagSchema,
+    tag7: knowledgeDocumentUploadTagSchema,
+    processingOptions: z
+      .object({
+        recipe: z.string().max(255, 'recipe cannot exceed 255 characters').optional(),
+        lang: z.string().max(35, 'lang cannot exceed 35 characters').optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+export type V2KnowledgeDocumentUploadMetadata = z.output<
+  typeof v2KnowledgeDocumentUploadMetadataSchema
+>
+
 export const v2CreateKnowledgeDocumentUploadBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
     name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
     contentType: z.string().trim().min(1, 'contentType is required').max(255),
     size: z.number().int().min(1).max(MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE),
+    ...v2KnowledgeDocumentUploadMetadataSchema.shape,
   })
   .strict()
 export type V2CreateKnowledgeDocumentUploadBody = z.input<

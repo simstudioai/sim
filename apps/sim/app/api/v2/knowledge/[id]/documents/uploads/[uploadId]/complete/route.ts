@@ -4,20 +4,13 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { v2CompleteKnowledgeDocumentUploadContract } from '@/lib/api/contracts/v2/knowledge'
 import { parseRequest } from '@/lib/api/server'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
-import { deleteFile } from '@/lib/uploads/core/storage-service'
-import {
-  completeUploadSession,
-  type UploadSessionRecord,
-} from '@/lib/uploads/multipart-session/service'
-import { deleteFileMetadata, recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
+import { completeUploadSession } from '@/lib/uploads/multipart-session/service'
 import { checkRateLimit } from '@/app/api/v1/middleware'
 import {
+  finalizeKnowledgeDocumentUpload,
   getOwnedKnowledgeDocumentUpload,
-  knowledgeDocumentFileUrl,
   resolveKnowledgeDocumentUploadAccess,
   resolveKnowledgeDocumentUploadAttribution,
   toV2KnowledgeDocumentUpload,
@@ -35,11 +28,6 @@ const logger = createLogger('V2CompleteKnowledgeDocumentUploadAPI')
 
 interface KnowledgeDocumentUploadRouteParams {
   params: Promise<{ id: string; uploadId: string }>
-}
-
-async function cleanupFailedKnowledgeDocumentUpload(session: UploadSessionRecord): Promise<void> {
-  await deleteFile({ key: session.storageKey, context: 'knowledge-base' })
-  await deleteFileMetadata(session.storageKey)
 }
 
 export const POST = withRouteHandler(
@@ -71,12 +59,6 @@ export const POST = withRouteHandler(
       })
       if (access instanceof NextResponse) return access
 
-      const billingAttribution = await resolveKnowledgeDocumentUploadAttribution({
-        workspaceId,
-        userId,
-        rateLimit,
-      })
-
       const session = getOwnedKnowledgeDocumentUpload({
         knowledgeBaseId,
         uploadId,
@@ -87,49 +69,19 @@ export const POST = withRouteHandler(
       const result = await completeUploadSession({
         session,
         parts: parsed.data.body.parts,
-        finalize: async (claimed) => {
-          try {
-            await recordKnowledgeBaseFileOwnership({
-              key: claimed.storageKey,
-              userId,
-              workspaceId,
-              originalName: claimed.fileName,
-              contentType: claimed.contentType,
-              size: claimed.fileSize,
-            })
-            const outcome = await performUploadKnowledgeDocument({
-              knowledgeBase: {
-                id: knowledgeBaseId,
-                name: access.kb.name,
-                workspaceId,
-              },
-              document: {
-                filename: claimed.fileName,
-                fileUrl: knowledgeDocumentFileUrl(claimed),
-                fileSize: claimed.fileSize,
-                mimeType: claimed.contentType,
-              },
-              documentId: claimed.id,
-              startProcessing: 'queue',
-              billingAttribution,
-              uploadedBy: billingAttribution.actorUserId,
-              userId,
-              source: 'api',
-              requestId,
-              request,
-            })
-            if (!outcome.success) {
-              throw new OrchestrationError(outcome.errorCode, outcome.error)
-            }
-            return {
-              value: outcome.document,
-              completedFileId: outcome.document.id,
-            }
-          } catch (error) {
-            await cleanupFailedKnowledgeDocumentUpload(claimed)
-            throw error
-          }
-        },
+        finalize: (claimed) =>
+          finalizeKnowledgeDocumentUpload({
+            claimed,
+            knowledgeBaseId,
+            knowledgeBaseName: access.kb.name,
+            workspaceId,
+            userId,
+            resolveAttribution: () =>
+              resolveKnowledgeDocumentUploadAttribution({ workspaceId, userId, rateLimit }),
+            source: 'api',
+            requestId,
+            request,
+          }),
       })
 
       return v2Data(toV2KnowledgeDocumentUpload(result.session, result.value), { rateLimit })
