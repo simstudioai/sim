@@ -6,13 +6,17 @@ import { v2CreateTableContract, v2ListTablesContract } from '@/lib/api/contracts
 import { isZodError, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createTable, getWorkspaceTableLimits, listTables, type TableSchema } from '@/lib/table'
+import { createTable, getWorkspaceTableLimits, queryTables, type TableSchema } from '@/lib/table'
 import { normalizeColumn } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
+  cursorSortKey,
+  decodeSortedCursor,
+  encodeSortedCursor,
   v2CaughtOrchestrationError,
   v2CursorList,
+  v2CursorSortError,
   v2Data,
   v2Error,
   v2RateLimitError,
@@ -49,16 +53,28 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, folderId, search, sortBy, sortOrder } = parsed.data.query
+    const { workspaceId, folderId, search, sortBy, sortOrder, limit, cursor } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const tables = await listTables(workspaceId, { folderId, search, sortBy, sortOrder })
-    const items = tables.map(toApiTable)
+    const sort = cursorSortKey(sortBy, sortOrder)
+    const decoded = decodeSortedCursor(cursor, sort)
+    if (decoded.status === 'invalid') return v2CursorSortError()
 
-    // `listTables` returns the full bounded workspace set → single page.
-    return v2CursorList(items, null, { rateLimit })
+    const { tables, nextKeys } = await queryTables(workspaceId, {
+      folderId,
+      search,
+      sortBy,
+      sortOrder,
+      limit,
+      after: decoded.status === 'ok' ? decoded.keys : undefined,
+    })
+
+    const items = tables.map(toApiTable)
+    const nextCursor = nextKeys ? encodeSortedCursor(sort, nextKeys) : null
+
+    return v2CursorList(items, nextCursor, { rateLimit })
   } catch (error) {
     logger.error(`[${requestId}] Error listing tables`, {
       error: getErrorMessage(error, 'Unknown error'),

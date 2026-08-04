@@ -9,13 +9,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
 const {
-  mockListTables,
+  mockQueryTables,
   mockCheckRateLimit,
   mockResolveWorkspaceAccess,
   mockIsFeatureEnabled,
   mockGetWorkspaceOrganizationId,
 } = vi.hoisted(() => ({
-  mockListTables: vi.fn(),
+  mockQueryTables: vi.fn(),
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
   mockIsFeatureEnabled: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock('@/app/api/v1/middleware', () => ({
 
 vi.mock('@/lib/table', async () => {
   const actual = await import('@/lib/table/column-keys')
-  return { ...actual, listTables: mockListTables }
+  return { ...actual, queryTables: mockQueryTables }
 })
 
 vi.mock('@/app/api/table/utils', () => ({
@@ -88,7 +88,7 @@ describe('GET /api/v2/tables', () => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockListTables.mockResolvedValue([buildTable()])
+    mockQueryTables.mockResolvedValue({ tables: [buildTable()], nextKeys: null })
     mockIsFeatureEnabled.mockResolvedValue(true)
     mockGetWorkspaceOrganizationId.mockResolvedValue('org-1')
   })
@@ -102,14 +102,14 @@ describe('GET /api/v2/tables', () => {
 
     expect(res.status).toBe(404)
     expect((await res.json()).error.code).toBe('NOT_FOUND')
-    expect(mockListTables).not.toHaveBeenCalled()
+    expect(mockQueryTables).not.toHaveBeenCalled()
   })
 
   it('400s when workspaceId is missing', async () => {
     const res = await callList('')
     expect(res.status).toBe(400)
     expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockListTables).not.toHaveBeenCalled()
+    expect(mockQueryTables).not.toHaveBeenCalled()
   })
 
   it('surfaces an access-denied failure in the v2 error envelope', async () => {
@@ -121,7 +121,7 @@ describe('GET /api/v2/tables', () => {
     const res = await callList('workspaceId=workspace-1')
     expect(res.status).toBe(403)
     expect((await res.json()).error).toMatchObject({ code: 'FORBIDDEN', message: 'Access denied' })
-    expect(mockListTables).not.toHaveBeenCalled()
+    expect(mockQueryTables).not.toHaveBeenCalled()
   })
 
   it('returns the rate-limit response when denied', async () => {
@@ -160,5 +160,42 @@ describe('GET /api/v2/tables', () => {
 
     expect(res.status).toBe(200)
     expect((await res.json()).nextCursor).toBeNull()
+  })
+
+  it('passes limit and the decoded cursor through to the query', async () => {
+    mockQueryTables.mockResolvedValue({ tables: [buildTable()], nextKeys: null })
+
+    await callList('workspaceId=workspace-1&limit=25&sortBy=name&sortOrder=desc')
+
+    // The slice must happen in the query, not after a full-workspace read.
+    expect(mockQueryTables).toHaveBeenCalledWith(
+      'workspace-1',
+      expect.objectContaining({ limit: 25, sortBy: 'name', sortOrder: 'desc' })
+    )
+  })
+
+  it('returns a nextCursor when the query reports another page', async () => {
+    mockQueryTables.mockResolvedValue({ tables: [buildTable()], nextKeys: ['Alpha', 'tbl_1'] })
+
+    const res = await callList('workspaceId=workspace-1&limit=1')
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.nextCursor).toEqual(expect.any(String))
+  })
+
+  it('rejects a cursor that does not match the requested sort', async () => {
+    const first = await callList('workspaceId=workspace-1&sortBy=name')
+    // Encoded under sortBy=name, replayed under sortBy=createdAt.
+    mockQueryTables.mockResolvedValue({ tables: [buildTable()], nextKeys: ['Alpha', 'tbl_1'] })
+    const paged = await callList('workspaceId=workspace-1&sortBy=name&limit=1')
+    const cursor = (await paged.json()).nextCursor
+
+    const res = await callList(
+      `?workspaceId=workspace-1&sortBy=createdAt&cursor=${encodeURIComponent(cursor)}`
+    )
+
+    expect(res.status).toBe(400)
+    expect(first.status).toBe(200)
   })
 })

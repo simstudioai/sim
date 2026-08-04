@@ -214,6 +214,12 @@ export const v2ListTablesQuerySchema = v1ListTablesQuerySchema.extend({
   folderId: z.string().min(1, 'folderId cannot be empty').optional(),
   search: v2SearchSchema,
   ...v2SortFields(v2TableSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
+  limit: z.coerce
+    .number()
+    .optional()
+    .default(100)
+    .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000)),
+  cursor: z.string().min(1).optional(),
 })
 
 export type V2ListTablesQuery = z.output<typeof v2ListTablesQuerySchema>
