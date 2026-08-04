@@ -5,6 +5,7 @@ import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
+import { LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
 const { mockRedis, persistedEntries } = vi.hoisted(() => {
@@ -620,6 +621,188 @@ describe('execution event buffer', () => {
     await sleep(60)
 
     await expect(writer.flush()).resolves.toBeUndefined()
+  })
+
+  /**
+   * A short run must keep full-fidelity output: the SSE stream carries the
+   * compacted event, and the terminal renders a ref only as a preview, so
+   * offloading ordinary block outputs would make them unreadable live.
+   */
+  it('keeps values inline while the execution is below the offload pressure mark', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    const payload = 'x'.repeat(512 * 1024)
+
+    const writer = createExecutionEventWriter('exec-1', {
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+    })
+    await writer.write(makeEvent(payload))
+    await writer.flush()
+
+    const persisted = JSON.stringify(persistedEntries[0])
+    expect(persisted).toContain(payload)
+    expect(persisted).not.toContain(LARGE_VALUE_REF_MARKER)
+  })
+
+  /**
+   * Once a run has buffered its way into the danger zone the tight ceiling
+   * engages, so it stops accumulating against its budget instead of pinning
+   * itself at the ceiling for the rest of its life.
+   */
+  it('offloads values once the execution crosses the offload pressure mark', async () => {
+    mockRedis.incrby.mockResolvedValue(100000)
+    const payload = 'x'.repeat(2 * 1024 * 1024)
+
+    const writer = createExecutionEventWriter('exec-1', {
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+    })
+    // Push past half the per-execution budget so the next write is under pressure.
+    for (let i = 0; i < 17; i++) {
+      await writer.write(makeEvent(payload))
+      await writer.flush()
+    }
+    persistedEntries.length = 0
+    await writer.write(makeEvent(payload))
+    await writer.flush()
+
+    const persisted = JSON.stringify(persistedEntries[0])
+    expect(persisted).toContain(LARGE_VALUE_REF_MARKER)
+    expect(persisted).not.toContain(payload)
+  })
+
+  /**
+   * Terminal status is the reader's end-of-run signal: once it lands, a
+   * reconnecting client drains what is in Redis and closes. Stamping it while
+   * lower event ids are still queued strands those events behind a stream the
+   * reader has already finished with.
+   *
+   * Needs a backlog past the single-write cap so chunking leaves a remainder
+   * behind the terminal entry — the only shape where that ordering can invert.
+   */
+  it('does not stamp terminal status while earlier events are still queued', async () => {
+    mockRedis.incrby.mockResolvedValue(100000)
+    const idsAtStamp: number[] = []
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (!isFlushScript(script)) return [1, 'ok', 0, 0]
+      const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)
+      // Reject any multi-entry batch, forcing the terminal-alone retry path.
+      if (zaddArgs.length > 2) return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+      for (let i = 0; i < zaddArgs.length; i += 2) {
+        persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
+      }
+      if (terminalStatus && idsAtStamp.length === 0) {
+        idsAtStamp.push(...persistedEntries.map((e) => e.eventId))
+      }
+      return [1, 1, 0]
+    })
+
+    // ~3MB per event, so three of them exceed the 8MiB single-write cap and the
+    // chunk boundary leaves a remainder queued behind the terminal entry.
+    const payload = 'x'.repeat(1_500_000)
+    const writer = createExecutionEventWriter('exec-1', {
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+    })
+    for (let i = 0; i < 3; i++) {
+      await writer.write(makeEvent(payload)).catch(() => {})
+    }
+    await writer.writeTerminal(makeEvent('terminal'), 'complete').catch(() => {})
+    await writer.close().catch(() => {})
+
+    const terminalId = Math.max(...persistedEntries.map((e) => e.eventId))
+    const strandedAtStamp = persistedEntries
+      .map((e) => e.eventId)
+      .filter((id) => id < terminalId && !idsAtStamp.includes(id))
+    expect(strandedAtStamp).toEqual([])
+  })
+
+  /**
+   * Pressure has to be measured as events are produced, not once a flush
+   * succeeds. A burst is compacted long before the scheduled flush runs, so
+   * flush-time accounting would let the very batch that exhausts the budget
+   * through at the loose ceiling and drop it instead of offloading it.
+   */
+  it('engages pressure within a burst that has not flushed yet', async () => {
+    mockRedis.incrby.mockResolvedValue(100000)
+    const payload = 'x'.repeat(2 * 1024 * 1024)
+
+    const writer = createExecutionEventWriter('exec-1', {
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+    })
+    // No flush between writes: everything stays pending while the burst builds.
+    for (let i = 0; i < 20; i++) {
+      await writer.write(makeEvent(payload)).catch(() => {})
+    }
+    await writer.flush().catch(() => {})
+
+    // The later events in the burst must have been offloaded, not left inline.
+    const persisted = JSON.stringify(persistedEntries)
+    expect(persisted).toContain(LARGE_VALUE_REF_MARKER)
+  })
+
+  /**
+   * A transient failure while draining the backlog must not cost events, and
+   * must not let the run be marked terminal. Overwriting the queue would drop
+   * entries the budget never rejected, and the drain's final chunk would
+   * otherwise stamp the status before the terminal event is written.
+   */
+  it('retains the backlog and withholds terminal status when the drain fails transiently', async () => {
+    mockRedis.incrby.mockResolvedValue(100000)
+    const stamped: string[] = []
+    let failDrain = true
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (!isFlushScript(script)) return [1, 'ok', 0, 0]
+      const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)
+      // Reject any multi-entry batch so the terminal-alone retry path is taken.
+      if (zaddArgs.length > 2) return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+      // The backlog drain hits a transient outage rather than a budget rejection.
+      if (failDrain) {
+        failDrain = false
+        throw new Error('redis unavailable')
+      }
+      for (let i = 0; i < zaddArgs.length; i += 2) {
+        persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
+      }
+      if (terminalStatus) stamped.push(terminalStatus)
+      return [1, 1, 0]
+    })
+
+    const payload = 'x'.repeat(1_500_000)
+    const writer = createExecutionEventWriter('exec-1', {
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+    })
+    for (let i = 0; i < 3; i++) {
+      await writer.write(makeEvent(payload)).catch(() => {})
+    }
+    await expect(writer.writeTerminal(makeEvent('terminal'), 'complete')).rejects.toThrow()
+
+    // The transiently-failed backlog is still queued, so it is not lost.
+    expect(stamped).toEqual([])
+    await writer.close().catch(() => {})
+    expect(persistedEntries.length).toBeGreaterThan(0)
+  })
+
+  /**
+   * Offloading under pressure is an optimization. If the value cannot be
+   * persisted durably, the event must still reach the replay buffer inline —
+   * dropping it would leave a reconnecting client permanently missing it.
+   */
+  it('buffers the event inline when a pressure offload cannot be persisted', async () => {
+    mockRedis.incrby.mockResolvedValue(100000)
+    const payload = 'x'.repeat(2 * 1024 * 1024)
+
+    // No workspace/workflow ids, so durable persistence of an offloaded value
+    // fails the way a storage outage would.
+    const writer = createExecutionEventWriter('exec-1')
+    for (let i = 0; i < 20; i++) {
+      await writer.write(makeEvent(payload)).catch(() => {})
+    }
+    await writer.flush().catch(() => {})
+
+    expect(persistedEntries).toHaveLength(20)
   })
 
   it('preserves requested UserFile base64 when buffering terminal events', async () => {

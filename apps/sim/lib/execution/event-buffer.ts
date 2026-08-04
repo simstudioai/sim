@@ -27,6 +27,21 @@ const FLUSH_INTERVAL_MS = 15
 const FLUSH_MAX_RETRY_INTERVAL_MS = 1000
 const FLUSH_MAX_BATCH = 200
 const MAX_PENDING_EVENTS = 1000
+/**
+ * Bytes a single execution may buffer before its events start offloading
+ * aggressively, and the per-value threshold applied once it does.
+ *
+ * The buffer holds `EVENT_LIMIT` events inside the per-execution byte budget,
+ * so a full ring only fits if events average under budget/EVENT_LIMIT. Applying
+ * that ceiling to every run would offload ordinary block outputs into refs the
+ * terminal cannot display — the SSE stream carries the compacted event, and a
+ * ref renders only as a preview. Instead the tight ceiling engages only once a
+ * run has actually buffered its way into the danger zone, so a short run keeps
+ * full-fidelity output and a runaway one stops accumulating.
+ */
+const EXECUTION_EVENT_OFFLOAD_PRESSURE_BYTES = getExecutionRedisBudgetLimits().maxExecutionBytes / 2
+const EXECUTION_EVENT_PRESSURE_VALUE_BYTES =
+  getExecutionRedisBudgetLimits().maxExecutionBytes / EVENT_LIMIT
 const ACTIVE_META_ATTEMPTS = 3
 const FINALIZE_FLUSH_ATTEMPTS = 2
 const FLUSH_EVENTS_SCRIPT = `
@@ -282,6 +297,8 @@ export interface ExecutionEventWriter {
 export interface ExecutionEventWriterContext extends LargeValueStoreContext {
   requireDurablePayloads?: boolean
   preserveUserFileBase64?: boolean
+  /** Offload ceiling for individual values; defaults to the shared large-value cap. */
+  valueThresholdBytes?: number
 }
 
 async function compactEventForBuffer(
@@ -297,6 +314,7 @@ async function compactEventForBuffer(
     executionId: context.executionId ?? event.executionId,
     requireDurable: context.requireDurablePayloads,
     preserveRoot: true,
+    thresholdBytes: context.valueThresholdBytes,
   }
 
   let compactedData = await compactExecutionPayload(event.data, {
@@ -746,6 +764,27 @@ export function createExecutionEventWriter(
   let maxReservedId = 0
   let flushTimer: ReturnType<typeof setTimeout> | null = null
   let consecutiveFlushFailures = 0
+  /**
+   * Bytes this execution has produced, counted as each event is compacted
+   * rather than once a flush succeeds. A burst can be compacted long before the
+   * scheduled flush runs, so flush-time accounting would let the very batch that
+   * exhausts the budget through at the loose ceiling. Counted gross of
+   * ring-buffer pruning too, so the mark is reached early — erring toward
+   * offloading sooner is the safe direction.
+   */
+  let bufferedBytes = 0
+
+  /**
+   * Preserved base64 is an explicit request for inline delivery and is already
+   * bounded by its own cap and the strip-and-recompact fallback, so pressure
+   * never rewrites it into a ref the caller cannot read.
+   */
+  const getValueThresholdBytes = () => {
+    if (context.preserveUserFileBase64) return undefined
+    return bufferedBytes >= EXECUTION_EVENT_OFFLOAD_PRESSURE_BYTES
+      ? EXECUTION_EVENT_PRESSURE_VALUE_BYTES
+      : undefined
+  }
 
   const getFlushDelayMs = () => {
     if (consecutiveFlushFailures === 0) return FLUSH_INTERVAL_MS
@@ -983,17 +1022,39 @@ export function createExecutionEventWriter(
     }
   }
 
+  /**
+   * Compact an event for the buffer, degrading if pressure offloading fails.
+   *
+   * Offloading under pressure is an optimization: it keeps a heavy run from
+   * exhausting its budget. When durable storage rejects the write, losing the
+   * event from replay entirely is a worse outcome than carrying it inline, so
+   * fall back to the shared cap — exactly what the run would have done before
+   * pressure engaged.
+   */
+  const compactForBuffer = async (event: ExecutionEvent) => {
+    const valueThresholdBytes = getValueThresholdBytes()
+    const options = { ...context, executionId, requireDurablePayloads: true }
+    if (valueThresholdBytes === undefined) return compactEventForBuffer(event, options)
+    try {
+      return await compactEventForBuffer(event, { ...options, valueThresholdBytes })
+    } catch (error) {
+      logger.warn('Pressure offload failed; buffering the event inline instead', {
+        executionId,
+        eventType: event.type,
+        error: toError(error).message,
+      })
+      return compactEventForBuffer(event, options)
+    }
+  }
+
   const writeCore = async (event: ExecutionEvent): Promise<ExecutionEventEntry> => {
     if (nextEventId === 0 || nextEventId > maxReservedId) {
       await reserveIds(1)
     }
     const eventId = nextEventId++
-    const compactEvent = await compactEventForBuffer(event, {
-      ...context,
-      executionId,
-      requireDurablePayloads: true,
-    })
+    const compactEvent = await compactForBuffer(event)
     const entry: ExecutionEventEntry = { eventId, executionId, event: compactEvent }
+    bufferedBytes += getJsonSize(entry) ?? 0
     pending.push(entry)
     if (pending.length >= FLUSH_MAX_BATCH) {
       await flushPending()
@@ -1034,12 +1095,9 @@ export function createExecutionEventWriter(
         await reserveIds(1)
       }
       const eventId = nextEventId++
-      const compactEvent = await compactEventForBuffer(event, {
-        ...context,
-        executionId,
-        requireDurablePayloads: true,
-      })
+      const compactEvent = await compactForBuffer(event)
       const entry: ExecutionEventEntry = { eventId, executionId, event: compactEvent }
+      bufferedBytes += getJsonSize(entry) ?? 0
       pending.push(entry)
       let ok = false
       try {
@@ -1051,10 +1109,26 @@ export function createExecutionEventWriter(
           // alone rather than losing the run's final status with them. Gated on a
           // budget rejection specifically: a transient Redis error leaves the batch
           // queued for retry, and clearing it here would turn that into data loss.
-          const remaining = pending.filter((pendingEntry) => pendingEntry !== entry)
-          pending = [entry]
-          ok = await flushPending(false)
-          pending = pending.concat(remaining)
+          const terminalStatus = pendingTerminalStatus
+          pending = pending.filter((pendingEntry) => pendingEntry !== entry)
+          if (pending.length > 0) {
+            // Drain what is queued ahead of the terminal event first, with the
+            // status disarmed: `doFlush` stamps it on whichever chunk empties
+            // `pending`, so leaving it armed would mark the run complete before
+            // its terminal event is written. Whatever this cannot persist stays
+            // queued — it must not be overwritten.
+            pendingTerminalStatus = undefined
+            await flushPending(false)
+            pendingTerminalStatus = terminalStatus
+          }
+          if (pending.length === 0) {
+            // Only publish alone once nothing earlier is still queued. Doing so
+            // over a surviving backlog would signal end-of-run to a reader that
+            // has not received those events; failing instead lets the caller
+            // degrade, which records the status without claiming they arrived.
+            pending = [entry]
+            ok = await flushPending(false)
+          }
         }
       } catch (error) {
         discardTerminalEntry(entry)
