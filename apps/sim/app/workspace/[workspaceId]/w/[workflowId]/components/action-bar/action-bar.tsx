@@ -8,7 +8,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
   Duplicate,
-  Loader,
   PlayOutline,
   Tooltip,
   Trash,
@@ -48,9 +47,23 @@ type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete' |
 
 function RunningActionIcon() {
   return (
-    <span className='relative grid size-[14px] place-items-center' aria-hidden='true'>
-      <span className='col-start-1 row-start-1 opacity-100 transition-opacity duration-100 group-hover/run:opacity-0 group-focus-visible/run:opacity-0 motion-reduce:transition-none'>
-        <Loader animate className='size-[14px]' />
+    <span
+      className='relative grid size-[14px] translate-x-[8px] translate-y-px place-items-center'
+      aria-hidden='true'
+    >
+      <span className='col-start-1 row-start-1 opacity-100 transition-opacity duration-100 group-hover/run:opacity-0 group-focus-visible/run:opacity-0 motion-safe:animate-spin motion-reduce:transition-none'>
+        <svg className='size-[14px]' viewBox='0 0 24 24' fill='none'>
+          <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='2' opacity='0.25' />
+          <circle
+            cx='12'
+            cy='12'
+            r='10'
+            stroke='currentColor'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeDasharray='18 45'
+          />
+        </svg>
       </span>
       <span className='col-start-1 row-start-1 opacity-0 transition-opacity duration-100 group-hover/run:opacity-100 group-focus-visible/run:opacity-100 motion-reduce:transition-none'>
         <Square className='size-[11px] fill-current' strokeWidth={0} />
