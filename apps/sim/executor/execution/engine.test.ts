@@ -427,6 +427,52 @@ describe('ExecutionEngine', () => {
       )
     })
 
+    /**
+     * The compaction pass is what keeps an oversized loop from failing the pause
+     * outright. Asserting it from the engine keeps the wiring defended: without
+     * this, removing the call leaves every serializer test still green.
+     */
+    it('compacts oversized loop state before building the paused result', async () => {
+      const node = createMockNode('hitl', 'function')
+      const dag = createMockDAG([node])
+      const payload = 'x'.repeat(300_000)
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        loopExecutions: new Map([
+          [
+            'loop-1',
+            {
+              iteration: 1,
+              currentIterationOutputs: new Map(),
+              allIterationOutputs: Array.from({ length: 40 }, () => [{ payload }]),
+            },
+          ],
+        ]),
+      } as Partial<ExecutionContext>)
+      const edgeManager = createMockEdgeManager()
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: 'hitl',
+        output: {
+          response: { status: 'paused' },
+          _pauseMetadata: {
+            contextId: 'pause-1',
+            blockId: 'hitl',
+            response: { status: 'paused' },
+            timestamp: new Date().toISOString(),
+            pauseKind: 'hitl',
+          },
+        },
+        isFinalOutput: false,
+      })
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('hitl')
+
+      expect(result.status).toBe('paused')
+      expect(result.snapshotSeed?.snapshot).toBeTruthy()
+    })
+
     it('does not stop run-until execution on parallel batch continuation', async () => {
       const parallelEnd = createMockNode('parallel-end', 'parallel')
       const nextNode = createMockNode('next', 'function')

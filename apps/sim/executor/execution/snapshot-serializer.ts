@@ -1,6 +1,6 @@
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
-import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
+import { compactExecutionPayload, compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -185,23 +185,59 @@ function serializeParallelExecutions(
 }
 
 /**
- * Offload accumulated loop iteration outputs so a pause snapshot stays compact.
+ * Per-value offload ceiling applied once the subflow state is already oversized.
  *
- * A loop compacts `allIterationOutputs` when it exits, but a pause is by
- * definition mid-flight and never reaches that point — so the running total
- * arrives at the serializer uncompacted and trips its size assertion, failing
- * the pause outright. The approval notification has already gone out by then,
- * leaving the approver holding a link to a paused execution that was never
- * recorded.
+ * Deliberately far below the snapshot's own limit. The assertion measures the
+ * *combined* record, so scopes that are each individually under it still fail
+ * together — compacting at the snapshot ceiling would be a no-op in exactly the
+ * case that needs it. Only reached when the state is already too large, so the
+ * fidelity cost lands on runs that would otherwise fail outright.
+ */
+const PAUSE_SNAPSHOT_COMPACT_VALUE_BYTES = 64 * 1024
+
+/**
+ * Whether the serialized subflow state is already past what the snapshot allows.
  *
- * Mirrors the loop-exit pass: entries move to large-value storage and the
- * snapshot keeps refs. The keys they register are picked up by the snapshot's
- * `trustedLargeValueAccess`, so the resumed run can still read them.
+ * Measured on the serialized shape because that is what the assertions read,
+ * and bounded so an oversized structure short-circuits instead of being walked
+ * in full.
+ */
+function isSubflowStateOversized(loops?: Map<string, any>, parallels?: Map<string, any>): boolean {
+  const limit = LARGE_VALUE_THRESHOLD_BYTES
+  const loopBytes = getBoundedJsonByteLength(serializeLoopExecutions(loops), limit)
+  if (loopBytes !== undefined && loopBytes > limit) return true
+  const parallelBytes = getBoundedJsonByteLength(serializeParallelExecutions(parallels), limit)
+  return parallelBytes !== undefined && parallelBytes > limit
+}
+
+/**
+ * Offload accumulated subflow state so a pause snapshot stays under the size
+ * assertions below.
+ *
+ * A loop or parallel compacts its accumulated outputs when it *exits*, but a
+ * pause is by definition mid-flight and never reaches that point. The running
+ * total therefore arrives here uncompacted and trips the assertion, which
+ * throws rather than degrades — turning the pause into a failed run, so no
+ * paused-execution row is ever written. The approval notification has already
+ * gone out by then, leaving the approver holding a link to something that was
+ * never recorded.
+ *
+ * Every field that grows without an aggregate bound is covered: a loop's
+ * iteration outputs, its in-flight iteration outputs and its `forEach`
+ * collection, and the parallel equivalents. Compacting only one of them would
+ * leave the same failure reachable by a different route.
+ *
+ * Skipped entirely when the state already serializes small enough, so the
+ * common case — a pause per iteration inside a modest loop — pays one bounded
+ * measurement rather than a full structural rebuild each time.
  */
 export async function compactPauseSnapshotScopes(context: ExecutionContext): Promise<void> {
-  if (!context.loopExecutions?.size) return
+  const loops = context.loopExecutions
+  const parallels = context.parallelExecutions
+  if (!loops?.size && !parallels?.size) return
+  if (!isSubflowStateOversized(loops, parallels)) return
 
-  const options = {
+  const buildOptions = () => ({
     workspaceId: context.workspaceId,
     workflowId: context.workflowId,
     executionId: context.executionId,
@@ -210,14 +246,49 @@ export async function compactPauseSnapshotScopes(context: ExecutionContext): Pro
     allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
     userId: context.userId,
     requireDurable: true,
+    thresholdBytes: PAUSE_SNAPSHOT_COMPACT_VALUE_BYTES,
+  })
+
+  const compactList = async <T>(values: T[]): Promise<T[]> =>
+    compactSubflowResults(values, buildOptions())
+
+  const compactMapValues = async (map: Map<unknown, unknown[]>): Promise<void> => {
+    for (const [key, value] of map) {
+      if (Array.isArray(value) && value.length > 0) {
+        map.set(key, await compactList(value))
+      }
+    }
   }
 
-  for (const scope of context.loopExecutions.values()) {
-    if (!scope.allIterationOutputs?.length) continue
-    scope.allIterationOutputs = await compactSubflowResults(scope.allIterationOutputs, options)
-    // Authorize the refs this pass just minted. Reads are gated on the context's
-    // key list, so a resumed run cannot materialize them otherwise.
-    recordMaterializedAccessKeys(context, scope.allIterationOutputs)
+  for (const scope of loops?.values() ?? []) {
+    if (scope.allIterationOutputs?.length) {
+      scope.allIterationOutputs = await compactList(scope.allIterationOutputs)
+    }
+    if (scope.items?.length) {
+      scope.items = await compactList(scope.items)
+    }
+    if (scope.currentIterationOutputs instanceof Map && scope.currentIterationOutputs.size > 0) {
+      for (const [blockId, output] of scope.currentIterationOutputs) {
+        scope.currentIterationOutputs.set(
+          blockId,
+          await compactExecutionPayload(output, { ...buildOptions(), preserveRoot: false })
+        )
+      }
+    }
+    recordMaterializedAccessKeys(context, scope)
+  }
+
+  for (const scope of parallels?.values() ?? []) {
+    if (scope.items?.length) {
+      scope.items = await compactList(scope.items)
+    }
+    if (scope.branchOutputs instanceof Map) {
+      await compactMapValues(scope.branchOutputs)
+    }
+    if (scope.accumulatedOutputs instanceof Map) {
+      await compactMapValues(scope.accumulatedOutputs)
+    }
+    recordMaterializedAccessKeys(context, scope)
   }
 }
 
@@ -280,6 +351,7 @@ export function serializePauseSnapshot(
 
   assertSnapshotValueIsCompact(context.workflowVariables, 'workflow variables')
   assertSnapshotValueIsCompact(state.loopExecutions, 'loop execution state')
+  assertSnapshotValueIsCompact(state.parallelExecutions, 'parallel execution state')
 
   const workspaceId = metadataFromContext?.workspaceId ?? context.workspaceId
   if (!workspaceId) {

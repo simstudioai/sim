@@ -495,12 +495,12 @@ export class ExecutionEngine {
   }
 
   private async buildPausedResult(startTime: number): Promise<ExecutionResult> {
-    const endTime = performance.now()
-    this.context.metadata.endTime = new Date().toISOString()
-    this.context.metadata.duration = endTime - startTime
     this.context.metadata.status = 'paused'
 
     await compactPauseSnapshotScopes(this.context)
+    const endTime = performance.now()
+    this.context.metadata.endTime = new Date().toISOString()
+    this.context.metadata.duration = endTime - startTime
     const snapshotSeed = serializePauseSnapshot(this.context, [], this.dag, this.edgeManager)
     const pausePoints: PausePoint[] = Array.from(this.pausedBlocks.values()).map((pause) => ({
       contextId: pause.contextId,

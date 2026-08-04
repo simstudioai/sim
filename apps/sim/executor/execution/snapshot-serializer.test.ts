@@ -261,69 +261,132 @@ describe('serializePauseSnapshot', () => {
 })
 
 describe('compactPauseSnapshotScopes', () => {
-  function createLoopContext(iterations: number, bytesPerIteration: number): ExecutionContext {
-    const payload = 'x'.repeat(bytesPerIteration)
+  const dag = { nodes: new Map<string, DAGNode>() } as unknown as DAG
+  const edgeManager = new EdgeManager(dag)
+
+  function fatIterations(count: number, bytes: number): any[][] {
+    const payload = 'x'.repeat(bytes)
+    // Real shape is an array per iteration, which routes oversized entries
+    // through the chunked-manifest path rather than a single ref.
+    return Array.from({ length: count }, () => [{ payload }])
+  }
+
+  function loopContext(overrides: Record<string, unknown>): ExecutionContext {
     return createContext({
       loopExecutions: new Map([
         [
           'loop-1',
           {
-            loopId: 'loop-1',
-            iteration: iterations,
-            maxIterations: iterations,
+            iteration: 1,
+            loopType: 'forEach',
             currentIterationOutputs: new Map(),
-            // Each entry is well under the per-value cap; only the running total is oversized,
-            // which is exactly what per-iteration compaction cannot catch.
-            allIterationOutputs: Array.from({ length: iterations }, () => ({ payload })),
+            allIterationOutputs: [],
+            ...overrides,
           },
         ],
       ]),
     } as Partial<ExecutionContext>)
   }
 
-  /**
-   * A loop compacts its accumulated outputs when it exits, but a pause is
-   * mid-flight and never gets there — so without this pass the running total
-   * trips the serializer's size assertion and the pause fails outright.
-   */
+  const serialize = (context: ExecutionContext) =>
+    serializePauseSnapshot(context, [], dag, edgeManager)
+
   it('lets a pause inside a long-running loop serialize', async () => {
-    const context = createLoopContext(40, 300_000)
-    const dag = { nodes: new Map<string, DAGNode>() } as unknown as DAG
-    const edgeManager = new EdgeManager(dag)
+    const context = loopContext({ allIterationOutputs: fatIterations(40, 300_000) })
 
-    expect(() => serializePauseSnapshot(context, [], dag, edgeManager)).toThrow(
-      'oversized loop execution state'
-    )
-
+    expect(() => serialize(context)).toThrow('oversized loop execution state')
     await compactPauseSnapshotScopes(context)
-
-    const seed = serializePauseSnapshot(context, [], dag, edgeManager)
-    expect(seed.snapshot).toBeTruthy()
+    expect(serialize(context).snapshot).toBeTruthy()
   })
 
-  /**
-   * The refs are only usable if the resumed run is authorized to read them, so
-   * the keys compaction registers must reach the snapshot's trusted-access list.
-   */
+  /** A forEach collection is the most common way a loop's state gets large. */
+  it('compacts the forEach collection, not just the iteration outputs', async () => {
+    const context = loopContext({ items: fatIterations(40, 300_000) })
+
+    expect(() => serialize(context)).toThrow('oversized loop execution state')
+    await compactPauseSnapshotScopes(context)
+    expect(serialize(context).snapshot).toBeTruthy()
+  })
+
+  /** A single fat mid-flight block output reaches the limit on its own. */
+  it('compacts in-flight iteration outputs', async () => {
+    const context = loopContext({
+      currentIterationOutputs: new Map([['block-1', { payload: 'x'.repeat(9_000_000) }]]),
+    })
+
+    expect(() => serialize(context)).toThrow('oversized loop execution state')
+    await compactPauseSnapshotScopes(context)
+    expect(serialize(context).snapshot).toBeTruthy()
+  })
+
+  /** The assertion is on the whole record, so per-scope headroom is not enough. */
+  it('compacts across multiple loops whose combined state is oversized', async () => {
+    const context = createContext({
+      loopExecutions: new Map([
+        [
+          'loop-1',
+          {
+            iteration: 1,
+            currentIterationOutputs: new Map(),
+            allIterationOutputs: fatIterations(15, 300_000),
+          },
+        ],
+        [
+          'loop-2',
+          {
+            iteration: 1,
+            currentIterationOutputs: new Map(),
+            allIterationOutputs: fatIterations(15, 300_000),
+          },
+        ],
+      ]),
+    } as Partial<ExecutionContext>)
+
+    expect(() => serialize(context)).toThrow('oversized loop execution state')
+    await compactPauseSnapshotScopes(context)
+    expect(serialize(context).snapshot).toBeTruthy()
+  })
+
+  /** Parallels accumulate the same way and were previously not even asserted. */
+  it('compacts accumulated parallel branch outputs', async () => {
+    const context = createContext({
+      parallelExecutions: new Map([
+        [
+          'parallel-1',
+          {
+            parallelId: 'parallel-1',
+            totalBranches: 40,
+            branchOutputs: new Map([[0, fatIterations(40, 300_000).flat()]]),
+            accumulatedOutputs: new Map(),
+          },
+        ],
+      ]),
+    } as Partial<ExecutionContext>)
+
+    expect(() => serialize(context)).toThrow('oversized parallel execution state')
+    await compactPauseSnapshotScopes(context)
+    expect(serialize(context).snapshot).toBeTruthy()
+  })
+
+  /** Refs are unusable unless the resumed run is authorized to read them. */
   it('authorizes the offloaded values for the resumed run', async () => {
-    const context = createLoopContext(40, 300_000)
-    const dag = { nodes: new Map<string, DAGNode>() } as unknown as DAG
-    const edgeManager = new EdgeManager(dag)
+    const context = loopContext({ allIterationOutputs: fatIterations(40, 300_000) })
 
     await compactPauseSnapshotScopes(context)
-    const parsed = JSON.parse(serializePauseSnapshot(context, [], dag, edgeManager).snapshot) as {
+    const parsed = JSON.parse(serialize(context).snapshot) as {
       state?: { trustedLargeValueAccess?: { largeValueKeys?: string[] } }
     }
 
     expect(parsed.state?.trustedLargeValueAccess?.largeValueKeys?.length ?? 0).toBeGreaterThan(0)
   })
 
-  it('leaves a loop whose accumulated output already fits untouched', async () => {
-    const context = createLoopContext(2, 100)
-    const before = structuredClone(context.loopExecutions?.get('loop-1')?.allIterationOutputs)
+  /** Compaction is a structural rebuild, so a modest loop must not pay for it. */
+  it('skips the rebuild entirely when the state already fits', async () => {
+    const context = loopContext({ allIterationOutputs: fatIterations(2, 100) })
+    const before = context.loopExecutions?.get('loop-1')?.allIterationOutputs
 
     await compactPauseSnapshotScopes(context)
 
-    expect(context.loopExecutions?.get('loop-1')?.allIterationOutputs).toEqual(before)
+    expect(context.loopExecutions?.get('loop-1')?.allIterationOutputs).toBe(before)
   })
 })
