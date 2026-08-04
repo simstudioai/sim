@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { SetupError } from './errors.ts'
 import { waitFor } from './probes.ts'
 import * as p from './prompter.ts'
@@ -9,6 +10,10 @@ const INSTALL_HINTS = [
   `or OrbStack (lighter on macOS): ${theme.command('brew install orbstack')}`,
 ]
 
+/** macOS GUI docker providers we know how to launch via `open -a`. */
+const ORBSTACK_APP = { name: 'OrbStack', path: '/Applications/OrbStack.app' } as const
+const DOCKER_DESKTOP_APP = { name: 'Docker', path: '/Applications/Docker.app' } as const
+
 function daemonUp(): boolean {
   return spawnSync('docker', ['info'], { stdio: 'ignore' }).status === 0
 }
@@ -17,6 +22,24 @@ function installed(): boolean {
   // Bun.which resolves PATH cross-platform (incl. PATHEXT on Windows); `which`
   // is not a standard Windows command.
   return Bun.which('docker') !== null
+}
+
+function currentDockerContext(): string | null {
+  const result = spawnSync('docker', ['context', 'show'], { encoding: 'utf8' })
+  return result.status === 0 ? result.stdout.trim() : null
+}
+
+/**
+ * Which GUI app owns the `docker` CLI on this Mac. Docker Desktop and OrbStack
+ * both install a `docker` binary, so presence of the CLI alone doesn't tell us
+ * which app to relaunch. Prefer the docker CLI's own active context — it's
+ * accurate regardless of where the app bundle lives — and fall back to
+ * checking the well-known `.app` install paths when the context doesn't say.
+ */
+function macDockerApp(): typeof ORBSTACK_APP | typeof DOCKER_DESKTOP_APP {
+  if (currentDockerContext() === 'orbstack') return ORBSTACK_APP
+  if (existsSync(ORBSTACK_APP.path)) return ORBSTACK_APP
+  return DOCKER_DESKTOP_APP
 }
 
 /**
@@ -41,27 +64,31 @@ export async function ensureDocker(required: boolean): Promise<boolean> {
     return false
   }
 
+  const app = macDockerApp()
+
   const launch = await p.confirm({
-    message: 'Docker is installed but not running — start Docker Desktop now?',
+    message: `Docker is installed but not running — start ${app.name} now?`,
     initialValue: true,
   })
   if (!launch) {
     if (required) {
       throw new SetupError('Docker is required for this mode.', [
-        'start Docker Desktop, then re-run the wizard',
+        `start ${app.name}, then re-run the wizard`,
       ])
     }
     return false
   }
 
-  spawnSync('open', ['-a', 'Docker'], { stdio: 'ignore' })
+  spawnSync('open', ['-a', app.name], { stdio: 'ignore' })
   const spin = p.spinner()
-  spin.start('Waiting for the Docker daemon…')
+  spin.start(`Waiting for the Docker daemon (${app.name})…`)
   const up = await waitFor(async () => daemonUp(), 90_000, 2000)
   spin.stop(up ? 'Docker is running' : `${glyph.fail} daemon did not come up`)
   if (!up) {
-    throw new SetupError('Docker Desktop did not start within 90s.', [
-      'first-ever launch needs a GUI license acceptance — open Docker Desktop manually once, then re-run',
+    throw new SetupError(`${app.name} did not start within 90s.`, [
+      app === ORBSTACK_APP
+        ? 'open OrbStack manually once to finish its first-run setup, then re-run'
+        : 'first-ever launch needs a GUI license acceptance — open Docker Desktop manually once, then re-run',
     ])
   }
   return true
