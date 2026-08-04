@@ -73,7 +73,7 @@ const REGISTERED_AGENT_IDS = new Set([
   ...Object.values(TOOL_CATALOG).flatMap(({ subagentId }) => (subagentId ? [subagentId] : [])),
 ])
 
-function cappedAgentId(agentId: string): string {
+export function normalizeToolAgentId(agentId: string): string {
   return REGISTERED_AGENT_IDS.has(agentId) ? agentId : 'other'
 }
 
@@ -91,7 +91,7 @@ export function recordSimToolMetric(
     [TraceAttr.ToolName]: cappedToolName(name),
     [TraceAttr.ToolExecutor]: 'sim',
     [TraceAttr.ToolOutcome]: outcome,
-    [TraceAttr.GenAiAgentName]: cappedAgentId(agentId),
+    [TraceAttr.GenAiAgentName]: normalizeToolAgentId(agentId),
   }
   toolCalls.add(1, attrs)
   if (durationMs >= 0) toolDuration.record(durationMs, attrs)

@@ -21,7 +21,7 @@ vi.mock('@opentelemetry/api', () => ({
 }))
 
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { recordSimToolMetric } from '@/lib/copilot/request/metrics'
+import { normalizeToolAgentId, recordSimToolMetric } from '@/lib/copilot/request/metrics'
 
 describe('recordSimToolMetric', () => {
   beforeEach(() => {
@@ -65,5 +65,14 @@ describe('recordSimToolMetric', () => {
       ...baseAttributes,
       [TraceAttr.GenAiAgentName]: 'other',
     })
+  })
+
+  it.each([
+    { agentId: 'main', expected: 'main' },
+    { agentId: 'workflow', expected: 'workflow' },
+    { agentId: 'tenant-defined-agent', expected: 'other' },
+    { agentId: '', expected: 'other' },
+  ])('normalizes $agentId to $expected for every telemetry signal', ({ agentId, expected }) => {
+    expect(normalizeToolAgentId(agentId)).toBe(expected)
   })
 })
