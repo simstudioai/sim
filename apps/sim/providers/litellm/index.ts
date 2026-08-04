@@ -27,6 +27,7 @@ import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   enforceStrictSchema,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -267,8 +268,11 @@ export const litellmProvider: ProviderConfig = {
         response: any,
         toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
       ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-          const toolCallsResponse = response.choices[0].message.tool_calls
+        const toolCallsResponse =
+          typeof toolChoice === 'object'
+            ? response.choices?.[0]?.message?.tool_calls?.filter(isFunctionToolCall)
+            : undefined
+        if (toolCallsResponse?.length) {
           const result = trackForcedToolUsage(
             toolCallsResponse,
             toolChoice,
@@ -329,7 +333,8 @@ export const litellmProvider: ProviderConfig = {
           }
         }
 
-        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+        const toolCallsInResponse =
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
@@ -533,7 +538,7 @@ export const litellmProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'litellm' }
         )
       }
@@ -582,12 +587,12 @@ export const litellmProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'litellm' }
         )
       } else if (
         iterationCount === MAX_TOOL_ITERATIONS &&
-        currentResponse.choices[0]?.message?.tool_calls?.length
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)?.length
       ) {
         /**
          * The capped turn still requests tools, so make one tool-disabled call
@@ -623,7 +628,7 @@ export const litellmProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           synthesisResponse,
-          synthesisResponse.choices[0]?.message?.tool_calls,
+          synthesisResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'litellm' }
         )
       }

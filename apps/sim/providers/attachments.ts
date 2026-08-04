@@ -15,6 +15,7 @@ import type { UserFile } from '@/executor/types'
 import {
   getProviderFileAttachment,
   INLINE_ATTACHMENT_MAX_BYTES,
+  LARGE_FILE_PATH_THRESHOLD_BYTES,
   type ProviderFileAttachmentStrategy,
 } from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
@@ -75,12 +76,11 @@ type ProviderFormattedMessage = {
   [key: string]: unknown
 }
 
-/**
- * Files at or below this size are inlined as base64, exactly as before. Larger files take
- * the provider's large-file path. Keeping the threshold at the legacy 10 MB cap guarantees
- * identical behaviour for existing attachments.
- */
+/** Largest file that can be carried as inline base64 when no upload path is available. */
 export const INLINE_ATTACHMENT_THRESHOLD_BYTES = INLINE_ATTACHMENT_MAX_BYTES
+
+/** Re-exported so callers choosing a hydration cap do not reach into `models.ts` directly. */
+export { LARGE_FILE_PATH_THRESHOLD_BYTES }
 
 export type ProviderFileStrategy = ProviderFileAttachmentStrategy
 
@@ -90,9 +90,17 @@ export function getProviderFileStrategy(providerId: ProviderId | string): Provid
 }
 
 /**
- * True when an oversized file has a safe provider path. Remote URLs point at the
- * primary storage object, so source-backed documents can only use artifact-aware
- * Files API uploads.
+ * True when a file should be delivered through the provider's large-file path rather than as
+ * inline base64.
+ *
+ * The two strategies cross over at different sizes on purpose. `files-api` carries every type
+ * this provider already accepts, so it takes over as soon as base64 stops being cacheable. A
+ * `remote-url` provider only fetches images and PDFs, so switching early would start rejecting
+ * text documents that inline fine today; it therefore only takes over once inlining is no longer
+ * possible at all.
+ *
+ * Remote URLs point at the primary storage object, so source-backed generated documents can only
+ * use artifact-aware Files API uploads.
  */
 export function shouldUseLargeFilePath(
   file: Pick<UserFile, 'size' | 'type'>,
@@ -101,7 +109,16 @@ export function shouldUseLargeFilePath(
   const strategy = getProviderFileAttachment(providerId).strategy
   if (strategy === 'inline') return false
   if (strategy === 'remote-url' && isGeneratedDocumentSourceType(file.type)) return false
-  return Number.isFinite(file.size) && file.size > INLINE_ATTACHMENT_THRESHOLD_BYTES
+  const threshold =
+    strategy === 'files-api' ? LARGE_FILE_PATH_THRESHOLD_BYTES : INLINE_ATTACHMENT_THRESHOLD_BYTES
+  /**
+   * A file whose declared size is missing or zero cannot be routed by size. `files-api` uploads
+   * read the real bytes from storage and enforce the ceiling there, so routing one is always
+   * safe — and refusing to would strand it with neither base64 (hydration bails on the real
+   * length) nor a handle.
+   */
+  if (!Number.isFinite(file.size) || file.size <= 0) return strategy === 'files-api'
+  return file.size > threshold
 }
 
 const PDF_MIME_TYPE = 'application/pdf'
@@ -195,11 +212,42 @@ export function supportsFileAttachments(providerId: ProviderId | string): boolea
 
 /**
  * Real maximum attachment size for a provider — its native ceiling when it has a large-file
- * path, else the inline base64 threshold. Used for UI limits and validation, never as the
- * base64 hydration cap (which stays at {@link INLINE_ATTACHMENT_THRESHOLD_BYTES}).
+ * path, else the inline base64 threshold. Used for UI limits and validation. It is not the
+ * base64 hydration cap: that is chosen per request, because it depends on whether an upload
+ * path is actually reachable — see the agent handler's `inlineMaxBytes`.
  */
 export function getProviderAttachmentMaxBytes(providerId: ProviderId | string): number {
   return getProviderFileAttachment(providerId).maxBytes
+}
+
+const MEBIBYTE = 1024 * 1024
+
+/**
+ * Renders a size and the ceiling it violated, both in one unit derived from the ceiling.
+ *
+ * Ceilings are authored in whichever unit the vendor publishes — decimal MB for OpenAI, binary
+ * MiB for everyone else — so a single fixed divisor is wrong for one group or the other: 1024²
+ * reports OpenAI's 50 MB as "48MB", and 10⁶ reports Anthropic's 50 MiB as "52MB". Either way the
+ * user is told a limit that does not exist. Taking the unit from the ceiling keeps the number
+ * they see equal to the number the vendor documents, and keeps both figures in the same sentence
+ * directly comparable.
+ */
+export function formatAttachmentSizes(
+  bytes: number,
+  limitBytes: number
+): { size: string; limit: string } {
+  const divisor = limitBytes % MEBIBYTE === 0 ? MEBIBYTE : 1_000_000
+  /**
+   * The size rounds up and the ceiling rounds down, so an over-limit file can never render as
+   * the same number as the limit it broke. Rounding both to the nearest hundredth instead let a
+   * file one byte over a 20 MiB cap print as "20.00MB exceeds the 20MB limit" — a sentence that
+   * tells the user to shrink to a size they are already under.
+   */
+  const render = (value: number, round: (n: number) => number) => {
+    const scaled = round((value / divisor) * 100) / 100
+    return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2)
+  }
+  return { size: render(bytes, Math.ceil), limit: render(limitBytes, Math.floor) }
 }
 
 export function inferAttachmentMimeType(file: UserFile): string {
@@ -389,8 +437,7 @@ export function prepareProviderAttachments(
 
     const maxBytes = getProviderAttachmentMaxBytes(providerId)
     if (Number.isFinite(file.size) && file.size > maxBytes) {
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
-      const maxMB = (maxBytes / (1024 * 1024)).toFixed(0)
+      const { size: sizeMB, limit: maxMB } = formatAttachmentSizes(file.size, maxBytes)
       throw new Error(
         `File "${file.name}" (${sizeMB}MB) exceeds the ${maxMB}MB agent attachment limit for provider "${providerId}"`
       )
