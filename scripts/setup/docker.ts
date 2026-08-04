@@ -24,29 +24,34 @@ function installed(): boolean {
   return Bun.which('docker') !== null
 }
 
-function currentDockerContext(): string | null {
+/**
+ * Whether the docker CLI is currently pointed at OrbStack. `DOCKER_HOST` wins
+ * over the active context when set, so it is the only signal worth reading in
+ * that case; otherwise the active context is authoritative, since OrbStack
+ * registers and selects a context named `orbstack`.
+ */
+function orbstackSelected(): boolean {
+  const host = process.env.DOCKER_HOST
+  if (host) return host.includes('.orbstack/')
   const result = spawnSync('docker', ['context', 'show'], { encoding: 'utf8' })
-  return result.status === 0 ? result.stdout.trim() : null
+  return result.status === 0 && result.stdout.trim() === 'orbstack'
 }
 
 /**
- * Which GUI app owns the `docker` CLI on this Mac. Docker Desktop and OrbStack
- * both install a `docker` binary, so presence of the CLI alone doesn't tell us
- * which app to relaunch. Prefer the docker CLI's own active context — it's
- * accurate regardless of where the app bundle lives, and authoritative when
- * both apps are installed but only one is the active context. Only fall back
- * to checking the well-known `.app` install path when the context command
- * gives no answer at all.
+ * Which GUI app owns the `docker` CLI on this Mac. Both apps install a `docker`
+ * binary, so CLI presence alone doesn't say which one to launch. An explicit
+ * OrbStack selection wins; otherwise prefer whichever app is actually
+ * installed, which also covers CLIs too old for `docker context show`.
  */
 function macDockerApp(): typeof ORBSTACK_APP | typeof DOCKER_DESKTOP_APP {
-  const context = currentDockerContext()
-  if (context !== null) return context === 'orbstack' ? ORBSTACK_APP : DOCKER_DESKTOP_APP
+  if (orbstackSelected()) return ORBSTACK_APP
+  if (existsSync(DOCKER_DESKTOP_APP.path)) return DOCKER_DESKTOP_APP
   return existsSync(ORBSTACK_APP.path) ? ORBSTACK_APP : DOCKER_DESKTOP_APP
 }
 
 /**
- * Returns whether the Docker daemon is available, offering to launch Docker
- * Desktop (macOS) when it's installed but stopped. Never installs anything.
+ * Returns whether the Docker daemon is available, offering to launch the
+ * installed docker app (macOS) when it's stopped. Never installs anything.
  * With required=true, unavailability is a SetupError instead of false.
  */
 export async function ensureDocker(required: boolean): Promise<boolean> {
