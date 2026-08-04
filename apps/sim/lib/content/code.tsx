@@ -8,11 +8,9 @@ interface CodeBlockProps {
 }
 
 /**
- * Blog code block. Renders through emcn's read-only `Code.Viewer` wearing the exact same
- * `chipFieldSurfaceClass` surface the in-app code editor uses (the custom-tools `CodeEditor`),
- * so a fenced block in a post matches the real editor: same Prism theme, gutter, and font, on
- * the same theme-following surface (`--surface-5`/`--border-1`, rounded-lg) — no forced dark,
- * all from existing design tokens.
+ * Blog code block. Renders through emcn's read-only `Code.Viewer` on the same `chipFieldSurfaceClass`
+ * surface as the in-app custom-tools `CodeEditor`, so a fenced block in a post matches the real editor
+ * (Prism theme, gutter, font) on a theme-following surface rather than a forced-dark one.
  */
 export function CodeBlock({ code, language }: CodeBlockProps) {
   return (
