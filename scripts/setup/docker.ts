@@ -33,13 +33,15 @@ function currentDockerContext(): string | null {
  * Which GUI app owns the `docker` CLI on this Mac. Docker Desktop and OrbStack
  * both install a `docker` binary, so presence of the CLI alone doesn't tell us
  * which app to relaunch. Prefer the docker CLI's own active context — it's
- * accurate regardless of where the app bundle lives — and fall back to
- * checking the well-known `.app` install paths when the context doesn't say.
+ * accurate regardless of where the app bundle lives, and authoritative when
+ * both apps are installed but only one is the active context. Only fall back
+ * to checking the well-known `.app` install path when the context command
+ * gives no answer at all.
  */
 function macDockerApp(): typeof ORBSTACK_APP | typeof DOCKER_DESKTOP_APP {
-  if (currentDockerContext() === 'orbstack') return ORBSTACK_APP
-  if (existsSync(ORBSTACK_APP.path)) return ORBSTACK_APP
-  return DOCKER_DESKTOP_APP
+  const context = currentDockerContext()
+  if (context !== null) return context === 'orbstack' ? ORBSTACK_APP : DOCKER_DESKTOP_APP
+  return existsSync(ORBSTACK_APP.path) ? ORBSTACK_APP : DOCKER_DESKTOP_APP
 }
 
 /**
