@@ -44,6 +44,7 @@ import {
   getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
   getThinkingLevelsForModel as getThinkingLevelsForModelFromDefinitions,
   getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
+  isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
   supportsTemperature as supportsTemperatureFromDefinitions,
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
@@ -1236,6 +1237,30 @@ export function prepareToolsWithUsageControl(
 }
 
 /**
+ * Narrows the SDK's `ChatCompletionMessageToolCall` union to its function variant.
+ *
+ * v5 of the `openai` SDK widened that union with a `custom` tool call carrying no `function`
+ * field, so every `.function` access needs narrowing first. Sim only ever declares function
+ * tools, so a custom call should not arrive.
+ *
+ * Deliberately tests for the `function` payload rather than `type === 'function'`: many
+ * OpenAI-compatible vendors omit `type` on tool calls entirely, and discriminating on it would
+ * silently drop every tool call those providers return. Total by construction, because these
+ * same gateways are the ones that emit a malformed `tool_calls` entry, and this now runs on
+ * every tool-bearing response.
+ */
+export function isFunctionToolCall(
+  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall
+): toolCall is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall {
+  return (
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    toolCall.function != null
+  )
+}
+
+/**
  * Checks if a forced tool has been used in a response and manages the tool_choice accordingly
  *
  * @param toolCallsResponse Array of tool calls in the response
@@ -1379,6 +1404,30 @@ export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageContro
 
 export function supportsTemperature(model: string): boolean {
   return supportsTemperatureFromDefinitions(model)
+}
+
+/**
+ * Levels the pickers offer on top of what a model declares. `auto` means "say nothing" and
+ * `none` means "explicitly off"; provider adapters special-case both, so neither is an
+ * unrecognized level.
+ */
+const MODEL_LEVEL_SENTINELS = new Set(['auto', 'none'])
+
+/**
+ * Renders a tuning level for a log line or an error message.
+ *
+ * The agent block's reasoning effort, verbosity, and thinking level fields accept variable and
+ * environment references, so an unrecognized level is not necessarily a mistyped level — it is
+ * whatever the reference resolved to, up to and including secret content. Only a level the
+ * catalogue declares somewhere is safe to echo; anything else is reported by length alone,
+ * which still distinguishes a stray level from a resolved blob.
+ *
+ * Every site that puts a caller-supplied level into a message must go through this.
+ */
+export function describeModelLevel(value: string | undefined): string {
+  if (!value) return '(unset)'
+  const isSafe = MODEL_LEVEL_SENTINELS.has(value) || isKnownModelLevelValue(value)
+  return isSafe ? value : `[redacted ${value.length} chars]`
 }
 
 export function supportsReasoningEffort(model: string): boolean {
@@ -1562,8 +1611,11 @@ export function checkForForcedToolUsageOpenAI(
   let hasUsedForcedTool = false
   let updatedUsedForcedTools = [...usedForcedTools]
 
-  if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-    const toolCallsResponse = response.choices[0].message.tool_calls
+  const toolCallsResponse =
+    typeof toolChoice === 'object'
+      ? response.choices?.[0]?.message?.tool_calls?.filter(isFunctionToolCall)
+      : undefined
+  if (toolCallsResponse?.length) {
     const result = trackForcedToolUsage(
       toolCallsResponse,
       toolChoice,

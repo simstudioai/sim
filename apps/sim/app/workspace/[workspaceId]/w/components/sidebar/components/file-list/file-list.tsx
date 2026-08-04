@@ -2,7 +2,7 @@
 
 import { memo, useMemo, useState } from 'react'
 import { cn } from '@sim/emcn'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
@@ -92,9 +92,7 @@ const FileTreeNodeItem = memo(function FileTreeNodeItem({
         style={{ paddingLeft: `${8 + level * INDENT_PER_LEVEL + CHEVRON_WIDTH}px` }}
       >
         {FILE_ICON}
-        <span className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>
-          {node.name}
-        </span>
+        <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{node.name}</span>
       </Link>
     )
   }
@@ -132,7 +130,7 @@ const FileTreeNodeItem = memo(function FileTreeNodeItem({
             <path d='M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z' />
           )}
         </svg>
-        <span className='min-w-0 flex-1 truncate text-left font-base text-[var(--text-body)]'>
+        <span className='min-w-0 flex-1 truncate text-left text-[var(--text-body)]'>
           {node.name}
         </span>
       </button>

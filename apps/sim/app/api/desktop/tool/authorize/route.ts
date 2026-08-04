@@ -78,5 +78,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   return NextResponse.json({
     toolName: toolCall.toolName,
     args,
+    chatId: run.chatId,
   })
 })

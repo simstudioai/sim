@@ -25,14 +25,14 @@ export function BubbleChatDelay({ size = 24, width, height, ...props }: IconProp
         stroke='currentColor'
         strokeLinecap='round'
         strokeLinejoin='round'
-        strokeWidth='1.5'
+        strokeWidth='1.55'
       />
       <path
         d='M12 7V12L15 14'
         stroke='currentColor'
         strokeLinecap='round'
         strokeLinejoin='round'
-        strokeWidth='1.5'
+        strokeWidth='1.55'
       />
     </svg>
   )

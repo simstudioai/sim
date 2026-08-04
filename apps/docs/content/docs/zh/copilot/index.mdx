@@ -5,7 +5,7 @@ title: Copilot
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Image } from '@/components/ui/image'
-import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+import { Box, Brain, BrainCircuit, InfinityIcon, Task, Zap } from '@sim/emcn/icons'
 
 Copilot 是您编辑器中的助手，可帮助您使用 Sim Copilot 构建和编辑工作流，同时理解和改进它们。它可以：
 
@@ -48,7 +48,7 @@ Copilot 是您编辑器中的助手，可帮助您使用 Sim Copilot 构建和�
   <Card
     title={
       <span className="inline-flex items-center gap-2">
-        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        <Task className="h-4 w-4 text-muted-foreground" />
         提问
       </span>
     }
@@ -60,7 +60,7 @@ Copilot 是您编辑器中的助手，可帮助您使用 Sim Copilot 构建和�
   <Card
     title={
       <span className="inline-flex items-center gap-2">
-        <Package className="h-4 w-4 text-muted-foreground" />
+        <Box className="h-4 w-4 text-muted-foreground" />
         代理
       </span>
     }

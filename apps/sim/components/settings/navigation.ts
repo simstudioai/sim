@@ -2,8 +2,9 @@ import type { ComponentType } from 'react'
 import {
   ClipboardList,
   Clock,
-  Cursor,
+  Credit,
   Database,
+  Globe,
   HexSimple,
   Key,
   KeySquare,
@@ -18,9 +19,8 @@ import {
   Shuffle,
   Sprout,
   TerminalWindow,
-  TrashOutline,
+  Trash,
   Upload,
-  User,
   Users,
   Wrench,
 } from '@sim/emcn/icons'
@@ -407,7 +407,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   },
   {
     label: 'Browser',
-    icon: Cursor,
+    icon: Globe,
     unified: {
       id: 'browser',
       description: 'Control the browser Chat drives and the data it keeps.',
@@ -477,7 +477,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   },
   {
     label: 'Subscription',
-    icon: ClipboardList,
+    icon: Credit,
     unified: {
       id: 'billing',
       description: 'Manage your plan, pricing, and invoices.',
@@ -508,7 +508,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   },
   {
     label: 'Teammates',
-    icon: User,
+    icon: Users,
     unified: {
       id: 'teammates',
       description: 'Manage your teammates in this workspace.',
@@ -678,7 +678,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   },
   {
     label: 'Recently deleted',
-    icon: TrashOutline,
+    icon: Trash,
     unified: {
       id: 'recently-deleted',
       description: 'Restore items deleted in the last 30 days.',

@@ -47,7 +47,7 @@ export function parseQuestionAnswerMessage(
 }
 
 const OPTION_ROW_CLASSES =
-  'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors'
+  'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors'
 
 /** Ghost icon-button chrome shared by the stepper chevrons and the dismiss X. */
 const ICON_BUTTON_CLASSES = 'relative size-[14px] flex-shrink-0 p-0'

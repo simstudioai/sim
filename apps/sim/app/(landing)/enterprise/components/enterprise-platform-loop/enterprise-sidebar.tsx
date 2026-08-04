@@ -43,7 +43,7 @@ function IconRow({ icon: Icon, label, active = false }: IconRowProps) {
       )}
     >
       <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-[450] text-[13px] text-[var(--text-body)]'>{label}</span>
+      <span className='truncate text-[13px] text-[var(--text-body)]'>{label}</span>
     </div>
   )
 }
@@ -52,7 +52,7 @@ function IconRow({ icon: Icon, label, active = false }: IconRowProps) {
 function TextRow({ label }: { label: string }) {
   return (
     <div className='mx-0.5 flex h-[28px] items-center rounded-[8px] px-2'>
-      <span className='truncate font-[450] text-[13px] text-[var(--text-body)]'>{label}</span>
+      <span className='truncate text-[13px] text-[var(--text-body)]'>{label}</span>
     </div>
   )
 }

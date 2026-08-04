@@ -10,8 +10,15 @@ import { FAQ } from '@/components/ui/faq'
 ## Quick Start
 
 ```bash
-# Clone and start
 git clone https://github.com/simstudioai/sim.git && cd sim
+
+cat > .env << EOF
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+CRON_SECRET=$(openssl rand -hex 32)
+EOF
+
 docker compose -f docker-compose.prod.yml up -d
 ```
 
@@ -22,16 +29,34 @@ Open [http://localhost:3000](http://localhost:3000)
 ### 1. Configure Environment
 
 ```bash
-# Generate secrets
 cat > .env << EOF
-DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
 BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 INTERNAL_API_SECRET=$(openssl rand -hex 32)
+API_ENCRYPTION_KEY=$(openssl rand -hex 32)
+CRON_SECRET=$(openssl rand -hex 32)
+
+# Your public origin. BETTER_AUTH_URL is derived from this automatically.
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
-BETTER_AUTH_URL=https://sim.yourdomain.com
+
+# Database credentials. DATABASE_URL is composed from these by the compose file.
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=$(openssl rand -hex 24)
+POSTGRES_DB=simstudio
 EOF
 ```
+
+<Callout type="info">
+  Do not set `DATABASE_URL` or `BETTER_AUTH_URL` in `.env` — `docker-compose.prod.yml` composes both on the service definition, and a value set here is ignored. Change `POSTGRES_*` and `NEXT_PUBLIC_APP_URL` instead.
+</Callout>
+
+<Callout type="error">
+  Save `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` somewhere outside this server. `ENCRYPTION_KEY` encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets; `API_ENCRYPTION_KEY` encrypts user-generated Sim API keys. Neither can be regenerated — a database restore paired with a different key leaves the data it protected permanently unreadable.
+</Callout>
+
+The compose file refuses to start if `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, or `INTERNAL_API_SECRET` is missing, rather than booting with empty values. `CRON_SECRET` is treated more gently: without it the `cron` service prints what to set and exits, leaving the rest of the stack running — so upgrading from a compose file that predates the scheduler still works.
+
+Images track `latest` unless you pin them. For production, see [Upgrades](/platform/self-hosting/upgrades).
 
 ### 2. Start Services
 
@@ -39,68 +64,46 @@ EOF
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-### 3. Set Up SSL
+Six services start:
 
-<Tabs items={['Caddy (Recommended)', 'Nginx + Certbot']}>
-  <Tab value="Caddy (Recommended)">
-Caddy automatically handles SSL certificates.
+| Service | Port | Purpose |
+|---|---|---|
+| `simstudio` | 3000 | Main application (8 GB memory limit) |
+| `realtime` | 3002 | WebSocket server (1 GB memory limit) |
+| `db` | 5432 | PostgreSQL 17 with pgvector |
+| `redis` | internal | Pub/sub and shared cache — not published to the host |
+| `cron` | — | Runs the [background jobs](/platform/self-hosting/background-jobs) on a schedule |
+| `migrations` | — | Applies schema migrations once, then exits |
+
+Confirm the five long-running services are up and that `migrations` has exited cleanly (it is a one-shot job with no healthcheck):
 
 ```bash
-# Install Caddy
-sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo apt update && sudo apt install caddy
+docker compose -f docker-compose.prod.yml ps
 ```
 
-Create `/etc/caddy/Caddyfile`:
+### 3. Put it behind TLS
+
+Caddy is the least-effort option — it obtains and renews certificates automatically.
+
 ```
 sim.yourdomain.com {
-    reverse_proxy localhost:3000
+    request_body {
+        max_size 250MB
+    }
 
     handle /socket.io/* {
         reverse_proxy localhost:3002
     }
-}
-```
 
-```bash
-sudo systemctl restart caddy
-```
-  </Tab>
-  <Tab value="Nginx + Certbot">
-```bash
-# Install
-sudo apt install nginx certbot python3-certbot-nginx -y
-
-# Create /etc/nginx/sites-available/sim
-server {
-    listen 80;
-    server_name sim.yourdomain.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /socket.io/ {
-        proxy_pass http://127.0.0.1:3002;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+    reverse_proxy localhost:3000 {
+        flush_interval -1
     }
 }
-
-# Enable and get certificate
-sudo ln -s /etc/nginx/sites-available/sim /etc/nginx/sites-enabled/
-sudo certbot --nginx -d sim.yourdomain.com
 ```
-  </Tab>
-</Tabs>
+
+Three things in that config are Sim-specific and easy to get wrong: `/socket.io` must reach the realtime service on 3002, `flush_interval -1` stops Caddy buffering streamed agent output into one delayed block, and `max_size` has to clear the chat endpoint's 220 MB limit.
+
+For nginx, Traefik, or a cloud load balancer — and for the GKE websocket timeout — see [Networking](/platform/self-hosting/networking).
 
 ## Ollama
 
@@ -112,9 +115,13 @@ docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
 docker compose -f docker-compose.ollama.yml --profile cpu --profile setup up -d
 ```
 
-Pull additional models:
+Pull additional models — the service name differs by profile:
 ```bash
+# GPU profile
 docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
+
+# CPU profile
+docker compose -f docker-compose.ollama.yml exec ollama-cpu ollama pull llama3.2
 ```
 
 ### External Ollama
@@ -136,26 +143,20 @@ OLLAMA_URL=http://192.168.1.100:11434 docker compose -f docker-compose.prod.yml 
 ## Commands
 
 ```bash
-# View logs
-docker compose -f docker-compose.prod.yml logs -f simstudio
+# Did migrations succeed?
+docker compose -f docker-compose.prod.yml logs migrations
 
-# Stop
-docker compose -f docker-compose.prod.yml down
+# Is the scheduler firing?
+docker compose -f docker-compose.prod.yml logs -f cron
 
-# Update
+# Upgrade: bump SIM_VERSION in .env, then
 docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
-
-# Backup database
-docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio > backup.sql
 ```
 
 <FAQ items={[
-  { question: "What containers are started by docker-compose.prod.yml?", answer: "Four services are started: simstudio (main app on port 3000, 8 GB memory limit), realtime (WebSocket server on port 3002, 1 GB memory limit), db (PostgreSQL 17 with pgvector on port 5432), and migrations (runs once to apply database schema changes, then exits)." },
-  { question: "How do I configure SSL for production?", answer: "You can use either Caddy (recommended, handles certificates automatically) or Nginx with Certbot. Both need to reverse-proxy port 3000 for the main app and port 3002 for WebSocket connections at the /socket.io/ path." },
-  { question: "Why can I not connect to Ollama running on my host from inside Docker?", answer: "Inside a Docker container, localhost refers to the container itself, not your host machine. On macOS and Windows, use http://host.docker.internal:11434. On Linux, use your host machine's actual IP address (e.g., http://192.168.1.100:11434)." },
-  { question: "What is the difference between the GPU and CPU Ollama profiles?", answer: "The GPU profile (--profile gpu) configures NVIDIA driver capabilities and reserves GPU devices for accelerated inference. The CPU profile (--profile cpu) runs Ollama without GPU acceleration. Both use the --profile setup flag to automatically pull the gemma3:4b starter model." },
-  { question: "How do I update Sim to the latest version?", answer: "Run docker compose -f docker-compose.prod.yml pull to fetch the latest images, then docker compose -f docker-compose.prod.yml up -d to restart with the new versions. The migrations container will automatically apply any new database schema changes on startup." },
-  { question: "How do I back up and restore the database?", answer: "Back up with: docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio > backup.sql. Restore with: docker compose -f docker-compose.prod.yml exec -T db psql -U postgres simstudio < backup.sql. The database data is persisted in a Docker volume named postgres_data." },
+  { question: "Do scheduled workflows work on Docker Compose?", answer: "Yes. The cron service runs the same jobs the Helm chart schedules as Kubernetes CronJobs, using the schedules in docker/crontab. It needs CRON_SECRET — without it the service prints what to set and exits, and the rest of the stack keeps running."},
+  { question: "Why is there a Redis container?", answer: "Redis backs pub/sub for live Chat task status and table events, plus shared caches. Pub/sub has no fallback that works across processes, so live status would not stream without it. The port is deliberately not published so it cannot collide with a local Redis."},
+  { question: "How do I back up and restore the database?", answer: "Back up with: docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio > backup.sql. Restore with: docker compose -f docker-compose.prod.yml exec -T db psql -U postgres simstudio < backup.sql. The database data is persisted in a Docker volume named postgres_data."},
   { question: "Can I customize the PostgreSQL credentials?", answer: "Yes. The docker-compose.prod.yml uses environment variable defaults: POSTGRES_USER (default: postgres), POSTGRES_PASSWORD (default: postgres), POSTGRES_DB (default: simstudio), and POSTGRES_PORT (default: 5432). Set these in your .env file to override them." },
 ]} />
 

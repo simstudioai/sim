@@ -81,8 +81,7 @@ interface SettingsResourceRowProps {
   /**
    * Appends the canonical navigation chevron after `trailing`. Set it on rows that
    * open a detail page; leave it off for rows whose `onClick` performs an action
-   * in place. The row owns the glyph so callers never pick an arrow themselves —
-   * `lucide-react` and `@sim/emcn/icons` ship visibly different ones.
+   * in place. The row owns the glyph so callers never pick an arrow themselves.
    */
   navigable?: boolean
   /**

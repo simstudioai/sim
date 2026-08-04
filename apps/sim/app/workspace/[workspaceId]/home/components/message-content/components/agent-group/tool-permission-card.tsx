@@ -143,9 +143,11 @@ export function ToolPermissionCard({
 
   return (
     <div className='flex flex-col gap-1'>
-      {/* Chips carry their own `mx-0.5` cluster spacing, so this row sets no gap. */}
-      <div className='flex flex-wrap items-center'>
-        <ShieldCheck className='mr-1.5 size-[16px] shrink-0 text-[var(--text-icon)]' />
+      <div className='flex flex-wrap items-center gap-1'>
+        {/* 16px icon + 2px + the row's 4px gap = the 22px text inset the sibling
+            rows below are tuned to (`pl-[22px]`, and `gap-1.5` on an unmargined
+            icon). Margin and gap add, so this cannot be `mr-1.5`. */}
+        <ShieldCheck className='mr-0.5 size-[16px] shrink-0 text-[var(--text-icon)]' />
         {preview ? (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -190,7 +192,7 @@ export function ToolPermissionCard({
       </div>
 
       {showBulkActions && (
-        <div className='flex flex-wrap items-center pl-[22px]'>
+        <div className='flex flex-wrap items-center gap-1 pl-[22px]'>
           <span className='mr-1 text-[var(--text-tertiary)] text-xs'>
             {outstandingIds.length} tools need permission
           </span>

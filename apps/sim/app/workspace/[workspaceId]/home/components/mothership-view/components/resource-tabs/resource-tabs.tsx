@@ -12,13 +12,16 @@ import {
 } from 'react'
 import { Button, cn, Tooltip } from '@sim/emcn'
 import { Columns3, Eye, PanelLeft, Pencil } from '@sim/emcn/icons'
+import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
+import { openTerminal } from '@/lib/terminal/transport'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
+  RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_GAP_CLASS,
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
@@ -40,6 +43,20 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
+
+/** Opens another inner tab when a singleton desktop resource already exists. */
+export function openExistingResourceTab(
+  resource: MothershipResource,
+  desktopScopeId: string,
+  selectResource: (id: string) => void
+): void {
+  selectResource(resource.id)
+  if (resource.type === 'browser') {
+    sendBrowserPanelAction('new-tab', {}, desktopScopeId)
+  } else if (resource.type === 'terminal') {
+    void openTerminal(undefined, desktopScopeId)
+  }
+}
 
 /**
  * Types that cannot be opened as a resource tab. Folders and chats have no tab
@@ -165,7 +182,6 @@ interface ResourceTabItemProps {
   showGapBefore: boolean
   showGapAfter: boolean
   displayName: string
-  chatId?: string
   onDragStart: (e: React.DragEvent, idx: number) => void
   onDragOver: (e: React.DragEvent, idx: number) => void
   onDragLeave: () => void
@@ -185,7 +201,6 @@ const ResourceTabItem = memo(function ResourceTabItem({
   showGapBefore,
   showGapAfter,
   displayName,
-  chatId,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -263,22 +278,30 @@ const ResourceTabItem = memo(function ResourceTabItem({
 
 interface ResourceTabsProps {
   workspaceId: string
+  desktopScopeId: string
   chatId?: string
   resources: MothershipResource[]
   activeId: string | null
+  useFixedResourceToggle: boolean
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
   actions?: ReactNode
+  onRequestAddResourceOpen?: (open: () => void) => void
+  onAddResourceClose?: () => Promise<void>
 }
 
 export function ResourceTabs({
   workspaceId,
+  desktopScopeId,
   chatId,
   resources,
   activeId,
+  useFixedResourceToggle,
   previewMode,
   onCyclePreviewMode,
   actions,
+  onRequestAddResourceOpen,
+  onAddResourceClose,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId, resources.length > 0)
@@ -360,6 +383,13 @@ export function ResourceTabs({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [chatId, onAddResource]
+  )
+
+  const handleOpenExisting = useCallback(
+    (resource: MothershipResource) => {
+      openExistingResourceTab(resource, desktopScopeId, selectResource)
+    },
+    [desktopScopeId, selectResource]
   )
 
   const handleTabClick = useCallback(
@@ -570,28 +600,47 @@ export function ResourceTabs({
     dragStartIdx.current = null
   }, [stopAutoScroll])
 
+  const addResourceDropdown = (
+    <AddResourceDropdown
+      workspaceId={workspaceId}
+      existingKeys={existingKeys}
+      onAdd={handleAdd}
+      onOpenExisting={handleOpenExisting}
+      excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
+      onRequestOpen={onRequestAddResourceOpen}
+      onClose={onAddResourceClose}
+    />
+  )
+
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center border-[var(--border)] border-b px-4 py-[8.5px]',
+        'flex shrink-0 items-center border-[var(--border)] border-b',
+        RESOURCE_HEADER_CLASSES.bar,
+        RESOURCE_HEADER_CLASSES.startPadding,
+        useFixedResourceToggle
+          ? RESOURCE_HEADER_CLASSES.fixedEndPadding
+          : RESOURCE_HEADER_CLASSES.endPadding,
         RESOURCE_TAB_GAP_CLASS
       )}
     >
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={collapseResource}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Collapse resource view'
-          >
-            <PanelLeft className={cn(RESOURCE_TAB_ICON_CLASS, '-scale-x-100')} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Collapse</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      {!useFixedResourceToggle && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='subtle'
+              onClick={collapseResource}
+              className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+              aria-label='Collapse resource view'
+            >
+              <PanelLeft className={cn(RESOURCE_TAB_ICON_CLASS, '-scale-x-100')} />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Collapse</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
       <div className={cn('flex min-w-0 flex-1 items-center', RESOURCE_TAB_GAP_CLASS)}>
         <div
           ref={scrollNodeRef}
@@ -634,7 +683,6 @@ export function ResourceTabs({
                 showGapBefore={showGapBefore}
                 showGapAfter={showGapAfter}
                 displayName={displayName}
-                chatId={chatId}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -649,13 +697,15 @@ export function ResourceTabs({
         {/* Offered before the chat exists too: a resource opened while composing
             the first prompt is context for that prompt, and gating on a chat id
             meant the panel could be opened but not filled. */}
-        <AddResourceDropdown
-          workspaceId={workspaceId}
-          existingKeys={existingKeys}
-          onAdd={handleAdd}
-          onSwitch={selectResource}
-          excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
-        />
+        {useFixedResourceToggle ? (
+          <div
+            className={cn('flex', resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}
+          >
+            {addResourceDropdown}
+          </div>
+        ) : (
+          addResourceDropdown
+        )}
       </div>
       {(actions || (previewMode && onCyclePreviewMode)) && (
         <div className={cn('ml-auto flex shrink-0 items-center', RESOURCE_TAB_GAP_CLASS)}>

@@ -87,12 +87,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
 
   return (
     <>
-      <Chip
-        variant='border'
-        flush
-        onClick={onDeployClick}
-        disabled={isRegistryLoading || isDisabled}
-      >
+      <Chip variant='border' onClick={onDeployClick} disabled={isRegistryLoading || isDisabled}>
         {getButtonLabel()}
       </Chip>
 

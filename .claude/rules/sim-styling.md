@@ -50,13 +50,29 @@ Custom font sizes (`apps/sim/tailwind.config.ts`): `text-micro`=10px, `text-xs`=
 
 Icons default `size-[14px]`. Equal h/w → `size-*` (`size-[14px]`, `size-4`), never `h-N w-N`.
 
+## Font Weight
+
+Three steps, Tailwind's stock scale, nothing else: **`font-normal` (400)**, **`font-medium` (500)**, **`font-semibold` (600)**. 400 is the document default, so body text, chip labels, sidebar items, and headings carry **no weight class at all** — they inherit. Reach for a class only to step *up* from body.
+
+Never write an arbitrary weight (`font-[380]`, `font-[430]`, `font-[450]`, …), and never set `fontWeight` in an inline `style`. There was previously a CSS-variable weight scale (`--font-weight-base/medium/semibold`, remapping `font-medium` to 440/480) plus seven ad-hoc values clustered between 380 and 500; it was deleted because nothing read as hierarchical. Off-scale values are only acceptable where the design system genuinely cannot reach — react-email templates and the static `apps/sim/emails/broadcasts/*.html`, which email clients render without CSS variables.
+
+Headings inherit their weight. Tailwind preflight resets `h1`–`h6` to `font-weight: inherit`, so an `<h1>` is 400 unless you say otherwise — that is the intended look, not a bug to patch.
+
 ## Color Tokens
 
-Value text `--text-body`; muted/placeholder/labels `--text-muted`; icons `--text-icon`; borders `--border-1` (fields) / `--border` (dividers); surfaces `--surface-5` (light) / `--surface-4` (dark); active row `--surface-active`; error `--text-error`. No focus rings on chip surfaces.
+Value text `--text-body`; muted/placeholder/labels `--text-muted`; icons `--text-icon`; neutral borders and dividers `--border` (`--border-1` and `--border-muted` are legacy aliases resolving to it; `--divider` is retired); surfaces `--surface-5` (light) / `--surface-4` (dark); active row `--surface-active`; error `--text-error`. No focus rings on chip surfaces.
+
+### Line weight
+
+Neutral border geometry comes from `--border-width`: `1px` by default, dropping to `0.5px` under `@media (min-resolution: 2dppx)` so hidpi displays get a true hairline. Tailwind's `border*` and `divide-*` utilities resolve through it, as do `h-px`/`w-px` — the `px` key is overridden on **`spacing`**, not on `width`/`height`, so a hairline and the `-right-px`/`inset-px` offsets that position it stay in agreement.
+
+**Tune line weight on `--border`, never on `--border-width`.** Browsers floor a border to whole device pixels, so on a 2dppx display every value in `(0, 1px)` collapses to the same single-pixel hairline and the next drawable step is a full `1px` — double. Width has exactly one usable position; perceived weight is a color property. Light mode gains weight by darkening `--border`, dark mode by lightening it.
+
+Draw a line with a real `border-*` utility. Never hand-roll one as `shadow-[inset_0_-1px_0_…]` — box-shadow has its own width and cannot follow the token, so such a line silently renders at double weight against every neighbor. Use an explicit numeric width (or a `ring`/`outline`) only when the line is intentionally emphasized, e.g. focus and selection affordances.
 
 ## Chip Components (consumer usage)
 
-`ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `apps/sim/components/emcn/components/chip/chip-chrome.ts` (all tokens are re-exported from the `@sim/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
+`ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `packages/emcn/src/components/chip/chip-chrome.ts` (all tokens are re-exported from the `@sim/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
 
 ### Props over className
 

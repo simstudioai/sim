@@ -43,9 +43,6 @@ export const BROWSER_TOOL_NAMES = [
 
 export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 
-/** Hard cap shared by the desktop browser session and its renderer chrome. */
-export const MAX_BROWSER_TABS = 8
-
 export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
 
 /** Sim appearance preference mirrored into browser-tab media queries. */
@@ -115,10 +112,26 @@ export interface BrowserPanelAnchor {
   widthRatio: number
 }
 
-/** Last captured frame used while renderer overlays occlude the native view. */
+/**
+ * Pixel-exact browser frame displayed during a renderer-owned toolbar menu.
+ * The native page stays visible until this frame has painted, then the shell
+ * hides it without changing its bounds or compositor attachment.
+ */
 export interface BrowserPanelSnapshot {
   dataUrl: string
   tabId: string
+  zoomPercent: number
+  /** Chat scope that owns the captured tab. */
+  scopeId: string
+  /**
+   * Exact native-view rectangle in the Sim renderer's viewport CSS pixels.
+   *
+   * The native surface is integer-positioned in Electron DIP, while its React
+   * host can end on fractional CSS pixels. Rendering the replacement at this
+   * viewport rectangle avoids clipping or stretching it to the host box.
+   * Optional for compatibility with installed shells from before this field.
+   */
+  viewportBounds?: BrowserPanelBounds
 }
 
 /**
@@ -139,6 +152,10 @@ export interface BrowserPanelAction {
     | 'duplicate-tab'
     | 'switch-tab'
     | 'close-tab'
+    | 'print'
+    | 'zoom-in'
+    | 'zoom-out'
+    | 'zoom-reset'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
@@ -148,8 +165,9 @@ export interface BrowserPanelAction {
 
 /** Live state of the active page, pushed to the panel header. */
 export interface BrowserPageState {
-  /** Present on desktop versions with multi-tab UI support. */
-  tabId?: string
+  tabId: string
+  /** Chat scope that owns this page. */
+  scopeId: string
   url: string
   title: string
   loading: boolean
@@ -165,12 +183,12 @@ export interface BrowserPageState {
 export interface BrowserFindRequest {
   query: string
   /**
-   * False starts a fresh search and highlights every match; true steps to the
-   * next/previous match of the search already running. Typing re-searches;
-   * Enter steps.
+   * True starts a fresh search and highlights every match; false steps to the
+   * next/previous match of the search already running. This deliberately names
+   * Electron's otherwise-confusing `findNext` option by what it actually does.
    */
-  findNext: boolean
-  /** Direction for a `findNext` step. Ignored when starting a fresh search. */
+  newSession: boolean
+  /** Direction for a follow-up step. Ignored when starting a fresh search. */
   forward: boolean
 }
 
@@ -200,13 +218,15 @@ export interface BrowserTabState {
   loading: boolean
   active: boolean
   /** Pinned tabs are ordered before regular tabs and cannot be closed. */
-  pinned?: boolean
+  pinned: boolean
 }
 
 /** Complete live tab list pushed by the desktop shell. */
 export interface BrowserTabsState {
   tabs: BrowserTabState[]
   activeTabId: string | null
+  /** Chat scope that owns this tab set. */
+  scopeId: string
 }
 
 /**

@@ -5,7 +5,7 @@ title: Copilot
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Image } from '@/components/ui/image'
-import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+import { Box, Brain, BrainCircuit, InfinityIcon, Task, Zap } from '@sim/emcn/icons'
 
 Copilot est votre assistant intégré à l'éditeur qui vous aide à créer et à modifier des flux de travail avec Sim Copilot, ainsi qu'à les comprendre et à les améliorer. Il peut :
 
@@ -48,7 +48,7 @@ Ces informations contextuelles aident Copilot à fournir une assistance plus pr�
   <Card
     title={
       <span className="inline-flex items-center gap-2">
-        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        <Task className="h-4 w-4 text-muted-foreground" />
         Demander
       </span>
     }
@@ -60,7 +60,7 @@ Ces informations contextuelles aident Copilot à fournir une assistance plus pr�
   <Card
     title={
       <span className="inline-flex items-center gap-2">
-        <Package className="h-4 w-4 text-muted-foreground" />
+        <Box className="h-4 w-4 text-muted-foreground" />
         Agent
       </span>
     }

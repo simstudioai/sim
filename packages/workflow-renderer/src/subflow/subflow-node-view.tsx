@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChipTag, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
-import { CircleOff, Lock, RepeatIcon, SplitIcon } from 'lucide-react'
+import { Ban, Lock, Repeat, Split } from '@sim/emcn/icons'
 import {
   Handle,
   internalsSymbol,
@@ -118,7 +118,7 @@ const getHandleClasses = (position: 'left' | 'right') => {
 
 interface SubflowStateIndicatorProps {
   label: string
-  Icon: typeof CircleOff
+  Icon: typeof Ban
 }
 
 /** Compact disabled/locked marker aligned with the standard workflow-card header. */
@@ -239,7 +239,7 @@ export function SubflowNodeView({
   const isPreviewSelected = data?.isPreviewSelected || false
 
   const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
-  const BlockIcon = data.kind === 'loop' ? RepeatIcon : SplitIcon
+  const BlockIcon = data.kind === 'loop' ? Repeat : Split
   const blockName = data.name || (data.kind === 'loop' ? 'Loop' : 'Parallel')
   const blockTypeLabel = data.kind === 'loop' ? 'Loop' : 'Parallel'
   const blockTypeAccent = getWorkflowTypeAccent(data.kind)
@@ -492,7 +492,7 @@ export function SubflowNodeView({
             />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
-            {!isEnabled && <SubflowStateIndicator label='Disabled' Icon={CircleOff} />}
+            {!isEnabled && <SubflowStateIndicator label='Disabled' Icon={Ban} />}
             {isLocked && <SubflowStateIndicator label='Locked' Icon={Lock} />}
             <ChipTag
               variant={blockTypeAccent.variant}

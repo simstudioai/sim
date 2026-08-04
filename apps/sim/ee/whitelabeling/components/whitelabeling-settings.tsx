@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Button, ChipInput, cn, Label, Loader, toast } from '@sim/emcn'
+import { ImageUp as ImageIcon, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Image as ImageIcon, X } from 'lucide-react'
 import Image from 'next/image'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import { isEnterprise } from '@/lib/billing/plan-helpers'

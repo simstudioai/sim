@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Maximize2, Minimize2 } from 'lucide-react'
+import { Expand, Minimize } from '@sim/emcn/icons'
 import remarkBreaks from 'remark-breaks'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
@@ -654,7 +654,7 @@ export function NoteBlockView({
                     className='nodrag nopan nowheel pointer-events-none ml-1 size-[24px] shrink-0 rounded-md border-none bg-transparent p-0 text-current opacity-0 transition-[background-color,color,opacity,transform] duration-150 hover-hover:bg-current/10 hover-hover:opacity-100 active:scale-[0.96] group-hover:pointer-events-auto group-hover:opacity-70 group-data-[node-selected]:pointer-events-auto group-data-[node-selected]:opacity-70'
                   >
                     <span className='relative size-[14px]'>
-                      <Maximize2
+                      <Expand
                         className={cn(
                           'absolute inset-0 size-[14px] transition-[opacity,scale,filter] duration-200 [transition-timing-function:cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
                           isExpanded
@@ -662,7 +662,7 @@ export function NoteBlockView({
                             : 'scale-100 opacity-100 blur-0'
                         )}
                       />
-                      <Minimize2
+                      <Minimize
                         className={cn(
                           'absolute inset-0 size-[14px] transition-[opacity,scale,filter] duration-200 [transition-timing-function:cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
                           isExpanded

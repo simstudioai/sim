@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
 import {
-  Calendar,
-  Cursor,
   Database,
   Folder as FolderIcon,
+  Globe,
   Library,
   Table as TableIcon,
   Task,
@@ -57,7 +56,7 @@ function renderIntegrationTile({ context, className }: RenderIconArgs): ReactNod
 export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKindConfig> = {
   browser_tab: {
     label: 'Browser tab',
-    renderIcon: ({ className }) => <Cursor className={className} />,
+    renderIcon: ({ className }) => <Globe className={className} />,
   },
   terminal_tab: {
     label: 'Terminal',
@@ -102,10 +101,6 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   filefolder: {
     label: 'File folder',
     renderIcon: ({ className }) => <FolderIcon className={className} />,
-  },
-  scheduledtask: {
-    label: 'Scheduled task',
-    renderIcon: ({ className }) => <Calendar className={className} />,
   },
   past_chat: {
     label: 'Past chat',

@@ -304,9 +304,7 @@ export function StageHome({
                 )}
               >
                 {isEmpty ? (
-                  <span className='font-[380] text-[var(--text-subtle)]'>
-                    Ask Sim to build an agent…
-                  </span>
+                  <span className='text-[var(--text-subtle)]'>Ask Sim to build an agent…</span>
                 ) : (
                   <>
                     <PromptAtoms atoms={visible} />

@@ -145,4 +145,58 @@ describe('display-message', () => {
       },
     ])
   })
+
+  it('preserves browser and terminal selection metadata for reopened messages', () => {
+    const display = toDisplayMessage({
+      id: 'msg-selection',
+      role: 'user',
+      content: '@Docs @Terminal',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      contexts: [
+        {
+          kind: 'browser_tab',
+          label: 'Docs',
+          tabId: 'tab-1',
+          selection: {
+            text: 'Selected browser text',
+            url: 'https://example.com/docs',
+            title: 'Example docs',
+          },
+        },
+        {
+          kind: 'terminal_tab',
+          label: 'Terminal',
+          terminalId: 'terminal-1',
+          selection: {
+            text: 'bun test',
+            startLine: 12,
+            endLine: 13,
+          },
+        },
+      ],
+    })
+
+    expect(display.contexts).toEqual([
+      {
+        kind: 'browser_tab',
+        label: 'Docs',
+        tabId: 'tab-1',
+        selection: {
+          text: 'Selected browser text',
+          url: 'https://example.com/docs',
+          title: 'Example docs',
+        },
+      },
+      {
+        kind: 'terminal_tab',
+        label: 'Terminal',
+        terminalId: 'terminal-1',
+        selection: {
+          text: 'bun test',
+          startLine: 12,
+          endLine: 13,
+        },
+      },
+    ])
+  })
 })

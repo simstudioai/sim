@@ -58,7 +58,7 @@ interface BuildPayloadParams {
     timezone?: string
   }
   desktopLocalFilesystem?: boolean
-  browserCapable?: boolean
+  browser?: boolean
   terminalCapable?: boolean
   terminals?: Array<{
     id: string
@@ -463,24 +463,21 @@ export async function buildCopilotRequestPayload(
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
     ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-    ...(params.desktopLocalFilesystem || params.browserCapable || params.terminalCapable
+    ...(params.desktopLocalFilesystem || params.browser || params.terminalCapable
       ? {
           desktopCapabilities: {
             ...(params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
-            ...(params.browserCapable ? { browser: true } : {}),
+            ...(params.browser ? { browser: true } : {}),
             ...(params.terminalCapable ? { terminal: true } : {}),
             ...(params.terminalCapable && params.terminals?.length
               ? { terminals: params.terminals }
               : {}),
-            ...(params.browserCapable && params.browserSessions?.length
+            ...(params.browser && params.browserSessions?.length
               ? { browserSessions: params.browserSessions }
               : {}),
           },
         }
       : {}),
-    // Compatibility with mothership deployments that predate the unified
-    // desktop capability object.
-    ...(params.browserCapable ? { browserCapable: true } : {}),
     isHosted,
   }
 }

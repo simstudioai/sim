@@ -41,10 +41,15 @@ interface ScheduleCalendarProps {
 }
 
 /**
- * Calendar body for the scheduled-tasks page. Owns the scroll region and view
- * dispatch: it renders the toolbar, derives the grid from the page's
- * `useCalendar` state, and switches between the month grid and the shared time
- * grid on the grid discriminant.
+ * Calendar body, retained unmounted for reuse. The scheduled-tasks page that
+ * hosted it — along with its `useCalendar`/`useScheduledTasks` hooks, modals,
+ * and sidebar entry — was removed; this component tree and `../../utils` are
+ * kept deliberately so the calendar can be repurposed on a future surface. It
+ * has no importer today: that is intentional, NOT dead code to delete.
+ *
+ * Owns the scroll region and view dispatch: it renders the toolbar, derives the
+ * grid from caller-supplied scope/anchor state, and switches between the month
+ * grid and the shared time grid on the grid discriminant.
  *
  * Scroll behavior: entering week/day scope, and "Today" presses (signaled via an
  * internal `scrollSignal`), center the current time in the viewport; month scope

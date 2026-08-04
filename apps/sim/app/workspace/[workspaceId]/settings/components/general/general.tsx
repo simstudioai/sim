@@ -15,8 +15,8 @@ import {
   Switch,
   Tooltip,
 } from '@sim/emcn'
+import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { Camera, Check, Info, Pencil } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
@@ -448,7 +448,7 @@ export function General() {
                       aria-label='About auto-connect on drop'
                       className='inline-flex cursor-default text-[var(--text-muted)]'
                     >
-                      <Info className='size-[14px]' />
+                      <CircleInfo className='size-[14px]' />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
@@ -478,7 +478,7 @@ export function General() {
                       aria-label='About canvas error notifications'
                       className='inline-flex cursor-default text-[var(--text-muted)]'
                     >
-                      <Info className='size-[14px]' />
+                      <CircleInfo className='size-[14px]' />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>

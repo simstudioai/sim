@@ -3,9 +3,9 @@
 import type React from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Badge, Button, cn, Tooltip } from '@sim/emcn'
+import { ArrowUp, Paperclip, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { ArrowUp, Paperclip, X } from 'lucide-react'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 
 const logger = createLogger('ChatInput')
@@ -227,7 +227,7 @@ export const ChatInput: React.FC<{
                     disabled={isStreaming || attachedFiles.length >= 15}
                     className='size-[28px] rounded-full p-0'
                   >
-                    <Paperclip className='size-[16px]' strokeWidth={2} />
+                    <Paperclip className='size-[16px]' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>
@@ -273,7 +273,7 @@ export const ChatInput: React.FC<{
                   aria-label='Send message'
                   className='size-[28px] rounded-full p-0'
                 >
-                  <ArrowUp className='block size-[16px]' strokeWidth={2.25} />
+                  <ArrowUp className='block size-[16px]' />
                 </Button>
               )}
             </div>

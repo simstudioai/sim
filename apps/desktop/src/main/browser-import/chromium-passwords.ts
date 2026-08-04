@@ -18,13 +18,19 @@ import { toNumber, toText } from '@/main/browser-import/types'
 const MAX_LOGIN_ROWS = 20_000
 
 const LOGIN_QUERY = `
-  SELECT signon_realm, origin_url, username_value, password_value, blacklisted_by_user
+  SELECT signon_realm, origin_url, username_value, password_value, blacklisted_by_user,
+         date_password_modified, date_created
   FROM logins
   LIMIT ${MAX_LOGIN_ROWS}
 `
 
+export interface BrowserPasswordCandidate extends ImportCandidate {
+  /** Chromium timestamp used only to resolve local/account store conflicts. */
+  sourceModifiedAt?: bigint
+}
+
 export interface ReadPasswordsResult {
-  credentials: ImportCandidate[]
+  credentials: BrowserPasswordCandidate[]
   skipped: number
   /** Rows examined, so the caller can tell "no passwords" from "none decrypted". */
   rowsSeen: number
@@ -35,7 +41,7 @@ export async function readBrowserPasswords(
   key: Buffer
 ): Promise<ReadPasswordsResult> {
   const rows = await queryBrowserDatabase(loginDataPath, 'Login Data', LOGIN_QUERY)
-  const credentials: ImportCandidate[] = []
+  const credentials: BrowserPasswordCandidate[] = []
   let skipped = 0
 
   for (const raw of rows) {
@@ -63,8 +69,23 @@ export async function readBrowserPasswords(
     // realms do not reduce to an http(s) origin and are dropped by the vault's
     // own normalization rather than being coerced into one here.
     const origin = toText(raw.signon_realm) || toText(raw.origin_url)
-    credentials.push({ origin, username: toText(raw.username_value), password })
+    const modifiedAt = chromiumTimestamp(raw.date_password_modified)
+    const createdAt = chromiumTimestamp(raw.date_created)
+    credentials.push({
+      origin,
+      username: toText(raw.username_value),
+      password,
+      sourceModifiedAt: modifiedAt > 0n ? modifiedAt : createdAt,
+    })
   }
 
   return { credentials, skipped, rowsSeen: rows.length }
+}
+
+function chromiumTimestamp(value: unknown): bigint {
+  if (typeof value === 'bigint') return value > 0n ? value : 0n
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return BigInt(Math.trunc(value))
+  }
+  return 0n
 }

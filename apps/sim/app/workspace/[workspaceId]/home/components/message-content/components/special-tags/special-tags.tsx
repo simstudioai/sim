@@ -25,6 +25,7 @@ import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { getDesktopBridge } from '@/lib/desktop'
+import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
 import {
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
@@ -32,6 +33,7 @@ import {
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
+import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import type {
@@ -1402,7 +1404,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
                   disabled={disabled}
                   onClick={() => onSelect?.(title)}
                   className={cn(
-                    'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors',
+                    'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors',
                     disabled ? 'cursor-not-allowed' : 'hover-hover:bg-[var(--surface-5)]',
                     i > 0 && 'border-t'
                   )}
@@ -1635,7 +1637,7 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
             <Button
               type='button'
               variant='quiet'
-              className='size-[18px] rounded-sm p-0'
+              size='icon'
               onClick={() => void handleSave()}
               disabled={!canSave}
               aria-label='Save'
@@ -1732,6 +1734,8 @@ function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
  * is no agent browser to hand back.
  */
 function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { chatId } = useChatSurface()
   const [handedBack, setHandedBack] = useState(false)
 
   if (!isBrowserAgentAvailable()) return null
@@ -1747,7 +1751,7 @@ function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
       onClick={() => {
         if (handedBack) return
         setHandedBack(true)
-        sendBrowserPanelAction('takeover-done')
+        sendBrowserPanelAction('takeover-done', {}, desktopChatScopeId(workspaceId, chatId))
       }}
       disabled={handedBack}
       className={cn(
@@ -1905,6 +1909,8 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
  * the right shell. Renders nothing outside the desktop app.
  */
 function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { chatId } = useChatSurface()
   const [handedBack, setHandedBack] = useState(false)
 
   if (!isTerminalAvailable()) return null
@@ -1920,7 +1926,7 @@ function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
       onClick={() => {
         if (handedBack) return
         setHandedBack(true)
-        finishTerminalHandoff(data.value ?? '')
+        finishTerminalHandoff(data.value ?? '', desktopChatScopeId(workspaceId, chatId))
       }}
       disabled={handedBack}
       className={cn(
@@ -2012,7 +2018,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           <path d='M8 6.5v3' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
           <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
         </svg>
-        <span className='font-[500] text-amber-800 text-sm leading-5 dark:text-amber-300'>
+        <span className='font-medium text-amber-800 text-sm leading-5 dark:text-amber-300'>
           Usage Limit Reached
         </span>
       </div>
@@ -2025,13 +2031,13 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           target={isHosted ? undefined : '_blank'}
           rel={isHosted ? undefined : 'noopener noreferrer'}
           aria-label={isHosted ? undefined : `${buttonLabel} (opens in a new tab)`}
-          className='mt-2 inline-flex items-center gap-1 font-[500] text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
+          className='mt-2 inline-flex items-center gap-1 font-medium text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
         >
           {buttonLabel}
           {isHosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
         </a>
       ) : (
-        <p className='mt-2 font-[500] text-amber-700 text-small dark:text-amber-300'>
+        <p className='mt-2 font-medium text-amber-700 text-small dark:text-amber-300'>
           {unavailableMessage}
         </p>
       )}

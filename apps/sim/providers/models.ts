@@ -33,6 +33,7 @@ import {
   xAIIcon,
   ZaiIcon,
 } from '@/components/icons'
+import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { ModelPricing, ProviderId } from '@/providers/types'
 
 /** How a model's thinking appears on the agent-events stream. */
@@ -131,13 +132,25 @@ export interface ProviderDefinition {
 export type ProviderFileAttachmentStrategy = 'inline' | 'files-api' | 'remote-url'
 
 export interface ProviderFileAttachment {
-  /** Maximum attachment size the provider accepts, in bytes. */
+  /** Maximum size of a single attachment the provider accepts, in bytes. */
   maxBytes: number
   strategy: ProviderFileAttachmentStrategy
 }
 
 /** Inline base64 attachment cap, also the fallback limit for providers without a large-file path. */
 export const INLINE_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+
+/**
+ * Size above which an attachment should prefer the provider's Files API over base64, when the
+ * deployment can reach one.
+ *
+ * Set by the execution payload store, not by any provider. Base64 inflates bytes by 4/3 and a
+ * single stored value may not exceed {@link LARGE_VALUE_THRESHOLD_BYTES}, so past three quarters
+ * of that ceiling the encoded copy no longer fits the cache. Inlining still succeeds above this
+ * point — the cache write is skipped, not fatal — but it carries a needlessly large encoded
+ * payload, so an upload is preferred wherever one is available.
+ */
+export const LARGE_FILE_PATH_THRESHOLD_BYTES = Math.floor(LARGE_VALUE_THRESHOLD_BYTES / 4) * 3
 
 const DEFAULT_FILE_ATTACHMENT: ProviderFileAttachment = {
   maxBytes: INLINE_ATTACHMENT_MAX_BYTES,
@@ -301,7 +314,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   openai: {
     id: 'openai',
-    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'files-api' },
+    /** "each file must be under 50 MB" — decimal MB; OpenAI writes no MiB anywhere on that page. */
+    fileAttachment: { maxBytes: 50_000_000, strategy: 'files-api' },
     name: 'OpenAI',
     description: "OpenAI's models",
     defaultModel: 'gpt-4.1',
@@ -4551,6 +4565,33 @@ export function getModelsWithThinking(): string[] {
 export function getThinkingLevelsForModel(modelId: string): string[] | null {
   const capability = getThinkingCapability(modelId)
   return capability?.levels ?? null
+}
+
+const ALL_MODEL_LEVEL_VALUES = new Set<string>()
+for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+  for (const model of provider.models) {
+    for (const value of model.capabilities.reasoningEffort?.values ?? []) {
+      ALL_MODEL_LEVEL_VALUES.add(value)
+    }
+    for (const value of model.capabilities.verbosity?.values ?? []) {
+      ALL_MODEL_LEVEL_VALUES.add(value)
+    }
+    for (const level of model.capabilities.thinking?.levels ?? []) {
+      ALL_MODEL_LEVEL_VALUES.add(level)
+    }
+  }
+}
+
+/**
+ * Whether a string is a tuning level some model in the catalogue declares, regardless of which.
+ *
+ * Callers that need to put a caller-supplied level into a log or an error gate on this first.
+ * These fields accept variable and environment references, so an unrecognized value is not
+ * necessarily a mistyped level — it can be whatever that reference resolved to, up to and
+ * including secret content that must never be echoed.
+ */
+export function isKnownModelLevelValue(value: string): boolean {
+  return ALL_MODEL_LEVEL_VALUES.has(value)
 }
 
 /**

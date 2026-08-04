@@ -34,6 +34,7 @@ const {
   resolveBillingAttribution,
   finalizeAssistantTurn,
   appendCopilotChatMessages,
+  persistChatResources,
   mockPublishStatusChanged,
 } = vi.hoisted(() => ({
   generateWorkspaceSnapshot: vi.fn(),
@@ -48,6 +49,7 @@ const {
   resolveBillingAttribution: vi.fn(),
   finalizeAssistantTurn: vi.fn(),
   appendCopilotChatMessages: vi.fn(),
+  persistChatResources: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
 }))
 
@@ -107,6 +109,10 @@ vi.mock('@/lib/copilot/chat/terminal-state', () => ({
 
 vi.mock('@/lib/copilot/chat/messages-store', () => ({
   appendCopilotChatMessages,
+}))
+
+vi.mock('@/lib/copilot/resources/persistence', () => ({
+  persistChatResources,
 }))
 
 vi.mock('@/lib/copilot/chat-status', () => ({
@@ -254,6 +260,39 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('persists browser page attachments as one canonical Browser panel', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Continue in this browser',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          resourceAttachments: [
+            {
+              type: 'browser',
+              id: 'browser-session:slack-tab',
+              title: 'mship-todo (Channel) - sim - Slack',
+              active: true,
+              url: 'https://app.slack.com/client/workspace/channel',
+            },
+            {
+              type: 'browser',
+              id: 'browser-session:docs-tab',
+              title: 'Docs',
+              url: 'https://docs.example.com',
+            },
+          ],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(persistChatResources).toHaveBeenCalledWith('chat-1', [
+      { type: 'browser', id: 'browser-session', title: 'Browser' },
+    ])
+  })
+
   it('forwards the desktop local filesystem capability into payload construction', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
@@ -270,6 +309,34 @@ describe('handleUnifiedChatPost', () => {
     expect(response.status).toBe(200)
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
       expect.objectContaining({ desktopLocalFilesystem: true }),
+      { selectedModel: '' }
+    )
+  })
+
+  it('accepts and forwards more than eight open terminal hints', async () => {
+    const terminals = Array.from({ length: 12 }, (_, index) => ({
+      id: String(index + 1),
+      cwd: `/tmp/project-${index}`,
+      active: index === 11,
+    }))
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Inspect every open shell',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          desktopCapabilities: { terminal: true, terminals },
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalCapable: true,
+        terminals,
+      }),
       { selectedModel: '' }
     )
   })
@@ -297,6 +364,98 @@ describe('handleUnifiedChatPost', () => {
       'ws-1',
       expect.anything()
     )
+  })
+
+  it('validates selection snapshots and omits unsafe browser source URLs', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Explain these selections',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [
+            {
+              kind: 'browser_tab',
+              tabId: 'tab-1',
+              label: 'Docs',
+              selection: {
+                text: 'Selected documentation',
+                url: 'file:///Users/example/private.html',
+                title: 'Documentation',
+              },
+            },
+            {
+              kind: 'terminal_tab',
+              terminalId: 'terminal-1',
+              label: 'Shell',
+              selection: {
+                text: 'build failed',
+                startLine: 12,
+                endLine: 14,
+              },
+            },
+          ],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(processContextsServer).toHaveBeenCalledWith(
+      [
+        {
+          kind: 'browser_tab',
+          tabId: 'tab-1',
+          label: 'Docs',
+          selection: {
+            text: 'Selected documentation',
+            title: 'Documentation',
+          },
+        },
+        {
+          kind: 'terminal_tab',
+          terminalId: 'terminal-1',
+          label: 'Shell',
+          selection: {
+            text: 'build failed',
+            startLine: 12,
+            endLine: 14,
+          },
+        },
+      ],
+      'user-1',
+      'Explain these selections',
+      'ws-1',
+      'chat-1'
+    )
+  })
+
+  it('rejects invalid terminal selection line ranges', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Explain this selection',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [
+            {
+              kind: 'terminal_tab',
+              terminalId: 'terminal-1',
+              label: 'Shell',
+              selection: {
+                text: 'build failed',
+                startLine: 14,
+                endLine: 12,
+              },
+            },
+          ],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(processContextsServer).not.toHaveBeenCalled()
   })
 
   it('forwards slash-selected MCP server ids to the request-local tool builder', async () => {

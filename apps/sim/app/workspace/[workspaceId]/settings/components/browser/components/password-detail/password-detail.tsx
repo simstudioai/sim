@@ -79,7 +79,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
       return
     }
     const bridge = getDesktopBridge()?.browserCredentials
-    if (!bridge?.reveal) return
+    if (!bridge) return
     setBusy(true)
     try {
       // The shell prompts for Touch ID here; null means the user declined.
@@ -96,7 +96,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
 
   const copy = useCallback(async () => {
     const bridge = getDesktopBridge()?.browserCredentials
-    if (!bridge?.copy) return
+    if (!bridge) return
     setBusy(true)
     try {
       await bridge.copy(credential.id)
@@ -123,8 +123,6 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
   }, [credential.id, hide, onBack, onForgotten])
 
   const site = siteLabel(credential.origin)
-  const canReveal = typeof getDesktopBridge()?.browserCredentials?.reveal === 'function'
-
   return (
     <>
       <SettingsPanel
@@ -177,8 +175,8 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
                         <Button
                           type='button'
                           variant='quiet'
-                          className='size-[18px] rounded-sm p-0'
-                          disabled={!canReveal || busy}
+                          size='icon'
+                          disabled={busy}
                           onClick={() => void toggleReveal()}
                           aria-label={revealed ? 'Hide password' : 'Show password'}
                         >
@@ -198,8 +196,8 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
                         <Button
                           type='button'
                           variant='quiet'
-                          className='size-[18px] rounded-sm p-0'
-                          disabled={!canReveal || busy}
+                          size='icon'
+                          disabled={busy}
                           onClick={() => void copy()}
                           aria-label='Copy password'
                         >

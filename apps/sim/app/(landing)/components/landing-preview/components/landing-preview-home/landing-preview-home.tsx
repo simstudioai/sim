@@ -2,9 +2,8 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowRight, Blimp, Checkbox, ChevronDown, cn, Shuffle } from '@sim/emcn'
-import { TypeBoolean, TypeNumber, TypeText } from '@sim/emcn/icons'
+import { Mail, Table, Task, TypeBoolean, TypeNumber, TypeText } from '@sim/emcn/icons'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
-import { Mail, MessageSquare, Table } from 'lucide-react'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingPreviewChatInput } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-input'
 import { LandingPreviewChatTitleBar } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-title-bar'
@@ -15,7 +14,7 @@ import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 /** Static, greyscale suggestion rows mirroring the workspace SuggestedActions. */
 const SUGGESTED_ACTIONS = [
   { id: 'crm', label: 'Create a CRM with sample data', icon: Table },
-  { id: 'slack', label: 'Summarize my unread Slack messages', icon: MessageSquare },
+  { id: 'slack', label: 'Summarize my unread Slack messages', icon: Task },
   { id: 'gmail', label: 'Draft replies to my support emails', icon: Mail },
   { id: 'tracker', label: 'Build a project tracker table', icon: Table },
 ] as const

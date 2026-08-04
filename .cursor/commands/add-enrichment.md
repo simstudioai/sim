@@ -57,7 +57,7 @@ Why it matters: the cascade runner only bills (and only reads `output.cost.total
 Create `apps/sim/enrichments/{name}/{name}.ts` and a barrel `index.ts`. Mirror the existing entries (`work-email`, `phone-number`, `company-domain`, `company-info`).
 
 ```typescript
-import { SomeIcon } from 'lucide-react'
+import { SomeIcon } from '@sim/emcn/icons'
 import { filterUndefined } from '@sim/utils/object'
 import { normalizeDomain, splitName, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
@@ -103,7 +103,7 @@ export { myEnrichment } from './my-enrichment'
 ```
 
 Rules:
-- Keep the file **client-safe**: import only `lucide-react`, `@sim/utils/*`, `@/enrichments/providers`, and the types. **Never import `@/tools`** here — the runner does the tool call.
+- Keep the file **client-safe**: import only `@sim/emcn/icons`, `@sim/utils/*`, `@/enrichments/providers`, and the types. **Never import `@/tools`** here — the runner does the tool call.
 - `buildParams` returns `null` when inputs are insufficient (provider skipped). `mapOutput` returns `null`/empty for a miss (falls through). Use `filterUndefined` when assembling optional tool params; coerce numbers explicitly (don't pass `''` to number outputs).
 - Output `id`s are the keys `mapOutput` returns; output `name`s are the default column names (the user can rename them in the config).
 

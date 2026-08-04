@@ -11,13 +11,13 @@ import {
   useState,
 } from 'react'
 import { Badge, ChipTag, cn, handleKeyboardActivation, Switch, Tooltip } from '@sim/emcn'
+import { Ban, Lock } from '@sim/emcn/icons'
 import {
   getPositionedSourceHandleId,
   getPositionedTargetHandleId,
   POSITIONED_SOURCE_HANDLE_SIDES,
   type PositionedSourceHandleSide,
 } from '@sim/workflow-types/workflow'
-import { CircleOff, Lock } from 'lucide-react'
 import {
   Handle,
   internalsSymbol,
@@ -898,7 +898,7 @@ export function WorkflowBlockView({
             />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
-            {!isEnabled && <BlockStateIndicator label='Disabled' Icon={CircleOff} />}
+            {!isEnabled && <BlockStateIndicator label='Disabled' Icon={Ban} />}
             {isLocked && <BlockStateIndicator label='Locked' Icon={Lock} />}
             <WorkflowTypeTag
               type={type}

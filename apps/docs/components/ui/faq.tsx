@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '@sim/emcn/icons'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { cn } from '@/lib/utils'
 
@@ -30,7 +30,7 @@ function FAQItemRow({
         type='button'
         onClick={onToggle}
         aria-expanded={isOpen}
-        className='flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left font-[470] text-[0.875rem] text-[var(--text-body)] transition-colors hover:bg-[var(--surface-3)]'
+        className='flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left font-medium text-[0.875rem] text-[var(--text-body)] transition-colors hover:bg-[var(--surface-3)]'
       >
         <ChevronRight
           className={cn(
@@ -79,7 +79,7 @@ export function FAQ({ items, title = 'Common Questions' }: FAQProps) {
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqSchema) }}
       />
-      <h2 className='mb-4 font-[500] text-xl'>{title}</h2>
+      <h2 className='mb-4 font-medium text-xl'>{title}</h2>
       <div className='border-[var(--border)] border-t border-b'>
         {items.map((item, index) => (
           <div

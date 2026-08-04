@@ -6,6 +6,17 @@ export * from './components'
  */
 export { Calendar, type CalendarProps } from './components/calendar/calendar'
 /**
+ * `Code` exists in BOTH `./components` (the code editor) and `./icons` (a
+ * glyph). Same resolution as `Calendar` and `Table`: the barrel yields the
+ * COMPONENT, and the icon stays available from `@sim/emcn/icons`.
+ */
+export {
+  CODE_LINE_HEIGHT_PX,
+  Code,
+  calculateGutterWidth,
+  getCodeEditorProps,
+} from './components/code/code'
+/**
  * `Table` exists in BOTH `./components` (data-table element) and `./icons`
  * (glyph). This explicit re-export resolves the ambiguity to the COMPONENT —
  * always import the icon from `@sim/emcn/icons`. Rendering the

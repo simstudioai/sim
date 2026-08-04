@@ -24,6 +24,7 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -197,7 +198,8 @@ export const cerebrasProvider: ProviderConfig = {
       const toolCallSignatures = new Set()
       try {
         while (iterationCount < MAX_TOOL_ITERATIONS) {
-          const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+          const toolCallsInResponse =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
@@ -353,7 +355,7 @@ export const cerebrasProvider: ProviderConfig = {
           let usedForcedTools: string[] = []
           if (typeof originalToolChoice === 'object' && forcedTools.length > 0) {
             const toolTracking = trackForcedToolUsage(
-              currentResponse.choices[0]?.message?.tool_calls,
+              currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
               originalToolChoice,
               logger,
               'openai',
@@ -408,7 +410,7 @@ export const cerebrasProvider: ProviderConfig = {
             enrichLastModelSegmentFromChatCompletions(
               timeSegments,
               currentResponse,
-              currentResponse.choices[0]?.message?.tool_calls,
+              currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
               { model: request.model, provider: 'cerebras' }
             )
 
@@ -450,7 +452,8 @@ export const cerebrasProvider: ProviderConfig = {
           }
         }
 
-        const cappedToolCalls = currentResponse.choices[0]?.message?.tool_calls
+        const cappedToolCalls =
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
         if (iterationCount === MAX_TOOL_ITERATIONS && cappedToolCalls?.length) {
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
@@ -492,7 +495,7 @@ export const cerebrasProvider: ProviderConfig = {
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             currentResponse,
-            currentResponse.choices[0]?.message?.tool_calls,
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
             { model: request.model, provider: 'cerebras' }
           )
           iterationCount++
