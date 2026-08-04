@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import { getTrigger } from '@/triggers'
 import {
+  isQuickBooksEventMatch,
   QUICKBOOKS_TRIGGER_DEFINITIONS,
   quickBooksTriggerOptions,
 } from '@/triggers/quickbooks/utils'
@@ -14,6 +15,12 @@ describe('QuickBooks triggers', () => {
       'quickbooks_invoice_events',
       ...ids.filter((id) => id !== 'quickbooks_invoice_events'),
     ])
+    expect(ids).toHaveLength(29)
+    expect(
+      QUICKBOOKS_TRIGGER_DEFINITIONS.reduce((total, definition) => {
+        return total + definition.actions.length
+      }, 0)
+    ).toBe(101)
     for (const id of ids) expect(getTrigger(id).id).toBe(id)
   })
 
@@ -26,8 +33,41 @@ describe('QuickBooks triggers', () => {
     for (const definition of QUICKBOOKS_TRIGGER_DEFINITIONS) {
       const trigger = getTrigger(definition.id)
       const eventTypes = trigger.subBlocks.find((subBlock) => subBlock.id === 'eventTypes')
-      expect(eventTypes?.options?.map((option) => option.id)).toEqual(definition.actions)
+      if (definition.id === 'quickbooks_preferences_updated') {
+        expect(eventTypes).toBeUndefined()
+      } else {
+        expect(eventTypes?.options?.map((option) => option.id)).toEqual(definition.actions)
+      }
       expect(trigger.outputs).toEqual(getTrigger('quickbooks_invoice_events').outputs)
     }
+  })
+
+  it('matches all 101 supported combinations and rejects unsupported actions', () => {
+    for (const definition of QUICKBOOKS_TRIGGER_DEFINITIONS) {
+      for (const action of definition.actions) {
+        expect(
+          isQuickBooksEventMatch(
+            definition.id,
+            `qbo.${definition.entity}.${action}.v1`,
+            definition.actions
+          )
+        ).toBe(true)
+      }
+      expect(
+        isQuickBooksEventMatch(definition.id, `qbo.${definition.entity}.unsupported.v1`, [
+          'unsupported',
+        ])
+      ).toBe(false)
+      expect(
+        isQuickBooksEventMatch(
+          definition.id,
+          `qbo.other.${definition.actions[0]}.v1`,
+          definition.actions
+        )
+      ).toBe(false)
+    }
+    expect(
+      isQuickBooksEventMatch('quickbooks_preferences_updated', 'qbo.preferences.updated.v1', null)
+    ).toBe(true)
   })
 })

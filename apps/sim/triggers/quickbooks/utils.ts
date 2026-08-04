@@ -29,6 +29,14 @@ export const QUICKBOOKS_TRIGGER_DEFINITIONS: readonly QuickBooksTriggerDefinitio
     actions: ['created', 'updated', 'deleted', 'merged'],
   },
   {
+    id: 'quickbooks_estimate_events',
+    label: 'Estimate Events',
+    group: 'Sales and Receivables',
+    entity: 'estimate',
+    entityType: 'Estimate',
+    actions: ['created', 'updated', 'deleted', 'emailed'],
+  },
+  {
     id: 'quickbooks_invoice_events',
     label: 'Invoice Events',
     group: 'Sales and Receivables',
@@ -42,6 +50,30 @@ export const QUICKBOOKS_TRIGGER_DEFINITIONS: readonly QuickBooksTriggerDefinitio
     group: 'Sales and Receivables',
     entity: 'payment',
     entityType: 'Payment',
+    actions: ['created', 'updated', 'deleted', 'voided', 'emailed'],
+  },
+  {
+    id: 'quickbooks_credit_memo_events',
+    label: 'Credit Memo Events',
+    group: 'Sales and Receivables',
+    entity: 'creditmemo',
+    entityType: 'CreditMemo',
+    actions: ['created', 'updated', 'deleted', 'voided', 'emailed'],
+  },
+  {
+    id: 'quickbooks_refund_receipt_events',
+    label: 'Refund Receipt Events',
+    group: 'Sales and Receivables',
+    entity: 'refundreceipt',
+    entityType: 'RefundReceipt',
+    actions: ['created', 'updated', 'deleted', 'voided', 'emailed'],
+  },
+  {
+    id: 'quickbooks_sales_receipt_events',
+    label: 'Sales Receipt Events',
+    group: 'Sales and Receivables',
+    entity: 'salesreceipt',
+    entityType: 'SalesReceipt',
     actions: ['created', 'updated', 'deleted', 'voided', 'emailed'],
   },
   {
@@ -75,6 +107,150 @@ export const QUICKBOOKS_TRIGGER_DEFINITIONS: readonly QuickBooksTriggerDefinitio
     entity: 'purchaseorder',
     entityType: 'PurchaseOrder',
     actions: ['created', 'updated', 'deleted', 'emailed'],
+  },
+  {
+    id: 'quickbooks_purchase_events',
+    label: 'Purchase Events',
+    group: 'Purchasing and Payables',
+    entity: 'purchase',
+    entityType: 'Purchase',
+    actions: ['created', 'updated', 'deleted', 'voided'],
+  },
+  {
+    id: 'quickbooks_vendor_credit_events',
+    label: 'Vendor Credit Events',
+    group: 'Purchasing and Payables',
+    entity: 'vendorcredit',
+    entityType: 'VendorCredit',
+    actions: ['created', 'updated', 'deleted'],
+  },
+  {
+    id: 'quickbooks_deposit_events',
+    label: 'Deposit Events',
+    group: 'Accounting',
+    entity: 'deposit',
+    entityType: 'Deposit',
+    actions: ['created', 'updated', 'deleted'],
+  },
+  {
+    id: 'quickbooks_journal_entry_events',
+    label: 'Journal Entry Events',
+    group: 'Accounting',
+    entity: 'journalentry',
+    entityType: 'JournalEntry',
+    actions: ['created', 'updated', 'deleted'],
+  },
+  {
+    id: 'quickbooks_transfer_events',
+    label: 'Transfer Events',
+    group: 'Accounting',
+    entity: 'transfer',
+    entityType: 'Transfer',
+    actions: ['created', 'updated', 'deleted', 'voided'],
+  },
+  {
+    id: 'quickbooks_item_events',
+    label: 'Item Events',
+    group: 'Products and People',
+    entity: 'item',
+    entityType: 'Item',
+    actions: ['created', 'updated', 'deleted', 'merged'],
+  },
+  {
+    id: 'quickbooks_employee_events',
+    label: 'Employee Events',
+    group: 'Products and People',
+    entity: 'employee',
+    entityType: 'Employee',
+    actions: ['created', 'updated', 'deleted', 'merged'],
+  },
+  {
+    id: 'quickbooks_time_activity_events',
+    label: 'Time Activity Events',
+    group: 'Products and People',
+    entity: 'timeactivity',
+    entityType: 'TimeActivity',
+    actions: ['created', 'updated', 'deleted'],
+  },
+  {
+    id: 'quickbooks_account_events',
+    label: 'Account Events',
+    group: 'Company and Setup',
+    entity: 'account',
+    entityType: 'Account',
+    actions: ['created', 'updated', 'deleted', 'merged'],
+  },
+  {
+    id: 'quickbooks_budget_events',
+    label: 'Budget Events',
+    group: 'Company and Setup',
+    entity: 'budget',
+    entityType: 'Budget',
+    actions: ['created', 'updated'],
+  },
+  {
+    id: 'quickbooks_class_events',
+    label: 'Class Events',
+    group: 'Company and Setup',
+    entity: 'class',
+    entityType: 'Class',
+    actions: ['created', 'updated', 'deleted', 'merged'],
+  },
+  {
+    id: 'quickbooks_currency_events',
+    label: 'Currency Events',
+    group: 'Company and Setup',
+    entity: 'currency',
+    entityType: 'Currency',
+    actions: ['created', 'updated'],
+  },
+  {
+    id: 'quickbooks_department_events',
+    label: 'Department Events',
+    group: 'Company and Setup',
+    entity: 'department',
+    entityType: 'Department',
+    actions: ['created', 'updated', 'merged'],
+  },
+  {
+    id: 'quickbooks_journal_code_events',
+    label: 'Journal Code Events',
+    group: 'Company and Setup',
+    entity: 'journalcode',
+    entityType: 'JournalCode',
+    actions: ['created', 'updated'],
+  },
+  {
+    id: 'quickbooks_payment_method_events',
+    label: 'Payment Method Events',
+    group: 'Company and Setup',
+    entity: 'paymentmethod',
+    entityType: 'PaymentMethod',
+    actions: ['created', 'updated', 'merged'],
+  },
+  {
+    id: 'quickbooks_preferences_updated',
+    label: 'Preferences Updated',
+    group: 'Company and Setup',
+    entity: 'preferences',
+    entityType: 'Preferences',
+    actions: ['updated'],
+  },
+  {
+    id: 'quickbooks_tax_agency_events',
+    label: 'Tax Agency Events',
+    group: 'Company and Setup',
+    entity: 'taxagency',
+    entityType: 'TaxAgency',
+    actions: ['created', 'updated'],
+  },
+  {
+    id: 'quickbooks_term_events',
+    label: 'Term Events',
+    group: 'Company and Setup',
+    entity: 'term',
+    entityType: 'Term',
+    actions: ['created', 'updated'],
   },
 ] as const
 
@@ -112,6 +288,7 @@ export function isQuickBooksEventMatch(
   const parsed = parseQuickBooksWebhookType(eventType)
   if (!definition || !parsed || parsed.entity !== definition.entity) return false
   if (!definition.actions.includes(parsed.action as QuickBooksWebhookAction)) return false
+  if (definition.actions.length === 1) return true
   return Array.isArray(selectedActions) && selectedActions.includes(parsed.action)
 }
 
@@ -135,6 +312,25 @@ export function buildQuickBooksTriggerSubBlocks(triggerId: string): SubBlockConf
   const definition = getQuickBooksTriggerDefinition(triggerId)
   if (!definition) throw new Error(`Unknown QuickBooks trigger: ${triggerId}`)
 
+  const eventTypes: SubBlockConfig[] =
+    definition.actions.length === 1
+      ? []
+      : [
+          {
+            id: 'eventTypes',
+            title: 'Event Types',
+            type: 'dropdown',
+            multiSelect: true,
+            options: definition.actions.map((action) => ({
+              label: action.charAt(0).toUpperCase() + action.slice(1),
+              id: action,
+            })),
+            mode: 'trigger',
+            required: true,
+            condition: { field: 'selectedTriggerId', value: triggerId },
+          },
+        ]
+
   return [
     {
       id: 'triggerCredentials',
@@ -146,19 +342,7 @@ export function buildQuickBooksTriggerSubBlocks(triggerId: string): SubBlockConf
       required: true,
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
-    {
-      id: 'eventTypes',
-      title: 'Event Types',
-      type: 'dropdown',
-      multiSelect: true,
-      options: definition.actions.map((action) => ({
-        label: action.charAt(0).toUpperCase() + action.slice(1),
-        id: action,
-      })),
-      mode: 'trigger',
-      required: true,
-      condition: { field: 'selectedTriggerId', value: triggerId },
-    },
+    ...eventTypes,
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
