@@ -143,16 +143,20 @@ export interface ProviderFileAttachment {
   strategy: ProviderFileAttachmentStrategy
 }
 
+/** Inline base64 attachment cap, also the fallback limit for providers without a large-file path. */
+export const INLINE_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+
 /**
- * Inline base64 attachment cap, also the fallback limit for providers without a large-file path.
+ * Size above which an attachment should prefer the provider's Files API over base64, when the
+ * deployment can reach one.
  *
- * Bounded by the execution payload store rather than by any provider. Base64 inflates bytes by
- * 4/3 and a single stored value may not exceed {@link LARGE_VALUE_THRESHOLD_BYTES}, so the
- * largest raw file whose base64 still fits is three quarters of that ceiling. A larger cap does
- * not send a bigger file — it fails the run with "Execution memory limit exceeded" partway
- * through hydration instead of routing the file to the provider's large-file path.
+ * Set by the execution payload store, not by any provider. Base64 inflates bytes by 4/3 and a
+ * single stored value may not exceed {@link LARGE_VALUE_THRESHOLD_BYTES}, so past three quarters
+ * of that ceiling the encoded copy no longer fits the cache. Inlining still succeeds above this
+ * point — the cache write is skipped, not fatal — but it carries a needlessly large encoded
+ * payload, so an upload is preferred wherever one is available.
  */
-export const INLINE_ATTACHMENT_MAX_BYTES = Math.floor(LARGE_VALUE_THRESHOLD_BYTES / 4) * 3
+export const LARGE_FILE_PATH_THRESHOLD_BYTES = Math.floor(LARGE_VALUE_THRESHOLD_BYTES / 4) * 3
 
 const DEFAULT_FILE_ATTACHMENT: ProviderFileAttachment = {
   maxBytes: INLINE_ATTACHMENT_MAX_BYTES,
@@ -2443,12 +2447,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   groq: {
     id: 'groq',
-    /** "Maximum allowed size for a request containing an image URL as input is 20MB." */
-    fileAttachment: {
-      maxBytes: 20_000_000,
-      perRequestMaxBytes: 20_000_000,
-      strategy: 'remote-url',
-    },
+    /**
+     * Left at the pre-existing ceiling: Groq's published "20MB" governs a request carrying an
+     * image URL, and on this path the request body holds only the URL, so it cannot bind on the
+     * files this guards. Groq documents no ceiling on the image it fetches, so both tightening
+     * the per-file cap and summing raw bytes against the request cap would reject uploads that
+     * work today on no documented basis.
+     */
+    fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Groq',
     description: "Groq's LLM models with high-performance inference",
     defaultModel: 'groq/llama-3.3-70b-versatile',

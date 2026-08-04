@@ -15,6 +15,7 @@ import type { UserFile } from '@/executor/types'
 import {
   getProviderFileAttachment,
   INLINE_ATTACHMENT_MAX_BYTES,
+  LARGE_FILE_PATH_THRESHOLD_BYTES,
   type ProviderFileAttachmentStrategy,
 } from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
@@ -75,12 +76,11 @@ type ProviderFormattedMessage = {
   [key: string]: unknown
 }
 
-/**
- * Files at or below this size are inlined as base64; larger files take the provider's
- * large-file path. Sized to the execution payload store, not to any provider — see
- * {@link INLINE_ATTACHMENT_MAX_BYTES}.
- */
+/** Largest file that can be carried as inline base64 when no upload path is available. */
 export const INLINE_ATTACHMENT_THRESHOLD_BYTES = INLINE_ATTACHMENT_MAX_BYTES
+
+/** Re-exported so callers choosing a hydration cap do not reach into `models.ts` directly. */
+export { LARGE_FILE_PATH_THRESHOLD_BYTES }
 
 export type ProviderFileStrategy = ProviderFileAttachmentStrategy
 
@@ -90,9 +90,17 @@ export function getProviderFileStrategy(providerId: ProviderId | string): Provid
 }
 
 /**
- * True when an oversized file has a safe provider path. Remote URLs point at the
- * primary storage object, so source-backed documents can only use artifact-aware
- * Files API uploads.
+ * True when a file should be delivered through the provider's large-file path rather than as
+ * inline base64.
+ *
+ * The two strategies cross over at different sizes on purpose. `files-api` carries every type
+ * this provider already accepts, so it takes over as soon as base64 stops being cacheable. A
+ * `remote-url` provider only fetches images and PDFs, so switching early would start rejecting
+ * text documents that inline fine today; it therefore only takes over once inlining is no longer
+ * possible at all.
+ *
+ * Remote URLs point at the primary storage object, so source-backed generated documents can only
+ * use artifact-aware Files API uploads.
  */
 export function shouldUseLargeFilePath(
   file: Pick<UserFile, 'size' | 'type'>,
@@ -101,7 +109,9 @@ export function shouldUseLargeFilePath(
   const strategy = getProviderFileAttachment(providerId).strategy
   if (strategy === 'inline') return false
   if (strategy === 'remote-url' && isGeneratedDocumentSourceType(file.type)) return false
-  return Number.isFinite(file.size) && file.size > INLINE_ATTACHMENT_THRESHOLD_BYTES
+  const threshold =
+    strategy === 'files-api' ? LARGE_FILE_PATH_THRESHOLD_BYTES : INLINE_ATTACHMENT_THRESHOLD_BYTES
+  return Number.isFinite(file.size) && file.size > threshold
 }
 
 const PDF_MIME_TYPE = 'application/pdf'

@@ -34,11 +34,20 @@ function* iterateRequestFiles(messages: Message[] | undefined): Generator<UserFi
 }
 
 /**
+ * True when this deployment can actually deliver an oversized attachment through the provider's
+ * large-file path. A provider strategy alone is not enough — every large-file path reads the
+ * bytes back out of cloud object storage, so a deployment without it has to keep inlining.
+ */
+export function canUseProviderLargeFilePath(providerId: ProviderId | string): boolean {
+  return getProviderFileStrategy(providerId) !== 'inline' && StorageService.hasCloudStorage()
+}
+
+/**
  * Resolves every attachment that exceeds the inline threshold on a large-file-capable
  * provider to a short-lived signed URL on `file.remoteUrl`. `remote-url` providers send it
  * to the model directly; for `files-api` providers it marks the file for upload (the bytes
- * are read from storage at upload time). Requires cloud storage — a large file (already past
- * the inline base64 cap) cannot be sent without it, so the request fails with a clear error.
+ * are read from storage at upload time). Every large-file path needs cloud storage to read the
+ * bytes back, so without it the file is left for the inline base64 path instead.
  *
  * Runs for every request in {@link executeProviderRequest} (after the API key resolves), so
  * the server-only handle fields are first cleared on every file for every provider — a forged
@@ -74,11 +83,9 @@ export async function attachLargeFileRemoteUrls(
 
     if (!StorageService.hasCloudStorage()) {
       logger.warn(
-        `[${requestId}] "${file.name}" exceeds the inline limit for "${providerId}" but cloud storage is unavailable`
+        `[${requestId}] Sending "${file.name}" inline for "${providerId}": the large-file path needs cloud storage, which is not configured`
       )
-      throw new Error(
-        `File "${file.name}" exceeds the inline attachment limit and requires cloud file storage, which is not configured`
-      )
+      continue
     }
 
     if (!request.userId) {

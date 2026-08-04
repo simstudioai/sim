@@ -128,6 +128,23 @@ describe('OpenAI large-file attachment lifecycle', () => {
     expect(request.messages?.[0].files?.[0].remoteUrl).toBeUndefined()
   })
 
+  /**
+   * Local and disk-backed deployments have no cloud storage, so the upload path cannot read the
+   * bytes back. These files inline as base64 today and must keep doing so rather than hard-fail.
+   */
+  it('leaves the file for the inline path when cloud storage is unavailable', async () => {
+    mockHasCloudStorage.mockReturnValue(false)
+    const request = makeRequest(CSV_BYTES)
+
+    await attachLargeFileRemoteUrls(request, 'openai')
+    await uploadLargeFilesToProvider(request, 'openai')
+
+    expect(fetch).not.toHaveBeenCalled()
+    const file = request.messages?.[0].files?.[0]
+    expect(file?.remoteUrl).toBeUndefined()
+    expect(file?.providerFileId).toBeUndefined()
+  })
+
   it('rejects a request whose attachments together exceed the combined ceiling', async () => {
     const request = makeRequest(30 * 1024 * 1024)
     const [first] = request.messages?.[0].files ?? []

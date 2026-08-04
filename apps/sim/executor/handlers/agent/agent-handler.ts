@@ -54,9 +54,11 @@ import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
   INLINE_ATTACHMENT_THRESHOLD_BYTES,
+  LARGE_FILE_PATH_THRESHOLD_BYTES,
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
+import { canUseProviderLargeFilePath } from '@/providers/file-attachments.server'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -946,6 +948,15 @@ export class AgentBlockHandler implements BlockHandler {
     const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
     const nextMessages = [...messages]
 
+    /**
+     * Stop hydrating base64 early only where an upload can actually take over. Where it cannot —
+     * an inline-only provider, or any deployment without cloud storage — base64 stays the only
+     * delivery path, so it has to be hydrated all the way to the inline ceiling.
+     */
+    const inlineMaxBytes = canUseProviderLargeFilePath(providerId)
+      ? LARGE_FILE_PATH_THRESHOLD_BYTES
+      : INLINE_ATTACHMENT_THRESHOLD_BYTES
+
     for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
       const message = messages[messageIndex]
       if (!message.files?.length) {
@@ -963,16 +974,17 @@ export class AgentBlockHandler implements BlockHandler {
         allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         logger,
-        maxBytes: INLINE_ATTACHMENT_THRESHOLD_BYTES,
+        maxBytes: inlineMaxBytes,
       })
 
       const missingFile = hydratedFiles.find(
-        (file) => !file.base64 && !shouldUseLargeFilePath(file, providerId)
+        (file) =>
+          !file.base64 &&
+          !(canUseProviderLargeFilePath(providerId) && shouldUseLargeFilePath(file, providerId))
       )
       if (missingFile) {
-        const inlineMB = (INLINE_ATTACHMENT_THRESHOLD_BYTES / (1024 * 1024)).toFixed(0)
-        const oversized =
-          Number.isFinite(missingFile.size) && missingFile.size > INLINE_ATTACHMENT_THRESHOLD_BYTES
+        const inlineMB = (inlineMaxBytes / (1024 * 1024)).toFixed(0)
+        const oversized = Number.isFinite(missingFile.size) && missingFile.size > inlineMaxBytes
         throw new Error(
           oversized
             ? `File "${missingFile.name}" (${(missingFile.size / (1024 * 1024)).toFixed(2)}MB) exceeds the ${inlineMB}MB inline attachment limit, and provider "${providerId}" has no large-file upload path for it.`

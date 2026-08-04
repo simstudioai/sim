@@ -16,6 +16,7 @@ import {
   getProviderFileStrategy,
   INLINE_ATTACHMENT_THRESHOLD_BYTES,
   inferAttachmentMimeType,
+  LARGE_FILE_PATH_THRESHOLD_BYTES,
   prepareProviderAttachments,
   shouldUseLargeFilePath,
 } from '@/providers/attachments'
@@ -288,13 +289,27 @@ describe('provider attachments', () => {
 
 describe('provider large-file capability', () => {
   /**
-   * Guards the regression where the inline cap (10 MB) sat above what the payload store could
-   * hold once base64 inflated it, so every 6-10 MB attachment died with "Execution memory limit
-   * exceeded" instead of taking the provider's large-file path.
+   * Guards the regression where every 6-10 MB attachment died with "Execution memory limit
+   * exceeded": past this size the base64 copy no longer fits the payload store, so an upload
+   * has to take over wherever one is reachable.
    */
-  it('keeps the inline cap inside the payload store ceiling once base64-encoded', () => {
-    const encodedBytes = Math.ceil(INLINE_ATTACHMENT_THRESHOLD_BYTES / 3) * 4
+  it('starts preferring an upload before base64 outgrows the payload store', () => {
+    const encodedBytes = Math.ceil(LARGE_FILE_PATH_THRESHOLD_BYTES / 3) * 4
     expect(encodedBytes).toBeLessThanOrEqual(LARGE_VALUE_THRESHOLD_BYTES)
+    expect(LARGE_FILE_PATH_THRESHOLD_BYTES).toBeLessThan(INLINE_ATTACHMENT_THRESHOLD_BYTES)
+  })
+
+  /**
+   * A `remote-url` provider only fetches images and PDFs, so it must not take over from base64
+   * early — text documents in the 6-10 MB band inline fine today and would start failing.
+   */
+  it('crosses over to an upload at different sizes for files-api and remote-url', () => {
+    const midBand = { size: LARGE_FILE_PATH_THRESHOLD_BYTES + 1, type: 'text/plain' }
+    expect(shouldUseLargeFilePath(midBand, 'openai')).toBe(true)
+    expect(shouldUseLargeFilePath(midBand, 'anthropic')).toBe(false)
+
+    const aboveInline = { size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1, type: 'application/pdf' }
+    expect(shouldUseLargeFilePath(aboveInline, 'anthropic')).toBe(true)
   })
 
   it('reports per-provider strategy and ceiling, defaulting others to inline', () => {
@@ -316,7 +331,7 @@ describe('provider large-file capability', () => {
 
   it('routes only oversized files on capable providers to the large-file path', () => {
     const small = { ...imageFile, size: 1024 }
-    const large = { ...imageFile, size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1 }
+    const large = { ...imageFile, size: LARGE_FILE_PATH_THRESHOLD_BYTES + 1 }
     expect(shouldUseLargeFilePath(small, 'openai')).toBe(false)
     expect(shouldUseLargeFilePath(large, 'openai')).toBe(true)
     expect(shouldUseLargeFilePath(large, 'bedrock')).toBe(false)
@@ -325,7 +340,7 @@ describe('provider large-file capability', () => {
   it('does not expose generated source through a remote-url large-file path', () => {
     const generated = {
       ...pdfFile,
-      size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1,
+      size: LARGE_FILE_PATH_THRESHOLD_BYTES + 1,
       type: 'text/x-python-pdf',
     }
     expect(shouldUseLargeFilePath(generated, 'openai')).toBe(true)
