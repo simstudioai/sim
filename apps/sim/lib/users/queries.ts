@@ -17,7 +17,6 @@ export const defaultUserSettings: UserSettingsApi = {
   telemetryEnabled: true,
   emailPreferences: {},
   billingUsageNotificationsEnabled: true,
-  showTrainingControls: false,
   superUserModeEnabled: false,
   mothershipEnvironment: 'default',
   errorNotificationsEnabled: true,
@@ -54,7 +53,6 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
       telemetryEnabled: settings.telemetryEnabled,
       emailPreferences: settings.emailPreferences,
       billingUsageNotificationsEnabled: settings.billingUsageNotificationsEnabled,
-      showTrainingControls: settings.showTrainingControls,
       superUserModeEnabled: settings.superUserModeEnabled,
       mothershipEnvironment: settings.mothershipEnvironment,
       errorNotificationsEnabled: settings.errorNotificationsEnabled,
@@ -80,7 +78,6 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
     telemetryEnabled: userSettings.telemetryEnabled,
     emailPreferences: userSettings.emailPreferences ?? {},
     billingUsageNotificationsEnabled: userSettings.billingUsageNotificationsEnabled ?? true,
-    showTrainingControls: userSettings.showTrainingControls ?? false,
     superUserModeEnabled: userSettings.superUserModeEnabled ?? false,
     mothershipEnvironment:
       (userSettings.mothershipEnvironment as UserSettingsApi['mothershipEnvironment']) ?? 'default',
