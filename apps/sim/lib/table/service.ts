@@ -13,10 +13,21 @@ import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, type Column, count, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, type Column, count, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import type { V2TableSortBy } from '@/lib/api/contracts/v2/tables'
-import { listOrderBy, searchFilter } from '@/lib/api/list-query'
+import {
+  type CursorKey,
+  encodeKeyset,
+  INVALID_CURSOR_MESSAGE,
+  type KeysetKey,
+  keysetAfter,
+  keysetColumns,
+  listOrderBy,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
@@ -220,6 +231,54 @@ const TABLE_SORTS = {
   updatedAt: [userTableDefinitions.updatedAt, userTableDefinitions.createdAt],
 } satisfies Record<V2TableSortBy, readonly Column[]>
 
+/**
+ * The keysets behind {@link queryTables}' sortable fields. `satisfies` makes
+ * this total over the contract enum, so a new sortable field fails to compile
+ * until it has a keyset here rather than silently falling through to an
+ * unordered scan.
+ *
+ * Every key column is `NOT NULL`, and `id` closes each keyset so a page
+ * boundary inside a run of equal names or timestamps is still stable.
+ */
+const tableId = textKey<TableDefinition>(userTableDefinitions.id, (row) => row.id)
+
+/** `TableDefinition` widens its timestamps to `Date | string`; the keyset needs a `Date`. */
+const asDate = (value: Date | string): Date => (value instanceof Date ? value : new Date(value))
+
+const TABLE_KEYSETS = {
+  name: [textKey<TableDefinition>(userTableDefinitions.name, (row) => row.name), tableId],
+  createdAt: [
+    timestampKey<TableDefinition>(userTableDefinitions.createdAt, (row) => asDate(row.createdAt)),
+    tableId,
+  ],
+  updatedAt: [
+    timestampKey<TableDefinition>(userTableDefinitions.updatedAt, (row) => asDate(row.updatedAt)),
+    tableId,
+  ],
+} satisfies Record<V2TableSortBy, readonly KeysetKey<TableDefinition>[]>
+
+/** The column projection every table listing reads, shared so one row type serves both. */
+const TABLE_ROW_SELECT = {
+  id: userTableDefinitions.id,
+  name: userTableDefinitions.name,
+  description: userTableDefinitions.description,
+  schema: userTableDefinitions.schema,
+  metadata: userTableDefinitions.metadata,
+  maxRows: userTableDefinitions.maxRows,
+  workspaceId: userTableDefinitions.workspaceId,
+  folderId: userTableDefinitions.folderId,
+  createdBy: userTableDefinitions.createdBy,
+  archivedAt: userTableDefinitions.archivedAt,
+  createdAt: userTableDefinitions.createdAt,
+  updatedAt: userTableDefinitions.updatedAt,
+  rowCount: userTableDefinitions.rowCount,
+  ...LOCK_SELECT,
+} as const
+
+type TableRowSelection = Awaited<
+  ReturnType<ReturnType<typeof db.select<typeof TABLE_ROW_SELECT>>['from']>
+>[number]
+
 interface ListTablesOptions {
   scope?: TableScope
   /** Restrict to one table folder. */
@@ -251,22 +310,7 @@ export async function listTables(
     sortOrder = 'asc',
   } = options ?? {}
   const tables = await db
-    .select({
-      id: userTableDefinitions.id,
-      name: userTableDefinitions.name,
-      description: userTableDefinitions.description,
-      schema: userTableDefinitions.schema,
-      metadata: userTableDefinitions.metadata,
-      maxRows: userTableDefinitions.maxRows,
-      workspaceId: userTableDefinitions.workspaceId,
-      folderId: userTableDefinitions.folderId,
-      createdBy: userTableDefinitions.createdBy,
-      archivedAt: userTableDefinitions.archivedAt,
-      createdAt: userTableDefinitions.createdAt,
-      updatedAt: userTableDefinitions.updatedAt,
-      rowCount: userTableDefinitions.rowCount,
-      ...LOCK_SELECT,
-    })
+    .select(TABLE_ROW_SELECT)
     .from(userTableDefinitions)
     .where(
       and(
@@ -282,9 +326,18 @@ export async function listTables(
     )
     .orderBy(...listOrderBy(TABLE_SORTS[sortBy], sortOrder))
 
-  const jobsByTable = await latestJobsForTables(tables.map((t) => t.id))
+  return hydrateTableRows(tables)
+}
 
-  return tables.map((t) => {
+/**
+ * Attaches each table's latest job fields and its order-corrected schema. The
+ * `rowCount` subtracts rows a pending delete has already claimed, so a table
+ * mid-delete reports what a caller can still read rather than the raw column.
+ */
+async function hydrateTableRows(rows: TableRowSelection[]): Promise<TableDefinition[]> {
+  const jobsByTable = await latestJobsForTables(rows.map((t) => t.id))
+
+  return rows.map((t) => {
     const metadata = (t.metadata as TableMetadata) ?? null
     const { pendingDeleteRemaining, ...jobFields } = jobsByTable.get(t.id) ?? EMPTY_JOB_FIELDS
     return {
@@ -305,6 +358,76 @@ export async function listTables(
       ...jobFields,
     }
   })
+}
+
+export interface QueryTablesOptions {
+  scope?: TableScope
+  /** Restrict to one table folder. */
+  folderId?: string
+  /** Case-insensitive substring match on the table name. */
+  search?: string
+  sortBy: V2TableSortBy
+  sortOrder: V2SortOrder
+  limit: number
+  /** Keyset values from a cursor, in the sort's key order. */
+  after?: CursorKey[]
+}
+
+export interface QueryTablesResult {
+  tables: TableDefinition[]
+  /** Keyset values to resume from, or `null` when this page is the last one. */
+  nextKeys: CursorKey[] | null
+}
+
+/**
+ * One filtered, sorted, bounded page of a workspace's tables.
+ *
+ * Distinct from {@link listTables}, which materializes the whole scope for
+ * callers that genuinely need it. Here the filter, the ordering, and the slice
+ * are all in the query, so a `search` never costs a full-workspace read — which
+ * matters now that tables can be created through the public API in bulk.
+ */
+export async function queryTables(
+  workspaceId: string,
+  options: QueryTablesOptions
+): Promise<QueryTablesResult> {
+  const { scope = 'active', folderId, search, sortBy, sortOrder, limit, after } = options
+  const keys = TABLE_KEYSETS[sortBy]
+
+  // A cursor whose values don't bind is a caller error, not an empty filter —
+  // coercing it away would silently serve page 1 under a resumed cursor.
+  let resumeAfter: SQL | undefined
+  if (after) {
+    const condition = keysetAfter(keys, after, sortOrder)
+    if (!condition) throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+    resumeAfter = condition
+  }
+
+  const rows = await db
+    .select(TABLE_ROW_SELECT)
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        scope === 'all'
+          ? undefined
+          : scope === 'archived'
+            ? isNotNull(userTableDefinitions.archivedAt)
+            : isNull(userTableDefinitions.archivedAt),
+        folderId ? eq(userTableDefinitions.folderId, folderId) : undefined,
+        searchFilter(userTableDefinitions.name, search),
+        resumeAfter
+      )
+    )
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
+    // One extra row is the has-more probe; it never reaches the caller.
+    .limit(limit + 1)
+
+  const hasMore = rows.length > limit
+  const tables = await hydrateTableRows(rows.slice(0, limit))
+  const last = tables.at(-1)
+
+  return { tables, nextKeys: hasMore && last ? encodeKeyset(keys, last) : null }
 }
 
 /**
