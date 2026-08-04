@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   customPatternSchema,
+  isCanonicalBase64,
   organizationIdSchema,
   piiStagePolicySchema,
   piiStagesSchema,
@@ -11,6 +12,19 @@ import {
   workspaceFileIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
+
+describe('isCanonicalBase64', () => {
+  it.each(['', 'TQ==', 'TWE=', 'TWFu', 'AAEC/w=='])('accepts canonical base64 %j', (value) => {
+    expect(isCanonicalBase64(value)).toBe(true)
+  })
+
+  it.each(['TQ', 'TQ=', 'TQ===', 'T=Q=', 'TQ==\n', 'TR==', 'TWF='])(
+    'rejects malformed or non-canonical base64 %j',
+    (value) => {
+      expect(isCanonicalBase64(value)).toBe(false)
+    }
+  )
+})
 
 describe('customPatternSchema', () => {
   it('accepts a well-formed pattern', () => {

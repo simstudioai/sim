@@ -143,6 +143,46 @@ describe('/api/files/uploads', () => {
     expect(body.data.session).not.toHaveProperty('transfer')
   })
 
+  it('creates a PUT session for an empty workspace file', async () => {
+    mockCreateUploadSession.mockResolvedValue({
+      ...session({
+        workspaceId: 'workspace-1',
+        purpose: 'workspace_file',
+        storageContext: 'workspace',
+        storageKey: 'workspace/workspace-1/empty.md',
+        fileName: 'empty.md',
+        contentType: 'text/markdown',
+        fileSize: 0,
+      }),
+      transfer: {
+        method: 'put',
+        url: 'https://storage.example.com/upload',
+        headers: { 'Content-Type': 'text/markdown' },
+      },
+    })
+    const request = new NextRequest('http://localhost/api/files/uploads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        purpose: 'workspace_file',
+        workspaceId: 'workspace-1',
+        name: 'empty.md',
+        contentType: 'text/markdown',
+        size: 0,
+      }),
+    })
+
+    const response = await createUpload(request)
+
+    expect(response.status).toBe(201)
+    expect(mockCreateUploadSession).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'workspace_file', fileSize: 0 })
+    )
+    await expect(response.json()).resolves.toMatchObject({
+      data: { session: { purpose: 'workspace_file', size: 0 } },
+    })
+  })
+
   it('preserves the 5 GiB direct-to-storage limit for mothership attachments', async () => {
     mockCreateUploadSession.mockResolvedValue({
       ...session({

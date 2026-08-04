@@ -8,6 +8,8 @@ import { requestJson } from '@/lib/api/client/request'
 import { fileStorageStatusContract } from '@/lib/api/contracts/storage-transfer'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
+  type CreateWorkspaceFileBody,
+  createWorkspaceFileContract,
   deleteWorkspaceFileContract,
   listWorkspaceFilesContract,
   renameWorkspaceFileContract,
@@ -383,6 +385,31 @@ export function useUploadWorkspaceFile() {
           duration: 5000,
         })
       }
+    },
+  })
+}
+
+type CreateWorkspaceFileParams = CreateWorkspaceFileBody & {
+  workspaceId: string
+}
+
+export function useCreateWorkspaceFile() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ workspaceId, ...body }: CreateWorkspaceFileParams) =>
+      requestJson(createWorkspaceFileContract, {
+        params: { id: workspaceId },
+        body,
+      }),
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+    },
+    onError: (error) => {
+      logger.error('Failed to create file:', error)
     },
   })
 }

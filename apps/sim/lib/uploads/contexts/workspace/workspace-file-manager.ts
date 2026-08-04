@@ -61,6 +61,7 @@ import {
   getWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
+  resolveWorkspaceFileFolderTarget,
 } from './workspace-file-folder-manager'
 
 const logger = createLogger('WorkspaceFileStorage')
@@ -105,6 +106,14 @@ export interface WorkspaceFileRecord {
   storageContext?: 'workspace' | 'mothership'
   /** Public share state, attached at the API boundary. `null` when never shared. */
   share?: ShareRecord | null
+}
+
+export interface UploadedWorkspaceFileRecord extends WorkspaceFileRecord {
+  url: string
+  context: 'workspace'
+  folderId: string | null
+  folderPath: string | null
+  deletedAt: Date | null
 }
 
 interface ListWorkspaceFilesOptions {
@@ -330,10 +339,12 @@ export async function uploadWorkspaceFile(
   fileName: string,
   contentType: string,
   options?: { folderId?: string | null; exactName?: boolean }
-): Promise<UserFile> {
+): Promise<UploadedWorkspaceFileRecord> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
-  const folderId = await assertWorkspaceFileFolderTarget(workspaceId, options?.folderId)
+  const folderTarget = await resolveWorkspaceFileFolderTarget(workspaceId, options?.folderId)
+  const folderId = folderTarget?.id ?? null
+  const folderPath = folderTarget?.path ?? null
   const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
   const exactName = options?.exactName ?? false
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
@@ -348,7 +359,7 @@ export async function uploadWorkspaceFile(
       throw new FileConflictError(uniqueName)
     }
     const storageKey = generateWorkspaceFileKey(workspaceId, uniqueName)
-    let fileId = `wf_${generateShortId()}`
+    const fileId = `wf_${generateShortId()}`
 
     try {
       logger.info(`Generated storage key: ${storageKey}`)
@@ -375,9 +386,12 @@ export async function uploadWorkspaceFile(
 
       logger.info(`Upload returned key: ${uploadResult.key}`)
 
-      let updatedUsage: number | undefined
+      let finalized: {
+        inserted: typeof workspaceFiles.$inferSelect
+        updatedUsage: number | undefined
+      }
       try {
-        const finalized = await db.transaction(async (tx) => {
+        finalized = await db.transaction(async (tx) => {
           const inserted = await insertWorkspaceFileMetadataInTx(tx, {
             id: fileId,
             key: uploadResult.key,
@@ -398,35 +412,22 @@ export async function uploadWorkspaceFile(
           )
           return { inserted, updatedUsage: usage }
         })
-        fileId = finalized.inserted.id
-        updatedUsage = finalized.updatedUsage
       } catch (finalizationError) {
         await cleanupWorkspaceStorageObject(uploadResult.key, 'metadata finalization failure')
         throw finalizationError
       }
 
-      void maybeNotifyStorageLimitForBillingContext(storageBillingContext, updatedUsage)
+      void maybeNotifyStorageLimitForBillingContext(storageBillingContext, finalized.updatedUsage)
 
       logger.info(
         `Successfully uploaded workspace file: ${uniqueName} with key: ${uploadResult.key}`
       )
 
-      const pathPrefix = getServePathPrefix()
-      const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=workspace`
-
       // Fan out the live-tree signal for this server-buffered path. Upload-session
       // finalization sends its own notification after registering metadata.
       await notifyWorkspaceFilesChanged(workspaceId)
 
-      return {
-        id: fileId,
-        name: uniqueName,
-        size: fileBuffer.length,
-        type: contentType,
-        url: serveUrl,
-        key: uploadResult.key,
-        context: 'workspace',
-      }
+      return mapUploadedWorkspaceFileRecord(finalized.inserted, workspaceId, folderPath)
     } catch (error) {
       lastError = error
       if (error instanceof FileConflictError) {
@@ -870,6 +871,26 @@ function mapWorkspaceFileRecord(
     uploadedAt: file.uploadedAt,
     updatedAt: file.updatedAt,
     contentUpdatedAt: file.contentUpdatedAt,
+  }
+}
+
+function mapUploadedWorkspaceFileRecord(
+  file: typeof workspaceFiles.$inferSelect,
+  workspaceId: string,
+  folderPath: string | null
+): UploadedWorkspaceFileRecord {
+  const record = mapWorkspaceFileRecord(
+    file,
+    workspaceId,
+    file.folderId && folderPath ? new Map([[file.folderId, folderPath]]) : new Map()
+  )
+  return {
+    ...record,
+    url: record.path,
+    context: 'workspace',
+    folderId: record.folderId ?? null,
+    folderPath: record.folderPath ?? null,
+    deletedAt: record.deletedAt ?? null,
   }
 }
 

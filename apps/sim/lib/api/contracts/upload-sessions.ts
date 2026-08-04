@@ -33,7 +33,7 @@ export const createInternalFileUploadBodySchema = z.discriminatedUnion('purpose'
     .object({
       purpose: z.literal('workspace_file'),
       ...internalFileUploadBaseShape,
-      size: z.number().int().min(1).max(MAX_WORKSPACE_FILE_SIZE),
+      size: z.number().int().nonnegative().max(MAX_WORKSPACE_FILE_SIZE),
       workspaceId: workspaceIdSchema,
       folderId: folderIdSchema.optional(),
     })
@@ -83,7 +83,6 @@ const internalFileUploadSessionBaseShape = {
   status: v2UploadStatusSchema,
   name: z.string(),
   contentType: z.string(),
-  size: z.number().int().positive(),
   expiresAt: z.string().datetime(),
   error: z.string().nullable(),
 } as const
@@ -115,6 +114,7 @@ export const internalFileUploadSessionSchema = z.discriminatedUnion('purpose', [
     .object({
       ...internalFileUploadSessionBaseShape,
       purpose: z.literal('workspace_file'),
+      size: z.number().int().nonnegative(),
       result: v2FileSchema.nullable(),
     })
     .strict(),
@@ -122,6 +122,7 @@ export const internalFileUploadSessionSchema = z.discriminatedUnion('purpose', [
     .object({
       ...internalFileUploadSessionBaseShape,
       purpose: z.literal('profile_picture'),
+      size: z.number().int().positive(),
       result: internalUploadedAssetSchema.nullable(),
     })
     .strict(),
@@ -129,6 +130,7 @@ export const internalFileUploadSessionSchema = z.discriminatedUnion('purpose', [
     .object({
       ...internalFileUploadSessionBaseShape,
       purpose: z.literal('workspace_logo'),
+      size: z.number().int().positive(),
       result: internalUploadedAssetSchema.nullable(),
     })
     .strict(),
@@ -136,6 +138,7 @@ export const internalFileUploadSessionSchema = z.discriminatedUnion('purpose', [
     .object({
       ...internalFileUploadSessionBaseShape,
       purpose: z.literal('mothership_attachment'),
+      size: z.number().int().positive(),
       result: internalUploadedAssetSchema.nullable(),
     })
     .strict(),
@@ -143,6 +146,7 @@ export const internalFileUploadSessionSchema = z.discriminatedUnion('purpose', [
     .object({
       ...internalFileUploadSessionBaseShape,
       purpose: z.literal('execution_attachment'),
+      size: z.number().int().positive(),
       result: internalExecutionAttachmentSchema.nullable(),
     })
     .strict(),

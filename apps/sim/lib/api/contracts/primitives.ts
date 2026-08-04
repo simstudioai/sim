@@ -37,6 +37,50 @@ export function flattenFieldErrors<TFields extends string>(
 export const noInputSchema = z.object({}).strict()
 export type NoInput = z.output<typeof noInputSchema>
 
+/**
+ * Accepts canonical RFC 4648 base64, including the empty encoding used for a
+ * zero-byte file. Padding is required when the final quantum is incomplete,
+ * and non-zero unused pad bits are rejected.
+ */
+export function isCanonicalBase64(value: string): boolean {
+  if (value.length === 0) return true
+  if (value.length % 4 !== 0) return false
+
+  let contentLength = value.length
+  while (contentLength > 0 && value.charCodeAt(contentLength - 1) === 61) {
+    contentLength -= 1
+  }
+
+  const paddingLength = value.length - contentLength
+  if (paddingLength > 2) return false
+  if (paddingLength === 1 && contentLength % 4 !== 3) return false
+  if (paddingLength === 2 && contentLength % 4 !== 2) return false
+
+  let finalSextet = 0
+  for (let index = 0; index < contentLength; index += 1) {
+    const code = value.charCodeAt(index)
+    const sextet =
+      code >= 65 && code <= 90
+        ? code - 65
+        : code >= 97 && code <= 122
+          ? code - 71
+          : code >= 48 && code <= 57
+            ? code + 4
+            : code === 43
+              ? 62
+              : code === 47
+                ? 63
+                : -1
+
+    if (sextet === -1) return false
+    finalSextet = sextet
+  }
+
+  if (paddingLength === 1 && (finalSextet & 0b11) !== 0) return false
+  if (paddingLength === 2 && (finalSextet & 0b1111) !== 0) return false
+  return true
+}
+
 export const jobIdParamsSchema = z.object({
   jobId: z.string().min(1),
 })

@@ -71,6 +71,33 @@ describe('local upload-session provider', () => {
     expect(await temporaryFiles('upload-sessions/upload-1')).toEqual([])
   })
 
+  it('persists an empty PUT object with its identity metadata', async () => {
+    await writeLocalPutObject({
+      uploadId: 'upload-1',
+      stagingKey: 'upload-sessions/upload-1/empty.md',
+      body: byteStream(),
+      expectedSize: 0,
+      contentType: 'text/markdown',
+      metadata: METADATA,
+    })
+
+    await expect(stat(localPath('upload-sessions/upload-1/empty.md'))).resolves.toMatchObject({
+      size: 0,
+    })
+    await expect(
+      headProviderObject({
+        provider: 'local',
+        key: 'upload-sessions/upload-1/empty.md',
+        context: CONTEXT,
+      })
+    ).resolves.toMatchObject({
+      size: 0,
+      contentType: 'text/markdown',
+      uploadId: 'upload-1',
+      version: expect.any(String),
+    })
+  })
+
   it.each([
     { name: 'short', chunks: ['ab'], expectedSize: 3 },
     { name: 'oversized', chunks: ['ab', 'cd'], expectedSize: 3 },

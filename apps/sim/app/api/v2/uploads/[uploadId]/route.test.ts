@@ -84,6 +84,16 @@ describe('PUT /api/v2/uploads/[uploadId]', () => {
     })
   })
 
+  it('streams an empty local PUT body for an empty workspace-file session', async () => {
+    mockGetOwnedUploadSession.mockReturnValue({ ...SESSION, fileSize: 0 })
+    const response = await request({ contentLength: '0', body: new Uint8Array() })
+
+    expect(response.status).toBe(204)
+    expect(mockWriteLocalPut).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedSize: 0, body: expect.any(ReadableStream) })
+    )
+  })
+
   it('rejects a mismatched Content-Length before opening the local writer', async () => {
     const response = await request({ contentLength: '2' })
 
@@ -113,7 +123,7 @@ describe('PUT /api/v2/uploads/[uploadId]', () => {
   })
 })
 
-function request(options?: { contentLength?: string | null }) {
+function request(options?: { contentLength?: string | null; body?: Uint8Array }) {
   const headers = new Headers({
     'Content-Type': 'application/octet-stream',
     'upload-token': 'signed-token',
@@ -125,7 +135,7 @@ function request(options?: { contentLength?: string | null }) {
     new NextRequest('http://localhost:3000/api/v2/uploads/upload-1', {
       method: 'PUT',
       headers,
-      body: new Uint8Array([1, 2, 3]),
+      body: options?.body ?? new Uint8Array([1, 2, 3]),
     }),
     { params: Promise.resolve({ uploadId: 'upload-1' }) }
   )

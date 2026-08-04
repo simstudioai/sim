@@ -90,6 +90,42 @@ describe('upload sessions', () => {
     expect(mockInitiateMultipart).not.toHaveBeenCalled()
   })
 
+  it('creates a PUT session for an empty workspace file', async () => {
+    const created = await createWorkspaceUpload(0)
+
+    expect(created).toMatchObject({
+      purpose: 'workspace_file',
+      fileSize: 0,
+      method: 'put',
+      transfer: { method: 'put' },
+    })
+    expect(verifyUploadSessionToken(created.uploadToken)).toMatchObject({
+      purpose: 'workspace_file',
+      fileSize: 0,
+      method: 'put',
+    })
+  })
+
+  it('rejects an empty upload for non-workspace-file purposes', async () => {
+    await expect(
+      createUploadSession({
+        id: 'empty-attachment',
+        workspaceId: WORKSPACE_ID,
+        userId: 'user-1',
+        purpose: 'mothership_attachment',
+        fileName: 'empty.txt',
+        contentType: 'text/plain',
+        fileSize: 0,
+      })
+    ).rejects.toThrow('fileSize must be a positive integer')
+  })
+
+  it('rejects a negative workspace-file size', async () => {
+    await expect(createWorkspaceUpload(-1)).rejects.toThrow(
+      'fileSize must be a non-negative integer'
+    )
+  })
+
   it('selects multipart at 50 MiB plus one byte', async () => {
     const created = await createWorkspaceUpload(UPLOAD_SESSION_PUT_MAX_BYTES + 1)
 

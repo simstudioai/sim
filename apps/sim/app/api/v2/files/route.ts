@@ -1,10 +1,20 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
-import { type V2File, v2ListFilesContract } from '@/lib/api/contracts/v2/files'
+import {
+  type V2File,
+  v2CreateFileContract,
+  v2ListFilesContract,
+} from '@/lib/api/contracts/v2/files'
 import { parseRequest } from '@/lib/api/server'
+import { messageForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { queryWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import {
+  MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
+  performCreateWorkspaceFile,
+} from '@/lib/workspace-files/orchestration'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2File } from '@/app/api/v2/files/utils'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -15,7 +25,9 @@ import {
   v2CaughtOrchestrationError,
   v2CursorList,
   v2CursorSortError,
+  v2Data,
   v2Error,
+  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
@@ -87,6 +99,60 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (classified) return classified
 
     logger.error('Error listing files', { error: getErrorMessage(error, 'Unknown error') })
+    return v2Error('INTERNAL_ERROR', 'Internal server error')
+  }
+})
+
+/** POST /api/v2/files — Create an authored workspace file, optionally with initial content. */
+export const POST = withRouteHandler(async (request: NextRequest) => {
+  try {
+    const rateLimit = await checkRateLimit(request, 'files')
+    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+
+    const userId = rateLimit.userId!
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
+    const parsed = await parseRequest(
+      v2CreateFileContract,
+      request,
+      {},
+      {
+        invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
+        maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
+        validationErrorResponse: v2ValidationError,
+      }
+    )
+    if (!parsed.success) {
+      return parsed.response.status === 413
+        ? v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large')
+        : parsed.response
+    }
+
+    const { workspaceId, name, contentType, folderId, content, encoding } = parsed.data.body
+    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    if (access) return v2WorkspaceAccessError(access)
+
+    const result = await performCreateWorkspaceFile({
+      workspaceId,
+      userId,
+      name,
+      contentType: contentType ?? getMimeTypeFromExtension(getFileExtension(name)),
+      folderId,
+      content: Buffer.from(content, encoding),
+      exactName: true,
+      request,
+    })
+    if (!result.success || !result.file) {
+      return v2ErrorForOrchestration(
+        result.errorCode,
+        messageForOrchestrationError(result, 'Failed to create file')
+      )
+    }
+
+    return v2Data(toV2File(result.file), { rateLimit, status: 201 })
+  } catch (error) {
+    logger.error('Error creating file', { error: getErrorMessage(error, 'Unknown error') })
     return v2Error('INTERNAL_ERROR', 'Internal server error')
   }
 })

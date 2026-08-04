@@ -1,9 +1,15 @@
 export {
   MAX_WORKSPACE_FILE_CONTENT_BYTES,
+  MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
   type PerformUpdateWorkspaceFileContentParams,
   type PerformUpdateWorkspaceFileContentResult,
   performUpdateWorkspaceFileContent,
 } from './content'
+export {
+  type PerformCreateWorkspaceFileParams,
+  type PerformCreateWorkspaceFileResult,
+  performCreateWorkspaceFile,
+} from './create'
 export {
   type PerformCreateWorkspaceFileFolderParams,
   type PerformCreateWorkspaceFileFolderResult,

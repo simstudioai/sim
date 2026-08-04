@@ -148,7 +148,7 @@ describe('POST /api/v2/files/uploads', () => {
     expect(mockCreateUploadSession).not.toHaveBeenCalled()
   })
 
-  it('rejects an empty file before creating provider state', async () => {
+  it('creates an upload session for an empty workspace file', async () => {
     const response = await request({
       workspaceId: WORKSPACE_ID,
       name: 'file.csv',
@@ -156,8 +156,9 @@ describe('POST /api/v2/files/uploads', () => {
       size: 0,
     })
 
-    expect(response.status).toBe(400)
-    expect(mockResolveWorkspaceAccess).not.toHaveBeenCalled()
-    expect(mockCreateUploadSession).not.toHaveBeenCalled()
+    expect(response.status).toBe(201)
+    expect(mockCreateUploadSession).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'workspace_file', fileSize: 0 })
+    )
   })
 })

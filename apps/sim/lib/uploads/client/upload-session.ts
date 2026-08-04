@@ -95,7 +95,10 @@ async function uploadPut<T>(params: UploadPutFileSession<T>): Promise<void> {
     params.onProgress?.({
       loaded: reportedLoaded,
       total: params.file.size,
-      percent: Math.min(100, Math.round((reportedLoaded / params.file.size) * 100)),
+      percent:
+        params.file.size === 0
+          ? 100
+          : Math.min(100, Math.round((reportedLoaded / params.file.size) * 100)),
     })
   }
 

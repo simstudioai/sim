@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { workspaceFileIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  folderIdSchema,
+  isCanonicalBase64,
+  workspaceFileIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { shareAuthTypeSchema, shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
@@ -65,8 +70,8 @@ export const v2CreateFileUploadBodySchema = z
     workspaceId: workspaceIdSchema,
     name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
     contentType: z.string().trim().min(1, 'contentType is required').max(255),
-    size: z.number().int().min(1).max(MAX_WORKSPACE_FILE_SIZE),
-    folderId: z.string().min(1, 'folderId cannot be empty').optional(),
+    size: z.number().int().nonnegative().max(MAX_WORKSPACE_FILE_SIZE),
+    folderId: folderIdSchema.optional(),
   })
   .strict()
 export type V2CreateFileUploadBody = z.input<typeof v2CreateFileUploadBodySchema>
@@ -79,7 +84,7 @@ export const v2FileUploadSchema = z.object({
   status: v2UploadStatusSchema,
   name: z.string(),
   contentType: z.string(),
-  size: z.number().int().positive(),
+  size: z.number().int().nonnegative(),
   expiresAt: z.string().datetime(),
   error: z.string().nullable(),
   file: v2FileSchema.nullable(),
@@ -136,6 +141,33 @@ const v2FileItemNameSchema = z
     (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
     'name cannot contain path separators or dot segments'
   )
+
+export const v2CreateFileBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    name: v2FileItemNameSchema,
+    contentType: z
+      .string()
+      .trim()
+      .min(1, 'contentType cannot be empty')
+      .max(255, 'contentType is too long')
+      .optional(),
+    folderId: folderIdSchema.optional(),
+    content: z.string().max(70_000_000, 'content is too large').default(''),
+    encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
+  })
+  .superRefine(({ content, encoding }, ctx) => {
+    if (encoding === 'base64' && !isCanonicalBase64(content)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['content'],
+        message: 'content must be valid base64',
+      })
+    }
+  })
+  .strict()
+
+export type V2CreateFileBody = z.input<typeof v2CreateFileBodySchema>
 
 /** Sortable file fields. `name` is the uploaded file name, not the storage key. */
 export const v2FileSortFields = ['name', 'size', 'uploadedAt', 'updatedAt'] as const
@@ -313,6 +345,15 @@ export const v2UpdateFileContentBodySchema = z
     content: z.string().max(70_000_000, 'content is too large'),
     encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
   })
+  .superRefine(({ content, encoding }, ctx) => {
+    if (encoding === 'base64' && !isCanonicalBase64(content)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['content'],
+        message: 'content must be valid base64',
+      })
+    }
+  })
   .strict()
 
 export type V2UpdateFileContentBody = z.input<typeof v2UpdateFileContentBodySchema>
@@ -324,6 +365,16 @@ export const v2ListFilesContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2FileSchema),
+  },
+})
+
+export const v2CreateFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files',
+  body: v2CreateFileBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FileSchema),
   },
 })
 

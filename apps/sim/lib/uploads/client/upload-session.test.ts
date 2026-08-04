@@ -98,6 +98,24 @@ describe('uploadFileSession', () => {
     expect(abort).not.toHaveBeenCalled()
   })
 
+  it('uploads an empty file with PUT and reports finite completion progress', async () => {
+    const complete = vi.fn(async (_body: V2CompleteUploadBody) => 'done')
+    const onProgress = vi.fn()
+
+    await expect(
+      uploadFileSession({
+        file: sizedFile(0),
+        transfer: { method: 'put', url: 'https://storage.example/upload', headers: {} },
+        complete,
+        abort: vi.fn(async () => undefined),
+        onProgress,
+      })
+    ).resolves.toBe('done')
+
+    expect(complete).toHaveBeenCalledWith({})
+    expect(onProgress).toHaveBeenLastCalledWith({ loaded: 0, total: 0, percent: 100 })
+  })
+
   it('uploads a file above the threshold through bounded multipart batches', async () => {
     const file = sizedFile(PUT_THRESHOLD + 1)
     const partSize = 8 * MIB

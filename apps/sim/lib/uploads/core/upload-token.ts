@@ -194,7 +194,7 @@ function assertUploadTokenPayload(value: unknown): asserts value is UploadTokenP
     !value.stagingKey.startsWith(`upload-sessions/${value.uploadId}/`) ||
     !isNonEmptyString(value.fileName) ||
     !isNonEmptyString(value.contentType) ||
-    !isSafePositiveInteger(value.fileSize) ||
+    !isValidFileSize(value.purpose, value.fileSize) ||
     !isPlainRecord(value.metadata)
   ) {
     throw new Error('Upload token payload has invalid object state')
@@ -298,4 +298,12 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isSafePositiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
+function isValidFileSize(purpose: unknown, value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    (value > 0 || (purpose === 'workspace_file' && value === 0))
+  )
 }

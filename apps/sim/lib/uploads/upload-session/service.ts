@@ -694,8 +694,10 @@ function validateFile(params: CreateUploadSessionParams): void {
   if (!params.contentType.trim()) {
     throw new UploadSessionError('validation', 'contentType must not be empty')
   }
-  if (!Number.isSafeInteger(params.fileSize) || params.fileSize < 1) {
-    throw new UploadSessionError('validation', 'fileSize must be a positive integer')
+  const minimum = params.purpose === 'workspace_file' ? 0 : 1
+  if (!Number.isSafeInteger(params.fileSize) || params.fileSize < minimum) {
+    const range = minimum === 0 ? 'a non-negative integer' : 'a positive integer'
+    throw new UploadSessionError('validation', `fileSize must be ${range}`)
   }
   const maximum = maximumFileSize(params.purpose)
   if (params.fileSize > maximum) {
