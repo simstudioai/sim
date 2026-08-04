@@ -15,6 +15,11 @@ import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
+import {
+  getReasoningEffortValuesForModel,
+  getThinkingLevelsForModel,
+  getVerbosityValuesForModel,
+} from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
 import {
   type ProviderRuntimeContext,
@@ -52,12 +57,46 @@ function normalizeModelLevel(value: string | undefined): string | undefined {
   return normalized || undefined
 }
 
+/**
+ * Levels the pickers offer on top of what a model declares. `auto` means "say nothing" and
+ * `none` means "explicitly off"; every provider adapter special-cases them, so neither is
+ * an unrecognized level.
+ */
+const MODEL_LEVEL_SENTINELS = new Set(['auto', 'none'])
+
+/**
+ * Logs a level that is not one the model declares.
+ *
+ * Deliberately does not drop the value. Sim's per-model level lists exist to populate the
+ * pickers and can lag a provider that has started accepting a new level, so rejecting on them
+ * would refuse values the API would have taken. Forwarding instead surfaces the provider's own
+ * error, which names the field and the values it accepts — the loud failure an eval sweeping
+ * levels needs, where silently substituting the model default would corrupt the results.
+ */
+function warnOnUnrecognizedLevel(
+  field: 'reasoningEffort' | 'verbosity' | 'thinkingLevel',
+  model: string | undefined,
+  value: string | undefined,
+  declaredValues: string[] | null
+): void {
+  if (!model || !value || MODEL_LEVEL_SENTINELS.has(value)) return
+  if (!declaredValues || declaredValues.includes(value)) return
+
+  logger.warn('Model level is not one this model declares; forwarding to the provider', {
+    field,
+    model,
+    value,
+    declaredValues,
+  })
+}
+
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   const sanitizedRequest = { ...request }
   const model = sanitizedRequest.model
 
   sanitizedRequest.reasoningEffort = normalizeModelLevel(sanitizedRequest.reasoningEffort)
   sanitizedRequest.verbosity = normalizeModelLevel(sanitizedRequest.verbosity)
+  sanitizedRequest.thinkingLevel = normalizeModelLevel(sanitizedRequest.thinkingLevel)
 
   if (model && !supportsTemperature(model)) {
     sanitizedRequest.temperature = undefined
@@ -78,6 +117,25 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   if (model && !supportsPromptCaching(model)) {
     sanitizedRequest.promptCaching = undefined
   }
+
+  warnOnUnrecognizedLevel(
+    'reasoningEffort',
+    model,
+    sanitizedRequest.reasoningEffort,
+    model ? getReasoningEffortValuesForModel(model) : null
+  )
+  warnOnUnrecognizedLevel(
+    'verbosity',
+    model,
+    sanitizedRequest.verbosity,
+    model ? getVerbosityValuesForModel(model) : null
+  )
+  warnOnUnrecognizedLevel(
+    'thinkingLevel',
+    model,
+    sanitizedRequest.thinkingLevel,
+    model ? getThinkingLevelsForModel(model) : null
+  )
 
   return sanitizedRequest
 }

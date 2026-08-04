@@ -266,8 +266,8 @@ Return ONLY the JSON array.`,
     {
       id: 'thinkingLevel',
       title: 'Thinking Level',
-      type: 'dropdown',
-      placeholder: 'Select thinking level...',
+      type: 'combobox',
+      placeholder: 'Type or select thinking level...',
       options: [
         { label: 'none', id: 'none' },
         { label: 'minimal', id: 'minimal' },
@@ -301,10 +301,7 @@ Return ONLY the JSON array.`,
         return [noneOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
       },
       mode: 'advanced',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_THINKING,
-      },
+      condition: getModelCapabilityCondition(MODELS_WITH_THINKING),
     },
     {
       id: 'promptCaching',

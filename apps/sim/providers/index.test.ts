@@ -414,9 +414,9 @@ describe('executeProviderRequest — streaming cost policy', () => {
 })
 
 /**
- * `reasoningEffort` and `verbosity` can be bound to a variable or block reference in the
- * agent block, so by the time they reach the provider they hold whatever that reference
- * resolved to rather than a value picked from a list.
+ * `reasoningEffort`, `verbosity`, and `thinkingLevel` can be bound to a variable or block
+ * reference in the agent block, so by the time they reach the provider they hold whatever
+ * that reference resolved to rather than a value picked from a list.
  */
 describe('executeProviderRequest — model level normalization', () => {
   beforeEach(() => {
@@ -443,6 +443,16 @@ describe('executeProviderRequest — model level normalization', () => {
     expect(sentRequest().verbosity).toBe('low')
   })
 
+  it('trims and lower-cases a thinking level a reference resolved to', async () => {
+    await executeProviderRequest('anthropic', {
+      model: 'claude-sonnet-5',
+      workspaceId: 'ws-1',
+      thinkingLevel: ' High ',
+    })
+
+    expect(sentRequest().thinkingLevel).toBe('high')
+  })
+
   it('treats a level that resolved to nothing as unset rather than an empty string', async () => {
     await executeProviderRequest('openai', {
       model: 'gpt-5',
@@ -455,6 +465,30 @@ describe('executeProviderRequest — model level normalization', () => {
     expect(sentRequest().verbosity).toBeUndefined()
   })
 
+  /**
+   * Providers treat an explicit `'none'` as "thinking off" and an absent value as "send
+   * nothing", so a reference that resolved to nothing must land on the latter.
+   */
+  it('treats a thinking level that resolved to nothing as unset, not as none', async () => {
+    await executeProviderRequest('anthropic', {
+      model: 'claude-sonnet-5',
+      workspaceId: 'ws-1',
+      thinkingLevel: '  ',
+    })
+
+    expect(sentRequest().thinkingLevel).toBeUndefined()
+  })
+
+  it('preserves an explicit none thinking level', async () => {
+    await executeProviderRequest('anthropic', {
+      model: 'claude-sonnet-5',
+      workspaceId: 'ws-1',
+      thinkingLevel: 'none',
+    })
+
+    expect(sentRequest().thinkingLevel).toBe('none')
+  })
+
   it('leaves an already-valid level untouched', async () => {
     await executeProviderRequest('openai', {
       model: 'gpt-5',
@@ -465,6 +499,22 @@ describe('executeProviderRequest — model level normalization', () => {
 
     expect(sentRequest().reasoningEffort).toBe('medium')
     expect(sentRequest().verbosity).toBe('high')
+  })
+
+  /**
+   * Sim's per-model level lists drive the pickers and can lag a provider that has started
+   * accepting a new level, so an unrecognized level is forwarded rather than dropped: the
+   * provider answers with an error naming the values it accepts, instead of Sim silently
+   * substituting the model default and quietly corrupting a sweep.
+   */
+  it('forwards a level the model does not declare so the provider reports it', async () => {
+    await executeProviderRequest('openai', {
+      model: 'gpt-5',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'xhigh',
+    })
+
+    expect(sentRequest().reasoningEffort).toBe('xhigh')
   })
 
   it('still drops levels the resolved model does not support', async () => {

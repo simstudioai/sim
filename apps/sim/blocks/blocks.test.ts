@@ -843,10 +843,17 @@ describe.concurrent('Blocks Module', () => {
       expect(modelSubBlock?.commandSearchable).toBe(true)
     })
 
-    it('should let the agent reasoning and verbosity fields take a typed reference', () => {
+    /** Each model-tuning field with a model that accepts it and one that does not. */
+    const AGENT_MODEL_LEVEL_FIELDS = [
+      { id: 'reasoningEffort', capable: 'gpt-5.1', incapable: 'claude-sonnet-5' },
+      { id: 'verbosity', capable: 'gpt-5.1', incapable: 'claude-sonnet-5' },
+      { id: 'thinkingLevel', capable: 'claude-sonnet-5', incapable: 'gpt-5.1' },
+    ] as const
+
+    it('should let the agent model-tuning fields take a typed reference', () => {
       const agentBlock = getBlock('agent')
 
-      for (const id of ['reasoningEffort', 'verbosity']) {
+      for (const { id } of AGENT_MODEL_LEVEL_FIELDS) {
         const subBlock = agentBlock?.subBlocks.find((sb) => sb.id === id)
         // A combobox is editable, so a `<block.output>` / `{{ENV_VAR}}` reference can be
         // typed into it; the option list still offers every level the model accepts.
@@ -855,18 +862,19 @@ describe.concurrent('Blocks Module', () => {
       }
     })
 
-    it('should keep the agent reasoning and verbosity fields visible when the model is a reference', () => {
+    it('should keep the agent model-tuning fields visible when the model is a reference', () => {
       const agentBlock = getBlock('agent')
 
-      for (const id of ['reasoningEffort', 'verbosity']) {
+      for (const { id, capable, incapable } of AGENT_MODEL_LEVEL_FIELDS) {
         const subBlock = agentBlock?.subBlocks.find((sb) => sb.id === id)
         const condition = subBlock?.condition
         if (typeof condition !== 'function') throw new Error(`${id} condition is not a function`)
 
         expect(evaluateSubBlockCondition(condition, { model: '<start.model>' })).toBe(true)
         expect(evaluateSubBlockCondition(condition, { model: '{{MODEL_ID}}' })).toBe(true)
-        expect(evaluateSubBlockCondition(condition, { model: 'gpt-5.1' })).toBe(true)
-        expect(evaluateSubBlockCondition(condition, { model: 'claude-sonnet-5' })).toBe(false)
+        // Gating on the capability list is unchanged for a literal model.
+        expect(evaluateSubBlockCondition(condition, { model: capable })).toBe(true)
+        expect(evaluateSubBlockCondition(condition, { model: incapable })).toBe(false)
       }
     })
 
