@@ -17,6 +17,7 @@ import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hoo
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { isBlockProtected } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -87,6 +88,7 @@ export const NoteBlock = memo(function NoteBlock({
   const noteColor = isNoteColor(rawColor) ? rawColor : DEFAULT_NOTE_COLOR
 
   const userPermissions = useUserPermissionsContext()
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
   const canEditWorkflow = userPermissions.canEdit && !data.isWorkflowLocked
   const isProtected = useWorkflowStore(
     useCallback((state) => isBlockProtected(id, state.blocks), [id])
@@ -198,6 +200,7 @@ export const NoteBlock = memo(function NoteBlock({
           blockType={type}
           disabled={!canEditWorkflow}
           variant='swell'
+          isWorkflowRunning={isWorkflowRunning}
           noteColor={noteColor}
           onNoteColorChange={handleColorChange}
           onNoteColorMenuOpen={handleNoteSelect}
