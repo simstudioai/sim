@@ -1,7 +1,7 @@
 import { QuickBooksIcon } from '@/components/icons'
 import {
+  buildQuickBooksSingleEventTriggerSubBlocks,
   buildQuickBooksTriggerOutputs,
-  buildQuickBooksTriggerSubBlocks,
   QUICKBOOKS_WEBHOOK_HEADERS,
 } from '@/triggers/quickbooks/utils'
 import type { TriggerConfig } from '@/triggers/types'
@@ -13,7 +13,7 @@ export const quickBooksPreferencesUpdatedTrigger: TriggerConfig = {
   description: 'Trigger when QuickBooks Preferences are updated',
   version: '1.0.0',
   icon: QuickBooksIcon,
-  subBlocks: buildQuickBooksTriggerSubBlocks('quickbooks_preferences_updated'),
+  subBlocks: buildQuickBooksSingleEventTriggerSubBlocks('quickbooks_preferences_updated'),
   outputs: buildQuickBooksTriggerOutputs(),
   webhook: { method: 'POST', headers: { ...QUICKBOOKS_WEBHOOK_HEADERS } },
 }

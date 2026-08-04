@@ -312,24 +312,45 @@ export function buildQuickBooksTriggerSubBlocks(triggerId: string): SubBlockConf
   const definition = getQuickBooksTriggerDefinition(triggerId)
   if (!definition) throw new Error(`Unknown QuickBooks trigger: ${triggerId}`)
 
-  const eventTypes: SubBlockConfig[] =
-    definition.actions.length === 1
-      ? []
-      : [
-          {
-            id: 'eventTypes',
-            title: 'Event Types',
-            type: 'dropdown',
-            multiSelect: true,
-            options: definition.actions.map((action) => ({
-              label: action.charAt(0).toUpperCase() + action.slice(1),
-              id: action,
-            })),
-            mode: 'trigger',
-            required: true,
-            condition: { field: 'selectedTriggerId', value: triggerId },
-          },
-        ]
+  return [
+    {
+      id: 'triggerCredentials',
+      title: 'QuickBooks Account',
+      type: 'oauth-input',
+      serviceId: 'quickbooks',
+      requiredScopes: getScopesForService('quickbooks'),
+      mode: 'trigger',
+      required: true,
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
+    {
+      id: 'eventTypes',
+      title: 'Event Types',
+      type: 'dropdown',
+      multiSelect: true,
+      options: definition.actions.map((action) => ({
+        label: action.charAt(0).toUpperCase() + action.slice(1),
+        id: action,
+      })),
+      mode: 'trigger',
+      required: true,
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: quickBooksSetupInstructions(definition.label),
+      mode: 'trigger',
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
+  ]
+}
+
+export function buildQuickBooksSingleEventTriggerSubBlocks(triggerId: string): SubBlockConfig[] {
+  const definition = getQuickBooksTriggerDefinition(triggerId)
+  if (!definition) throw new Error(`Unknown QuickBooks trigger: ${triggerId}`)
 
   return [
     {
@@ -342,7 +363,6 @@ export function buildQuickBooksTriggerSubBlocks(triggerId: string): SubBlockConf
       required: true,
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
-    ...eventTypes,
     {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
