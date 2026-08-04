@@ -30,6 +30,8 @@ The underlying issue is that a collaborative document isn't really a string you 
 
 What we needed was for the agent to change the document the way a person does, in small incremental edits that merge with everyone else's, instead of one big replace every time.
 
+<AgentPeerDemo />
+
 ## Writing like a keystroke
 
 The nice thing about that framing is that the editor already knows how to do it. When you type a character, it doesn't ship the whole document to your collaborators. It works out the smallest change your keystroke made and sends only that. Sim's files use [Yjs](https://yjs.dev) for the shared state, and the function that turns an editor change into one of those minimal updates is `updateYFragment`. It's the same function that runs on every keypress.
