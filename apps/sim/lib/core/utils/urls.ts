@@ -24,6 +24,14 @@ function normalizeBaseUrl(url: string): string {
 /**
  * Returns the base URL of the application from NEXT_PUBLIC_APP_URL
  * This ensures webhooks, callbacks, and other integrations always use the correct public URL
+ *
+ * Deliberately has no browser fallback to `window.location.origin`. The value is
+ * injected before hydration by `<PublicEnvScript>`, so an empty read means the
+ * deployment is misconfigured — and a same-origin guess would hide that. It also
+ * would not be safe to guess: an opaque origin (a sandboxed iframe, and `/chat/*`
+ * is embeddable) serializes to the string `'null'`, which is truthy and would
+ * silently produce `null/api/...` at every call site.
+ *
  * @returns The base URL string (e.g., 'http://localhost:3000' or 'https://example.com')
  * @throws Error if NEXT_PUBLIC_APP_URL is not configured
  */

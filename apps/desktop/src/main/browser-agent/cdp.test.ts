@@ -2,8 +2,456 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { WebContentsView } from 'electron'
-import { setColorScheme } from '@/main/browser-agent/cdp'
+import { WebContentsView, type WebFrameMain } from 'electron'
+import {
+  clickAt,
+  ensureInstrumented,
+  evaluateInIsolatedFrame,
+  insertText,
+  setColorScheme,
+} from '@/main/browser-agent/cdp'
+
+function createOopifFrameFixture() {
+  const top = {
+    name: '',
+    url: 'https://app.example/',
+    origin: 'https://app.example',
+    parent: null,
+    frames: [] as WebFrameMain[],
+    top: null,
+  } as unknown as WebFrameMain
+  const child = {
+    name: 'account-menu',
+    url: 'https://accounts.example/menu',
+    origin: 'https://accounts.example',
+    parent: top,
+    frames: [] as WebFrameMain[],
+    top,
+  } as unknown as WebFrameMain
+  ;(top.frames as WebFrameMain[]).push(child)
+
+  return {
+    child,
+    frameTree: {
+      frame: { id: 'top', url: 'https://app.example/' },
+      childFrames: [
+        {
+          frame: {
+            id: 'child',
+            name: 'account-menu',
+            url: 'https://accounts.example/menu',
+          },
+        },
+      ],
+    },
+  }
+}
+
+describe('browser-agent CDP instrumentation', () => {
+  it('leaves file chooser dialogs native so users can upload files', async () => {
+    const contents = new WebContentsView().webContents
+
+    await ensureInstrumented(contents, { onDialog: vi.fn() })
+
+    expect(contents.debugger.sendCommand).toHaveBeenCalledWith('Page.enable', undefined)
+    expect(contents.debugger.sendCommand).not.toHaveBeenCalledWith(
+      'Page.setInterceptFileChooserDialog',
+      expect.anything()
+    )
+  })
+
+  it('retries protocol setup after a transient instrumentation failure', async () => {
+    const contents = new WebContentsView().webContents
+    vi.mocked(contents.debugger.isAttached).mockReturnValue(true)
+    let autoAttachAttempts = 0
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method) => {
+      if (method === 'Target.setAutoAttach' && autoAttachAttempts++ === 0) {
+        return Promise.reject(new Error('setup acknowledgement lost'))
+      }
+      return Promise.resolve({})
+    })
+
+    await expect(ensureInstrumented(contents, { onDialog: vi.fn() })).rejects.toThrow(
+      'setup acknowledgement lost'
+    )
+    await expect(ensureInstrumented(contents, { onDialog: vi.fn() })).resolves.toBeUndefined()
+
+    expect(autoAttachAttempts).toBe(2)
+  })
+
+  it('dismisses an OOPIF dialog on the flattened child session', async () => {
+    const contents = new WebContentsView().webContents
+    const onDialog = vi.fn()
+    await ensureInstrumented(contents, { onDialog })
+    const listener = vi
+      .mocked(contents.debugger.on)
+      .mock.calls.find(([event]) => event === 'message')?.[1] as
+      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+      | undefined
+    expect(listener).toBeTypeOf('function')
+    vi.mocked(contents.debugger.sendCommand).mockClear()
+
+    listener?.(
+      {},
+      'Page.javascriptDialogOpening',
+      { type: 'alert', message: 'Hello' },
+      'child-session'
+    )
+    await vi.waitFor(() => expect(onDialog).toHaveBeenCalled())
+
+    expect(contents.debugger.sendCommand).toHaveBeenCalledWith(
+      'Page.handleJavaScriptDialog',
+      { accept: false },
+      'child-session'
+    )
+    expect(onDialog).toHaveBeenCalledWith({ type: 'alert', message: 'Hello', handled: true })
+  })
+
+  it('accepts an OOPIF beforeunload dialog on the flattened child session', async () => {
+    const contents = new WebContentsView().webContents
+    const onDialog = vi.fn()
+    await ensureInstrumented(contents, { onDialog })
+    const listener = vi
+      .mocked(contents.debugger.on)
+      .mock.calls.find(([event]) => event === 'message')?.[1] as
+      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+      | undefined
+    expect(listener).toBeTypeOf('function')
+    vi.mocked(contents.debugger.sendCommand).mockClear()
+
+    listener?.(
+      {},
+      'Page.javascriptDialogOpening',
+      { type: 'beforeunload', message: 'Leave this page?' },
+      'child-session'
+    )
+    await vi.waitFor(() => expect(onDialog).toHaveBeenCalled())
+
+    expect(contents.debugger.sendCommand).toHaveBeenCalledWith(
+      'Page.handleJavaScriptDialog',
+      { accept: true },
+      'child-session'
+    )
+    expect(onDialog).toHaveBeenCalledWith({
+      type: 'beforeunload',
+      message: 'Leave this page?',
+      handled: true,
+    })
+  })
+
+  it('reports an OOPIF dialog as unhandled when child and root commands fail', async () => {
+    const contents = new WebContentsView().webContents
+    const onDialog = vi.fn()
+    await ensureInstrumented(contents, { onDialog })
+    const listener = vi
+      .mocked(contents.debugger.on)
+      .mock.calls.find(([event]) => event === 'message')?.[1] as
+      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+      | undefined
+    expect(listener).toBeTypeOf('function')
+    vi.mocked(contents.debugger.sendCommand).mockClear()
+    vi.mocked(contents.debugger.sendCommand).mockRejectedValue(new Error('dialog target closed'))
+
+    listener?.(
+      {},
+      'Page.javascriptDialogOpening',
+      { type: 'confirm', message: 'Continue?' },
+      'child-session'
+    )
+    await vi.waitFor(() => expect(onDialog).toHaveBeenCalled())
+
+    expect(vi.mocked(contents.debugger.sendCommand).mock.calls).toEqual([
+      ['Page.handleJavaScriptDialog', { accept: false }, 'child-session'],
+      ['Page.handleJavaScriptDialog', { accept: false }],
+    ])
+    expect(onDialog).toHaveBeenCalledWith({
+      type: 'confirm',
+      message: 'Continue?',
+      handled: false,
+    })
+  })
+
+  it('clicks through Chromium trusted mouse input', async () => {
+    const contents = new WebContentsView().webContents
+
+    await clickAt(contents, 120, 240)
+
+    expect(vi.mocked(contents.debugger.sendCommand).mock.calls).toEqual([
+      ['Input.dispatchMouseEvent', { type: 'mouseMoved', x: 120, y: 240, button: 'none' }],
+      [
+        'Input.dispatchMouseEvent',
+        {
+          type: 'mousePressed',
+          x: 120,
+          y: 240,
+          button: 'left',
+          buttons: 1,
+          clickCount: 1,
+        },
+      ],
+      [
+        'Input.dispatchMouseEvent',
+        {
+          type: 'mouseReleased',
+          x: 120,
+          y: 240,
+          button: 'left',
+          buttons: 0,
+          clickCount: 1,
+        },
+      ],
+    ])
+  })
+
+  it('releases the mouse after a partial click failure', async () => {
+    const contents = new WebContentsView().webContents
+    vi.mocked(contents.debugger.sendCommand)
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('frame navigated'))
+      .mockResolvedValueOnce({})
+
+    await expect(clickAt(contents, 12, 24)).rejects.toThrow('frame navigated')
+
+    expect(vi.mocked(contents.debugger.sendCommand).mock.calls.at(-1)).toEqual([
+      'Input.dispatchMouseEvent',
+      {
+        type: 'mouseReleased',
+        x: 12,
+        y: 24,
+        button: 'left',
+        buttons: 0,
+        clickCount: 1,
+      },
+    ])
+  })
+
+  it('best-effort releases the mouse when the press response is lost', async () => {
+    const contents = new WebContentsView().webContents
+    vi.mocked(contents.debugger.sendCommand)
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('mouse press response lost'))
+      .mockRejectedValueOnce(new Error('cleanup unavailable'))
+
+    await expect(clickAt(contents, 36, 48)).rejects.toThrow('mouse press response lost')
+
+    expect(vi.mocked(contents.debugger.sendCommand).mock.calls).toEqual([
+      ['Input.dispatchMouseEvent', { type: 'mouseMoved', x: 36, y: 48, button: 'none' }],
+      [
+        'Input.dispatchMouseEvent',
+        {
+          type: 'mousePressed',
+          x: 36,
+          y: 48,
+          button: 'left',
+          buttons: 1,
+          clickCount: 1,
+        },
+      ],
+      [
+        'Input.dispatchMouseEvent',
+        {
+          type: 'mouseReleased',
+          x: 36,
+          y: 48,
+          button: 'left',
+          buttons: 0,
+          clickCount: 1,
+        },
+      ],
+    ])
+  })
+
+  it('times out a hung press and sends cleanup before the tool watchdog can release', async () => {
+    vi.useFakeTimers()
+    try {
+      const contents = new WebContentsView().webContents
+      vi.mocked(contents.debugger.sendCommand)
+        .mockResolvedValueOnce({})
+        .mockImplementationOnce(() => new Promise(() => {}))
+        .mockResolvedValueOnce({})
+
+      const click = clickAt(contents, 20, 30)
+      const rejection = expect(click).rejects.toThrow('did not acknowledge input within 5 seconds')
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      await rejection
+      expect(vi.mocked(contents.debugger.sendCommand).mock.calls.at(-1)).toEqual([
+        'Input.dispatchMouseEvent',
+        expect.objectContaining({ type: 'mouseReleased', x: 20, y: 30 }),
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds a hung text insertion acknowledgement', async () => {
+    vi.useFakeTimers()
+    try {
+      const contents = new WebContentsView().webContents
+      vi.mocked(contents.debugger.sendCommand).mockImplementationOnce(() => new Promise(() => {}))
+
+      const insertion = insertText(contents, 'hello')
+      const rejection = expect(insertion).rejects.toThrow(
+        'did not acknowledge input within 5 seconds'
+      )
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      await rejection
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('routes OOPIF isolated-world creation and evaluation through its flattened session', async () => {
+    const contents = new WebContentsView().webContents
+    const { child, frameTree } = createOopifFrameFixture()
+    await ensureInstrumented(contents, { onDialog: vi.fn() })
+    const listener = vi
+      .mocked(contents.debugger.on)
+      .mock.calls.find(([event]) => event === 'message')?.[1] as
+      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+      | undefined
+    expect(listener).toBeTypeOf('function')
+
+    listener?.(
+      {},
+      'Target.attachedToTarget',
+      {
+        sessionId: 'child-session',
+        targetInfo: { targetId: 'child', type: 'iframe' },
+      },
+      undefined
+    )
+    expect(contents.debugger.sendCommand).toHaveBeenCalledWith(
+      'Target.setAutoAttach',
+      { autoAttach: true, waitForDebuggerOnStart: false, flatten: true },
+      'child-session'
+    )
+    vi.mocked(contents.debugger.sendCommand).mockClear()
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method) => {
+      if (method === 'Page.getFrameTree') {
+        return Promise.resolve({ frameTree })
+      }
+      if (method === 'Page.createIsolatedWorld') {
+        return Promise.resolve({ executionContextId: 42 })
+      }
+      if (method === 'Runtime.evaluate') {
+        return Promise.resolve({ result: { type: 'number', value: 4 } })
+      }
+      return Promise.resolve({})
+    })
+
+    await expect(evaluateInIsolatedFrame(contents, child, '2 + 2')).resolves.toBe(4)
+
+    expect(
+      vi
+        .mocked(contents.debugger.sendCommand)
+        .mock.calls.filter(([method]) =>
+          ['Page.createIsolatedWorld', 'Runtime.evaluate'].includes(method)
+        )
+    ).toEqual([
+      [
+        'Page.createIsolatedWorld',
+        {
+          frameId: 'child',
+          worldName: 'sim-browser-agent',
+          grantUniveralAccess: false,
+        },
+        'child-session',
+      ],
+      [
+        'Runtime.evaluate',
+        {
+          expression: '2 + 2',
+          contextId: 42,
+          returnByValue: true,
+          awaitPromise: true,
+          userGesture: false,
+        },
+        'child-session',
+      ],
+    ])
+  })
+
+  it('falls back to the root target when OOPIF isolated-world creation fails', async () => {
+    const contents = new WebContentsView().webContents
+    const { child, frameTree } = createOopifFrameFixture()
+    await ensureInstrumented(contents, { onDialog: vi.fn() })
+    const listener = vi
+      .mocked(contents.debugger.on)
+      .mock.calls.find(([event]) => event === 'message')?.[1] as
+      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+      | undefined
+    expect(listener).toBeTypeOf('function')
+
+    listener?.(
+      {},
+      'Target.attachedToTarget',
+      {
+        sessionId: 'child-session',
+        targetInfo: { targetId: 'child', type: 'iframe' },
+      },
+      undefined
+    )
+    vi.mocked(contents.debugger.sendCommand).mockClear()
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method, _params, sessionId) => {
+      if (method === 'Page.getFrameTree') {
+        return Promise.resolve({ frameTree })
+      }
+      if (method === 'Page.createIsolatedWorld') {
+        if (sessionId === 'child-session') {
+          return Promise.reject(new Error('No frame with given id found'))
+        }
+        return Promise.resolve({ executionContextId: 84 })
+      }
+      if (method === 'Runtime.evaluate') {
+        return Promise.resolve({ result: { type: 'string', value: 'root fallback' } })
+      }
+      return Promise.resolve({})
+    })
+
+    await expect(evaluateInIsolatedFrame(contents, child, 'location.href')).resolves.toBe(
+      'root fallback'
+    )
+
+    expect(
+      vi
+        .mocked(contents.debugger.sendCommand)
+        .mock.calls.filter(([method]) =>
+          ['Page.createIsolatedWorld', 'Runtime.evaluate'].includes(method)
+        )
+    ).toEqual([
+      [
+        'Page.createIsolatedWorld',
+        {
+          frameId: 'child',
+          worldName: 'sim-browser-agent',
+          grantUniveralAccess: false,
+        },
+        'child-session',
+      ],
+      [
+        'Page.createIsolatedWorld',
+        {
+          frameId: 'child',
+          worldName: 'sim-browser-agent',
+          grantUniveralAccess: false,
+        },
+      ],
+      [
+        'Runtime.evaluate',
+        {
+          expression: 'location.href',
+          contextId: 84,
+          returnByValue: true,
+          awaitPromise: true,
+          userGesture: false,
+        },
+      ],
+    ])
+  })
+})
 
 describe('browser-agent CDP theme', () => {
   it('emulates explicit light and dark preferences', async () => {

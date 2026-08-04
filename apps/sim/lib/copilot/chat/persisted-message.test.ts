@@ -276,6 +276,60 @@ describe('persisted-message', () => {
       tableName: 'Sales',
     })
   })
+
+  it('round-trips browser and terminal selection snapshots', () => {
+    const persisted = buildPersistedUserMessage({
+      id: 'user-selection',
+      content: '@Docs @Terminal',
+      contexts: [
+        {
+          kind: 'browser_tab',
+          label: 'Docs',
+          tabId: 'tab-1',
+          selection: {
+            text: 'Selected browser text',
+            url: 'https://example.com/docs',
+            title: 'Example docs',
+          },
+        },
+        {
+          kind: 'terminal_tab',
+          label: 'Terminal',
+          terminalId: 'terminal-1',
+          selection: {
+            text: 'bun test',
+            startLine: 12,
+            endLine: 13,
+          },
+        },
+      ],
+    })
+
+    const normalized = normalizeMessage(persisted as unknown as Record<string, unknown>)
+
+    expect(normalized.contexts).toEqual([
+      {
+        kind: 'browser_tab',
+        label: 'Docs',
+        tabId: 'tab-1',
+        selection: {
+          text: 'Selected browser text',
+          url: 'https://example.com/docs',
+          title: 'Example docs',
+        },
+      },
+      {
+        kind: 'terminal_tab',
+        label: 'Terminal',
+        terminalId: 'terminal-1',
+        selection: {
+          text: 'bun test',
+          startLine: 12,
+          endLine: 13,
+        },
+      },
+    ])
+  })
 })
 
 describe('stripToolResultOutput', () => {

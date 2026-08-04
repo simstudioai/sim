@@ -14,6 +14,7 @@ vi.mock('@/lib/core/config/env', () => ({
 }))
 
 import {
+  getBaseUrl,
   getBrowserOrigin,
   getSocketUrl,
   isLocalhostUrl,
@@ -34,6 +35,41 @@ describe('getBrowserOrigin', () => {
   it('returns the page origin in the browser', () => {
     setLocation('https://example.com/some/path')
     expect(getBrowserOrigin()).toBe('https://example.com')
+  })
+})
+
+describe('getBaseUrl', () => {
+  beforeEach(() => {
+    mockGetEnv.mockReset()
+    mockGetEnv.mockReturnValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('uses NEXT_PUBLIC_APP_URL when set', () => {
+    mockGetEnv.mockImplementation((key) =>
+      key === 'NEXT_PUBLIC_APP_URL' ? 'https://app.example.com' : undefined
+    )
+    setLocation('https://other.example.com/workspace/w/1')
+    expect(getBaseUrl()).toBe('https://app.example.com')
+  })
+
+  /**
+   * Never guesses from `window.location.origin`: an opaque origin (a sandboxed
+   * iframe) serializes to the truthy string `'null'`, which would silently
+   * produce `null/api/...` rather than surfacing the misconfiguration.
+   */
+  it('throws in the browser rather than guessing from the page origin', () => {
+    setLocation('https://www.sim.ai/workspace/ws-1/w/wf-1')
+    expect(() => getBaseUrl()).toThrow('NEXT_PUBLIC_APP_URL must be configured')
+  })
+
+  it('treats a whitespace-only NEXT_PUBLIC_APP_URL as unset', () => {
+    mockGetEnv.mockImplementation((key) => (key === 'NEXT_PUBLIC_APP_URL' ? '   ' : undefined))
+    setLocation('https://www.sim.ai/')
+    expect(() => getBaseUrl()).toThrow('NEXT_PUBLIC_APP_URL must be configured')
   })
 })
 

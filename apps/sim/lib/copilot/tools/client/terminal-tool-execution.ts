@@ -104,6 +104,7 @@ function parseCall(params: Record<string, unknown>): {
 export function executeTerminalToolOnClient(
   toolCallId: string,
   params: Record<string, unknown>,
+  scopeId: string,
   eventTs?: string
 ): void {
   const call = parseCall(params)
@@ -122,7 +123,7 @@ export function executeTerminalToolOnClient(
     return
   }
   markExecuted(toolCallId)
-  void doExecuteTerminalTool(toolCallId, operation, call.args).catch((err) => {
+  void doExecuteTerminalTool(toolCallId, operation, call.args, scopeId).catch((err) => {
     logger.error('Unhandled error in client-side terminal tool execution', {
       toolCallId,
       operation,
@@ -134,7 +135,8 @@ export function executeTerminalToolOnClient(
 async function doExecuteTerminalTool(
   toolCallId: string,
   operation: TerminalOperation,
-  args: TerminalToolArgs
+  args: TerminalToolArgs,
+  scopeId: string
 ): Promise<void> {
   // If the user leaves the page mid-command the awaited result is lost; tell
   // the waiter so the turn fails fast instead of hanging until its timeout.
@@ -162,7 +164,7 @@ async function doExecuteTerminalTool(
 
   try {
     const timeoutMs = timeoutForOperation(operation)
-    const invocation = executeTerminalTool(toolCallId, operation, args)
+    const invocation = executeTerminalTool(toolCallId, operation, args, scopeId)
     const result =
       timeoutMs === null
         ? await invocation

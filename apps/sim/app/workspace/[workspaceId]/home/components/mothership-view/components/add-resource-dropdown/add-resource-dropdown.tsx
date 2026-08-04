@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   cn,
@@ -12,6 +12,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
   Tooltip,
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
@@ -52,12 +53,16 @@ export interface AddResourceDropdownProps {
   workspaceId: string
   existingKeys: Set<string>
   onAdd: (resource: MothershipResource) => void
-  onSwitch?: (resourceId: string) => void
+  onOpenExisting?: (resource: MothershipResource) => void
   /**
    * Resource types to hide from the dropdown. Must be referentially stable
    * (a module constant) — it keys the underlying group memo.
    */
   excludeTypes?: readonly MothershipResourceType[]
+  /** Delays mounting the menu until a native surface beneath it is hidden. */
+  onRequestOpen?: (open: () => void) => void
+  /** Restores any native surface hidden for this menu. */
+  onClose?: () => Promise<void>
 }
 
 interface AvailableItemsByType {
@@ -109,6 +114,15 @@ interface UseAvailableResourcesOptions {
 const NO_RESOURCE_GROUPS: AvailableItemsByType[] = []
 
 const LOG_DROPDOWN_LIMIT = 50
+
+/** Hide Radix's still-mounted exit surface before a full-screen effect paints. */
+function hideMountedMenuSurfaces(): void {
+  for (const menu of document.querySelectorAll<HTMLElement>(
+    '[data-native-surface-overlay][role="menu"]'
+  )) {
+    menu.style.setProperty('visibility', 'hidden', 'important')
+  }
+}
 
 const LOG_DROPDOWN_FILTERS = {
   timeRange: 'All time' as const,
@@ -273,7 +287,7 @@ export function useAvailableResources(
       },
     ]
     // The live browser panel — desktop app only (needs the agent-browser
-    // bridge). A singleton: opening it again just activates the existing tab.
+    // bridge). There is one top-level panel; repeated launches open inner tabs.
     if (isBrowserAgentAvailable()) {
       groups.push({
         type: 'browser' as const,
@@ -286,7 +300,7 @@ export function useAvailableResources(
       })
     }
     // The live terminal — desktop app only (needs the PTY bridge), and a
-    // singleton like the browser.
+    // single top-level panel like the browser.
     if (isTerminalAvailable()) {
       groups.push({
         type: 'terminal' as const,
@@ -314,15 +328,13 @@ export function useAvailableResources(
   ])
 
   /**
-   * Sorted by name to match how the Tables and Knowledge pages order folders —
-   * the list endpoint makes no ordering guarantee, and these folders carry no
-   * user-defined ordering the way workflow folders do.
+   * Left in source order: `buildResourceFolderTree` orders each level by name,
+   * interleaved with the items, matching the Tables and Knowledge pages. These
+   * folders carry no user-defined ordering the way workflow folders do.
    */
   const structureFolders = useMemo<StructureFolders>(() => {
     const toFolderItems = (source: typeof tableFolders): AvailableItem[] =>
-      (source ?? [])
-        .map((f) => ({ id: f.id, name: f.name, parentId: f.parentId ?? null }))
-        .sort((a, b) => a.name.localeCompare(b.name))
+      (source ?? []).map((f) => ({ id: f.id, name: f.name, parentId: f.parentId ?? null }))
     return {
       table: toFolderItems(tableFolders),
       knowledgebase: toFolderItems(knowledgeBaseFolders),
@@ -515,10 +527,13 @@ export function AddResourceDropdown({
   workspaceId,
   existingKeys,
   onAdd,
-  onSwitch,
+  onOpenExisting,
   excludeTypes,
+  onRequestOpen,
+  onClose,
 }: AddResourceDropdownProps) {
   const [open, setOpen] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
   const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   // Gated on `open` so an idle tab bar never fetches the workspace lists.
@@ -527,23 +542,47 @@ export function AddResourceDropdown({
     excludeTypes,
   })
   const treeSections = useResourceTreeSections({ groups: available, structureFolders })
-  const handleOpenChange = (next: boolean) => {
-    setOpen(next)
-    if (!next) {
-      setSearch('')
-      setActiveIndex(0)
-    }
-  }
-
-  const select = (resource: MothershipResource) => {
-    if (onSwitch && existingKeys.has(`${resource.type}:${resource.id}`)) {
-      onSwitch(resource.id)
-    } else {
-      onAdd(resource)
-    }
+  const hasNativeResourceSurface = isBrowserAgentAvailable() || isTerminalAvailable()
+  const closeMenu = useCallback(() => {
     setOpen(false)
     setSearch('')
     setActiveIndex(0)
+    return onClose?.() ?? Promise.resolve()
+  }, [onClose])
+
+  // This popover is shared by Browser and Terminal and sits above the modal
+  // z-layer. Close it inside the pre-paint handshake so resource chrome cannot
+  // remain floating over a newly opened full-screen effect.
+  useEffect(() => {
+    if (!hasNativeResourceSurface) return
+    const handlePrepare = () => {
+      if (open || contentRef.current) hideMountedMenuSurfaces()
+      if (open) void closeMenu()
+    }
+    window.addEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
+    return () => window.removeEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
+  }, [closeMenu, hasNativeResourceSurface, open])
+
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
+      if (onRequestOpen) {
+        onRequestOpen(() => setOpen(true))
+      } else {
+        setOpen(true)
+      }
+      return
+    }
+    void closeMenu()
+  }
+
+  const select = (resource: MothershipResource) => {
+    void closeMenu().then(() => {
+      if (onOpenExisting && existingKeys.has(`${resource.type}:${resource.id}`)) {
+        onOpenExisting(resource)
+      } else {
+        onAdd(resource)
+      }
+    })
   }
 
   const filtered = useMemo(() => {
@@ -572,7 +611,7 @@ export function AddResourceDropdown({
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange} modal={false}>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <DropdownMenuTrigger asChild>
@@ -590,6 +629,7 @@ export function AddResourceDropdown({
         </Tooltip.Content>
       </Tooltip.Root>
       <DropdownMenuContent
+        ref={contentRef}
         align='start'
         sideOffset={8}
         className='flex w-[320px] flex-col overflow-hidden'
@@ -633,8 +673,8 @@ export function AddResourceDropdown({
                 if (items.length === 0) return null
                 const config = getResourceConfig(type)
                 const Icon = config.icon
-                // The browser and terminal panels are singletons — flat
-                // items, not one-entry submenus.
+                // Browser and terminal each have one top-level panel — flat
+                // launchers here create inner tabs when that panel exists.
                 if (type === 'browser' || type === 'terminal') {
                   const item = items[0]
                   return (

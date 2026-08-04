@@ -2,7 +2,6 @@ import type { ComponentType } from 'react'
 import {
   ClipboardList,
   Clock,
-  Cursor,
   Database,
   HexSimple,
   Key,
@@ -16,6 +15,7 @@ import {
   Settings,
   ShieldCheck,
   Shuffle,
+  Sprout,
   TerminalWindow,
   TrashOutline,
   Upload,
@@ -24,6 +24,7 @@ import {
   Wrench,
 } from '@sim/emcn/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
+import { Globe } from 'lucide-react'
 import { CodeIcon, McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
@@ -73,6 +74,7 @@ export type WorkspaceSettingsSection =
   | 'recently-deleted'
   | 'forks'
   | 'custom-blocks'
+  | 'self-host'
 
 export type SettingsSection =
   | AccountSettingsSection
@@ -119,6 +121,7 @@ export type UnifiedSettingsSection =
   | 'data-drains'
   | 'mothership'
   | 'recently-deleted'
+  | 'self-host'
 
 export type UnifiedNavigationSection = 'account' | 'workspace' | 'organization' | 'platform'
 
@@ -141,6 +144,12 @@ export interface UnifiedSettingsNavigationItem {
   requiresEnterprise?: boolean
   requiresMax?: boolean
   requiresHosted?: boolean
+  /**
+   * The inverse of {@link UnifiedSettingsNavigationItem.requiresHosted}: the
+   * section exists only on a self-hosted deployment and is absent on Sim Cloud,
+   * where the same surface is reached from the managed service instead.
+   */
+  requiresSelfHosted?: boolean
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
   requiresAdminRole?: boolean
@@ -398,7 +407,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   },
   {
     label: 'Browser',
-    icon: Cursor,
+    icon: Globe,
     unified: {
       id: 'browser',
       description: 'Control the browser Chat drives and the data it keeps.',
@@ -681,6 +690,20 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
+    label: 'Self hosting',
+    icon: Sprout,
+    unified: {
+      id: 'self-host',
+      description: 'Manage this deployment from the Sim managed service.',
+      group: 'platform',
+      order: 2,
+      requiresSelfHosted: true,
+    },
+    planes: {
+      workspace: { id: 'self-host', group: 'system', order: 12 },
+    },
+  },
+  {
     label: 'Single sign-on',
     icon: LogIn,
     docsLink: 'https://docs.sim.ai/platform/enterprise/sso',
@@ -821,6 +844,9 @@ export function buildUnifiedSettingsNavigation(): UnifiedSettingsNavigationItem[
     // `selfHostedOverride` short-circuit would otherwise reveal the tab on a
     // deployment that has the entitlement but no provider to run what it builds.
     if (unified.id === 'sandboxes' && !isSandboxExecutionAvailable()) return []
+    // Dropped here so the sidebar, the route's `parseSection` gate, and section
+    // metadata all agree that the section does not exist on Sim Cloud.
+    if (unified.requiresSelfHosted && isHosted) return []
     const { group, ...item } = unified
     return [
       {
@@ -996,6 +1022,7 @@ const WORKSPACE_MUTATION_PERMISSION: Record<WorkspaceSettingsSection, Permission
   'recently-deleted': 'write',
   forks: 'admin',
   'custom-blocks': 'admin',
+  'self-host': 'admin',
 }
 
 export interface WorkspaceMutationCapabilities {
@@ -1028,6 +1055,8 @@ export function resolveWorkspaceNavigation({
     if (item.id === 'custom-blocks' && !entitlements.customBlocks) return []
     // Removed, not locked: a missing provider is not something an upgrade fixes.
     if (item.id === 'sandboxes' && !isSandboxExecutionAvailable()) return []
+    // Absent on Sim Cloud, where the managed service owns these settings.
+    if (item.id === 'self-host' && isHosted) return []
 
     const lockedBy = LOCKABLE_WORKSPACE_SECTIONS[item.id]
     const locked = lockedBy !== undefined && !entitlements[lockedBy]

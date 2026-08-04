@@ -27,7 +27,10 @@ import {
   Resource,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import type {
+  MoveOptionNode,
+  SortableResource,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import {
   buildDescendantIndex,
   buildMoveOptions,
@@ -38,6 +41,7 @@ import {
   nextUntitledFolderName,
   parseFolderedRowId,
   parseMoveOptionValue,
+  sortResources,
   useFolderNavigation,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
@@ -93,7 +97,7 @@ const ROOT_LABEL = 'Tables'
 
 const EMPTY_TABLES: TableDefinition[] = []
 
-/** The right-clicked row, resolved to the entity it refers to. */
+/** A list row (and the right-clicked row), resolved to the entity it refers to. */
 type TableResourceItem =
   | { kind: 'table'; table: TableDefinition }
   | { kind: 'folder'; folder: WorkflowFolder }
@@ -267,41 +271,12 @@ export function Tables() {
   const visibleFolders = useMemo(() => {
     const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
     const needle = debouncedSearchTerm.trim().toLowerCase()
-    const searched = needle
+    return needle
       ? siblings.filter((folder) => folder.name.toLowerCase().includes(needle))
       : siblings
-
-    return [...searched].sort((a, b) => {
-      // Pinned folders float to the top of every sort/direction — pinning is a
-      // user-declared priority, not another sort key to be inverted by `desc`.
-      const aPinned = pinnedFolderIds.has(a.id)
-      const bPinned = pinnedFolderIds.has(b.id)
-      if (aPinned !== bPinned) return aPinned ? -1 : 1
-
-      /**
-       * Read from `activeSort`, not the raw params: `tablesSortParams` is defaulted, so
-       * `sortColumn` is never null and folders would sort newest-first on a clean URL while
-       * Files and Knowledge sort them A→Z. Folders also carry none of the table-specific
-       * columns, so `columns`/`rows`/`owner` fall back to name rather than an arbitrary order.
-       */
-      const col = activeSort?.column ?? 'name'
-      const dir = activeSort?.direction ?? 'asc'
-      let cmp = 0
-      if (col === 'created') {
-        cmp = a.createdAt.getTime() - b.createdAt.getTime()
-      } else if (col === 'updated') {
-        cmp = a.updatedAt.getTime() - b.updatedAt.getTime()
-      } else {
-        cmp = a.name.localeCompare(b.name)
-      }
-      return dir === 'asc' ? cmp : -cmp
-    })
-  }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
+  }, [folders, currentFolderId, debouncedSearchTerm])
 
   const processedTables = useMemo(() => {
-    // Same source as `visibleFolders` above, so the two blocks can never disagree on order.
-    const sortColumn = activeSort?.column ?? 'updated'
-    const sortDirection = activeSort?.direction ?? 'desc'
     const query = debouncedSearchTerm.trim().toLowerCase()
     /**
      * A `folderId` that no longer names an active folder — restored on its own out
@@ -331,39 +306,7 @@ export function Tables() {
     if (ownerFilter.length > 0) {
       result = result.filter((t) => ownerFilter.includes(t.createdBy))
     }
-    return [...result].sort((a, b) => {
-      // Pinned tables float to the top of every sort/direction — pinning is a
-      // user-declared priority, not another sort key to be inverted by `desc`.
-      const aPinned = pinnedTableIds.has(a.id)
-      const bPinned = pinnedTableIds.has(b.id)
-      if (aPinned !== bPinned) return aPinned ? -1 : 1
-
-      let cmp = 0
-      switch (sortColumn) {
-        case 'name':
-          cmp = a.name.localeCompare(b.name)
-          break
-        case 'columns':
-          cmp = a.schema.columns.length - b.schema.columns.length
-          break
-        case 'rows':
-          cmp = a.rowCount - b.rowCount
-          break
-        case 'created':
-          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          break
-        case 'updated':
-          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-          break
-        case 'owner': {
-          const aName = membersById.get(a.createdBy)?.name ?? ''
-          const bName = membersById.get(b.createdBy)?.name ?? ''
-          cmp = aName.localeCompare(bName)
-          break
-        }
-      }
-      return sortDirection === 'asc' ? cmp : -cmp
-    })
+    return result
   }, [
     tables,
     currentFolderId,
@@ -372,56 +315,110 @@ export function Tables() {
     debouncedSearchTerm,
     rowCountFilter,
     ownerFilter,
-    sortColumn,
-    sortDirection,
-    membersById,
-    pinnedTableIds,
   ])
 
   /**
-   * Folders first, then tables — folders are containers, so keeping them above
-   * the leaves survives every sort column and direction.
+   * Folders and tables sort as ONE list — a folder never outranks a table it ties with, so a
+   * pinned table reaches the top of the list rather than the top of the table section.
+   *
+   * Decorate-sort: each row's key + pinned flag is computed ONCE (O(N)) so the comparator
+   * never re-runs Date parsing or member lookups per comparison. Folders carry no column or
+   * row count, so those keys are `null` and land the folders last in both directions —
+   * matching the em-dash they show in those cells.
    */
-  const baseRows: ResourceRow[] = useMemo(() => {
-    const folderRows = visibleFolders.map((folder) =>
-      folderRow(folder, {
+  const sortedEntries = useMemo(() => {
+    const entries: SortableResource<TableResourceItem>[] = []
+
+    for (const folder of visibleFolders) {
+      entries.push({
+        item: { kind: 'folder', folder },
         pinned: pinnedFolderIds.has(folder.id),
-        cells: {
-          columns: { label: EMPTY_CELL_PLACEHOLDER },
-          rows: { label: EMPTY_CELL_PLACEHOLDER },
-          created: timeCell(folder.createdAt),
-          owner: ownerCell(folder.userId, membersById),
-          updated: timeCell(folder.updatedAt),
-        },
+        name: folder.name,
+        key:
+          sortColumn === 'columns' || sortColumn === 'rows'
+            ? null
+            : sortColumn === 'created'
+              ? new Date(folder.createdAt).getTime()
+              : sortColumn === 'updated'
+                ? new Date(folder.updatedAt).getTime()
+                : sortColumn === 'owner'
+                  ? (membersById.get(folder.userId)?.name ?? null)
+                  : folder.name,
       })
-    )
+    }
 
-    const tableRows = processedTables.map(
-      (table): ResourceRow => ({
-        id: table.id,
-        cells: {
-          name: {
-            icon: <TableIcon className='size-[14px]' />,
-            label: table.name,
-            pinned: pinnedTableIds.has(table.id),
-          },
-          columns: {
-            icon: <Columns3 className='size-[14px]' />,
-            label: String(table.schema.columns.length),
-          },
-          rows: {
-            icon: <Rows3 className='size-[14px]' />,
-            label: String(table.rowCount),
-          },
-          created: timeCell(table.createdAt),
-          owner: ownerCell(table.createdBy, membersById),
-          updated: timeCell(table.updatedAt),
-        },
+    for (const table of processedTables) {
+      entries.push({
+        item: { kind: 'table', table },
+        pinned: pinnedTableIds.has(table.id),
+        name: table.name,
+        key:
+          sortColumn === 'columns'
+            ? table.schema.columns.length
+            : sortColumn === 'rows'
+              ? table.rowCount
+              : sortColumn === 'created'
+                ? new Date(table.createdAt).getTime()
+                : sortColumn === 'updated'
+                  ? new Date(table.updatedAt).getTime()
+                  : sortColumn === 'owner'
+                    ? (membersById.get(table.createdBy)?.name ?? null)
+                    : table.name,
       })
-    )
+    }
 
-    return [...folderRows, ...tableRows]
-  }, [visibleFolders, processedTables, membersById, pinnedFolderIds, pinnedTableIds])
+    return sortResources(entries, sortDirection)
+  }, [
+    visibleFolders,
+    processedTables,
+    sortColumn,
+    sortDirection,
+    membersById,
+    pinnedFolderIds,
+    pinnedTableIds,
+  ])
+
+  const baseRows: ResourceRow[] = useMemo(
+    () =>
+      sortedEntries.map(({ item, pinned }): ResourceRow => {
+        if (item.kind === 'folder') {
+          return folderRow(item.folder, {
+            pinned,
+            cells: {
+              columns: { label: EMPTY_CELL_PLACEHOLDER },
+              rows: { label: EMPTY_CELL_PLACEHOLDER },
+              created: timeCell(item.folder.createdAt),
+              owner: ownerCell(item.folder.userId, membersById),
+              updated: timeCell(item.folder.updatedAt),
+            },
+          })
+        }
+
+        const { table } = item
+        return {
+          id: table.id,
+          cells: {
+            name: {
+              icon: <TableIcon className='size-[14px]' />,
+              label: table.name,
+              pinned,
+            },
+            columns: {
+              icon: <Columns3 className='size-[14px]' />,
+              label: String(table.schema.columns.length),
+            },
+            rows: {
+              icon: <Rows3 className='size-[14px]' />,
+              label: String(table.rowCount),
+            },
+            created: timeCell(table.createdAt),
+            owner: ownerCell(table.createdBy, membersById),
+            updated: timeCell(table.updatedAt),
+          },
+        }
+      }),
+    [sortedEntries, membersById]
+  )
 
   /**
    * Layered on top of {@link baseRows} rather than folded into it so a keystroke

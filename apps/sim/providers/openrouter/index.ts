@@ -38,6 +38,7 @@ import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   generateSchemaInstructions,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -262,7 +263,8 @@ export const openRouterProvider: ProviderConfig = {
           content = currentResponse.choices[0].message.content
         }
 
-        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+        const toolCallsInResponse =
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
@@ -457,7 +459,8 @@ export const openRouterProvider: ProviderConfig = {
       }
 
       if (iterationCount === MAX_TOOL_ITERATIONS) {
-        const pendingToolCalls = currentResponse.choices[0]?.message?.tool_calls
+        const pendingToolCalls =
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
         enrichLastModelSegmentFromChatCompletions(timeSegments, currentResponse, pendingToolCalls, {
           model: request.model,
           provider: 'openrouter',
@@ -508,7 +511,7 @@ export const openRouterProvider: ProviderConfig = {
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             finalResponse,
-            finalResponse.choices[0]?.message?.tool_calls,
+            finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
             { model: request.model, provider: 'openrouter' }
           )
         }
@@ -562,7 +565,7 @@ export const openRouterProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           finalResponse,
-          finalResponse.choices[0]?.message?.tool_calls,
+          finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'openrouter' }
         )
       }

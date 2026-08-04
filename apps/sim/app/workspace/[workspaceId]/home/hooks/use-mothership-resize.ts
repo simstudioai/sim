@@ -73,9 +73,11 @@ export function dividerXAt(clientX: number, geometry: DragGeometry): number {
  * `handleResizePointerDown` to the drag handle's onPointerDown.
  * Call `clearWidth` when the panel collapses so the CSS class retakes control.
  */
-export function useMothershipResize() {
+export function useMothershipResize(desktopScopeId: string) {
   const mothershipRef = useRef<HTMLDivElement | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
+  const desktopScopeIdRef = useRef(desktopScopeId)
+  desktopScopeIdRef.current = desktopScopeId
 
   const handleResizePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
@@ -106,7 +108,10 @@ export function useMothershipResize() {
     // repositioned arithmetically per pointer move instead of waiting for the
     // renderer's layout → measure → report round-trip; no-op (null) when no
     // browser resource is live
-    const predictBrowserBounds = beginBrowserPanelDividerDrag(startRect.left)
+    const predictBrowserBounds = beginBrowserPanelDividerDrag(
+      startRect.left,
+      desktopScopeIdRef.current
+    )
 
     // Disable CSS transition to prevent animation lag during drag
     const prevTransition = el.style.transition

@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { WorkspaceFileFolderApi } from '@/lib/api/contracts/workspace-file-folders'
 import type { ListWorkspaceFilesResponse } from '@/lib/api/contracts/workspace-files'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
+import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import {
   WORKSPACE_FILE_FOLDERS_STALE_TIME,
   workspaceFileFolderKeys,
@@ -12,7 +13,9 @@ import {
 } from '@/hooks/queries/workspace-files'
 
 /**
- * Prefetches the Files browser's two lists — workspace files and file folders —
+ * Prefetches everything the Files browser needs to paint a complete, correctly-ordered
+ * first frame: workspace files, file folders, and (via {@link prefetchResourceListChrome})
+ * the pinned ids that drive row order plus the members behind the Owner column —
  * under the same query keys their client hooks (`useWorkspaceFiles`,
  * `useWorkspaceFileFolders`) use (scope `active`), so the browser paints
  * populated on first render.
@@ -45,5 +48,6 @@ export async function prefetchFilesBrowser(
       },
       staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     }),
+    prefetchResourceListChrome(queryClient, workspaceId, 'file'),
   ])
 }

@@ -400,6 +400,40 @@ describe('hydrateUserFilesWithBase64', () => {
     expect(mockRedis.eval).toHaveBeenCalledOnce()
   })
 
+  /**
+   * Reproduces the agent-attachment failure: a file under the inline limit whose base64 exceeds
+   * the 8 MiB single-Redis-write cap. The bytes are already read by the time the cache is
+   * written, so a refused cache write must degrade to "not cached", not fail the execution.
+   */
+  it('still returns base64 when the value is too large to cache', async () => {
+    mockGetRedisClient.mockReturnValue(mockRedis)
+    const buffer = Buffer.alloc(9 * 1024 * 1024, 0x61)
+    mockDownloadFile.mockResolvedValueOnce(buffer)
+    const file: UserFile = {
+      id: 'file-1',
+      name: 'data_10mb.csv',
+      key: 'execution/workspace/workflow/exec-1/data_10mb.csv',
+      url: 'https://example.com/data_10mb.csv',
+      size: buffer.length,
+      type: 'text/csv',
+      context: 'execution',
+    }
+
+    const hydrated = await hydrateUserFilesWithBase64(
+      { file },
+      {
+        workspaceId: 'workspace',
+        workflowId: 'workflow',
+        executionId: 'exec-1',
+        userId: 'user-1',
+        maxBytes: 10 * 1024 * 1024,
+      }
+    )
+
+    expect(hydrated.file.base64).toBe(buffer.toString('base64'))
+    expect(mockRedis.eval).not.toHaveBeenCalled()
+  })
+
   it('releases indexed budget entries even when cache keys already expired', async () => {
     mockGetRedisClient.mockReturnValue(mockRedis)
     mockRedis.hgetall.mockResolvedValueOnce({

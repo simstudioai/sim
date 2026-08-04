@@ -332,11 +332,20 @@ export function extractResponseReasoning(output: OpenAI.Responses.ResponseOutput
 
 /**
  * Converts Responses API output items into input items for subsequent calls.
+ *
+ * Echoing output items straight back as input is exactly what the Responses API asks for in a
+ * tool loop, but the SDK models `ResponseOutputItem` and `ResponseInputItem` as separate unions
+ * that diverge on members Sim never produces — computer-use call outputs (whose `status` admits
+ * `failed`, which the input shape rejects) and the `AdditionalTools` escape hatch. Narrowing
+ * member by member would have to be redone on every SDK bump, so the conversion is asserted
+ * once, here, and every caller goes through it rather than pushing raw output items.
  */
 export function convertResponseOutputToInputItems(
   output: OpenAI.Responses.ResponseOutputItem[]
 ): ResponsesInputItem[] {
-  return Array.isArray(output) ? output : []
+  if (!Array.isArray(output)) return []
+  // double-cast-allowed: the SDK's output and input item unions diverge only on members Sim never emits
+  return output as unknown as ResponsesInputItem[]
 }
 
 /**

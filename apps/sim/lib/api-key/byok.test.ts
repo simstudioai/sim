@@ -42,6 +42,11 @@ vi.mock('@/providers/models', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   PROVIDER_PLACEHOLDER_KEY: 'placeholder',
 }))
 

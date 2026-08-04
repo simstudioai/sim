@@ -23,6 +23,7 @@ import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   generateSchemaInstructions,
+  isFunctionToolCall,
   prepareToolExecution,
   sumToolCosts,
 } from '@/providers/utils'
@@ -265,7 +266,8 @@ export async function executeOllamaProviderRequest(
         }
       }
 
-      const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+      const toolCallsInResponse =
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
@@ -454,7 +456,7 @@ export async function executeOllamaProviderRequest(
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
         currentResponse,
-        currentResponse.choices[0]?.message?.tool_calls,
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: providerId }
       )
     }
@@ -501,12 +503,12 @@ export async function executeOllamaProviderRequest(
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
         finalResponse,
-        finalResponse.choices[0]?.message?.tool_calls,
+        finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: providerId }
       )
     } else if (
       iterationCount === MAX_TOOL_ITERATIONS &&
-      currentResponse.choices[0]?.message?.tool_calls?.length
+      currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)?.length
     ) {
       /**
        * The capped turn still requests tools, so make one tool-disabled call to
@@ -542,7 +544,7 @@ export async function executeOllamaProviderRequest(
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
         synthesisResponse,
-        synthesisResponse.choices[0]?.message?.tool_calls,
+        synthesisResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: providerId }
       )
     }

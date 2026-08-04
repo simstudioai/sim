@@ -25,6 +25,7 @@ import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { getDesktopBridge } from '@/lib/desktop'
+import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
 import {
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
@@ -32,6 +33,7 @@ import {
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
+import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import type {
@@ -1732,6 +1734,8 @@ function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
  * is no agent browser to hand back.
  */
 function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { chatId } = useChatSurface()
   const [handedBack, setHandedBack] = useState(false)
 
   if (!isBrowserAgentAvailable()) return null
@@ -1747,7 +1751,7 @@ function BrowserTakeoverDisplay({ data }: { data: CredentialTagData }) {
       onClick={() => {
         if (handedBack) return
         setHandedBack(true)
-        sendBrowserPanelAction('takeover-done')
+        sendBrowserPanelAction('takeover-done', {}, desktopChatScopeId(workspaceId, chatId))
       }}
       disabled={handedBack}
       className={cn(
@@ -1905,6 +1909,8 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
  * the right shell. Renders nothing outside the desktop app.
  */
 function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { chatId } = useChatSurface()
   const [handedBack, setHandedBack] = useState(false)
 
   if (!isTerminalAvailable()) return null
@@ -1920,7 +1926,7 @@ function TerminalHandoffDisplay({ data }: { data: CredentialTagData }) {
       onClick={() => {
         if (handedBack) return
         setHandedBack(true)
-        finishTerminalHandoff(data.value ?? '')
+        finishTerminalHandoff(data.value ?? '', desktopChatScopeId(workspaceId, chatId))
       }}
       disabled={handedBack}
       className={cn(
