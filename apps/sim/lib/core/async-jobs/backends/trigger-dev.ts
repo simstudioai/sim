@@ -15,6 +15,7 @@ import {
   type JobQueueBackend,
   type JobStatus,
   type JobType,
+  validateMaxDurationSeconds,
 } from '@/lib/core/async-jobs/types'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
@@ -51,18 +52,6 @@ function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
     retryable: true,
     cause: error,
   })
-}
-
-function resolveMaxDuration(options?: EnqueueOptions): number | undefined {
-  const value = options?.maxDurationSeconds
-  if (value === undefined) return undefined
-  if (!Number.isFinite(value) || value <= 0 || !Number.isInteger(value)) {
-    throw new AsyncJobEnqueueError('maxDurationSeconds must be a positive integer', {
-      acceptance: 'rejected',
-      retryable: false,
-    })
-  }
-  return value
 }
 
 function buildExecutionTag(executionId: string): string {
@@ -252,7 +241,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     const tags = buildTags(options)
     const triggerOptions: TriggerOptions = {}
     if (tags.length > 0) triggerOptions.tags = tags
-    const maxDuration = resolveMaxDuration(options)
+    const maxDuration = validateMaxDurationSeconds(options?.maxDurationSeconds)
     if (maxDuration !== undefined) triggerOptions.maxDuration = maxDuration
     if (options?.concurrencyKey) triggerOptions.concurrencyKey = options.concurrencyKey
     if (options?.jobId) {
@@ -288,6 +277,9 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     items: Array<{ payload: TPayload; options?: EnqueueOptions }>
   ): Promise<string[]> {
     if (items.length === 0) return []
+    for (const { options } of items) {
+      validateMaxDurationSeconds(options?.maxDurationSeconds)
+    }
     // tasks.batchTrigger returns only a batchId, not per-item run IDs, so we
     // can't use it when callers need to track individual runs (e.g. table cell
     // tasks need per-row jobIds for cancellation). Sequential `tasks.trigger`
@@ -305,6 +297,9 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     items: Array<{ payload: TPayload; options?: EnqueueOptions }>
   ): Promise<string[]> {
     if (items.length === 0) return []
+    for (const { options } of items) {
+      validateMaxDurationSeconds(options?.maxDurationSeconds)
+    }
     // The SDK's checkpoint-and-resume requires task runtime context. The only
     // caller (`dispatcherStep` invoked by `tableRunDispatcherTask.run`) is
     // always inside a task; check defensively so misuse fails at the boundary
@@ -341,7 +336,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         region?: string
       } = { region }
       if (options?.concurrencyKey) batchOpts.concurrencyKey = options.concurrencyKey
-      const maxDuration = resolveMaxDuration(options)
+      const maxDuration = validateMaxDurationSeconds(options?.maxDurationSeconds)
       if (maxDuration !== undefined) batchOpts.maxDuration = maxDuration
       if (tags.length > 0) batchOpts.tags = tags
       batchItem.options = batchOpts

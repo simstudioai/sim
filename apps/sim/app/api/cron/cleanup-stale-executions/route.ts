@@ -11,9 +11,16 @@ import { and, eq, exists, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { JOB_PENDING_RETENTION_HOURS, JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
+import {
+  JOB_PENDING_RETENTION_HOURS,
+  JOB_RETENTION_HOURS,
+  JOB_STATUS,
+  MAX_JOB_DURATION_SECONDS,
+  MIN_JOB_DURATION_SECONDS,
+} from '@/lib/core/async-jobs'
 import {
   getExecutionReservationTtlMs,
+  getTimeoutErrorMessage,
   RESERVATION_TTL_BUFFER_MS,
 } from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -24,6 +31,7 @@ const logger = createLogger('CleanupStaleExecutions')
 const STALE_THRESHOLD_MS = getExecutionReservationTtlMs()
 const STALE_THRESHOLD_MINUTES = Math.ceil(STALE_THRESHOLD_MS / 60000)
 const GENERIC_STALE_PROCESSING_ERROR = `Job terminated: stuck in processing for more than ${STALE_THRESHOLD_MINUTES} minutes`
+const EXECUTION_DEADLINE_ERROR = getTimeoutErrorMessage(undefined)
 const MAX_INT32 = 2_147_483_647
 /** Terminal table-jobs older than this are pruned; only the latest job per table is ever read. */
 const TABLE_JOB_RETENTION_HOURS = 24
@@ -142,7 +150,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             executionData: sql`jsonb_set(
               COALESCE(execution_data, '{}'::jsonb),
               ARRAY['error'],
-              to_jsonb(${`Execution terminated: worker timeout or crash after ${staleDurationMinutes} minutes`}::text)
+              to_jsonb(
+                CASE
+                  WHEN ${workflowExecutionLogs.executionDeadlineAt} IS NOT NULL
+                    THEN ${EXECUTION_DEADLINE_ERROR}::text
+                  ELSE ${`Execution terminated: worker timeout or crash after ${staleDurationMinutes} minutes`}::text
+                END
+              )
             )`,
           })
           .where(
@@ -187,18 +201,22 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     let asyncJobsMarkedFailed = 0
 
     try {
+      const hasPositiveMaxDuration = sql<boolean>`CASE
+        WHEN jsonb_typeof(${asyncJobs.metadata}->'maxDurationSeconds') = 'number'
+          THEN (${asyncJobs.metadata}->>'maxDurationSeconds')::numeric >= ${MIN_JOB_DURATION_SECONDS}
+            AND (${asyncJobs.metadata}->>'maxDurationSeconds')::numeric <= ${MAX_JOB_DURATION_SECONDS}
+            AND trunc((${asyncJobs.metadata}->>'maxDurationSeconds')::numeric)
+              = (${asyncJobs.metadata}->>'maxDurationSeconds')::numeric
+        ELSE FALSE
+      END`
+      const staleProcessingDurationPredicate = sql<boolean>`CASE
+        WHEN ${hasPositiveMaxDuration}
+          THEN ${asyncJobs.startedAt} + ((${asyncJobs.metadata}->>'maxDurationSeconds')::double precision * interval '1 second') < ${now}
+        ELSE ${asyncJobs.startedAt} < ${staleThreshold}
+      END`
       const staleProcessingPredicate = and(
         eq(asyncJobs.status, JOB_STATUS.PROCESSING),
-        or(
-          and(
-            sql`jsonb_typeof(${asyncJobs.metadata}->'maxDurationSeconds') = 'number'`,
-            sql`${asyncJobs.startedAt} + ((${asyncJobs.metadata}->>'maxDurationSeconds')::double precision * interval '1 second') < ${now}`
-          ),
-          and(
-            sql`jsonb_typeof(${asyncJobs.metadata}->'maxDurationSeconds') IS DISTINCT FROM 'number'`,
-            lt(asyncJobs.startedAt, staleThreshold)
-          )
-        )
+        staleProcessingDurationPredicate
       )
       const staleProcessingResult = await runBatchedMutation({
         batchSize: STATE_MUTATION_BATCH_SIZE,
@@ -216,10 +234,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               status: JOB_STATUS.FAILED,
               completedAt: new Date(),
               error: sql<string>`CASE
-                WHEN jsonb_typeof(${asyncJobs.metadata}->'maxDurationSeconds') = 'number'
-                  THEN 'Job terminated: exceeded configured maximum duration of '
+                WHEN ${hasPositiveMaxDuration}
+                  THEN 'Job terminated: stuck in processing for more than '
                     || (${asyncJobs.metadata}->>'maxDurationSeconds')
-                    || ' seconds'
+                    || ' seconds (worker cleanup deadline)'
                 ELSE ${GENERIC_STALE_PROCESSING_ERROR}
               END`,
               updatedAt: new Date(),

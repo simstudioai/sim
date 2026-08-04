@@ -2,6 +2,7 @@ import { asyncJobs, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import {
   AsyncJobEnqueueError,
@@ -13,6 +14,7 @@ import {
   type JobQueueBackend,
   type JobStatus,
   type JobType,
+  validateMaxDurationSeconds,
 } from '@/lib/core/async-jobs/types'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
@@ -110,11 +112,10 @@ function untrackExecutionController(
 }
 
 function buildJobMetadata(options?: EnqueueOptions): Record<string, unknown> {
+  const maxDurationSeconds = validateMaxDurationSeconds(options?.maxDurationSeconds)
   return {
-    ...(options?.metadata ?? {}),
-    ...(options?.maxDurationSeconds !== undefined
-      ? { maxDurationSeconds: options.maxDurationSeconds }
-      : {}),
+    ...omit(options?.metadata ?? {}, ['maxDurationSeconds']),
+    ...(maxDurationSeconds !== undefined ? { maxDurationSeconds } : {}),
   }
 }
 
@@ -160,6 +161,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
   ): Promise<string> {
     const jobId = options?.jobId ?? `run_${generateShortId(20)}`
     const now = new Date()
+    const metadata = buildJobMetadata(options)
 
     try {
       await db
@@ -176,7 +178,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
               : now,
           attempts: 0,
           maxAttempts: options?.maxAttempts ?? 3,
-          metadata: buildJobMetadata(options),
+          metadata,
           updatedAt: now,
         })
         .onConflictDoNothing()
@@ -271,6 +273,9 @@ export class DatabaseJobQueue implements JobQueueBackend {
     items: Array<{ payload: TPayload; options?: EnqueueOptions }>
   ): Promise<string[]> {
     if (items.length === 0) return []
+    for (const { options } of items) {
+      validateMaxDurationSeconds(options?.maxDurationSeconds)
+    }
     const tracked: Array<{ key: string; controller: AbortController }> = []
     const trackedExecutions: Array<{
       binding: ExecutionJobBinding

@@ -4,6 +4,7 @@
 import { asyncJobs, workflowExecutionLogs } from '@sim/db/schema'
 import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_JOB_DURATION_SECONDS, MIN_JOB_DURATION_SECONDS } from '@/lib/core/async-jobs'
 
 const { mockDeleteFile, mockVerifyCronAuth } = vi.hoisted(() => ({
   mockDeleteFile: vi.fn().mockResolvedValue(undefined),
@@ -20,6 +21,7 @@ interface MockCondition {
   conditions?: unknown[]
   left?: unknown
   right?: unknown
+  toSQL?: () => { sql: string; params: unknown[] }
 }
 
 function flattenConditions(condition: unknown): MockCondition[] {
@@ -77,12 +79,28 @@ describe('stale execution cleanup deadline grace', () => {
         expectedThreshold,
         expectedThreshold,
       ])
+
+      const executionUpdateIndex = dbChainMockFns.update.mock.calls.findIndex(
+        ([table]) => table === workflowExecutionLogs
+      )
+      const update = dbChainMockFns.set.mock.calls[executionUpdateIndex]?.[0] as {
+        executionData: { toSQL: () => { sql: string; params: unknown[] } }
+      }
+      const errorExpression = update.executionData.toSQL()
+
+      expect(errorExpression.sql).toContain('CASE')
+      expect(errorExpression.sql).toContain('IS NOT NULL')
+      expect(errorExpression.params).toContain(workflowExecutionLogs.executionDeadlineAt)
+      expect(errorExpression.params).toContain('Execution timed out')
+      expect(errorExpression.params).toContain(
+        'Execution terminated: worker timeout or crash after 70 minutes'
+      )
     } finally {
       vi.useRealTimers()
     }
   })
 
-  it('reports a configured job duration cap while preserving the generic stale fallback', async () => {
+  it('reports a worker cleanup deadline while preserving the generic stale fallback', async () => {
     const response = await GET(createRequest())
 
     expect(response.status).toBe(200)
@@ -95,12 +113,29 @@ describe('stale execution cleanup deadline grace', () => {
       error: { toSQL: () => { sql: string; params: unknown[] } }
     }
     const errorExpression = update.error.toSQL()
+    const maxDurationGuard = errorExpression.params.find(
+      (value): value is { toSQL: () => { sql: string; params: unknown[] } } =>
+        typeof value === 'object' && value !== null && 'toSQL' in value
+    )
+    const durationPredicate = dbChainMockFns.where.mock.calls
+      .flatMap(([condition]) => flattenConditions(condition))
+      .find((condition) => condition.toSQL?.().sql.includes("interval '1 second'"))
+      ?.toSQL?.()
 
     expect(errorExpression.sql).toContain("->>'maxDurationSeconds'")
-    expect(errorExpression.sql).toContain(
-      "'Job terminated: exceeded configured maximum duration of '"
-    )
-    expect(errorExpression.sql).toContain("|| ' seconds'")
+    const guardExpression = maxDurationGuard?.toSQL()
+    expect(guardExpression?.sql).toContain("jsonb_typeof(?->'maxDurationSeconds') = 'number'")
+    expect(guardExpression?.sql).toContain('>=')
+    expect(guardExpression?.sql).toContain('trunc(')
+    expect(guardExpression?.sql).toContain('<=')
+    expect(guardExpression?.params).toContain(MAX_JOB_DURATION_SECONDS)
+    expect(guardExpression?.params).toContain(MIN_JOB_DURATION_SECONDS)
+    expect(durationPredicate?.sql).toContain('CASE')
+    expect(durationPredicate?.sql).toContain('ELSE')
+    expect(durationPredicate?.sql).toContain('::double precision')
+    expect(errorExpression.sql).toContain("'Job terminated: stuck in processing for more than '")
+    expect(errorExpression.sql).toContain("|| ' seconds (worker cleanup deadline)'")
+    expect(errorExpression.sql).not.toContain('configured maximum duration')
     expect(errorExpression.params).toContainEqual(
       expect.stringMatching(/^Job terminated: stuck in processing for more than \d+ minutes$/)
     )

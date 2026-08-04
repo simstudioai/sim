@@ -3,6 +3,7 @@ import { findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -480,6 +481,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           // child is part of that same logical run and must not add a second.
           { baseExecutionCharge: 0 }
         )
+        childSession.setExecutionDeadlineAt(getExecutionDeadlineAt(ctx.abortSignal))
         childSession.setResolvedSecretTraceRegistry(childResolvedSecretTraceRegistry)
         const correlation = buildCustomBlockCorrelation({
           invokerExecutionId: ctx.executionId,

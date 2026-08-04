@@ -6,6 +6,7 @@ import {
   resetEnvironmentUtilsMock,
 } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { getBlock } from '@/blocks/registry'
 import { BlockType } from '@/executor/constants'
 import { BoundarySafeError } from '@/executor/errors/boundary'
@@ -39,6 +40,7 @@ const {
   mockSafeCompleteWithError,
   mockSafeCompleteWithCancellation,
   mockSetResolvedSecretTraceRegistry,
+  mockSetExecutionDeadlineAt,
   mockSetTraceLargeValueAccess,
   mockDispose,
   executorOptions,
@@ -57,6 +59,7 @@ const {
   mockSafeCompleteWithError: vi.fn(),
   mockSafeCompleteWithCancellation: vi.fn(),
   mockSetResolvedSecretTraceRegistry: vi.fn(),
+  mockSetExecutionDeadlineAt: vi.fn(),
   mockSetTraceLargeValueAccess: vi.fn(),
   mockDispose: vi.fn(),
   executorOptions: [] as Array<Record<string, any>>,
@@ -72,6 +75,7 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
     safeComplete = mockSafeComplete
     safeCompleteWithError = mockSafeCompleteWithError
     safeCompleteWithCancellation = mockSafeCompleteWithCancellation
+    setExecutionDeadlineAt = mockSetExecutionDeadlineAt
     setResolvedSecretTraceRegistry = mockSetResolvedSecretTraceRegistry
     setTraceLargeValueAccess = mockSetTraceLargeValueAccess
     onBlockStart = vi.fn()
@@ -1160,6 +1164,27 @@ describe('WorkflowBlockHandler', () => {
         source: 'custom_block',
         executionId: 'parent-execution-id',
       })
+    })
+
+    it('persists the parent deadline before starting the child session', async () => {
+      const timeoutController = createTimeoutAbortController(60_000)
+
+      try {
+        await handler.execute(
+          customBlockContext({ abortSignal: timeoutController.signal }),
+          customBlock(),
+          {}
+        )
+
+        expect(mockSetExecutionDeadlineAt).toHaveBeenCalledWith(
+          getExecutionDeadlineAt(timeoutController.signal)
+        )
+        expect(mockSetExecutionDeadlineAt.mock.invocationCallOrder[0]).toBeLessThan(
+          mockSafeStart.mock.invocationCallOrder[0]
+        )
+      } finally {
+        timeoutController.cleanup()
+      }
     })
 
     it('admits against the source payer before executing', async () => {

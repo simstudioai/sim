@@ -14,6 +14,11 @@ export const JOB_MAX_LIFETIME_SECONDS = 48 * 60 * 60
 /** Queue-wait lease before a database job that never started is considered abandoned. */
 export const JOB_PENDING_RETENTION_HOURS = 14 * 24
 
+/** Trigger.dev's minimum supported per-run duration. */
+export const MIN_JOB_DURATION_SECONDS = 5
+/** Largest duration accepted by queue backends, keeping persisted-second arithmetic bounded. */
+export const MAX_JOB_DURATION_SECONDS = 2_147_483_647
+
 export const JOB_STATUS = {
   PENDING: 'pending',
   PROCESSING: 'processing',
@@ -150,6 +155,26 @@ export class AsyncJobEnqueueError extends Error {
     this.acceptance = options.acceptance
     this.retryable = options.retryable
   }
+}
+
+/** Validates the per-run duration accepted by every job queue backend. */
+export function validateMaxDurationSeconds(value?: number): number | undefined {
+  if (value === undefined) return undefined
+  if (
+    !Number.isFinite(value) ||
+    value < MIN_JOB_DURATION_SECONDS ||
+    value > MAX_JOB_DURATION_SECONDS ||
+    !Number.isInteger(value)
+  ) {
+    throw new AsyncJobEnqueueError(
+      `maxDurationSeconds must be an integer between ${MIN_JOB_DURATION_SECONDS} and ${MAX_JOB_DURATION_SECONDS}`,
+      {
+        acceptance: 'rejected',
+        retryable: false,
+      }
+    )
+  }
+  return value
 }
 
 export function isAsyncJobEnqueueError(error: unknown): error is AsyncJobEnqueueError {

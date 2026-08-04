@@ -25,7 +25,11 @@ vi.mock('@sim/db', () => ({
 }))
 
 import { DatabaseJobQueue } from '@/lib/core/async-jobs/backends/database'
-import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
+import {
+  AsyncJobEnqueueError,
+  MAX_JOB_DURATION_SECONDS,
+  MIN_JOB_DURATION_SECONDS,
+} from '@/lib/core/async-jobs/types'
 
 const EXISTING_JOB = {
   id: 'workflow:1',
@@ -112,6 +116,52 @@ describe('DatabaseJobQueue enqueue', () => {
       })
     )
   })
+
+  it.each([0, -1, 1.5, 4, MAX_JOB_DURATION_SECONDS + 1, Number.POSITIVE_INFINITY])(
+    'rejects invalid maxDurationSeconds %s before inserting',
+    async (maxDurationSeconds) => {
+      const queue = new DatabaseJobQueue()
+
+      const error = await queue
+        .enqueue('workflow-execution', {}, { maxDurationSeconds })
+        .catch((cause: unknown) => cause)
+
+      expect(error).toMatchObject({ acceptance: 'rejected', retryable: false })
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts the five-second minimum duration', async () => {
+    const queue = new DatabaseJobQueue()
+
+    await queue.enqueue(
+      'workflow-execution',
+      {},
+      {
+        maxDurationSeconds: MIN_JOB_DURATION_SECONDS,
+      }
+    )
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: { maxDurationSeconds: MIN_JOB_DURATION_SECONDS },
+      })
+    )
+  })
+
+  it('does not allow caller metadata to impersonate the reserved duration field', async () => {
+    const queue = new DatabaseJobQueue()
+
+    await queue.enqueue(
+      'workflow-execution',
+      {},
+      {
+        metadata: { maxDurationSeconds: -1 },
+      }
+    )
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ metadata: {} }))
+  })
 })
 
 describe('DatabaseJobQueue batchEnqueueAndWait', () => {
@@ -144,6 +194,20 @@ describe('DatabaseJobQueue batchEnqueueAndWait', () => {
     ])
 
     expect(maxInFlight).toBe(2)
+  })
+
+  it('rejects every invalid duration before starting any runner', async () => {
+    const queue = new DatabaseJobQueue()
+    const runner = vi.fn()
+
+    await expect(
+      queue.batchEnqueueAndWait('workflow-execution', [
+        { payload: {}, options: { maxDurationSeconds: 60, runner } },
+        { payload: {}, options: { maxDurationSeconds: 1.5, runner } },
+      ])
+    ).rejects.toMatchObject({ acceptance: 'rejected', retryable: false })
+
+    expect(runner).not.toHaveBeenCalled()
   })
 
   it('aborts an in-process runner by execution ID', async () => {
@@ -255,6 +319,26 @@ describe('DatabaseJobQueue batchEnqueueAndWait', () => {
     await sleep(1)
 
     expect(markJobFailed).not.toHaveBeenCalled()
+  })
+})
+
+describe('DatabaseJobQueue batchEnqueue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('validates every row before inserting the batch', async () => {
+    const queue = new DatabaseJobQueue()
+
+    await expect(
+      queue.batchEnqueue('workflow-execution', [
+        { payload: {}, options: { maxDurationSeconds: 60 } },
+        { payload: {}, options: { maxDurationSeconds: 1.5 } },
+      ])
+    ).rejects.toMatchObject({ acceptance: 'rejected', retryable: false })
+
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })
 

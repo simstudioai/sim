@@ -200,15 +200,57 @@ describe('TriggerDevJobQueue enqueue', () => {
     ])
   })
 
-  it('rejects invalid execution timeouts before triggering a run', async () => {
+  it.each([1.5, 4])(
+    'rejects invalid execution timeout %s before triggering a run',
+    async (maxDurationSeconds) => {
+      const queue = new TriggerDevJobQueue()
+
+      const error = await queue
+        .enqueue('workflow-execution', {}, { maxDurationSeconds })
+        .catch((cause: unknown) => cause)
+
+      expect(error).toMatchObject({ acceptance: 'rejected', retryable: false })
+      expect(mockTrigger).not.toHaveBeenCalled()
+    }
+  )
+
+  it('passes the five-second minimum duration to Trigger.dev', async () => {
     const queue = new TriggerDevJobQueue()
 
-    const error = await queue
-      .enqueue('workflow-execution', {}, { maxDurationSeconds: 1.5 })
-      .catch((cause: unknown) => cause)
+    await queue.enqueue('workflow-execution', {}, { maxDurationSeconds: 5 })
 
-    expect(error).toMatchObject({ acceptance: 'rejected', retryable: false })
+    expect(mockTrigger).toHaveBeenCalledWith(
+      'workflow-execution',
+      {},
+      expect.objectContaining({ maxDuration: 5 })
+    )
+  })
+
+  it('validates an entire batch before triggering its first run', async () => {
+    const queue = new TriggerDevJobQueue()
+
+    await expect(
+      queue.batchEnqueue('workflow-execution', [
+        { payload: {}, options: { maxDurationSeconds: 60 } },
+        { payload: {}, options: { maxDurationSeconds: 1.5 } },
+      ])
+    ).rejects.toMatchObject({ acceptance: 'rejected', retryable: false })
+
     expect(mockTrigger).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid waiting batch before resolving its region', async () => {
+    mockTaskContext.isInsideTask = true
+    const queue = new TriggerDevJobQueue()
+
+    await expect(
+      queue.batchEnqueueAndWait('workflow-execution', [
+        { payload: {}, options: { maxDurationSeconds: 1.5 } },
+      ])
+    ).rejects.toMatchObject({ acceptance: 'rejected', retryable: false })
+
+    expect(mockResolveTriggerRegion).not.toHaveBeenCalled()
+    expect(mockBatchTriggerAndWait).not.toHaveBeenCalled()
   })
 
   it('classifies a client response as proven non-acceptance', async () => {
