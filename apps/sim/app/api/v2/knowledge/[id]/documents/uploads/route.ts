@@ -5,10 +5,10 @@ import { NextResponse } from 'next/server'
 import { v2CreateKnowledgeDocumentUploadContract } from '@/lib/api/contracts/v2/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createUploadSession } from '@/lib/uploads/multipart-session/service'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { checkRateLimit } from '@/app/api/v1/middleware'
 import {
+  createKnowledgeDocumentUploadSession,
   resolveKnowledgeDocumentUploadAccess,
   resolveKnowledgeDocumentUploadBilling,
   toV2KnowledgeDocumentUpload,
@@ -64,11 +64,10 @@ export const POST = withRouteHandler(
         return v2Error('UNSUPPORTED_MEDIA_TYPE', fileTypeError.message)
       }
 
-      const session = await createUploadSession({
+      const session = await createKnowledgeDocumentUploadSession({
         workspaceId,
         userId,
         knowledgeBaseId,
-        purpose: 'knowledge_document',
         fileName: name,
         contentType,
         fileSize: size,

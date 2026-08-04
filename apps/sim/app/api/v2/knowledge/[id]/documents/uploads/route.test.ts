@@ -6,12 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckRateLimit,
-  mockCreateUploadSession,
+  mockCreateKnowledgeDocumentUploadSession,
   mockResolveKnowledgeDocumentUploadAccess,
   mockResolveKnowledgeDocumentUploadBilling,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
-  mockCreateUploadSession: vi.fn(),
+  mockCreateKnowledgeDocumentUploadSession: vi.fn(),
   mockResolveKnowledgeDocumentUploadAccess: vi.fn(),
   mockResolveKnowledgeDocumentUploadBilling: vi.fn(),
 }))
@@ -20,10 +20,8 @@ vi.mock('@/app/api/v1/middleware', () => ({ checkRateLimit: mockCheckRateLimit }
 vi.mock('@/app/api/v2/lib/gate', () => ({
   v2ApiGateError: vi.fn().mockResolvedValue(null),
 }))
-vi.mock('@/lib/uploads/multipart-session/service', () => ({
-  createUploadSession: mockCreateUploadSession,
-}))
 vi.mock('@/app/api/v2/knowledge/[id]/documents/uploads/utils', () => ({
+  createKnowledgeDocumentUploadSession: mockCreateKnowledgeDocumentUploadSession,
   resolveKnowledgeDocumentUploadAccess: mockResolveKnowledgeDocumentUploadAccess,
   resolveKnowledgeDocumentUploadBilling: mockResolveKnowledgeDocumentUploadBilling,
   toV2KnowledgeDocumentUpload: (session: Record<string, unknown>) => ({
@@ -74,7 +72,7 @@ describe('POST /api/v2/knowledge/[id]/documents/uploads', () => {
       kb: { id: 'kb-1', name: 'Docs' },
     })
     mockResolveKnowledgeDocumentUploadBilling.mockResolvedValue({ actorUserId: 'user-1' })
-    mockCreateUploadSession.mockResolvedValue({
+    mockCreateKnowledgeDocumentUploadSession.mockResolvedValue({
       id: 'upload-1',
       knowledgeBaseId: 'kb-1',
       status: 'uploading',
@@ -100,11 +98,10 @@ describe('POST /api/v2/knowledge/[id]/documents/uploads', () => {
       })
     )
     expect(mockResolveKnowledgeDocumentUploadBilling).toHaveBeenCalled()
-    expect(mockCreateUploadSession).toHaveBeenCalledWith({
+    expect(mockCreateKnowledgeDocumentUploadSession).toHaveBeenCalledWith({
       workspaceId: WORKSPACE_ID,
       userId: 'user-1',
       knowledgeBaseId: 'kb-1',
-      purpose: 'knowledge_document',
       fileName: 'guide.pdf',
       contentType: 'application/pdf',
       fileSize: 1024,
@@ -114,7 +111,7 @@ describe('POST /api/v2/knowledge/[id]/documents/uploads', () => {
       },
     })
     expect(mockResolveKnowledgeDocumentUploadBilling.mock.invocationCallOrder[0]).toBeLessThan(
-      mockCreateUploadSession.mock.invocationCallOrder[0]
+      mockCreateKnowledgeDocumentUploadSession.mock.invocationCallOrder[0]
     )
   })
 
@@ -127,6 +124,6 @@ describe('POST /api/v2/knowledge/[id]/documents/uploads', () => {
 
     expect(response.status).toBe(403)
     expect(mockResolveKnowledgeDocumentUploadBilling).not.toHaveBeenCalled()
-    expect(mockCreateUploadSession).not.toHaveBeenCalled()
+    expect(mockCreateKnowledgeDocumentUploadSession).not.toHaveBeenCalled()
   })
 })

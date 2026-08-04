@@ -2,7 +2,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createKnowledgeDocumentUploadContract } from '@/lib/api/contracts/knowledge/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createUploadSession } from '@/lib/uploads/multipart-session/service'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { uploadSessionErrorResponse } from '@/app/api/files/uploads/utils'
 import {
@@ -10,7 +9,10 @@ import {
   requireKnowledgeDocumentUploadActor,
   requireKnowledgeDocumentUploadBilling,
 } from '@/app/api/knowledge/[id]/documents/uploads/utils'
-import { toV2KnowledgeDocumentUpload } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
+import {
+  createKnowledgeDocumentUploadSession,
+  toV2KnowledgeDocumentUpload,
+} from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
 
 interface KnowledgeDocumentUploadsRouteParams {
   params: Promise<{ id: string }>
@@ -40,11 +42,10 @@ export const POST = withRouteHandler(
       return NextResponse.json({ error: fileTypeError.message }, { status: 415 })
     }
     try {
-      const upload = await createUploadSession({
+      const upload = await createKnowledgeDocumentUploadSession({
         workspaceId,
         userId: actor.id,
         knowledgeBaseId,
-        purpose: 'knowledge_document',
         fileName: name,
         contentType,
         fileSize: size,

@@ -16,13 +16,13 @@ import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import type { CreatedKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import { findBoundKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
-import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
   abortUploadSession,
+  createUploadSession,
   getOwnedUploadSession,
   type UploadSessionRecord,
 } from '@/lib/uploads/multipart-session/service'
-import { deleteFileMetadata, recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
+import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import { resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
 import type { RateLimitResult } from '@/app/api/v1/middleware'
 import { v2Error } from '@/app/api/v2/lib/response'
@@ -97,6 +97,40 @@ export function getOwnedKnowledgeDocumentUpload(params: {
   })
 }
 
+/**
+ * Creates a knowledge-document upload and records its ownership binding before the token is
+ * returned. Failed or abandoned sessions can then be reclaimed by the knowledge-base orphan
+ * sweeper without racing a later document insert.
+ */
+export async function createKnowledgeDocumentUploadSession(params: {
+  workspaceId: string
+  userId: string
+  knowledgeBaseId: string
+  fileName: string
+  contentType: string
+  fileSize: number
+  metadata: Record<string, unknown>
+}): Promise<UploadSessionRecord> {
+  const session = await createUploadSession({
+    ...params,
+    purpose: 'knowledge_document',
+  })
+  try {
+    await recordKnowledgeBaseFileOwnership({
+      key: session.storageKey,
+      userId: params.userId,
+      workspaceId: params.workspaceId,
+      originalName: params.fileName,
+      contentType: params.contentType,
+      size: params.fileSize,
+    })
+  } catch (error) {
+    await abortUploadSession(session)
+    throw error
+  }
+  return session
+}
+
 export function toV2KnowledgeDocumentSummary(
   document: CreatedKnowledgeDocument
 ): V2KnowledgeDocumentSummary {
@@ -161,12 +195,10 @@ function knowledgeDocumentInputFor(session: UploadSessionRecord) {
 /**
  * Aborts an upload session, refusing once a document is bound to it.
  *
- * Upload sessions are stateless — the signed token always reconstructs as `uploading`, so
- * nothing else stops an abort from arriving after a successful completion. That matters
- * because the abort is not uniformly a no-op on a committed object: the blob provider
- * deletes the blob outright. Without this guard a late abort (the client aborts when a
- * completion response is lost, and the token stays valid for its full TTL) would strip the
- * bytes from a live document.
+ * Upload sessions are stateless — the signed token always reconstructs as `uploading`, so this
+ * guard preserves the completed state exposed by the document binding. Provider aborts must
+ * also remain non-destructive after commit because an in-flight completion is not visible here
+ * until its document transaction commits.
  */
 export async function abortKnowledgeDocumentUpload(
   session: UploadSessionRecord,
@@ -189,9 +221,9 @@ export async function abortKnowledgeDocumentUpload(
  *
  * Ordering is load-bearing. A retry is answered from the already-bound document before any
  * work that can fail independently of the upload runs, so a payer that became unresolvable
- * after the session was created cannot turn a valid retry into an error. Cleanup is likewise
- * gated on the upload still being unbound — uploaded bytes are never deleted out from under
- * a live document row.
+ * after the session was created cannot turn a valid retry into an error. The ownership binding
+ * is recorded before the upload token is issued, so failures retain retriable state and the
+ * delayed orphan sweeper reclaims sessions that never bind to a document.
  */
 export async function finalizeKnowledgeDocumentUpload(params: {
   claimed: UploadSessionRecord
@@ -223,44 +255,23 @@ export async function finalizeKnowledgeDocumentUpload(params: {
   }
 
   const billingAttribution = await params.resolveAttribution()
-  try {
-    await recordKnowledgeBaseFileOwnership({
-      key: claimed.storageKey,
-      userId: params.userId,
-      workspaceId,
-      originalName: claimed.fileName,
-      contentType: claimed.contentType,
-      size: claimed.fileSize,
-    })
-    const outcome = await performUploadKnowledgeDocument({
-      knowledgeBase: { id: knowledgeBaseId, name: params.knowledgeBaseName, workspaceId },
-      document,
-      documentId: claimed.id,
-      startProcessing: 'queue',
-      processingOptions,
-      billingAttribution,
-      uploadedBy: billingAttribution.actorUserId,
-      userId: params.userId,
-      ...(params.actorName ? { actorName: params.actorName } : {}),
-      ...(params.actorEmail ? { actorEmail: params.actorEmail } : {}),
-      source: params.source,
-      requestId,
-      request: params.request,
-    })
-    if (!outcome.success) {
-      throw new OrchestrationError(outcome.errorCode, outcome.error)
-    }
-    return { value: outcome.document, completedFileId: outcome.document.id }
-  } catch (error) {
-    const rebound = await findBoundKnowledgeDocument({
-      documentId: claimed.id,
-      knowledgeBaseId,
-      document,
-    })
-    if (rebound.status === 'absent') {
-      await deleteFile({ key: claimed.storageKey, context: 'knowledge-base' })
-      await deleteFileMetadata(claimed.storageKey)
-    }
-    throw error
+  const outcome = await performUploadKnowledgeDocument({
+    knowledgeBase: { id: knowledgeBaseId, name: params.knowledgeBaseName, workspaceId },
+    document,
+    documentId: claimed.id,
+    startProcessing: 'queue',
+    processingOptions,
+    billingAttribution,
+    uploadedBy: billingAttribution.actorUserId,
+    userId: params.userId,
+    ...(params.actorName ? { actorName: params.actorName } : {}),
+    ...(params.actorEmail ? { actorEmail: params.actorEmail } : {}),
+    source: params.source,
+    requestId,
+    request: params.request,
+  })
+  if (!outcome.success) {
+    throw new OrchestrationError(outcome.errorCode, outcome.error)
   }
+  return { value: outcome.document, completedFileId: outcome.document.id }
 }

@@ -3,18 +3,17 @@
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { UploadSessionRecord } from '@/lib/uploads/multipart-session/service'
 
 const {
   mockAbortUploadSession,
-  mockDeleteFile,
-  mockDeleteFileMetadata,
+  mockCreateUploadSession,
   mockFindBoundKnowledgeDocument,
   mockPerformUploadKnowledgeDocument,
   mockRecordKnowledgeBaseFileOwnership,
 } = vi.hoisted(() => ({
   mockAbortUploadSession: vi.fn(),
-  mockDeleteFile: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
+  mockCreateUploadSession: vi.fn(),
   mockFindBoundKnowledgeDocument: vi.fn(),
   mockPerformUploadKnowledgeDocument: vi.fn(),
   mockRecordKnowledgeBaseFileOwnership: vi.fn(),
@@ -28,21 +27,21 @@ vi.mock('@/lib/knowledge/orchestration/documents', () => ({
 }))
 vi.mock('@/lib/uploads/multipart-session/service', () => ({
   abortUploadSession: mockAbortUploadSession,
+  createUploadSession: mockCreateUploadSession,
   getOwnedUploadSession: vi.fn(),
 }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
 vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
   recordKnowledgeBaseFileOwnership: mockRecordKnowledgeBaseFileOwnership,
 }))
 
 import {
   abortKnowledgeDocumentUpload,
+  createKnowledgeDocumentUploadSession,
   finalizeKnowledgeDocumentUpload,
 } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
-const CLAIMED = {
+const CLAIMED: UploadSessionRecord = {
   id: 'upload-1',
   workspaceId: WORKSPACE_ID,
   userId: 'user-1',
@@ -66,8 +65,7 @@ const CLAIMED = {
   error: null,
   completedAt: null,
   updatedAt: new Date('2026-08-03T21:00:00.000Z'),
-  // biome-ignore lint/suspicious/noExplicitAny: partial session shape for the test
-} as any
+}
 const DOCUMENT = { id: 'upload-1', knowledgeBaseId: 'kb-1', filename: 'guide.pdf' }
 
 function finalize(resolveAttribution = vi.fn().mockResolvedValue({ actorUserId: 'payer-1' })) {
@@ -83,6 +81,60 @@ function finalize(resolveAttribution = vi.fn().mockResolvedValue({ actorUserId: 
     request: new NextRequest('http://localhost:3000/api/v2/knowledge/kb-1'),
   })
 }
+
+function createSession() {
+  return createKnowledgeDocumentUploadSession({
+    workspaceId: WORKSPACE_ID,
+    userId: 'user-1',
+    knowledgeBaseId: 'kb-1',
+    fileName: 'guide.pdf',
+    contentType: 'application/pdf',
+    fileSize: 1024,
+    metadata: { tag1: 'product' },
+  })
+}
+
+describe('createKnowledgeDocumentUploadSession', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCreateUploadSession.mockResolvedValue(CLAIMED)
+    mockRecordKnowledgeBaseFileOwnership.mockResolvedValue(undefined)
+    mockAbortUploadSession.mockResolvedValue({ ...CLAIMED, status: 'aborted' })
+  })
+
+  it('records the ownership binding before returning the upload token', async () => {
+    await expect(createSession()).resolves.toBe(CLAIMED)
+
+    expect(mockCreateUploadSession).toHaveBeenCalledWith({
+      workspaceId: WORKSPACE_ID,
+      userId: 'user-1',
+      knowledgeBaseId: 'kb-1',
+      purpose: 'knowledge_document',
+      fileName: 'guide.pdf',
+      contentType: 'application/pdf',
+      fileSize: 1024,
+      metadata: { tag1: 'product' },
+    })
+    expect(mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledWith({
+      key: 'kb/guide.pdf',
+      userId: 'user-1',
+      workspaceId: WORKSPACE_ID,
+      originalName: 'guide.pdf',
+      contentType: 'application/pdf',
+      size: 1024,
+    })
+    expect(mockCreateUploadSession.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRecordKnowledgeBaseFileOwnership.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('aborts provider state when the ownership binding cannot be recorded', async () => {
+    mockRecordKnowledgeBaseFileOwnership.mockRejectedValue(new Error('database unavailable'))
+
+    await expect(createSession()).rejects.toThrow('database unavailable')
+    expect(mockAbortUploadSession).toHaveBeenCalledWith(CLAIMED)
+  })
+})
 
 describe('abortKnowledgeDocumentUpload', () => {
   beforeEach(() => {
@@ -113,9 +165,6 @@ describe('finalizeKnowledgeDocumentUpload', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFindBoundKnowledgeDocument.mockResolvedValue({ status: 'absent' })
-    mockRecordKnowledgeBaseFileOwnership.mockResolvedValue(undefined)
-    mockDeleteFile.mockResolvedValue(undefined)
-    mockDeleteFileMetadata.mockResolvedValue(true)
     mockPerformUploadKnowledgeDocument.mockResolvedValue({
       success: true,
       document: DOCUMENT,
@@ -127,14 +176,6 @@ describe('finalizeKnowledgeDocumentUpload', () => {
     const result = await finalize()
 
     expect(result).toEqual({ value: DOCUMENT, completedFileId: 'upload-1' })
-    expect(mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledWith({
-      key: 'kb/guide.pdf',
-      userId: 'user-1',
-      workspaceId: WORKSPACE_ID,
-      originalName: 'guide.pdf',
-      contentType: 'application/pdf',
-      size: 1024,
-    })
     expect(mockPerformUploadKnowledgeDocument).toHaveBeenCalledWith(
       expect.objectContaining({
         documentId: 'upload-1',
@@ -144,7 +185,6 @@ describe('finalizeKnowledgeDocumentUpload', () => {
         document: expect.objectContaining({ filename: 'guide.pdf', tag1: 'product' }),
       })
     )
-    expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 
   it('answers a retry from the bound document without resolving a payer', async () => {
@@ -155,12 +195,10 @@ describe('finalizeKnowledgeDocumentUpload', () => {
 
     expect(result).toEqual({ value: DOCUMENT, completedFileId: 'upload-1' })
     expect(resolveAttribution).not.toHaveBeenCalled()
-    expect(mockRecordKnowledgeBaseFileOwnership).not.toHaveBeenCalled()
     expect(mockPerformUploadKnowledgeDocument).not.toHaveBeenCalled()
-    expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 
-  it('deletes the uploaded object when creation fails and nothing is bound', async () => {
+  it('retains completed bytes for retry when document creation fails', async () => {
     mockPerformUploadKnowledgeDocument.mockResolvedValue({
       success: false,
       errorCode: 'payload_too_large',
@@ -168,19 +206,21 @@ describe('finalizeKnowledgeDocumentUpload', () => {
     })
 
     await expect(finalize()).rejects.toThrow('Storage limit exceeded')
-    expect(mockDeleteFile).toHaveBeenCalledWith({ key: 'kb/guide.pdf', context: 'knowledge-base' })
-    expect(mockDeleteFileMetadata).toHaveBeenCalledWith('kb/guide.pdf')
+    expect(mockFindBoundKnowledgeDocument).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the uploaded object when a document is bound despite the failure', async () => {
+  it('lets a retry converge when the first response fails after the document binds', async () => {
     mockFindBoundKnowledgeDocument
       .mockResolvedValueOnce({ status: 'absent' })
       .mockResolvedValueOnce({ status: 'bound', document: DOCUMENT })
     mockPerformUploadKnowledgeDocument.mockRejectedValue(new Error('audit sink exploded'))
 
     await expect(finalize()).rejects.toThrow('audit sink exploded')
-    expect(mockDeleteFile).not.toHaveBeenCalled()
-    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+    await expect(finalize()).resolves.toEqual({
+      value: DOCUMENT,
+      completedFileId: 'upload-1',
+    })
+    expect(mockPerformUploadKnowledgeDocument).toHaveBeenCalledTimes(1)
   })
 
   it('rejects an upload id already bound to a different document without deleting anything', async () => {
@@ -191,6 +231,5 @@ describe('finalizeKnowledgeDocumentUpload', () => {
       'Upload id is already bound to a different document'
     )
     expect(resolveAttribution).not.toHaveBeenCalled()
-    expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 })
