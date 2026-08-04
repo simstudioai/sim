@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { asyncJobs, tableJobs, workflowExecutionLogs } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_JOB_DURATION_SECONDS, MIN_JOB_DURATION_SECONDS } from '@/lib/core/async-jobs'
@@ -15,6 +16,11 @@ vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: mockVerifyCronAuth }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
 
 import { GET } from '@/app/api/cron/cleanup-stale-executions/route'
+
+const cleanupLogger =
+  vi.mocked(createLogger).mock.results[
+    vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'CleanupStaleExecutions')
+  ].value
 
 interface MockCondition {
   type?: string
@@ -43,6 +49,7 @@ describe('stale execution cleanup deadline grace', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    cleanupLogger.info.mockReset()
     mockVerifyCronAuth.mockReturnValue(null)
   })
 
@@ -329,6 +336,34 @@ describe('stale execution cleanup deadline grace', () => {
       dbChainMockFns.update.mock.calls.filter(([table]) => table === workflowExecutionLogs)
     ).toHaveLength(2)
     expect(dbChainMockFns.update.mock.calls.some(([table]) => table === asyncJobs)).toBe(true)
+  })
+
+  it('does not mark a committed workflow batch as failed when later bookkeeping throws', async () => {
+    for (let batch = 0; batch < 10; batch++) {
+      const workflowBatch = Array.from({ length: 100 }, (_, index) => ({
+        id: `execution-${batch}-${index}`,
+      }))
+      queueTableRows(workflowExecutionLogs, workflowBatch)
+      dbChainMockFns.returning.mockResolvedValueOnce(workflowBatch)
+    }
+    cleanupLogger.info.mockImplementation((message: string) => {
+      if (
+        message === 'Deferred remaining stale workflow executions after reaching the per-run cap'
+      ) {
+        throw new Error('logger unavailable')
+      }
+    })
+
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      executions: {
+        found: 1000,
+        cleaned: 1000,
+        failed: 0,
+      },
+    })
   })
 
   it('continues draining when an atomic race updates fewer rows than were selected', async () => {

@@ -192,6 +192,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
           return { candidates, updatedExecutions }
         })
+        currentWorkflowBatchSize = 0
         staleExecutionsFound += candidates.length
         if (candidates.length === 0) break
 
