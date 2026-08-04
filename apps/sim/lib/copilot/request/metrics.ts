@@ -5,9 +5,9 @@
 // contracts/metrics_v1.go) so the Go∪Sim union is queryable as one series set
 // — e.g. `copilot.tool.duration` split by `tool.executor` (go|client|sim).
 //
-// Bounded cardinality only: tool.name is capped to the shared tool catalog
-// (else "other"); vfs phase / file-read outcome are bounded sets. NEVER a
-// user/chat/request id (those explode Prometheus series).
+// Bounded cardinality only: tool.name and gen_ai.agent.name are capped to the
+// shared catalogs (else "other"); vfs phase / file-read outcome are bounded
+// sets. NEVER a user/chat/request id (those explode Prometheus series).
 import { type Counter, type Histogram, metrics } from '@opentelemetry/api'
 import { Metric } from '@/lib/copilot/generated/metrics-v1'
 import { TOOL_CATALOG } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -91,11 +91,9 @@ export function recordSimToolMetric(
     [TraceAttr.ToolName]: cappedToolName(name),
     [TraceAttr.ToolExecutor]: 'sim',
     [TraceAttr.ToolOutcome]: outcome,
-  }
-  toolCalls.add(1, {
-    ...baseAttrs,
     [TraceAttr.GenAiAgentName]: cappedAgentId(agentId),
-  })
+  }
+  toolCalls.add(1, baseAttrs)
   if (durationMs >= 0) toolDuration.record(durationMs, baseAttrs)
 }
 

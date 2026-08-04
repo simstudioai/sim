@@ -29,7 +29,7 @@ describe('recordSimToolMetric', () => {
   })
 
   it.each(['main', 'workflow'])(
-    'attributes call counts to the registered %s agent without adding it to duration',
+    'attributes call counts and duration to the registered %s agent',
     (agentId) => {
       recordSimToolMetric('read', agentId, 'success', 125)
 
@@ -42,7 +42,10 @@ describe('recordSimToolMetric', () => {
         ...baseAttributes,
         [TraceAttr.GenAiAgentName]: agentId,
       })
-      expect(toolDurationRecord).toHaveBeenCalledWith(125, baseAttributes)
+      expect(toolDurationRecord).toHaveBeenCalledWith(125, {
+        ...baseAttributes,
+        [TraceAttr.GenAiAgentName]: agentId,
+      })
     }
   )
 
@@ -58,6 +61,9 @@ describe('recordSimToolMetric', () => {
       ...baseAttributes,
       [TraceAttr.GenAiAgentName]: 'other',
     })
-    expect(toolDurationRecord).toHaveBeenCalledWith(125, baseAttributes)
+    expect(toolDurationRecord).toHaveBeenCalledWith(125, {
+      ...baseAttributes,
+      [TraceAttr.GenAiAgentName]: 'other',
+    })
   })
 })
