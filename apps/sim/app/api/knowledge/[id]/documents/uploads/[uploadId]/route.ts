@@ -2,13 +2,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { abortKnowledgeDocumentUploadContract } from '@/lib/api/contracts/knowledge/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { abortUploadSession } from '@/lib/uploads/multipart-session/service'
 import { uploadSessionErrorResponse } from '@/app/api/files/uploads/utils'
 import {
   requireKnowledgeDocumentUploadAccess,
   requireKnowledgeDocumentUploadActor,
 } from '@/app/api/knowledge/[id]/documents/uploads/utils'
 import {
+  abortKnowledgeDocumentUpload,
   getOwnedKnowledgeDocumentUpload,
   toV2KnowledgeDocumentUpload,
 } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
@@ -39,7 +39,7 @@ export const DELETE = withRouteHandler(
         userId: actor.id,
         uploadToken: parsed.data.headers['upload-token'],
       })
-      const aborted = await abortUploadSession(upload)
+      const aborted = await abortKnowledgeDocumentUpload(upload, knowledgeBaseId)
       return NextResponse.json({ data: toV2KnowledgeDocumentUpload(aborted, null) })
     } catch (error) {
       const classified = uploadSessionErrorResponse(error)

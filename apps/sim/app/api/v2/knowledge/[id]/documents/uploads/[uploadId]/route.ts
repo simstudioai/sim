@@ -5,9 +5,9 @@ import { NextResponse } from 'next/server'
 import { v2AbortKnowledgeDocumentUploadContract } from '@/lib/api/contracts/v2/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { abortUploadSession } from '@/lib/uploads/multipart-session/service'
 import { checkRateLimit } from '@/app/api/v1/middleware'
 import {
+  abortKnowledgeDocumentUpload,
   getOwnedKnowledgeDocumentUpload,
   resolveKnowledgeDocumentUploadAccess,
   toV2KnowledgeDocumentUpload,
@@ -58,7 +58,7 @@ export const DELETE = withRouteHandler(
         userId,
         uploadToken: parsed.data.headers['upload-token'],
       })
-      const aborted = await abortUploadSession(session)
+      const aborted = await abortKnowledgeDocumentUpload(session, knowledgeBaseId)
       return v2Data(toV2KnowledgeDocumentUpload(aborted, null), { rateLimit })
     } catch (error) {
       const classified = v2CaughtOrchestrationError(error)

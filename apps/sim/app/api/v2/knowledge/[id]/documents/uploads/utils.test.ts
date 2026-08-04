@@ -5,12 +5,14 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockAbortUploadSession,
   mockDeleteFile,
   mockDeleteFileMetadata,
   mockFindBoundKnowledgeDocument,
   mockPerformUploadKnowledgeDocument,
   mockRecordKnowledgeBaseFileOwnership,
 } = vi.hoisted(() => ({
+  mockAbortUploadSession: vi.fn(),
   mockDeleteFile: vi.fn(),
   mockDeleteFileMetadata: vi.fn(),
   mockFindBoundKnowledgeDocument: vi.fn(),
@@ -24,13 +26,20 @@ vi.mock('@/lib/knowledge/orchestration', () => ({
 vi.mock('@/lib/knowledge/orchestration/documents', () => ({
   findBoundKnowledgeDocument: mockFindBoundKnowledgeDocument,
 }))
+vi.mock('@/lib/uploads/multipart-session/service', () => ({
+  abortUploadSession: mockAbortUploadSession,
+  getOwnedUploadSession: vi.fn(),
+}))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
 vi.mock('@/lib/uploads/server/metadata', () => ({
   deleteFileMetadata: mockDeleteFileMetadata,
   recordKnowledgeBaseFileOwnership: mockRecordKnowledgeBaseFileOwnership,
 }))
 
-import { finalizeKnowledgeDocumentUpload } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
+import {
+  abortKnowledgeDocumentUpload,
+  finalizeKnowledgeDocumentUpload,
+} from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const CLAIMED = {
@@ -74,6 +83,31 @@ function finalize(resolveAttribution = vi.fn().mockResolvedValue({ actorUserId: 
     request: new NextRequest('http://localhost:3000/api/v2/knowledge/kb-1'),
   })
 }
+
+describe('abortKnowledgeDocumentUpload', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAbortUploadSession.mockResolvedValue({ ...CLAIMED, status: 'aborted' })
+  })
+
+  it('aborts an upload that no document is bound to', async () => {
+    mockFindBoundKnowledgeDocument.mockResolvedValue({ status: 'absent' })
+
+    await expect(abortKnowledgeDocumentUpload(CLAIMED, 'kb-1')).resolves.toMatchObject({
+      status: 'aborted',
+    })
+    expect(mockAbortUploadSession).toHaveBeenCalledWith(CLAIMED)
+  })
+
+  it('refuses to abort once a document is bound, so committed bytes survive', async () => {
+    mockFindBoundKnowledgeDocument.mockResolvedValue({ status: 'bound', document: DOCUMENT })
+
+    await expect(abortKnowledgeDocumentUpload(CLAIMED, 'kb-1')).rejects.toThrow(
+      'Upload has already been completed'
+    )
+    expect(mockAbortUploadSession).not.toHaveBeenCalled()
+  })
+})
 
 describe('finalizeKnowledgeDocumentUpload', () => {
   beforeEach(() => {

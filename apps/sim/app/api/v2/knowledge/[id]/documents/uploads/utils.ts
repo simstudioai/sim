@@ -18,6 +18,7 @@ import { findBoundKnowledgeDocument } from '@/lib/knowledge/orchestration/docume
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
+  abortUploadSession,
   getOwnedUploadSession,
   type UploadSessionRecord,
 } from '@/lib/uploads/multipart-session/service'
@@ -145,6 +146,43 @@ export function knowledgeDocumentFileUrl(session: UploadSessionRecord): string {
   return `/api/files/serve/${providerPrefix}${encodeURIComponent(session.storageKey)}?context=knowledge-base`
 }
 
+function knowledgeDocumentInputFor(session: UploadSessionRecord) {
+  const { processingOptions: _processingOptions, ...documentTags } =
+    v2KnowledgeDocumentUploadMetadataSchema.parse(session.metadata)
+  return {
+    filename: session.fileName,
+    fileUrl: knowledgeDocumentFileUrl(session),
+    fileSize: session.fileSize,
+    mimeType: session.contentType,
+    ...documentTags,
+  }
+}
+
+/**
+ * Aborts an upload session, refusing once a document is bound to it.
+ *
+ * Upload sessions are stateless — the signed token always reconstructs as `uploading`, so
+ * nothing else stops an abort from arriving after a successful completion. That matters
+ * because the abort is not uniformly a no-op on a committed object: the blob provider
+ * deletes the blob outright. Without this guard a late abort (the client aborts when a
+ * completion response is lost, and the token stays valid for its full TTL) would strip the
+ * bytes from a live document.
+ */
+export async function abortKnowledgeDocumentUpload(
+  session: UploadSessionRecord,
+  knowledgeBaseId: string
+): Promise<UploadSessionRecord> {
+  const bound = await findBoundKnowledgeDocument({
+    documentId: session.id,
+    knowledgeBaseId,
+    document: knowledgeDocumentInputFor(session),
+  })
+  if (bound.status !== 'absent') {
+    throw new OrchestrationError('conflict', 'Upload has already been completed')
+  }
+  return abortUploadSession(session)
+}
+
 /**
  * Binds a completed multipart session to its knowledge document. Shared by the public v2
  * and session-authenticated routes so both get identical completion semantics.
@@ -169,16 +207,8 @@ export async function finalizeKnowledgeDocumentUpload(params: {
   actorEmail?: string | null
 }): Promise<{ value: CreatedKnowledgeDocument; completedFileId: string }> {
   const { claimed, knowledgeBaseId, workspaceId, requestId } = params
-  const { processingOptions, ...documentTags } = v2KnowledgeDocumentUploadMetadataSchema.parse(
-    claimed.metadata
-  )
-  const document = {
-    filename: claimed.fileName,
-    fileUrl: knowledgeDocumentFileUrl(claimed),
-    fileSize: claimed.fileSize,
-    mimeType: claimed.contentType,
-    ...documentTags,
-  }
+  const { processingOptions } = v2KnowledgeDocumentUploadMetadataSchema.parse(claimed.metadata)
+  const document = knowledgeDocumentInputFor(claimed)
 
   const bound = await findBoundKnowledgeDocument({
     documentId: claimed.id,
