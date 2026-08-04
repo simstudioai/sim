@@ -341,16 +341,46 @@ function fieldKind(schema: JsonSchema): FieldKind {
  * Emitted as data rather than baked into types because the CLI has to *iterate*
  * these at startup to construct commands — a type alone cannot be walked.
  */
+/**
+ * Whether the slot is a union, whose branches the CLI cannot turn into flags.
+ *
+ * Distinct from "the map came out empty": the shared fields of a union are
+ * emitted as a map, so emptiness alone no longer identifies one, and the
+ * runtime still has to know the rest of the body must come in as JSON.
+ */
+function isUnionSlot(schema: z.ZodType): boolean {
+  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
+  return Object.keys(json.properties ?? {}).length === 0 && Boolean(json.anyOf ?? json.oneOf)
+}
+
 function renderSlotMap(schema: z.ZodType | undefined, indent: string): string | null {
   if (!schema) return null
 
   const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
-  const properties: Record<string, JsonSchema> = json.properties ?? {}
-  const required = new Set<string>(json.required ?? [])
+  let properties: Record<string, JsonSchema> = json.properties ?? {}
+  let required = new Set<string>(json.required ?? [])
+
+  // A union has no properties of its own, but the fields every branch agrees on
+  // are still known and still have to be sent — `workspaceId` is required by
+  // both branches of the row-insert body and comes from the profile, so
+  // dropping it left `tables rows create` rejected as invalid input.
+  if (Object.keys(properties).length === 0) {
+    const branches = (json.anyOf ?? json.oneOf) as JsonSchema[] | undefined
+    if (branches?.length) {
+      const shared = branches.reduce<string[]>(
+        (keys, branch) => keys.filter((key) => branch.properties?.[key] !== undefined),
+        Object.keys(branches[0].properties ?? {})
+      )
+      properties = Object.fromEntries(shared.map((key) => [key, branches[0].properties[key]]))
+      required = new Set(shared.filter((key) => branches.every((b) => b.required?.includes(key))))
+    }
+  }
+
   const keys = Object.keys(properties)
 
-  // A union body (e.g. single-row vs batch insert) has no flat field list; the
-  // runtime falls back to taking the whole body as JSON.
+  // A union body (e.g. single-row vs batch insert) has no flat field list. The
+  // caller marks it `opaqueBody` so the runtime can offer the whole body as one
+  // JSON flag instead.
   if (keys.length === 0) return null
 
   const lines = keys.map((key) => {
@@ -441,6 +471,13 @@ function render(operations: Operation[]): string {
     for (const slot of ['query', 'body'] as const) {
       const map = renderSlotMap(op.contract[slot], '    ')
       if (map) out.push(`    ${slot}: ${map},`)
+      // A declared slot with no flat field list still has to be sendable.
+      // Absence alone cannot say so: it means both "no body" and "a body the
+      // generator could not describe", and reading it as the former left
+      // `tables rows create` unable to send anything at all.
+      if (slot === 'body' && op.contract.body && isUnionSlot(op.contract.body)) {
+        out.push(`    opaqueBody: true,`)
+      }
     }
     out.push('  },')
   }

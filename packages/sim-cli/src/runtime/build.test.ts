@@ -328,3 +328,66 @@ describe('boolean flags', () => {
     )
   })
 })
+
+describe('bodies and fields the generator cannot flatten', () => {
+  it('sends a union body whole, with the profile workspace merged in', async () => {
+    // `createTableRows` is `z.union([batch, single])`, so there is no field list
+    // to build flags from. The command exposed nothing at all and sent no body,
+    // and every call failed with "Request body must be valid JSON".
+    const [path, options] = await run([
+      'tables',
+      'rows',
+      'create',
+      'tbl_1',
+      '--body',
+      '{"rows":[{"city":"Paris"}]}',
+    ])
+
+    expect(path).toBe('/api/v2/tables/tbl_1/rows')
+    // Both branches require `workspaceId`, and it comes from the profile.
+    expect(options.body).toEqual({ workspaceId: 'ws_local', rows: [{ city: 'Paris' }] })
+  })
+
+  it('lets the caller override a shared field', async () => {
+    const [, options] = await run([
+      'tables',
+      'rows',
+      'create',
+      'tbl_1',
+      '--body',
+      '{"workspaceId":"ws_other","rows":[]}',
+    ])
+    expect(options.body).toMatchObject({ workspaceId: 'ws_other' })
+  })
+
+  it('refuses a union body that is not an object', async () => {
+    await expect(run(['tables', 'rows', 'create', 'tbl_1', '--body', '[1,2]'])).rejects.toThrow(
+      /--body must be a JSON object/
+    )
+  })
+
+  it('leaves a non-numeric `limit` alone', async () => {
+    // `runTableColumn` takes `limit: { type, max }`. The pager claimed the name
+    // regardless of type, turning it into `--limit <n>` that defaulted to 100,
+    // so every call failed with "expected object, received number".
+    const [, omitted] = await run(['tables', 'columns', 'run', 'tbl_1', '--group-ids', '["g1"]'])
+    expect(omitted.body).not.toHaveProperty('limit')
+
+    const [, given] = await run([
+      'tables',
+      'columns',
+      'run',
+      'tbl_1',
+      '--group-ids',
+      '["g1"]',
+      '--limit',
+      '{"type":"rows","max":5}',
+    ])
+    expect(given.body).toMatchObject({ limit: { type: 'rows', max: 5 } })
+  })
+
+  it('still gives paginated lists their numeric --limit', async () => {
+    const [, options] = await run(['files', 'list', '--limit', '7'])
+    expect(options.query).toMatchObject({ limit: 7 })
+  })
+})

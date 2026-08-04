@@ -153,6 +153,11 @@ function unwrapResource(data: unknown): unknown {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : data
 }
 
+/** Whether the operation's body is one the generator could not describe field by field. */
+function opaqueBody(spec: object): boolean {
+  return (spec as { opaqueBody?: boolean }).opaqueBody === true
+}
+
 /** The operation's one-line help, taken from the OpenAPI summary at generation time. */
 function summaryFor(operation: V2OperationName): string | undefined {
   return (V2_OPERATIONS[operation] as { summary?: string }).summary
@@ -195,7 +200,11 @@ function addFieldOption(
   const name = flagNameFor(operation, field)
   const short = flag.short ? `-${flag.short}, ` : ''
 
-  if (field === 'limit') {
+  // The pager owns `--limit`, but only where `limit` means a page size. The
+  // name is not reserved: `runTableColumn` takes `limit: { type, max }`, and
+  // claiming it here turned that into a numeric flag that defaulted to 100 and
+  // made every invocation fail with "expected object, received number".
+  if (field === 'limit' && (descriptor.kind === 'number' || descriptor.kind === 'integer')) {
     command.option(
       `--limit <n>`,
       'Maximum items to return (0 for everything)',
@@ -284,6 +293,17 @@ function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: stri
     for (const [field, descriptor] of Object.entries(operationSpec[slot] ?? {})) {
       addFieldOption(command, operation, field, descriptor)
     }
+  }
+
+  // A body the generator could not break into fields is offered whole. The
+  // union behind `tables rows create` (one row, or a batch) has no field list
+  // to build flags from, and without this the command sent no body at all and
+  // the server rejected the request as malformed JSON.
+  if (opaqueBody(operationSpec)) {
+    command.requiredOption(
+      '--body <json|@file>',
+      'Request body as JSON (or @path / @- to read a file or stdin)'
+    )
   }
 
   if (spec.confirm) {

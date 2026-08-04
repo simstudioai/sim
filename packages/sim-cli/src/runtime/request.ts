@@ -213,6 +213,7 @@ export function buildRequest(
     pathParams: readonly string[]
     query?: Record<string, FieldSpec>
     body?: Record<string, FieldSpec>
+    opaqueBody?: boolean
   }
 
   let path = spec.path
@@ -254,6 +255,20 @@ export function buildRequest(
       if (slot === 'query') query[field] = asQueryValue(value)
       else body[field] = value
     }
+  }
+
+  // A union body comes in whole through `--body`, merged over the fields the
+  // branches share. Replacing outright dropped the profile's `workspaceId`,
+  // which both branches require, so every insert came back as invalid input.
+  // The caller's JSON still wins on any key it sets.
+  if (spec.opaqueBody) {
+    const raw = flags.body
+    if (typeof raw !== 'string') throw new SimApiError('--body is required', 0)
+    const parsed = coerce(raw, { kind: 'object' }, { json: true }, 'body')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new SimApiError('--body must be a JSON object', 0)
+    }
+    return { path, query, body: { ...body, ...(parsed as Record<string, unknown>) } }
   }
 
   return {

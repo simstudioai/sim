@@ -4233,6 +4233,10 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     responseMode: 'json',
     summary: 'Create Rows',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+    },
+    opaqueBody: true,
   },
   createTableView: {
     method: 'POST',
