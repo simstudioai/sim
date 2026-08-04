@@ -51,6 +51,10 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
 }))
 
 import {
+  MAX_WORKSPACE_FILE_SIZE,
+  MAX_WORKSPACE_FORMDATA_FILE_SIZE,
+} from '@/lib/uploads/shared/types'
+import {
   completeUploadSession,
   createUploadSession,
   UPLOAD_SESSION_PUT_MAX_BYTES,
@@ -122,7 +126,11 @@ describe('upload sessions', () => {
     })
   })
 
-  it('quota-gates execution attachments while exempting transient mothership attachments', async () => {
+  it('quota-gates durable files while exempting retention-scoped attachments', async () => {
+    await createWorkspaceUpload(1024)
+    expect(mockResolveBillingContext).toHaveBeenCalledOnce()
+    expect(mockCheckStorageQuota).toHaveBeenCalledOnce()
+
     await createUploadSession({
       id: 'execution-upload',
       workspaceId: WORKSPACE_ID,
@@ -148,6 +156,49 @@ describe('upload sessions', () => {
     })
     expect(mockResolveBillingContext).toHaveBeenCalledOnce()
     expect(mockCheckStorageQuota).toHaveBeenCalledOnce()
+  })
+
+  it('preserves the 5 GiB mothership limit while bounding execution attachments at 100 MiB', async () => {
+    await expect(
+      createUploadSession({
+        id: 'mothership-upload',
+        workspaceId: WORKSPACE_ID,
+        userId: 'user-1',
+        purpose: 'mothership_attachment',
+        fileName: 'archive.zip',
+        contentType: 'application/zip',
+        fileSize: MAX_WORKSPACE_FILE_SIZE,
+      })
+    ).resolves.toMatchObject({
+      method: 'multipart',
+      transfer: { method: 'multipart', partCount: 640 },
+    })
+
+    await expect(
+      createUploadSession({
+        id: 'oversized-mothership-upload',
+        workspaceId: WORKSPACE_ID,
+        userId: 'user-1',
+        purpose: 'mothership_attachment',
+        fileName: 'archive.zip',
+        contentType: 'application/zip',
+        fileSize: MAX_WORKSPACE_FILE_SIZE + 1,
+      })
+    ).rejects.toThrow(`File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes`)
+
+    await expect(
+      createUploadSession({
+        id: 'execution-upload',
+        workspaceId: WORKSPACE_ID,
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        purpose: 'execution_attachment',
+        fileName: 'result.txt',
+        contentType: 'text/plain',
+        fileSize: MAX_WORKSPACE_FORMDATA_FILE_SIZE + 1,
+      })
+    ).rejects.toThrow(`File size exceeds maximum of ${MAX_WORKSPACE_FORMDATA_FILE_SIZE} bytes`)
   })
 
   it('validates PUT completion input independently of finalization', async () => {

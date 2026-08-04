@@ -54,4 +54,24 @@ describe('multi-file upload admission', () => {
       })
     )
   })
+
+  it('supports a larger direct-to-storage limit without weakening aggregate admission', () => {
+    expect(() =>
+      assertMultiFileUploadAdmission([{ name: 'archive.zip', size: 1024 }], {
+        maxFileBytes: 1024,
+        maxTotalBytes: 2048,
+      })
+    ).not.toThrow()
+
+    expect(() =>
+      assertMultiFileUploadAdmission(files(3, 1024), {
+        maxFileBytes: 1024,
+        maxTotalBytes: 2048,
+      })
+    ).toThrow(
+      expect.objectContaining<Partial<MultiFileUploadAdmissionError>>({
+        code: 'UPLOAD_TOTAL_SIZE_EXCEEDED',
+      })
+    )
+  })
 })

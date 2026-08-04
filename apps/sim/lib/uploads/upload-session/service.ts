@@ -720,18 +720,14 @@ function maximumFileSize(purpose: UploadSessionPurpose): number {
   if (purpose === 'profile_picture' || purpose === 'workspace_logo') {
     return UPLOAD_SESSION_ASSET_MAX_BYTES
   }
-  if (purpose === 'mothership_attachment' || purpose === 'execution_attachment') {
+  if (purpose === 'execution_attachment') {
     return MAX_WORKSPACE_FORMDATA_FILE_SIZE
   }
   return MAX_WORKSPACE_FILE_SIZE
 }
 
 function requiresStorageQuota(purpose: UploadSessionPurpose): boolean {
-  return (
-    purpose === 'workspace_file' ||
-    purpose === 'knowledge_document' ||
-    purpose === 'execution_attachment'
-  )
+  return purpose === 'workspace_file' || purpose === 'knowledge_document'
 }
 
 function resolveUploadStorage(

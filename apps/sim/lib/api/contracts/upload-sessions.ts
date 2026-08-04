@@ -57,7 +57,7 @@ export const createInternalFileUploadBodySchema = z.discriminatedUnion('purpose'
     .object({
       purpose: z.literal('mothership_attachment'),
       ...internalFileUploadBaseShape,
-      size: z.number().int().min(1).max(MAX_WORKSPACE_FORMDATA_FILE_SIZE),
+      size: z.number().int().min(1).max(MAX_WORKSPACE_FILE_SIZE),
       workspaceId: workspaceIdSchema,
     })
     .strict(),

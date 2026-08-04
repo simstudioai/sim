@@ -54,6 +54,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: vi.fn() }))
 
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { POST as completeUpload } from '@/app/api/files/uploads/[uploadId]/complete/route'
 import { POST as createUpload } from '@/app/api/files/uploads/route'
 
@@ -140,6 +141,62 @@ describe('/api/files/uploads', () => {
     })
     expect(body.data.session).not.toHaveProperty('uploadToken')
     expect(body.data.session).not.toHaveProperty('transfer')
+  })
+
+  it('preserves the 5 GiB direct-to-storage limit for mothership attachments', async () => {
+    mockCreateUploadSession.mockResolvedValue({
+      ...session({
+        workspaceId: 'workspace-1',
+        purpose: 'mothership_attachment',
+        method: 'multipart',
+        storageContext: 'mothership',
+        storageKey: 'mothership/workspace-1/archive.zip',
+        fileName: 'archive.zip',
+        contentType: 'application/zip',
+        fileSize: MAX_WORKSPACE_FILE_SIZE,
+      }),
+      transfer: { method: 'multipart', partSize: 8 * 1024 * 1024, partCount: 640 },
+    })
+    const request = new NextRequest('http://localhost/api/files/uploads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        purpose: 'mothership_attachment',
+        workspaceId: 'workspace-1',
+        name: 'archive.zip',
+        contentType: 'application/zip',
+        size: MAX_WORKSPACE_FILE_SIZE,
+      }),
+    })
+
+    const response = await createUpload(request)
+
+    expect(response.status).toBe(201)
+    expect(mockCreateUploadSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purpose: 'mothership_attachment',
+        fileSize: MAX_WORKSPACE_FILE_SIZE,
+      })
+    )
+  })
+
+  it('rejects mothership attachments above the 5 GiB direct-to-storage limit', async () => {
+    const request = new NextRequest('http://localhost/api/files/uploads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        purpose: 'mothership_attachment',
+        workspaceId: 'workspace-1',
+        name: 'archive.zip',
+        contentType: 'application/zip',
+        size: MAX_WORKSPACE_FILE_SIZE + 1,
+      }),
+    })
+
+    const response = await createUpload(request)
+
+    expect(response.status).toBe(400)
+    expect(mockCreateUploadSession).not.toHaveBeenCalled()
   })
 
   it('reauthorizes a terminal request and returns only the terminal-safe session', async () => {

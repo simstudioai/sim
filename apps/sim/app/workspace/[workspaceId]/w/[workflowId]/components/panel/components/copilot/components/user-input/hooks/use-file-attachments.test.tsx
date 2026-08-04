@@ -16,7 +16,7 @@ vi.mock('@/lib/uploads/client/session-upload', () => ({
   uploadInternalFileSession: mockUploadInternalFileSession,
 }))
 
-import { MULTI_FILE_UPLOAD_MAX_FILE_BYTES } from '@/lib/uploads/client/admission'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 
 interface HookHarness {
@@ -73,22 +73,45 @@ describe('useFileAttachments admission', () => {
 
   it('rejects aggregate bytes before previews, placeholders, or sessions are allocated', async () => {
     const { result, unmount } = renderFileAttachmentsHook()
-    const files = asFileList(
-      Array.from({ length: 6 }, (_, index) =>
-        sizedFile(`image-${index}.png`, MULTI_FILE_UPLOAD_MAX_FILE_BYTES)
-      )
-    )
+    const files = asFileList([
+      ...Array.from({ length: 5 }, (_, index) =>
+        sizedFile(`large-image-${index}.png`, MAX_WORKSPACE_FILE_SIZE)
+      ),
+      sizedFile('extra-image.png', 1),
+    ])
 
     await act(async () => {
       await result().processFiles(files)
     })
 
     expect(mockToastError).toHaveBeenCalledWith("Couldn't add files", {
-      description: 'Select files totaling 500 MiB or less.',
+      description: 'Select files totaling 25 GiB or less.',
     })
     expect(createObjectUrl).not.toHaveBeenCalled()
     expect(mockUploadInternalFileSession).not.toHaveBeenCalled()
     expect(result().attachedFiles).toEqual([])
+
+    unmount()
+  })
+
+  it('starts a mothership session for a file above the old FormData limit', async () => {
+    mockUploadInternalFileSession.mockResolvedValue({
+      path: '/api/files/serve/s3/mothership%2Flarge-image.png?context=mothership',
+      key: 'mothership/large-image.png',
+    })
+    const { result, unmount } = renderFileAttachmentsHook()
+    const file = sizedFile('large-image.png', 101 * 1024 * 1024)
+
+    await act(async () => {
+      await result().processFiles(asFileList([file]))
+    })
+
+    expect(mockUploadInternalFileSession).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'mothership_attachment', file })
+    )
+    expect(result().attachedFiles).toEqual([
+      expect.objectContaining({ name: file.name, uploading: false }),
+    ])
 
     unmount()
   })

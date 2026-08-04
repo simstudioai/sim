@@ -8,6 +8,7 @@ import { generateId } from '@sim/utils/id'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/client/concurrency'
 import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')
@@ -135,7 +136,10 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
 
       if (fileList.length === 0) return
       try {
-        assertMultiFileUploadAdmission(fileList, { existingFiles: attachedFilesRef.current })
+        assertMultiFileUploadAdmission(fileList, {
+          existingFiles: attachedFilesRef.current,
+          maxFileBytes: MAX_WORKSPACE_FILE_SIZE,
+        })
       } catch (error) {
         toast.error("Couldn't add files", { description: toError(error).message })
         return
