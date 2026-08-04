@@ -16,6 +16,7 @@ vi.mock('@/lib/table/events', () => ({
 import {
   createTableView,
   deleteTableView,
+  getTableView,
   normalizeStoredViewConfig,
   pruneViewConfig,
   updateTableView,
@@ -182,5 +183,39 @@ describe('table-view mutations signal collaborators', () => {
 
     expect(deleted).toBe(false)
     expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
+  })
+})
+
+describe('getTableView', () => {
+  const columns: ColumnDefinition[] = [{ id: 'col_a', name: 'Name', type: 'text' }]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('prunes stale column references the same way the list read does', async () => {
+    queueTableRows(tableViews, [
+      {
+        id: 'view-1',
+        tableId: 'table-1',
+        workspaceId: 'ws-1',
+        name: 'My View',
+        config: { columnOrder: ['col_a', 'col_gone'], hiddenColumns: ['col_gone'] },
+        isDefault: false,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    const view = await getTableView('view-1', 'table-1', columns)
+
+    expect(view?.config.columnOrder).toEqual(['col_a'])
+    expect(view?.config.hiddenColumns).toEqual([])
+  })
+
+  it('returns null for a view id that is not on this table', async () => {
+    expect(await getTableView('view-elsewhere', 'table-1', columns)).toBeNull()
   })
 })

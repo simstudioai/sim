@@ -55,14 +55,21 @@
             "in": "query",
             "required": false,
             "description": "Restrict the list to one folder. Omit to list every table in the workspace.",
-            "schema": { "type": "string", "minLength": 1 }
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           {
             "name": "search",
             "in": "query",
             "required": false,
             "description": "Case-insensitive substring match against the table `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
-            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
           },
           {
             "name": "sortBy",
@@ -80,7 +87,11 @@
             "in": "query",
             "required": false,
             "description": "Sort direction.",
-            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
           }
         ],
         "responses": {
@@ -128,7 +139,15 @@
                       "rowCount": 2,
                       "maxRows": 100000,
                       "createdAt": "2026-01-15T10:30:00.000Z",
-                      "updatedAt": "2026-01-15T10:30:00.000Z"
+                      "updatedAt": "2026-01-15T10:30:00.000Z",
+                      "folderId": null,
+                      "locks": {
+                        "schemaLocked": false,
+                        "insertLocked": false,
+                        "updateLocked": false,
+                        "deleteLocked": false
+                      },
+                      "job": null
                     }
                   ],
                   "nextCursor": null
@@ -229,7 +248,15 @@
                       "rowCount": 0,
                       "maxRows": 100000,
                       "createdAt": "2026-01-15T10:30:00.000Z",
-                      "updatedAt": "2026-01-15T10:30:00.000Z"
+                      "updatedAt": "2026-01-15T10:30:00.000Z",
+                      "folderId": null,
+                      "locks": {
+                        "schemaLocked": false,
+                        "insertLocked": false,
+                        "updateLocked": false,
+                        "deleteLocked": false
+                      },
+                      "job": null
                     }
                   }
                 }
@@ -385,6 +412,130 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "patch": {
+        "operationId": "updateTable",
+        "summary": "Update Table",
+        "description": "Rename a table and/or move it between folders. Provide at least one of `name` or `folderId`. Each field is applied independently, so one request can rename and move at once, and the response reflects every applied change.\n\nBoth fields need workspace write.\n\n**Lock flags are read-only here.** A table's `locks` are returned on the table resource and enforced on every write (a locked verb returns 423), but they cannot be changed through the API — a write-level key must not be able to clear the guard placed there to stop it. Changing a lock is a first-party workspace-admin action. A request carrying `locks` is rejected with 400 rather than silently ignored.\n\n**Partial-success semantics.** The two operations commit independently, so this endpoint is not atomic. Everything that can be *rejected* — the body shape, folder existence — is validated before the first write, so a rejected request changes nothing. If a genuine fault (a lost race, the table archived mid-request, a database error) fails the later operation after the earlier one has committed, the response is an error whose `error.details.applied` lists the operations that are nevertheless live (`\"name\"`, `\"folderId\"`). The field is absent when nothing was applied, so its presence always means \"these changes took effect despite the error\" — re-read the table to confirm before retrying.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"name\":\"customers\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTableBody"
+              },
+              "examples": {
+                "rename": {
+                  "summary": "Rename",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "name": "customers"
+                  }
+                },
+                "move": {
+                  "summary": "Move to the workspace root",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "folderId": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated table.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "table": {
+                      "id": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                      "name": "customers",
+                      "description": "Customer contact records",
+                      "schema": {
+                        "columns": [
+                          {
+                            "id": "col_a1b2c3",
+                            "name": "email",
+                            "type": "string",
+                            "required": true,
+                            "unique": true
+                          }
+                        ]
+                      },
+                      "rowCount": 42,
+                      "maxRows": 100000,
+                      "folderId": "fld_7a1c3e5d9b2f4068a3c5e7d9f1b3a507",
+                      "locks": {
+                        "schemaLocked": false,
+                        "insertLocked": false,
+                        "updateLocked": false,
+                        "deleteLocked": true
+                      },
+                      "createdAt": "2026-01-15T10:30:00.000Z",
+                      "updatedAt": "2026-01-16T09:12:00.000Z",
+                      "job": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/api/v2/tables/{tableId}/columns": {
@@ -489,7 +640,7 @@
       "patch": {
         "operationId": "updateTableColumn",
         "summary": "Update Column",
-        "description": "Update a column by name \u2014 rename it, change its type, or toggle its required/unique constraints. Provide at least one field in `updates`. Returns the table's full column list after the change.",
+        "description": "Update a column by name — rename it, change its type, or toggle its required/unique constraints. Provide at least one field in `updates`. Returns the table's full column list after the change.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -633,7 +784,7 @@
       "get": {
         "operationId": "listTableRows",
         "summary": "List rows",
-        "description": "Plain cursor page over the default row order. Filtering and sorting are not part of this surface \u2014 use `POST /api/v2/tables/{tableId}/query` for predicate-filtered, sorted reads. The cursor is opaque; page by passing the previous response's `nextCursor` back as `cursor` and stop when it is `null`.",
+        "description": "Plain cursor page over the default row order. Filtering and sorting are not part of this surface — use `POST /api/v2/tables/{tableId}/query` for predicate-filtered, sorted reads. The cursor is opaque; page by passing the previous response's `nextCursor` back as `cursor` and stop when it is `null`.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -1369,7 +1520,7 @@
       "post": {
         "operationId": "queryTableRows",
         "summary": "Query Rows",
-        "description": "Query rows with a typed predicate filter, an ordered sort spec, and opaque cursor pagination. Row `data` is keyed by column NAME; `select` cells return option names, and filter operands on select columns accept option names (resolved case-insensitively).\n\n**Pagination contract:** page by passing the previous response's `nextCursor` back as `cursor`, and stop only when it is `null` \u2014 a page may return fewer than `limit` rows and still have more behind it, so page fullness is never a termination signal. A cursor is bound to the exact query shape it was minted under: keyset cursors to the default row order, offset cursors (sorted views) to that sort. Replaying one under a different `sort` returns 400 `CURSOR_SORT_CONFLICT`.",
+        "description": "Query rows with a typed predicate filter, an ordered sort spec, and opaque cursor pagination. Row `data` is keyed by column NAME; `select` cells return option names, and filter operands on select columns accept option names (resolved case-insensitively).\n\n**Pagination contract:** page by passing the previous response's `nextCursor` back as `cursor`, and stop only when it is `null` — a page may return fewer than `limit` rows and still have more behind it, so page fullness is never a termination signal. A cursor is bound to the exact query shape it was minted under: keyset cursors to the default row order, offset cursors (sorted views) to that sort. Replaying one under a different `sort` returns 400 `CURSOR_SORT_CONFLICT`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1414,7 +1565,7 @@
                     "minimum": 0,
                     "maximum": 1000,
                     "default": 100,
-                    "description": "Omitted \u2192 100. `1..1000` \u2192 page size. `0` \u2192 the ENTIRE matching result in one response; fails with 400 `TABLE_QUERY_RESULT_TOO_LARGE` if it exceeds the 5 MB row-data budget (narrow the predicate or page instead)."
+                    "description": "Omitted → 100. `1..1000` → page size. `0` → the ENTIRE matching result in one response; fails with 400 `TABLE_QUERY_RESULT_TOO_LARGE` if it exceeds the 5 MB row-data budget (narrow the predicate or page instead)."
                   },
                   "cursor": {
                     "type": "string",
@@ -1527,6 +1678,2173 @@
           }
         }
       }
+    },
+    "/api/v2/tables/{tableId}/restore": {
+      "post": {
+        "operationId": "restoreTable",
+        "summary": "Restore Table",
+        "description": "Un-archive a table archived by `DELETE /api/v2/tables/{tableId}`, along with its rows. Requires workspace write. Returns 409 when a different active table has since taken the archived table’s name — rename that table first, then retry.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/restore\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceScopedBody"
+              },
+              "example": {
+                "workspaceId": "ws_123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The restored table.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "table": {
+                      "id": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                      "name": "customers",
+                      "description": "Customer contact records",
+                      "schema": {
+                        "columns": [
+                          {
+                            "id": "col_a1b2c3",
+                            "name": "email",
+                            "type": "string",
+                            "required": true,
+                            "unique": true
+                          }
+                        ]
+                      },
+                      "rowCount": 42,
+                      "maxRows": 100000,
+                      "folderId": "fld_7a1c3e5d9b2f4068a3c5e7d9f1b3a507",
+                      "locks": {
+                        "schemaLocked": false,
+                        "insertLocked": false,
+                        "updateLocked": false,
+                        "deleteLocked": true
+                      },
+                      "createdAt": "2026-01-15T10:30:00.000Z",
+                      "updatedAt": "2026-01-16T09:12:00.000Z",
+                      "job": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/views": {
+      "get": {
+        "operationId": "listTableViews",
+        "summary": "List Views",
+        "description": "Every saved view on the table, oldest first. A table carries a bounded set of views, so this is a single full page and `nextCursor` is always null. References to columns that no longer exist are pruned from each config on read.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/views?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The table’s saved views.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewListEnvelope"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "view_3c7f1a9e5d2b4086b1e6c8a0d4f2b73e",
+                      "tableId": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                      "name": "Active customers",
+                      "config": {
+                        "hiddenColumns": ["col_x9y8z7"],
+                        "filter": {
+                          "all": [
+                            {
+                              "field": "col_a1b2c3",
+                              "op": "eq",
+                              "value": "active"
+                            }
+                          ]
+                        },
+                        "sort": [
+                          {
+                            "field": "col_d4e5f6",
+                            "direction": "desc"
+                          }
+                        ]
+                      },
+                      "isDefault": true,
+                      "createdBy": "user_2f8c1a4e6b0d47539ac1e3b5d7f90248",
+                      "createdAt": "2026-01-15T10:30:00.000Z",
+                      "updatedAt": "2026-01-16T09:12:00.000Z"
+                    }
+                  ],
+                  "nextCursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTableView",
+        "summary": "Create View",
+        "description": "Save a filter, sort, and column layout as a named view. A view is presentation state, never an access boundary — rows it hides stay readable through the row and query endpoints.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/views\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"name\":\"Active customers\",\"config\":{}}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateViewBody"
+              },
+              "example": {
+                "workspaceId": "ws_123",
+                "name": "Active customers",
+                "config": {
+                  "filter": {
+                    "all": [
+                      {
+                        "field": "col_a1b2c3",
+                        "op": "eq",
+                        "value": "active"
+                      }
+                    ]
+                  },
+                  "sort": [
+                    {
+                      "field": "col_d4e5f6",
+                      "direction": "desc"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created view.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "view": {
+                      "id": "view_3c7f1a9e5d2b4086b1e6c8a0d4f2b73e",
+                      "tableId": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                      "name": "Active customers",
+                      "config": {
+                        "hiddenColumns": ["col_x9y8z7"],
+                        "filter": {
+                          "all": [
+                            {
+                              "field": "col_a1b2c3",
+                              "op": "eq",
+                              "value": "active"
+                            }
+                          ]
+                        },
+                        "sort": [
+                          {
+                            "field": "col_d4e5f6",
+                            "direction": "desc"
+                          }
+                        ]
+                      },
+                      "isDefault": true,
+                      "createdBy": "user_2f8c1a4e6b0d47539ac1e3b5d7f90248",
+                      "createdAt": "2026-01-15T10:30:00.000Z",
+                      "updatedAt": "2026-01-16T09:12:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/views/{viewId}": {
+      "get": {
+        "operationId": "getTableView",
+        "summary": "Get View",
+        "description": "One saved view, with references to deleted columns pruned from its config.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/views/{viewId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/ViewId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested view.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "view": {
+                      "id": "view_3c7f1a9e5d2b4086b1e6c8a0d4f2b73e",
+                      "tableId": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                      "name": "Active customers",
+                      "config": {
+                        "hiddenColumns": ["col_x9y8z7"],
+                        "filter": {
+                          "all": [
+                            {
+                              "field": "col_a1b2c3",
+                              "op": "eq",
+                              "value": "active"
+                            }
+                          ]
+                        },
+                        "sort": [
+                          {
+                            "field": "col_d4e5f6",
+                            "direction": "desc"
+                          }
+                        ]
+                      },
+                      "isDefault": true,
+                      "createdBy": "user_2f8c1a4e6b0d47539ac1e3b5d7f90248",
+                      "createdAt": "2026-01-15T10:30:00.000Z",
+                      "updatedAt": "2026-01-16T09:12:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateTableView",
+        "summary": "Update View",
+        "description": "Rename a view, replace or merge its config, or promote it to the table’s default. Provide at least one of `name`, `config`, `configPatch`, or `isDefault`.\n\n`config` replaces the stored config wholesale; `configPatch` is shallow-merged server-side so overlapping partial writes cannot clobber each other. The two are mutually exclusive. Setting `isDefault: true` demotes the table’s existing default in the same transaction.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/views/{viewId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"isDefault\":true}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/ViewId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateViewBody"
+              },
+              "examples": {
+                "promote": {
+                  "summary": "Make this the table’s default view",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "isDefault": true
+                  }
+                },
+                "replaceConfig": {
+                  "summary": "Replace the saved filter",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "config": {
+                      "filter": {
+                        "any": [
+                          {
+                            "field": "col_a1b2c3",
+                            "op": "isNotEmpty"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated view.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "view": {
+                      "id": "view_3c7f1a9e5d2b4086b1e6c8a0d4f2b73e",
+                      "tableId": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                      "name": "Active customers",
+                      "config": {
+                        "hiddenColumns": ["col_x9y8z7"],
+                        "filter": {
+                          "all": [
+                            {
+                              "field": "col_a1b2c3",
+                              "op": "eq",
+                              "value": "active"
+                            }
+                          ]
+                        },
+                        "sort": [
+                          {
+                            "field": "col_d4e5f6",
+                            "direction": "desc"
+                          }
+                        ]
+                      },
+                      "isDefault": true,
+                      "createdBy": "user_2f8c1a4e6b0d47539ac1e3b5d7f90248",
+                      "createdAt": "2026-01-15T10:30:00.000Z",
+                      "updatedAt": "2026-01-16T09:12:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTableView",
+        "summary": "Delete View",
+        "description": "Remove a saved view. Deleting the table’s default simply leaves the table unfiltered; no rows are affected.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/views/{viewId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/ViewId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The view was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteViewEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "id": "view_3c7f1a9e5d2b4086b1e6c8a0d4f2b73e"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/groups": {
+      "get": {
+        "operationId": "listTableWorkflowGroups",
+        "summary": "List Workflow Groups",
+        "description": "The table’s workflow and enrichment groups — the units the run endpoints dispatch. Read-only: groups are authored in the workflow builder. Bounded per table, so this is a single full page and `nextCursor` is always null.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/groups?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The table’s workflow groups.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowGroupListEnvelope"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                      "workflowId": "wf_1b3d5f7a9c2e4680b4d6f8a0c2e4b619",
+                      "name": "Enrich company",
+                      "type": "manual",
+                      "dependencies": {
+                        "columns": ["col_a1b2c3"]
+                      },
+                      "outputs": [
+                        {
+                          "blockId": "blk_agent1",
+                          "path": "content",
+                          "columnName": "summary"
+                        }
+                      ],
+                      "deploymentMode": "deployed",
+                      "autoRun": true
+                    }
+                  ],
+                  "nextCursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "addTableWorkflowGroup",
+        "summary": "Add Workflow Group",
+        "description": "Bind a workflow or enrichment to the table and create the columns its runs populate, in one call.\n\nThe group is the unit that fills columns — one group can feed several. `group.outputs[].columnName` says where each value lands; `outputColumns` defines the columns to create. Every `outputColumns` entry must be named by an output, or the request is rejected rather than creating a column nothing feeds.\n\n`autoRun` defaults to **false**: enabling it backfills every existing row, which on an API key is a metered fan-out from a single call.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/groups\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"group\": {\n      \"workflowId\": \"wf_...\",\n      \"outputs\": [{\"blockId\": \"blk_7f2a\", \"path\": \"output.revenue\", \"columnName\": \"revenue\"}]\n    },\n    \"outputColumns\": [{\"name\": \"revenue\", \"type\": \"currency\"}]\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddWorkflowGroupBody"
+              },
+              "examples": {
+                "workflow": {
+                  "summary": "Workflow-backed column",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "group": {
+                      "workflowId": "wf_1b3d5f7a9c2e4680b4d6f8a0c2e4b619",
+                      "name": "Enrich company",
+                      "outputs": [
+                        {
+                          "blockId": "blk_7f2a",
+                          "path": "output.revenue",
+                          "columnName": "revenue"
+                        }
+                      ]
+                    },
+                    "outputColumns": [
+                      {
+                        "name": "revenue",
+                        "type": "currency"
+                      }
+                    ]
+                  }
+                },
+                "enrichment": {
+                  "summary": "Registry enrichment filling two columns",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "group": {
+                      "type": "enrichment",
+                      "enrichmentId": "company_lookup",
+                      "outputs": [
+                        {
+                          "outputId": "annual_revenue",
+                          "columnName": "revenue"
+                        },
+                        {
+                          "outputId": "headquarters",
+                          "columnName": "hq"
+                        }
+                      ]
+                    },
+                    "outputColumns": [
+                      {
+                        "name": "revenue",
+                        "type": "currency"
+                      },
+                      {
+                        "name": "hq",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created group and the table's columns.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowGroupEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "group": {
+                      "id": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                      "workflowId": "wf_1b3d5f7a9c2e4680b4d6f8a0c2e4b619",
+                      "name": "Enrich company",
+                      "type": "manual",
+                      "outputs": [
+                        {
+                          "blockId": "blk_7f2a",
+                          "path": "output.revenue",
+                          "columnName": "revenue"
+                        }
+                      ],
+                      "deploymentMode": "deployed",
+                      "autoRun": true
+                    },
+                    "columns": [
+                      {
+                        "id": "col_a1b2c3",
+                        "name": "revenue",
+                        "type": "currency",
+                        "required": false,
+                        "unique": false
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateTableWorkflowGroup",
+        "summary": "Update Workflow Group",
+        "description": "Restructure a group: re-point it at a different workflow, add or remove outputs, or change how its runs are scheduled.\n\n**Removing an output deletes that column and its values.** There is currently no way to detach a column from its group while keeping the data.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/groups\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"groupId\": \"grp_...\", \"name\": \"Renamed\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowGroupBody"
+              },
+              "examples": {
+                "rename": {
+                  "summary": "Rename",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "groupId": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                    "name": "Renamed"
+                  }
+                },
+                "addOutput": {
+                  "summary": "Add a second output column",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "groupId": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                    "outputs": [
+                      {
+                        "blockId": "blk_7f2a",
+                        "path": "output.revenue",
+                        "columnName": "revenue"
+                      },
+                      {
+                        "blockId": "blk_7f2a",
+                        "path": "output.hq",
+                        "columnName": "hq"
+                      }
+                    ],
+                    "newOutputColumns": [
+                      {
+                        "name": "hq",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated group and the table's columns.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowGroupEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "group": {
+                      "id": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                      "workflowId": "wf_1b3d5f7a9c2e4680b4d6f8a0c2e4b619",
+                      "name": "Enrich company",
+                      "type": "manual",
+                      "outputs": [
+                        {
+                          "blockId": "blk_7f2a",
+                          "path": "output.revenue",
+                          "columnName": "revenue"
+                        }
+                      ],
+                      "deploymentMode": "deployed",
+                      "autoRun": true
+                    },
+                    "columns": [
+                      {
+                        "id": "col_a1b2c3",
+                        "name": "revenue",
+                        "type": "currency",
+                        "required": false,
+                        "unique": false
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTableWorkflowGroup",
+        "summary": "Delete Workflow Group",
+        "description": "Remove a group **and every column it fed**, along with their values. The surviving column list is returned so a caller does not have to re-read the table.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/groups\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"groupId\": \"grp_...\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteWorkflowGroupBody"
+              },
+              "example": {
+                "workspaceId": "ws_123",
+                "groupId": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The group was removed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteWorkflowGroupEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "id": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204",
+                    "deleted": true,
+                    "columns": []
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/columns/run": {
+      "post": {
+        "operationId": "runTableColumns",
+        "summary": "Run Column Groups",
+        "description": "Run one or more workflow or enrichment groups and write their outputs into the table.\n\n**Asynchronous.** The response acknowledges the dispatch, not the results: the runner walks the scoped rows and writes cells as runs land. Poll `POST /api/v2/tables/{tableId}/query` for results, and stop an in-flight run with the same group ids and an empty scope.\n\nScope with `rowIds` (an explicit set) or `filter` (every matching row, walked in pages so no id list is materialized) — never both. Omit both to run every row. Starting a run clears the target groups’ cells to pending, so a read taken immediately after will show them empty.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/columns/run\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"groupIds\":[\"grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204\"]}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunColumnBody"
+              },
+              "examples": {
+                "everyRow": {
+                  "summary": "Run a group across the whole table",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "groupIds": ["grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204"]
+                  }
+                },
+                "backfillFiltered": {
+                  "summary": "Backfill only unfinished rows matching a predicate, capped at 500",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "groupIds": ["grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204"],
+                    "runMode": "incomplete",
+                    "filter": {
+                      "all": [
+                        {
+                          "field": "status",
+                          "op": "eq",
+                          "value": "active"
+                        }
+                      ]
+                    },
+                    "limit": {
+                      "type": "rows",
+                      "max": 500
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The run was dispatched.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "dispatchId": "dsp_4e6a8c0b2d1f4735896a0c2e4b6d8f13"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/rows/{rowId}/enrichment/{groupId}": {
+      "post": {
+        "operationId": "runRowEnrichment",
+        "summary": "Run Enrichment For One Row",
+        "description": "The single-cell case of `POST /api/v2/tables/{tableId}/columns/run`: runs one group for one row. Naming a specific cell is an explicit re-run request, so an already-populated cell recomputes rather than being skipped.\n\n**Asynchronous** — the response acknowledges the dispatch; read the row back for the result.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/rows/{rowId}/enrichment/{groupId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/RowId"
+          },
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceScopedBody"
+              },
+              "example": {
+                "workspaceId": "ws_123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The run was dispatched.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "dispatchId": "dsp_4e6a8c0b2d1f4735896a0c2e4b6d8f13"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/rows/find": {
+      "post": {
+        "operationId": "findTableRows",
+        "summary": "Find Rows",
+        "description": "Case-insensitive substring search across every cell, narrowed by the same predicate and sort grammar as `POST /api/v2/tables/{tableId}/query`. Select cells match on their option names.\n\nReturns matching **cells**, not rows. Each match carries the row’s ordinal in exactly the view a query with the same `predicate` and `sort` returns, so a caller can page straight to it. Matches are capped server-side and have no cursor — when `truncated` is true, narrow the predicate rather than paging.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/rows/find\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"q\":\"acme\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindRowsBody"
+              },
+              "examples": {
+                "wholeTable": {
+                  "summary": "Search every cell",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "q": "acme"
+                  }
+                },
+                "withinFilter": {
+                  "summary": "Search inside a filtered, sorted view",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "q": "acme",
+                    "predicate": {
+                      "all": [
+                        {
+                          "field": "status",
+                          "op": "eq",
+                          "value": "active"
+                        }
+                      ]
+                    },
+                    "sort": [
+                      {
+                        "field": "name",
+                        "direction": "asc"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The matching cells.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindRowsEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "matches": [
+                      {
+                        "ordinal": 12,
+                        "rowId": "row_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07",
+                        "column": "company"
+                      }
+                    ],
+                    "truncated": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/jobs": {
+      "x-removed-get": {
+        "operationId": "listTableJobs",
+        "summary": "List Export Jobs",
+        "description": "Export jobs across a workspace — running ones plus recently finished ones, so a completed export stays re-downloadable. Poll this after `POST /export-async`, then fetch the file from `GET /export/download` once a job reports `ready`.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/tables/jobs?workspaceId=YOUR_WORKSPACE_ID&type=export\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/JobTypeQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace’s export jobs.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableJobListEnvelope"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "jobId": "job_8f2a4c6e0b1d47539ac1e3b5d7f90248",
+                      "tableId": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                      "tableName": "customers",
+                      "status": "ready",
+                      "rowsProcessed": 12043,
+                      "format": "csv",
+                      "hasResult": true,
+                      "error": null
+                    }
+                  ],
+                  "nextCursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/import-async": {
+      "x-removed-post": {
+        "operationId": "importTableCsvAsync",
+        "summary": "Import CSV (Background)",
+        "description": "Start a background import of a file already uploaded to workspace storage — the path for files too large for the synchronous import.\n\nReturns as soon as the job is queued. Track it on the table itself — `GET /api/v2/tables/{tableId}` returns a `job` object with `status`, `rowsProcessed` and `error` while the import runs — and stop it with `POST /job/cancel`. (`GET /api/v2/tables/jobs` lists exports only: those run concurrently and are not derived onto the table.) `fileKey` must sit under this workspace’s storage prefix. The table’s lock flags are checked before the job slot is claimed, so a locked table answers 423 here rather than failing inside the worker.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/import-async\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"fileKey\":\"workspace/YOUR_WORKSPACE_ID/imports/contacts.csv\",\"fileName\":\"contacts.csv\",\"mode\":\"append\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportAsyncBody"
+              },
+              "example": {
+                "workspaceId": "ws_123",
+                "fileKey": "workspace/ws_123/imports/contacts.csv",
+                "fileName": "contacts.csv",
+                "mode": "append"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The import was queued.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportAsyncEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "tableId": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                    "importId": "job_8f2a4c6e0b1d47539ac1e3b5d7f90248"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/export-async": {
+      "x-removed-post": {
+        "operationId": "exportTableAsync",
+        "summary": "Export Table (Background)",
+        "description": "Start a background export. Export jobs are read-only, so they bypass the one-write-job-per-table gate and can run alongside an import or delete.\n\nReturns as soon as the job is queued. Poll `GET /api/v2/tables/jobs`, then fetch the file from `GET /export/download` once the job reports `ready`.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/export-async\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"format\":\"csv\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportAsyncBody"
+              },
+              "example": {
+                "workspaceId": "ws_123",
+                "format": "csv"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The export was queued.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportAsyncEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "tableId": "tbl_92e4c6a8b0d24f1e8a3c5d7b9f0e2a14",
+                    "jobId": "job_8f2a4c6e0b1d47539ac1e3b5d7f90248"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/export/download": {
+      "x-removed-get": {
+        "operationId": "downloadTableExport",
+        "summary": "Download Export",
+        "description": "Resolve a finished export job to a short-lived presigned download URL.\n\nThe failure modes are deliberately distinct: a job that is not an export of this table is 404, one still running is 409 (retry later), and one whose file has aged out of storage is 410 (start a new export). A caller polling to completion needs to tell \"not yet\" from \"never again\".",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/export/download?workspaceId=YOUR_WORKSPACE_ID&jobId=YOUR_JOB_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/JobIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The presigned download URL.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDownloadEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "url": "https://storage.sim.ai/workspace/ws_123/exports/customers.csv?X-Amz-Signature=...",
+                    "fileName": "customers.csv"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/job/cancel": {
+      "x-removed-post": {
+        "operationId": "cancelTableJob",
+        "summary": "Cancel Job",
+        "description": "Stop an in-flight import or delete job. The worker halts at its next ownership check; work already committed (rows inserted or deleted) is left in place — there is no rollback.\n\nIdempotent: cancelling a job that already finished answers `canceled: false` rather than failing, so a client racing the worker is not an error. To stop workflow or enrichment cell runs instead, use `POST /cancel-runs`.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/job/cancel\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"jobId\":\"YOUR_JOB_ID\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelJobBody"
+              },
+              "example": {
+                "workspaceId": "ws_123",
+                "jobId": "job_8f2a4c6e0b1d47539ac1e3b5d7f90248"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The cancel outcome.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelJobEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "jobId": "job_8f2a4c6e0b1d47539ac1e3b5d7f90248",
+                    "canceled": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/imports": {
+      "post": {
+        "operationId": "createTableImport",
+        "summary": "Create Table Import",
+        "description": "Create a table import. Upload sources return a stateless multipart token; workspace-file sources start immediately and both use table jobs for processing state.",
+        "tags": ["Tables"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "201": {
+            "description": "The table import resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "423": { "$ref": "#/components/responses/Locked" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/imports/{importId}": {
+      "get": {
+        "operationId": "getTableImport",
+        "summary": "Get Table Import",
+        "description": "Read processing progress and terminal state from the table job using the same import id.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The table import resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "cancelTableImport",
+        "summary": "Cancel Table Import",
+        "description": "Cancel an upload or processing import. Already committed row batches remain in the table.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/OptionalUploadTokenHeader" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The canceled import resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/imports/{importId}/parts": {
+      "post": {
+        "operationId": "createTableImportPartUrls",
+        "summary": "Create Table Import Part URLs",
+        "description": "Issue short-lived signed PUT URLs for a bounded set of import part numbers.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/UploadTokenHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed URLs for the requested import parts.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/imports/{importId}/complete": {
+      "post": {
+        "operationId": "completeTableImportUpload",
+        "summary": "Complete Table Import Upload",
+        "description": "Verify and assemble the uploaded CSV or TSV, then start processing with the same import id.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/UploadTokenHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "200": {
+            "description": "The queued import resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "423": { "$ref": "#/components/responses/Locked" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/exports": {
+      "post": {
+        "operationId": "createTableExport",
+        "summary": "Create Table Export",
+        "description": "Create one export resource. The server completes small exports inline and queues larger exports without changing the API path.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "201": {
+            "description": "The completed or processing export resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/exports/{exportId}": {
+      "get": {
+        "operationId": "getTableExport",
+        "summary": "Get Table Export",
+        "description": "Read processing, progress, and terminal state for an export resource.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "exportId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The table export resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "cancelTableExport",
+        "summary": "Cancel Table Export",
+        "description": "Cancel an export that is still processing.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "exportId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The canceled export resource.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/exports/{exportId}/download": {
+      "get": {
+        "operationId": "downloadTableExport",
+        "summary": "Download Table Export",
+        "description": "Return a short-lived download URL once an export has completed.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "exportId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "A short-lived URL for the generated export file.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/cancel-runs": {
+      "post": {
+        "operationId": "cancelTableRuns",
+        "summary": "Cancel Column Runs",
+        "description": "Stop in-flight and pending workflow or enrichment cell runs — the counterpart to `POST /columns/run`, and distinct from `POST /job/cancel`, which stops an import or delete.\n\n`scope: \"all\"` cancels every running and pending cell, optionally narrowed to rows matching `filter`; `scope: \"row\"` cancels one row’s cells and requires `rowId`. Cancelling clears the affected cells, so a read taken immediately after will show them empty.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/tables/{tableId}/cancel-runs\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"scope\":\"all\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRunsBody"
+              },
+              "examples": {
+                "everything": {
+                  "summary": "Stop every run on the table",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "scope": "all"
+                  }
+                },
+                "oneRow": {
+                  "summary": "Stop one row’s runs",
+                  "value": {
+                    "workspaceId": "ws_123",
+                    "scope": "row",
+                    "rowId": "row_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "How many runs were stopped.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelRunsEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "cancelled": 17
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1569,6 +3887,20 @@
         },
         "description": "The unique identifier of the workspace that owns the table."
       },
+      "UploadTokenHeader": {
+        "name": "upload-token",
+        "in": "header",
+        "required": true,
+        "description": "The signed token returned for an upload-backed table import.",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "OptionalUploadTokenHeader": {
+        "name": "upload-token",
+        "in": "header",
+        "required": false,
+        "description": "Required when canceling before upload completion; omitted when canceling a running table job.",
+        "schema": { "type": "string", "minLength": 1 }
+      },
       "LimitQuery": {
         "name": "limit",
         "in": "query",
@@ -1589,6 +3921,56 @@
         "schema": {
           "type": "string",
           "minLength": 1
+        }
+      },
+      "ViewId": {
+        "name": "viewId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "example": "view_3c7f1a9e5d2b4086b1e6c8a0d4f2b73e"
+        },
+        "description": "The unique identifier of the saved view."
+      },
+      "GroupId": {
+        "name": "groupId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "example": "grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204"
+        },
+        "description": "The unique identifier of the workflow or enrichment group."
+      },
+      "JobIdQuery": {
+        "name": "jobId",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "example": "job_8f2a4c6e0b1d47539ac1e3b5d7f90248"
+        },
+        "description": "The export job to resolve."
+      },
+      "ExportFormatQuery": {
+        "name": "format",
+        "in": "query",
+        "required": false,
+        "description": "Serialization for the exported file. Defaults to `csv`.",
+        "schema": {
+          "enum": ["csv", "json"],
+          "default": "csv"
+        }
+      },
+      "JobTypeQuery": {
+        "name": "type",
+        "in": "query",
+        "required": true,
+        "description": "Job kind to list. Only `export` is supported today; the parameter is required so widening it later cannot silently change what an existing caller receives.",
+        "schema": {
+          "enum": ["export"]
         }
       }
     },
@@ -1729,7 +4111,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Stable column id. Server-assigned \u2014 normally omit."
+            "description": "Stable column id. Server-assigned — normally omit."
           },
           "options": {
             "type": "array",
@@ -1760,8 +4142,11 @@
           "schema",
           "rowCount",
           "maxRows",
+          "folderId",
+          "locks",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "job"
         ],
         "properties": {
           "id": {
@@ -1810,6 +4195,24 @@
             "type": "string",
             "format": "date-time",
             "description": "ISO 8601 timestamp when the table was last modified."
+          },
+          "folderId": {
+            "type": ["string", "null"],
+            "description": "Folder holding the table, or null when it sits at the workspace root."
+          },
+          "locks": {
+            "$ref": "#/components/schemas/TableLocks"
+          },
+          "job": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TableJobState"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "In-flight background job, or null when the table is idle."
           }
         }
       },
@@ -2429,7 +4832,7 @@
         }
       },
       "Predicate": {
-        "description": "A predicate tree: exactly one of `all` (every member must match) or `any` (at least one must). Members are conditions or nested groups; nesting expresses mixed AND/OR logic. Groups must be non-empty (1\u2013100 members), trees at most 10 levels deep and 500 nodes total. Nodes are STRICT: unknown keys, or a node carrying both a group key and condition keys, are rejected rather than ignored.",
+        "description": "A predicate tree: exactly one of `all` (every member must match) or `any` (at least one must). Members are conditions or nested groups; nesting expresses mixed AND/OR logic. Groups must be non-empty (1–100 members), trees at most 10 levels deep and 500 nodes total. Nodes are STRICT: unknown keys, or a node carrying both a group key and condition keys, are rejected rather than ignored.",
         "oneOf": [
           {
             "type": "object",
@@ -2481,7 +4884,7 @@
           "field": {
             "type": "string",
             "maxLength": 128,
-            "description": "Column name, or a built-in: `id`, `createdAt`, `updatedAt` (camelCase \u2014 snake_case is treated as a user column and matches nothing)."
+            "description": "Column name, or a built-in: `id`, `createdAt`, `updatedAt` (camelCase — snake_case is treated as a user column and matches nothing)."
           },
           "op": {
             "enum": [
@@ -2506,7 +4909,7 @@
               "isNull",
               "isNotNull"
             ],
-            "description": "`eq`/`ne`/`in`/`nin` are case-sensitive equality/membership. `contains`/`ncontains`/`startsWith`/`endsWith` are case-insensitive text matches \u2014 except on a multi-select column, where `contains`/`ncontains` mean set membership by option name. `like`/`nlike` are case-sensitive and `ilike`/`nilike` case-insensitive patterns with `*` as the only wildcard (literal `%`/`_` match themselves). `isEmpty`/`isNotEmpty` treat null and empty string as empty; `isNull`/`isNotNull` are strict null checks. The four `is*` operators take no `value`. Negated text matches retain rows where the cell is absent. `in`/`nin` require a non-empty array of at most 1000 values; other value-taking operators reject arrays. Select columns accept only equality/membership operators appropriate to their cardinality (single: eq/ne/in/nin; multi: contains/ncontains; both: the `is*` checks)."
+            "description": "`eq`/`ne`/`in`/`nin` are case-sensitive equality/membership. `contains`/`ncontains`/`startsWith`/`endsWith` are case-insensitive text matches — except on a multi-select column, where `contains`/`ncontains` mean set membership by option name. `like`/`nlike` are case-sensitive and `ilike`/`nilike` case-insensitive patterns with `*` as the only wildcard (literal `%`/`_` match themselves). `isEmpty`/`isNotEmpty` treat null and empty string as empty; `isNull`/`isNotNull` are strict null checks. The four `is*` operators take no `value`. Negated text matches retain rows where the cell is absent. `in`/`nin` require a non-empty array of at most 1000 values; other value-taking operators reject arrays. Select columns accept only equality/membership operators appropriate to their cardinality (single: eq/ne/in/nin; multi: contains/ncontains; both: the `is*` checks)."
           },
           "value": {
             "description": "Operand. Omit for the `is*` operators. Ranges on `number` columns require numbers, on `date` columns ISO strings (compared as UTC, independent of any session timezone); ranges on `boolean`/`json` columns are rejected."
@@ -2519,12 +4922,1061 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Stable option id \u2014 the value stored in cells."
+            "description": "Stable option id — the value stored in cells."
           },
           "name": {
             "type": "string",
             "maxLength": 100,
             "description": "Display name. Filters on select columns accept names (resolved case-insensitively)."
+          }
+        }
+      },
+      "TableLocks": {
+        "type": "object",
+        "description": "Per-table governance flags. Every flag is present. Changing them requires workspace admin.",
+        "required": ["schemaLocked", "insertLocked", "updateLocked", "deleteLocked"],
+        "properties": {
+          "schemaLocked": {
+            "type": "boolean",
+            "description": "Blocks column adds, edits, and deletes."
+          },
+          "insertLocked": {
+            "type": "boolean",
+            "description": "Blocks new rows."
+          },
+          "updateLocked": {
+            "type": "boolean",
+            "description": "Blocks cell writes to existing rows."
+          },
+          "deleteLocked": {
+            "type": "boolean",
+            "description": "Blocks row deletes and archiving the table."
+          }
+        }
+      },
+      "UpdateTableBody": {
+        "type": "object",
+        "description": "Rename and/or move a table. Every field beyond `workspaceId` is optional, but at least one must be present. Lock flags are read-only on this API and are not accepted here.",
+        "required": ["workspaceId"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "New table name."
+          },
+          "folderId": {
+            "type": ["string", "null"],
+            "description": "Folder to move the table into. Pass null to move it to the workspace root; omit to leave the placement untouched."
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkspaceScopedBody": {
+        "type": "object",
+        "description": "Endpoints whose only input is the workspace the table must belong to.",
+        "required": ["workspaceId"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          }
+        }
+      },
+      "SortSpec": {
+        "type": "array",
+        "maxItems": 16,
+        "description": "Ordered sort spec, highest priority first. Fields are column names.",
+        "items": {
+          "type": "object",
+          "required": ["field", "direction"],
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "direction": {
+              "enum": ["asc", "desc"]
+            }
+          }
+        }
+      },
+      "ViewConfig": {
+        "type": "object",
+        "description": "A view’s saved preset: the row predicate and sort plus the column layout. Column references are stable column ids, so renaming a column never invalidates a view.",
+        "properties": {
+          "columnWidths": {
+            "type": "object",
+            "description": "Pixel widths keyed by column id.",
+            "additionalProperties": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "columnOrder": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Left-to-right column order, as column ids."
+          },
+          "pinnedColumns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Column ids pinned while scrolling horizontally."
+          },
+          "hiddenColumns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Column ids hidden by the view. A deny-list — a column added later is visible by default. Hiding is presentation only; the data is untouched and reappears intact when unhidden."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/Predicate"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortSpec"
+          }
+        }
+      },
+      "View": {
+        "type": "object",
+        "description": "A saved view: a named preset of filter, sort, and column layout over a table. Presentation only — a view narrows what a reader sees by default, it is never an access boundary, and every row it hides stays reachable by reading the table without it.",
+        "required": [
+          "id",
+          "tableId",
+          "name",
+          "config",
+          "isDefault",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique view identifier.",
+            "example": "view_3c7f1a9e5d2b4086b1e6c8a0d4f2b73e"
+          },
+          "tableId": {
+            "type": "string",
+            "description": "The table the view belongs to."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "config": {
+            "$ref": "#/components/schemas/ViewConfig"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Whether this view is the table’s default. At most one view per table is."
+          },
+          "createdBy": {
+            "type": ["string", "null"],
+            "description": "User who saved the view, or null when that user no longer exists."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateViewBody": {
+        "type": "object",
+        "description": "Save a filter/sort/layout preset as a named view.",
+        "required": ["workspaceId", "name", "config"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Display name for the view."
+          },
+          "config": {
+            "$ref": "#/components/schemas/ViewConfig"
+          }
+        }
+      },
+      "UpdateViewBody": {
+        "type": "object",
+        "description": "Change a saved view. At least one of `name`, `config`, `configPatch`, or `isDefault` is required; `config` and `configPatch` are mutually exclusive.",
+        "required": ["workspaceId"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "New display name."
+          },
+          "config": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ViewConfig"
+              }
+            ],
+            "description": "Replaces the stored config wholesale. Use when dropping a removed filter must persist."
+          },
+          "configPatch": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ViewConfig"
+              }
+            ],
+            "description": "Shallow-merged into the stored config server-side, so two overlapping partial writes cannot clobber each other from stale snapshots."
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Promote this view to the table’s default. Setting it demotes the table’s existing default in the same transaction."
+          }
+        }
+      },
+      "ViewEnvelope": {
+        "type": "object",
+        "description": "A single view wrapped in the v2 data envelope.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["view"],
+            "properties": {
+              "view": {
+                "$ref": "#/components/schemas/View"
+              }
+            }
+          }
+        }
+      },
+      "ViewListEnvelope": {
+        "type": "object",
+        "description": "Saved views wrapped in the v2 cursor-list envelope.",
+        "required": ["data", "nextCursor"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/View"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "description": "Always null — a table carries a bounded set of views, so the list is a single full page."
+          }
+        }
+      },
+      "DeleteViewEnvelope": {
+        "type": "object",
+        "description": "Delete confirmation carrying the id of the removed view.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The view that was deleted."
+              }
+            }
+          }
+        }
+      },
+      "WorkflowGroup": {
+        "type": "object",
+        "description": "A workflow or enrichment group: a backing workflow (or registry enrichment) plus the output columns its runs populate. Authored in the workflow builder; exposed here so a caller can discover the group ids the run endpoints take.",
+        "required": ["id", "workflowId", "outputs"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Group id — pass to the run endpoints."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Backing workflow id for manual groups; empty string for enrichment groups."
+          },
+          "enrichmentId": {
+            "type": "string",
+            "description": "Registry enrichment id, present on enrichment groups."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "type": {
+            "enum": ["manual", "enrichment"],
+            "description": "Provenance of the group. Defaults to manual when absent."
+          },
+          "dependencies": {
+            "type": "object",
+            "description": "Columns whose values must be present before the group is eligible to run.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "description": "Which produced value flows into which column.",
+            "items": {
+              "type": "object",
+              "required": ["blockId", "path", "columnName"],
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Source block in the workflow. Empty on enrichment outputs."
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Path into the block output. Empty on enrichment outputs."
+                },
+                "outputId": {
+                  "type": "string",
+                  "description": "Enrichment output id, on enrichment groups."
+                },
+                "columnName": {
+                  "type": "string",
+                  "description": "Column the value is written to."
+                }
+              }
+            }
+          },
+          "inputMappings": {
+            "type": "array",
+            "description": "Which table column supplies each workflow Start-block input.",
+            "items": {
+              "type": "object",
+              "required": ["inputName", "columnName"],
+              "properties": {
+                "inputName": {
+                  "type": "string"
+                },
+                "columnName": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "deploymentMode": {
+            "enum": ["live", "deployed"],
+            "description": "Which workflow state per-cell runs execute against. Defaults to live (the editable draft)."
+          },
+          "autoRun": {
+            "type": "boolean",
+            "description": "When false the group never auto-fires; it runs only on an explicit request. Defaults to true."
+          }
+        }
+      },
+      "WorkflowGroupListEnvelope": {
+        "type": "object",
+        "description": "Workflow groups wrapped in the v2 cursor-list envelope.",
+        "required": ["data", "nextCursor"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowGroup"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "description": "Always null — groups are bounded per table, so the list is a single full page."
+          }
+        }
+      },
+      "RunColumnBody": {
+        "type": "object",
+        "description": "Run one or more groups. Scope with `rowIds` (an explicit set) or `filter` (every matching row) — never both; omit both to run every row. `excludeRowIds` applies only to the filter scope.",
+        "required": ["workspaceId", "groupIds"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "groupIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Groups to run, from `GET /api/v2/tables/{tableId}/groups`."
+          },
+          "runMode": {
+            "enum": ["all", "incomplete"],
+            "default": "all",
+            "description": "`all` re-runs every dep-satisfied row. `incomplete` restricts to rows whose group has never run or whose last run failed or aborted."
+          },
+          "rowIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Run only these rows. Mutually exclusive with `filter`."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/Predicate"
+          },
+          "excludeRowIds": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Rows to skip within the `filter` scope."
+          },
+          "limit": {
+            "type": "object",
+            "description": "Cap the run to the first N eligible rows. Omit for an unbounded run.",
+            "required": ["type", "max"],
+            "properties": {
+              "type": {
+                "enum": ["rows"]
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000
+              }
+            }
+          }
+        }
+      },
+      "RunEnvelope": {
+        "type": "object",
+        "description": "Acknowledgement that a run was dispatched.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["dispatchId"],
+            "properties": {
+              "dispatchId": {
+                "type": ["string", "null"],
+                "description": "Identifies the dispatch the runner walks. Null where no background runner is configured and cells execute inline."
+              }
+            }
+          }
+        }
+      },
+      "FindRowsBody": {
+        "type": "object",
+        "description": "Case-insensitive substring search across every cell, narrowed by the same predicate and sort grammar as `POST /api/v2/tables/{tableId}/query`.",
+        "required": ["workspaceId", "q"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "q": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Substring to search for."
+          },
+          "predicate": {
+            "$ref": "#/components/schemas/Predicate"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortSpec"
+          }
+        }
+      },
+      "RowMatch": {
+        "type": "object",
+        "description": "One matching cell.",
+        "required": ["ordinal", "rowId", "column"],
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "description": "The row’s 0-based index in the same predicate-filtered, sorted view that `POST /api/v2/tables/{tableId}/query` returns for these arguments — use it to page straight to the match."
+          },
+          "rowId": {
+            "type": "string",
+            "description": "The row holding the matching cell."
+          },
+          "column": {
+            "type": "string",
+            "description": "Name of the matching column."
+          }
+        }
+      },
+      "FindRowsEnvelope": {
+        "type": "object",
+        "description": "Matching cells wrapped in the v2 data envelope.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["matches", "truncated"],
+            "properties": {
+              "matches": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RowMatch"
+                }
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "True when the search hit the server-side cap and more cells match than were returned. Matches have no cursor — narrow the predicate instead of paging."
+              }
+            }
+          }
+        }
+      },
+      "ImportAsyncEnvelope": {
+        "type": "object",
+        "description": "Background-import kickoff acknowledgement.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["tableId", "importId"],
+            "properties": {
+              "tableId": {
+                "type": "string"
+              },
+              "importId": {
+                "type": "string",
+                "description": "Job id — pass to `POST /job/cancel` to stop the import."
+              }
+            }
+          }
+        }
+      },
+      "ImportAsyncBody": {
+        "type": "object",
+        "description": "Starts a background import of a file already uploaded to workspace storage. The file is read by the worker, not from this request.",
+        "required": ["workspaceId", "fileKey", "fileName", "mode"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "fileKey": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Storage key of the uploaded file. Must sit under this workspace’s `workspace/{workspaceId}/` prefix.",
+            "example": "workspace/ws_123/imports/contacts.csv"
+          },
+          "fileName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Original filename. Its extension selects the separator (.csv or .tsv)."
+          },
+          "mode": {
+            "enum": ["append", "replace"],
+            "description": "`append` adds rows; `replace` deletes every existing row first."
+          },
+          "mapping": {
+            "type": "object",
+            "description": "CSV header → column name, or null to skip the header.",
+            "additionalProperties": {
+              "type": ["string", "null"]
+            }
+          },
+          "createColumns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "CSV headers to create as new columns before importing."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA zone used to read naive datetimes.",
+            "example": "America/New_York"
+          }
+        }
+      },
+      "ExportAsyncBody": {
+        "type": "object",
+        "description": "Starts a background export.",
+        "required": ["workspaceId"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "format": {
+            "enum": ["csv", "json"],
+            "default": "csv",
+            "description": "Serialization to produce."
+          }
+        }
+      },
+      "ExportAsyncEnvelope": {
+        "type": "object",
+        "description": "Background-export kickoff acknowledgement.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["tableId", "jobId"],
+            "properties": {
+              "tableId": {
+                "type": "string"
+              },
+              "jobId": {
+                "type": "string",
+                "description": "Job id — poll `GET /api/v2/tables/jobs`, then fetch the file from `GET /export/download`."
+              }
+            }
+          }
+        }
+      },
+      "ExportDownloadEnvelope": {
+        "type": "object",
+        "description": "A short-lived presigned download URL for a finished export.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["url", "fileName"],
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "Presigned URL. Expires shortly after issue — fetch it promptly."
+              },
+              "fileName": {
+                "type": "string",
+                "description": "Suggested filename for the download."
+              }
+            }
+          }
+        }
+      },
+      "TableJob": {
+        "type": "object",
+        "description": "One export job.",
+        "required": [
+          "jobId",
+          "tableId",
+          "tableName",
+          "status",
+          "rowsProcessed",
+          "format",
+          "hasResult",
+          "error"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "tableId": {
+            "type": "string"
+          },
+          "tableName": {
+            "type": "string"
+          },
+          "status": {
+            "enum": ["running", "ready", "failed", "canceled"],
+            "description": "Only `ready` jobs can be downloaded."
+          },
+          "rowsProcessed": {
+            "type": "integer",
+            "description": "Rows written so far."
+          },
+          "format": {
+            "enum": ["csv", "json"]
+          },
+          "hasResult": {
+            "type": "boolean",
+            "description": "Whether a generated file is still available to download."
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Failure reason for a `failed` job; null otherwise."
+          }
+        }
+      },
+      "TableJobListEnvelope": {
+        "type": "object",
+        "description": "Export jobs wrapped in the v2 cursor-list envelope.",
+        "required": ["data", "nextCursor"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableJob"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "description": "Always null — the listing is bounded server-side to a single page."
+          }
+        }
+      },
+      "CancelJobBody": {
+        "type": "object",
+        "description": "Stops an in-flight import or delete job.",
+        "required": ["workspaceId", "jobId"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The job to stop."
+          }
+        }
+      },
+      "CancelJobEnvelope": {
+        "type": "object",
+        "description": "Cancel outcome.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["jobId", "canceled"],
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "canceled": {
+                "type": "boolean",
+                "description": "False when the job had already finished. Cancelling is idempotent — a late request is not an error."
+              }
+            }
+          }
+        }
+      },
+      "CancelRunsBody": {
+        "type": "object",
+        "description": "Stops in-flight and pending cell runs. `filter` and `excludeRowIds` apply only to `scope: \"all\"`; `rowId` is required for `scope: \"row\"`.",
+        "required": ["workspaceId", "scope"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the table."
+          },
+          "scope": {
+            "enum": ["all", "row"],
+            "description": "`all` cancels every running and pending cell; `row` cancels one row’s cells."
+          },
+          "rowId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required when `scope` is `row`."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/Predicate"
+          },
+          "excludeRowIds": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Rows to leave running within the `filter` scope."
+          }
+        }
+      },
+      "CancelRunsEnvelope": {
+        "type": "object",
+        "description": "How many in-flight cell runs were stopped.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["cancelled"],
+            "properties": {
+              "cancelled": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "TableJobState": {
+        "type": "object",
+        "description": "The latest write job derived onto the table. Durable imports also expose their full lifecycle at `GET /api/v2/tables/imports/{importId}`. Exports are read-only resources and do not replace this field.",
+        "required": ["id", "type", "status", "rowsProcessed", "error"],
+        "properties": {
+          "id": {
+            "type": ["string", "null"],
+            "description": "Job id. For durable imports this is also the import resource id."
+          },
+          "type": {
+            "enum": ["import", "delete", "export", "backfill", "update", null],
+            "description": "Which kind of job is running."
+          },
+          "status": {
+            "enum": ["running", "ready", "failed", "canceled"],
+            "description": "`running` is in-flight; the rest are terminal."
+          },
+          "rowsProcessed": {
+            "type": "integer",
+            "description": "Rows handled so far — progress for a running job."
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Failure reason for a `failed` job; null otherwise."
+          }
+        }
+      },
+      "WorkflowGroupOutputColumnInput": {
+        "type": "object",
+        "description": "A column the group's runs will populate. `workflowGroupId` is NOT accepted — the server stamps it from the group being written.",
+        "required": ["name", "type"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Column name. Must match one of `group.outputs[].columnName`.",
+            "example": "revenue"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "currency", "boolean", "date", "json", "select"]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "unique": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AddWorkflowGroupBody": {
+        "type": "object",
+        "description": "Bind a workflow or enrichment to the table and create the columns its runs populate, in one call.",
+        "required": ["workspaceId", "group", "outputColumns"],
+        "additionalProperties": false,
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "group": {
+            "type": "object",
+            "description": "The binding. `id` is optional and server-generated. Supply `workflowId` when `type` is `manual` (the default), or `enrichmentId` when it is `enrichment` — the mismatch is a 400.",
+            "required": ["outputs"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional. Omit to have the server generate one."
+              },
+              "workflowId": {
+                "type": "string",
+                "description": "Required for `manual` groups."
+              },
+              "enrichmentId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Required for `enrichment` groups."
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["manual", "enrichment"],
+                "default": "manual",
+                "description": "`manual` means workflow-backed — not hand-entered."
+              },
+              "dependencies": {
+                "type": "object",
+                "description": "Columns that must be populated before this group runs."
+              },
+              "outputs": {
+                "type": "array",
+                "minItems": 1,
+                "description": "Where each value comes from. Workflow outputs carry `blockId`/`path`; enrichment outputs carry `outputId`.",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "inputMappings": {
+                "type": "array",
+                "description": "Workflow Start-block inputs fed from table columns.",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "deploymentMode": {
+                "type": "string",
+                "enum": ["live", "deployed"]
+              },
+              "autoRun": {
+                "type": "boolean",
+                "description": "Whether the group auto-fires from the scheduler."
+              }
+            }
+          },
+          "outputColumns": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/WorkflowGroupOutputColumnInput"
+            }
+          },
+          "autoRun": {
+            "type": "boolean",
+            "default": false,
+            "description": "Backfill every existing row on creation. Defaults to **false** here (the first-party surface defaults true) — on an API key this fans out a metered run per row. Prefer POST /columns/run."
+          }
+        }
+      },
+      "UpdateWorkflowGroupBody": {
+        "type": "object",
+        "description": "Restructure a group. Omitted fields keep their stored values.\n\n**Removing an output deletes that column and its values** — the same behavior as DELETE /columns on a bound column. There is no detach.",
+        "required": ["workspaceId", "groupId"],
+        "additionalProperties": false,
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "groupId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workflowId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Re-point the group. Re-checked against the workspace."
+          },
+          "name": {
+            "type": "string"
+          },
+          "dependencies": {
+            "type": "object"
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Full replacement set. Entries dropped here delete their columns."
+          },
+          "newOutputColumns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowGroupOutputColumnInput"
+            }
+          },
+          "mappingUpdates": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Re-point a column to a different workflow output, keeping the column."
+          },
+          "inputMappings": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "deploymentMode": {
+            "type": "string",
+            "enum": ["live", "deployed"]
+          },
+          "type": {
+            "type": "string",
+            "enum": ["manual", "enrichment"]
+          },
+          "autoRun": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DeleteWorkflowGroupBody": {
+        "type": "object",
+        "description": "Remove a group and every column it fed.",
+        "required": ["workspaceId", "groupId"],
+        "additionalProperties": false,
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "groupId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "WorkflowGroupEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["group", "columns"],
+            "properties": {
+              "group": {
+                "$ref": "#/components/schemas/WorkflowGroup"
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Column"
+                }
+              }
+            }
+          }
+        }
+      },
+      "DeleteWorkflowGroupEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["id", "deleted", "columns"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "deleted": {
+                "type": "boolean",
+                "enum": [true]
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Column"
+                }
+              }
+            }
           }
         }
       }
@@ -2644,6 +6096,70 @@
               "error": {
                 "code": "INTERNAL_ERROR",
                 "message": "Internal server error"
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with the current state of the resource — for example a rename to a name another table in the workspace already uses.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "CONFLICT",
+                "message": "A table named \"contacts\" already exists"
+              }
+            }
+          }
+        }
+      },
+      "Locked": {
+        "description": "The table has a lock that forbids this operation. Clear the relevant lock with `PATCH /api/v2/tables/{tableId}` (workspace admin only) and retry.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "LOCKED",
+                "message": "Schema changes are locked for this table"
+              }
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The import source exceeds the 5 GB resource limit.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "PAYLOAD_TOO_LARGE",
+                "message": "CSV import file exceeds maximum size"
+              }
+            }
+          }
+        }
+      },
+      "Gone": {
+        "description": "The generated export file has aged out of storage. Start a new export rather than retrying this download.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Export file is no longer available"
               }
             }
           }

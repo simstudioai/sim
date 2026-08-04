@@ -169,7 +169,7 @@
           }
         }
       },
-      "post": {
+      "x-removed-buffered-post": {
         "operationId": "uploadFile",
         "summary": "Upload File",
         "description": "Upload a file to a workspace as `multipart/form-data` with a single `file` field. The workspace — and the optional target `folderId` — are supplied as query parameters (not form fields) so authorization runs before the request body is buffered. Maximum file size is 100MB. A name already taken in the destination folder is **not** an error: the name is auto-suffixed (`data.csv` -> `data (1).csv`), matching the in-app uploader, so a `201` can come back with a `name` different from the one you sent — always read `name` from the response rather than assuming it. `409` is returned only if a unique name cannot be allocated after several attempts. Use `PATCH /api/v2/files/{fileId}` if you need a specific name to be exact-or-fail. Returns `201 Created`.\n\nPresigned upload is not part of the public API: it debits the storage quota only in a separate register step, so a caller that never registers would leave unaccounted bytes in storage. This buffered path debits inside the upload transaction.",
@@ -312,6 +312,126 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
+        }
+      }
+    },
+    "/api/v2/files/uploads": {
+      "post": {
+        "operationId": "createFileUpload",
+        "summary": "Create File Upload",
+        "description": "Create a stateless multipart upload session and signed upload token. Every file uses this flow; a small file is a single part. The maximum file size is 5 GB.",
+        "tags": ["Files"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "201": {
+            "description": "The upload session.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/files/uploads/{uploadId}": {
+      "delete": {
+        "operationId": "abortFileUpload",
+        "summary": "Abort File Upload",
+        "description": "Abort an incomplete upload and discard its provider parts.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/UploadTokenHeader" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The aborted upload session.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/files/uploads/{uploadId}/parts": {
+      "post": {
+        "operationId": "createFileUploadPartUrls",
+        "summary": "Create File Upload Part URLs",
+        "description": "Issue short-lived signed PUT URLs for a bounded set of upload part numbers.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/UploadTokenHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed URLs for the requested parts.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/files/uploads/{uploadId}/complete": {
+      "post": {
+        "operationId": "completeFileUpload",
+        "summary": "Complete File Upload",
+        "description": "Verify every part, assemble the object, and atomically register the workspace file.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          { "$ref": "#/components/parameters/UploadTokenHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "200": {
+            "description": "The completed upload and registered file.",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },
@@ -1556,6 +1676,13 @@
           "type": "string",
           "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
         }
+      },
+      "UploadTokenHeader": {
+        "name": "upload-token",
+        "in": "header",
+        "required": true,
+        "description": "The signed token returned when the multipart upload was created.",
+        "schema": { "type": "string", "minLength": 1 }
       },
       "FileIdPath": {
         "name": "fileId",

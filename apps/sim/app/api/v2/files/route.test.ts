@@ -1,29 +1,18 @@
 /**
  * @vitest-environment node
  *
- * Public v2 files list/upload: gate ordering, the `scope` split that makes
- * Recently Deleted reachable, and folder-targeted upload.
+ * Public v2 files list: gate ordering and the `scope` split that makes Recently Deleted reachable.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockQueryWorkspaceFiles,
-  mockUploadWorkspaceFile,
-  mockGetWorkspaceFile,
-  mockReadFormDataWithLimit,
-  mockReadFileToBufferWithLimit,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockQueryWorkspaceFiles: vi.fn(),
-  mockUploadWorkspaceFile: vi.fn(),
-  mockGetWorkspaceFile: vi.fn(),
-  mockReadFormDataWithLimit: vi.fn(),
-  mockReadFileToBufferWithLimit: vi.fn(),
-}))
+const { mockCheckRateLimit, mockResolveWorkspaceAccess, mockQueryWorkspaceFiles } = vi.hoisted(
+  () => ({
+    mockCheckRateLimit: vi.fn(),
+    mockResolveWorkspaceAccess: vi.fn(),
+    mockQueryWorkspaceFiles: vi.fn(),
+  })
+)
 
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,
@@ -36,25 +25,10 @@ vi.mock('@/app/api/v2/lib/gate', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   queryWorkspaceFiles: mockQueryWorkspaceFiles,
-  uploadWorkspaceFile: mockUploadWorkspaceFile,
-  getWorkspaceFile: mockGetWorkspaceFile,
-  FileConflictError: class FileConflictError extends Error {},
-}))
-
-vi.mock('@/lib/core/utils/stream-limits', () => ({
-  readFormDataWithLimit: mockReadFormDataWithLimit,
-  readFileToBufferWithLimit: mockReadFileToBufferWithLimit,
-  isPayloadSizeLimitError: () => false,
-}))
-
-vi.mock('@sim/audit', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: { FILE_UPLOADED: 'file.uploaded' },
-  AuditResourceType: { FILE: 'file' },
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GET, POST } from '@/app/api/v2/files/route'
+import { GET } from '@/app/api/v2/files/route'
 
 const WS = 'workspace-1'
 const FOLDER_ID = 'fold_1'
@@ -107,15 +81,6 @@ const DEFAULT_LIST_ARGS = {
 
 const callList = (query: string) =>
   GET(new NextRequest(`http://localhost:3000/api/v2/files?${query}`))
-
-const callUpload = (query: string) =>
-  POST(
-    new NextRequest(`http://localhost:3000/api/v2/files?${query}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'multipart/form-data; boundary=x' },
-      body: 'x',
-    })
-  )
 
 describe('GET /api/v2/files', () => {
   beforeEach(() => {
@@ -307,127 +272,5 @@ describe('GET /api/v2/files', () => {
     const res = await callList(`workspaceId=${WS}&search=data`)
 
     expect((await res.json()).nextCursor).toBeNull()
-  })
-})
-
-describe('POST /api/v2/files', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockReadFileToBufferWithLimit.mockResolvedValue(Buffer.from('id,name\n'))
-    mockUploadWorkspaceFile.mockResolvedValue({ id: 'wf_1' })
-    mockGetWorkspaceFile.mockResolvedValue(buildRecord())
-
-    const form = new FormData()
-    form.set('file', new File(['id,name\n'], 'data.csv', { type: 'text/csv' }))
-    mockReadFormDataWithLimit.mockResolvedValue(form)
-  })
-
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callUpload(`workspaceId=${WS}`)
-
-    expect(res.status).toBe(404)
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('400s when workspaceId is missing', async () => {
-    const res = await callUpload('folderId=fold_1')
-    expect(res.status).toBe(400)
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied failure before buffering the body', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
-    const res = await callUpload(`workspaceId=${WS}`)
-    expect(res.status).toBe(403)
-    expect(mockReadFormDataWithLimit).not.toHaveBeenCalled()
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callUpload(`workspaceId=${WS}`)
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('uploads to the workspace root and returns 201 with the stored record', async () => {
-    const res = await callUpload(`workspaceId=${WS}`)
-    const body = await res.json()
-
-    expect(res.status).toBe(201)
-    expect(body.data.id).toBe('wf_1')
-    expect(body.data.folderId).toBeNull()
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
-      WS,
-      'user-1',
-      expect.any(Buffer),
-      'data.csv',
-      'text/csv',
-      { folderId: null }
-    )
-  })
-
-  it('lands the upload in the folder named by folderId', async () => {
-    mockGetWorkspaceFile.mockResolvedValue(
-      buildRecord({ folderId: FOLDER_ID, folderPath: 'Reports/Q1' })
-    )
-
-    const res = await callUpload(`workspaceId=${WS}&folderId=${FOLDER_ID}`)
-    const body = await res.json()
-
-    expect(res.status).toBe(201)
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
-      WS,
-      'user-1',
-      expect.any(Buffer),
-      'data.csv',
-      'text/csv',
-      { folderId: FOLDER_ID }
-    )
-    expect(body.data.folderId).toBe(FOLDER_ID)
-    expect(body.data.folderPath).toBe('Reports/Q1')
-  })
-
-  it('404s when the target folder does not exist', async () => {
-    mockUploadWorkspaceFile.mockRejectedValue(
-      new OrchestrationError('not_found', 'Target folder not found')
-    )
-
-    const res = await callUpload(`workspaceId=${WS}&folderId=missing`)
-
-    expect(res.status).toBe(404)
-    expect((await res.json()).error.code).toBe('NOT_FOUND')
-  })
-
-  it('413s on a blown storage quota by class, not by message wording', async () => {
-    mockUploadWorkspaceFile.mockRejectedValue(
-      new OrchestrationError('payload_too_large', 'Quota exceeded for this workspace')
-    )
-
-    const res = await callUpload(`workspaceId=${WS}`)
-
-    expect(res.status).toBe(413)
-    expect((await res.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
-  })
-
-  it('409s on a duplicate-name conflict by class', async () => {
-    mockUploadWorkspaceFile.mockRejectedValue(
-      new OrchestrationError('conflict', 'A file named "data.csv" already exists in this workspace')
-    )
-
-    const res = await callUpload(`workspaceId=${WS}`)
-
-    expect(res.status).toBe(409)
-    expect((await res.json()).error.code).toBe('CONFLICT')
   })
 })

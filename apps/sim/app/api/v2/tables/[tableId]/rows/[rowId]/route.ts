@@ -23,12 +23,16 @@ import {
   v2CaughtOrchestrationError,
   v2Data,
   v2Error,
-  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { toApiRow, v2TableAccessError, v2TableLockError } from '@/app/api/v2/tables/utils'
+import {
+  toApiRow,
+  v2TableAccessError,
+  v2TableLockError,
+  v2TableOrchestrationError,
+} from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableRowAPI')
 
@@ -209,7 +213,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
 
     const outcome = await performDeleteTableRow({ table: result.table, rowId, requestId })
     if (!outcome.success) {
-      return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? 'Failed to delete row')
+      return v2TableOrchestrationError(outcome, 'Failed to delete row')
     }
 
     // v2 mirrors the bulk delete shape: always returns `deletedRowIds`.

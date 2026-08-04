@@ -9,7 +9,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, type SQL } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
@@ -43,11 +43,10 @@ import { getServePathPrefix } from '@/lib/uploads'
 import {
   deleteFile,
   downloadFile,
-  hasCloudStorage,
   headObject,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
-import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { MAX_WORKSPACE_FILE_SIZE, toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
@@ -175,6 +174,10 @@ interface WorkspaceFileMetadataInsert {
   size: number
 }
 
+function workspaceFileSize(file: typeof workspaceFiles.$inferSelect): number {
+  return file.sizeBytes ?? file.size
+}
+
 /**
  * Attempts one active workspace-file insert and reports the row that this call
  * created. Conflict losers receive `undefined` and must inspect the active key
@@ -188,6 +191,8 @@ async function insertWorkspaceFileMetadataInTx(
     .insert(workspaceFiles)
     .values({
       ...metadata,
+      size: toLegacyWorkspaceFileSize(metadata.size),
+      sizeBytes: metadata.size,
       context: 'workspace',
       displayName: metadata.originalName,
       deletedAt: null,
@@ -267,7 +272,7 @@ function isSameWorkspaceFileRegistration(
     file.folderId === params.folderId &&
     file.context === 'workspace' &&
     file.contentType === params.contentType &&
-    file.size === params.size &&
+    workspaceFileSize(file) === params.size &&
     file.deletedAt === null
   )
 }
@@ -489,10 +494,6 @@ export async function registerUploadedWorkspaceFile(params: {
   const { workspaceId, userId, key, originalName, contentType } = params
   const normalizedOriginalName = normalizeWorkspaceFileItemName(originalName, 'File')
 
-  if (!hasCloudStorage()) {
-    throw new Error('Direct-upload registration requires cloud storage')
-  }
-
   if (parseWorkspaceFileKey(key) !== workspaceId) {
     throw new Error('Storage key does not belong to this workspace')
   }
@@ -528,7 +529,7 @@ export async function registerUploadedWorkspaceFile(params: {
       file: {
         id: existing.id,
         name: existing.originalName,
-        size: existing.size,
+        size: workspaceFileSize(existing),
         type: existing.contentType,
         url: `${pathPrefix}${encodeURIComponent(existing.key)}?context=workspace`,
         key: existing.key,
@@ -591,7 +592,7 @@ export async function registerUploadedWorkspaceFile(params: {
       file: {
         id: finalized.file.id,
         name: finalized.file.originalName,
-        size: finalized.file.size,
+        size: workspaceFileSize(finalized.file),
         type: finalized.file.contentType,
         url: `${pathPrefix}${encodeURIComponent(finalized.file.key)}?context=workspace`,
         key: finalized.file.key,
@@ -730,7 +731,7 @@ function mapWorkspaceFileRecord(
     name: file.originalName,
     key: file.key,
     path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
-    size: file.size,
+    size: workspaceFileSize(file),
     type: file.contentType,
     uploadedBy: file.userId,
     folderId: file.folderId,
@@ -853,7 +854,13 @@ const fileId = textKey<WorkspaceFileRecord>(workspaceFiles.id, (row) => row.id)
 
 const WORKSPACE_FILE_SORTS = {
   name: [textKey(workspaceFiles.originalName, (row) => row.name), fileId],
-  size: [numberKey(workspaceFiles.size, (row) => row.size), fileId],
+  size: [
+    numberKey(
+      sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(Number),
+      (row) => row.size
+    ),
+    fileId,
+  ],
   uploadedAt: [timestampKey(workspaceFiles.uploadedAt, (row) => row.uploadedAt), fileId],
   updatedAt: [timestampKey(workspaceFiles.updatedAt, (row) => row.updatedAt), fileId],
 } satisfies Record<V2FileSortBy, readonly KeysetKey<WorkspaceFileRecord>[]>
@@ -1256,7 +1263,7 @@ export async function updateWorkspaceFileContent(
           throw new ContentVersionConflictError(fileId)
         }
 
-        const sizeDiff = content.length - currentFile.size
+        const sizeDiff = content.length - workspaceFileSize(currentFile)
         const now = new Date()
         // `contentUpdatedAt` is the persist If-Match token, so it MUST be strictly monotonic per file — a
         // bare `new Date()` is not: cross-instance clock skew can stamp a later write with an earlier time,
@@ -1271,7 +1278,8 @@ export async function updateWorkspaceFileContent(
           .update(workspaceFiles)
           .set({
             key: uploadResult.key,
-            size: content.length,
+            size: toLegacyWorkspaceFileSize(content.length),
+            sizeBytes: content.length,
             contentType: nextContentType,
             updatedAt: now,
             contentUpdatedAt,
@@ -1357,7 +1365,7 @@ export async function updateWorkspaceFileContent(
       name: finalized.file.originalName,
       key: finalized.file.key,
       path: `${pathPrefix}${encodeURIComponent(finalized.file.key)}?context=workspace`,
-      size: finalized.file.size,
+      size: workspaceFileSize(finalized.file),
       type: finalized.file.contentType,
       uploadedBy: finalized.file.userId,
       folderId: finalized.file.folderId,

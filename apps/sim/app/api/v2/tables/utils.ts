@@ -1,5 +1,8 @@
 import type { NextResponse } from 'next/server'
+import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { RowData, TableDefinition, TablePredicate, TableSchema } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
@@ -7,9 +10,15 @@ import {
   validateStoragePredicate,
 } from '@/lib/table/query-builder/validate'
 import { predicateToStorage } from '@/lib/table/select-values'
-import type { Filter } from '@/lib/table/types'
-import { normalizeColumn, rootErrorMessage, rowWriteErrorResponse } from '@/app/api/table/utils'
-import { v2Error } from '@/app/api/v2/lib/response'
+import type { Filter, TableLockKind } from '@/lib/table/types'
+import type { TableView } from '@/lib/table/views/service'
+import {
+  CSV_IMPORT_PROXY_BODY_CAP_BYTES,
+  normalizeColumn,
+  rootErrorMessage,
+  rowWriteErrorResponse,
+} from '@/app/api/table/utils'
+import { v2Error, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 /**
  * Shared serialization + error helpers for the v2 tables surface. Every v2
@@ -54,9 +63,50 @@ export function toApiTable(table: TableDefinition) {
     },
     rowCount: table.rowCount,
     maxRows: table.maxRows,
+    folderId: table.folderId ?? null,
+    locks: table.locks,
+    // `jobStatus` is the presence signal — the service leaves the whole group
+    // null when the table is idle. Without this an async import could be
+    // started and cancelled but never observed to completion or failure.
+    job: table.jobStatus
+      ? {
+          id: table.jobId ?? null,
+          type: table.jobType ?? null,
+          status: table.jobStatus,
+          rowsProcessed: table.jobRowsProcessed ?? 0,
+          error: table.jobError ?? null,
+        }
+      : null,
     createdAt: toIso(table.createdAt),
     updatedAt: toIso(table.updatedAt),
   }
+}
+
+/**
+ * Normalized public view shape. Identical to the stored view except that the
+ * timestamps are ISO strings, matching every other v2 payload.
+ */
+export function toApiView(view: TableView) {
+  return {
+    id: view.id,
+    tableId: view.tableId,
+    name: view.name,
+    config: view.config,
+    isDefault: view.isDefault,
+    createdBy: view.createdBy,
+    createdAt: toIso(view.createdAt),
+    updatedAt: toIso(view.updatedAt),
+  }
+}
+
+/**
+ * Maps a stored column id (the JSONB key that `findRowMatches` reports) back to
+ * its display name, so cell references on the public wire are name-keyed like
+ * row `data`. Falls back to the id for a column that no longer exists.
+ */
+export function columnNameById(schema: TableSchema): (columnId: string) => string {
+  const nameById = new Map(schema.columns.map((column) => [getColumnId(column), column.name]))
+  return (columnId) => nameById.get(columnId) ?? columnId
 }
 
 /**
@@ -86,6 +136,35 @@ export function toApiRow(row: ApiRowInput, toNamedRow: (data: RowData) => RowDat
 }
 
 /**
+ * Maps a {@link MultipartError} from the streaming CSV reader to the v2
+ * envelope. Mirrors v1's {@link multipartErrorResponse} — same classification,
+ * different envelope.
+ */
+export function v2MultipartError(error: MultipartError): NextResponse {
+  if (error.code === 'FILE_TOO_LARGE') {
+    return v2Error('PAYLOAD_TOO_LARGE', 'CSV import file exceeds maximum size')
+  }
+  return error.code === 'NO_FILE'
+    ? v2Error('BAD_REQUEST', 'CSV file is required')
+    : v2Error('BAD_REQUEST', `Invalid CSV upload: ${error.message}`)
+}
+
+/**
+ * 413 when a synchronous CSV upload would exceed the proxy's body cap; `null`
+ * otherwise. Next buffers the request body for the proxy and silently
+ * TRUNCATES it past the cap, so an unchecked oversize upload imports a partial
+ * file and reports success — the failure this exists to prevent.
+ */
+export function v2CsvBodyCapError(request: { headers: Headers }): NextResponse | null {
+  const contentLength = Number(request.headers.get('content-length') ?? 0)
+  if (contentLength <= CSV_IMPORT_PROXY_BODY_CAP_BYTES) return null
+  return v2Error(
+    'PAYLOAD_TOO_LARGE',
+    'File too large to import through the server. Upload it to workspace storage and use the async import instead.'
+  )
+}
+
+/**
  * Renders a failed {@link checkAccess} result on a MUTATION path: a missing
  * table stays 404, a missing permission stays 403. Read paths instead mask both
  * as 404 inline so cross-workspace resource existence is never leaked.
@@ -100,10 +179,57 @@ export function v2TableAccessError(result: { ok: false; status: 404 | 403 }): Ne
  * Maps a delete/write rejected by a table lock to the v2 `LOCKED` envelope,
  * mirroring v1's {@link tableLockErrorResponse}. Returns `null` for anything
  * else so the caller falls through to its own classification.
+ *
+ * `details.lock` names the flag that rejected the write. A table carries four
+ * independent locks, so "locked" on its own does not tell a caller which one to
+ * clear — every 423 on the surface reports it.
  */
-export function v2TableLockError(error: unknown): NextResponse | null {
-  if (error instanceof TableLockedError) return v2Error('LOCKED', error.message)
+export function v2TableLockError(
+  error: unknown,
+  /** Merged into `details` — e.g. which operations of a composite write landed. */
+  extraDetails?: Record<string, unknown>
+): NextResponse | null {
+  if (error instanceof TableLockedError) {
+    return v2Error('LOCKED', error.message, { details: { lock: error.lock, ...extraDetails } })
+  }
   return null
+}
+
+/** The failure half of any `lib/table/orchestration` result. */
+export interface OrchestrationOutcome {
+  errorCode?: OrchestrationErrorCode
+  error?: string
+  lock?: TableLockKind
+}
+
+/**
+ * Renders a `lib/table/orchestration` failure in the v2 envelope, naming the
+ * lock when one caused it.
+ *
+ * A lock rejection reaches a route two different ways — thrown and caught at
+ * the boundary ({@link v2TableLockError}), or returned as a classified
+ * `errorCode: 'locked'` outcome — and both must produce the same body. Plain
+ * {@link v2ErrorForOrchestration} cannot, because the `lock` kind lives on the
+ * outcome rather than the code, so every table route that renders an
+ * orchestration result goes through this instead.
+ */
+export function v2TableOrchestrationError(
+  outcome: OrchestrationOutcome,
+  fallback: string,
+  /** Merged into `details` — e.g. which operations of a composite write landed. */
+  extraDetails?: Record<string, unknown>
+): NextResponse {
+  // `lock` is omitted rather than sent as null when the kind is unknown — a
+  // caller branching on `details.lock` should see absence, not a phantom value.
+  const details = {
+    ...(outcome.errorCode === 'locked' && outcome.lock ? { lock: outcome.lock } : {}),
+    ...extraDetails,
+  }
+  return v2ErrorForOrchestration(
+    outcome.errorCode,
+    outcome.error ?? fallback,
+    Object.keys(details).length > 0 ? details : undefined
+  )
 }
 
 /**
