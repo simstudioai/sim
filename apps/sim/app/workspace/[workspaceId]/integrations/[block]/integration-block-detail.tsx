@@ -24,7 +24,10 @@ import {
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import {
+  CONNECT_MODE,
+  resolveAvailableConnectMode,
+} from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import {
   RESOURCE_LIST_STACK,
@@ -109,9 +112,15 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   useEffect(() => {
     if (hasHandledConnectQueryRef.current || !connectMode || permissionConfigLoading) return
 
-    if (connectMode === CONNECT_MODE.oauth && oauthService && oauthAvailable) {
+    const availableConnectMode = resolveAvailableConnectMode(connectMode, {
+      oauth: Boolean(oauthService) && oauthAvailable,
+      serviceAccount: hasServiceAccount,
+    })
+    if (!availableConnectMode) return
+
+    if (availableConnectMode === CONNECT_MODE.oauth) {
       setOAuthOpen(true)
-    } else if (connectMode === CONNECT_MODE.serviceAccount && hasServiceAccount) {
+    } else {
       setServiceAccountOpen(true)
     }
 
