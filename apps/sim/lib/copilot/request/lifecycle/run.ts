@@ -105,6 +105,11 @@ const SIMPLE_MODEL_CONTENT_KEYS = [
 ] as const
 const TOOL_PAYLOAD_KEYS = ['tools', 'integrationTools', 'mothershipTools'] as const
 const TOOL_SCHEMA_KEYS = new Set(['input_schema', 'parameters', 'outputs'])
+const MOTHERSHIP_CODE_TOOL_ROUTES = new Set([
+  '/api/copilot',
+  '/api/mothership',
+  '/api/mothership/execute',
+])
 const MESSAGE_CONTAINER_KEYS = new Set([
   'contentBlocks',
   'contexts',
@@ -830,6 +835,11 @@ export async function runCopilotLifecycle(
       secretMountPolicy: lifecycleOptions.secretMountPolicy,
       secretActorUserId: lifecycleOptions.secretActorUserId,
     }))
+  if (goRoute && MOTHERSHIP_CODE_TOOL_ROUTES.has(goRoute)) {
+    execContext.sandboxProfile = 'mothership'
+  } else {
+    execContext.sandboxProfile = undefined
+  }
   const shouldUseHostedBillingProtocol = isHosted && isCopilotBillingAttributionV1Enabled
   if (
     shouldUseHostedBillingProtocol &&

@@ -256,10 +256,17 @@ function e2bApiUrl(): string {
 }
 
 function templateFor(kind: SandboxKind, imageRef?: string): string {
+  if (kind === 'mothership') {
+    const template = env.MOTHERSHIP_E2B_TEMPLATE_ID?.trim()
+    if (!template) {
+      throw new Error('Mothership sandbox not configured (MOTHERSHIP_E2B_TEMPLATE_ID is unset)')
+    }
+    return template
+  }
   if (kind === 'code' || kind === 'shell') functionTemplateReleaseGeneration()
   // A workspace dependency set may only displace the dedicated Function base.
-  // `doc` and `pi` keep their vetted images unconditionally, so a user's package
-  // list can never land under the document compiler or the coding agent.
+  // Mothership, doc, and Pi keep their vetted images unconditionally, so a
+  // user's package list can never land under those server-owned runtimes.
   if (imageRef && (kind === 'code' || kind === 'shell')) {
     return imageRef
   }

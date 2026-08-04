@@ -218,8 +218,17 @@ describe('executeFunctionExecute trace-secret provenance', () => {
 
   it('routes run_code shell commands through the same function_execute boundary', async () => {
     const code = 'printf %s "{{CLI_TOKEN}}"'
+    const abortController = new AbortController()
 
-    await executeRunCode({ language: 'shell', code }, context as never)
+    await executeRunCode(
+      { language: 'shell', code },
+      {
+        ...context,
+        workflowId: '',
+        sandboxProfile: 'mothership',
+        abortSignal: abortController.signal,
+      }
+    )
 
     expect(mockMaterializeCopilotCodeSecrets).toHaveBeenCalledWith({
       actorUserId: 'u1',
@@ -229,8 +238,35 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
       expect.objectContaining({ code, language: 'shell', mountedSecrets: ['CLI_TOKEN'] }),
-      { resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry) }
+      {
+        resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
+        internalSandboxProfile: 'mothership',
+        signal: abortController.signal,
+      }
     )
+  })
+
+  it('uses the trusted Mothership profile for function_execute without accepting a param override', async () => {
+    await executeFunctionExecute(
+      {
+        code: 'return 1',
+        sandboxProfile: 'attacker',
+        _context: { sandboxProfile: 'attacker' },
+      },
+      { ...context, workflowId: '', sandboxProfile: 'mothership' }
+    )
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        _context: expect.not.objectContaining({ sandboxProfile: expect.anything() }),
+      }),
+      {
+        resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
+        internalSandboxProfile: 'mothership',
+      }
+    )
+    expect(mockExecuteTool.mock.calls[0]?.[1]).not.toHaveProperty('sandboxProfile')
   })
 
   it('returns the raw runtime result when provenance import fails', async () => {

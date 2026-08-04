@@ -16,7 +16,7 @@ import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
 } from '@/lib/copilot/vfs/resource-writer'
-import { isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
+import { isMothershipSandboxEnabled, isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
 import {
   createTimeoutAbortController,
   isTimeoutAbortReason,
@@ -1687,6 +1687,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       logger.warn(`[${requestId}] Unauthorized function execution attempt`)
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
+    const usesMothershipSandbox = auth.sandboxProfile === 'mothership'
+    if (usesMothershipSandbox && !isMothershipSandboxEnabled) {
+      return NextResponse.json(
+        { success: false, error: 'Mothership code sandbox is not configured' },
+        { status: 503 }
+      )
+    }
+    const remoteSandboxEnabled = usesMothershipSandbox
+      ? isMothershipSandboxEnabled
+      : isRemoteSandboxEnabled
 
     executionDeadlineAt = parseExecutionDeadlineHeader(req.headers)
     includePrivateResolvedSecretNames = requestsPrivateToolMetadata(
@@ -1886,7 +1896,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     if (lang === CodeLanguage.Shell) {
-      if (!isRemoteSandboxEnabled) {
+      if (!remoteSandboxEnabled) {
         throw new Error(
           'Shell execution requires a remote code sandbox to be enabled. Please contact your administrator to enable it.'
         )
@@ -1901,7 +1911,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
 
       logger.info(`[${requestId}] E2B shell execution`, {
-        enabled: isRemoteSandboxEnabled,
+        enabled: remoteSandboxEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         envVarCount: Object.keys(shellEnvs).length,
       })
@@ -1924,6 +1934,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         outputSandboxPaths,
         workspaceId,
         sandboxId: selectedSandboxId,
+        ...(usesMothershipSandbox ? { sandboxKind: 'mothership' as const } : {}),
         signal: executionSignal,
       })
       const executionTime = Date.now() - execStart
@@ -1971,22 +1982,23 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    if (lang === CodeLanguage.Python && !isRemoteSandboxEnabled) {
+    if (lang === CodeLanguage.Python && !remoteSandboxEnabled) {
       throw new Error(
         'Python execution requires a remote code sandbox to be enabled. Please contact your administrator to enable it, or use JavaScript instead.'
       )
     }
 
-    if (lang === CodeLanguage.JavaScript && hasImports && !isRemoteSandboxEnabled) {
+    if (lang === CodeLanguage.JavaScript && hasImports && !remoteSandboxEnabled) {
       throw new Error(
         'JavaScript code with import statements requires a remote code sandbox to be enabled. Please remove the import statements, or contact your administrator to enable it.'
       )
     }
 
     const useRemoteSandbox =
-      isRemoteSandboxEnabled &&
-      !isCustomTool &&
-      (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports))
+      usesMothershipSandbox ||
+      (remoteSandboxEnabled &&
+        !isCustomTool &&
+        (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports)))
 
     if (useRemoteSandbox && containsLargeValueRef(contextVariables)) {
       throw new Error(
@@ -2004,7 +2016,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       !useRemoteSandbox &&
       (outputSandboxPaths.length > 0 || outputSandboxPath || _sandboxFiles?.length)
     ) {
-      const remediation = !isRemoteSandboxEnabled
+      const remediation = !remoteSandboxEnabled
         ? "No remote code sandbox is enabled on this deployment, so there is no sandbox filesystem for any language. Pass input data via params and return output as the code's return value with outputs.files[].path (no sandboxPath)."
         : isCustomTool
           ? "custom tools always run in the isolated JavaScript VM, which has no sandbox filesystem. Pass input data via params and return output as the code's return value."
@@ -2022,7 +2034,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     if (useRemoteSandbox) {
       logger.info(`[${requestId}] E2B status`, {
-        enabled: isRemoteSandboxEnabled,
+        enabled: remoteSandboxEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         language: lang,
       })
@@ -2086,6 +2098,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           outputSandboxPaths,
           workspaceId,
           sandboxId: selectedSandboxId,
+          ...(usesMothershipSandbox ? { sandboxKind: 'mothership' as const } : {}),
           signal: executionSignal,
         })
         const executionTime = Date.now() - execStart
@@ -2172,6 +2185,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         outputSandboxPaths,
         workspaceId,
         sandboxId: selectedSandboxId,
+        ...(usesMothershipSandbox ? { sandboxKind: 'mothership' as const } : {}),
         signal: executionSignal,
       })
       const executionTime = Date.now() - execStart

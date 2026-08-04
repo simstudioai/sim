@@ -197,6 +197,46 @@ describe('runCopilotLifecycle', () => {
     expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
   })
 
+  it.each([
+    { goRoute: undefined, expected: 'mothership' },
+    { goRoute: '/api/copilot', expected: 'mothership' },
+    { goRoute: '/api/mothership-unknown', expected: undefined },
+    { goRoute: '/api/mothership', expected: 'mothership' },
+    { goRoute: '/api/mothership/execute', expected: 'mothership' },
+  ])(
+    'derives the sandbox profile from the trusted Go route ($goRoute)',
+    async ({ goRoute, expected }) => {
+      let sandboxProfile: ExecutionContext['sandboxProfile']
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          _url: string,
+          _request: RequestInit,
+          _streamingContext: StreamingContext,
+          context: ExecutionContext
+        ) => {
+          sandboxProfile = context.sandboxProfile
+        }
+      )
+
+      await runCopilotLifecycle(
+        { message: 'hello', messageId: `sandbox-profile-${goRoute ?? 'default'}` },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          ...(goRoute ? { goRoute } : {}),
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            sandboxProfile: 'mothership',
+          },
+        }
+      )
+
+      expect(sandboxProfile).toBe(expected)
+    }
+  )
+
   it('reconstructs missing model-egress context before sending the initial request', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {

@@ -4,7 +4,11 @@ import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { getBYOKKey } from '@/lib/api-key/byok'
-import { generateInternalToken } from '@/lib/auth/internal'
+import {
+  generateInternalToken,
+  type InternalSandboxProfile,
+  type InternalTokenClaims,
+} from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
@@ -1088,6 +1092,8 @@ export interface ExecuteToolOptions {
   executionContext?: ExecutionContext
   signal?: AbortSignal
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  /** Trusted base image claim for an internal Function execution. */
+  internalSandboxProfile?: InternalSandboxProfile
 }
 
 interface PrivateToolResponseMetadataResult {
@@ -1285,6 +1291,7 @@ export async function executeTool(
     executionContext,
     signal,
     resolvedSecretTraceRegistry: explicitResolvedSecretTraceRegistry,
+    internalSandboxProfile,
   } = options
   const resolvedSecretTraceRegistry =
     explicitResolvedSecretTraceRegistry ?? executionContext?.resolvedSecretTraceRegistry
@@ -1313,6 +1320,9 @@ export async function executeTool(
 
     // Normalize tool ID to strip resource suffixes (e.g., workflow_executor_<uuid> -> workflow_executor)
     const normalizedToolId = normalizeToolId(toolId)
+    if (internalSandboxProfile && normalizedToolId !== 'function_execute') {
+      throw new Error('An internal sandbox profile may only be used with function_execute')
+    }
 
     const scope = resolveToolScope(params, executionContext)
 
@@ -1665,7 +1675,8 @@ export async function executeTool(
               contextParams,
               effectiveSignal,
               privateToolMetadataType,
-              resolvedSecretTraceRegistry
+              resolvedSecretTraceRegistry,
+              internalSandboxProfile
             ),
           {
             requestId,
@@ -1691,7 +1702,8 @@ export async function executeTool(
                   contextParams,
                   effectiveSignal,
                   privateToolMetadataType,
-                  resolvedSecretTraceRegistry
+                  resolvedSecretTraceRegistry,
+                  internalSandboxProfile
                 )
             },
           }
@@ -1702,7 +1714,8 @@ export async function executeTool(
           contextParams,
           effectiveSignal,
           privateToolMetadataType,
-          resolvedSecretTraceRegistry
+          resolvedSecretTraceRegistry,
+          internalSandboxProfile
         )
 
     // Apply post-processing if available and not skipped
@@ -1935,12 +1948,15 @@ async function addInternalAuthIfNeeded(
   isInternalRoute: boolean,
   requestId: string,
   context: string,
-  userId?: string
+  userId?: string,
+  claims?: InternalTokenClaims
 ): Promise<void> {
   if (typeof window === 'undefined') {
     if (isInternalRoute) {
       try {
-        const internalToken = await generateInternalToken(userId)
+        const internalToken = claims
+          ? await generateInternalToken(userId, claims)
+          : await generateInternalToken(userId)
         if (headers instanceof Headers) {
           headers.set('Authorization', `Bearer ${internalToken}`)
         } else {
@@ -2024,7 +2040,8 @@ async function executeToolRequest(
   params: Record<string, any>,
   signal?: AbortSignal,
   privateToolMetadataType?: PrivateToolMetadataType,
-  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
+  internalSandboxProfile?: InternalSandboxProfile
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
   const structuralOnlyToolLogs =
@@ -2087,7 +2104,8 @@ async function executeToolRequest(
       isInternalRoute,
       requestId,
       toolId,
-      params._context?.userId
+      params._context?.userId,
+      internalSandboxProfile ? { sandboxProfile: internalSandboxProfile } : undefined
     )
     if (isInternalRoute && params._context?.billingAttribution) {
       headers.set(

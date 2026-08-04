@@ -431,6 +431,21 @@ export const isRemoteSandboxEnabled =
       : false
 
 /**
+ * Whether the selected provider can serve Mothership's own code image.
+ * This is intentionally independent of {@link isRemoteSandboxEnabled}: the
+ * Function and Mothership images have separate release and rollout lifecycles.
+ */
+export const isMothershipSandboxEnabled =
+  sandboxProvider === 'daytona'
+    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
+      hasEnvCapabilityValue(env, 'DAYTONA_SHELL_SNAPSHOT_ID')
+    : sandboxProvider === 'e2b'
+      ? isTruthy(env.E2B_ENABLED) &&
+        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+        hasEnvCapabilityValue(env, 'MOTHERSHIP_E2B_TEMPLATE_ID')
+      : false
+
+/**
  * Whether the document-generation sandbox is available with the selected
  * provider — its credential AND its dedicated doc image (E2B doc template, or
  * Daytona doc snapshot).

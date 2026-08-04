@@ -49,6 +49,7 @@ describe('buildToolExecutionContext', () => {
       userId: 'user-1',
       workflowId: 'workflow-1',
       runId: 'run-1',
+      sandboxProfile: 'mothership',
     }
 
     expect(
@@ -61,6 +62,7 @@ describe('buildToolExecutionContext', () => {
       )
     ).toMatchObject({
       runId: 'run-1',
+      sandboxProfile: 'mothership',
       toolCallId: 'call-1',
       parentToolCallId: 'parent-1',
     })

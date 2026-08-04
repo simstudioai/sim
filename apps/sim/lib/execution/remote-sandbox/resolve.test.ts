@@ -140,16 +140,19 @@ describe('resolveWorkspaceSandbox', () => {
     expect(mockSelect).not.toHaveBeenCalled()
   })
 
-  it.each(['doc', 'pi'] as const)('ignores a selection for the %s kind', async (kind) => {
-    const resolved = await resolveWorkspaceSandbox({
-      kind,
-      language: CodeLanguage.Python,
-      workspaceId: 'ws-1',
-      sandboxId: 'sbx-1',
-    })
-    expect(resolved).toBeNull()
-    expect(mockSelect).not.toHaveBeenCalled()
-  })
+  it.each(['mothership', 'doc', 'pi'] as const)(
+    'ignores a selection for the %s kind',
+    async (kind) => {
+      const resolved = await resolveWorkspaceSandbox({
+        kind,
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+      expect(resolved).toBeNull()
+      expect(mockSelect).not.toHaveBeenCalled()
+    }
+  )
 
   it('passes the ready image ref under the prebuilt strategy', async () => {
     queueSelects(

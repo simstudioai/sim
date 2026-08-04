@@ -99,6 +99,25 @@ NEXT_PUBLIC_SANDBOXES_ENABLED=true
 sandbox management in the browser. Set the public flag only after the selected
 provider has credentials and a valid immutable Function base configured.
 
+Mothership's `function_execute` and `run_code` tools use Mothership's separate
+shell image, including for JavaScript without imports. If the deployment uses
+Mothership code tools, also configure the image produced by the Mothership
+release process for the selected provider:
+
+```bash
+# E2B
+MOTHERSHIP_E2B_TEMPLATE_ID=<mothership-shell-template-ref>
+
+# Daytona
+DAYTONA_SHELL_SNAPSHOT_ID=<mothership-shell-snapshot-ref>
+```
+
+These values are selected only for workflow Copilot and workspace Mothership
+code-tool calls. They never replace or act as a fallback for
+`E2B_FUNCTION_TEMPLATE_ID` or
+`DAYTONA_FUNCTION_SNAPSHOT_ID`; Function blocks and custom workspace sandboxes
+continue to use the dedicated Function base.
+
 Use E2B as the release baseline before building or promoting Daytona:
 
 ```bash

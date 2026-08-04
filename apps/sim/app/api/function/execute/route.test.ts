@@ -125,6 +125,7 @@ describe('Function Execute API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     envFlagsMock.isRemoteSandboxEnabled = false
+    envFlagsMock.isMothershipSandboxEnabled = false
 
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
@@ -208,6 +209,86 @@ describe('Function Execute API Route', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.output.result).toBe('test')
+    })
+
+    it('does not accept a Mothership sandbox profile from the request body', async () => {
+      const req = createMockRequest('POST', {
+        code: 'return "test"',
+        sandboxProfile: 'mothership',
+      })
+
+      const response = await POST(req)
+
+      expect(response.status).toBe(200)
+      expect(mockExecuteInIsolatedVM).toHaveBeenCalledTimes(1)
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+    })
+
+    it('fails closed when a trusted Mothership call has no configured image', async () => {
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+        sandboxProfile: 'mothership',
+      })
+
+      const response = await POST(
+        createMockRequest('POST', { code: 'return "test"', language: 'javascript' })
+      )
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({
+        success: false,
+        error: 'Mothership code sandbox is not configured',
+      })
+      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { language: 'javascript', code: 'return 42' },
+      { language: 'python', code: '__sim_result__ = 42' },
+    ])(
+      'runs trusted Mothership $language in the Mothership sandbox image',
+      async ({ language, code }) => {
+        envFlagsMock.isMothershipSandboxEnabled = true
+        hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
+          success: true,
+          userId: 'user-123',
+          authType: 'internal_jwt',
+          sandboxProfile: 'mothership',
+        })
+
+        const response = await POST(createMockRequest('POST', { code, language }))
+
+        expect(response.status).toBe(200)
+        expect(mockExecuteInSandbox).toHaveBeenCalledWith(
+          expect.objectContaining({
+            language,
+            sandboxKind: 'mothership',
+          })
+        )
+        expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+      }
+    )
+
+    it('runs trusted Mothership Shell in the Mothership sandbox image', async () => {
+      envFlagsMock.isMothershipSandboxEnabled = true
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+        sandboxProfile: 'mothership',
+      })
+
+      const response = await POST(
+        createMockRequest('POST', { code: 'echo ready', language: 'shell' })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockExecuteShellInSandbox).toHaveBeenCalledWith(
+        expect.objectContaining({ sandboxKind: 'mothership' })
+      )
     })
 
     it('should prevent VM escape via constructor chain', async () => {

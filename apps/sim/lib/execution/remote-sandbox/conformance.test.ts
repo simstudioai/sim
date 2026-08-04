@@ -1206,6 +1206,95 @@ describe('custom dependency sets', () => {
     expect(mockExecuteCommand).not.toHaveBeenCalled()
   })
 
+  it.each(PROVIDERS)(
+    'uses the Mothership image for trusted code and shell executions [%s]',
+    async (provider) => {
+      useProvider(provider)
+      stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+
+      await executeInSandbox({
+        code: 'x',
+        language: CodeLanguage.Python,
+        timeoutMs: 1000,
+        sandboxKind: 'mothership',
+      })
+      await executeShellInSandbox({
+        code: 'echo ready',
+        timeoutMs: 1000,
+        sandboxKind: 'mothership',
+      })
+
+      if (provider === 'e2b') {
+        expect(mockE2BCreate).toHaveBeenNthCalledWith(1, 'mothership-shell', expect.anything())
+        expect(mockE2BCreate).toHaveBeenNthCalledWith(2, 'mothership-shell', expect.anything())
+      } else {
+        expect(mockDaytonaCreate).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({ snapshot: 'mothership-shell:v1' })
+        )
+        expect(mockDaytonaCreate).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({ snapshot: 'mothership-shell:v1' })
+        )
+      }
+      expect(mockResolveSandbox).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ kind: 'mothership' })
+      )
+      expect(mockResolveSandbox).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ kind: 'mothership' })
+      )
+    }
+  )
+
+  it.each(PROVIDERS)(
+    'does not let a workspace image displace the Mothership image [%s]',
+    async (provider) => {
+      useProvider(provider)
+      const sandbox = await resolveProvider().create('mothership', {
+        imageRef: 'workspace-controlled-image',
+      })
+
+      if (provider === 'e2b') {
+        expect(mockE2BCreate).toHaveBeenCalledWith('mothership-shell', expect.anything())
+      } else {
+        expect(mockDaytonaCreate).toHaveBeenCalledWith(
+          expect.objectContaining({ snapshot: 'mothership-shell:v1' })
+        )
+      }
+      await sandbox.kill()
+    }
+  )
+
+  it('fails closed when the Mothership E2B template is unset', async () => {
+    useProvider('e2b')
+    const original = mockEnv.MOTHERSHIP_E2B_TEMPLATE_ID
+    mockEnv.MOTHERSHIP_E2B_TEMPLATE_ID = undefined
+    try {
+      await expect(e2bProvider.create('mothership')).rejects.toThrow(
+        /MOTHERSHIP_E2B_TEMPLATE_ID is unset/
+      )
+      expect(mockE2BCreate).not.toHaveBeenCalled()
+    } finally {
+      mockEnv.MOTHERSHIP_E2B_TEMPLATE_ID = original
+    }
+  })
+
+  it('fails closed when the Mothership Daytona snapshot is unset', async () => {
+    useProvider('daytona')
+    const original = mockEnv.DAYTONA_SHELL_SNAPSHOT_ID
+    mockEnv.DAYTONA_SHELL_SNAPSHOT_ID = undefined
+    try {
+      await expect(daytonaProvider.create('mothership')).rejects.toThrow(
+        /DAYTONA_SHELL_SNAPSHOT_ID is unset/
+      )
+      expect(mockDaytonaCreate).not.toHaveBeenCalled()
+    } finally {
+      mockEnv.DAYTONA_SHELL_SNAPSHOT_ID = original
+    }
+  })
+
   it('does not fall back from the Function E2B template to the Mothership template', async () => {
     const original = mockEnv.E2B_FUNCTION_TEMPLATE_ID
     mockEnv.E2B_FUNCTION_TEMPLATE_ID = undefined

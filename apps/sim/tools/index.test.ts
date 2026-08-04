@@ -667,6 +667,33 @@ describe('executeTool Function', () => {
     )
   })
 
+  it('binds the Mothership sandbox profile into the internal Function JWT', async () => {
+    mockGenerateInternalToken.mockResolvedValue('mothership-token')
+
+    await executeTool(
+      'function_execute',
+      {
+        code: 'return 1',
+        _context: { userId: 'user-123' },
+      },
+      { skipPostProcess: true, internalSandboxProfile: 'mothership' }
+    )
+
+    expect(mockGenerateInternalToken).toHaveBeenCalledWith('user-123', {
+      sandboxProfile: 'mothership',
+    })
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/function/execute'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          get: expect.any(Function),
+        }),
+      })
+    )
+    const request = vi.mocked(global.fetch).mock.calls[0]?.[1]
+    expect(new Headers(request?.headers).get('authorization')).toBe('Bearer mothership-token')
+  })
+
   it('consumes Function secret provenance without exposing private transport metadata', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {

@@ -81,9 +81,16 @@ function processCodeFailure(result: SandboxCommandResult): SandboxCodeResult {
 }
 
 function snapshotFor(kind: SandboxKind, imageRef?: string): string {
+  if (kind === 'mothership') {
+    const snapshot = env.DAYTONA_SHELL_SNAPSHOT_ID?.trim()
+    if (!snapshot) {
+      throw new Error('Mothership sandbox not configured (DAYTONA_SHELL_SNAPSHOT_ID is unset)')
+    }
+    return snapshot
+  }
   // An operator-supplied snapshot may only displace the dedicated Function base.
-  // `doc` and `pi` keep their vetted snapshots unconditionally, so nothing a
-  // workspace configures can land under the doc compiler or the coding agent.
+  // Mothership, doc, and Pi keep their vetted snapshots unconditionally, so
+  // nothing a workspace configures can land under those server-owned runtimes.
   if (imageRef && (kind === 'code' || kind === 'shell')) {
     return imageRef
   }

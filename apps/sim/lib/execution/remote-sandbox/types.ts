@@ -8,7 +8,7 @@ import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
  * template/snapshot id is unset, so LLM-authored code can never land in a
  * provider's unvetted default image.
  */
-export type SandboxKind = 'code' | 'shell' | 'doc' | 'pi'
+export type SandboxKind = 'code' | 'shell' | 'mothership' | 'doc' | 'pi'
 
 export type SandboxProviderId = 'e2b' | 'daytona'
 
@@ -42,10 +42,11 @@ export interface SandboxExecutionRequest {
   outputSandboxPaths?: string[]
   /**
    * Which sandbox image to run in. Defaults to 'code' (the Function base).
+   * Trusted Mothership calls pass 'mothership'; workspace callers cannot select it.
    * Document generation passes 'doc' so it runs in the doc image
    * (mothership-docs) that has python-pptx/docx/openpyxl/reportlab installed.
    */
-  sandboxKind?: 'code' | 'doc'
+  sandboxKind?: 'code' | 'mothership' | 'doc'
   /** Scope for {@link sandboxId}; a sandbox from another workspace is rejected. */
   workspaceId?: string
   /** Workspace sandbox whose dependency set this execution runs against. */
@@ -64,10 +65,11 @@ export interface SandboxShellExecutionRequest {
   outputSandboxPaths?: string[]
   /**
    * Which sandbox image to run in. Defaults to 'shell' (the Function base).
+   * Trusted Mothership calls pass 'mothership'; workspace callers cannot select it.
    * The Node document engines (pptxgenjs/docx + react-icons/sharp) pass 'doc' so
    * they run in the doc image (mothership-docs).
    */
-  sandboxKind?: 'shell' | 'doc'
+  sandboxKind?: 'shell' | 'mothership' | 'doc'
   /** Scope for {@link sandboxId}; a sandbox from another workspace is rejected. */
   workspaceId?: string
   /** Workspace sandbox whose dependency set this execution runs against. */
@@ -184,9 +186,9 @@ export interface CreateSandboxOptions {
   language?: CodeLanguage
   /**
    * Provider image to create from, overriding the env-configured template.
-   * Honored for `code` and `shell` only: `doc` and `pi` keep their vetted images
-   * unconditionally, so a user's dependency set can never displace the document
-   * compiler's or the coding agent's.
+   * Honored for `code` and `shell` only: Mothership, doc, and Pi keep their
+   * vetted images unconditionally, so a user's dependency set can never
+   * displace those server-owned runtimes.
    */
   imageRef?: string
   /**

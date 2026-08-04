@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import { applySecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
@@ -477,7 +478,7 @@ export async function executeFunctionExecute(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const enrichedParams = { ...params }
+  const enrichedParams = omit(params, ['sandboxProfile', 'internalSandboxProfile'])
   const requestedNames = applySecretMountPolicy(
     await extractCodeSecretNames(params.code, params.language),
     context.secretMountPolicy
@@ -560,6 +561,8 @@ export async function executeFunctionExecute(
 
     return await executeAppTool('function_execute', enrichedParams, {
       resolvedSecretTraceRegistry: mountedRegistry,
+      ...(context.abortSignal ? { signal: context.abortSignal } : {}),
+      ...(context.sandboxProfile ? { internalSandboxProfile: context.sandboxProfile } : {}),
     })
   } finally {
     if (mountedRegistry) {
