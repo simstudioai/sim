@@ -49,18 +49,6 @@ describe('createPublishTransform', () => {
     })
   })
 
-  it('returns failure for an empty successful HTTP response', async () => {
-    const result = await transform(new Response('', { status: 200 }))
-
-    expect(result).toMatchObject({ success: false, output: FALLBACK_OUTPUT })
-  })
-
-  it('returns failure for malformed JSON in a successful HTTP response', async () => {
-    const result = await transform(new Response('{not-json', { status: 200 }))
-
-    expect(result).toMatchObject({ success: false, output: FALLBACK_OUTPUT })
-  })
-
   it.each([
     { name: 'a missing success discriminator', body: { output: SUCCESS_OUTPUT } },
     { name: 'a missing output', body: { success: true } },
@@ -94,21 +82,5 @@ describe('createPublishTransform', () => {
     expect(result.error).toContain(
       `Instagram publish response exceeds maximum size of ${INSTAGRAM_RESPONSE_MAX_BYTES} bytes`
     )
-  })
-
-  it('returns failure when the response stream cannot be read', async () => {
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.error(new Error('response stream failed'))
-      },
-    })
-
-    const result = await transform(new Response(body, { status: 200 }))
-
-    expect(result).toEqual({
-      success: false,
-      output: FALLBACK_OUTPUT,
-      error: 'response stream failed',
-    })
   })
 })

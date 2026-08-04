@@ -1,13 +1,21 @@
 import type { Logger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
-  isInternalFileUrl,
   type RawFileInput,
   resolveFileType,
 } from '@/lib/uploads/utils/file-utils'
 import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
+import {
+  bearerHeaders,
+  graphUrl,
+  idString,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 
 /** Covers Meta's poll-once-per-minute for ≤5 minutes while the container processes. */
 export const INSTAGRAM_MEDIA_URL_TTL_SECONDS = 600
@@ -22,7 +30,7 @@ const JPEG_EXT = new Set(['jpg', 'jpeg'])
 const VIDEO_EXT = new Set(['mp4', 'mov'])
 
 const CLOUD_STORAGE_REQUIRED_MESSAGE =
-  'Cloud storage is required to publish uploaded Instagram media. Configure S3_BUCKET_NAME and AWS_REGION (or Azure Blob AZURE_STORAGE_* vars), or paste a public HTTPS URL instead.'
+  'Cloud storage is required to publish Instagram media. Configure S3_BUCKET_NAME and AWS_REGION, or Azure Blob AZURE_STORAGE_* variables.'
 
 export type InstagramMediaRole = 'image' | 'video' | 'cover' | 'story' | 'carousel'
 
@@ -54,15 +62,8 @@ function formatBytes(bytes: number): string {
   return `${bytes} bytes`
 }
 
-function extensionFromUrlOrName(value?: string): string {
-  if (!value) return ''
-  try {
-    const pathname =
-      value.startsWith('http://') || value.startsWith('https://') ? new URL(value).pathname : value
-    return getFileExtension(pathname.split('?')[0] || '')
-  } catch {
-    return getFileExtension(value)
-  }
+function extensionFromName(name?: string): string {
+  return name ? getFileExtension(name) : ''
 }
 
 function inferKindFromMimeOrExt(
@@ -105,32 +106,13 @@ function validateMediaConstraints(
   return null
 }
 
-function isPublicHttpUrl(value: string): boolean {
-  return (value.startsWith('https://') || value.startsWith('http://')) && !isInternalFileUrl(value)
-}
-
-function needsCloudStorage(file?: RawFileInput, filePath?: string): boolean {
-  if (file) return true
-  if (filePath && isInternalFileUrl(filePath)) return true
-  return false
-}
-
-/**
- * Split a canonical media input into the shapes {@link resolveFileInputToUrl} expects
- * (Reducto/STT pattern: file object vs filePath string).
- */
-function splitMediaInput(input: unknown): {
+function parseMediaFile(input: unknown): {
   file?: RawFileInput
-  filePath?: string
   name?: string
   size?: number
   mimeType?: string
   error?: { status: number; message: string }
 } {
-  if (typeof input === 'string') {
-    return { filePath: input.trim() }
-  }
-
   if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
     const raw = input as RawFileInput
     if (!raw.name) {
@@ -144,7 +126,7 @@ function splitMediaInput(input: unknown): {
     }
   }
 
-  return { error: { status: 400, message: 'Media must be a file or URL string' } }
+  return { error: { status: 400, message: 'Media must be a Sim file' } }
 }
 
 function applyInstagramConstraints(
@@ -153,9 +135,8 @@ function applyInstagramConstraints(
   label: string,
   meta: { name?: string; size?: number; mimeType?: string }
 ): ResolveInstagramMediaResult {
-  const mimeType =
-    meta.mimeType || getMimeTypeFromExtension(extensionFromUrlOrName(meta.name || url))
-  const extension = extensionFromUrlOrName(meta.name || url)
+  const extension = extensionFromName(meta.name)
+  const mimeType = meta.mimeType || getMimeTypeFromExtension(extension)
 
   let kind: 'image' | 'video'
   if (role === 'image' || role === 'cover') {
@@ -217,7 +198,7 @@ function applyInstagramConstraints(
 }
 
 /**
- * Resolve a UserFile, internal serve path, or public HTTPS URL into a Meta-fetchable HTTPS URL.
+ * Resolve a canonical Sim file into a Meta-fetchable HTTPS URL.
  * Delegates UserFile serialization and URL minting to {@link resolveFileInputToUrl}
  * (600s TTL, prefer key presign). Instagram-specific MIME/size checks stay here.
  */
@@ -233,35 +214,18 @@ export async function resolveInstagramMedia(
     return {}
   }
 
-  const split = splitMediaInput(input)
-  if (split.error) {
-    return { error: split.error }
+  const parsed = parseMediaFile(input)
+  if (parsed.error || !parsed.file) {
+    return { error: parsed.error || { status: 400, message: `${label} is required` } }
   }
 
-  const { file, filePath, name, size, mimeType } = split
-  if (filePath !== undefined && filePath === '') {
-    if (required) {
-      return { error: { status: 400, message: `${label} is required` } }
-    }
-    return {}
-  }
-
-  if (needsCloudStorage(file, filePath) && !hasCloudStorage()) {
+  const { file, name, size, mimeType } = parsed
+  if (!hasCloudStorage()) {
     return { error: { status: 400, message: CLOUD_STORAGE_REQUIRED_MESSAGE } }
-  }
-
-  if (filePath && isPublicHttpUrl(filePath) && !filePath.startsWith('https://')) {
-    return {
-      error: {
-        status: 400,
-        message: 'Instagram media URLs must use HTTPS so Meta can download them',
-      },
-    }
   }
 
   const resolution = await resolveFileInputToUrl({
     file,
-    filePath,
     userId,
     requestId,
     logger,
@@ -282,8 +246,7 @@ export async function resolveInstagramMedia(
 }
 
 /**
- * Resolve carousel media: file array, single file, or legacy comma-separated URL string
- * (optional `video:` prefix per entry).
+ * Resolve a bounded array of canonical Sim files for carousel publishing.
  */
 export async function resolveInstagramCarouselMedia(
   input: unknown,
@@ -291,71 +254,18 @@ export async function resolveInstagramCarouselMedia(
   requestId: string,
   logger: Logger
 ): Promise<{ items?: ResolvedInstagramMedia[]; error?: { status: number; message: string } }> {
-  if (input == null || input === '') {
+  if (!Array.isArray(input)) {
     return { error: { status: 400, message: 'Carousel media is required' } }
   }
 
   const items: ResolvedInstagramMedia[] = []
-
-  if (typeof input === 'string') {
-    const trimmed = input.trim()
-    if (!trimmed) {
-      return { error: { status: 400, message: 'Carousel media is required' } }
-    }
-
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      try {
-        const parsed = JSON.parse(trimmed) as unknown
-        return resolveInstagramCarouselMedia(parsed, userId, requestId, logger)
-      } catch {
-        return { error: { status: 400, message: 'Carousel media JSON is invalid' } }
-      }
-    }
-
-    const entries = trimmed
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean)
-
-    if (entries.length < 2 || entries.length > 10) {
-      return { error: { status: 400, message: 'Carousels require between 2 and 10 items' } }
-    }
-
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i]
-      const isVideoPrefixed = entry.toLowerCase().startsWith('video:')
-      const raw = isVideoPrefixed ? entry.slice('video:'.length).trim() : entry
-      const result = await resolveInstagramMedia({
-        input: raw,
-        userId,
-        requestId,
-        logger,
-        role: isVideoPrefixed ? 'video' : 'image',
-        label: `Carousel item ${i + 1}`,
-      })
-      if (result.error || !result.media) {
-        return {
-          error: result.error || {
-            status: 400,
-            message: `Failed to resolve carousel item ${i + 1}`,
-          },
-        }
-      }
-      result.media.kind = isVideoPrefixed ? 'video' : 'image'
-      items.push(result.media)
-    }
-
-    return { items }
-  }
-
-  const list = Array.isArray(input) ? input : [input]
-  if (list.length < 2 || list.length > 10) {
+  if (input.length < 2 || input.length > 10) {
     return { error: { status: 400, message: 'Carousels require between 2 and 10 items' } }
   }
 
-  for (let i = 0; i < list.length; i++) {
+  for (let i = 0; i < input.length; i++) {
     const result = await resolveInstagramMedia({
-      input: list[i],
+      input: input[i],
       userId,
       requestId,
       logger,
@@ -371,4 +281,171 @@ export async function resolveInstagramCarouselMedia(
   }
 
   return { items }
+}
+
+export async function resolveIgUserId(
+  accessToken: string,
+  igUserId?: string,
+  signal?: AbortSignal
+): Promise<string> {
+  if (igUserId?.trim()) return igUserId.trim()
+
+  const response = await fetch(graphUrl('/me', { fields: 'user_id' }), {
+    headers: bearerHeaders(accessToken),
+    signal,
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to resolve Instagram user id: ${await readGraphError(response)}`)
+  }
+
+  const data = await readGraphJson<{ user_id?: string | number }>(
+    response,
+    'Instagram user response',
+    signal
+  )
+  const userId = idString(data.user_id)
+  if (!userId) throw new Error('Instagram /me response did not include a user_id')
+  return userId
+}
+
+export type ContainerStatusCode = 'EXPIRED' | 'ERROR' | 'FINISHED' | 'IN_PROGRESS' | 'PUBLISHED'
+
+async function getContainerStatus(
+  accessToken: string,
+  containerId: string,
+  signal?: AbortSignal
+): Promise<{ statusCode: ContainerStatusCode | null; status: string | null }> {
+  const response = await fetch(graphUrl(`/${containerId}`, { fields: 'status_code,status' }), {
+    headers: bearerHeaders(accessToken),
+    signal,
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to get container status: ${await readGraphError(response)}`)
+  }
+
+  const data = await readGraphJson<{ status_code?: string; status?: string }>(
+    response,
+    'Instagram container status response',
+    signal
+  )
+  return {
+    statusCode: (data.status_code as ContainerStatusCode | undefined) ?? null,
+    status: data.status ?? null,
+  }
+}
+
+const POLL_INTERVAL_MS = 60_000
+const POLL_MAX_ATTEMPTS = 6
+
+async function waitForNextPoll(signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    await sleep(POLL_INTERVAL_MS)
+    return
+  }
+  if (signal.aborted) {
+    throw toError(signal.reason ?? new Error('Instagram publishing was cancelled'))
+  }
+
+  let abortHandler: (() => void) | undefined
+  const aborted = new Promise<never>((_, reject) => {
+    abortHandler = () =>
+      reject(toError(signal.reason ?? new Error('Instagram publishing was cancelled')))
+    signal.addEventListener('abort', abortHandler, { once: true })
+  })
+
+  try {
+    await Promise.race([sleep(POLL_INTERVAL_MS), aborted])
+  } finally {
+    if (abortHandler) signal.removeEventListener('abort', abortHandler)
+  }
+}
+
+export async function waitForContainerReady(
+  accessToken: string,
+  containerId: string,
+  signal?: AbortSignal
+): Promise<{ statusCode: ContainerStatusCode; status: string | null }> {
+  for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+    const { statusCode, status } = await getContainerStatus(accessToken, containerId, signal)
+    if (statusCode === 'FINISHED' || statusCode === 'PUBLISHED') {
+      return { statusCode, status }
+    }
+    if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+      throw new Error(
+        `Instagram media container ${containerId} failed with status ${statusCode}${status ? `: ${status}` : ''}`
+      )
+    }
+    if (attempt < POLL_MAX_ATTEMPTS - 1) await waitForNextPoll(signal)
+  }
+
+  throw new Error(`Timed out waiting for Instagram container ${containerId} to finish processing`)
+}
+
+async function postGraphForm(
+  accessToken: string,
+  path: string,
+  params: Record<string, unknown>,
+  signal?: AbortSignal
+): Promise<Response> {
+  const form = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) form.set(key, String(value))
+  }
+
+  return fetch(graphUrl(path), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form.toString(),
+    signal,
+  })
+}
+
+export async function createMediaContainer(
+  accessToken: string,
+  igUserId: string,
+  body: Record<string, unknown>,
+  signal?: AbortSignal
+): Promise<string> {
+  const response = await postGraphForm(accessToken, `/${igUserId}/media`, body, signal)
+  if (!response.ok) {
+    throw new Error(`Failed to create media container: ${await readGraphError(response)}`)
+  }
+
+  const data = await readGraphJson<{ id?: string | number }>(
+    response,
+    'Instagram create container response',
+    signal
+  )
+  const id = idString(data.id)
+  if (!id) throw new Error('Create media container response missing id')
+  return id
+}
+
+export async function publishMediaContainer(
+  accessToken: string,
+  igUserId: string,
+  creationId: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const response = await postGraphForm(
+    accessToken,
+    `/${igUserId}/media_publish`,
+    { creation_id: creationId },
+    signal
+  )
+  if (!response.ok) {
+    throw new Error(`Failed to publish media: ${await readGraphError(response)}`)
+  }
+
+  const data = await readGraphJson<{ id?: string | number }>(
+    response,
+    'Instagram publish media response',
+    signal
+  )
+  const id = idString(data.id)
+  if (!id) throw new Error('Publish media response missing id')
+  return id
 }

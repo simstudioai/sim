@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   INSTAGRAM_MIN_TOKEN_AGE_MS,
   INSTAGRAM_PROACTIVE_REFRESH_THRESHOLD_DAYS,
-  isInstagramProvider,
   parseInstagramLongLivedToken,
   parseInstagramProfile,
   parseInstagramShortLivedToken,
@@ -10,11 +9,6 @@ import {
 } from '@/lib/oauth/instagram'
 
 describe('instagram oauth helpers', () => {
-  it('identifies the instagram provider', () => {
-    expect(isInstagramProvider('instagram')).toBe(true)
-    expect(isInstagramProvider('facebook')).toBe(false)
-  })
-
   it('does not refresh when the token is already expired', () => {
     const now = new Date('2026-07-11T12:00:00.000Z')
     expect(
