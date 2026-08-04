@@ -110,7 +110,7 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
     <div className='flex h-full w-[249px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'>
       {/* Workspace header, matching the real product's WorkspaceHeader chip
           (borderless `chipVariants()` geometry: h-[30px] rounded-lg px-2 with
-          mx-0.5, 16px logo, text-sm name, 6x10 chevron) and therefore the
+          mx-0.5, 16px logo, text-sm name, 14px chevron) and therefore the
           homepage's baked sidebar pixels - logo + name + chevron as a bare
           row, panel toggle right-aligned outside it. */}
       <div className='flex flex-shrink-0 items-center justify-between px-2'>
