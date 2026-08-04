@@ -462,16 +462,18 @@ html #nd-sidebar button[data-active="true"] {
   color: var(--text-body) !important;
 }
 
-/* Hover state — platform --surface-3 */
+/* Hover state — the app's nav Chip hovers to --surface-active. These rules must
+   carry !important to beat fumadocs' own sidebar styles, which also means they
+   override the Tailwind hover utilities on the items; keep the two in step. */
 html #nd-sidebar a:not(:has(span.font-mono)):hover:not([data-active="true"]),
 html #nd-sidebar button:hover:not([data-active="true"]) {
-  background-color: var(--surface-3) !important;
+  background-color: var(--surface-active) !important;
 }
 
-/* Active items don't change on hover */
+/* An active item darkens one surface on hover, matching the app's active Chip */
 html #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)):hover,
 html #nd-sidebar button[data-active="true"]:hover {
-  background-color: var(--surface-active) !important;
+  background-color: var(--surface-6) !important;
   color: var(--text-body) !important;
 }
 
