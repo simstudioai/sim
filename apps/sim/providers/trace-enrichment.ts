@@ -187,6 +187,8 @@ export function enrichLastModelSegmentFromChatCompletions(
     errorMessage?: string
     /** Override the automatically derived cost. */
     cost?: { input?: number; output?: number; total?: number }
+    /** Override normalized token buckets when provider semantics differ from OpenAI. */
+    tokens?: BlockTokens
   }
 ): void {
   const choice = response.choices[0]
@@ -228,15 +230,17 @@ export function enrichLastModelSegmentFromChatCompletions(
     thinkingContent: thinkingText,
     toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
     finishReason: choice?.finish_reason ?? undefined,
-    tokens: usage
-      ? {
-          input: promptTokens,
-          output: completionTokens,
-          total: usage.total_tokens ?? undefined,
-          ...(cacheRead > 0 && { cacheRead }),
-          ...(reasoning > 0 && { reasoning }),
-        }
-      : undefined,
+    tokens:
+      extras?.tokens ??
+      (usage
+        ? {
+            input: promptTokens === undefined ? undefined : Math.max(0, promptTokens - cacheRead),
+            output: completionTokens,
+            total: usage.total_tokens ?? undefined,
+            ...(cacheRead > 0 && { cacheRead }),
+            ...(reasoning > 0 && { reasoning }),
+          }
+        : undefined),
     cost: derivedCost,
     ttft: extras?.ttft,
     provider: extras?.provider,

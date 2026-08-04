@@ -253,6 +253,14 @@ describe('withoutToolCost', () => {
     const cost = { input: 1, output: 2, total: 3 }
     expect(withoutToolCost(cost)).toBe(cost)
   })
+
+  it('preserves an exact vendor model total that differs from the displayed split', () => {
+    expect(withoutToolCost({ input: 0.3, output: 0.6, total: 1.05, toolCost: 0.05 })).toEqual({
+      input: 0.3,
+      output: 0.6,
+      total: 1,
+    })
+  })
 })
 
 describe('calculateBillableModelCost', () => {

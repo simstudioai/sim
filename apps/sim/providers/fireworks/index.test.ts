@@ -145,6 +145,25 @@ describe('fireworksProvider', () => {
     })
   })
 
+  it('reports cached prompts separately from uncached input', async () => {
+    mockCreate.mockResolvedValueOnce({
+      ...textResponse('cached'),
+      usage: {
+        prompt_tokens: 10,
+        completion_tokens: 5,
+        total_tokens: 15,
+        prompt_tokens_details: { cached_tokens: 4 },
+      },
+    })
+
+    const result = await fireworksProvider.executeRequest(baseRequest)
+
+    expect(result).toMatchObject({
+      tokens: { input: 6, cacheRead: 4, output: 5, total: 15 },
+      cost: expect.objectContaining({ input: expect.any(Number), output: expect.any(Number) }),
+    })
+  })
+
   it('sends the resolved wire model name while reporting the catalog id', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('ok'))
     mockResolveFireworksWireModel.mockReturnValueOnce('accounts/fireworks/models/glm-5p2')

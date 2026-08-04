@@ -362,6 +362,38 @@ describe('AgentBlockHandler', () => {
       })
     })
 
+    it('keeps the Fireworks deployment separate from the catalog billing model', async () => {
+      mockContext.userId = 'super-user'
+      mockExecuteProviderRequest.mockResolvedValue({
+        content: 'On-demand response',
+        model: 'fireworks/qwen3.7-max',
+        tokens: { input: 100, output: 20, total: 120 },
+      })
+
+      await handler.execute(mockContext, mockBlock, {
+        model: CUSTOM_MODEL_ID,
+        customModelConfig: {
+          provider: 'fireworks',
+          model: 'fireworks/qwen3.7-max',
+          deployment: 'accounts/acme/deployments/qwen-prod',
+          credentials: { mode: 'explicit', apiKey: 'fw-secret' },
+        },
+        userPrompt: 'Hello',
+      })
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+        'fireworks',
+        expect.objectContaining({
+          model: 'fireworks/qwen3.7-max',
+          providerModel: 'accounts/acme/deployments/qwen-prod',
+          apiKey: 'fw-secret',
+          credentialMode: 'explicit',
+          capabilityPolicy: 'passthrough',
+        }),
+        expect.anything()
+      )
+    })
+
     it('rejects custom model execution when Super User mode is off', async () => {
       mockContext.userId = 'admin-with-toggle-off'
       mockVerifyEffectiveSuperUser.mockResolvedValue({

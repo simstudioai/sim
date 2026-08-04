@@ -13,7 +13,10 @@ import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
-import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import {
+  enrichLastModelSegment,
+  enrichLastModelSegmentFromChatCompletions,
+} from '@/providers/trace-enrichment'
 import type {
   Message,
   ProviderConfig,
@@ -23,12 +26,18 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
-  calculateCost,
   isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
+import {
+  addXAIUsage,
+  createXAIUsageTotals,
+  priceXAIUsage,
+  withXAIToolCost,
+  type XAITurnUsage,
+} from '@/providers/xai/usage'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromXAIStream,
@@ -36,6 +45,26 @@ import {
 } from '@/providers/xai/utils'
 
 const logger = createLogger('XAIProvider')
+
+function getReportedXAIServiceTier(response: unknown): unknown {
+  return isRecordLike(response) ? response.service_tier : undefined
+}
+
+/** Enriches a model span with xAI's canonical per-turn tokens and exact cost. */
+function enrichXAIModelSegment(
+  timeSegments: TimeSegment[],
+  response: Parameters<typeof enrichLastModelSegmentFromChatCompletions>[1],
+  toolCalls: Parameters<typeof enrichLastModelSegmentFromChatCompletions>[2],
+  model: string,
+  turnUsage: XAITurnUsage
+): void {
+  enrichLastModelSegmentFromChatCompletions(timeSegments, response, toolCalls, {
+    model,
+    provider: 'xai',
+    cost: turnUsage.cost,
+    tokens: turnUsage.tokens,
+  })
+}
 
 export const xAIProvider: ProviderConfig = {
   id: 'xai',
@@ -139,25 +168,25 @@ export const xAIProvider: ProviderConfig = {
         isStreaming: true,
         streamFormat: 'agent-events-v1',
         createStream: ({ output }) =>
-          createReadableStreamFromXAIStream(streamResponse, (content, usage) => {
-            output.content = content
-            output.tokens = {
-              input: usage.prompt_tokens,
-              output: usage.completion_tokens,
-              total: usage.total_tokens,
-            }
+          createReadableStreamFromXAIStream(
+            streamResponse,
+            (content, usage, thinking, reportedServiceTier) => {
+              const turnUsage = priceXAIUsage(request.model, usage, {
+                reportedServiceTier,
+              })
 
-            const costResult = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            output.cost = {
-              input: costResult.input,
-              output: costResult.output,
-              total: costResult.total,
+              output.content = content
+              output.tokens = turnUsage.tokens
+              output.cost = turnUsage.cost
+              enrichLastModelSegment(output.providerTiming?.timeSegments ?? [], {
+                assistantContent: content || undefined,
+                thinkingContent: thinking || undefined,
+                tokens: turnUsage.tokens,
+                cost: turnUsage.cost,
+                provider: 'xai',
+              })
             }
-          }),
+          ),
       })
 
       return streamingResult
@@ -196,11 +225,12 @@ export const xAIProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
-      const tokens = {
-        input: currentResponse.usage?.prompt_tokens || 0,
-        output: currentResponse.usage?.completion_tokens || 0,
-        total: currentResponse.usage?.total_tokens || 0,
-      }
+      let currentTurnUsage = priceXAIUsage(request.model, currentResponse.usage, {
+        reportedServiceTier: getReportedXAIServiceTier(currentResponse),
+      })
+      const usageTotals = createXAIUsageTotals(request.model)
+      addXAIUsage(usageTotals, currentTurnUsage)
+      const { tokens, cost: modelCost } = usageTotals
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
       const currentMessages = [...formattedMessages]
@@ -238,11 +268,12 @@ export const xAIProvider: ProviderConfig = {
           const toolCallsInResponse =
             currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
-          enrichLastModelSegmentFromChatCompletions(
+          enrichXAIModelSegment(
             timeSegments,
             currentResponse,
             toolCallsInResponse,
-            { model: request.model, provider: 'xai' }
+            request.model,
+            currentTurnUsage
           )
 
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
@@ -437,6 +468,10 @@ export const xAIProvider: ProviderConfig = {
             nextPayload,
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
+          currentTurnUsage = priceXAIUsage(request.model, currentResponse.usage, {
+            reportedServiceTier: getReportedXAIServiceTier(currentResponse),
+          })
+          addXAIUsage(usageTotals, currentTurnUsage)
           if (nextPayload.tool_choice && typeof nextPayload.tool_choice === 'object') {
             const result = checkForForcedToolUsage(
               currentResponse,
@@ -464,23 +499,18 @@ export const xAIProvider: ProviderConfig = {
             content = currentResponse.choices[0].message.content
           }
 
-          if (currentResponse.usage) {
-            tokens.input += currentResponse.usage.prompt_tokens || 0
-            tokens.output += currentResponse.usage.completion_tokens || 0
-            tokens.total += currentResponse.usage.total_tokens || 0
-          }
-
           iterationCount++
         }
 
         if (iterationCount === MAX_TOOL_ITERATIONS) {
           const pendingToolCalls =
             currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
-          enrichLastModelSegmentFromChatCompletions(
+          enrichXAIModelSegment(
             timeSegments,
             currentResponse,
             pendingToolCalls,
-            { model: request.model, provider: 'xai' }
+            request.model,
+            currentTurnUsage
           )
 
           if (pendingToolCalls?.length) {
@@ -517,17 +547,17 @@ export const xAIProvider: ProviderConfig = {
             if (finalResponse.choices[0]?.message?.content) {
               content = finalResponse.choices[0].message.content
             }
-            if (finalResponse.usage) {
-              tokens.input += finalResponse.usage.prompt_tokens || 0
-              tokens.output += finalResponse.usage.completion_tokens || 0
-              tokens.total += finalResponse.usage.total_tokens || 0
-            }
+            const finalTurnUsage = priceXAIUsage(request.model, finalResponse.usage, {
+              reportedServiceTier: getReportedXAIServiceTier(finalResponse),
+            })
+            addXAIUsage(usageTotals, finalTurnUsage)
 
-            enrichLastModelSegmentFromChatCompletions(
+            enrichXAIModelSegment(
               timeSegments,
               finalResponse,
               finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
-              { model: request.model, provider: 'xai' }
+              request.model,
+              finalTurnUsage
             )
           }
         }
@@ -539,14 +569,8 @@ export const xAIProvider: ProviderConfig = {
         throw error
       }
       if (request.stream) {
-        const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
         const toolCost = sumToolCosts(toolResults)
-        const finalCost = {
-          input: accumulatedCost.input,
-          output: accumulatedCost.output,
-          toolCost: toolCost || undefined,
-          total: accumulatedCost.total + toolCost,
-        }
+        const finalCost = withXAIToolCost(modelCost, toolCost)
 
         const streamingResult = createStreamingExecution({
           model: request.model,
@@ -560,11 +584,7 @@ export const xAIProvider: ProviderConfig = {
             iterations: iterationCount + 1,
             timeSegments,
           },
-          initialTokens: {
-            input: tokens.input,
-            output: tokens.output,
-            total: tokens.total,
-          },
+          initialTokens: { ...tokens },
           initialCost: finalCost,
           toolCalls:
             toolCalls.length > 0
@@ -577,7 +597,7 @@ export const xAIProvider: ProviderConfig = {
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) => {
             output.content = content
-            output.tokens = { input: tokens.input, output: tokens.output, total: tokens.total }
+            output.tokens = { ...tokens }
             output.cost = finalCost
             finalizeTiming()
             return createSettledAgentEventStream(content)
@@ -602,6 +622,7 @@ export const xAIProvider: ProviderConfig = {
         content,
         model: request.model,
         tokens,
+        cost: modelCost,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,
         timing: {

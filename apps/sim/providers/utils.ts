@@ -940,7 +940,9 @@ export function calculateCost(
 
   const inputCost =
     promptTokens *
-    (useCachedInput && cachedInputRate ? cachedInputRate / 1_000_000 : inputRate / 1_000_000)
+    (useCachedInput && cachedInputRate !== undefined
+      ? cachedInputRate / 1_000_000
+      : inputRate / 1_000_000)
 
   const outputCost = completionTokens * (outputRate / 1_000_000)
   const finalInputCost = inputCost * (inputMultiplier ?? 1)

@@ -3,12 +3,9 @@ import type { CompletionUsage } from 'openai/resources/completions'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { checkForForcedToolUsageOpenAI } from '@/providers/utils'
+import { normalizeXAIServiceTier, type XAIServiceTier } from '@/providers/xai/usage'
 
-export type XAIServiceTier = 'default' | 'priority'
-
-function normalizeXAIServiceTier(serviceTier: string | undefined): XAIServiceTier | undefined {
-  return serviceTier === 'default' || serviceTier === 'priority' ? serviceTier : undefined
-}
+export type { XAIServiceTier } from '@/providers/xai/usage'
 
 /**
  * Creates an agent-events stream from an xAI streaming response.

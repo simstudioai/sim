@@ -150,9 +150,9 @@ export interface ProviderResponse {
     pricing: ModelPricing
   }
   /**
-   * Vendor list-price estimate for explicit custom credentials. This is
-   * informational only and never enters Sim's usage ledger; `cost` remains the
-   * authoritative amount Sim charges.
+   * Vendor list-price estimate for Custom JSON calls resolved to explicit or
+   * workspace BYOK credentials. This is informational only and never enters
+   * Sim's usage ledger; `cost` remains the authoritative amount Sim charges.
    */
   estimatedProviderCost?: {
     available: boolean

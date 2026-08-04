@@ -14,12 +14,13 @@ async function drainStream(stream: ReadableStream<unknown>): Promise<void> {
 
 describe('createReadableStreamFromXAIStream', () => {
   it('forwards detailed usage and the effective service tier', async () => {
-    const usage: CompletionUsage = {
+    const usage: CompletionUsage & { cost_in_usd_ticks: number } = {
       prompt_tokens: 32,
       completion_tokens: 9,
       total_tokens: 135,
       prompt_tokens_details: { cached_tokens: 6 },
       completion_tokens_details: { reasoning_tokens: 94 },
+      cost_in_usd_ticks: 12_345_678,
     }
     const terminalChunk = {
       id: 'chatcmpl-xai',

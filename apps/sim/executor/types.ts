@@ -172,6 +172,21 @@ interface BlockCost {
       cachedInput?: number
       output: number
     }
+    serviceTiers?: {
+      priority?:
+        | { multiplier: number }
+        | {
+            input: number
+            cachedInput?: number
+            output: number
+            longContext?: {
+              threshold: number
+              input: number
+              cachedInput?: number
+              output: number
+            }
+          }
+    }
   }
 }
 

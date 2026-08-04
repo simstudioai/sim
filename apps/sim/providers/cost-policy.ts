@@ -31,7 +31,7 @@ export interface ModelCost {
 /** Cost that always carries pricing, as `ProviderResponse['cost']` requires. */
 export type PricedModelCost = ModelCost & { pricing: ModelPricing }
 
-/** Vendor list-price information shown for explicit custom credentials only. */
+/** Vendor list-price information shown for Custom JSON calls resolved to user credentials. */
 export interface EstimatedProviderCost {
   available: boolean
   input?: number
@@ -294,8 +294,8 @@ export function calculateBillableModelCost(
 export function withoutToolCost(cost: ModelCost): ModelCost {
   if (cost.toolCost === undefined) return cost
 
-  const { toolCost: _toolCost, ...model } = cost
-  return { ...model, total: roundCost(model.input + model.output) }
+  const { toolCost, ...model } = cost
+  return { ...model, total: roundCost(Math.max(0, model.total - toolCost)) }
 }
 
 /** Rejects NaN, Infinity, and negatives — a negative would credit the run. */
