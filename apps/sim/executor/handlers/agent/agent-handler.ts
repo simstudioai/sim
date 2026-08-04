@@ -1238,6 +1238,7 @@ export class AgentBlockHandler implements BlockHandler {
           : ('catalog' as const),
       credentialMode: customModelConfig?.credentials.mode,
       providerOptions: customModelConfig?.providerOptions,
+      providerModel: customModelConfig?.deployment,
       previousInteractionId: inputs.previousInteractionId,
       /** Agent-events remains the opt-in for exposing thinking and tool lifecycle events. */
       agentEvents: streaming && ctx.metadata?.agentEvents === true,

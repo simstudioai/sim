@@ -225,6 +225,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           cachedInput: 0.14,
           output: 4.4,
           updatedAt: '2026-07-29',
+          serviceTiers: {
+            priority: { input: 1.75, cachedInput: 0.18, output: 5.5 },
+          },
         },
         capabilities: {
           toolUsageControl: true,
@@ -247,6 +250,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           cachedInput: 0.3,
           output: 15.0,
           updatedAt: '2026-07-29',
+          serviceTiers: {
+            priority: { input: 3.75, cachedInput: 0.375, output: 18.75 },
+          },
         },
         capabilities: {
           toolUsageControl: true,
@@ -269,6 +275,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           cachedInput: 0.145,
           output: 3.48,
           updatedAt: '2026-08-03',
+          serviceTiers: {
+            priority: { input: 2.61, cachedInput: 0.218, output: 5.22 },
+          },
         },
         capabilities: {
           toolUsageControl: true,
@@ -293,6 +302,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 1.2,
           updatedAt: '2026-08-03',
           billingMode: 'per_token',
+          serviceTiers: {
+            priority: { input: 0.45, cachedInput: 0.09, output: 1.8 },
+          },
         },
         capabilities: { toolUsageControl: true },
         contextWindow: 196608,
@@ -329,6 +341,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 0.6,
           updatedAt: '2026-08-03',
           billingMode: 'per_token',
+          serviceTiers: {
+            priority: { input: 0.18, cachedInput: 0.018, output: 0.72 },
+          },
         },
         capabilities: { toolUsageControl: true },
         contextWindow: 131072,
@@ -2358,6 +2373,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             cachedInput: 0.6,
             output: 12.0,
           },
+          serviceTiers: { priority: { multiplier: 2 } },
         },
         capabilities: {
           temperature: { min: 0, max: 2 },

@@ -1,5 +1,6 @@
 import {
   getCanonicalModelId,
+  getModelPricing,
   isAutoModel,
   modelRequiresExplicitCredentials,
   SIM_AUTO_MODEL_ID,
@@ -39,6 +40,8 @@ export interface CustomModelCredentials {
 export interface CustomModelConfig {
   provider: CustomModelProvider
   model: string
+  /** Fireworks on-demand deployment resource used as the wire inference target. */
+  deployment?: string
   parameters: CustomModelParameters
   credentials: CustomModelCredentials
   providerOptions: Record<string, unknown>
@@ -61,6 +64,7 @@ const PROVIDER_ALIASES: Record<string, CustomModelProvider> = {
 const TOP_LEVEL_KEYS = new Set([
   'provider',
   'model',
+  'deployment',
   'parameters',
   'credentials',
   'providerOptions',
@@ -249,10 +253,12 @@ export function parseCustomModelConfig(value: unknown): CustomModelConfig {
 
   const model = optionalString(parsed.model, 'customModelConfig.model')
   if (!model) throw new Error('customModelConfig.model is required')
+  const deployment = optionalString(parsed.deployment, 'customModelConfig.deployment')
 
   const config: CustomModelConfig = {
     provider: normalizeProvider(parsed.provider),
     model,
+    ...(deployment ? { deployment } : {}),
     parameters: parseParameters(parsed.parameters),
     credentials: parseCredentials(parsed.credentials),
     providerOptions: parseProviderOptions(parsed.providerOptions),
@@ -275,12 +281,47 @@ export function parseCustomModelConfig(value: unknown): CustomModelConfig {
     }
   }
 
+  if (config.deployment && config.provider !== 'fireworks') {
+    throw new Error('customModelConfig.deployment is supported only for Fireworks')
+  }
+
   if (config.provider === 'fireworks') {
     config.model = getCanonicalModelId(config.model, 'fireworks')
-    if (modelRequiresExplicitCredentials(config.model) && config.credentials.mode !== 'explicit') {
+    const requiresDeployment = modelRequiresExplicitCredentials(config.model)
+    if (requiresDeployment && config.credentials.mode !== 'explicit') {
       throw new Error(
         `customModelConfig.credentials.mode must be "explicit" for on-demand Fireworks model ${config.model}`
       )
+    }
+    if (requiresDeployment && !config.deployment) {
+      throw new Error(
+        `customModelConfig.deployment is required for on-demand Fireworks model ${config.model}`
+      )
+    }
+    if (config.deployment && !/^accounts\/[^/]+\/deployments\/[^/]+$/.test(config.deployment)) {
+      throw new Error(
+        'customModelConfig.deployment must match accounts/<account-id>/deployments/<deployment-id>'
+      )
+    }
+
+    const pricing = getModelPricing(config.model)
+    if (config.deployment && pricing && pricing.billingMode !== 'gpu_time') {
+      throw new Error(
+        `customModelConfig.deployment cannot be used with token-priced Fireworks model ${config.model}`
+      )
+    }
+
+    const serviceTier = config.providerOptions.service_tier
+    if (
+      serviceTier !== undefined &&
+      !['auto', 'default', 'flex', 'priority'].includes(String(serviceTier))
+    ) {
+      throw new Error(
+        'customModelConfig.providerOptions.service_tier must be "auto", "default", "flex", or "priority" for Fireworks'
+      )
+    }
+    if (serviceTier === 'priority' && pricing && !pricing.serviceTiers?.priority) {
+      throw new Error(`Fireworks priority processing is unavailable for ${config.model}`)
     }
   }
 
@@ -372,6 +413,21 @@ export const CUSTOM_MODEL_CONFIG_EXAMPLES = [
     providerOptions: {},
   },
   {
+    provider: 'fireworks',
+    model: 'fireworks/qwen3.7-max',
+    deployment: 'accounts/acme/deployments/qwen37-prod',
+    parameters: {
+      reasoningEffort: 'high',
+      temperature: 0.6,
+      maxTokens: 32768,
+    },
+    credentials: {
+      mode: 'explicit',
+      apiKey: '{{FIREWORKS_API_KEY}}',
+    },
+    providerOptions: {},
+  },
+  {
     provider: 'xai',
     model: 'grok-4.5',
     parameters: {
@@ -414,6 +470,12 @@ export const CUSTOM_MODEL_CONFIG_JSON_SCHEMA = {
       examples: CUSTOM_MODEL_ID_EXAMPLES,
       description:
         'Provider model ID. Known Fireworks aliases normalize to the exact accounts/fireworks/models resource; on-demand Fireworks entries require explicit credentials.',
+    },
+    deployment: {
+      type: 'string',
+      pattern: '^accounts/[^/]+/deployments/[^/]+$',
+      description:
+        'Fireworks on-demand wire target in accounts/<account-id>/deployments/<deployment-id> form. Required for known GPU-time catalog models; model remains the billing identity.',
     },
     parameters: {
       type: 'object',

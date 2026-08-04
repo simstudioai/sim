@@ -1,6 +1,9 @@
 /**
  * @vitest-environment node
  */
+
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type { CompletionUsage } from 'openai/resources/completions'
 import { describe, expect, it, vi } from 'vitest'
 import {
   openaiCompatReasoningAndTextChunks,
@@ -152,6 +155,43 @@ describe('createOpenAICompatibleAgentEventStream', () => {
         .join('')
     ).toBe('Hello world')
     expect(onComplete.mock.calls[0][0].content).toBe('Hello world')
+  })
+
+  it('preserves detailed usage and the provider-reported service tier', async () => {
+    const onComplete = vi.fn()
+    const usage: CompletionUsage = {
+      prompt_tokens: 32,
+      completion_tokens: 9,
+      total_tokens: 135,
+      prompt_tokens_details: { cached_tokens: 6 },
+      completion_tokens_details: { reasoning_tokens: 94 },
+    }
+    const terminalChunk = {
+      id: 'chatcmpl-usage',
+      choices: [],
+      created: 0,
+      model: 'grok-4.5',
+      object: 'chat.completion.chunk',
+      usage,
+      service_tier: 'priority',
+    } as unknown as ChatCompletionChunk
+
+    const stream = createOpenAICompatibleAgentEventStream(
+      (async function* () {
+        yield terminalChunk
+      })(),
+      { providerName: 'xAI', onComplete }
+    )
+
+    await collectEvents(stream)
+
+    const result = onComplete.mock.calls[0][0]
+    expect(result.usage).toBe(usage)
+    expect(result.usage).toMatchObject({
+      prompt_tokens_details: { cached_tokens: 6 },
+      completion_tokens_details: { reasoning_tokens: 94 },
+    })
+    expect(result.serviceTier).toBe('priority')
   })
 
   it('surfaces documented in-band provider errors', async () => {

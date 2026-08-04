@@ -185,6 +185,10 @@ export interface ModelUsage {
   cacheRead?: number
   /** Tokens written to the cache, each bucket at its own premium. */
   cacheWrites?: CacheWriteUsage[]
+  /** Whole provider prompt for long-context selection when input is split into cache buckets. */
+  contextInputTokens?: number
+  /** Effective processing tier reported by the provider, or requested when no response field exists. */
+  serviceTier?: 'default' | 'priority'
 }
 
 /**
@@ -210,10 +214,30 @@ export function priceModelUsage(
   }
 
   const multiplier = policy.multiplier
-  const base = calculateCost(model, usage.input, usage.output, false, multiplier, multiplier)
-
   const cacheRead = usage.cacheRead ?? 0
-  const read = cacheRead > 0 ? calculateCost(model, cacheRead, 0, true, multiplier, 0) : undefined
+  const cacheWriteTokens = (usage.cacheWrites ?? []).reduce(
+    (total, write) => total + Math.max(0, write.tokens),
+    0
+  )
+  const contextInputTokens = usage.contextInputTokens ?? usage.input + cacheRead + cacheWriteTokens
+  const pricingOptions = {
+    contextInputTokens,
+    serviceTier: usage.serviceTier,
+  }
+  const base = calculateCost(
+    model,
+    usage.input,
+    usage.output,
+    false,
+    multiplier,
+    multiplier,
+    pricingOptions
+  )
+
+  const read =
+    cacheRead > 0
+      ? calculateCost(model, cacheRead, 0, true, multiplier, 0, pricingOptions)
+      : undefined
 
   let writeInputCost = 0
   for (const write of usage.cacheWrites ?? []) {
@@ -224,7 +248,8 @@ export function priceModelUsage(
       0,
       false,
       multiplier * write.inputRateMultiplier,
-      0
+      0,
+      pricingOptions
     ).input
   }
 

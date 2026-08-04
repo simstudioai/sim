@@ -49,6 +49,25 @@ export interface ModelPricing {
     cachedInput?: number
     output: number
   }
+  /** Provider processing tiers that change the token rates for one request. */
+  serviceTiers?: {
+    priority?:
+      | {
+          /** Applies to both the standard and long-context rates. */
+          multiplier: number
+        }
+      | {
+          input: number
+          cachedInput?: number
+          output: number
+          longContext?: {
+            threshold: number
+            input: number
+            cachedInput?: number
+            output: number
+          }
+        }
+  }
 }
 
 export type ModelPricingMap = Record<string, ModelPricing>
@@ -108,6 +127,8 @@ export interface ProviderResponse {
     cacheRead?: number
     /** Input tokens written to the provider's prompt cache. */
     cacheWrite?: number
+    /** Hidden reasoning tokens reported separately from visible completion tokens. */
+    reasoning?: number
   }
   toolCalls?: FunctionCallResponse[]
   toolResults?: Record<string, unknown>[]
@@ -251,6 +272,8 @@ export interface ProviderRequest {
    * canonical/reserved fields before this reaches an adapter.
    */
   providerOptions?: Record<string, unknown>
+  /** Provider-side wire target when it must differ from the catalog/billing model id. */
+  providerModel?: string
   /** Stable identity of the block issuing the request, used for cache routing. */
   blockId?: string
   isDeployedContext?: boolean

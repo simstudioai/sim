@@ -17,6 +17,7 @@ vi.mock('@/blocks/registry', () => ({
       subBlocks: [
         { id: 'systemPrompt', type: 'long-input' },
         { id: 'model', type: 'combobox' },
+        { id: 'customModelConfig', type: 'code' },
       ],
     },
     {
@@ -41,6 +42,7 @@ vi.mock('@/blocks/registry', () => ({
         subBlocks: [
           { id: 'systemPrompt', type: 'long-input' },
           { id: 'model', type: 'combobox' },
+          { id: 'customModelConfig', type: 'code' },
         ],
       },
       function: {
@@ -559,5 +561,128 @@ describe('forward-reference connections (pending resolution)', () => {
     const edge = state.edges.find((e: any) => e.source === BLOCK_A && e.target === BLOCK_B)
     expect(edge).toBeDefined()
     expect(state.blocks[BLOCK_A].data?.pendingConnections).toBeUndefined()
+  })
+})
+
+describe('custom model credential round trips', () => {
+  const existingSecret = 'sk-existing-custom-secret'
+
+  function makeCustomAgentWorkflow(includeConfig = true) {
+    const customModelConfig = JSON.stringify({
+      provider: 'openai',
+      model: 'gpt-5.6-terra',
+      parameters: { reasoningEffort: 'medium', temperature: 0.2 },
+      credentials: { mode: 'explicit', apiKey: existingSecret },
+      providerOptions: {},
+    })
+
+    return {
+      blocks: {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          name: 'Agent 1',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {
+            model: { id: 'model', type: 'combobox', value: 'sim-custom' },
+            ...(includeConfig
+              ? {
+                  customModelConfig: {
+                    id: 'customModelConfig',
+                    type: 'code',
+                    value: customModelConfig,
+                  },
+                }
+              : {}),
+          },
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [] as any[],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  it('restores the existing literal key when an edit round-trips the VFS placeholder', () => {
+    const result = applyOperationsToWorkflowState(makeCustomAgentWorkflow(), [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            customModelConfig: {
+              provider: 'openai',
+              model: 'gpt-5.6-sol',
+              parameters: { reasoningEffort: 'high', temperature: 0.1 },
+              credentials: { mode: 'explicit', apiKey: '<redacted>' },
+              providerOptions: {},
+            },
+          },
+        },
+      },
+    ])
+
+    expect(result.validationErrors).toHaveLength(0)
+    const stored = JSON.parse(
+      result.state.blocks['agent-1'].subBlocks.customModelConfig.value as string
+    )
+    expect(stored).toMatchObject({
+      provider: 'openai',
+      model: 'gpt-5.6-sol',
+      parameters: { reasoningEffort: 'high', temperature: 0.1 },
+      credentials: { mode: 'explicit', apiKey: existingSecret },
+    })
+  })
+
+  it('rejects the placeholder on a provider change without overwriting the stored config', () => {
+    const workflow = makeCustomAgentWorkflow()
+    const original = workflow.blocks['agent-1'].subBlocks.customModelConfig.value
+    const result = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            customModelConfig: {
+              provider: 'xai',
+              model: 'grok-4.5',
+              credentials: { mode: 'explicit', apiKey: '<redacted>' },
+              providerOptions: {},
+            },
+          },
+        },
+      },
+    ])
+
+    expect(result.validationErrors).toHaveLength(1)
+    expect(result.validationErrors[0]?.error).toContain('when changing providers')
+    expect(result.state.blocks['agent-1'].subBlocks.customModelConfig.value).toBe(original)
+    expect(JSON.stringify(result.validationErrors)).not.toContain(existingSecret)
+  })
+
+  it('rejects the placeholder when the existing block has no key to preserve', () => {
+    const result = applyOperationsToWorkflowState(makeCustomAgentWorkflow(false), [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            customModelConfig: {
+              provider: 'openai',
+              model: 'gpt-5.6-terra',
+              credentials: { mode: 'explicit', apiKey: '<redacted>' },
+              providerOptions: {},
+            },
+          },
+        },
+      },
+    ])
+
+    expect(result.validationErrors).toHaveLength(1)
+    expect(result.validationErrors[0]?.error).toContain('without an existing stored key')
+    expect(result.state.blocks['agent-1'].subBlocks).not.toHaveProperty('customModelConfig')
   })
 })

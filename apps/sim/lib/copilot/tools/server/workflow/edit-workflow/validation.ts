@@ -40,6 +40,11 @@ import { SELECTOR_TYPES } from './types'
 
 const validationLogger = createLogger('EditWorkflowValidation')
 const agentToolLintLogger = createLogger('EditWorkflowAgentToolLint')
+const REDACTED_CUSTOM_MODEL_API_KEY = '<redacted>'
+
+interface ValidateInputsForBlockOptions {
+  existingSubBlocks?: Record<string, { value?: unknown } | undefined>
+}
 
 /**
  * Detect privileged Agent custom-model writes anywhere in an edit operation,
@@ -80,7 +85,8 @@ export function findBlockWithDuplicateNormalizedName(
 export function validateInputsForBlock(
   blockType: string,
   inputs: Record<string, any>,
-  blockId: string
+  blockId: string,
+  options?: ValidateInputsForBlockOptions
 ): ValidationResult {
   const errors: ValidationError[] = []
 
@@ -175,7 +181,8 @@ export function validateInputsForBlock(
       value,
       key,
       blockType,
-      blockId
+      blockId,
+      options?.existingSubBlocks?.[key]?.value
     )
     if (validationResult.valid) {
       validatedInputs[key] = validationResult.value
@@ -307,7 +314,8 @@ export function validateValueForSubBlockType(
   value: any,
   fieldName: string,
   blockType: string,
-  blockId: string
+  blockId: string,
+  existingValue?: unknown
 ): ValueValidationResult {
   const { type } = subBlockConfig
 
@@ -538,6 +546,38 @@ export function validateValueForSubBlockType(
           // subblock persists text. Accept the object Mothership naturally
           // produces, validate it now, and store one canonical JSON string.
           const parsed = parseCustomModelConfig(value)
+
+          if (parsed.credentials.apiKey === REDACTED_CUSTOM_MODEL_API_KEY) {
+            if (existingValue === undefined || existingValue === null) {
+              throw new Error(
+                'credentials.apiKey cannot be "<redacted>" without an existing stored key; provide an environment-variable reference or a new key'
+              )
+            }
+
+            const existing = parseCustomModelConfig(existingValue)
+            if (existing.provider !== parsed.provider) {
+              throw new Error(
+                'credentials.apiKey cannot remain "<redacted>" when changing providers; provide the new provider key or an environment-variable reference'
+              )
+            }
+
+            const existingApiKey = existing.credentials.apiKey
+            if (
+              existing.credentials.mode !== 'explicit' ||
+              !existingApiKey ||
+              existingApiKey === REDACTED_CUSTOM_MODEL_API_KEY
+            ) {
+              throw new Error(
+                'credentials.apiKey cannot be "<redacted>" because no usable stored key exists; provide an environment-variable reference or a new key'
+              )
+            }
+
+            // `<redacted>` is a read-view sentinel, never a credential. Restore
+            // the existing value only after the provider identity is proven to
+            // match, so a model/parameter edit cannot destroy or misroute it.
+            parsed.credentials.apiKey = existingApiKey
+          }
+
           return { valid: true, value: JSON.stringify(parsed, null, 2) }
         } catch (error) {
           return {

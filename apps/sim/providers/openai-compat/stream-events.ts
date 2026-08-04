@@ -35,6 +35,8 @@ export interface OpenAICompatStreamComplete {
   /** OpenRouter reasoning blocks accumulated without reordering or normalization. */
   reasoning_details?: OpenRouterReasoningDetail[]
   usage: CompletionUsage
+  /** Provider-reported processing tier from the terminal stream chunk. */
+  serviceTier?: string
   /** Assembled when emitToolCallStarts is true (id + name + args). */
   toolCalls?: OpenAICompatAssembledToolCall[]
   /** Last finish_reason observed on the stream (e.g. `tool_calls`, `stop`, `length`). */
@@ -73,6 +75,8 @@ export type OpenRouterChatCompletionChunk = ChatCompletionChunk & {
 
 interface CompatStreamExtension {
   error?: string | { message?: string }
+  /** OpenAI-compatible vendors may extend the SDK enum (for example xAI `priority`). */
+  service_tier?: string | null
   x_groq?: {
     usage?: CompletionUsage
     error?: string | { message?: string }
@@ -126,6 +130,8 @@ export function createOpenAICompatibleAgentEventStream(
       let promptTokens = 0
       let completionTokens = 0
       let totalTokens = 0
+      let finalUsage: CompletionUsage | undefined
+      let serviceTier: string | undefined
       let finishReason: string | undefined
       const seenToolIds = new Set<string>()
       const toolBuffers = new Map<
@@ -158,9 +164,13 @@ export function createOpenAICompatibleAgentEventStream(
            */
           const usage = chunk.usage ?? extension.x_groq?.usage
           if (usage) {
+            finalUsage = usage
             promptTokens = usage.prompt_tokens ?? 0
             completionTokens = usage.completion_tokens ?? 0
             totalTokens = usage.total_tokens ?? 0
+          }
+          if (typeof extension.service_tier === 'string') {
+            serviceTier = extension.service_tier
           }
 
           const choice = chunk.choices?.[0]
@@ -261,11 +271,16 @@ export function createOpenAICompatibleAgentEventStream(
             ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
             ...(reasoning ? { reasoning } : {}),
             ...(reasoningDetails.length > 0 ? { reasoning_details: reasoningDetails } : {}),
-            usage: {
+            /**
+             * Preserve provider-specific detail buckets (cached/reasoning tokens)
+             * instead of rebuilding the usage object from its three totals.
+             */
+            usage: finalUsage ?? {
               prompt_tokens: promptTokens,
               completion_tokens: completionTokens,
               total_tokens: totalTokens || promptTokens + completionTokens,
             },
+            ...(serviceTier ? { serviceTier } : {}),
             ...(toolCalls.length > 0 ? { toolCalls } : {}),
             ...(finishReason ? { finishReason } : {}),
           })

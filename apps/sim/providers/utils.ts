@@ -884,7 +884,12 @@ export function calculateCost(
   completionTokens = 0,
   useCachedInput = false,
   inputMultiplier?: number,
-  outputMultiplier?: number
+  outputMultiplier?: number,
+  options?: {
+    /** Whole prompt size for tier selection when `promptTokens` is only one cache bucket. */
+    contextInputTokens?: number
+    serviceTier?: 'default' | 'priority'
+  }
 ) {
   let pricing = getEmbeddingModelPricing(model)
 
@@ -907,13 +912,31 @@ export function calculateCost(
     }
   }
 
+  const contextInputTokens = options?.contextInputTokens ?? promptTokens
   const longContextPricing =
-    pricing.longContext && promptTokens >= pricing.longContext.threshold
+    pricing.longContext && contextInputTokens >= pricing.longContext.threshold
       ? pricing.longContext
       : undefined
-  const inputRate = longContextPricing?.input ?? pricing.input
-  const cachedInputRate = longContextPricing?.cachedInput ?? pricing.cachedInput
-  const outputRate = longContextPricing?.output ?? pricing.output
+  let inputRate = longContextPricing?.input ?? pricing.input
+  let cachedInputRate = longContextPricing?.cachedInput ?? pricing.cachedInput
+  let outputRate = longContextPricing?.output ?? pricing.output
+
+  const priority = options?.serviceTier === 'priority' ? pricing.serviceTiers?.priority : undefined
+  if (priority) {
+    if ('multiplier' in priority) {
+      inputRate *= priority.multiplier
+      if (cachedInputRate !== undefined) cachedInputRate *= priority.multiplier
+      outputRate *= priority.multiplier
+    } else {
+      const priorityLongContext =
+        priority.longContext && contextInputTokens >= priority.longContext.threshold
+          ? priority.longContext
+          : undefined
+      inputRate = priorityLongContext?.input ?? priority.input
+      cachedInputRate = priorityLongContext?.cachedInput ?? priority.cachedInput
+      outputRate = priorityLongContext?.output ?? priority.output
+    }
+  }
 
   const inputCost =
     promptTokens *

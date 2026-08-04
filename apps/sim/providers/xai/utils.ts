@@ -4,18 +4,35 @@ import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compa
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { checkForForcedToolUsageOpenAI } from '@/providers/utils'
 
+export type XAIServiceTier = 'default' | 'priority'
+
+function normalizeXAIServiceTier(serviceTier: string | undefined): XAIServiceTier | undefined {
+  return serviceTier === 'default' || serviceTier === 'priority' ? serviceTier : undefined
+}
+
 /**
  * Creates an agent-events stream from an xAI streaming response.
  * Uses the shared OpenAI-compatible agent event streaming utility.
  */
 export function createReadableStreamFromXAIStream(
   xaiStream: AsyncIterable<ChatCompletionChunk>,
-  onComplete?: (content: string, usage: CompletionUsage, thinking?: string) => void
+  onComplete?: (
+    content: string,
+    usage: CompletionUsage,
+    thinking?: string,
+    serviceTier?: XAIServiceTier
+  ) => void
 ): ReadableStream<AgentStreamEvent> {
   return createOpenAICompatibleAgentEventStream(xaiStream, {
     providerName: 'xAI',
     onComplete: onComplete
-      ? (result) => onComplete(result.content, result.usage, result.thinking)
+      ? (result) =>
+          onComplete(
+            result.content,
+            result.usage,
+            result.thinking,
+            normalizeXAIServiceTier(result.serviceTier)
+          )
       : undefined,
   })
 }
