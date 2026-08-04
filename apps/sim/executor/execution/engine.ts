@@ -8,7 +8,10 @@ import {
 import { BlockType, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
-import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
+import {
+  compactPauseSnapshotScopes,
+  serializePauseSnapshot,
+} from '@/executor/execution/snapshot-serializer'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import type {
@@ -127,7 +130,7 @@ export class ExecutionEngine {
       }
 
       if (this.pausedBlocks.size > 0) {
-        return this.buildPausedResult(startTime)
+        return await this.buildPausedResult(startTime)
       }
 
       const endTime = performance.now()
@@ -491,12 +494,13 @@ export class ExecutionEngine {
     this.addMultipleToQueue(readyNodes)
   }
 
-  private buildPausedResult(startTime: number): ExecutionResult {
+  private async buildPausedResult(startTime: number): Promise<ExecutionResult> {
     const endTime = performance.now()
     this.context.metadata.endTime = new Date().toISOString()
     this.context.metadata.duration = endTime - startTime
     this.context.metadata.status = 'paused'
 
+    await compactPauseSnapshotScopes(this.context)
     const snapshotSeed = serializePauseSnapshot(this.context, [], this.dag, this.edgeManager)
     const pausePoints: PausePoint[] = Array.from(this.pausedBlocks.values()).map((pause) => ({
       contextId: pause.contextId,

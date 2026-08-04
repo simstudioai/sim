@@ -4,7 +4,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
-import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
+import {
+  compactPauseSnapshotScopes,
+  serializePauseSnapshot,
+} from '@/executor/execution/snapshot-serializer'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -254,5 +257,73 @@ describe('serializePauseSnapshot', () => {
 
     expect(serialized.metadata.includeThinking).toBeUndefined()
     expect(serialized.metadata.includeToolCalls).toBeUndefined()
+  })
+})
+
+describe('compactPauseSnapshotScopes', () => {
+  function createLoopContext(iterations: number, bytesPerIteration: number): ExecutionContext {
+    const payload = 'x'.repeat(bytesPerIteration)
+    return createContext({
+      loopExecutions: new Map([
+        [
+          'loop-1',
+          {
+            loopId: 'loop-1',
+            iteration: iterations,
+            maxIterations: iterations,
+            currentIterationOutputs: new Map(),
+            // Each entry is well under the per-value cap; only the running total is oversized,
+            // which is exactly what per-iteration compaction cannot catch.
+            allIterationOutputs: Array.from({ length: iterations }, () => ({ payload })),
+          },
+        ],
+      ]),
+    } as Partial<ExecutionContext>)
+  }
+
+  /**
+   * A loop compacts its accumulated outputs when it exits, but a pause is
+   * mid-flight and never gets there — so without this pass the running total
+   * trips the serializer's size assertion and the pause fails outright.
+   */
+  it('lets a pause inside a long-running loop serialize', async () => {
+    const context = createLoopContext(40, 300_000)
+    const dag = { nodes: new Map<string, DAGNode>() } as unknown as DAG
+    const edgeManager = new EdgeManager(dag)
+
+    expect(() => serializePauseSnapshot(context, [], dag, edgeManager)).toThrow(
+      'oversized loop execution state'
+    )
+
+    await compactPauseSnapshotScopes(context)
+
+    const seed = serializePauseSnapshot(context, [], dag, edgeManager)
+    expect(seed.snapshot).toBeTruthy()
+  })
+
+  /**
+   * The refs are only usable if the resumed run is authorized to read them, so
+   * the keys compaction registers must reach the snapshot's trusted-access list.
+   */
+  it('authorizes the offloaded values for the resumed run', async () => {
+    const context = createLoopContext(40, 300_000)
+    const dag = { nodes: new Map<string, DAGNode>() } as unknown as DAG
+    const edgeManager = new EdgeManager(dag)
+
+    await compactPauseSnapshotScopes(context)
+    const parsed = JSON.parse(serializePauseSnapshot(context, [], dag, edgeManager).snapshot) as {
+      state?: { trustedLargeValueAccess?: { largeValueKeys?: string[] } }
+    }
+
+    expect(parsed.state?.trustedLargeValueAccess?.largeValueKeys?.length ?? 0).toBeGreaterThan(0)
+  })
+
+  it('leaves a loop whose accumulated output already fits untouched', async () => {
+    const context = createLoopContext(2, 100)
+    const before = structuredClone(context.loopExecutions?.get('loop-1')?.allIterationOutputs)
+
+    await compactPauseSnapshotScopes(context)
+
+    expect(context.loopExecutions?.get('loop-1')?.allIterationOutputs).toEqual(before)
   })
 })

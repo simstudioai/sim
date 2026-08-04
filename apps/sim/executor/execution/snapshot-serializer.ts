@@ -1,4 +1,6 @@
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
+import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -180,6 +182,43 @@ function serializeParallelExecutions(
     }
   }
   return result
+}
+
+/**
+ * Offload accumulated loop iteration outputs so a pause snapshot stays compact.
+ *
+ * A loop compacts `allIterationOutputs` when it exits, but a pause is by
+ * definition mid-flight and never reaches that point — so the running total
+ * arrives at the serializer uncompacted and trips its size assertion, failing
+ * the pause outright. The approval notification has already gone out by then,
+ * leaving the approver holding a link to a paused execution that was never
+ * recorded.
+ *
+ * Mirrors the loop-exit pass: entries move to large-value storage and the
+ * snapshot keeps refs. The keys they register are picked up by the snapshot's
+ * `trustedLargeValueAccess`, so the resumed run can still read them.
+ */
+export async function compactPauseSnapshotScopes(context: ExecutionContext): Promise<void> {
+  if (!context.loopExecutions?.size) return
+
+  const options = {
+    workspaceId: context.workspaceId,
+    workflowId: context.workflowId,
+    executionId: context.executionId,
+    largeValueExecutionIds: context.largeValueExecutionIds,
+    largeValueKeys: context.largeValueKeys,
+    allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
+    userId: context.userId,
+    requireDurable: true,
+  }
+
+  for (const scope of context.loopExecutions.values()) {
+    if (!scope.allIterationOutputs?.length) continue
+    scope.allIterationOutputs = await compactSubflowResults(scope.allIterationOutputs, options)
+    // Authorize the refs this pass just minted. Reads are gated on the context's
+    // key list, so a resumed run cannot materialize them otherwise.
+    recordMaterializedAccessKeys(context, scope.allIterationOutputs)
+  }
 }
 
 export function serializePauseSnapshot(
