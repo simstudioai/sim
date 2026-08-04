@@ -16,6 +16,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./note-colors": {
+      "types": "./src/note/note-colors.ts",
+      "default": "./src/note/note-colors.ts"
     }
   },
   "scripts": {

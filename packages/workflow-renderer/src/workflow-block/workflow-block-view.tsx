@@ -292,8 +292,12 @@ export interface WorkflowBlockViewProps {
   ringStyles: string
   /** Resolved run-path outcome, drives the muted-name styling. */
   runPathStatus?: BlockRunStatus
-  /** Whether the workflow is executing. Holds this block's activity swell open. */
+  /** Whether execution controls are active for this block. */
   isRunning?: boolean
+  /** Whether the parent workflow is executing. Holds every block's action swell open. */
+  isWorkflowRunning?: boolean
+  /** Whether this block participates in the current execution handoff. */
+  isExecutionHighlighted?: boolean
   /** Block icon component and its background color. */
   Icon: ComponentType<{ className?: string }>
   iconBgColor: string
@@ -418,6 +422,8 @@ export function WorkflowBlockView({
   ringStyles,
   runPathStatus,
   isRunning = false,
+  isWorkflowRunning = false,
+  isExecutionHighlighted = false,
   Icon,
   iconBgColor,
   isIntegration = false,
@@ -549,7 +555,8 @@ export function WorkflowBlockView({
     }
     sourceBounds.push(nextBounds)
   }, [id, reactFlowStore])
-  const isNodeSelected = isRunning || (hasRing && ringStyles.includes('--text-secondary'))
+  const isNodeSelected = hasRing && ringStyles.includes('--text-secondary')
+  const usesSelectedVisuals = isNodeSelected || isExecutionHighlighted
   const showActionMenu = Boolean(actionBar)
   const {
     rootRef: actionMenuRootRef,
@@ -562,9 +569,9 @@ export function WorkflowBlockView({
     onBlurCapture: handleActionMenuBlur,
   } = useActionMenuSwell({
     enabled: showActionMenu,
-    forceOpen: Boolean(isNodeSelected || isRunning),
+    forceOpen: Boolean(usesSelectedVisuals || isRunning || isWorkflowRunning),
     maxWidth: ACTION_MENU_MAX_WIDTH_PX,
-    suspendInteraction: isRunning,
+    suspendInteraction: isRunning || isWorkflowRunning,
   })
   /* Blocks that can emit an error always carry the row; `response` terminates
      the flow and has no error branch. */
@@ -706,9 +713,9 @@ export function WorkflowBlockView({
       data-action-menu-ready={actionMenuContentVisible ? '' : undefined}
       /* Single source of truth for "the swell is painted in the selection
          color" — the action bar keys its icon treatment off this instead of
-         React Flow's raw `selected`. Camera-followed execution is deliberately
-         visual-only selection and must not open the editor. */
-      data-node-selected={isNodeSelected ? '' : undefined}
+         React Flow's raw `selected`. */
+      data-node-selected={usesSelectedVisuals ? '' : undefined}
+      data-execution-highlighted={isExecutionHighlighted ? '' : undefined}
     >
       {showActionMenu && (
         <>
@@ -749,9 +756,11 @@ export function WorkflowBlockView({
           nodeId={id}
           getConnectionNodeId={getConnectionNodeId}
           ports={borderPorts}
-          hasRing={hasRing}
-          ringStyles={ringStyles}
-          isSelected={isNodeSelected}
+          hasRing={hasRing || isExecutionHighlighted}
+          ringStyles={
+            isExecutionHighlighted ? 'ring-[1.5px] ring-[var(--text-secondary)]' : ringStyles
+          }
+          isSelected={usesSelectedVisuals}
           height={blockHeight}
           onCursorHandleChange={supportsCursorHandle ? onCursorHandleChange : undefined}
           onActionMenuReadyChange={setActionMenuSwellReady}

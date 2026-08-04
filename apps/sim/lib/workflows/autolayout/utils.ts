@@ -1,4 +1,10 @@
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import {
+  BLOCK_DIMENSIONS,
+  CONTAINER_DIMENSIONS,
+  clampNoteBlockTotalHeight,
+  getNoteBlockHeight,
+  isNoteContentEmpty,
+} from '@sim/workflow-renderer'
 import {
   AUTO_LAYOUT_EXCLUDED_TYPES,
   CONTAINER_BLOCK_TYPES,
@@ -449,41 +455,33 @@ export function boxesOverlap(box1: BoundingBox, box2: BoundingBox, margin = 0): 
 
 /**
  * Resolves the on-canvas dimensions of a note block.
- * Notes are fixed-width and use a deterministic height, but fall back to any
- * stored measurement or data override when present.
+ *
+ * A note is fixed-width but sizes its height to its own content, so a stored
+ * measurement is the best answer when there is one — bounded by the compact
+ * minimum and the scrolling maximum the card itself honours.
  */
 function getNoteDimensions(block: BlockState): { width: number; height: number } {
   const width = Math.max(
     resolveNumeric(block.data?.width, 0),
     block.layout?.measuredWidth ?? 0,
-    BLOCK_DIMENSIONS.FIXED_WIDTH
+    BLOCK_DIMENSIONS.NOTE_WIDTH
   )
 
   /*
-   * The empty note is a fraction of a filled one, so hard-coding the filled
-   * height as the floor made every empty note claim ~140px it does not paint
-   * and pushed the rest of its layer down. Mirrors `note-block.tsx`'s own
-   * `content.trim().length === 0`.
+   * Unmeasured notes are sized from their content rather than assumed full
+   * height: an empty note is a fraction of a filled one, and treating every
+   * unmeasured note as filled makes it claim ~140px it never paints and pushes
+   * the rest of its layer down.
    */
-  /* Accepts both shapes `note-block.tsx`'s own reader handles: a raw string
-     and a `{ value }` wrapper. Reading only one would size a filled note as
-     empty, which under-estimates by 140px and overlaps whatever sits below. */
-  const rawContent = block.subBlocks?.content?.value
-  const content =
-    typeof rawContent === 'string'
-      ? rawContent
-      : rawContent && typeof rawContent === 'object' && 'value' in rawContent
-        ? (rawContent as { value?: unknown }).value
-        : undefined
-  const isEmpty = typeof content !== 'string' || content.trim().length === 0
-  const defaultHeight = getNoteBlockHeight(isEmpty)
-
-  const height = Math.max(
+  const measuredHeight = Math.max(
     resolveNumeric(block.data?.height, 0),
     block.layout?.measuredHeight ?? 0,
-    block.height ?? 0,
-    defaultHeight
+    block.height ?? 0
   )
+  const height =
+    measuredHeight > 0
+      ? clampNoteBlockTotalHeight(measuredHeight)
+      : getNoteBlockHeight(isNoteContentEmpty(block.subBlocks?.content?.value))
 
   return { width, height }
 }
@@ -696,8 +694,18 @@ export function transferBlockHeights(
   for (const block of Object.values(sourceBlocks)) {
     const key = `${block.type}:${block.name}`
     heightMap.set(key, {
-      height: block.height || BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT,
-      width: block.layout?.measuredWidth || BLOCK_DIMENSIONS.FIXED_WIDTH,
+      /* A note carries its own width and compact height; every other card
+         falls back to the shortest silhouette the border renderer paints. */
+      height:
+        block.height ||
+        (block.type === NOTE_BLOCK_TYPE
+          ? getNoteBlockHeight(true)
+          : BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT),
+      width:
+        block.layout?.measuredWidth ||
+        (block.type === NOTE_BLOCK_TYPE
+          ? BLOCK_DIMENSIONS.NOTE_WIDTH
+          : BLOCK_DIMENSIONS.FIXED_WIDTH),
     })
   }
 

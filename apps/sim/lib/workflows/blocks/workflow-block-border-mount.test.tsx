@@ -19,6 +19,7 @@ import {
   HANDLE_POSITIONS,
   isActionMenuSwellReady,
   NoteBlockView,
+  type NoteContentEditorProps,
   normalizeCursorSourceHandleId,
   SubflowNodeView,
   SubflowStartView,
@@ -92,6 +93,33 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
+
+/**
+ * Stands in for the app's markdown editor.
+ *
+ * The view has no editor of its own — it renders whatever the host injects —
+ * so exercising it through this seam is exactly the path production takes,
+ * rather than a second built-in editing surface only tests ever reached.
+ */
+function renderTestContentEditor({
+  value,
+  selectionClassName,
+  onChange,
+  onEndEditing,
+}: NoteContentEditorProps) {
+  return (
+    <textarea
+      aria-label='Note content'
+      className={selectionClassName}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={onEndEditing}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onEndEditing()
+      }}
+    />
+  )
+}
 
 describe('WorkflowBlockBorder mount', () => {
   it('resolves every connection start to the one canonical source handle', () => {
@@ -283,6 +311,378 @@ describe('WorkflowBlockBorder mount', () => {
   })
 
   it('bounds note content in a faded scroll viewport without connection handles', () => {
+    const observedTargets: Element[] = []
+    const handleNameChange = vi.fn(() => true)
+    const handleContentChange = vi.fn()
+    const handleExpandedChange = vi.fn()
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe(target: Element) {
+          observedTargets.push(target)
+        }
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+
+    const { host, root } = mount(
+      <NoteBlockView
+        name='Implementation notes'
+        content={'Long note content\n'.repeat(40)}
+        isEnabled
+        isFocused={false}
+        canEdit
+        hasRing={false}
+        ringStyles=''
+        onSelect={() => undefined}
+        renderContentEditor={renderTestContentEditor}
+        onExpandedChange={handleExpandedChange}
+        actionBar={<div data-workflow-action-bar-swell=''>Actions</div>}
+      />
+    )
+
+    const scrollRegion = host.querySelector('[data-note-scroll-region]')
+    expect(scrollRegion).toHaveClass('h-[calc(100%_-_40px)]', 'overflow-y-auto')
+    expect(scrollRegion).not.toHaveClass('pointer-events-none', 'overflow-hidden')
+    expect(scrollRegion).not.toHaveClass('allow-scroll', 'nodrag', 'nopan')
+    expect(host.querySelector('[data-note-scroll-region] > div')).toHaveClass('pointer-events-none')
+
+    Object.defineProperties(scrollRegion, {
+      clientHeight: { configurable: true, value: 120 },
+      scrollHeight: { configurable: true, value: 320 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    })
+    act(() => {
+      scrollRegion?.dispatchEvent(new Event('scroll', { bubbles: true }))
+    })
+    expect(scrollRegion).toHaveClass('nowheel', 'allow-scroll', 'touch-pan-y')
+    expect(host.querySelector('[data-note-card]')).toHaveClass(
+      'transition-[color,width,height]',
+      'cursor-grab'
+    )
+    expect(host.querySelector('[data-note-card]')).not.toHaveClass('cursor-text')
+    expect(host.querySelector('[data-note-card]')).toHaveStyle({
+      width: '320px',
+      height: '240px',
+    })
+    expect(getNoteBlockHeight(true)).toBe(70)
+    expect(getNoteBlockHeight(false)).toBe(240)
+    expect(host.querySelector('[data-workflow-action-bar-bridge]')).toBeTruthy()
+    expect(host.querySelector('svg rect[fill="#525252"]')).toBeTruthy()
+    expect(
+      host.querySelector('svg path[fill="var(--border-1)"][stroke="var(--border-1)"]')
+    ).toBeTruthy()
+    expect(host.querySelector('[data-handleid]')).toBeNull()
+    expect(observedTargets).toContain(host.querySelector('[data-note-card]'))
+    expect(host.querySelector('button[aria-label="Expand note"]')).toHaveClass(
+      'pointer-events-none',
+      'opacity-0',
+      'group-hover:pointer-events-auto',
+      'group-hover:opacity-70',
+      'group-data-[node-selected]:opacity-70'
+    )
+
+    act(() => {
+      root.render(
+        <NoteBlockView
+          name='Implementation notes'
+          content={'Long note content\n'.repeat(40)}
+          noteColor='light-gray'
+          isEnabled
+          isFocused={false}
+          canEdit
+          hasRing={false}
+          ringStyles=''
+          onSelect={() => undefined}
+          renderContentEditor={renderTestContentEditor}
+          onExpandedChange={handleExpandedChange}
+          actionBar={<div data-workflow-action-bar-swell=''>Actions</div>}
+        />
+      )
+    })
+
+    const lightGrayCard = host.querySelector('[data-note-card]')
+    act(() => {
+      lightGrayCard?.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }))
+    })
+    expect(host.querySelector('svg path[fill="#D4D4D4"]')).toBeTruthy()
+
+    act(() => {
+      lightGrayCard?.dispatchEvent(
+        new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body })
+      )
+    })
+    expect(host.querySelector('svg path[fill="#D4D4D4"]')).toBeNull()
+    expect(host.querySelector('svg path[fill="var(--border-1)"]')).toBeTruthy()
+
+    act(() => {
+      root.render(
+        <NoteBlockView
+          name='Implementation notes'
+          content={'Long note content\n'.repeat(40)}
+          noteColor='light-gray'
+          isEnabled
+          isFocused
+          canEdit
+          hasRing
+          ringStyles='ring-[1.5px] ring-[var(--text-secondary)]'
+          onSelect={() => undefined}
+          renderContentEditor={renderTestContentEditor}
+          onNameChange={handleNameChange}
+          onContentChange={handleContentChange}
+          onExpandedChange={handleExpandedChange}
+          actionBar={<div data-workflow-action-bar-swell=''>Actions</div>}
+        />
+      )
+    })
+
+    expect(host.querySelector('[data-note-card]')).toHaveClass(
+      'transition-[color,width,height]',
+      'note-drag-handle',
+      'cursor-text'
+    )
+    expect(host.querySelector('[data-note-card]')).toHaveStyle({ width: '320px' })
+    expect(host.querySelector('[data-note-card]')).not.toHaveClass('cursor-grab')
+    expect(host.querySelector('[data-note-card]')).toHaveStyle({ height: '240px' })
+    expect(host.querySelector('[data-note-card]')).not.toHaveClass(
+      'transition-[width,height]',
+      'will-change-[width,height]'
+    )
+    expect(host.querySelector('[data-note-scroll-region]')).toHaveClass(
+      'h-[calc(100%_-_40px)]',
+      'pb-0',
+      '[contain:layout]'
+    )
+    expect(host.querySelector('[data-note-scroll-region]')).toHaveClass(
+      'allow-scroll',
+      'nowheel',
+      'overflow-y-auto'
+    )
+    expect(host.querySelector('[data-note-scroll-region]')).not.toHaveClass('nodrag', 'nopan')
+    expect(host.querySelector('[data-note-scroll-region]')).not.toHaveClass('pointer-events-none')
+    expect(host.querySelector('input[aria-label="Note title"]')).toBeNull()
+    expect(host.querySelector('textarea[aria-label="Note content"]')).toBeNull()
+    expect(host.querySelector('svg')).toHaveAttribute('viewBox', '-36 -36 392 312')
+    expect(host.querySelector('svg rect[fill="#E5E5E5"]')).toBeTruthy()
+    expect(observedTargets).toContain(host.querySelector('[data-note-card]'))
+    expect(host.querySelector('[data-node-selected]')).toBeTruthy()
+    expect(host.querySelector('svg path[fill="var(--text-secondary)"]')).toBeTruthy()
+    expect(host.querySelector('button[aria-label="Edit note title"]')).toBeNull()
+    expect(host.querySelector('button[aria-label="Edit note content"]')).toBeNull()
+    const compactCard = host.querySelector<HTMLElement>('[data-note-card]')
+
+    act(() => {
+      compactCard?.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10, button: 0 })
+      )
+      compactCard?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: 30, clientY: 30, detail: 1 })
+      )
+    })
+
+    expect(handleExpandedChange).not.toHaveBeenCalled()
+
+    act(() => {
+      compactCard?.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10, button: 0 })
+      )
+      compactCard?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: 11, clientY: 11, detail: 1 })
+      )
+    })
+
+    expect(handleExpandedChange).toHaveBeenCalledWith(true)
+    handleExpandedChange.mockClear()
+    const expandButton = host.querySelector<HTMLButtonElement>('button[aria-label="Expand note"]')
+    expect(expandButton).toBeTruthy()
+    expect(host.querySelector('[data-note-card]')?.contains(expandButton)).toBe(true)
+
+    act(() => {
+      expandButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(handleExpandedChange).toHaveBeenCalledWith(true)
+
+    act(() => {
+      root.render(
+        <NoteBlockView
+          name='Implementation notes'
+          content={'Long note content\n'.repeat(40)}
+          noteColor='light-gray'
+          isEnabled
+          isFocused={false}
+          isExpanded
+          canEdit
+          hasRing
+          ringStyles='ring-[1.5px] ring-[var(--text-secondary)]'
+          onSelect={() => undefined}
+          renderContentEditor={renderTestContentEditor}
+          onNameChange={handleNameChange}
+          onContentChange={handleContentChange}
+          onExpandedChange={handleExpandedChange}
+          actionBar={<div data-workflow-action-bar-swell=''>Actions</div>}
+        />
+      )
+    })
+
+    expect(host.querySelector('[data-note-expanded]')).toBeTruthy()
+    expect(host.querySelector('[data-note-card]')).toHaveClass('nodrag', 'cursor-default')
+    expect(host.querySelector('[data-note-card]')).not.toHaveClass('note-drag-handle')
+    expect(host.querySelector('[data-note-card]')).toHaveStyle({
+      width: '520px',
+      height: '400px',
+    })
+    expect(host.querySelector('[data-node-selected]')).toBeTruthy()
+    expect(host.querySelector('button[aria-label="Collapse note"]')).toBeTruthy()
+
+    const outsideCanvas = document.createElement('div')
+    outsideCanvas.className = 'react-flow__pane'
+    document.body.appendChild(outsideCanvas)
+    handleExpandedChange.mockClear()
+
+    act(() => {
+      host
+        .querySelector('[data-note-card]')
+        ?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+      outsideCanvas.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+    })
+
+    expect(handleExpandedChange).not.toHaveBeenCalled()
+
+    act(() => {
+      outsideCanvas.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    })
+
+    expect(handleExpandedChange).toHaveBeenCalledOnce()
+    expect(handleExpandedChange).toHaveBeenCalledWith(false)
+    outsideCanvas.remove()
+
+    const titleEditTrigger = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Edit note title"]'
+    )
+    expect(titleEditTrigger).toBeTruthy()
+    expect(titleEditTrigger).not.toHaveClass('nodrag')
+
+    act(() => {
+      titleEditTrigger?.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 })
+      )
+      titleEditTrigger?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: 30, clientY: 30, detail: 1 })
+      )
+    })
+
+    expect(host.querySelector('input[aria-label="Note title"]')).toBeNull()
+
+    act(() => {
+      titleEditTrigger?.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 })
+      )
+      titleEditTrigger?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: 11, clientY: 11, detail: 1 })
+      )
+    })
+
+    const titleInput = host.querySelector<HTMLInputElement>('input[aria-label="Note title"]')
+    expect(titleInput).toBeTruthy()
+    expect(titleInput).toHaveClass(
+      'nodrag',
+      'nopan',
+      'nowheel',
+      'caret-current',
+      'selection:bg-black/15'
+    )
+    expect(titleInput).toHaveFocus()
+    expect(titleInput?.selectionStart).toBe(titleInput?.value.length)
+    expect(titleInput?.selectionEnd).toBe(titleInput?.value.length)
+
+    act(() => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setValue?.call(titleInput, 'Renamed note')
+      titleInput?.dispatchEvent(new Event('input', { bubbles: true }))
+      titleInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+
+    expect(handleNameChange).toHaveBeenCalledOnce()
+    expect(handleNameChange).toHaveBeenCalledWith('Renamed note')
+
+    const contentEditTrigger = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Edit note content"]'
+    )
+    expect(contentEditTrigger).toBeTruthy()
+    expect(contentEditTrigger).not.toHaveClass('nodrag')
+
+    act(() => {
+      contentEditTrigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    const contentInput = host.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Note content"]'
+    )
+    expect(contentInput).toBeTruthy()
+    /* The host's editor is mounted inside the view's own wrapper, which is what
+       keeps a drag or wheel inside the text from panning the canvas; the note's
+       selection tint reaches the editor as a prop rather than a class override. */
+    expect(contentInput?.parentElement).toHaveClass('nodrag', 'nopan', 'nowheel')
+    expect(contentInput).toHaveClass('selection:bg-black/15')
+
+    act(() => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+      setValue?.call(contentInput, `${'Maximum height content '.repeat(20)}`)
+      contentInput?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    expect(handleContentChange).toHaveBeenCalledWith(expect.stringContaining('Maximum height'))
+    expect(host.querySelector('[data-note-card]')).toHaveStyle({ height: '400px' })
+
+    /* Escape leaves editing through the same path as blur — content is already
+       persisted per keystroke, so there is no draft for it to discard. */
+    act(() => {
+      contentInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+
+    expect(host.querySelector('textarea[aria-label="Note content"]')).toBeNull()
+    expect(host.querySelector('[data-note-card]')).toHaveStyle({ height: '400px' })
+
+    act(() => {
+      root.render(
+        <NoteBlockView
+          name='Implementation notes'
+          content={'Long note content\n'.repeat(40)}
+          noteColor='carbon'
+          isEnabled
+          isFocused
+          isExpanded
+          canEdit
+          hasRing
+          ringStyles='ring-[1.5px] ring-[var(--text-secondary)]'
+          onSelect={() => undefined}
+          renderContentEditor={renderTestContentEditor}
+          onNameChange={handleNameChange}
+          onContentChange={handleContentChange}
+          onExpandedChange={handleExpandedChange}
+          actionBar={<div data-workflow-action-bar-swell=''>Actions</div>}
+        />
+      )
+    })
+
+    expect(host.querySelector('svg rect[fill="#525252"]')).toBeTruthy()
+    expect(host.querySelector('svg path[fill="#3F3F3F"][stroke="#3F3F3F"]')).toBeTruthy()
+
+    act(() => {
+      host
+        .querySelector<HTMLButtonElement>('button[aria-label="Edit note title"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(host.querySelector('input[aria-label="Note title"]')).toHaveClass(
+      'selection:bg-white/25'
+    )
+  })
+
+  it('keeps an expanded note anchored while its compact height grows', () => {
+    const handleHeightChange = vi.fn()
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -294,23 +694,173 @@ describe('WorkflowBlockBorder mount', () => {
 
     const { host } = mount(
       <NoteBlockView
-        name='Implementation notes'
-        content={'Long note content\n'.repeat(40)}
+        name='Positioned note'
+        content=''
         isEnabled
+        isFocused
+        isExpanded
+        canEdit
         hasRing={false}
         ringStyles=''
         onSelect={() => undefined}
-        actionBar={<div data-workflow-action-bar-swell=''>Actions</div>}
+        renderContentEditor={renderTestContentEditor}
+        onContentChange={() => undefined}
+        onHeightChange={handleHeightChange}
+        onExpandedChange={() => undefined}
       />
     )
 
-    const scrollRegion = host.querySelector('[data-note-scroll-region]')
-    expect(scrollRegion).toHaveClass('allow-scroll', 'h-44', 'overflow-y-auto')
-    expect(scrollRegion?.getAttribute('class')).toContain('mask-image:linear-gradient')
-    expect(getNoteBlockHeight(false)).toBe(216)
-    expect(host.querySelector('[data-workflow-action-bar-bridge]')).toBeTruthy()
-    expect(host.querySelector('svg rect[fill="var(--surface-3)"]')).toBeTruthy()
-    expect(host.querySelector('[data-handleid]')).toBeNull()
+    expect(host.querySelector('[data-note-layout]')).toHaveStyle({ height: '70px' })
+
+    act(() => {
+      host
+        .querySelector<HTMLButtonElement>('button[aria-label="Edit note content"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    const contentInput = host.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Note content"]'
+    )
+    Object.defineProperty(contentInput, 'scrollHeight', {
+      configurable: true,
+      value: 120,
+    })
+
+    act(() => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+      setValue?.call(contentInput, 'Content that increases the compact note height')
+      contentInput?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    /*
+     * The expanded card lays out at NOTE_EXPANDED_WIDTH, where the same text
+     * re-wraps shorter. Publishing a height measured there would hand the store
+     * a compact height that was never measured at the compact width — the node
+     * would shrink for as long as the note stayed open and the collapse would
+     * animate to the wrong height. Nothing is measured while expanded.
+     */
+    expect(handleHeightChange.mock.calls.every(([height]) => height === 70)).toBe(true)
+    expect(host.querySelector('[data-note-layout]')).toHaveStyle({ height: '70px' })
+    expect(host.querySelector('[data-note-card]')).toHaveStyle({ height: '400px' })
+  })
+
+  it('never publishes a height measured at the expanded width', () => {
+    const handleHeightChange = vi.fn()
+    let notifyResize: (() => void) | null = null
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          notifyResize = callback
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+
+    const noteProps = {
+      name: 'Positioned note',
+      content: 'Long note content\n'.repeat(40),
+      isEnabled: true,
+      isFocused: true,
+      canEdit: true,
+      hasRing: false,
+      ringStyles: '',
+      onSelect: () => undefined,
+      onContentChange: () => undefined,
+      onHeightChange: handleHeightChange,
+      onExpandedChange: () => undefined,
+      renderContentEditor: renderTestContentEditor,
+    }
+
+    const { host, root } = mount(<NoteBlockView {...noteProps} />)
+
+    const measureNode = host.querySelector<HTMLElement>('[data-note-scroll-region] > div')
+    expect(measureNode).toBeTruthy()
+    Object.defineProperty(measureNode, 'scrollHeight', { configurable: true, value: 300 })
+    handleHeightChange.mockClear()
+
+    /*
+     * A width change at the compact size is honoured — that is the only width a
+     * note's height may be measured at (clamped to the scrolling maximum).
+     */
+    act(() => notifyResize?.())
+    expect(handleHeightChange).toHaveBeenCalledWith(getNoteBlockHeight(false))
+
+    handleHeightChange.mockClear()
+    Object.defineProperty(measureNode, 'scrollHeight', { configurable: true, value: 60 })
+
+    /*
+     * Expanding lays the same text out at NOTE_EXPANDED_WIDTH, where it wraps
+     * shorter. The re-measure that the expansion itself triggers must publish
+     * nothing, or the node's stored height shrinks for as long as the note
+     * stays open and the collapse animates to a height never measured at 320px.
+     */
+    act(() => root.render(<NoteBlockView {...noteProps} isExpanded />))
+
+    expect(handleHeightChange).not.toHaveBeenCalled()
+  })
+
+  it('re-measures after a collapse that never blurred the editor', () => {
+    const handleHeightChange = vi.fn()
+    const observedTargets: Element[] = []
+    let notifyResize: (() => void) | null = null
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          notifyResize = callback
+        }
+        observe(target: Element) {
+          observedTargets.push(target)
+        }
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+
+    const noteProps = {
+      name: 'Positioned note',
+      content: 'Long note content\n'.repeat(40),
+      isEnabled: true,
+      canEdit: true,
+      hasRing: false,
+      ringStyles: '',
+      onSelect: () => undefined,
+      onContentChange: () => undefined,
+      onHeightChange: handleHeightChange,
+      onExpandedChange: () => undefined,
+      renderContentEditor: renderTestContentEditor,
+    }
+
+    const { host, root } = mount(<NoteBlockView {...noteProps} isFocused isExpanded />)
+
+    act(() => {
+      host
+        .querySelector<HTMLButtonElement>('button[aria-label="Edit note content"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(host.querySelector('textarea[aria-label="Note content"]')).toBeTruthy()
+
+    /*
+     * Losing edit rights collapses the note during render without blurring the
+     * editor, so one frame commits collapsed-but-still-editing. The measured
+     * node does not exist in that frame; the note must still be measured once
+     * it comes back, or its canvas height stays at a raw line-count estimate.
+     */
+    observedTargets.length = 0
+    handleHeightChange.mockClear()
+    act(() => root.render(<NoteBlockView {...noteProps} isFocused={false} canEdit={false} />))
+
+    const measureNode = host.querySelector<HTMLElement>('[data-note-scroll-region] > div')
+    expect(measureNode).toBeTruthy()
+    expect(observedTargets).toContain(measureNode)
+
+    Object.defineProperty(measureNode, 'scrollHeight', { configurable: true, value: 300 })
+    act(() => notifyResize?.())
+
+    expect(handleHeightChange).toHaveBeenLastCalledWith(getNoteBlockHeight(false))
   })
 
   it('paints the subflow Start source as a unified connection swell', () => {
@@ -342,6 +892,7 @@ describe('WorkflowBlockBorder mount', () => {
           nestingLevel={0}
           canEditWorkflow={false}
           onSelect={() => undefined}
+          renderContentEditor={renderTestContentEditor}
         />
       </ReactFlowProvider>
     )
@@ -387,6 +938,7 @@ describe('WorkflowBlockBorder mount', () => {
           nestingLevel={0}
           canEditWorkflow
           onSelect={() => undefined}
+          renderContentEditor={renderTestContentEditor}
           actionBar={<div data-workflow-action-bar-swell=''>Actions</div>}
         />
       </ReactFlowProvider>
@@ -427,6 +979,7 @@ describe('WorkflowBlockBorder mount', () => {
               nestingLevel={0}
               canEditWorkflow
               onSelect={() => undefined}
+              renderContentEditor={renderTestContentEditor}
               actionBar={<div data-workflow-action-bar-swell=''>Loop actions</div>}
             />
           </div>

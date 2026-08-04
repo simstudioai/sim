@@ -1,7 +1,20 @@
 export * from './dimensions'
 export { WorkflowEdgeView, type WorkflowEdgeViewProps } from './edge/workflow-edge-view'
 export { humanizeBlockName } from './lib/humanize-block-name'
-export { NoteBlockView, type NoteBlockViewProps } from './note/note-block-view'
+export {
+  NoteBlockView,
+  type NoteBlockViewProps,
+  type NoteContentEditorProps,
+} from './note/note-block-view'
+export {
+  DEFAULT_NOTE_COLOR,
+  getNoteColorOption,
+  isNoteColor,
+  NOTE_COLOR_OPTIONS,
+  type NoteColor,
+  type NoteColorOption,
+} from './note/note-colors'
+export { getNoteStringValue, isNoteContentEmpty } from './note/note-content'
 export {
   type SubflowNodeData,
   SubflowNodeView,

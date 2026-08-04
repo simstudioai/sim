@@ -78,7 +78,10 @@ import {
   getProviderName,
   shouldSkipBlockRender,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
-import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import {
+  useBlockVisual,
+  useIsBlockInActiveExecutionHandoff,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlock } from '@/blocks/registry'
@@ -101,7 +104,7 @@ import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { getModelSunsetStatus } from '@/providers/models'
-import { useIsBlockActive } from '@/stores/execution'
+import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -601,6 +604,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     currentWorkflow,
     activeWorkflowId,
     isEnabled,
+    isExecuting,
     isLocked,
     handleClick,
     hasRing,
@@ -609,13 +613,14 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
 
   /*
-   * Per-block, not workflow-wide. This drives the activity swell, the
-   * selected-looking border, and the action row's progress bar — all of which
-   * describe *this* block's execution. Keyed off the workflow it would light
-   * up every card on the canvas and hide every action row for the whole run,
-   * with no other entry point to disable/lock/duplicate a block.
+   * Three separate signals, deliberately. `isExecuting` (per-block, from
+   * `useBlockVisual`) and `isExecutionHighlighted` drive this card's own loader
+   * and border; `isWorkflowRunning` only swaps Run for Stop and disables
+   * mutations. Driving the visuals off the workflow instead would light up
+   * every card on the canvas for the whole run.
    */
-  const isBlockRunning = useIsBlockActive(id)
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  const isExecutionHighlighted = useIsBlockInActiveExecutionHandoff(id)
   const currentWorkflowId = (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
@@ -1199,7 +1204,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       hasRing={hasRing}
       ringStyles={ringStyles}
       runPathStatus={runPathStatus}
-      isRunning={isBlockRunning}
+      isRunning={isExecuting}
+      isWorkflowRunning={isWorkflowRunning}
+      isExecutionHighlighted={isExecutionHighlighted}
       Icon={config.icon}
       iconBgColor={config.bgColor}
       isIntegration={config.category === 'tools'}
@@ -1254,12 +1261,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             blockType={type}
             disabled={!canEditWorkflow}
             variant='swell'
-            /* Per-block, not workflow-wide: the action row is replaced by a
-               progress bar and made non-interactive while it is suppressed, and
-               disable/lock/duplicate/remove-from-subflow have no other entry
-               point — so keying this off the workflow would lock the user out
-               of editing every block on the canvas for the whole run. */
-            isRunning={isBlockRunning}
+            isRunning={isExecuting}
+            isWorkflowRunning={isWorkflowRunning}
           />
         ) : undefined
       }

@@ -155,10 +155,16 @@ interface WorkflowBlockBorderProps {
   ringStyles: string
   /** Paints the unified silhouette with the canonical selected-state color. */
   isSelected?: boolean
+  /** Overrides the selected silhouette while preserving the canonical idle and ring colors. */
+  selectedSilhouetteColor?: string
+  /** Overrides the resolved silhouette without changing selected or ring state. */
+  silhouetteColorOverride?: string
   /** Fills the card body without changing its silhouette or border color. */
   bodyFill?: string
   /** Explicit layout width for fixed-size hosts; omit to measure the host. */
   width?: number
+  /** First-frame height used while an observed host has not reported its size yet. */
+  initialHeight?: number
   /**
    * Card height in layout px. Must match what the card actually renders — the
    * silhouette is drawn from it, so an over-estimate paints a card taller than
@@ -846,8 +852,11 @@ export function WorkflowBlockBorder({
   hasRing,
   ringStyles,
   isSelected = false,
+  selectedSilhouetteColor,
+  silhouetteColorOverride,
   bodyFill = 'var(--surface-2)',
   width,
+  initialHeight,
   height,
   onCursorHandleChange,
   onActionMenuReadyChange,
@@ -861,10 +870,19 @@ export function WorkflowBlockBorder({
    * — `radius` collapses to 0 and the card paints as a flat line. Any real
    * height is kept as-is, including one below MIN_PAINTED_HEIGHT: the subflow
    * Start pill is a deliberate 34px.
+   *
+   * `initialHeight` is the seed for a surface that sizes itself from its own
+   * content rather than the store, which is how a note paints its outline
+   * before the first measurement lands.
    */
   const [size, setSize] = useState({
     width: width ?? 250,
-    height: height && height > 0 ? height : BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT,
+    height:
+      height && height > 0
+        ? height
+        : initialHeight && initialHeight > 0
+          ? initialHeight
+          : BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT,
   })
   const [renderedPath, setRenderedPath] = useState<{
     d: string
@@ -1630,11 +1648,13 @@ export function WorkflowBlockBorder({
 
   const ring = resolveRing(ringStyles)
   const { d: path } = renderedPath
-  const silhouetteColor = isSelected
-    ? 'var(--text-secondary)'
-    : hasRing && ring.solid
-      ? ring.color
-      : 'var(--border-1)'
+  const silhouetteColor =
+    silhouetteColorOverride ??
+    (isSelected
+      ? (selectedSilhouetteColor ?? 'var(--text-secondary)')
+      : hasRing && ring.solid
+        ? ring.color
+        : 'var(--border-1)')
 
   return (
     <svg

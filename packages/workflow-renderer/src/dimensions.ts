@@ -9,6 +9,9 @@
 
 export const BLOCK_DIMENSIONS = {
   FIXED_WIDTH: 250,
+  NOTE_WIDTH: 320,
+  NOTE_EXPANDED_WIDTH: 520,
+  NOTE_EXPANDED_HEIGHT: 400,
   HEADER_HEIGHT: 40,
   MIN_HEIGHT: 100,
   /**
@@ -30,17 +33,11 @@ export const BLOCK_DIMENSIONS = {
   WORKFLOW_CHIPS_ROW_HEIGHT: 20,
   /** Natural-language summary line height (text-sm with inline value chips). */
   WORKFLOW_SENTENCE_LINE_HEIGHT: 24,
-  /** Total vertical padding around the note's content viewport (`p-2`). */
-  NOTE_CONTENT_PADDING: 16,
-  /**
-   * The content wrapper's own `py-2`, inside the viewport's `p-2`. Only the
-   * empty note is sized by its content, so this is the one case where it adds
-   * to the card; a filled note is pinned by NOTE_CONTENT_VIEWPORT_HEIGHT.
-   */
-  NOTE_INNER_CONTENT_PADDING: 16,
+  /** Total vertical spacing around an empty note's single text line. */
+  NOTE_CONTENT_PADDING: 10,
   NOTE_MIN_CONTENT_HEIGHT: 20,
-  /** Bounded canvas preview, including its `p-2`; full content stays in the editor. */
-  NOTE_CONTENT_VIEWPORT_HEIGHT: 176,
+  /** Tallest a note grows inline before its content starts scrolling. */
+  NOTE_CONTENT_VIEWPORT_HEIGHT: 200,
   /** Inset of the subflow Start card from the top of the container body. */
   SUBFLOW_START_TOP_OFFSET: 12,
   /** The subflow Start card itself. */
@@ -49,19 +46,39 @@ export const BLOCK_DIMENSIONS = {
 } as const
 
 /**
- * Keeps note DOM, React Flow bounds, and auto-layout on the same height.
+ * The bounds a note's total on-canvas height can occupy.
  *
- * Every term here has to appear in the rendered DOM or the border SVG — which
- * is sized from the host but builds its viewBox from this number under
- * `preserveAspectRatio='none'` — paints the card's outline stretched.
+ * These two numbers are the single source of truth for note sizing — the DOM
+ * host, the border SVG viewBox (`preserveAspectRatio='none'`, so a mismatch
+ * paints the outline stretched), and autolayout all resolve through them.
  */
-export const getNoteBlockHeight = (isEmpty: boolean) =>
+export const NOTE_BLOCK_MIN_HEIGHT =
   BLOCK_DIMENSIONS.HEADER_HEIGHT +
-  (isEmpty
-    ? BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING +
-      BLOCK_DIMENSIONS.NOTE_INNER_CONTENT_PADDING +
-      BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
-    : BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT)
+  BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING +
+  BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
+export const NOTE_BLOCK_MAX_HEIGHT =
+  BLOCK_DIMENSIONS.HEADER_HEIGHT + BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT
+
+/** Clamps a note's total height to the bounds the card itself honours. */
+export const clampNoteBlockTotalHeight = (totalHeight: number) =>
+  Math.min(NOTE_BLOCK_MAX_HEIGHT, Math.max(NOTE_BLOCK_MIN_HEIGHT, totalHeight))
+
+/** The height a note paints at when it has nothing measured yet. */
+export const getNoteBlockHeight = (isEmpty: boolean) =>
+  isEmpty ? NOTE_BLOCK_MIN_HEIGHT : NOTE_BLOCK_MAX_HEIGHT
+
+/** Clamps measured note *content* to the same bounds, adding the header. */
+export const clampNoteBlockHeight = (contentHeight: number) =>
+  clampNoteBlockTotalHeight(BLOCK_DIMENSIONS.HEADER_HEIGHT + contentHeight)
+
+/** Gives Notes a stable first frame before the rendered text can be measured. */
+export const estimateNoteBlockHeight = (content: string) => {
+  if (content.trim().length === 0) return getNoteBlockHeight(true)
+  const lineCount = Math.max(1, content.split('\n').length)
+  return clampNoteBlockHeight(
+    BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + lineCount * BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
+  )
+}
 
 export const CONTAINER_DIMENSIONS = {
   DEFAULT_WIDTH: 500,

@@ -21,6 +21,7 @@ import type { SubflowNodeData } from '@sim/workflow-renderer'
 import {
   BLOCK_DIMENSIONS,
   CONTAINER_DIMENSIONS,
+  getNoteBlockHeight,
   normalizeCursorSourceHandleId,
 } from '@sim/workflow-renderer'
 import {
@@ -145,6 +146,11 @@ const CONNECTION_LINE_STYLE = {
   strokeWidth: 2,
 }
 
+const getRegularBlockWidth = (type: string) =>
+  type === 'note' || type === 'noteBlock'
+    ? BLOCK_DIMENSIONS.NOTE_WIDTH
+    : BLOCK_DIMENSIONS.FIXED_WIDTH
+
 /**
  * Calculates the offset to paste blocks at viewport center
  */
@@ -165,7 +171,7 @@ function calculatePasteOffset(
       const width =
         b.type === 'loop' || b.type === 'parallel'
           ? CONTAINER_DIMENSIONS.DEFAULT_WIDTH
-          : BLOCK_DIMENSIONS.FIXED_WIDTH
+          : getRegularBlockWidth(b.type)
       return b.position.x + width
     })
   )
@@ -211,10 +217,13 @@ function mapEdgesByNode(edges: Edge[], nodeIds: Set<string>): Map<string, Edge[]
  */
 function syncPanelWithSelection(selectedIds: string[]) {
   const { currentBlockId, clearCurrentBlock, setCurrentBlockId } = usePanelEditorStore.getState()
-  if (selectedIds.length === 0) {
+  const blocks = useWorkflowStore.getState().blocks
+  const editorSelectedIds = selectedIds.filter((id) => blocks[id]?.type !== 'note')
+
+  if (editorSelectedIds.length === 0) {
     if (currentBlockId) clearCurrentBlock()
   } else {
-    const lastSelectedId = selectedIds[selectedIds.length - 1]
+    const lastSelectedId = editorSelectedIds[editorSelectedIds.length - 1]
     if (lastSelectedId !== currentBlockId) {
       setCurrentBlockId(lastSelectedId)
     }
@@ -1094,7 +1103,7 @@ const WorkflowContent = React.memo(
           if (clipboardBlocks.length > 0 && !hasNestedBlocks) {
             const minX = Math.min(...clipboardBlocks.map((b) => b.position.x))
             const maxX = Math.max(
-              ...clipboardBlocks.map((b) => b.position.x + BLOCK_DIMENSIONS.FIXED_WIDTH)
+              ...clipboardBlocks.map((b) => b.position.x + getRegularBlockWidth(b.type))
             )
             const minY = Math.min(...clipboardBlocks.map((b) => b.position.y))
             const maxY = Math.max(
@@ -1158,7 +1167,7 @@ const WorkflowContent = React.memo(
                 Math.min(
                   relativePosition.x,
                   targetContainer.dimensions.width -
-                    BLOCK_DIMENSIONS.FIXED_WIDTH -
+                    getRegularBlockWidth(block.type) -
                     CONTAINER_DIMENSIONS.RIGHT_PADDING
                 )
               ),
@@ -2696,9 +2705,11 @@ const WorkflowContent = React.memo(
           // Include dynamic dimensions for container resizing calculations (must match rendered size)
           // Both note and workflow blocks calculate dimensions deterministically via useBlockDimensions
           // Use estimated dimensions for blocks without measured height to ensure selection bounds are correct
-          width: BLOCK_DIMENSIONS.FIXED_WIDTH,
+          width: getRegularBlockWidth(block.type),
           height: block.height
-            ? Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT)
+            ? block.type === 'note'
+              ? block.height
+              : Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT)
             : estimateBlockDimensions(block.type).height,
         })
       })
@@ -3427,12 +3438,17 @@ const WorkflowContent = React.memo(
             const nodeWidth =
               node.type === 'subflowNode'
                 ? node.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH
-                : BLOCK_DIMENSIONS.FIXED_WIDTH
+                : getRegularBlockWidth(node.type ?? '')
 
             const nodeHeight =
               node.type === 'subflowNode'
                 ? node.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
-                : Math.max(node.height || BLOCK_DIMENSIONS.MIN_HEIGHT, BLOCK_DIMENSIONS.MIN_HEIGHT)
+                : node.type === 'noteBlock'
+                  ? node.height || getNoteBlockHeight(true)
+                  : Math.max(
+                      node.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
+                      BLOCK_DIMENSIONS.MIN_HEIGHT
+                    )
 
             // Check intersection using absolute coordinates
             const nodeRect = {
@@ -3899,11 +3915,11 @@ const WorkflowContent = React.memo(
 
         eligibleNodes.forEach((node) => {
           const absolutePos = getNodeAbsolutePosition(node.id)
-          const width = BLOCK_DIMENSIONS.FIXED_WIDTH
-          const height = Math.max(
-            node.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
-            BLOCK_DIMENSIONS.MIN_HEIGHT
-          )
+          const width = getRegularBlockWidth(node.type ?? '')
+          const height =
+            node.type === 'noteBlock'
+              ? node.height || getNoteBlockHeight(true)
+              : Math.max(node.height || BLOCK_DIMENSIONS.MIN_HEIGHT, BLOCK_DIMENSIONS.MIN_HEIGHT)
 
           minX = Math.min(minX, absolutePos.x)
           minY = Math.min(minY, absolutePos.y)
@@ -4235,7 +4251,9 @@ const WorkflowContent = React.memo(
         if (
           !embedded &&
           !isMultiSelect &&
-          (node.type === 'workflowBlock' || node.type === 'subflowNode')
+          (node.type === 'workflowBlock' ||
+            node.type === 'noteBlock' ||
+            node.type === 'subflowNode')
         ) {
           userFocusedWorkflowIdRef.current = activeWorkflowId ?? workflowIdParam
           focusBlockInView(node)

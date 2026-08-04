@@ -4,8 +4,11 @@ import { type NodeProps, useReactFlow } from 'reactflow'
 import { hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
-import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useIsBlockActive } from '@/stores/execution'
+import {
+  useCurrentWorkflow,
+  useIsBlockInActiveExecutionHandoff,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useIsBlockActive, useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { usePanelEditorStore } from '@/stores/panel'
 
 /**
@@ -35,13 +38,15 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   const isFocused = currentBlockId === id
 
   /*
-   * Per-block, not workflow-wide. This drives the activity swell, the
-   * selected-looking border, and the action row's progress bar — all of which
-   * describe *this* container's execution. Keyed off the workflow it would
-   * light up every node on the canvas and hide every action row for the whole
-   * run, with no other entry point to disable/lock/duplicate.
+   * Three separate signals, deliberately. `isRunning` and
+   * `isExecutionHighlighted` are per-container and drive this node's own loader
+   * and border; `isWorkflowRunning` only swaps Run for Stop and disables
+   * mutations. Driving the visuals off the workflow instead would light up
+   * every node on the canvas for the whole run.
    */
-  const isBlockRunning = useIsBlockActive(id)
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  const isRunning = useIsBlockActive(id)
+  const isExecutionHighlighted = useIsBlockInActiveExecutionHandoff(id)
 
   /**
    * Nesting depth, walking the parent chain so the view can apply nested
@@ -69,7 +74,9 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       isEnabled={isEnabled}
       isLocked={isLocked}
       isFocused={isFocused}
-      isRunning={isBlockRunning}
+      isRunning={isRunning}
+      isWorkflowRunning={isWorkflowRunning}
+      isExecutionHighlighted={isExecutionHighlighted}
       diffStatus={diffStatus}
       nestingLevel={nestingLevel}
       canEditWorkflow={canEditWorkflow}
@@ -80,7 +87,8 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
           blockType={data.kind}
           disabled={!canEditWorkflow}
           variant='swell'
-          isRunning={isBlockRunning}
+          isRunning={isRunning}
+          isWorkflowRunning={isWorkflowRunning}
         />
       }
     />
