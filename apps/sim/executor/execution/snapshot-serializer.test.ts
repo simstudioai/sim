@@ -299,24 +299,19 @@ describe('compactPauseSnapshotScopes', () => {
     expect(serialize(context).snapshot).toBeTruthy()
   })
 
-  /** A forEach collection is the most common way a loop's state gets large. */
-  it('compacts the forEach collection, not just the iteration outputs', async () => {
+  /**
+   * `items` is consumed structurally — the orchestrator indexes it to derive
+   * `item`, and the loop resolver asserts no refs reach it — so it stays inline
+   * even though that leaves an oversized collection unhandled. Offloading it
+   * would trade a failed pause for a broken resume.
+   */
+  it('leaves the forEach collection inline rather than breaking iteration', async () => {
     const context = loopContext({ items: fatIterations(40, 300_000) })
 
-    expect(() => serialize(context)).toThrow('oversized loop execution state')
     await compactPauseSnapshotScopes(context)
-    expect(serialize(context).snapshot).toBeTruthy()
-  })
 
-  /** A single fat mid-flight block output reaches the limit on its own. */
-  it('compacts in-flight iteration outputs', async () => {
-    const context = loopContext({
-      currentIterationOutputs: new Map([['block-1', { payload: 'x'.repeat(9_000_000) }]]),
-    })
-
-    expect(() => serialize(context)).toThrow('oversized loop execution state')
-    await compactPauseSnapshotScopes(context)
-    expect(serialize(context).snapshot).toBeTruthy()
+    const items = context.loopExecutions?.get('loop-1')?.items as unknown[]
+    expect(JSON.stringify(items)).not.toContain('__simLargeValueRef')
   })
 
   /** The assertion is on the whole record, so per-scope headroom is not enough. */

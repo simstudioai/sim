@@ -1,6 +1,6 @@
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
-import { compactExecutionPayload, compactSubflowResults } from '@/lib/execution/payloads/serializer'
+import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -222,10 +222,14 @@ function isSubflowStateOversized(loops?: Map<string, any>, parallels?: Map<strin
  * gone out by then, leaving the approver holding a link to something that was
  * never recorded.
  *
- * Every field that grows without an aggregate bound is covered: a loop's
- * iteration outputs, its in-flight iteration outputs and its `forEach`
- * collection, and the parallel equivalents. Compacting only one of them would
- * leave the same failure reachable by a different route.
+ * Covers exactly the accumulators the orchestrators themselves compact when a
+ * subflow exits — a loop's iteration outputs and a parallel's branch and
+ * accumulated outputs. Deliberately excluded: `items`, which the loop consumes
+ * structurally (`orchestrators/loop.ts` indexes it to derive `item`, and the
+ * loop resolver asserts no refs reach it), and `currentIterationOutputs`, whose
+ * entries the block executor has already compacted and which resolve through
+ * the reference path that materializes refs. Offloading either would trade this
+ * failure for a broken resume.
  *
  * Skipped entirely when the state already serializes small enough, so the
  * common case — a pause per iteration inside a modest loop — pays one bounded
@@ -264,24 +268,10 @@ export async function compactPauseSnapshotScopes(context: ExecutionContext): Pro
     if (scope.allIterationOutputs?.length) {
       scope.allIterationOutputs = await compactList(scope.allIterationOutputs)
     }
-    if (scope.items?.length) {
-      scope.items = await compactList(scope.items)
-    }
-    if (scope.currentIterationOutputs instanceof Map && scope.currentIterationOutputs.size > 0) {
-      for (const [blockId, output] of scope.currentIterationOutputs) {
-        scope.currentIterationOutputs.set(
-          blockId,
-          await compactExecutionPayload(output, { ...buildOptions(), preserveRoot: false })
-        )
-      }
-    }
     recordMaterializedAccessKeys(context, scope)
   }
 
   for (const scope of parallels?.values() ?? []) {
-    if (scope.items?.length) {
-      scope.items = await compactList(scope.items)
-    }
     if (scope.branchOutputs instanceof Map) {
       await compactMapValues(scope.branchOutputs)
     }
