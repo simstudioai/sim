@@ -11,31 +11,28 @@ import { getMaxExecutionTimeout, getRemainingExecutionMs } from '@/lib/core/exec
 const logger = createLogger('PiSandboxLifetime')
 
 /**
- * Read from `env` rather than the `env-flags` gate, and normalized the same way
- * `remote-sandbox/index.ts` normalizes it, so this module keeps the independence
- * its header describes: no provider adapters, no barrel, no config gate.
+ * E2B rejects a create above the 24-hour continuous-runtime limit. Daytona has
+ * no equivalent provider ceiling, so it may use the platform's full execution
+ * timeout. This module reads the provider directly from `env` to stay independent
+ * of the provider adapters and the remote-sandbox barrel.
  */
-function isLifetimeProvider(): boolean {
-  return (env.SANDBOX_PROVIDER || 'e2b').toLowerCase() === 'e2b'
-}
+const E2B_PI_SANDBOX_PROVIDER_LIMIT_MS = 24 * 60 * 60 * 1000
 
-/**
- * E2B rejects a create above the session length its plan allows: one hour on
- * Hobby, 24 hours on Professional, which is the plan Sim is on. Kept only as a
- * clamp so that raising an execution timeout can never produce a lifetime E2B
- * refuses — it is far above anything {@link PI_SANDBOX_MAX_LIFETIME_MS} would
- * otherwise reach, and is not itself a target.
- */
-const PI_SANDBOX_PROVIDER_LIMIT_MS = 24 * 60 * 60 * 1000
+function providerLifetimeCeilingMs(): number {
+  const executionCeilingMs = getMaxExecutionTimeout()
+  return (env.SANDBOX_PROVIDER || 'e2b').toLowerCase() === 'e2b'
+    ? Math.min(executionCeilingMs, E2B_PI_SANDBOX_PROVIDER_LIMIT_MS)
+    : executionCeilingMs
+}
 
 /**
  * The longest a Pi sandbox may live.
  *
  * Derived from the platform's longest execution rather than carrying a number of
  * its own, because the two had drifted: this was pinned just under E2B's *Hobby*
- * hour while the async execution ceiling is ninety minutes, so a long Babysit run
- * lost its sandbox with half an hour of budget left and stopped on a limit no
- * plan actually imposed.
+ * hour while paid async executions could already run for ninety minutes, so a
+ * long Babysit run lost its sandbox with half an hour of budget left and stopped
+ * on a limit no plan actually imposed.
  *
  * Tying it to {@link getMaxExecutionTimeout} means the sandbox is never the
  * binding constraint on a run the platform would let continue, and an operator
@@ -43,10 +40,7 @@ const PI_SANDBOX_PROVIDER_LIMIT_MS = 24 * 60 * 60 * 1000
  * file. `getMaxExecutionTimeout` already resolves its env at module scope, so
  * reading it here is exactly as static as the constant it replaces.
  */
-export const PI_SANDBOX_MAX_LIFETIME_MS = Math.min(
-  getMaxExecutionTimeout(),
-  PI_SANDBOX_PROVIDER_LIMIT_MS
-)
+export const PI_SANDBOX_MAX_LIFETIME_MS = providerLifetimeCeilingMs()
 
 /**
  * The shortest lifetime a Pi run can actually complete in, and the floor an
@@ -65,29 +59,20 @@ export const PI_SANDBOX_MAX_LIFETIME_MS = Math.min(
 export const PI_SANDBOX_MIN_LIFETIME_MS = 31 * 60 * 1000
 
 /**
- * The lifetime requested for a Pi sandbox, or `undefined` when the selected
- * provider has no such concept.
+ * The lifetime requested for a Pi sandbox. Both adapters now enforce an absolute
+ * wall-clock lifetime: E2B through `timeoutMs`, Daytona through `ttlMinutes`.
  *
- * Only E2B takes an absolute lifetime. Daytona stops on inactivity instead
- * (`autoStopInterval`, refreshed by activity), so there is no ceiling for a Pi
- * command to reserve against — and deriving one anyway would shorten Daytona's
- * agent turn to fit a limit that does not apply to it.
- *
- * For E2B it defaults to {@link PI_SANDBOX_MAX_LIFETIME_MS}: a run that finishes
- * kills its sandbox explicitly, so on the normal path the lifetime is a ceiling
- * rather than a budget. It is not entirely free — if the web process dies
- * mid-run the orphaned sandbox bills until this ceiling instead of the SDK's
- * five minutes — but five minutes is short enough to kill live runs, which is
- * the bug this replaces. {@link resolvePiRunLifetimeMs} is what keeps that
- * exposure proportional, by lowering the ceiling to the run's own deadline.
+ * It defaults to {@link PI_SANDBOX_MAX_LIFETIME_MS}: a run that finishes kills
+ * its sandbox explicitly, so on the normal path the lifetime is a ceiling rather
+ * than a budget. {@link resolvePiRunLifetimeMs} keeps orphan exposure
+ * proportional by lowering that ceiling to the run's own deadline.
  *
  * `PI_SANDBOX_LIFETIME_MS` may only lower it, and only as far as
  * {@link PI_SANDBOX_MIN_LIFETIME_MS}, so a misconfigured value can neither
- * outrun the provider's session limit nor leave a run without time to push.
+ * outrun the selected provider's policy ceiling nor leave a run without time to
+ * push.
  */
-export function resolvePiSandboxLifetimeMs(): number | undefined {
-  if (!isLifetimeProvider()) return undefined
-
+export function resolvePiSandboxLifetimeMs(): number {
   const configured = Number.parseInt(env.PI_SANDBOX_LIFETIME_MS ?? '', 10)
   if (!Number.isFinite(configured) || configured <= 0) return PI_SANDBOX_MAX_LIFETIME_MS
 
@@ -107,23 +92,21 @@ export function resolvePiSandboxLifetimeMs(): number | undefined {
  * on: the run aborts at its deadline, but the sandbox keeps costing until the
  * provider ceiling. That gap is the whole reason this exists — it is widest on
  * the plans with the shortest deadlines, where {@link resolvePiSandboxLifetimeMs}
- * alone hands a five-minute sync run the same ceiling as a ninety-minute async
- * one, and `PI_SANDBOX_LIFETIME_MS` cannot close it because that override has its
- * own floor.
+ * alone hands a five-minute sync run the same ceiling as a much longer async one,
+ * and `PI_SANDBOX_LIFETIME_MS` cannot close it because that override has its own
+ * floor.
  *
- * `undefined` still means the provider has no lifetime concept (Daytona), and an
- * untimed execution still falls back to the ceiling — {@link getRemainingExecutionMs}
- * returning `undefined` is "unknown", never "unlimited".
+ * An untimed execution still falls back to the selected provider's ceiling —
+ * {@link getRemainingExecutionMs} returning `undefined` is "unknown", never
+ * "unlimited".
  *
  * Callers pass the result to both `withPiSandbox` and
  * `resolvePiTimeoutMs` rather than calling this twice, so the lifetime the
  * sandbox is created with and the lifetime the agent turn reserves against are
  * the same number and cannot drift by the milliseconds between two calls.
  */
-export function resolvePiRunLifetimeMs(signal?: AbortSignal): number | undefined {
+export function resolvePiRunLifetimeMs(signal?: AbortSignal): number {
   const ceiling = resolvePiSandboxLifetimeMs()
-  if (ceiling === undefined) return undefined
-
   const remaining = getRemainingExecutionMs(signal)
   if (remaining === undefined) return ceiling
 

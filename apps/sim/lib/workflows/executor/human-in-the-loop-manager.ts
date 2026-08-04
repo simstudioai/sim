@@ -8,7 +8,13 @@ import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import {
+  createTimeoutAbortController,
+  getAsyncExecutionTimeoutForBillingAttribution,
+  getExecutionDeadlineAt,
+  getTimeoutErrorMessage,
+  type TimeoutAbortController,
+} from '@/lib/core/execution-limits'
 import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
@@ -319,6 +325,66 @@ interface StartResumeExecutionArgs {
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
   onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
   abortSignal?: AbortSignal
+}
+
+/**
+ * Starts a new active-attempt deadline from the immutable payer snapshot saved
+ * in bounded pause metadata. Legacy rows extract only the leading snapshot
+ * metadata object. The controller therefore exists before any resume log claim
+ * or full snapshot reconstruction, while an upstream deadline remains earlier.
+ */
+export function createResumeAttemptTimeoutController(
+  snapshotSeed: SerializedSnapshot,
+  parentSignal?: AbortSignal,
+  pausedExecutionMetadata?: unknown
+): TimeoutAbortController {
+  const persistedResumeMetadata = parsePausedExecutionResumeMetadata(pausedExecutionMetadata)
+  const billingAttribution = persistedResumeMetadata
+    ? persistedResumeMetadata.billingAttribution
+    : extractResumeBillingAttributionFromSnapshot(snapshotSeed)
+  return createTimeoutAbortController(
+    getAsyncExecutionTimeoutForBillingAttribution(billingAttribution),
+    parentSignal
+  )
+}
+
+/**
+ * Reads only the leading snapshot metadata object used by `ExecutionSnapshot.toJSON`.
+ * This admits the attempt before reconstructing the potentially large workflow state.
+ */
+export function extractResumeBillingAttributionFromSnapshot(
+  snapshotSeed: SerializedSnapshot
+): ReturnType<typeof assertBillingAttributionSnapshot> {
+  const prefix = /^\s*\{\s*"metadata"\s*:\s*/.exec(snapshotSeed.snapshot)
+  const metadataStart = prefix?.[0].length
+  if (metadataStart === undefined || snapshotSeed.snapshot[metadataStart] !== '{') {
+    throw new Error('Paused execution snapshot metadata is missing')
+  }
+
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let index = metadataStart; index < snapshotSeed.snapshot.length; index++) {
+    const character = snapshotSeed.snapshot[index]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (character === '\\') escaped = true
+      else if (character === '"') inString = false
+      continue
+    }
+    if (character === '"') {
+      inString = true
+      continue
+    }
+    if (character === '{') depth++
+    else if (character === '}') depth--
+    if (depth !== 0) continue
+
+    const metadata = JSON.parse(snapshotSeed.snapshot.slice(metadataStart, index + 1))
+    return createPausedExecutionResumeMetadata({ metadata }).billingAttribution
+  }
+
+  throw new Error('Paused execution snapshot metadata is malformed')
 }
 
 /**
@@ -660,7 +726,13 @@ export class PauseResumeManager {
       pausePointForContext?.blockId ?? pausePointForContext?.contextId ?? contextId
     )
 
+    let attemptTimeoutController: TimeoutAbortController | undefined
     try {
+      attemptTimeoutController = createResumeAttemptTimeoutController(
+        pausedExecution.executionSnapshot as SerializedSnapshot,
+        abortSignal,
+        pausedExecution.metadata
+      )
       const result = await PauseResumeManager.runResumeExecution({
         reservationId: resumeEntryId,
         resumeExecutionId,
@@ -671,7 +743,7 @@ export class PauseResumeManager {
         sendEvent,
         onStream,
         onBlockComplete,
-        abortSignal,
+        abortSignal: attemptTimeoutController.signal,
       })
 
       if (result.status === 'paused') {
@@ -801,6 +873,31 @@ export class PauseResumeManager {
         )
       }
       throw error
+    } finally {
+      attemptTimeoutController?.cleanup()
+    }
+  }
+
+  private static async claimResumeExecutionLog(args: {
+    parentExecutionId: string
+    workflowId: string
+    executionDeadlineAt?: Date
+  }): Promise<void> {
+    const { parentExecutionId, workflowId, executionDeadlineAt } = args
+    const [claimedExecution] = await execDb
+      .update(workflowExecutionLogs)
+      .set({ status: 'running', executionDeadlineAt: executionDeadlineAt ?? null })
+      .where(
+        and(
+          eq(workflowExecutionLogs.executionId, parentExecutionId),
+          eq(workflowExecutionLogs.workflowId, workflowId),
+          inArray(workflowExecutionLogs.status, ['pending', 'paused'])
+        )
+      )
+      .returning({ id: workflowExecutionLogs.id })
+
+    if (!claimedExecution) {
+      throw new ResumeAdmissionError('Execution can no longer be resumed', 409, false)
     }
   }
 
@@ -829,11 +926,13 @@ export class PauseResumeManager {
       abortSignal: externalAbortSignal,
     } = args
     const parentExecutionId = pausedExecution.executionId
+    const executionDeadlineAt = getExecutionDeadlineAt(externalAbortSignal)
 
-    await execDb
-      .update(workflowExecutionLogs)
-      .set({ status: 'running' })
-      .where(eq(workflowExecutionLogs.executionId, parentExecutionId))
+    await PauseResumeManager.claimResumeExecutionLog({
+      parentExecutionId,
+      workflowId: pausedExecution.workflowId,
+      executionDeadlineAt,
+    })
 
     logger.info('Starting resume execution', {
       resumeExecutionId,
@@ -1223,6 +1322,8 @@ export class PauseResumeManager {
       workspaceId: baseSnapshot.metadata.workspaceId,
       loggingSession,
       billingAttribution,
+      executionType: 'async',
+      executionDeadlineAt: executionDeadlineAt?.getTime(),
     })
 
     if (!preprocessingResult.success) {
@@ -1530,9 +1631,10 @@ export class PauseResumeManager {
       },
     }
 
-    const timeoutController = externalAbortSignal
-      ? null
-      : createTimeoutAbortController(preprocessingResult.executionTimeout?.async)
+    const timeoutController = createTimeoutAbortController(
+      preprocessingResult.executionTimeout.async,
+      externalAbortSignal
+    )
 
     let result: ExecutionResult | undefined
     let finalMetaStatus: TerminalExecutionStreamStatus = 'complete'
@@ -1545,7 +1647,7 @@ export class PauseResumeManager {
         skipLogCreation: true,
         includeFileBase64: true,
         base64MaxBytes: undefined,
-        abortSignal: externalAbortSignal ?? timeoutController?.signal,
+        abortSignal: timeoutController.signal,
       })
 
       if (resumeSnapshot.metadata.resumeTerminalNoop === true && result.status !== 'cancelled') {
@@ -1575,10 +1677,10 @@ export class PauseResumeManager {
 
       if (
         result.status === 'cancelled' &&
-        timeoutController?.isTimedOut() &&
-        timeoutController?.timeoutMs
+        timeoutController.isTimedOut() &&
+        timeoutController.timeoutMs
       ) {
-        const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController!.timeoutMs)
+        const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
         logger.info('Resume execution timed out', {
           resumeExecutionId,
           timeoutMs: timeoutController.timeoutMs,
@@ -1703,7 +1805,7 @@ export class PauseResumeManager {
         'error'
       )
     } finally {
-      timeoutController?.cleanup()
+      timeoutController.cleanup()
       if (!terminalEventPublished) {
         const replayBufferFlushed = await flushExecutionStreamReplayBuffer(
           resumeExecutionId,
@@ -1801,7 +1903,7 @@ export class PauseResumeManager {
       } else {
         await tx
           .update(workflowExecutionLogs)
-          .set({ status: 'pending' })
+          .set({ status: 'pending', executionDeadlineAt: null })
           .where(
             and(
               eq(workflowExecutionLogs.executionId, parentExecutionId),
@@ -1843,7 +1945,12 @@ export class PauseResumeManager {
       await tx
         .update(workflowExecutionLogs)
         .set({ status: 'failed' })
-        .where(eq(workflowExecutionLogs.executionId, args.parentExecutionId))
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, args.parentExecutionId),
+            sql`${workflowExecutionLogs.status} != 'cancelled'`
+          )
+        )
     })
   }
 
@@ -1927,7 +2034,13 @@ export class PauseResumeManager {
 
       await tx
         .update(workflowExecutionLogs)
-        .set({ status: sql`CASE WHEN status = 'cancelled' THEN 'cancelled' ELSE 'paused' END` })
+        .set({
+          status: sql`CASE
+            WHEN status IN ('cancelled', 'failed', 'completed') THEN status
+            ELSE 'paused'
+          END`,
+          executionDeadlineAt: null,
+        })
         .where(
           and(
             eq(workflowExecutionLogs.executionId, args.parentExecutionId),
@@ -2119,15 +2232,24 @@ export class PauseResumeManager {
         return false
       }
 
+      const [cancelledExecution] = await tx
+        .update(workflowExecutionLogs)
+        .set({ status: 'cancelled', endedAt: now, executionDeadlineAt: null })
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId),
+            inArray(workflowExecutionLogs.status, ['running', 'pending', 'cancelled'])
+          )
+        )
+        .returning({ status: workflowExecutionLogs.status })
+
+      if (cancelledExecution?.status !== 'cancelled') return false
+
       await tx
         .update(pausedExecutions)
         .set({ status: 'cancelled', updatedAt: now })
         .where(eq(pausedExecutions.id, pausedExecution.id))
-
-      await tx
-        .update(workflowExecutionLogs)
-        .set({ status: 'cancelled', endedAt: now })
-        .where(eq(workflowExecutionLogs.executionId, executionId))
 
       return true
     })

@@ -43,7 +43,7 @@ SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
 
 #### Methods
 
-##### execute_workflow(workflow_id, input=None, *, timeout=30.0, stream=None, selected_outputs=None, async_execution=None)
+##### execute_workflow(workflow_id, input=None, *, timeout=30.0, stream=None, selected_outputs=None, async_execution=None, execution_timeout_seconds=None)
 
 Execute a workflow with optional input data.
 
@@ -55,7 +55,13 @@ result = client.execute_workflow("workflow-id", {"message": "Hello, world!"})
 result = client.execute_workflow("workflow-id", "NVDA")
 
 # With options (keyword-only arguments)
-result = client.execute_workflow("workflow-id", {"message": "Hello"}, timeout=60.0)
+result = client.execute_workflow(
+    "workflow-id",
+    {"message": "Hello"},
+    timeout=60.0,
+    async_execution=True,
+    execution_timeout_seconds=3600,
+)
 ```
 
 **Parameters:**
@@ -65,6 +71,7 @@ result = client.execute_workflow("workflow-id", {"message": "Hello"}, timeout=60
 - `stream` (bool, keyword-only): Enable streaming responses
 - `selected_outputs` (list, keyword-only): Block outputs to stream (e.g., `["agent1.content"]`)
 - `async_execution` (bool, keyword-only): Execute asynchronously and return execution ID
+- `execution_timeout_seconds` (int, keyword-only): Server-side async execution cap from 1 to 604800 seconds. Requires `async_execution=True` and cannot extend the account policy.
 
 **Returns:** `WorkflowExecutionResult` or `AsyncExecutionResult`
 
@@ -527,4 +534,4 @@ isort simstudio/
 
 ## License
 
-Apache-2.0 
+Apache-2.0

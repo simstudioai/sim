@@ -8,6 +8,7 @@ import {
   toolWatchdogTimeoutMs,
 } from '@/lib/copilot/request/tools/executor'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('toolWatchdogTimeoutMs', () => {
   it('gives request-scoped MCP tools the long-running watchdog', () => {
@@ -17,6 +18,13 @@ describe('toolWatchdogTimeoutMs', () => {
   it('keeps ordinary tools on the strict default watchdog', () => {
     expect(toolWatchdogTimeoutMs('read')).toBe(TOOL_WATCHDOG_DEFAULT_MS)
   })
+
+  it.each(['deploy_api', 'deploy_chat', 'deploy_mcp', 'redeploy', 'promote_to_live'])(
+    'does not undercut deployment tool %s with the default watchdog',
+    (toolName) => {
+      expect(toolWatchdogTimeoutMs(toolName)).toBe(TOOL_WATCHDOG_LONG_RUNNING_MS)
+    }
+  )
 })
 
 describe('pendingToolWaitBudgetMs', () => {
@@ -56,5 +64,29 @@ describe('buildToolExecutionContext', () => {
       toolCallId: 'call-1',
       parentToolCallId: 'parent-1',
     })
+  })
+
+  it('isolates one tool from a sibling secret activation and merges settled provenance', () => {
+    const parentRegistry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret', encryptedValue: 'encrypted-secret' },
+    ])
+    const completeSiblingActivation = parentRegistry.beginPendingActivation()
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: parentRegistry,
+    }
+
+    const toolContext = buildToolExecutionContext({ id: 'call-1' }, executionContext)
+    const toolRegistry = toolContext.resolvedSecretTraceRegistry
+
+    expect(toolRegistry).not.toBe(parentRegistry)
+    expect(toolRegistry?.isComplete()).toBe(true)
+    expect(toolRegistry?.recordResolved('TOKEN', 'secret')).toBe(true)
+    parentRegistry.mergeToolCallRegistry(toolRegistry!)
+    completeSiblingActivation()
+    expect(parentRegistry.getActiveMatches()).toEqual([
+      { plaintext: 'secret', replacement: '{{TOKEN}}' },
+    ])
   })
 })

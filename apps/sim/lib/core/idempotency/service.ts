@@ -61,6 +61,15 @@ export interface ProcessingResult {
   error?: string
   status?: 'in-progress' | 'completed' | 'failed'
   startedAt?: number
+  /** Absolute Unix epoch milliseconds when an unfinished holder may be reclaimed. */
+  inProgressExpiresAt?: number
+  /** Opaque fencing token owned by the process that holds an in-progress lease. */
+  claimToken?: string
+}
+
+export interface IdempotencyExecutionOptions {
+  /** Absolute Unix epoch milliseconds when this operation's in-progress claim becomes stale. */
+  inProgressExpiresAt?: number
 }
 
 export interface AtomicClaimResult {
@@ -68,12 +77,50 @@ export interface AtomicClaimResult {
   existingResult?: ProcessingResult
   normalizedKey: string
   storageMethod: StorageMethod
+  /** Present only when this caller acquired the claim. Required to finalize or release it. */
+  claimToken?: string
+  /** Exact serialized value observed by Redis when another holder owns the key. */
+  observedValue?: string
 }
 
 const DEFAULT_TTL = 60 * 60 * 24 * 7
 const REDIS_KEY_PREFIX = 'idempotency:'
 const MAX_WAIT_TIME_MS = getMaxExecutionTimeout()
 const POLL_INTERVAL_MS = 1000
+
+const CLAIM_REDIS_LEASE_SCRIPT = `
+local claimed = redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[2]), 'NX')
+if claimed then return {1, ''} end
+local current = redis.call('GET', KEYS[1])
+if current then return {0, current} end
+claimed = redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[2]), 'NX')
+if claimed then return {1, ''} end
+current = redis.call('GET', KEYS[1])
+return {0, current or ''}
+`
+
+const STORE_REDIS_RESULT_IF_OWNER_SCRIPT = `
+local current = redis.call('GET', KEYS[1])
+if not current then return 0 end
+local ok, decoded = pcall(cjson.decode, current)
+if not ok or decoded.claimToken ~= ARGV[1] then return 0 end
+redis.call('SETEX', KEYS[1], tonumber(ARGV[2]), ARGV[3])
+return 1
+`
+
+const DELETE_REDIS_RESULT_IF_OWNER_SCRIPT = `
+local current = redis.call('GET', KEYS[1])
+if not current then return 0 end
+local ok, decoded = pcall(cjson.decode, current)
+if not ok or decoded.claimToken ~= ARGV[1] then return 0 end
+return redis.call('DEL', KEYS[1])
+`
+
+const DELETE_REDIS_RESULT_IF_VALUE_SCRIPT = `
+local current = redis.call('GET', KEYS[1])
+if not current or current ~= ARGV[1] then return 0 end
+return redis.call('DEL', KEYS[1])
+`
 
 /**
  * Universal idempotency service for webhooks, triggers, and any other operations
@@ -197,13 +244,23 @@ export class IdempotencyService {
   async atomicallyClaim(
     provider: string,
     identifier: string,
-    additionalContext?: Record<string, any>
+    additionalContext?: Record<string, any>,
+    options?: IdempotencyExecutionOptions
   ): Promise<AtomicClaimResult> {
     const normalizedKey = this.normalizeKey(provider, identifier, additionalContext)
+    const now = Date.now()
+    const inProgressExpiresAt =
+      options?.inProgressExpiresAt &&
+      Number.isFinite(options.inProgressExpiresAt) &&
+      options.inProgressExpiresAt > now
+        ? Math.floor(options.inProgressExpiresAt)
+        : now + this.config.inProgressTtlSeconds * 1000
     const inProgressResult: ProcessingResult = {
       success: false,
       status: 'in-progress',
-      startedAt: Date.now(),
+      startedAt: now,
+      inProgressExpiresAt,
+      claimToken: generateId(),
     }
 
     if (this.storageMethod === 'redis') {
@@ -222,24 +279,36 @@ export class IdempotencyService {
     }
 
     const redisKey = `${REDIS_KEY_PREFIX}${normalizedKey}`
-    const claimed = await redis.set(
+    const inProgressTtlSeconds = Math.max(
+      1,
+      Math.ceil(((inProgressResult.inProgressExpiresAt ?? Date.now()) - Date.now()) / 1000)
+    )
+    const claimResponse = await redis.eval(
+      CLAIM_REDIS_LEASE_SCRIPT,
+      1,
       redisKey,
       JSON.stringify(inProgressResult),
-      'EX',
-      this.config.inProgressTtlSeconds,
-      'NX'
+      inProgressTtlSeconds
     )
+    if (!Array.isArray(claimResponse) || claimResponse.length < 2) {
+      throw new Error(`Redis idempotency claim returned an invalid result: ${normalizedKey}`)
+    }
+    const claimed = Number(claimResponse[0]) === 1
 
-    if (claimed === 'OK') {
+    if (claimed) {
       logger.debug(`Atomically claimed idempotency key in Redis: ${normalizedKey}`)
       return {
         claimed: true,
         normalizedKey,
         storageMethod: 'redis',
+        claimToken: inProgressResult.claimToken,
       }
     }
 
-    const existingData = await redis.get(redisKey)
+    const existingData = typeof claimResponse[1] === 'string' ? claimResponse[1] : ''
+    if (!existingData) {
+      throw new Error(`Redis idempotency claim race did not return an owner: ${normalizedKey}`)
+    }
     const existingResult = existingData ? JSON.parse(existingData) : null
     logger.debug(`Idempotency key already claimed in Redis: ${normalizedKey}`)
     return {
@@ -247,6 +316,7 @@ export class IdempotencyService {
       existingResult,
       normalizedKey,
       storageMethod: 'redis',
+      observedValue: existingData,
     }
   }
 
@@ -256,7 +326,13 @@ export class IdempotencyService {
   ): Promise<AtomicClaimResult> {
     const now = new Date()
     const expiredBefore = new Date(now.getTime() - this.config.ttlSeconds * 1000)
-    const staleClaimBefore = new Date(now.getTime() - this.config.inProgressTtlSeconds * 1000)
+    const inProgressClaimExpired = sql`COALESCE(
+      CASE
+        WHEN jsonb_typeof(${idempotencyKey.result} -> 'inProgressExpiresAt') = 'number'
+          THEN (${idempotencyKey.result} ->> 'inProgressExpiresAt')::double precision
+      END,
+      EXTRACT(EPOCH FROM ${idempotencyKey.createdAt}) * 1000 + ${this.config.inProgressTtlSeconds * 1000}
+    ) <= ${now.getTime()}`
 
     // `ON CONFLICT DO UPDATE` steals a completed/failed row only after the
     // normal result TTL, but reclaims a crashed `in-progress` holder after the
@@ -279,11 +355,11 @@ export class IdempotencyService {
           createdAt: now,
         },
         setWhere: or(
-          lt(idempotencyKey.createdAt, expiredBefore),
           and(
-            sql`${idempotencyKey.result} ->> 'status' = 'in-progress'`,
-            lt(idempotencyKey.createdAt, staleClaimBefore)
-          )
+            sql`${idempotencyKey.result} ->> 'status' IS DISTINCT FROM 'in-progress'`,
+            lt(idempotencyKey.createdAt, expiredBefore)
+          ),
+          and(sql`${idempotencyKey.result} ->> 'status' = 'in-progress'`, inProgressClaimExpired)
         ),
       })
       .returning({ key: idempotencyKey.key })
@@ -294,6 +370,7 @@ export class IdempotencyService {
         claimed: true,
         normalizedKey,
         storageMethod: 'database',
+        claimToken: inProgressResult.claimToken,
       }
     }
 
@@ -314,11 +391,14 @@ export class IdempotencyService {
     }
   }
 
-  async waitForResult<T>(normalizedKey: string, storageMethod: 'redis' | 'database'): Promise<T> {
-    const startTime = Date.now()
+  async waitForResult<T>(
+    normalizedKey: string,
+    storageMethod: 'redis' | 'database',
+    waitUntil = Date.now() + MAX_WAIT_TIME_MS
+  ): Promise<T> {
     const redisKey = `${REDIS_KEY_PREFIX}${normalizedKey}`
 
-    while (Date.now() - startTime < MAX_WAIT_TIME_MS) {
+    while (Date.now() < waitUntil) {
       let currentResult: ProcessingResult | null = null
 
       if (storageMethod === 'redis') {
@@ -359,73 +439,134 @@ export class IdempotencyService {
   async storeResult(
     normalizedKey: string,
     result: ProcessingResult,
-    storageMethod: 'redis' | 'database'
-  ): Promise<void> {
+    storageMethod: 'redis' | 'database',
+    claimToken: string
+  ): Promise<boolean> {
     if (storageMethod === 'redis') {
-      return this.storeResultRedis(normalizedKey, result)
+      return this.storeResultRedis(normalizedKey, result, claimToken)
     }
-    return this.storeResultDb(normalizedKey, result)
+    return this.storeResultDb(normalizedKey, result, claimToken)
   }
 
-  private async storeResultRedis(normalizedKey: string, result: ProcessingResult): Promise<void> {
+  private async storeResultRedis(
+    normalizedKey: string,
+    result: ProcessingResult,
+    claimToken: string
+  ): Promise<boolean> {
     const redis = getRedisClient()
     if (!redis) {
       throw new Error('Redis not available for storing result')
     }
 
-    await redis.setex(
+    const storedResult = { ...result, claimToken }
+    const stored = await redis.eval(
+      STORE_REDIS_RESULT_IF_OWNER_SCRIPT,
+      1,
       `${REDIS_KEY_PREFIX}${normalizedKey}`,
+      claimToken,
       this.config.ttlSeconds,
-      JSON.stringify(result)
+      JSON.stringify(storedResult)
     )
+    if (Number(stored) !== 1) {
+      logger.warn(`Skipped stale idempotency result in Redis: ${normalizedKey}`)
+      return false
+    }
     logger.debug(`Stored idempotency result in Redis: ${normalizedKey}`)
+    return true
   }
 
-  private async storeResultDb(normalizedKey: string, result: ProcessingResult): Promise<void> {
-    await db
-      .insert(idempotencyKey)
-      .values({
-        key: normalizedKey,
-        result: result,
-        createdAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [idempotencyKey.key],
-        set: {
-          result: result,
-          createdAt: new Date(),
-        },
-      })
+  private async storeResultDb(
+    normalizedKey: string,
+    result: ProcessingResult,
+    claimToken: string
+  ): Promise<boolean> {
+    const storedResult = { ...result, claimToken }
+    const [stored] = await db
+      .update(idempotencyKey)
+      .set({ result: storedResult, createdAt: new Date() })
+      .where(
+        and(
+          eq(idempotencyKey.key, normalizedKey),
+          sql`${idempotencyKey.result} ->> 'claimToken' = ${claimToken}`
+        )
+      )
+      .returning({ key: idempotencyKey.key })
 
+    if (!stored) {
+      logger.warn(`Skipped stale idempotency result in database: ${normalizedKey}`)
+      return false
+    }
     logger.debug(`Stored idempotency result in database: ${normalizedKey}`)
+    return true
   }
 
-  async release(normalizedKey: string, storageMethod: 'redis' | 'database'): Promise<void> {
-    return this.deleteKey(normalizedKey, storageMethod)
+  async release(
+    normalizedKey: string,
+    storageMethod: 'redis' | 'database',
+    claimToken?: string
+  ): Promise<void> {
+    await this.deleteKey(normalizedKey, storageMethod, claimToken ? { claimToken } : undefined)
   }
 
   private async deleteKey(
     normalizedKey: string,
-    storageMethod: 'redis' | 'database'
-  ): Promise<void> {
+    storageMethod: 'redis' | 'database',
+    fence?: {
+      claimToken?: string
+      observedResult?: ProcessingResult
+      observedValue?: string
+    }
+  ): Promise<boolean> {
     if (storageMethod === 'redis') {
       const redis = getRedisClient()
-      if (redis) await redis.del(`${REDIS_KEY_PREFIX}${normalizedKey}`).catch(() => {})
-    } else {
-      await db
-        .delete(idempotencyKey)
-        .where(eq(idempotencyKey.key, normalizedKey))
-        .catch(() => {})
+      if (!redis) return false
+      if (fence?.claimToken) {
+        const deleted = await redis.eval(
+          DELETE_REDIS_RESULT_IF_OWNER_SCRIPT,
+          1,
+          `${REDIS_KEY_PREFIX}${normalizedKey}`,
+          fence.claimToken
+        )
+        return Number(deleted) === 1
+      }
+      if (fence?.observedValue) {
+        const deleted = await redis.eval(
+          DELETE_REDIS_RESULT_IF_VALUE_SCRIPT,
+          1,
+          `${REDIS_KEY_PREFIX}${normalizedKey}`,
+          fence.observedValue
+        )
+        return Number(deleted) === 1
+      }
+      return Number(await redis.del(`${REDIS_KEY_PREFIX}${normalizedKey}`)) > 0
     }
+
+    const condition = fence?.claimToken
+      ? and(
+          eq(idempotencyKey.key, normalizedKey),
+          sql`${idempotencyKey.result} ->> 'claimToken' = ${fence.claimToken}`
+        )
+      : fence?.observedResult
+        ? and(
+            eq(idempotencyKey.key, normalizedKey),
+            sql`${idempotencyKey.result} = ${JSON.stringify(fence.observedResult)}::jsonb`
+          )
+        : eq(idempotencyKey.key, normalizedKey)
+    const deleted = await db
+      .delete(idempotencyKey)
+      .where(condition)
+      .returning({ key: idempotencyKey.key })
+    return deleted.length > 0
   }
 
   async executeWithIdempotency<T>(
     provider: string,
     identifier: string,
     operation: () => Promise<T>,
-    additionalContext?: Record<string, any>
+    additionalContext?: Record<string, any>,
+    options?: IdempotencyExecutionOptions
   ): Promise<T> {
-    const claimResult = await this.atomicallyClaim(provider, identifier, additionalContext)
+    const claimResult = await this.atomicallyClaim(provider, identifier, additionalContext, options)
 
     if (!claimResult.claimed) {
       const existingResult = claimResult.existingResult
@@ -440,8 +581,17 @@ export class IdempotencyService {
 
       if (existingResult?.status === 'failed') {
         if (this.config.retryFailures) {
-          await this.deleteKey(claimResult.normalizedKey, claimResult.storageMethod)
-          return this.executeWithIdempotency(provider, identifier, operation, additionalContext)
+          await this.deleteKey(claimResult.normalizedKey, claimResult.storageMethod, {
+            observedResult: existingResult,
+            observedValue: claimResult.observedValue,
+          })
+          return this.executeWithIdempotency(
+            provider,
+            identifier,
+            operation,
+            additionalContext,
+            options
+          )
         }
         logger.info(`Previous operation failed for: ${claimResult.normalizedKey}`)
         throw new Error(existingResult.error || 'Previous operation failed')
@@ -449,7 +599,11 @@ export class IdempotencyService {
 
       if (existingResult?.status === 'in-progress') {
         logger.info(`Waiting for in-progress operation: ${claimResult.normalizedKey}`)
-        return await this.waitForResult<T>(claimResult.normalizedKey, claimResult.storageMethod)
+        return await this.waitForResult<T>(
+          claimResult.normalizedKey,
+          claimResult.storageMethod,
+          existingResult.inProgressExpiresAt ?? Date.now() + MAX_WAIT_TIME_MS
+        )
       }
 
       if (existingResult) {
@@ -462,13 +616,16 @@ export class IdempotencyService {
     try {
       logger.info(`Executing new operation: ${claimResult.normalizedKey}`)
       const result = await operation()
+      const claimToken = claimResult.claimToken
+      if (!claimToken) throw new Error('Idempotency claim is missing its fencing token')
 
       await this.storeResult(
         claimResult.normalizedKey,
         this.config.storeResultBody
           ? { success: true, result, status: 'completed' }
           : { success: true, status: 'completed' },
-        claimResult.storageMethod
+        claimResult.storageMethod,
+        claimToken
       )
 
       logger.debug(`Successfully completed operation: ${claimResult.normalizedKey}`)
@@ -477,12 +634,19 @@ export class IdempotencyService {
       const errorMessage = getErrorMessage(error, 'Unknown error')
 
       if (this.config.retryFailures) {
-        await this.deleteKey(claimResult.normalizedKey, claimResult.storageMethod)
+        await this.deleteKey(
+          claimResult.normalizedKey,
+          claimResult.storageMethod,
+          claimResult.claimToken ? { claimToken: claimResult.claimToken } : undefined
+        )
       } else {
+        const claimToken = claimResult.claimToken
+        if (!claimToken) throw new Error('Idempotency claim is missing its fencing token')
         await this.storeResult(
           claimResult.normalizedKey,
           { success: false, error: errorMessage, status: 'failed' },
-          claimResult.storageMethod
+          claimResult.storageMethod,
+          claimToken
         )
       }
 

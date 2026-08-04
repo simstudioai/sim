@@ -821,14 +821,14 @@ export function serializeDeployments(data: DeploymentData): string {
     result.needsRedeployment = data.needsRedeployment
   }
 
-  if (data.isDeployed) {
-    result.api = {
-      isDeployed: true,
-      deployedAt: data.deployedAt?.toISOString(),
-      apiEndpoint: `/api/workflows/${data.workflowId}/execute`,
-      ...(data.api ? { version: data.api.version } : {}),
-    }
-  }
+  result.api = data.isDeployed
+    ? {
+        isDeployed: true,
+        deployedAt: data.deployedAt?.toISOString(),
+        apiEndpoint: `/api/workflows/${data.workflowId}/execute`,
+        ...(data.api ? { version: data.api.version } : {}),
+      }
+    : { isDeployed: false }
 
   if (data.chat) {
     result.chat = {

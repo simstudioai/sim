@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
 import { taskContext } from '@trigger.dev/core/v3'
 import { ApiError, runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
@@ -6,6 +7,8 @@ import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import {
   AsyncJobEnqueueError,
   type EnqueueOptions,
+  type ExecutionJobBinding,
+  JOB_PENDING_RETENTION_HOURS,
   JOB_STATUS,
   type Job,
   type JobMetadata,
@@ -13,8 +16,26 @@ import {
   type JobStatus,
   type JobType,
 } from '@/lib/core/async-jobs/types'
+import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
 const logger = createLogger('TriggerDevJobQueue')
+const ACTIVE_TRIGGER_RUN_STATUSES = [
+  'PENDING_VERSION',
+  'DELAYED',
+  'QUEUED',
+  'DEQUEUED',
+  'EXECUTING',
+  'WAITING',
+] as const
+const CANCELLATION_LIST_PAGE_SIZE = 25
+const CANCELLATION_OPERATION_CHUNK_SIZE = 10
+const WORKFLOW_TASK_IDENTIFIERS = [
+  'workflow-execution',
+  'schedule-execution',
+  'webhook-execution',
+  'resume-execution',
+  'workflow-group-cell',
+] as const satisfies readonly JobType[]
 
 function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
   if (error instanceof ApiError && error.status && error.status >= 400 && error.status < 500) {
@@ -30,6 +51,138 @@ function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
     retryable: true,
     cause: error,
   })
+}
+
+function resolveMaxDuration(options?: EnqueueOptions): number | undefined {
+  const value = options?.maxDurationSeconds
+  if (value === undefined) return undefined
+  if (!Number.isFinite(value) || value <= 0 || !Number.isInteger(value)) {
+    throw new AsyncJobEnqueueError('maxDurationSeconds must be a positive integer', {
+      acceptance: 'rejected',
+      retryable: false,
+    })
+  }
+  return value
+}
+
+function buildExecutionTag(executionId: string): string {
+  const tag = `executionId:${executionId}`
+  return tag.length <= 128 ? tag : `executionIdHash:${sha256Hex(executionId)}`
+}
+
+function buildWorkflowTag(workflowId: string): string {
+  const tag = `workflowId:${workflowId}`
+  return tag.length <= 128 ? tag : `workflowIdHash:${sha256Hex(workflowId)}`
+}
+
+function payloadMatchesExecution(payload: unknown, binding: ExecutionJobBinding): boolean {
+  if (typeof payload !== 'object' || payload === null) return false
+  const record = payload as Record<string, unknown>
+  const correlation =
+    typeof record.correlation === 'object' && record.correlation !== null
+      ? (record.correlation as Record<string, unknown>)
+      : undefined
+  const executionIds = [
+    record.executionId,
+    record.parentExecutionId,
+    record.resumeExecutionId,
+    correlation?.executionId,
+  ]
+  const workflowIds = [record.workflowId, correlation?.workflowId]
+
+  return (
+    executionIds.some((value) => value === binding.executionId) &&
+    workflowIds.some((value) => value === binding.workflowId)
+  )
+}
+
+interface CancellationCandidate {
+  id: string
+  verifyPayload: boolean
+}
+
+interface CancellationScanState {
+  cancelledJobs: number
+  failureCount: number
+  firstError?: Error
+}
+
+interface CancellationListRun {
+  id: string
+  tags: string[]
+}
+
+interface CancellationScanOptions {
+  binding: ExecutionJobBinding
+  cancelJob: (jobId: string) => Promise<void>
+  listRuns: () => AsyncIterable<CancellationListRun>
+  selectCandidate: (run: CancellationListRun) => CancellationCandidate | undefined
+  state: CancellationScanState
+}
+
+function recordCancellationCandidateFailure(state: CancellationScanState, error: unknown): void {
+  state.failureCount += 1
+  state.firstError ??= toError(error)
+}
+
+async function processCancellationCandidateBatch(
+  candidates: readonly CancellationCandidate[],
+  binding: ExecutionJobBinding,
+  state: CancellationScanState,
+  cancelJob: (jobId: string) => Promise<void>
+): Promise<void> {
+  const batchIds = new Set<string>()
+  const uniqueCandidates = candidates.filter((candidate) => {
+    if (batchIds.has(candidate.id)) return false
+    batchIds.add(candidate.id)
+    return true
+  })
+  const results = await Promise.allSettled(
+    uniqueCandidates.map(async (candidate) => {
+      if (candidate.verifyPayload) {
+        const legacyRun = await runs.retrieve(candidate.id)
+        if (!payloadMatchesExecution(legacyRun.payload, binding)) return false
+      }
+      await cancelJob(candidate.id)
+      return true
+    })
+  )
+
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      recordCancellationCandidateFailure(state, result.reason)
+    } else if (result.value) {
+      state.cancelledJobs += 1
+    }
+  }
+}
+
+async function scanAndCancelTriggerRuns(options: CancellationScanOptions): Promise<void> {
+  const candidates: CancellationCandidate[] = []
+
+  const flushCandidates = async (): Promise<void> => {
+    if (candidates.length === 0) return
+    await processCancellationCandidateBatch(
+      candidates,
+      options.binding,
+      options.state,
+      options.cancelJob
+    )
+    candidates.length = 0
+  }
+
+  try {
+    for await (const run of options.listRuns()) {
+      const candidate = options.selectCandidate(run)
+      if (!candidate) continue
+      candidates.push(candidate)
+      if (candidates.length >= CANCELLATION_OPERATION_CHUNK_SIZE) await flushCandidates()
+    }
+  } catch (error) {
+    recordCancellationCandidateFailure(options.state, error)
+  } finally {
+    await flushCandidates()
+  }
 }
 
 /**
@@ -53,21 +206,24 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
  */
 function mapTriggerDevStatus(status: string): JobStatus {
   switch (status) {
+    case 'PENDING_VERSION':
+    case 'DELAYED':
     case 'QUEUED':
-    case 'WAITING_FOR_DEPLOY':
       return JOB_STATUS.PENDING
+    case 'DEQUEUED':
     case 'EXECUTING':
-    case 'RESCHEDULED':
-    case 'FROZEN':
+    case 'WAITING':
       return JOB_STATUS.PROCESSING
     case 'COMPLETED':
       return JOB_STATUS.COMPLETED
     case 'CANCELED':
+      return JOB_STATUS.CANCELLED
     case 'FAILED':
     case 'CRASHED':
     case 'INTERRUPTED':
     case 'SYSTEM_FAILURE':
     case 'EXPIRED':
+    case 'TIMED_OUT':
       return JOB_STATUS.FAILED
     default:
       return JOB_STATUS.PENDING
@@ -96,6 +252,8 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     const tags = buildTags(options)
     const triggerOptions: TriggerOptions = {}
     if (tags.length > 0) triggerOptions.tags = tags
+    const maxDuration = resolveMaxDuration(options)
+    if (maxDuration !== undefined) triggerOptions.maxDuration = maxDuration
     if (options?.concurrencyKey) triggerOptions.concurrencyKey = options.concurrencyKey
     if (options?.jobId) {
       triggerOptions.idempotencyKey = options.jobId
@@ -169,10 +327,22 @@ export class TriggerDevJobQueue implements JobQueueBackend {
       const tags = buildTags(options)
       const batchItem: {
         payload: unknown
-        options?: { concurrencyKey?: string; tags?: string[]; region?: string }
+        options?: {
+          concurrencyKey?: string
+          maxDuration?: number
+          tags?: string[]
+          region?: string
+        }
       } = { payload: enrichedPayload }
-      const batchOpts: { concurrencyKey?: string; tags?: string[]; region?: string } = { region }
+      const batchOpts: {
+        concurrencyKey?: string
+        maxDuration?: number
+        tags?: string[]
+        region?: string
+      } = { region }
       if (options?.concurrencyKey) batchOpts.concurrencyKey = options.concurrencyKey
+      const maxDuration = resolveMaxDuration(options)
+      if (maxDuration !== undefined) batchOpts.maxDuration = maxDuration
       if (tags.length > 0) batchOpts.tags = tags
       batchItem.options = batchOpts
       return batchItem
@@ -230,7 +400,9 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     }
   }
 
-  async startJob(_jobId: string): Promise<void> {}
+  async startJob(_jobId: string): Promise<boolean> {
+    return true
+  }
 
   async completeJob(_jobId: string, _output: unknown): Promise<void> {}
 
@@ -253,6 +425,88 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     }
   }
 
+  async cancelByExecution(binding: ExecutionJobBinding): Promise<number> {
+    const executionTag = buildExecutionTag(binding.executionId)
+    const workflowTag = buildWorkflowTag(binding.workflowId)
+    const cutoff = new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000)
+    const state: CancellationScanState = {
+      cancelledJobs: 0,
+      failureCount: 0,
+    }
+
+    try {
+      await scanAndCancelTriggerRuns({
+        binding,
+        cancelJob: (jobId) => this.cancelJob(jobId),
+        listRuns: () =>
+          runs.list({
+            tag: [workflowTag, executionTag],
+            status: [...ACTIVE_TRIGGER_RUN_STATUSES],
+            from: cutoff,
+            limit: CANCELLATION_LIST_PAGE_SIZE,
+          }),
+        selectCandidate: (run) =>
+          run.tags.includes(workflowTag) && run.tags.includes(executionTag)
+            ? { id: run.id, verifyPayload: false }
+            : undefined,
+        state,
+      })
+
+      await scanAndCancelTriggerRuns({
+        binding,
+        cancelJob: (jobId) => this.cancelJob(jobId),
+        listRuns: () =>
+          runs.list({
+            tag: workflowTag,
+            status: [...ACTIVE_TRIGGER_RUN_STATUSES],
+            from: cutoff,
+            limit: CANCELLATION_LIST_PAGE_SIZE,
+          }),
+        selectCandidate: (run) => {
+          if (!run.tags.includes(workflowTag) || run.tags.includes(executionTag)) return undefined
+          return { id: run.id, verifyPayload: true }
+        },
+        state,
+      })
+
+      await scanAndCancelTriggerRuns({
+        binding,
+        cancelJob: (jobId) => this.cancelJob(jobId),
+        listRuns: () =>
+          runs.list({
+            taskIdentifier: [...WORKFLOW_TASK_IDENTIFIERS],
+            status: [...ACTIVE_TRIGGER_RUN_STATUSES],
+            from: cutoff,
+            limit: CANCELLATION_LIST_PAGE_SIZE,
+          }),
+        selectCandidate: (run) =>
+          run.tags.length === 0 ? { id: run.id, verifyPayload: true } : undefined,
+        state,
+      })
+
+      if (state.firstError) throw state.firstError
+
+      logger.info('Cancelled trigger.dev runs for execution', {
+        ...binding,
+        cancelledJobs: state.cancelledJobs,
+      })
+      recordExecutionCancellationBackendResult({
+        backend: 'trigger_dev',
+        result: state.cancelledJobs > 0 ? 'cancelled' : 'not_found',
+      })
+      return state.cancelledJobs
+    } catch (error) {
+      recordExecutionCancellationBackendResult({ backend: 'trigger_dev', result: 'error' })
+      logger.error('Failed to cancel trigger.dev runs for execution', {
+        ...binding,
+        cancelledJobs: state.cancelledJobs,
+        error: toError(error).message,
+        failureCount: state.failureCount,
+      })
+      throw error
+    }
+  }
+
   cancelByKey(_cancelKey: string): boolean {
     // No in-process AbortControllers to abort — trigger.dev runs are cancelled
     // by jobId or via tag sweep (see `cancelCellRunsByTags`). Callers that
@@ -270,8 +524,16 @@ function buildTags(options?: EnqueueOptions): string[] {
   const tags: string[] = []
   const meta = options?.metadata
 
+  const executionId =
+    meta?.correlation?.executionId ??
+    (typeof meta?.executionId === 'string' ? meta.executionId : undefined)
+  if (executionId) tags.push(buildExecutionTag(executionId))
+
+  const workflowId =
+    meta?.correlation?.workflowId ??
+    (typeof meta?.workflowId === 'string' ? meta.workflowId : undefined)
   if (meta?.workspaceId) tags.push(`workspaceId:${meta.workspaceId}`)
-  if (meta?.workflowId) tags.push(`workflowId:${meta.workflowId}`)
+  if (workflowId) tags.push(buildWorkflowTag(workflowId))
   if (meta?.userId) tags.push(`userId:${meta.userId}`)
 
   if (meta?.correlation) {

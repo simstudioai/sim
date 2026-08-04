@@ -506,7 +506,7 @@ describe('BlockExecutor', () => {
     expect(traceSpans[0]?.input).toEqual({ prompt: 'Run the task' })
   })
 
-  it('projects a resolved secret out of Function syntax-error TraceSpans only', async () => {
+  it('preserves Function secret placeholders until the execution boundary', async () => {
     const secret = 'function-secret-literal-7f3a91'
     const block = createBlock()
     block.metadata.name = 'Function 1'
@@ -530,11 +530,12 @@ describe('BlockExecutor', () => {
       },
     ])
     const resolver = new VariableResolver(workflow, {}, state)
-    const syntaxError = `Syntax Error: Line 1: \`return ${secret}\` - Invalid or unexpected token`
+    const syntaxError =
+      'Syntax Error: Line 1: `return {{OPENAI_API_KEY}}` - Invalid or unexpected token'
     const handler: BlockHandler = {
       canHandle: () => true,
       execute: async (_ctx, _block, inputs) => {
-        expect(inputs.code).toBe(`return ${secret}`)
+        expect(inputs.code).toBe('return {{OPENAI_API_KEY}}')
         throw new Error(syntaxError)
       },
     }
@@ -566,12 +567,10 @@ describe('BlockExecutor', () => {
       `Function 1: ${syntaxError}`
     )
 
-    expect(registry.getActiveMatches()).toEqual([
-      { plaintext: secret, replacement: '{{OPENAI_API_KEY}}' },
-    ])
+    expect(registry.getActiveMatches()).toEqual([])
     expect(state.getBlockOutput(block.id)).toEqual({ error: syntaxError })
     expect(ctx.blockLogs[0]).toMatchObject({
-      input: { code: `return ${secret}` },
+      input: { code: 'return {{OPENAI_API_KEY}}' },
       output: { error: syntaxError },
       error: syntaxError,
     })

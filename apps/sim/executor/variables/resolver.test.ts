@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   LARGE_ARRAY_MANIFEST_VERSION,
@@ -13,6 +14,10 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+
+const mockVariableResolverLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'VariableResolver')
+].value
 
 const { mockStoreLargeValue } = vi.hoisted(() => ({ mockStoreLargeValue: vi.fn() }))
 
@@ -115,6 +120,52 @@ function createResolver(
 }
 
 describe('VariableResolver function block inputs', () => {
+  it('preserves legacy condition environment substitution semantics', async () => {
+    const { ctx, resolver } = createResolver()
+    ctx.environmentVariables = {
+      API_KEY: 'token',
+      BOOLEAN_VALUE: 'true',
+      NUMBER_VALUE: '123',
+    }
+    const conditionBlock = createBlock('condition', 'Condition', BlockType.CONDITION)
+    const conditions = [
+      { id: 'condition-1', title: 'if', value: '{{NUMBER_VALUE}} === 123' },
+      { id: 'condition-2', title: 'else if', value: '{{BOOLEAN_VALUE}} === true' },
+      { id: 'condition-3', title: 'else if', value: '"Bearer {{API_KEY}}" === "Bearer token"' },
+    ]
+
+    const result = await resolver.resolveInputs(
+      ctx,
+      conditionBlock.id,
+      {
+        conditions: JSON.stringify(conditions),
+      },
+      conditionBlock
+    )
+
+    expect(result.conditions).toEqual([
+      { id: 'condition-1', title: 'if', value: '123 === 123' },
+      { id: 'condition-2', title: 'else if', value: 'true === true' },
+      { id: 'condition-3', title: 'else if', value: '"Bearer token" === "Bearer token"' },
+    ])
+  })
+
+  it('does not log malformed Condition source while falling back to legacy resolution', async () => {
+    const { ctx, resolver } = createResolver()
+    const secret = 'condition-fallback-secret-value'
+    const conditionBlock = createBlock('condition', 'Condition', BlockType.CONDITION)
+
+    const result = await resolver.resolveInputs(
+      ctx,
+      conditionBlock.id,
+      { conditions: `{ "value": "${secret}"` },
+      conditionBlock
+    )
+
+    expect(result.conditions).toContain(secret)
+    expect(JSON.stringify(mockVariableResolverLogger.warn.mock.calls)).not.toContain(secret)
+  })
+
   it('records a secret reached through workflow-variable indirection', async () => {
     const { ctx, resolver } = createResolver()
     const registry = new ResolvedSecretTraceRegistry([
@@ -143,6 +194,99 @@ describe('VariableResolver function block inputs', () => {
 
     expect(result).toEqual({ resolvedInputs: {}, displayInputs: {}, contextVariables: {} })
   })
+
+  it('changes only environment placeholders while preserving legacy Function resolution', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    ctx.environmentVariables = { API_KEY: 'runtime-secret' }
+    ctx.workflowVariables = {
+      'var-count': { id: 'var-count', name: 'count', type: 'number', value: 7 },
+      'var-options': {
+        id: 'var-options',
+        name: 'options',
+        type: 'object',
+        value: { enabled: true, retries: 2 },
+      },
+      'var-indirect-secret': {
+        id: 'var-indirect-secret',
+        name: 'indirectSecret',
+        type: 'string',
+        value: '{{API_KEY}}',
+      },
+    }
+    const typedInput = { enabled: true, retries: 3, labels: ['one', 'two'] }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      {
+        code: [
+          'const byName = <Producer.items>',
+          'const byId = <producer.result>',
+          'const count = <variable.count>',
+          'const options = <variable.options>',
+          'const indirectSecret = <variable.indirectSecret>',
+          'const missing = <Missing.result>',
+          'const missingVariable = <variable.missing>',
+          'const secret = "{{API_KEY}}"',
+          'return { byName, byId, count, options, missing, missingVariable, secret }',
+        ].join('\n'),
+        language: 'javascript',
+        timeout: 12_345,
+        typedInput,
+      },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toContain('const byName = globalThis["__blockRef_0"]')
+    expect(result.resolvedInputs.code).toContain('const byId = globalThis["__blockRef_1"]')
+    expect(result.resolvedInputs.code).toContain('const count = 7')
+    expect(result.resolvedInputs.code).toContain('const options = globalThis["__blockRef_2"]')
+    expect(result.resolvedInputs.code).toContain('const indirectSecret = "{{API_KEY}}"')
+    expect(result.resolvedInputs.code).toContain('const missing = <Missing.result>')
+    expect(result.resolvedInputs.code).toContain('const missingVariable = <variable.missing>')
+    expect(result.resolvedInputs.code).toContain('const secret = "{{API_KEY}}"')
+    expect(result.displayInputs.code).toContain('const byName = ["a","b"]')
+    expect(result.displayInputs.code).toContain('const byId = "hello world"')
+    expect(result.displayInputs.code).toContain('const options = {"enabled":true,"retries":2}')
+    expect(result.displayInputs.code).toContain('const indirectSecret = "{{API_KEY}}"')
+    expect(result.displayInputs.code).toContain('const missing = <Missing.result>')
+    expect(result.displayInputs.code).toContain('const missingVariable = <variable.missing>')
+    expect(result.displayInputs.code).toContain('const secret = "{{API_KEY}}"')
+    expect(result.contextVariables).toEqual({
+      __blockRef_0: ['a', 'b'],
+      __blockRef_1: 'hello world',
+      __blockRef_2: { enabled: true, retries: 2 },
+    })
+    expect(result.resolvedInputs.language).toBe('javascript')
+    expect(result.resolvedInputs.timeout).toBe(12_345)
+    expect(result.resolvedInputs.typedInput).toEqual(typedInput)
+    expect(result.displayInputs.typedInput).toEqual(typedInput)
+  })
+
+  it.each(['javascript', 'python'])(
+    'preserves an exact-name/exact-value secret in %s source until the execution boundary',
+    async (language) => {
+      const { block, ctx, resolver } = createResolver(language)
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
+      ])
+      const source = 'return {{Test}}'
+      ctx.environmentVariables = { Test: 'Test' }
+      ctx.resolvedSecretTraceRegistry = registry
+
+      const result = await resolver.resolveInputsForFunctionBlock(
+        ctx,
+        'function',
+        { code: source },
+        block
+      )
+
+      expect(result.resolvedInputs.code).toBe(source)
+      expect(result.displayInputs.code).toBe(source)
+      expect(result.contextVariables).toEqual({})
+      expect(registry.getActiveMatches()).toEqual([])
+    }
+  )
 
   it('resolves JavaScript block references through globalThis context variables', async () => {
     const { block, ctx, resolver } = createResolver('javascript')

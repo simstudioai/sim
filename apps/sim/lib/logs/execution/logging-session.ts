@@ -6,6 +6,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
+import { RESERVATION_TTL_BUFFER_MS } from '@/lib/core/execution-limits'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import { executionLogger } from '@/lib/logs/execution/logger'
@@ -34,12 +35,16 @@ import type {
   ExecutionLastCompletedBlock,
   ExecutionLastStartedBlock,
   ExecutionTrigger,
+  PersistedWorkflowExecutionStatus,
   TraceSpan,
   WorkflowState,
 } from '@/lib/logs/types'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog } from '@/executor/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 type TriggerData = Record<string, unknown> & {
   correlation?: NonNullable<ExecutionTrigger['data']>['correlation']
@@ -201,6 +206,8 @@ export class LoggingSession {
   private postExecutionPromise: Promise<void> | null = null
   private resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   private traceLargeValueAccess: LargeValueStoreContext = {}
+  private executionDeadlineAt?: Date
+  private persistedCompletionStatus: PersistedWorkflowExecutionStatus | null = null
 
   constructor(
     workflowId: string,
@@ -236,6 +243,11 @@ export class LoggingSession {
   /** Adds the trusted execution-ref scope needed to rewrite offloaded trace content. */
   setTraceLargeValueAccess(context: LargeValueStoreContext): void {
     this.traceLargeValueAccess = context
+  }
+
+  /** Sets the active attempt deadline before the executor creates or resumes its log row. */
+  setExecutionDeadlineAt(deadline: Date | undefined): void {
+    this.executionDeadlineAt = deadline ? new Date(deadline) : undefined
   }
 
   private getSecretProjectionStore(): LargeValueStoreContext {
@@ -431,7 +443,14 @@ export class LoggingSession {
    * so a marker is never dropped.
    */
   private async persistLastStartedBlock(marker: ExecutionLastStartedBlock): Promise<void> {
-    if (await setLastStartedBlock(this.executionId, marker)) {
+    const expiresAt = this.executionDeadlineAt
+      ? this.executionDeadlineAt.getTime() + RESERVATION_TTL_BUFFER_MS
+      : undefined
+    const stored =
+      expiresAt === undefined
+        ? await setLastStartedBlock(this.executionId, marker)
+        : await setLastStartedBlock(this.executionId, marker, expiresAt)
+    if (stored) {
       return
     }
     try {
@@ -457,7 +476,14 @@ export class LoggingSession {
    * fails, so a marker is never dropped.
    */
   private async persistLastCompletedBlock(marker: ExecutionLastCompletedBlock): Promise<void> {
-    if (await setLastCompletedBlock(this.executionId, marker)) {
+    const expiresAt = this.executionDeadlineAt
+      ? this.executionDeadlineAt.getTime() + RESERVATION_TTL_BUFFER_MS
+      : undefined
+    const stored =
+      expiresAt === undefined
+        ? await setLastCompletedBlock(this.executionId, marker)
+        : await setLastCompletedBlock(this.executionId, marker, expiresAt)
+    if (stored) {
       return
     }
     try {
@@ -526,8 +552,11 @@ export class LoggingSession {
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
   }): Promise<void> {
-    const executionState = this.withResolvedSecretTraceProvenance(params.executionState)
-    await executionLogger.completeWorkflowExecution({
+    const executionState = this.withResolvedSecretTraceProvenance(
+      params.executionState,
+      params.finalizationPath === 'paused'
+    )
+    const completedLog = await executionLogger.completeWorkflowExecution({
       executionId: this.executionId,
       endedAt: params.endedAt,
       totalDurationMs: params.totalDurationMs,
@@ -544,6 +573,7 @@ export class LoggingSession {
       actorUserId: this.actorUserId,
       billingAttribution: this.billingAttribution,
     })
+    this.persistedCompletionStatus = completedLog.persistedStatus
 
     /**
      * Pause persistence releases only after the resumable snapshot is durable.
@@ -562,13 +592,20 @@ export class LoggingSession {
   }
 
   private withResolvedSecretTraceProvenance(
-    executionState?: SerializableExecutionState
+    executionState: SerializableExecutionState | undefined,
+    checkpoint: boolean
   ): SerializableExecutionState | undefined {
     if (!this.resolvedSecretTraceRegistry) return executionState
 
-    const resolvedSecretTraceProvenance = this.resolvedSecretTraceRegistry.exportProvenance()
+    const resolvedSecretTraceProvenance = checkpoint
+      ? this.resolvedSecretTraceRegistry.exportCheckpointProvenance()
+      : this.resolvedSecretTraceRegistry.exportProvenance()
     if (executionState) {
-      return { ...executionState, resolvedSecretTraceProvenance }
+      return {
+        ...executionState,
+        resolvedSecretTraceProvenance,
+        resolvedSecretTraceCheckpointVersion: RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
+      }
     }
 
     return {
@@ -579,6 +616,7 @@ export class LoggingSession {
       completedLoops: [],
       activeExecutionPath: [],
       resolvedSecretTraceProvenance,
+      resolvedSecretTraceCheckpointVersion: RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
     }
   }
 
@@ -655,11 +693,22 @@ export class LoggingSession {
           billingAttribution,
           workflowState: this.workflowState,
           deploymentVersionId,
+          executionDeadlineAt: this.executionDeadlineAt,
         })
       } else {
         // Resume: no cost reload needed. Billing reconciles from the usage_log
         // ledger (pre-pause rows already exist) plus the live cost summary.
         this.isResume = true
+        await execDb
+          .update(workflowExecutionLogs)
+          .set({ status: 'running', executionDeadlineAt: this.executionDeadlineAt ?? null })
+          .where(
+            and(
+              eq(workflowExecutionLogs.workflowId, this.workflowId),
+              eq(workflowExecutionLogs.executionId, this.executionId),
+              sql`${workflowExecutionLogs.status} IN ('pending', 'running', 'paused')`
+            )
+          )
       }
     } catch (error) {
       if (this.requestId) {
@@ -768,6 +817,7 @@ export class LoggingSession {
         .then((rows) => rows[0])
 
       if (currentLog?.status === 'cancelled') {
+        this.persistedCompletionStatus = 'cancelled'
         this.completed = true
         return
       }
@@ -887,23 +937,6 @@ export class LoggingSession {
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
 
-      const currentLog = await execDb
-        .select({ status: workflowExecutionLogs.status })
-        .from(workflowExecutionLogs)
-        .where(
-          and(
-            eq(workflowExecutionLogs.workflowId, this.workflowId),
-            eq(workflowExecutionLogs.executionId, this.executionId)
-          )
-        )
-        .limit(1)
-        .then((rows) => rows[0])
-
-      if (currentLog?.status === 'cancelled') {
-        this.completed = true
-        return
-      }
-
       // calculateCostSummary handles empty/undefined spans by returning the
       // base-charge summary, so no separate no-spans literal is needed.
       const costSummary = calculateCostSummary(rawTraceSpans, this.costOptions)
@@ -997,6 +1030,7 @@ export class LoggingSession {
         .then((rows) => rows[0])
 
       if (currentLog?.status === 'cancelled') {
+        this.persistedCompletionStatus = 'cancelled'
         this.completed = true
         return
       }
@@ -1122,6 +1156,7 @@ export class LoggingSession {
           billingAttribution,
           workflowState: this.workflowState,
           deploymentVersionId,
+          executionDeadlineAt: this.executionDeadlineAt,
         })
 
         if (this.requestId) {
@@ -1170,6 +1205,10 @@ export class LoggingSession {
 
   hasCompleted(): boolean {
     return this.completed
+  }
+
+  getPersistedCompletionStatus(): PersistedWorkflowExecutionStatus | null {
+    return this.persistedCompletionStatus
   }
 
   private shouldStartNewCompletionAttempt(attempt: CompletionAttempt): boolean {
@@ -1374,11 +1413,12 @@ export class LoggingSession {
 
       await execDb
         .update(workflowExecutionLogs)
-        .set({ level: 'error', status: 'failed', executionData })
+        .set({ level: 'error', status: 'failed', executionDeadlineAt: null, executionData })
         .where(
           and(
             eq(workflowExecutionLogs.executionId, executionId),
-            eq(workflowExecutionLogs.workflowId, workflowId)
+            eq(workflowExecutionLogs.workflowId, workflowId),
+            sql`${workflowExecutionLogs.status} != 'cancelled'`
           )
         )
 

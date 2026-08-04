@@ -28,11 +28,11 @@ const ELEVENLABS_STT_MODEL = 'scribe_v2'
 
 export const dynamic = 'force-dynamic'
 /**
- * Mirrors the maximum plan execution timeout (enterprise async, 90 minutes) used by
+ * Mirrors the hosted workflow execution ceiling (7 days) used by
  * `getMaxExecutionTimeout()` for the transcript polling loop below. Next.js requires a
  * static literal for `maxDuration`, so this value must be kept in sync with that source.
  */
-export const maxDuration = 5400
+export const maxDuration = 604800
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()

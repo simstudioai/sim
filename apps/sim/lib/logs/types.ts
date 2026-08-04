@@ -195,6 +195,18 @@ export interface WorkflowExecutionLog {
   createdAt: string
 }
 
+export type PersistedWorkflowExecutionStatus =
+  | 'running'
+  | 'pending'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'redacting'
+
+export interface CompletedWorkflowExecutionLog extends WorkflowExecutionLog {
+  persistedStatus: PersistedWorkflowExecutionStatus
+}
+
 export type WorkflowExecutionLogInsert = Omit<WorkflowExecutionLog, 'id' | 'createdAt'>
 export type WorkflowExecutionLogSelect = WorkflowExecutionLog
 
@@ -485,5 +497,5 @@ export interface ExecutionLoggerService {
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
     actorUserId?: string | null
     billingAttribution?: BillingAttributionSnapshot
-  }): Promise<WorkflowExecutionLog>
+  }): Promise<CompletedWorkflowExecutionLog>
 }

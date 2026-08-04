@@ -3,6 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import type { SecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
@@ -18,9 +19,15 @@ const logger = createLogger('VfsTools')
  * viewer (unrevealed previews, kill-switched types). Visibility is memoized per
  * (userId, workspaceId), so repeated tool calls in one turn resolve once.
  */
-async function getGatedVFS(workspaceId: string, userId: string) {
+async function getGatedVFS(
+  workspaceId: string,
+  userId: string,
+  secretMountPolicy?: SecretMountPolicy
+) {
   const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
-  return withBlockVisibility(vis, () => getOrMaterializeVFS(workspaceId, userId))
+  return withBlockVisibility(vis, () =>
+    getOrMaterializeVFS(workspaceId, userId, { secretMountPolicy })
+  )
 }
 
 /**
@@ -132,7 +139,7 @@ export async function executeVfsGrep(
       }
       result = await grepChatUpload(filename, context.chatId, pattern, grepOptions)
     } else {
-      const vfs = await getGatedVFS(workspaceId, context.userId)
+      const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
       result = isWorkspaceFileGrepPath(rawPath)
         ? await vfs.grepFile(rawPath, pattern, grepOptions)
         : await vfs.grep(pattern, rawPath, grepOptions)
@@ -189,7 +196,7 @@ export async function executeVfsGlob(
   }
 
   try {
-    const vfs = await getGatedVFS(workspaceId, context.userId)
+    const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
     let files = vfs.glob(pattern)
 
     if (context.chatId && (pattern === 'uploads/*' || pattern.startsWith('uploads/'))) {
@@ -297,7 +304,7 @@ export async function executeVfsRead(
       }
     }
 
-    const vfs = await getGatedVFS(workspaceId, context.userId)
+    const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
 
     // Plain canonical file leaves are metadata resources. Dynamic file content
     // and inspection paths use explicit suffixes like /content, /style,

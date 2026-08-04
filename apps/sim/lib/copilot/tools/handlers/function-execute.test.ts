@@ -80,6 +80,7 @@ vi.mock('@/lib/copilot/tools/secret-mount-materializer.server', () => ({
 
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { executeFunctionExecute } from '@/lib/copilot/tools/handlers/function-execute'
+import { executeRunCode } from '@/lib/copilot/tools/handlers/run-code'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const table = {
@@ -181,6 +182,57 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     )
   })
 
+  it.each([
+    {
+      language: 'javascript',
+      code: 'const matcher = /^{{PATTERN}}$/i; return "Bearer {{TOKEN}}" // {{COMMENT}}',
+      names: ['PATTERN', 'TOKEN'],
+    },
+    {
+      language: 'python',
+      code: 'value = "{{TOKEN}}"\n# {{COMMENT}}\n__sim_result__ = value',
+      names: ['TOKEN'],
+    },
+    {
+      language: 'shell',
+      code: "cat <<'PAYLOAD'\nBearer {{TOKEN}}\n$HOME\nPAYLOAD\n# {{COMMENT}}",
+      names: ['TOKEN'],
+    },
+  ])(
+    'uses the shared $language compiler analysis before delegating source to function_execute',
+    async ({ language, code, names }) => {
+      await executeFunctionExecute({ language, code }, context as never)
+
+      expect(mockMaterializeCopilotCodeSecrets).toHaveBeenCalledWith({
+        actorUserId: 'u1',
+        workspaceId: 'ws_1',
+        requestedNames: names,
+      })
+      expect(mockExecuteTool).toHaveBeenCalledWith(
+        'function_execute',
+        expect.objectContaining({ code, language, mountedSecrets: names }),
+        { resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry) }
+      )
+    }
+  )
+
+  it('routes run_code shell commands through the same function_execute boundary', async () => {
+    const code = 'printf %s "{{CLI_TOKEN}}"'
+
+    await executeRunCode({ language: 'shell', code }, context as never)
+
+    expect(mockMaterializeCopilotCodeSecrets).toHaveBeenCalledWith({
+      actorUserId: 'u1',
+      workspaceId: 'ws_1',
+      requestedNames: ['CLI_TOKEN'],
+    })
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({ code, language: 'shell', mountedSecrets: ['CLI_TOKEN'] }),
+      { resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry) }
+    )
+  })
+
   it('returns the raw runtime result when provenance import fails', async () => {
     mockMaterializeCopilotCodeSecrets.mockResolvedValue({
       envVars: { API_KEY: 'secret-value' },
@@ -216,7 +268,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     expect(resolvedSecretTraceRegistry.isComplete()).toBe(false)
   })
 
-  it('fails parallel projections closed until exact mounted provenance is active', async () => {
+  it('fails model projection closed while parallel secret materialization is pending', async () => {
     let completeMaterialization: ((value: unknown) => void) | undefined
     mockMaterializeCopilotCodeSecrets.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -249,6 +301,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
       }
     )
 
+    await vi.waitFor(() => expect(mockMaterializeCopilotCodeSecrets).toHaveBeenCalledOnce())
     expect(resolvedSecretTraceRegistry.isComplete()).toBe(false)
     expect(
       projectToolResultForCopilot(

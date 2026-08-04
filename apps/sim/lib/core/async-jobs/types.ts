@@ -11,11 +11,15 @@ export const JOB_RETENTION_SECONDS = JOB_RETENTION_HOURS * 60 * 60
 /** Max lifetime for jobs in Redis (in seconds) - cleanup for stuck pending/processing jobs */
 export const JOB_MAX_LIFETIME_SECONDS = 48 * 60 * 60
 
+/** Queue-wait lease before a database job that never started is considered abandoned. */
+export const JOB_PENDING_RETENTION_HOURS = 14 * 24
+
 export const JOB_STATUS = {
   PENDING: 'pending',
   PROCESSING: 'processing',
   COMPLETED: 'completed',
   FAILED: 'failed',
+  CANCELLED: 'cancelled',
 } as const
 
 export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS]
@@ -70,6 +74,7 @@ export interface Job<TPayload = unknown, TOutput = unknown> {
 }
 
 export interface JobMetadata {
+  executionId?: string
   workflowId?: string
   workspaceId?: string
   userId?: string
@@ -79,6 +84,8 @@ export interface JobMetadata {
 
 export interface EnqueueOptions {
   maxAttempts?: number
+  /** Per-run execution cap passed to Trigger.dev in seconds. */
+  maxDurationSeconds?: number
   metadata?: JobMetadata
   jobId?: string
   priority?: number
@@ -103,7 +110,7 @@ export interface EnqueueOptions {
    * row drives through `processing → completed | failed`. Receives the
    * payload and an `AbortSignal` driven by `cancelJob`.
    */
-  runner?: <TPayload>(payload: TPayload, signal: AbortSignal) => Promise<void>
+  runner?: <TPayload>(payload: TPayload, signal: AbortSignal) => Promise<unknown>
   /**
    * Stable identity for cancellation lookups on the database backend's
    * `batchEnqueueAndWait` path (which skips `async_jobs` entirely, so there
@@ -112,6 +119,11 @@ export interface EnqueueOptions {
    * by trigger.dev — runs there are cancelled by tag or jobId.
    */
   cancelKey?: string
+}
+
+export interface ExecutionJobBinding {
+  workflowId: string
+  executionId: string
 }
 
 export type AsyncJobEnqueueAcceptance = 'rejected' | 'unknown'
@@ -191,10 +203,8 @@ export interface JobQueueBackend {
    */
   getJob(jobId: string): Promise<Job | null>
 
-  /**
-   * Mark a job as started/processing
-   */
-  startJob(jobId: string): Promise<void>
+  /** Atomically claims a pending job for processing. Returns false when the claim was lost. */
+  startJob(jobId: string): Promise<boolean>
 
   /**
    * Mark a job as completed with output
@@ -212,6 +222,12 @@ export interface JobQueueBackend {
    * should resolve quietly so callers can drive cancel from possibly-stale state.
    */
   cancelJob(jobId: string): Promise<void>
+
+  /**
+   * Cancel every queued or running job associated with an execution ID.
+   * Backends return the number of jobs or in-process runners they targeted.
+   */
+  cancelByExecution(binding: ExecutionJobBinding): Promise<number>
 
   /**
    * Cancel an in-flight job by its `cancelKey` (the domain identity callers

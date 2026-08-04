@@ -1,4 +1,5 @@
 import {
+  loggerMock,
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
@@ -20,6 +21,7 @@ import { getAllBlocks } from '@/blocks'
 import { AGENT, BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import { installStreamingCostPolicy } from '@/providers/cost-policy'
 import { SIM_AUTO_MODEL_ID } from '@/providers/models'
@@ -112,6 +114,9 @@ const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
 const mockFetch = vi.fn()
 const mockExecuteProviderRequest = executeProviderRequest as Mock
+const mockAgentLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'AgentBlockHandler')
+].value
 
 beforeAll(() => {
   setEnvFlags({ isDev: true, isTest: false })
@@ -171,6 +176,7 @@ describe('AgentBlockHandler', () => {
         version: '1.0.0',
         loops: {},
       } as SerializedWorkflow,
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     }
     mockGetProviderFromModel.mockReturnValue('mock-provider')
 
@@ -317,6 +323,87 @@ describe('AgentBlockHandler', () => {
           buildAutoRoutingSignals: (i: unknown, rf: unknown) => { mediaKind: string }
         }
       ).buildAutoRoutingSignals(inputs, undefined)
+
+    const projectAutoRoutingSignalsFor = (
+      context: ExecutionContext,
+      signals: Record<string, unknown>
+    ) =>
+      (
+        handler as unknown as {
+          projectAutoRoutingSignals: (
+            ctx: ExecutionContext,
+            value: Record<string, unknown>
+          ) => Record<string, unknown>
+        }
+      ).projectAutoRoutingSignals(context, signals)
+
+    it('projects resolved secrets before auto-routing sees prompt signals', () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'ROUTING_SECRET',
+          plaintext: 'routing-secret-value',
+          encryptedValue: 'encrypted-routing-secret-value',
+        },
+      ])
+      registry.recordResolved('ROUTING_SECRET', 'routing-secret-value')
+
+      expect(
+        projectAutoRoutingSignalsFor(
+          { ...mockContext, resolvedSecretTraceRegistry: registry },
+          {
+            systemPrompt: 'Keep routing-secret-value private',
+            lastMessage: 'Use routing-secret-value',
+            messageCount: 1,
+            toolNames: [],
+            mediaKind: 'none',
+            hasResponseFormat: false,
+            approxInputTokens: 5,
+          }
+        )
+      ).toEqual({
+        systemPrompt: 'Keep {{ROUTING_SECRET}} private',
+        lastMessage: 'Use {{ROUTING_SECRET}}',
+        messageCount: 1,
+        toolNames: [],
+        mediaKind: 'none',
+        hasResponseFormat: false,
+        approxInputTokens: 5,
+      })
+    })
+
+    it.each(['123', 'true'])(
+      'preserves typed auto-routing controls while projecting low-entropy secret %s from model-visible strings',
+      (secret) => {
+        const registry = new ResolvedSecretTraceRegistry([
+          {
+            name: 'ROUTING_SECRET',
+            plaintext: secret,
+            encryptedValue: 'encrypted-routing-secret',
+          },
+        ])
+        const signals = {
+          systemPrompt: `System ${secret}`,
+          lastMessage: `Message ${secret}`,
+          messageCount: 123,
+          toolNames: [secret],
+          mediaKind: 'none',
+          hasResponseFormat: true,
+          approxInputTokens: 123,
+        }
+
+        expect(
+          projectAutoRoutingSignalsFor(
+            { ...mockContext, resolvedSecretTraceRegistry: registry },
+            signals
+          )
+        ).toEqual({
+          ...signals,
+          systemPrompt: 'System {{ROUTING_SECRET}}',
+          lastMessage: 'Message {{ROUTING_SECRET}}',
+          toolNames: ['{{ROUTING_SECRET}}'],
+        })
+      }
+    )
 
     const png = { id: 'f1', type: 'image/png' }
     const pdf = { id: 'f2', type: 'application/pdf' }
@@ -2492,6 +2579,197 @@ describe('AgentBlockHandler', () => {
         expect(tools[0].name).toBe('formatReport')
         expect(tools[0].parameters.required).not.toContain('format')
       })
+    })
+  })
+
+  describe('secret-safe diagnostics', () => {
+    const privateHandler = () =>
+      handler as unknown as {
+        formatTools: (
+          ctx: ExecutionContext,
+          tools: Array<Record<string, unknown>>
+        ) => Promise<unknown[]>
+        handleExecutionError: (
+          error: unknown,
+          startTime: number,
+          provider: string,
+          model: string,
+          ctx: ExecutionContext,
+          block: SerializedBlock
+        ) => void
+        processStructuredResponse: (
+          result: Record<string, unknown>,
+          responseFormat: unknown,
+          ctx: ExecutionContext
+        ) => Record<string, unknown>
+      }
+
+    it('projects provider errors and internal runtime identifiers before logging', () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'TOKEN',
+          plaintext: 'diagnostic-secret',
+          encryptedValue: 'encrypted-diagnostic-secret',
+        },
+      ])
+      const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
+
+      privateHandler().handleExecutionError(
+        new Error('failed with diagnostic-secret __var_TOKEN __sim_runtime_test_1'),
+        Date.now(),
+        'diagnostic-secret',
+        '__var_TOKEN',
+        ctx,
+        mockBlock
+      )
+
+      const serializedCalls = JSON.stringify(mockAgentLogger.error.mock.calls)
+      expect(serializedCalls).not.toContain('diagnostic-secret')
+      expect(serializedCalls).not.toContain('__var_')
+      expect(serializedCalls).not.toContain('__sim_')
+      expect(mockAgentLogger.error).toHaveBeenCalledWith(
+        'Error executing provider request',
+        expect.objectContaining({
+          provider: '{{TOKEN}}',
+          model: '{{TOKEN}}',
+          errorMessage: 'failed with {{TOKEN}} {{TOKEN}} [RUNTIME_BINDING]',
+        })
+      )
+    })
+
+    it('fails closed to structural provider diagnostics without a complete registry', () => {
+      const ctx = { ...mockContext, resolvedSecretTraceRegistry: undefined }
+
+      privateHandler().handleExecutionError(
+        new Error('untracked-secret __var_TOKEN __sim_runtime_test_1'),
+        Date.now(),
+        'untracked-secret',
+        '__var_TOKEN',
+        ctx,
+        mockBlock
+      )
+
+      const metadata = mockAgentLogger.error.mock.calls.at(-1)?.[1]
+      expect(metadata).toEqual(
+        expect.objectContaining({
+          workflowId: mockContext.workflowId,
+          blockId: mockBlock.id,
+          errorType: 'error',
+        })
+      )
+      expect(metadata).not.toHaveProperty('provider')
+      expect(metadata).not.toHaveProperty('model')
+      expect(metadata).not.toHaveProperty('errorMessage')
+      expect(JSON.stringify(mockAgentLogger.error.mock.calls)).not.toContain('untracked-secret')
+      expect(JSON.stringify(mockAgentLogger.error.mock.calls)).not.toContain('__var_')
+      expect(JSON.stringify(mockAgentLogger.error.mock.calls)).not.toContain('__sim_')
+    })
+
+    it('projects tool diagnostics without logging code or raw params', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'TOKEN',
+          plaintext: 'tool-secret',
+          encryptedValue: 'encrypted-tool-secret',
+        },
+      ])
+      const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
+      vi.spyOn(handler as never, 'createCustomTool' as never).mockRejectedValueOnce(
+        new Error('tool-secret __var_TOKEN __sim_runtime_test_1') as never
+      )
+
+      await privateHandler().formatTools(ctx, [
+        {
+          type: 'custom-tool',
+          title: 'tool-secret',
+          operation: 'tool-secret',
+          code: 'raw-code-must-not-be-logged',
+          schema: {},
+          params: {
+            toolName: '__var_TOKEN',
+            serverId: 'tool-secret',
+            config: 'raw-config-must-not-be-logged',
+          },
+        },
+      ])
+
+      const serializedCalls = JSON.stringify(mockAgentLogger.error.mock.calls)
+      expect(serializedCalls).not.toContain('tool-secret')
+      expect(serializedCalls).not.toContain('__var_')
+      expect(serializedCalls).not.toContain('__sim_')
+      expect(serializedCalls).not.toContain('raw-code-must-not-be-logged')
+      expect(serializedCalls).not.toContain('raw-config-must-not-be-logged')
+      expect(mockAgentLogger.error).toHaveBeenCalledWith(
+        '[AgentHandler] Error creating tool',
+        expect.objectContaining({
+          title: '{{TOKEN}}',
+          operation: '{{TOKEN}}',
+          toolName: '{{TOKEN}}',
+          serverId: '{{TOKEN}}',
+          errorMessage: '{{TOKEN}} {{TOKEN}} [RUNTIME_BINDING]',
+          hasParams: true,
+        })
+      )
+    })
+
+    it('retains useful ordinary tool diagnostics with a complete empty registry', async () => {
+      vi.spyOn(handler as never, 'createCustomTool' as never).mockRejectedValueOnce(
+        new Error('ordinary transform failure') as never
+      )
+
+      await privateHandler().formatTools(mockContext, [
+        {
+          type: 'custom-tool',
+          title: 'Ordinary Tool',
+          operation: 'lookup',
+          schema: {},
+          params: { toolName: 'lookup_item', serverId: 'server-1' },
+        },
+      ])
+
+      expect(mockAgentLogger.error).toHaveBeenCalledWith(
+        '[AgentHandler] Error creating tool',
+        expect.objectContaining({
+          toolType: 'custom-tool',
+          title: 'Ordinary Tool',
+          operation: 'lookup',
+          toolName: 'lookup_item',
+          serverId: 'server-1',
+          errorMessage: 'ordinary transform failure',
+          hasParams: true,
+        })
+      )
+    })
+
+    it('projects malformed model content and response format only in diagnostics', () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'TOKEN',
+          plaintext: 'format-secret',
+          encryptedValue: 'encrypted-format-secret',
+        },
+      ])
+      const ctx = { ...mockContext, resolvedSecretTraceRegistry: registry }
+      const content = 'not-json format-secret __var_TOKEN __sim_runtime_test_1'
+
+      const result = privateHandler().processStructuredResponse(
+        { content },
+        { schema: 'format-secret', alias: '__var_TOKEN' },
+        ctx
+      )
+
+      expect(result.content).toBe(content)
+      const serializedCalls = JSON.stringify(mockAgentLogger.error.mock.calls)
+      expect(serializedCalls).not.toContain('format-secret')
+      expect(serializedCalls).not.toContain('__var_')
+      expect(serializedCalls).not.toContain('__sim_')
+      expect(mockAgentLogger.error).toHaveBeenCalledWith(
+        'LLM did not adhere to structured response format',
+        expect.objectContaining({
+          content: 'not-json {{TOKEN}} {{TOKEN}} [RUNTIME_BINDING]',
+          responseFormat: { schema: '{{TOKEN}}', alias: '{{TOKEN}}' },
+        })
+      )
     })
   })
 

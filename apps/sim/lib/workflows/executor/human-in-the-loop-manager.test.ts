@@ -1,8 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { pausedExecutions } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 
 const { mockReleaseExecutionSlot, mockReplaceLargeValueReferenceKeysWithClient } = vi.hoisted(
   () => ({
@@ -21,6 +28,8 @@ vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
 }))
 
 import {
+  createResumeAttemptTimeoutController,
+  extractResumeBillingAttributionFromSnapshot,
   PauseResumeManager,
   updateResumeOutputInAggregationBuffers,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -71,6 +80,99 @@ function createExecutionState(): SerializableExecutionState {
     activeExecutionPath: [],
   }
 }
+
+describe('queued resume attempt deadlines', () => {
+  it('extracts legacy billing metadata without parsing the large snapshot tail', () => {
+    const source = JSON.parse(createSnapshotSeed().snapshot) as {
+      metadata: Record<string, unknown>
+    }
+    const snapshot = {
+      snapshot: `{"metadata":${JSON.stringify(source.metadata)},"workflow":not-deserialized}`,
+      triggerIds: [],
+    }
+
+    expect(extractResumeBillingAttributionFromSnapshot(snapshot)).toEqual(
+      createBillingAttribution()
+    )
+  })
+
+  it('admits from persisted resume metadata before reconstructing the full snapshot', () => {
+    const billingAttribution = createBillingAttribution()
+
+    const controller = createResumeAttemptTimeoutController(
+      { snapshot: 'not-yet-deserialized', triggerIds: [] },
+      undefined,
+      {
+        executorUserId: 'user-1',
+        workspaceId: 'workspace-1',
+        billingAttribution,
+      }
+    )
+
+    expect(controller.timeoutMs).toBeTypeOf('number')
+    controller.cleanup()
+  })
+
+  it('resolves the attempt policy from the immutable payer snapshot before setup', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+    const snapshot = createSnapshotSeed(
+      createBillingAttribution({
+        payerSubscription: {
+          id: 'subscription-1',
+          referenceId: 'user-1',
+          plan: 'enterprise',
+          status: 'active',
+          seats: 1,
+          periodStart: '2026-07-01T00:00:00.000Z',
+          periodEnd: '2026-08-01T00:00:00.000Z',
+          enterpriseWorkflowExecutionTimeoutSeconds: 7200,
+        },
+      })
+    )
+
+    const controller = createResumeAttemptTimeoutController(snapshot)
+
+    expect(controller.timeoutMs).toBeTypeOf('number')
+    if (controller.timeoutMs) {
+      expect(getExecutionDeadlineAt(controller.signal)?.getTime()).toBe(
+        Date.now() + controller.timeoutMs
+      )
+    }
+    controller.cleanup()
+    vi.useRealTimers()
+  })
+
+  it('preserves an earlier upstream cancellation deadline', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+    const upstream = createTimeoutAbortController(1_000)
+    const controller = createResumeAttemptTimeoutController(
+      createSnapshotSeed(
+        createBillingAttribution({
+          payerSubscription: {
+            id: 'subscription-1',
+            referenceId: 'user-1',
+            plan: 'enterprise',
+            status: 'active',
+            seats: 1,
+            periodStart: null,
+            periodEnd: null,
+            enterpriseWorkflowExecutionTimeoutSeconds: 7200,
+          },
+        })
+      ),
+      upstream.signal
+    )
+
+    expect(getExecutionDeadlineAt(controller.signal)?.getTime()).toBe(
+      getExecutionDeadlineAt(upstream.signal)?.getTime()
+    )
+    controller.cleanup()
+    upstream.cleanup()
+    vi.useRealTimers()
+  })
+})
 
 describe('automatic resume waiting metadata compatibility', () => {
   it('loads legacy waiting metadata with bounded retry defaults', () => {
@@ -528,6 +630,7 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
       .mockResolvedValueOnce([{ id: 'paused-exec-1', status: 'paused' }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'paused-exec-1', status: 'cancelling' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ status: 'cancelled' }])
 
     await expect(
       PauseResumeManager.beginPausedCancellation('execution-1', 'workflow-1')
@@ -539,6 +642,38 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     ).resolves.toBe(true)
 
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
+  it('scopes paused cancellation to the workflow and preserves a competing terminal status', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'paused-exec-1', status: 'cancelling' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(
+      PauseResumeManager.completePausedCancellation('execution-1', 'workflow-1')
+    ).resolves.toBe(false)
+
+    expect(dbChainMockFns.set).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      status: 'cancelled',
+      endedAt: expect.any(Date),
+      executionDeadlineAt: null,
+    })
+    const casConditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
+    expect(casConditions).toContainEqual({
+      type: 'eq',
+      left: 'executionId',
+      right: 'execution-1',
+    })
+    expect(casConditions).toContainEqual({
+      type: 'eq',
+      left: 'workflowId',
+      right: 'workflow-1',
+    })
+    expect(casConditions).toContainEqual({
+      type: 'inArray',
+      column: 'status',
+      values: ['running', 'pending', 'cancelled'],
+    })
   })
 
   it('does not release again when cancellation is already terminal', async () => {
@@ -615,6 +750,23 @@ describe('PauseResumeManager blocked resume readmission', () => {
           value && typeof value === 'object' && ('resumedCount' in value || 'resumeInput' in value)
       )
     ).toBe(false)
+  })
+
+  it('preserves a terminal timeout failure while cleaning up the resume attempt', async () => {
+    await PauseResumeManager.markResumeAttemptFailed({
+      resumeEntryId: 'resume-entry-1',
+      pausedExecutionId: 'paused-exec-1',
+      parentExecutionId: 'execution-1',
+      contextId: 'context-1',
+      failureReason: 'Workflow execution timed out after 5 seconds',
+    })
+
+    const logUpdate = dbChainMockFns.set.mock.calls[2]?.[0] as {
+      status: { toSQL: () => { sql: string } }
+      executionDeadlineAt: Date | null
+    }
+    expect(logUpdate.status.toSQL().sql).toContain("status IN ('cancelled', 'failed', 'completed')")
+    expect(logUpdate.executionDeadlineAt).toBeNull()
   })
 
   it('stores a bounded automatic waiting reason with the requested retry time', async () => {
@@ -708,5 +860,91 @@ describe('PauseResumeManager blocked resume readmission', () => {
       })
     )
     expect(JSON.stringify(dbChainMockFns.set.mock.calls[1]?.[0])).toContain('intervention_required')
+  })
+})
+
+describe('PauseResumeManager completed resume transitions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('clears the active attempt deadline when sibling pause points remain', async () => {
+    queueTableRows(pausedExecutions, [{ remaining: 1 }])
+    const markResumeCompleted = Reflect.get(PauseResumeManager, 'markResumeCompleted') as (args: {
+      resumeEntryId: string
+      pausedExecutionId: string
+      parentExecutionId: string
+      contextId: string
+    }) => Promise<void>
+
+    await markResumeCompleted({
+      resumeEntryId: 'resume-entry-1',
+      pausedExecutionId: 'paused-exec-1',
+      parentExecutionId: 'execution-1',
+      contextId: 'context-1',
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(3, {
+      status: 'pending',
+      executionDeadlineAt: null,
+    })
+  })
+})
+
+describe('PauseResumeManager resume log claims', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  const claimResumeExecutionLog = Reflect.get(
+    PauseResumeManager,
+    'claimResumeExecutionLog'
+  ) as (args: {
+    parentExecutionId: string
+    workflowId: string
+    executionDeadlineAt?: Date
+  }) => Promise<void>
+
+  it('atomically stamps the active attempt deadline while claiming a paused log', async () => {
+    const executionDeadlineAt = new Date('2026-08-04T12:00:00.000Z')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1' }])
+
+    await claimResumeExecutionLog({
+      parentExecutionId: 'execution-1',
+      workflowId: 'workflow-1',
+      executionDeadlineAt,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      status: 'running',
+      executionDeadlineAt,
+    })
+    const statusGuard = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0]).find(
+      (condition) => condition.type === 'inArray' && condition.column === 'status'
+    )
+    expect(statusGuard).toEqual({
+      type: 'inArray',
+      column: 'status',
+      values: ['pending', 'paused'],
+    })
+  })
+
+  it('rejects a duplicate resume when the log claim CAS loses', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(
+      claimResumeExecutionLog({
+        parentExecutionId: 'execution-1',
+        workflowId: 'workflow-1',
+        executionDeadlineAt: new Date('2026-08-04T13:00:00.000Z'),
+      })
+    ).rejects.toMatchObject({
+      name: 'ResumeAdmissionError',
+      message: 'Execution can no longer be resumed',
+      statusCode: 409,
+      retryable: false,
+    })
   })
 })

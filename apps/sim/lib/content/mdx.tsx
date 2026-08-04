@@ -157,7 +157,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       const className = child.props.className || ''
       const language = className.replace('language-', '') || 'javascript'
 
-      const languageMap: Record<string, 'javascript' | 'json' | 'python'> = {
+      const languageMap: Record<string, 'javascript' | 'json' | 'python' | 'bash'> = {
         js: 'javascript',
         jsx: 'javascript',
         ts: 'javascript',
@@ -167,6 +167,9 @@ export const mdxComponents: MDXRemoteProps['components'] = {
         json: 'json',
         python: 'python',
         py: 'python',
+        bash: 'bash',
+        shell: 'bash',
+        sh: 'bash',
       }
 
       const mappedLanguage = languageMap[language.toLowerCase()] || 'javascript'

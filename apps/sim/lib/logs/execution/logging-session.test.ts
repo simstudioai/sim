@@ -119,6 +119,7 @@ function createSecretRegistry(
     isComplete: () => complete,
     getActiveMatches: () => matches,
     exportProvenance: () => ({ version: 1, complete, entries: [] }),
+    exportCheckpointProvenance: () => ({ version: 1, complete, entries: [] }),
   } as unknown as ResolvedSecretTraceRegistry
 }
 
@@ -152,6 +153,35 @@ describe('LoggingSession terminal provenance', () => {
             complete: true,
             entries: [],
           },
+          resolvedSecretTraceCheckpointVersion: 1,
+        }),
+      })
+    )
+  })
+
+  it('uses checkpoint provenance rather than a temporary pending egress state on pause', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-pending-pause', 'manual')
+    session.setResolvedSecretTraceRegistry({
+      ...createSecretRegistry([]),
+      exportProvenance: () => ({ version: 1, complete: false, entries: [] }),
+      exportCheckpointProvenance: () => ({
+        version: 1,
+        complete: true,
+        entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+      }),
+    } as unknown as ResolvedSecretTraceRegistry)
+
+    await session.completeWithPause()
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executionState: expect.objectContaining({
+          resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+          },
+          resolvedSecretTraceCheckpointVersion: 1,
         }),
       })
     )
@@ -296,6 +326,38 @@ describe('LoggingSession start snapshots', () => {
     })
 
     expect(startWorkflowExecutionMock).not.toHaveBeenCalled()
+  })
+
+  it('restarts a paused execution with a fresh attempt deadline', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-paused', 'manual', 'req-paused')
+    const deadline = new Date('2026-08-04T12:00:00.000Z')
+    session.setExecutionDeadlineAt(deadline)
+
+    await session.start({
+      userId: 'user-1',
+      actorUserId: 'user-1',
+      billingAttribution: {
+        actorUserId: 'user-1',
+        workspaceId: 'workspace-1',
+        organizationId: 'org-1',
+        billedAccountUserId: 'owner-1',
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: '2026-08-01T00:00:00.000Z',
+        },
+        payerSubscription: null,
+      },
+      workspaceId: 'workspace-1',
+      skipLogCreation: true,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      status: 'running',
+      executionDeadlineAt: deadline,
+    })
+    const [statusSqlParts] = dbMocks.sql.mock.calls[0]
+    expect(Array.from(statusSqlParts).join('')).toContain("IN ('pending', 'running', 'paused')")
   })
 
   it('uses the executed workflow state override for execution snapshots', async () => {
@@ -962,7 +1024,7 @@ describe('LoggingSession completion retries', () => {
   it('marks paused completions as completed and deduplicates later attempts', async () => {
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
 
-    completeWorkflowExecutionMock.mockResolvedValue({})
+    completeWorkflowExecutionMock.mockResolvedValue({ persistedStatus: 'pending' })
 
     await expect(
       session.safeCompleteWithPause({
@@ -974,6 +1036,7 @@ describe('LoggingSession completion retries', () => {
     ).resolves.toBeUndefined()
 
     expect(session.hasCompleted()).toBe(true)
+    expect(session.getPersistedCompletionStatus()).toBe('pending')
 
     await expect(
       session.safeCompleteWithError({
@@ -982,6 +1045,61 @@ describe('LoggingSession completion retries', () => {
     ).resolves.toBeUndefined()
 
     expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('records cancellation when pause finalization observes an already-cancelled log', async () => {
+    dbChainMockFns.limit.mockResolvedValue([{ status: 'cancelled' }])
+    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
+
+    await session.safeCompleteWithPause()
+
+    expect(session.hasCompleted()).toBe(true)
+    expect(session.getPersistedCompletionStatus()).toBe('cancelled')
+    expect(completeWorkflowExecutionMock).not.toHaveBeenCalled()
+  })
+
+  it('reconciles cancellation data after an external cancel already won the status race', async () => {
+    dbChainMockFns.limit.mockResolvedValue([{ status: 'cancelled' }])
+    completeWorkflowExecutionMock.mockResolvedValue({ persistedStatus: 'cancelled' })
+    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
+    const traceSpans = [
+      {
+        id: 'span-1',
+        name: 'Function',
+        type: 'block',
+        duration: 10,
+        startTime: '2026-08-03T12:00:00.000Z',
+        endTime: '2026-08-03T12:00:00.010Z',
+        status: 'success' as const,
+      },
+    ]
+    const executionState = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+
+    await session.safeCompleteWithCancellation({
+      totalDurationMs: 10,
+      traceSpans,
+      executionState,
+    })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executionId: 'execution-1',
+        executionState,
+        finalOutput: { cancelled: true },
+        finalizationPath: 'cancelled',
+        status: 'cancelled',
+        traceSpans,
+      })
+    )
+    expect(session.getPersistedCompletionStatus()).toBe('cancelled')
+    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('execution-1')
   })
 
   it('releases success, failure, and cancellation but defers paused release', async () => {
@@ -1332,10 +1450,21 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
     await LoggingSession.markExecutionAsFailed('exec-2', 'custom error', undefined, 'wf-2')
 
     expect(sqlMock).toHaveBeenCalled()
-    const lastCall = sqlMock.mock.calls.at(-1)!
-    const [strings, ...values] = lastCall
-    const combined = String(Array.from(strings)).toLowerCase() + values.join(' ').toLowerCase()
+    const combined = sqlMock.mock.calls
+      .map(([strings, ...values]) => {
+        return String(Array.from(strings)).toLowerCase() + values.join(' ').toLowerCase()
+      })
+      .join(' ')
     expect(combined).toContain('force_failed')
+  })
+
+  it('does not overwrite a cancellation with a late force-failure', async () => {
+    await LoggingSession.markExecutionAsFailed('exec-cancelled', 'late failure', undefined, 'wf-1')
+
+    const statusGuards = dbMocks.sql.mock.calls
+      .map(([strings]) => String(Array.from(strings)))
+      .filter((query) => query.includes("!= 'cancelled'"))
+    expect(statusGuards).toHaveLength(1)
   })
 
   it('clears Redis markers when marking failed (terminal boundary outside completeWorkflowExecution)', async () => {

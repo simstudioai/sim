@@ -9,11 +9,13 @@ const {
   mockRequireBillingAttributionHeader,
   mockCheckWorkspaceAccess,
   mockAuthorizeCredentialUse,
+  mockPrepareCopilotEnvironmentContext,
 } = vi.hoisted(() => ({
   mockExecuteProviderRequest: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockCheckWorkspaceAccess: vi.fn(),
   mockAuthorizeCredentialUse: vi.fn(),
+  mockPrepareCopilotEnvironmentContext: vi.fn(),
 }))
 
 vi.mock('@/providers', () => ({
@@ -31,6 +33,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUse: mockAuthorizeCredentialUse,
+}))
+
+vi.mock('@/lib/copilot/environment-context', () => ({
+  prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
 }))
 
 vi.mock('@/app/api/auth/oauth/utils', () => ({
@@ -76,6 +82,9 @@ describe('POST /api/providers', () => {
       model: 'gpt-4o',
       tokens: { input: 1, output: 1, total: 2 },
     })
+    mockPrepareCopilotEnvironmentContext.mockResolvedValue({
+      resolvedSecretTraceRegistry: {},
+    })
   })
 
   it('validates the attribution header and forwards it to executeProviderRequest', async () => {
@@ -94,7 +103,10 @@ describe('POST /api/providers', () => {
     })
     expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
       'openai',
-      expect.objectContaining({ billingAttribution: BILLING_ATTRIBUTION })
+      expect.objectContaining({ billingAttribution: BILLING_ATTRIBUTION }),
+      expect.objectContaining({
+        resolvedSecretTraceRegistry: expect.anything(),
+      })
     )
   })
 
@@ -107,7 +119,31 @@ describe('POST /api/providers', () => {
     expect(mockRequireBillingAttributionHeader).not.toHaveBeenCalled()
     expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
       'openai',
-      expect.objectContaining({ billingAttribution: undefined })
+      expect.objectContaining({ billingAttribution: undefined }),
+      expect.objectContaining({
+        resolvedSecretTraceRegistry: expect.anything(),
+      })
+    )
+  })
+
+  it('passes caller environment values and model-egress context to the provider boundary', async () => {
+    const res = await POST(
+      createMockRequest('POST', {
+        provider: 'openai',
+        model: 'gpt-4o',
+        workspaceId: 'ws-1',
+        environmentVariables: { RUNTIME_TOKEN: 'runtime-secret' },
+      })
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+      'openai',
+      expect.objectContaining({
+        environmentVariables: { RUNTIME_TOKEN: 'runtime-secret' },
+      }),
+      expect.objectContaining({ resolvedSecretTraceRegistry: expect.anything() })
     )
   })
 

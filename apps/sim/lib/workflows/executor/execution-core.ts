@@ -13,6 +13,11 @@ import { eq } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
 import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
+import {
+  getExecutionDeadlineAt,
+  getTimeoutErrorMessage,
+  isTimeoutAbortReason,
+} from '@/lib/core/execution-limits'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
@@ -244,34 +249,44 @@ async function finalizeExecutionOutcome(params: {
   executionId: string
   requestId: string
   workflowInput: unknown
+  abortSignal?: AbortSignal
 }): Promise<void> {
-  const { result, loggingSession, executionId, requestId, workflowInput } = params
+  const { result, loggingSession, executionId, requestId, workflowInput, abortSignal } = params
   const { traceSpans, totalDuration } = buildTraceSpans(result)
   const endedAt = new Date().toISOString()
 
   try {
-    try {
-      if (result.status === 'cancelled') {
-        await loggingSession.safeCompleteWithCancellation({
-          endedAt,
-          totalDurationMs: totalDuration || 0,
-          traceSpans: traceSpans || [],
-          executionState: result.executionState,
-        })
-        return
+    if (result.status === 'cancelled' && isTimeoutAbortReason(abortSignal?.reason)) {
+      await loggingSession.safeCompleteWithError({
+        endedAt,
+        totalDurationMs: totalDuration || 0,
+        error: { message: getTimeoutErrorMessage(null) },
+        traceSpans: traceSpans || [],
+        executionState: result.executionState,
+      })
+    } else if (result.status === 'cancelled') {
+      await loggingSession.safeCompleteWithCancellation({
+        endedAt,
+        totalDurationMs: totalDuration || 0,
+        traceSpans: traceSpans || [],
+        executionState: result.executionState,
+      })
+    } else if (result.status === 'paused') {
+      await loggingSession.safeCompleteWithPause({
+        endedAt,
+        totalDurationMs: totalDuration || 0,
+        traceSpans: traceSpans || [],
+        workflowInput,
+        executionState: result.executionState,
+      })
+      if (
+        loggingSession.hasCompleted() &&
+        loggingSession.getPersistedCompletionStatus() === 'cancelled'
+      ) {
+        await clearExecutionCancellationSafely(executionId, requestId)
       }
-
-      if (result.status === 'paused') {
-        await loggingSession.safeCompleteWithPause({
-          endedAt,
-          totalDurationMs: totalDuration || 0,
-          traceSpans: traceSpans || [],
-          workflowInput,
-          executionState: result.executionState,
-        })
-        return
-      }
-
+      return
+    } else {
       await loggingSession.safeComplete({
         endedAt,
         totalDurationMs: totalDuration || 0,
@@ -280,15 +295,17 @@ async function finalizeExecutionOutcome(params: {
         workflowInput,
         executionState: result.executionState,
       })
-    } catch (error) {
-      logger.warn(`[${requestId}] Post-execution finalization failed`, {
-        executionId,
-        status: result.status,
-        error,
-      })
     }
-  } finally {
-    await clearExecutionCancellationSafely(executionId, requestId)
+
+    if (loggingSession.hasCompleted()) {
+      await clearExecutionCancellationSafely(executionId, requestId)
+    }
+  } catch (error) {
+    logger.warn(`[${requestId}] Post-execution finalization failed`, {
+      executionId,
+      status: result.status,
+      error,
+    })
   }
 }
 
@@ -314,14 +331,16 @@ async function finalizeExecutionError(params: {
       executionState: executionResult?.executionState,
     })
 
-    return loggingSession.hasCompleted()
+    const finalized = loggingSession.hasCompleted()
+    if (finalized) {
+      await clearExecutionCancellationSafely(executionId, requestId)
+    }
+    return finalized
   } catch (postExecError) {
     logger.error(`[${requestId}] Post-execution error logging failed`, {
       error: postExecError,
     })
     return false
-  } finally {
-    await clearExecutionCancellationSafely(executionId, requestId)
   }
 }
 
@@ -354,6 +373,7 @@ async function executeWorkflowCoreImpl(
     stopAfterBlockId,
     runFromBlock,
   } = options
+  loggingSession.setExecutionDeadlineAt(getExecutionDeadlineAt(abortSignal))
   const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
     metadata
@@ -493,6 +513,8 @@ async function executeWorkflowCoreImpl(
         restoreTrusted || requireRestoredProvenance
           ? restoredState?.resolvedSecretTraceProvenance
           : undefined,
+      restoredCheckpointVersion: restoredState?.resolvedSecretTraceCheckpointVersion,
+      legacyRestoredState: restoredState,
       restoreTrusted,
       requireRestoredProvenance,
       scope: { userId: personalEnvUserId, workspaceId: providedWorkspaceId },
@@ -912,6 +934,7 @@ async function executeWorkflowCoreImpl(
             executionId,
             requestId,
             workflowInput: processedInput,
+            abortSignal,
           })
 
           if (result.success && result.status !== 'paused') {

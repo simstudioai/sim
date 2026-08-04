@@ -412,6 +412,8 @@ export const workflowExecutionLogs = pgTable(
     trigger: text('trigger').notNull(), // 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 
     startedAt: timestamp('started_at').notNull(),
+    /** Absolute deadline for the current active attempt; cleared while paused or terminal. */
+    executionDeadlineAt: timestamp('execution_deadline_at'),
     endedAt: timestamp('ended_at'),
     totalDurationMs: integer('total_duration_ms'),
 
@@ -475,6 +477,9 @@ export const workflowExecutionLogs = pgTable(
     runningStartedAtIdx: index('workflow_execution_logs_running_started_at_idx')
       .on(table.startedAt)
       .where(sql`status = 'running'`),
+    runningExecutionDeadlineIdx: index('workflow_execution_logs_running_deadline_idx')
+      .on(table.executionDeadlineAt)
+      .where(sql`${table.status} = 'running' AND ${table.executionDeadlineAt} IS NOT NULL`),
     completedEndedAtIdx: index('workflow_execution_logs_completed_ended_at_idx')
       .on(table.endedAt, table.workspaceId, table.executionId)
       .where(
@@ -4357,6 +4362,8 @@ export const workspaceSandbox = pgTable(
     name: text('name').notNull(),
     language: sandboxLanguageEnum('language').notNull(),
     dependencies: jsonb('dependencies').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    cliTools: jsonb('cli_tools').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    systemPackages: jsonb('system_packages').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     specHash: text('spec_hash').notNull(),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -4390,6 +4397,8 @@ export const sandboxImage = pgTable(
     /** Provider-side image identifier, when it differs from `imageRef`. */
     providerImageId: text('provider_image_id'),
     buildId: text('build_id'),
+    /** Monotonic target release for this provider materialization; legacy rows are generation 0. */
+    materializationGeneration: bigint('materialization_generation', { mode: 'number' }),
     /** Classified taxonomy code; see lib/execution/remote-sandbox/build-errors.ts. */
     errorCode: text('error_code'),
     /** User-facing copy rendered from the code at classification time. */

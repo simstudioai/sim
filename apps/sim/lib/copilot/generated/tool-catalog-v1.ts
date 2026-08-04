@@ -1768,7 +1768,7 @@ export const FunctionExecute: ToolCatalogEntry = {
       code: {
         type: 'string',
         description:
-          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
+          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
       },
       inputs: {
         type: 'object',
@@ -3772,7 +3772,7 @@ export const RunCode: ToolCatalogEntry = {
       code: {
         type: 'string',
         description:
-          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
+          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
       },
       inputs: {
         type: 'object',

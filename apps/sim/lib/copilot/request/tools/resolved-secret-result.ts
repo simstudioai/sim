@@ -1,26 +1,38 @@
-import { isPlainRecord, omit } from '@sim/utils/object'
+import { isPlainRecord } from '@sim/utils/object'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
-  containsResolvedSecret,
-  createResolvedSecretMatcher,
-  projectResolvedSecretContent,
-  type ResolvedSecretMatcher,
-  sanitizeResolvedSecretString,
+  isResolvedSecretModelContentUnchanged,
+  projectResolvedSecretModelContent,
+  projectResolvedSecretModelControlMessage,
 } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-export const TOOL_RESULT_OMITTED_ERROR = 'Tool result omitted'
+export const TOOL_RESULT_UNAVAILABLE_ERROR =
+  'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.'
 
-function omitContent(result: ToolExecutionResult): ToolExecutionResult {
-  return omit(result, ['output', 'error', 'resources'])
+function structuralResult(result: ToolExecutionResult): ToolExecutionResult {
+  return { success: result.success === true }
 }
 
-function resourceContent(resources: MothershipResource[]): Array<{ title: string; path?: string }> {
+function resourceContent(
+  resources: MothershipResource[]
+): Array<{ type: string; id: string; title: string; path?: string }> {
   return resources.map((resource) => ({
+    type: resource.type,
+    id: resource.id,
     title: resource.title,
     ...(resource.path !== undefined ? { path: resource.path } : {}),
   }))
+}
+
+function modelSafeResources(
+  resources: MothershipResource[],
+  registry: ResolvedSecretTraceRegistry | undefined
+): MothershipResource[] {
+  return resources.filter((resource) =>
+    isResolvedSecretModelContentUnchanged([resource.type, resource.id, resource.path], registry)
+  )
 }
 
 function restoreProjectedResources(
@@ -33,16 +45,19 @@ function restoreProjectedResources(
 
   const projectedResources: MothershipResource[] = []
   for (let index = 0; index < resources.length; index += 1) {
+    const resource = resources[index]
     const content = projectedContent[index]
     if (
       !isPlainRecord(content) ||
+      typeof content.type !== 'string' ||
+      typeof content.id !== 'string' ||
       typeof content.title !== 'string' ||
       (content.path !== undefined && typeof content.path !== 'string')
     ) {
       return undefined
     }
+    if (content.type !== resource.type || content.id !== resource.id) continue
 
-    const resource = resources[index]
     projectedResources.push({
       type: resource.type,
       id: resource.id,
@@ -54,33 +69,16 @@ function restoreProjectedResources(
   return projectedResources
 }
 
-/** Returns a nonempty control error that cannot contain any active literal. */
-function createSafeControlError(matcher: ResolvedSecretMatcher | undefined): string {
-  if (!matcher) return TOOL_RESULT_OMITTED_ERROR
-
-  try {
-    const projected = sanitizeResolvedSecretString(TOOL_RESULT_OMITTED_ERROR, matcher)
-    if (projected.length > 0 && !containsResolvedSecret(projected, matcher)) return projected
-  } catch {}
-
-  for (let codePoint = 0x21; codePoint <= 0x10ffff; codePoint += 1) {
-    if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
-      codePoint = 0xdfff
-      continue
-    }
-    const candidate = String.fromCodePoint(codePoint)
-    if (!containsResolvedSecret(candidate, matcher)) return candidate
-  }
-
-  throw new Error('Active secret matcher covers every Unicode scalar')
-}
-
 function omittedResult(
   result: ToolExecutionResult,
-  matcher: ResolvedSecretMatcher | undefined
+  registry: ResolvedSecretTraceRegistry | undefined
 ): ToolExecutionResult {
-  const structural = omitContent(result)
-  return result.success ? structural : { ...structural, error: createSafeControlError(matcher) }
+  if (result.success) return { success: true }
+
+  const error =
+    projectResolvedSecretModelControlMessage(TOOL_RESULT_UNAVAILABLE_ERROR, registry) ??
+    TOOL_RESULT_UNAVAILABLE_ERROR
+  return { success: false, error }
 }
 
 /**
@@ -91,39 +89,39 @@ export function projectToolResultForCopilot(
   result: ToolExecutionResult,
   registry: ResolvedSecretTraceRegistry | undefined
 ): ToolExecutionResult {
-  if (!registry?.isComplete()) return omittedResult(result, undefined)
-
-  let matcher: ResolvedSecretMatcher | undefined
   try {
-    matcher = createResolvedSecretMatcher(registry.getActiveMatches())
-    if (!matcher) return result
-
     const content: Record<string, unknown> = {}
+    const resources =
+      result.resources !== undefined ? modelSafeResources(result.resources, registry) : undefined
     if (Object.hasOwn(result, 'output')) content.output = result.output
     if (Object.hasOwn(result, 'error')) content.error = result.error
-    if (result.resources !== undefined) content.resources = resourceContent(result.resources)
-    const projection = projectResolvedSecretContent(content, matcher)
+    if (resources !== undefined) content.resources = resourceContent(resources)
+    const projection = projectResolvedSecretModelContent(content, registry)
     if (!projection.safe || !projection.value || typeof projection.value !== 'object') {
-      return omittedResult(result, matcher)
+      return omittedResult(result, registry)
     }
 
     const projectedContent = projection.value as Record<string, unknown>
-    const projected = omitContent(result)
+    const projected = structuralResult(result)
     if (Object.hasOwn(projectedContent, 'output')) projected.output = projectedContent.output
     if (Object.hasOwn(projectedContent, 'error')) {
-      projected.error = String(projectedContent.error)
+      if (typeof projectedContent.error !== 'string') return omittedResult(result, registry)
+      projected.error = projectedContent.error
     }
-    if (result.resources !== undefined) {
-      const resources = restoreProjectedResources(result.resources, projectedContent.resources)
-      if (!resources) return omittedResult(result, matcher)
-      projected.resources = resources
+    if (resources !== undefined) {
+      const projectedResources = restoreProjectedResources(resources, projectedContent.resources)
+      if (!projectedResources) return omittedResult(result, registry)
+      projected.resources = projectedResources
     }
     if (!projected.success && !projected.error) {
-      projected.error = createSafeControlError(matcher)
+      projected.error = projectResolvedSecretModelControlMessage(
+        TOOL_RESULT_UNAVAILABLE_ERROR,
+        registry
+      )
     }
     return projected
   } catch {
-    return omittedResult(result, matcher)
+    return omittedResult(result, registry)
   }
 }
 
@@ -132,8 +130,5 @@ export function projectToolErrorMessageForCopilot(
   error: string,
   registry: ResolvedSecretTraceRegistry | undefined
 ): string {
-  return (
-    projectToolResultForCopilot({ success: false, error }, registry).error ??
-    TOOL_RESULT_OMITTED_ERROR
-  )
+  return projectToolResultForCopilot({ success: false, error }, registry).error ?? ''
 }

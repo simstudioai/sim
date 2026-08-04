@@ -5,6 +5,8 @@ import { eq } from 'drizzle-orm'
 import { BILLING_ATTRIBUTION_HEADER } from '@/lib/billing/core/billing-attribution'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel } from '@/providers/utils'
 
@@ -44,6 +46,7 @@ export interface HallucinationValidationInput {
     billingAttribution?: string
   }
   requestId: string
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
 }
 
 /**
@@ -113,7 +116,8 @@ async function scoreHallucinationWithLLM(
   apiKey: string | undefined,
   providerCredentials: HallucinationValidationInput['providerCredentials'],
   workspaceId: string | undefined,
-  requestId: string
+  requestId: string,
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
 ): Promise<{ score: number; reasoning: string; cost: number }> {
   try {
     const contextText = ragContext.join('\n\n---\n\n')
@@ -167,26 +171,30 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       }
     }
 
-    const response = await executeProviderRequest(providerId, {
-      model,
-      systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
-      temperature: 0.1, // Low temperature for consistent scoring
-      apiKey: finalApiKey,
-      azureEndpoint: providerCredentials?.azureEndpoint,
-      azureApiVersion: providerCredentials?.azureApiVersion,
-      vertexProject: providerCredentials?.vertexProject,
-      vertexLocation: providerCredentials?.vertexLocation,
-      bedrockAccessKeyId: providerCredentials?.bedrockAccessKeyId,
-      bedrockSecretKey: providerCredentials?.bedrockSecretKey,
-      bedrockRegion: providerCredentials?.bedrockRegion,
-      workspaceId,
-    })
+    const response = await executeProviderRequest(
+      providerId,
+      {
+        model,
+        systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: userPrompt,
+          },
+        ],
+        temperature: 0.1, // Low temperature for consistent scoring
+        apiKey: finalApiKey,
+        azureEndpoint: providerCredentials?.azureEndpoint,
+        azureApiVersion: providerCredentials?.azureApiVersion,
+        vertexProject: providerCredentials?.vertexProject,
+        vertexLocation: providerCredentials?.vertexLocation,
+        bedrockAccessKeyId: providerCredentials?.bedrockAccessKeyId,
+        bedrockSecretKey: providerCredentials?.bedrockSecretKey,
+        bedrockRegion: providerCredentials?.bedrockRegion,
+        workspaceId,
+      },
+      { resolvedSecretTraceRegistry }
+    )
 
     if (response instanceof ReadableStream || ('stream' in response && 'execution' in response)) {
       throw new Error('Unexpected streaming response from LLM')
@@ -248,6 +256,7 @@ export async function validateHallucination(
     workspaceId,
     authHeaders,
     requestId,
+    resolvedSecretTraceRegistry,
   } = input
 
   try {
@@ -264,11 +273,16 @@ export async function validateHallucination(
         error: 'Knowledge base ID is required',
       }
     }
+    const projection = projectResolvedSecretModelContent(userInput, resolvedSecretTraceRegistry)
+    if (!projection.safe || typeof projection.value !== 'string') {
+      throw new Error('Hallucination input could not be safely projected')
+    }
+    const modelSafeUserInput = projection.value
 
     // Step 1: Query knowledge base with RAG
     const ragContext = await queryKnowledgeBase(
       knowledgeBaseId,
-      userInput,
+      modelSafeUserInput,
       topK,
       requestId,
       workflowId,
@@ -284,13 +298,14 @@ export async function validateHallucination(
 
     // Step 2: Use LLM to score confidence
     const { score, reasoning, cost } = await scoreHallucinationWithLLM(
-      userInput,
+      modelSafeUserInput,
       ragContext,
       model,
       apiKey,
       providerCredentials,
       workspaceId,
-      requestId
+      requestId,
+      resolvedSecretTraceRegistry
     )
 
     logger.info(`[${requestId}] Confidence score: ${score}`, {

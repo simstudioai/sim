@@ -13,6 +13,7 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -220,35 +221,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       hasBillingAttribution: !!billingAttribution,
     })
 
-    const response = await executeProviderRequest(provider, {
-      model,
-      systemPrompt,
-      context,
-      tools,
-      temperature,
-      maxTokens,
-      apiKey: finalApiKey,
-      azureEndpoint,
-      azureApiVersion,
-      vertexProject,
-      vertexLocation,
-      bedrockAccessKeyId,
-      bedrockSecretKey,
-      bedrockRegion,
-      responseFormat,
-      workflowId,
-      workspaceId,
-      userId: auth.userId,
-      stream,
-      messages,
-      environmentVariables,
-      workflowVariables,
-      blockData,
-      blockNameMapping,
-      billingAttribution,
-      reasoningEffort,
-      verbosity,
-    })
+    const providerRuntimeContext = await prepareCopilotEnvironmentContext(auth.userId, workspaceId)
+
+    const response = await executeProviderRequest(
+      provider,
+      {
+        model,
+        systemPrompt,
+        context,
+        tools,
+        temperature,
+        maxTokens,
+        apiKey: finalApiKey,
+        azureEndpoint,
+        azureApiVersion,
+        vertexProject,
+        vertexLocation,
+        bedrockAccessKeyId,
+        bedrockSecretKey,
+        bedrockRegion,
+        responseFormat,
+        workflowId,
+        workspaceId,
+        userId: auth.userId,
+        stream,
+        messages,
+        environmentVariables,
+        workflowVariables,
+        blockData,
+        blockNameMapping,
+        billingAttribution,
+        reasoningEffort,
+        verbosity,
+      },
+      providerRuntimeContext
+    )
 
     const executionTime = Date.now() - startTime
     logger.info(`[${requestId}] Provider request completed successfully`, {

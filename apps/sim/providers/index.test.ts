@@ -4,9 +4,16 @@
 import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetApiKeyWithBYOK, mockExecuteRequest } = vi.hoisted(() => ({
+const {
+  mockAttachLargeFileRemoteUrls,
+  mockGetApiKeyWithBYOK,
+  mockExecuteRequest,
+  mockUploadLargeFilesToProvider,
+} = vi.hoisted(() => ({
+  mockAttachLargeFileRemoteUrls: vi.fn(),
   mockGetApiKeyWithBYOK: vi.fn(),
   mockExecuteRequest: vi.fn(),
+  mockUploadLargeFilesToProvider: vi.fn(),
 }))
 
 vi.mock('@/lib/api-key/byok', () => ({
@@ -19,12 +26,25 @@ vi.mock('@/providers/registry', () => ({
   }),
 }))
 
+vi.mock('@/providers/file-attachments.server', () => ({
+  attachLargeFileRemoteUrls: (...args: unknown[]) => mockAttachLargeFileRemoteUrls(...args),
+  uploadLargeFilesToProvider: (...args: unknown[]) => mockUploadLargeFilesToProvider(...args),
+}))
+
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import type { ProviderResponse } from '@/providers/types'
 
 const HOSTED_RATE_INPUT_COST = 0.340285
 const HOSTED_RATE_OUTPUT_COST = 0.0387
 const HOSTED_RATE_TOTAL_COST = HOSTED_RATE_INPUT_COST + HOSTED_RATE_OUTPUT_COST
+const ARBITRARY_SCHEMA_CONTROL_KEYS = [
+  '$schema',
+  'format',
+  'contentEncoding',
+  'contentMediaType',
+  'type',
+] as const
 
 function makeAnthropicResponse(): ProviderResponse {
   // Mirrors the shape produced by Anthropic core for a real BYOK execution
@@ -410,5 +430,626 @@ describe('executeProviderRequest — streaming cost policy', () => {
       total: 0.005,
       toolCost: 0.005,
     })
+  })
+})
+
+describe('executeProviderRequest — model secret projection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExecuteRequest.mockResolvedValue({
+      content: 'ok',
+      model: 'test-model',
+      tokens: { input: 1, output: 1, total: 2 },
+    } as ProviderResponse)
+  })
+
+  it('projects only model-visible request content after structured instructions are added', async () => {
+    const secret = 'quoted"secret\\with\nnewline'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+
+    await executeProviderRequest(
+      'anthropic',
+      {
+        model: 'test-model',
+        apiKey: secret,
+        systemPrompt: `system ${secret}`,
+        context: `context ${secret}`,
+        messages: [
+          {
+            role: 'user',
+            content: `message ${secret} __var_TOKEN`,
+            files: [
+              {
+                id: 'file-1',
+                name: `${secret}.txt`,
+                url: '/file',
+                size: 4,
+                type: 'text/plain',
+                key: 'file-key',
+                base64: 'c2FmZQ==',
+              },
+            ],
+          },
+          {
+            role: 'assistant',
+            content: null,
+            name: 'assistant-safe',
+            function_call: {
+              name: 'legacy-safe',
+              arguments: JSON.stringify({ value: secret }),
+            },
+            tool_calls: [
+              {
+                id: `call-${secret}`,
+                type: 'function',
+                function: {
+                  name: 'tool-safe',
+                  arguments: JSON.stringify({ value: secret }),
+                },
+              },
+            ],
+            tool_call_id: `result-${secret}`,
+          },
+        ],
+        tools: [
+          {
+            id: 'custom_tool',
+            name: 'Safe Tool',
+            description: `Description ${secret}`,
+            params: { runtimeSecret: secret },
+            parameters: {
+              type: 'object',
+              properties: { value: { type: 'string', description: secret } },
+              required: [],
+            },
+          },
+        ],
+        responseFormat: {
+          name: 'safe_result',
+          schema: {
+            type: 'object',
+            properties: { value: { type: 'string', description: secret } },
+          },
+        },
+        environmentVariables: { TOKEN: secret },
+        workflowVariables: { raw: secret },
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    const sent = mockExecuteRequest.mock.calls[0][0]
+    expect(sent.systemPrompt).not.toContain(secret)
+    expect(sent.context).toBe('context {{TOKEN}}')
+    expect(sent.messages[0].content).toBe('message {{TOKEN}} {{TOKEN}}')
+    expect(sent.messages[0].files[0]).toMatchObject({
+      name: '{{TOKEN}}.txt',
+      base64: 'c2FmZQ==',
+    })
+    expect(sent.messages[1]).toMatchObject({
+      name: 'assistant-safe',
+      function_call: {
+        name: 'legacy-safe',
+        arguments: JSON.stringify({ value: '{{TOKEN}}' }),
+      },
+      tool_calls: [
+        {
+          id: `call-${secret}`,
+          function: {
+            name: 'tool-safe',
+            arguments: JSON.stringify({ value: '{{TOKEN}}' }),
+          },
+        },
+      ],
+      tool_call_id: `result-${secret}`,
+    })
+    expect(sent.tools[0]).toMatchObject({
+      name: 'Safe Tool',
+      description: 'Description {{TOKEN}}',
+      params: { runtimeSecret: secret },
+      parameters: {
+        properties: { value: { description: '{{TOKEN}}' } },
+      },
+    })
+    expect(sent.responseFormat).toMatchObject({
+      name: 'safe_result',
+      schema: {
+        properties: { value: { description: '{{TOKEN}}' } },
+      },
+    })
+    expect(sent.apiKey).toBe(secret)
+    expect(sent.environmentVariables).toEqual({ TOKEN: secret })
+    expect(sent.workflowVariables).toEqual({ raw: secret })
+    expect(JSON.stringify(sent)).not.toContain('__var_')
+  })
+
+  it('registers request-scoped environment values at the shared provider boundary', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+
+    await executeProviderRequest(
+      'anthropic',
+      {
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Use runtime-secret' }],
+        environmentVariables: { RUNTIME_TOKEN: 'runtime-secret' },
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(mockExecuteRequest.mock.calls[0][0].messages[0].content).toBe('Use {{RUNTIME_TOKEN}}')
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('projects attachment display names before storage resolution and provider upload', async () => {
+    const secret = 'attachment-secret'
+    const rawStorageKey = `workspace/raw-${secret}/document.pdf`
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+
+    await executeProviderRequest(
+      'openai',
+      {
+        model: 'test-model',
+        messages: [
+          {
+            role: 'user',
+            content: 'Review this attachment',
+            files: [
+              {
+                id: 'file-1',
+                name: `report-${secret}.pdf`,
+                url: '/file',
+                size: 20 * 1024 * 1024,
+                type: 'application/pdf',
+                key: rawStorageKey,
+              },
+            ],
+          },
+        ],
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    const attachmentRequest = mockAttachLargeFileRemoteUrls.mock.calls[0][0]
+    const uploadRequest = mockUploadLargeFilesToProvider.mock.calls[0][0]
+    expect(attachmentRequest.messages[0].files[0]).toMatchObject({
+      name: 'report-{{TOKEN}}.pdf',
+      key: rawStorageKey,
+    })
+    expect(uploadRequest).toBe(attachmentRequest)
+    expect(mockExecuteRequest.mock.calls[0][0].messages[0].files[0]).toMatchObject({
+      name: 'report-{{TOKEN}}.pdf',
+      key: rawStorageKey,
+    })
+  })
+
+  it('projects JSON arguments and attachment text exactly once when plaintext overlaps its alias', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
+    ])
+
+    await executeProviderRequest(
+      'openai',
+      {
+        model: 'test-model',
+        messages: [
+          {
+            role: 'assistant',
+            content: 'TOKEN',
+            function_call: {
+              name: 'legacy-safe',
+              arguments: JSON.stringify({ value: 'TOKEN' }),
+            },
+            tool_calls: [
+              {
+                id: 'call-safe',
+                type: 'function',
+                function: {
+                  name: 'tool-safe',
+                  arguments: JSON.stringify({ value: 'TOKEN' }),
+                },
+              },
+            ],
+            files: [
+              {
+                id: 'file-safe',
+                name: 'TOKEN.txt',
+                url: '/file',
+                size: 4,
+                type: 'text/plain',
+                key: 'file-key',
+                context: 'Context TOKEN',
+              },
+            ],
+          },
+        ],
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    const sent = mockExecuteRequest.mock.calls.at(-1)?.[0]
+    expect(sent.messages[0]).toMatchObject({
+      content: '[REDACTED_SECRET]',
+      function_call: { arguments: JSON.stringify({ value: '[REDACTED_SECRET]' }) },
+      tool_calls: [
+        {
+          function: { arguments: JSON.stringify({ value: '[REDACTED_SECRET]' }) },
+        },
+      ],
+      files: [
+        {
+          name: '[REDACTED_SECRET].txt',
+          context: 'Context [REDACTED_SECRET]',
+        },
+      ],
+    })
+    expect(JSON.stringify(sent)).not.toContain('TOKEN')
+    expect(JSON.stringify(sent)).not.toContain('{{{{TOKEN}}}}')
+  })
+
+  it.each(['123', 'true'])(
+    'keeps low-entropy JSON valid, projects typed conversions, and preserves transport IDs (%s)',
+    async (secret) => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+      ])
+      const converted = secret === '123' ? 123 : true
+
+      await executeProviderRequest(
+        'openai',
+        {
+          model: 'test-model',
+          messages: [
+            {
+              role: 'assistant',
+              name: 'assistant-safe',
+              content: secret,
+              function_call: {
+                name: 'legacy-safe',
+                arguments: JSON.stringify({ value: secret, converted }),
+              },
+              tool_calls: [
+                {
+                  id: secret,
+                  type: 'function',
+                  function: {
+                    name: 'tool-safe',
+                    arguments: JSON.stringify({ value: secret, converted }),
+                  },
+                },
+              ],
+              tool_call_id: secret,
+              files: [
+                {
+                  id: secret,
+                  name: `${secret}.txt`,
+                  url: `https://files.example/${secret}`,
+                  size: 4,
+                  type: secret,
+                  key: secret,
+                  context: `Context ${secret}`,
+                  providerFileId: secret,
+                  providerFileUri: `provider://${secret}`,
+                  remoteUrl: `https://remote.example/${secret}`,
+                },
+              ],
+            },
+          ],
+          tools: [
+            {
+              id: 'safe_tool',
+              name: 'Safe Tool',
+              description: `Description ${secret}`,
+              params: { runtimeControl: secret },
+              parameters: {
+                type: 'object',
+                properties: {
+                  value: {
+                    type: 'string',
+                    title: `Title ${secret}`,
+                    description: `Field ${secret}`,
+                    enum: ['public'],
+                  },
+                },
+                required: ['value'],
+              },
+            },
+            {
+              id: 'unsafe_schema_tool',
+              name: 'Unsafe schema tool',
+              description: 'Unsafe schema',
+              params: {},
+              parameters: {
+                type: 'object',
+                properties: { [secret]: { type: 'string' } },
+                required: [secret],
+              },
+            },
+            {
+              id: 'unsafe_name_tool',
+              name: secret,
+              description: 'Unsafe name',
+              params: {},
+              parameters: { type: 'object', properties: {}, required: [] },
+            },
+          ],
+          responseFormat: {
+            name: secret,
+            schema: {
+              type: 'object',
+              properties: {
+                value: {
+                  type: 'string',
+                  description: `Result ${secret}`,
+                  enum: ['public'],
+                },
+              },
+              required: ['value'],
+            },
+          },
+        },
+        { resolvedSecretTraceRegistry: registry }
+      )
+
+      const sent = mockExecuteRequest.mock.calls.at(-1)?.[0]
+      expect(sent.messages[0]).toMatchObject({
+        role: 'assistant',
+        name: 'assistant-safe',
+        content: '{{TOKEN}}',
+        function_call: {
+          name: 'legacy-safe',
+        },
+        tool_calls: [
+          {
+            id: secret,
+            function: {
+              name: 'tool-safe',
+            },
+          },
+        ],
+        tool_call_id: secret,
+      })
+      expect(JSON.parse(sent.messages[0].function_call.arguments)).toEqual({
+        value: '{{TOKEN}}',
+        converted: '{{TOKEN}}',
+      })
+      expect(JSON.parse(sent.messages[0].tool_calls[0].function.arguments)).toEqual({
+        value: '{{TOKEN}}',
+        converted: '{{TOKEN}}',
+      })
+      expect(sent.messages[0].files[0]).toEqual({
+        id: secret,
+        name: '{{TOKEN}}.txt',
+        url: `https://files.example/${secret}`,
+        size: 4,
+        type: secret,
+        key: secret,
+        context: 'Context {{TOKEN}}',
+        providerFileId: secret,
+        providerFileUri: `provider://${secret}`,
+        remoteUrl: `https://remote.example/${secret}`,
+      })
+      expect(sent.tools).toHaveLength(1)
+      expect(sent.tools[0]).toMatchObject({
+        id: 'safe_tool',
+        name: 'Safe Tool',
+        description: 'Description {{TOKEN}}',
+        params: { runtimeControl: secret },
+        parameters: {
+          properties: {
+            value: {
+              title: 'Title {{TOKEN}}',
+              description: 'Field {{TOKEN}}',
+              enum: ['public'],
+            },
+          },
+          required: ['value'],
+        },
+      })
+      expect(sent.responseFormat.name).not.toBe(secret)
+      expect(sent.responseFormat).toMatchObject({
+        schema: {
+          properties: {
+            value: {
+              description: 'Result {{TOKEN}}',
+              enum: ['public'],
+            },
+          },
+          required: ['value'],
+        },
+      })
+    }
+  )
+
+  it.each(ARBITRARY_SCHEMA_CONTROL_KEYS)(
+    'guards arbitrary %s schema controls while preserving tool omission and response failure',
+    async (controlKey) => {
+      const secret = `schema-control-secret-${controlKey}`
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+      ])
+      const unsafeSchema = {
+        type: 'object',
+        properties: {},
+        [controlKey]: secret,
+      }
+
+      await executeProviderRequest(
+        'openai',
+        {
+          model: 'test-model',
+          tools: [
+            {
+              id: 'unsafe_tool',
+              name: 'Unsafe tool',
+              description: 'Unsafe schema control',
+              params: {},
+              parameters: unsafeSchema,
+            },
+            {
+              id: 'safe_tool',
+              name: 'Safe tool',
+              description: 'Safe schema',
+              params: {},
+              parameters: { type: 'object', properties: {} },
+            },
+          ],
+        },
+        { resolvedSecretTraceRegistry: registry }
+      )
+
+      expect(mockExecuteRequest.mock.calls.at(-1)?.[0].tools).toEqual([
+        expect.objectContaining({ id: 'safe_tool' }),
+      ])
+
+      mockExecuteRequest.mockClear()
+      await expect(
+        executeProviderRequest(
+          'openai',
+          {
+            model: 'test-model',
+            responseFormat: { name: 'unsafe_response', schema: unsafeSchema },
+          },
+          { resolvedSecretTraceRegistry: registry }
+        )
+      ).rejects.toThrow('Model input could not be safely projected')
+      expect(mockExecuteRequest).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    ['string', { type: 'string' }],
+    ['true', { type: 'object', nullable: true }],
+  ])('guards canonical schema controls when they equal the secret %s', async (secret, schema) => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+
+    await executeProviderRequest(
+      'openai',
+      {
+        model: 'test-model',
+        tools: [
+          {
+            id: 'unsafe_tool',
+            name: 'Unsafe tool',
+            description: 'Unsafe canonical control',
+            params: {},
+            parameters: schema,
+          },
+          {
+            id: 'safe_tool',
+            name: 'Safe tool',
+            description: 'Safe schema',
+            params: {},
+            parameters: { type: 'object', properties: {} },
+          },
+        ],
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(mockExecuteRequest.mock.calls.at(-1)?.[0].tools).toEqual([
+      expect.objectContaining({ id: 'safe_tool' }),
+    ])
+
+    mockExecuteRequest.mockClear()
+    await expect(
+      executeProviderRequest(
+        'openai',
+        {
+          model: 'test-model',
+          responseFormat: { name: 'unsafe_response', schema },
+        },
+        { resolvedSecretTraceRegistry: registry }
+      )
+    ).rejects.toThrow('Model input could not be safely projected')
+    expect(mockExecuteRequest).not.toHaveBeenCalled()
+  })
+
+  it('forwards safe canonical schema controls byte-for-byte', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'unrelated-secret', encryptedValue: 'ciphertext' },
+    ])
+    const schema = {
+      type: ['object', 'null'],
+      nullable: true,
+      readOnly: false,
+      properties: { value: { type: 'string' } },
+    }
+
+    await executeProviderRequest(
+      'openai',
+      {
+        model: 'test-model',
+        responseFormat: { name: 'safe_response', schema },
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(mockExecuteRequest.mock.calls.at(-1)?.[0].responseFormat?.schema).toEqual(schema)
+  })
+
+  it.each(['123', 'true'])(
+    'fails closed when a response schema semantic value equals a secret (%s)',
+    async (secret) => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+      ])
+      const semanticValue = secret === '123' ? 123 : true
+
+      await expect(
+        executeProviderRequest(
+          'openai',
+          {
+            model: 'test-model',
+            responseFormat: {
+              name: 'safe_response',
+              schema: { type: 'object', properties: {}, enum: [semanticValue] },
+            },
+          },
+          { resolvedSecretTraceRegistry: registry }
+        )
+      ).rejects.toThrow('Model input could not be safely projected')
+      expect(mockExecuteRequest).not.toHaveBeenCalled()
+    }
+  )
+
+  it('fails before invoking a provider when an expected registry is incomplete or missing', async () => {
+    const incomplete = new ResolvedSecretTraceRegistry()
+    incomplete.markIncomplete()
+
+    await expect(
+      executeProviderRequest(
+        'anthropic',
+        { model: 'test-model', messages: [{ role: 'user', content: 'possibly secret' }] },
+        { resolvedSecretTraceRegistry: incomplete }
+      )
+    ).rejects.toThrow('Model input could not be safely projected')
+    await expect(
+      executeProviderRequest(
+        'anthropic',
+        { model: 'test-model', messages: [{ role: 'user', content: 'possibly secret' }] },
+        {}
+      )
+    ).rejects.toThrow('Model input could not be safely projected')
+    expect(mockAttachLargeFileRemoteUrls).not.toHaveBeenCalled()
+    expect(mockUploadLargeFilesToProvider).not.toHaveBeenCalled()
+    expect(mockExecuteRequest).not.toHaveBeenCalled()
+  })
+
+  it('leaves non-workflow provider callers unchanged when no runtime context is supplied', async () => {
+    await executeProviderRequest('anthropic', {
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'raw standalone content' }],
+    })
+
+    expect(mockExecuteRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [{ role: 'user', content: 'raw standalone content' }],
+      })
+    )
   })
 })

@@ -34,6 +34,8 @@ const {
   mockAssertBillingAttributionSnapshot,
   mockApplyScheduleFailureUpdate,
   mockNotifyScheduleAutoDisabled,
+  mockRegisterManualExecutionAborter,
+  mockUnregisterManualExecutionAborter,
 } = vi.hoisted(() => ({
   mockVerifyCronAuth: vi.fn().mockReturnValue(null),
   mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
@@ -50,6 +52,8 @@ const {
   mockAssertBillingAttributionSnapshot: vi.fn(),
   mockApplyScheduleFailureUpdate: vi.fn().mockResolvedValue({ updated: true, disabled: false }),
   mockNotifyScheduleAutoDisabled: vi.fn().mockResolvedValue(undefined),
+  mockRegisterManualExecutionAborter: vi.fn(),
+  mockUnregisterManualExecutionAborter: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/internal', () => ({
@@ -72,6 +76,11 @@ vi.mock('@/lib/workflows/schedules/disable-notifications', () => ({
   notifyScheduleAutoDisabled: mockNotifyScheduleAutoDisabled,
 }))
 
+vi.mock('@/lib/execution/manual-cancellation', () => ({
+  registerManualExecutionAborter: mockRegisterManualExecutionAborter,
+  unregisterManualExecutionAborter: mockUnregisterManualExecutionAborter,
+}))
+
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({
     enqueue: mockEnqueue,
@@ -81,6 +90,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
     markJobFailed: mockMarkJobFailed,
     cancelJob: mockCancelJob,
   }),
+  JOB_PENDING_RETENTION_HOURS: 14 * 24,
   shouldExecuteInline: mockShouldExecuteInline,
 }))
 
@@ -453,9 +463,36 @@ describe('Scheduled Workflow Execution API Route', () => {
     )
     expect(mockStartJob).not.toHaveBeenCalled()
     expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
-      expect.objectContaining({ scheduleId: 'schedule-1' })
+      expect.objectContaining({ scheduleId: 'schedule-1' }),
+      expect.any(AbortSignal)
     )
+    expect(mockRegisterManualExecutionAborter).toHaveBeenCalledWith(
+      'schedule-execution-1',
+      expect.any(Function)
+    )
+    expect(mockUnregisterManualExecutionAborter).toHaveBeenCalledWith('schedule-execution-1')
     expect(mockCompleteJob).toHaveBeenCalledWith('job-id-1', null)
+  })
+
+  it('forwards database fallback cancellation into the schedule execution signal', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning
+      .mockReturnValueOnce(SINGLE_SCHEDULE)
+      .mockResolvedValueOnce([{ id: 'job-id-1' }])
+    mockExecuteScheduleJob.mockImplementationOnce(
+      async (_payload: unknown, signal: AbortSignal) => {
+        const abort = mockRegisterManualExecutionAborter.mock.calls[0]?.[1]
+        abort()
+        expect(signal.aborted).toBe(true)
+      }
+    )
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockUnregisterManualExecutionAborter).toHaveBeenCalledWith('schedule-execution-1')
   })
 
   it('releases database fallback claims when the global concurrency cap is full', async () => {
@@ -476,15 +513,16 @@ describe('Scheduled Workflow Execution API Route', () => {
     expect(mockReleaseScheduleLock).not.toHaveBeenCalled()
   })
 
-  it('recovers stale database fallback processing jobs before resuming them', async () => {
+  it('recovers database fallback jobs after their admitted per-job deadline', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
-    const staleStartedAt = new Date('2024-12-31T00:00:00.000Z')
+    const staleStartedAt = new Date(Date.now() - 6 * 60 * 1000)
     mockProcessingCounts(0, 0)
     mockGetJob
       .mockResolvedValueOnce({
         id: 'job-id-1',
         status: 'processing',
         startedAt: staleStartedAt,
+        metadata: { maxDurationSeconds: 300 },
       })
       .mockResolvedValueOnce({
         id: 'job-id-1',
@@ -521,7 +559,8 @@ describe('Scheduled Workflow Execution API Route', () => {
 
     await runScheduleTick('test-request-id')
     expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
-      expect.objectContaining({ scheduleId: 'schedule-1' })
+      expect.objectContaining({ scheduleId: 'schedule-1' }),
+      expect.any(AbortSignal)
     )
     expect(mockCompleteJob).toHaveBeenCalledWith(
       expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
@@ -567,7 +606,8 @@ describe('Scheduled Workflow Execution API Route', () => {
         scheduleId: 'schedule-1',
         workflowId: 'workflow-1',
         now: claimedAt.toISOString(),
-      })
+      }),
+      expect.any(AbortSignal)
     )
     expect(mockCompleteJob).toHaveBeenCalledWith('pending-job-id', null)
   })
@@ -851,7 +891,8 @@ describe('Scheduled Workflow Execution API Route', () => {
     await runScheduleTick('test-request-id')
     expect(mockShouldExecuteInline).toHaveBeenCalledTimes(1)
     expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
-      expect.objectContaining({ scheduleId: 'schedule-1' })
+      expect.objectContaining({ scheduleId: 'schedule-1' }),
+      expect.any(AbortSignal)
     )
   })
 
@@ -879,6 +920,38 @@ describe('Scheduled Workflow Execution API Route', () => {
     await runScheduleTick('test-request-id')
     expect(mockEnqueue).not.toHaveBeenCalled()
     expect(mockReleaseScheduleLock).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastQueuedAt: originalClaim,
+      })
+    )
+  })
+
+  it('does not count Trigger.dev queue wait against the workflow execution timeout', async () => {
+    const originalClaim = new Date(Date.now() - 2 * 60 * 60 * 1000)
+    const staleReclaim = new Date()
+    const schedule = {
+      ...SINGLE_SCHEDULE[0],
+      lastQueuedAt: staleReclaim,
+    }
+    mockGetJob.mockResolvedValueOnce({
+      id: 'job-id-1',
+      status: 'pending',
+      payload: {
+        scheduleId: 'schedule-1',
+        workflowId: 'workflow-1',
+        now: originalClaim.toISOString(),
+        executionTimeoutMs: 5 * 60 * 1000,
+      },
+    })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
+
+    await runScheduleTick('test-request-id')
+
+    expect(mockCancelJob).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
         lastQueuedAt: originalClaim,
@@ -966,7 +1039,8 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('cancels stale Trigger.dev runs instead of restoring an expired claim forever', async () => {
-    const originalClaim = new Date('2024-01-01T00:00:00.000Z')
+    const originalClaim = new Date(Date.now() - 2 * 60 * 60 * 1000)
+    const startedAt = new Date(Date.now() - 11 * 60 * 1000)
     const staleReclaim = new Date()
     const schedule = {
       ...SINGLE_SCHEDULE[0],
@@ -976,10 +1050,12 @@ describe('Scheduled Workflow Execution API Route', () => {
     mockGetJob.mockResolvedValueOnce(null).mockResolvedValueOnce({
       id: 'trigger-run-id',
       status: 'processing',
+      startedAt,
       payload: {
         scheduleId: 'schedule-1',
         workflowId: 'workflow-1',
         now: originalClaim.toISOString(),
+        executionTimeoutMs: 5 * 60 * 1000,
       },
     })
     dbChainMockFns.limit

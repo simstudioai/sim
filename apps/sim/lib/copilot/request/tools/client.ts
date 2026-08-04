@@ -82,39 +82,40 @@ export async function waitForClientToolCompletion({
   const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
   if (!completion) return null
 
+  const toolRegistry = registry?.forkForToolCall()
   const genericMessage = getGenericCompletionMessage(completion.status)
   const binding = runId ? { toolCallId, runId, userId } : undefined
-  const registryCanImport = registry !== undefined && !registry.isPermanentlyIncomplete()
-  const finishPendingActivation = registry?.beginPendingActivation()
+  const registryCanImport = toolRegistry !== undefined && !toolRegistry.isPermanentlyIncomplete()
+  const finishPendingActivation = toolRegistry?.beginPendingActivation()
   let content: Awaited<ReturnType<typeof unsealClientToolCompletion>> = null
   try {
     const [sealedContent, sealedContext] =
-      binding && registry && registryCanImport
+      binding && registry && toolRegistry && registryCanImport
         ? await Promise.all([
             unsealClientToolCompletion(completion.data, binding),
             unsealClientToolContext(completion.data, binding, registry),
           ])
         : [null, null]
-    if (registry && registryCanImport) {
+    if (toolRegistry && registryCanImport) {
       if (!sealedContent || !sealedContext) {
-        registry.markIncomplete()
+        toolRegistry.markIncomplete()
       } else {
-        const imported = await registry.importProvenance(sealedContext.provenance, {
+        const imported = await toolRegistry.importProvenance(sealedContext.provenance, {
           trusted: true,
         })
         if (!imported || !sealedContext.provenance.complete) {
-          registry.markIncomplete()
+          toolRegistry.markIncomplete()
         } else {
           content = sealedContent
         }
       }
     }
   } catch {
-    registry?.markIncomplete()
+    toolRegistry?.markIncomplete()
   } finally {
     finishPendingActivation?.()
   }
-  if (!registry?.isComplete()) content = null
+  if (!toolRegistry?.isComplete()) content = null
 
   const rawOutput: Record<string, unknown> = {
     ...(content?.message !== undefined ? { message: content.message } : {}),
@@ -127,22 +128,33 @@ export async function waitForClientToolCompletion({
       output: rawOutput,
       ...(!succeeded ? { error: content?.message ?? genericMessage } : {}),
     },
-    registry
+    toolRegistry
   )
   const projectedOutput = isPlainRecord(projected.output) ? projected.output : undefined
+  const modelSucceeded = succeeded && projected.success
   const message =
     typeof projectedOutput?.message === 'string'
       ? projectedOutput.message
-      : !succeeded && projected.error
+      : !projected.success && projected.error
         ? projected.error
         : genericMessage
   const data =
     projectedOutput && Object.hasOwn(projectedOutput, 'data') ? projectedOutput.data : undefined
+  const terminalData =
+    data === undefined
+      ? modelSucceeded
+        ? { success: true }
+        : { error: message }
+      : data === null && modelSucceeded
+        ? { success: true, data: null }
+        : data
 
   if (completion.status !== ASYNC_TOOL_CONFIRMATION_STATUS.background) {
     const status =
       completion.status === MothershipStreamV1ToolOutcome.success
-        ? 'completed'
+        ? modelSucceeded
+          ? 'completed'
+          : 'failed'
         : completion.status === MothershipStreamV1ToolOutcome.cancelled
           ? 'cancelled'
           : 'failed'
@@ -150,8 +162,8 @@ export async function waitForClientToolCompletion({
       const updated = await replaceTerminalAsyncToolCallResult({
         toolCallId,
         status,
-        result: data ?? null,
-        error: succeeded ? null : message,
+        result: terminalData,
+        error: modelSucceeded ? null : message,
       })
       if (!updated) {
         logger.warn('Client tool row was no longer terminal during safe payload update', {
@@ -166,10 +178,15 @@ export async function waitForClientToolCompletion({
     }
   }
 
+  if (registry && toolRegistry) registry.mergeToolCallRegistry(toolRegistry)
+
   return {
-    status: completion.status,
+    status:
+      completion.status === MothershipStreamV1ToolOutcome.success && !modelSucceeded
+        ? MothershipStreamV1ToolOutcome.error
+        : completion.status,
     message,
-    ...(data !== undefined ? { data } : {}),
+    data: terminalData,
   }
 }
 

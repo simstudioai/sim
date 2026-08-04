@@ -50,6 +50,7 @@ describe('serializePauseSnapshot', () => {
     const serialized = JSON.parse(snapshot.snapshot)
 
     expect(serialized.state.sourceExecutionId).toBe('execution-1')
+    expect(serialized.state.resolvedSecretTraceCheckpointVersion).toBe(1)
     expect(serialized.state.resolvedSecretTraceProvenance).toEqual({
       version: 1,
       complete: true,
@@ -76,6 +77,28 @@ describe('serializePauseSnapshot', () => {
       entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
+  })
+
+  it('does not persist a temporary activation guard as permanent incompleteness', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'raw-secret', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'raw-secret')
+    const completePendingActivation = registry.beginPendingActivation()
+
+    const snapshot = serializePauseSnapshot(
+      createContext({ resolvedSecretTraceRegistry: registry }),
+      ['next-block']
+    )
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.state.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+    })
+    expect(snapshot.snapshot).not.toContain('raw-secret')
+    completePendingActivation()
   })
 
   it('serializes batched parallel accumulated outputs for cross-process resume', () => {

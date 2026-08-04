@@ -3,6 +3,9 @@
  *
  * @vitest-environment node
  */
+import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import {
   createMockRequest,
   envFlagsMock,
@@ -12,10 +15,17 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
+import {
+  MAX_SANDBOX_OUTPUT_BYTES,
+  SandboxOutputFileError,
+  SandboxOutputLimitError,
+} from '@/lib/execution/remote-sandbox/output-limits'
 
 const {
   mockExecuteInSandbox,
   mockExecuteInIsolatedVM,
+  mockExecuteShellInSandbox,
   mockFetchWorkspaceFileBuffer,
   mockGetWorkspaceFile,
   mockResolveWorkspaceFileReference,
@@ -26,6 +36,7 @@ const {
 } = vi.hoisted(() => ({
   mockExecuteInSandbox: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
+  mockExecuteShellInSandbox: vi.fn(),
   mockFetchWorkspaceFileBuffer: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
@@ -41,7 +52,7 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
 
 vi.mock('@/lib/execution/remote-sandbox', () => ({
   executeInSandbox: mockExecuteInSandbox,
-  executeShellInSandbox: vi.fn(),
+  executeShellInSandbox: mockExecuteShellInSandbox,
   SIM_RESULT_PREFIX: '__SIM_RESULT__=',
 }))
 
@@ -129,6 +140,11 @@ describe('Function Execute API Route', () => {
       result: 'e2b success',
       stdout: 'e2b output',
       sandboxId: 'test-sandbox-id',
+    })
+    mockExecuteShellInSandbox.mockResolvedValue({
+      result: null,
+      stdout: '',
+      sandboxId: 'test-shell-sandbox-id',
     })
     mockGetWorkspaceFile.mockResolvedValue({
       id: 'wf_existing',
@@ -350,6 +366,31 @@ describe('Function Execute API Route', () => {
       expect(isLargeValueRef(data.output.result.text)).toBe(true)
     })
 
+    it('captures secret provenance before a large result is compacted', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: { text: `${'x'.repeat(9 * 1024 * 1024)}secret-at-the-end` },
+        stdout: '',
+      })
+
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return environmentVariables.API_KEY',
+            envVars: { API_KEY: 'secret-at-the-end' },
+            workflowId: 'workflow-1',
+            workspaceId: 'workspace-1',
+            executionId: 'execution-1',
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+      const data = await response.json()
+
+      expect(isLargeValueRef(data.output.result.text)).toBe(true)
+      expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
+    })
+
     it('exports multiple declared sandbox output files', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteInSandbox.mockResolvedValueOnce({
@@ -416,6 +457,132 @@ describe('Function Execute API Route', () => {
         expect.objectContaining({ path: 'files/reports/chart.png' }),
         expect.objectContaining({ path: 'files/reports/summary.json' }),
       ])
+    })
+
+    it('rejects one oversized sandbox output before creating a workspace file buffer', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: {
+          '/home/user/report.json': 'x'.repeat(MAX_SANDBOX_OUTPUT_BYTES + 1),
+        },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/report.json',
+              sandboxPath: '/home/user/report.json',
+              mimeType: 'application/json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toBe(`Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`)
+      expect(mockValidateWorkspaceFileWriteTarget).not.toHaveBeenCalled()
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('rejects cumulative sandbox output size before validating workspace destinations', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const fileSize = MAX_SANDBOX_OUTPUT_BYTES / 2 + 1
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: {
+          '/home/user/first.json': 'x'.repeat(fileSize),
+          '/home/user/second.json': 'y'.repeat(fileSize),
+        },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/first.json',
+              sandboxPath: '/home/user/first.json',
+              mimeType: 'application/json',
+            },
+            {
+              path: 'files/second.json',
+              sandboxPath: '/home/user/second.json',
+              mimeType: 'application/json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toBe(`Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`)
+      expect(mockValidateWorkspaceFileWriteTarget).not.toHaveBeenCalled()
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('preserves output-limit classification from provider-side size inspection', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockRejectedValueOnce(
+        new SandboxOutputLimitError(MAX_SANDBOX_OUTPUT_BYTES + 1)
+      )
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/report.json',
+              sandboxPath: '/home/user/report.json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toBe(`Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`)
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('rejects non-regular sandbox output paths as a client error', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockRejectedValueOnce(new SandboxOutputFileError('/out/link.json'))
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'print("done")',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          outputs: {
+            files: [{ path: 'files/report.json', sandboxPath: '/out/link.json' }],
+          },
+        })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('must reference a regular file')
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
 
     it('prevalidates all sandbox output destinations before writing any files', async () => {
@@ -686,6 +853,273 @@ describe('Function Execute API Route', () => {
       expect(e2bCode).toContain("print('\\n__SIM_RESULT__=' + json.dumps(__sim_result__))")
     })
 
+    it('runs complete Python modules without nesting their main guard inside a function', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const source = [
+        'import subprocess',
+        '',
+        'def main():',
+        '    subprocess.run(["bq", "version"], check=True)',
+        '',
+        'if __name__ == "__main__":',
+        '    main()',
+      ].join('\n')
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: source,
+          language: 'python',
+          workspaceId: 'workspace-1',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      const e2bCode = mockExecuteInSandbox.mock.calls[0][0].code as string
+      expect(e2bCode).toContain('compile(__sim_source__, "<sim-function-module>", "exec")')
+      expect(e2bCode).toContain('__sim_exec_globals__["__name__"] = "__main__"')
+      expect(e2bCode).toContain(JSON.stringify(source))
+      expect(e2bCode).not.toContain('def __sim_main__():\n    import subprocess')
+    })
+
+    it('supports a Fellows-style Python module that invokes bq and exports a deterministic archive', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const archiveBase64 =
+        'UEsDBBQAAAAIAAAAIQAcWyFBIAAAAB8AAAAMAAAAcHJldmlldy5odG1ss8kwtHNLzcnJLy9WcM4vzUvOzFEIT03Nzqm00QdKAQBQSwECFAMUAAAACAAAACEAHFshQSAAAAAfAAAADAAAAAAAAAAAAAAAgAEAAAAAcHJldmlldy5odG1sUEsFBgAAAAABAAEAOgAAAEoAAAAAAA=='
+      const source = readFileSync(
+        resolve(process.cwd(), 'lib/execution/remote-sandbox/fixtures/fellows-council-weekly.py'),
+        'utf8'
+      )
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout: 'generated 1 preview',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/tmp/fellows-previews.zip': archiveBase64 },
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: source,
+          language: 'python',
+          workspaceId: 'workspace-1',
+          sandboxId: 'fellows-sandbox',
+          envVars: {
+            AIRTABLE_PAT: 'stub-airtable-token',
+            ANTHROPIC_API_KEY: 'stub-anthropic-key',
+            GOOGLE_SERVICE_ACCOUNT_JSON:
+              '{"type":"service_account","project_id":"fixture-project"}',
+            NCBI_API_KEY: 'stub-ncbi-key',
+          },
+          outputs: {
+            files: [
+              {
+                path: 'files/fellows-previews.zip',
+                sandboxPath: '/tmp/fellows-previews.zip',
+                mimeType: 'application/zip',
+              },
+            ],
+          },
+        })
+      )
+
+      expect(response.status).toBe(200)
+      const sandboxRequest = mockExecuteInSandbox.mock.calls[0][0]
+      expect(sandboxRequest.code).toContain("['bq', 'query'")
+      expect(sandboxRequest.code).toContain('__sim_exec_globals__["__name__"] = "__main__"')
+      expect(sandboxRequest.sandboxId).toBe('fellows-sandbox')
+      expect(sandboxRequest.outputSandboxPaths).toEqual(['/tmp/fellows-previews.zip'])
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+        expect.objectContaining({
+          buffer: Buffer.from(archiveBase64, 'base64'),
+          target: expect.objectContaining({ path: 'files/fellows-previews.zip' }),
+        })
+      )
+    })
+
+    it('retains Function-body return semantics for Python snippets', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      await POST(
+        createMockRequest('POST', {
+          code: 'value = 41\nreturn value + 1',
+          language: 'python',
+          workspaceId: 'workspace-1',
+        })
+      )
+
+      const e2bCode = mockExecuteInSandbox.mock.calls[0][0].code as string
+      expect(e2bCode).toContain('"outside function" not in str(__sim_compile_error__)')
+      expect(e2bCode).toContain('__sim_result__ = __sim_exec_globals__["__sim_main__"]()')
+    })
+
+    it.each([
+      { reason: 'timeout', status: 408, message: 'timed out' },
+      { reason: 'user', status: 499, message: 'cancelled' },
+    ])('keeps $reason aborts distinct', async ({ reason, status, message }) => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const controller = new AbortController()
+      const req = new NextRequest('http://localhost:3000/api/function/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: 'print("running")',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          timeout: 30_000,
+        }),
+        signal: controller.signal,
+      })
+      mockExecuteInSandbox.mockImplementationOnce(async () => {
+        controller.abort(new DOMException(reason, 'AbortError'))
+        throw controller.signal.reason
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(status)
+      expect(data.error).toContain(message)
+    })
+
+    it.each([
+      {
+        termination: 'timeout' as const,
+        errorName: 'TimeoutError',
+        status: 408,
+        message: 'timed out',
+      },
+      {
+        termination: 'cancelled' as const,
+        errorName: 'AbortError',
+        status: 499,
+        message: 'cancelled',
+      },
+    ])(
+      'classifies trusted isolated-vm $termination results consistently with remote runtimes',
+      async ({ termination, errorName, status, message }) => {
+        const partialStdout = `partial output before ${termination}`
+        mockExecuteInIsolatedVM.mockResolvedValueOnce({
+          result: null,
+          stdout: partialStdout,
+          error: { name: errorName, message: `${errorName} from isolated-vm` },
+          termination,
+        })
+
+        const response = await POST(
+          createMockRequest('POST', {
+            code: 'return true',
+            language: 'javascript',
+            timeout: 30_000,
+          })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(status)
+        expect(data.error).toContain(message)
+        expect(data.output.stdout).toBe(partialStdout)
+      }
+    )
+
+    it.each(['TimeoutError', 'AbortError'])(
+      'keeps a user-thrown %s as an ordinary code error',
+      async (errorName) => {
+        mockExecuteInIsolatedVM.mockResolvedValueOnce({
+          result: null,
+          stdout: 'partial output before user error',
+          error: { name: errorName, message: `User threw ${errorName}` },
+        })
+
+        const response = await POST(
+          createMockRequest('POST', {
+            code: `const error = new Error('user error'); error.name = '${errorName}'; throw error`,
+            language: 'javascript',
+            timeout: 30_000,
+          })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(422)
+        expect(data.output.stdout).toBe('partial output before user error')
+        expect(data.debug.errorType).toBe(errorName)
+      }
+    )
+
+    it('enforces the explicit Function timeout with a server-owned abort signal', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockImplementationOnce(
+        ({ signal }: { signal: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'print("running")',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          timeout: 1,
+        })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(408)
+      expect(data.error).toContain('timed out after 1ms')
+    })
+
+    it('uses the remaining workflow deadline when no block timeout is supplied', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const remainingBudgetMs = 10 * 60_000
+      const req = new NextRequest('http://localhost:3000/api/function/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          [INTERNAL_EXECUTION_DEADLINE_HEADER]: String(Date.now() + remainingBudgetMs),
+        },
+        body: JSON.stringify({
+          code: 'print("running")',
+          language: 'python',
+          workspaceId: 'workspace-1',
+        }),
+      })
+
+      const response = await POST(req)
+
+      expect(response.status).toBe(200)
+      const sandboxRequest = mockExecuteInSandbox.mock.calls[0][0]
+      expect(sandboxRequest.timeoutMs).toBeGreaterThan(9 * 60_000)
+      expect(sandboxRequest.timeoutMs).toBeLessThanOrEqual(remainingBudgetMs)
+    })
+
+    it('classifies a client abort at the propagated execution deadline as a timeout', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const controller = new AbortController()
+      const req = new NextRequest('http://localhost:3000/api/function/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          [INTERNAL_EXECUTION_DEADLINE_HEADER]: String(Date.now() - 1_000),
+        },
+        body: JSON.stringify({
+          code: 'print("running")',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          timeout: 30_000,
+        }),
+        signal: controller.signal,
+      })
+      mockExecuteInSandbox.mockImplementationOnce(async (sandboxRequest) => {
+        expect(sandboxRequest.timeoutMs).toBe(1)
+        controller.abort(new DOMException('The operation was aborted.', 'AbortError'))
+        throw controller.signal.reason
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(408)
+      expect(data.error).toContain('timed out')
+    })
+
     it('should return computed result for multi-line code', async () => {
       mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 10, stdout: '' })
 
@@ -816,6 +1250,272 @@ describe('Function Execute API Route', () => {
       expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
     })
 
+    it('keeps an exact-name/exact-value JavaScript secret out of source and returns its raw runtime value with private provenance', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'Test', stdout: '' })
+
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return {{Test}}',
+            language: 'javascript',
+            envVars: { Test: 'Test' },
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+
+      const data = await response.json()
+      const [request] = mockExecuteInIsolatedVM.mock.calls.at(-1) ?? []
+      const bindingEntries = Object.entries(request.contextVariables)
+
+      expect(response.status).toBe(200)
+      expect(request.code).not.toContain('Test')
+      expect(request.code).not.toContain('{{Test}}')
+      expect(request.code).not.toContain('__var_')
+      expect(bindingEntries).toHaveLength(1)
+      expect(bindingEntries[0]?.[0]).toMatch(/^__sim_code_\d+_binding_\d+$/)
+      expect(bindingEntries[0]?.[1]).toBe('Test')
+      expect(data.output.result).toBe('Test')
+      expect(data.__resolvedSecretNames).toEqual(['Test'])
+      expect(JSON.stringify(data)).not.toContain('__sim_code_')
+      expect(JSON.stringify(data)).not.toContain('__var_')
+    })
+
+    it('keeps an exact-name/exact-value Python secret out of source and supplies it only through private runtime input', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'Test',
+        stdout: '',
+        sandboxId: 'test-sandbox-id',
+      })
+
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return {{Test}}',
+            language: 'python',
+            envVars: { Test: 'Test' },
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+
+      const data = await response.json()
+      const [request] = mockExecuteInSandbox.mock.calls.at(-1) ?? []
+      const runtimeInput = request.privateInputs.find(
+        (input: { environmentVariable: string }) =>
+          input.environmentVariable === '__SIM_RUNTIME_PAYLOAD_PATH'
+      )
+      const runtimePayload = JSON.parse(runtimeInput?.content ?? '{}')
+      const secretBinding = runtimePayload.contextVariables.find(
+        (entry: { value?: unknown }) => entry.value === 'Test'
+      )
+
+      expect(response.status).toBe(200)
+      expect(request.code).not.toContain('Test')
+      expect(request.code).not.toContain('{{Test}}')
+      expect(request.code).not.toContain('__var_')
+      expect(runtimePayload.environmentVariables).toEqual({ Test: 'Test' })
+      expect(secretBinding).toMatchObject({ kind: 'json', value: 'Test' })
+      expect(secretBinding.name).toMatch(/^__sim_code_\d+_binding_\d+__$/)
+      expect(request.code).toContain(secretBinding.name)
+      expect(data.output.result).toBe('Test')
+      expect(data.__resolvedSecretNames).toEqual(['Test'])
+      expect(JSON.stringify(data)).not.toContain('__sim_code_')
+      expect(JSON.stringify(data)).not.toContain('__var_')
+    })
+
+    it('compiles legacy bare and quoted Custom Tool placeholders into opaque VM bindings', async () => {
+      const secret = 'quote" slash\\ newline\n{{OTHER}} true 123'
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: [
+              'const bare = {{API_KEY}}',
+              'const quoted = "{{API_KEY}}"',
+              'return [bare, quoted, "Bearer {{API_KEY}}"]',
+            ].join('\n'),
+            isCustomTool: true,
+            envVars: { API_KEY: secret, OTHER: 'must-not-resolve' },
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+
+      const [request] = mockExecuteInIsolatedVM.mock.calls.at(-1) ?? []
+      expect(response.status).toBe(200)
+      expect((await response.json()).__resolvedSecretNames).toEqual(['API_KEY'])
+      expect(request.code).not.toContain(secret)
+      expect(request.code).not.toContain('__var_')
+      expect(request.code).toContain('__sim_code_')
+      expect(request.code).not.toContain('globalThis[')
+      expect(Object.values(request.contextVariables)).toContain(secret)
+      expect(Object.keys(request.contextVariables)).not.toContain('API_KEY')
+    })
+
+    it('installs regex constructors as opaque runtime bindings before isolated user code', async () => {
+      const response = await POST(
+        createMockRequest('POST', {
+          code: [
+            'RegExp.prototype.constructor = null',
+            'return /^{{PATTERN}}$/.test("candidate")',
+          ].join('\n'),
+          envVars: { PATTERN: 'secret' },
+        })
+      )
+
+      const [request] = mockExecuteInIsolatedVM.mock.calls.at(-1) ?? []
+      const [runtimeBinding] = request.runtimeBindings
+      expect(response.status).toBe(200)
+      expect(runtimeBinding.kind).toBe('javascript-runtime')
+      expect(request.code).toContain(`new ${runtimeBinding.name}.RegExp`)
+      expect(request.code).not.toContain('secret')
+    })
+
+    it('captures regex constructors in the remote preload before static imports execute', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const response = await POST(
+        createMockRequest('POST', {
+          code: ['import "side-effect-module"', 'return /^{{PATTERN}}$/.test("candidate")'].join(
+            '\n'
+          ),
+          language: 'javascript',
+          envVars: { PATTERN: 'secret' },
+        })
+      )
+
+      const [sandboxRequest] = mockExecuteInSandbox.mock.calls.at(-1) ?? []
+      const runtimeBindingName = /new (__sim_code_\d+_runtime_\d+)\.RegExp/.exec(
+        sandboxRequest.code
+      )?.[1]
+      expect(response.status).toBe(200)
+      expect(runtimeBindingName).toBeDefined()
+      expect(sandboxRequest.runtimeBindings).toContainEqual({
+        name: runtimeBindingName,
+        kind: 'javascript-runtime',
+      })
+      expect(JSON.stringify(sandboxRequest.runtimeBindings)).not.toContain('secret')
+    })
+
+    it('allocates remote runtime helpers against decoded JavaScript identifiers', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const escapedAlias = String.raw`\u005f\u005fsim_runtime_read_0`
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: [
+            `import { basename as ${escapedAlias} } from "node:path"`,
+            `return ["{{KEY}}", ${escapedAlias}("/tmp/file.txt")]`,
+          ].join('\n'),
+          language: 'javascript',
+          envVars: { KEY: 'secret' },
+        })
+      )
+
+      const [sandboxRequest] = mockExecuteInSandbox.mock.calls.at(-1) ?? []
+      const syntaxCheck = spawnSync(process.execPath, ['--input-type=module', '--check'], {
+        encoding: 'utf8',
+        input: sandboxRequest.code,
+      })
+      expect(response.status).toBe(200)
+      expect(sandboxRequest.code).toContain('readFileSync as __sim_runtime_read_1')
+      expect(sandboxRequest.code).not.toContain('readFileSync as __sim_runtime_read_0')
+      expect(syntaxCheck.stderr).toBe('')
+      expect(syntaxCheck.status).toBe(0)
+    })
+
+    it('keeps comments and missing placeholders unchanged without secret provenance', async () => {
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: '// {{COMMENT_ONLY}}\nreturn "{{MISSING}}"',
+            envVars: { COMMENT_ONLY: 'must-not-bind' },
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+
+      const [request] = mockExecuteInIsolatedVM.mock.calls.at(-1) ?? []
+      expect(response.status).toBe(200)
+      expect((await response.json()).__resolvedSecretNames).toEqual([])
+      expect(request.code).toContain('// {{COMMENT_ONLY}}')
+      expect(request.code).toContain('"{{MISSING}}"')
+      expect(Object.values(request.contextVariables)).not.toContain('must-not-bind')
+    })
+
+    it.each([
+      {
+        language: 'javascript',
+        code: 'import path from "node:path"\nreturn "{{API_KEY}}"',
+      },
+      { language: 'python', code: 'return "{{API_KEY}}"' },
+    ])(
+      'keeps $language runtime values out of remote generated source',
+      async ({ language, code }) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+        const secret = 'remote"\\\nsecret'
+
+        const response = await POST(
+          createMockRequest('POST', {
+            code,
+            language,
+            envVars: { API_KEY: secret },
+            params: { input: 'value' },
+            contextVariables: { __blockRef_0: 'context' },
+          })
+        )
+
+        const [sandboxRequest] = mockExecuteInSandbox.mock.calls.at(-1) ?? []
+        expect(response.status).toBe(200)
+        expect(sandboxRequest.code).not.toContain(secret)
+        expect(sandboxRequest.code).not.toContain('__var_')
+        expect(sandboxRequest.privateInputs).toHaveLength(1)
+        const payload = JSON.parse(sandboxRequest.privateInputs[0].content)
+        expect(payload.environmentVariables.API_KEY).toBe(secret)
+        expect(payload.params.input).toBe('value')
+        expect(payload.contextVariables).toContainEqual({
+          name: '__blockRef_0',
+          kind: 'json',
+          value: 'context',
+        })
+      }
+    )
+
+    it('routes quoted shell heredocs through private sandbox input files', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const secret = 'shell"\\\n{{OTHER}}'
+
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: [
+              "cat <<'PAYLOAD'",
+              'Bearer {{API_KEY}}',
+              '$UNRELATED `touch /tmp/nope`',
+              'PAYLOAD',
+            ].join('\n'),
+            language: 'shell',
+            envVars: { API_KEY: secret, OTHER: 'must-not-resolve' },
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+
+      const [sandboxRequest] = mockExecuteShellInSandbox.mock.calls.at(-1) ?? []
+      expect(response.status).toBe(200)
+      expect((await response.json()).__resolvedSecretNames).toEqual(['API_KEY'])
+      expect(sandboxRequest.code).not.toContain(secret)
+      expect(sandboxRequest.code).not.toContain('$UNRELATED')
+      expect(sandboxRequest.privateInputs).toHaveLength(1)
+      expect(sandboxRequest.privateInputs[0].content).toContain(secret)
+      expect(sandboxRequest.privateInputs[0].content).toContain('$UNRELATED `touch /tmp/nope`')
+    })
+
     it('does not report a reference when validation rejects before code resolution', async () => {
       const response = await POST(
         createMockRequest(
@@ -844,7 +1544,7 @@ describe('Function Execute API Route', () => {
       expect(mockExecuteInSandbox).not.toHaveBeenCalled()
     })
 
-    it('reports only successful references sourced from scoped environment variables', async () => {
+    it('reports successful references and exact secret values returned through the environment map', async () => {
       const envResponse = await POST(
         createMockRequest(
           'POST',
@@ -860,6 +1560,7 @@ describe('Function Execute API Route', () => {
       )
       const envData = await envResponse.json()
 
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'secret-value', stdout: '' })
       const directResponse = await POST(
         createMockRequest(
           'POST',
@@ -876,10 +1577,37 @@ describe('Function Execute API Route', () => {
       const directData = await directResponse.json()
 
       expect(envData.__resolvedSecretNames).toEqual(['ENV_ONLY', 'SHARED'])
-      expect(directData.__resolvedSecretNames).toEqual([])
+      expect(directData.__resolvedSecretNames).toEqual(['API_KEY'])
     })
 
-    it('reports shell {{NAME}} substitutions but not direct shell environment access', async () => {
+    it.each([
+      { name: 'numeric', secret: '123', result: 123 },
+      { name: 'boolean', secret: 'true', result: true },
+    ])(
+      'records provenance for a typed $name secret returned through direct environment access',
+      async ({ secret, result }) => {
+        mockExecuteInIsolatedVM.mockResolvedValueOnce({ result, stdout: '' })
+
+        const response = await POST(
+          createMockRequest(
+            'POST',
+            {
+              code: 'return environmentVariables.API_KEY',
+              envVars: { API_KEY: secret },
+            },
+            {
+              'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+            }
+          )
+        )
+        const data = await response.json()
+
+        expect(data.output.result).toBe(result)
+        expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
+      }
+    )
+
+    it('reports shell substitutions and exact secret output from direct environment access', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
 
       const referencedResponse = await POST(
@@ -897,6 +1625,11 @@ describe('Function Execute API Route', () => {
       )
       const referencedData = await referencedResponse.json()
 
+      mockExecuteShellInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout: 'secret-value',
+        sandboxId: 'test-shell-sandbox-id',
+      })
       const directResponse = await POST(
         createMockRequest(
           'POST',
@@ -913,7 +1646,52 @@ describe('Function Execute API Route', () => {
       const directData = await directResponse.json()
 
       expect(referencedData.__resolvedSecretNames).toEqual(['API_KEY'])
-      expect(directData.__resolvedSecretNames).toEqual([])
+      expect(directData.__resolvedSecretNames).toEqual(['API_KEY'])
+    })
+
+    it('returns nonzero shell stderr as a visible 422 error and diagnostic output', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const stderr = "error: unknown flag: --short\nSee 'kubectl version --help' for usage."
+      mockExecuteShellInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout: stderr,
+        error: stderr,
+        sandboxId: 'test-shell-sandbox-id',
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'kubectl version --client --short',
+          language: 'shell',
+        })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data).toMatchObject({
+        success: false,
+        error: stderr,
+        output: { result: null, stdout: stderr },
+      })
+    })
+
+    it('keeps execution available when the scoped catalog exceeds provenance matcher bounds', async () => {
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'return "ok"',
+            envVars: { OVERSIZED_SECRET: 's'.repeat(64 * 1024 + 1) },
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
+          }
+        )
+      )
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).__resolvedSecretNames).toEqual(['OVERSIZED_SECRET'])
+      expect(mockExecuteInIsolatedVM).toHaveBeenCalled()
     })
 
     it('reports only substitutions allowed by the Function secret scope', async () => {

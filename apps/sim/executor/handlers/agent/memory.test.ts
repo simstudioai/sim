@@ -1,7 +1,30 @@
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockDecryptSecret, mockRedactObjectStrings } = vi.hoisted(() => ({
+  mockDecryptSecret: vi.fn(),
+  mockRedactObjectStrings: vi.fn(async (value: unknown) => value),
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: mockDecryptSecret,
+}))
+
+vi.mock('@/lib/logs/execution/pii-redaction', () => ({
+  redactObjectStrings: mockRedactObjectStrings,
+}))
+
 import { MEMORY } from '@/executor/constants'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { Message } from '@/executor/handlers/agent/types'
+import {
+  ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockMemoryLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'Memory')
+].value
 
 vi.mock('@/lib/tokenization/estimators', () => ({
   getAccurateTokenCount: vi.fn((text: string) => {
@@ -13,6 +36,10 @@ describe('Memory', () => {
   let memoryService: Memory
 
   beforeEach(() => {
+    vi.clearAllMocks()
+    mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: `decrypted:${encryptedValue}`,
+    }))
     memoryService = new Memory()
   })
 
@@ -204,6 +231,223 @@ describe('Memory', () => {
         executionId: 'exec-1',
         tool_calls: [{ id: 'call-1' }],
       })
+    })
+  })
+
+  describe('secret projection', () => {
+    function createContext(registry: ResolvedSecretTraceRegistry) {
+      return {
+        workspaceId: 'workspace-1',
+        resolvedSecretTraceRegistry: registry,
+      }
+    }
+
+    const inputs = {
+      memoryType: 'conversation' as const,
+      conversationId: 'conversation-1',
+    }
+
+    it('projects dormant secrets before invoking the PII service', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+      ])
+      mockRedactObjectStrings.mockImplementationOnce(async (content: unknown) => {
+        expect(content).toBe('Bearer {{TOKEN}}')
+        return content
+      })
+
+      const result = await (memoryService as any).maskContentForStorage(
+        {
+          ...createContext(registry),
+          piiBlockOutputRedaction: { enabled: true, entityTypes: [] },
+        },
+        { role: 'user', content: 'Bearer secret-value' }
+      )
+
+      expect(result.content).toBe('Bearer {{TOKEN}}')
+      expect(mockRedactObjectStrings).toHaveBeenCalledOnce()
+    })
+
+    it('does not write memory when projection fails closed', async () => {
+      const registry = new ResolvedSecretTraceRegistry()
+      registry.markIncomplete()
+      const appendMessage = vi
+        .spyOn(memoryService as any, 'appendMessage')
+        .mockResolvedValue(undefined)
+
+      await expect(
+        memoryService.appendToMemory(createContext(registry) as never, inputs, {
+          role: 'user',
+          content: 'possibly secret',
+        })
+      ).rejects.toThrow('Memory content could not be safely projected')
+      expect(appendMessage).not.toHaveBeenCalled()
+    })
+
+    it('reprojects legacy stored messages before returning them to an Agent', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+      ])
+      vi.spyOn(memoryService as any, 'fetchMemory').mockResolvedValue([
+        { role: 'assistant', content: 'old secret-value' },
+      ])
+
+      const messages = await memoryService.fetchMemoryMessages(
+        createContext(registry) as never,
+        inputs
+      )
+
+      expect(messages).toEqual([{ role: 'assistant', content: 'old {{TOKEN}}' }])
+    })
+
+    it('uses anonymous replacement for foreign-scope provenance before storage', async () => {
+      mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'foreign-secret' })
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      })
+      await registry.importProvenance(
+        {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'FOREIGN', encryptedValue: 'foreign-ciphertext' }],
+          scope: { userId: 'user-2', workspaceId: 'workspace-2' },
+        },
+        { trusted: true }
+      )
+
+      const result = await (memoryService as any).maskContentForStorage(createContext(registry), {
+        role: 'assistant',
+        content: 'foreign-secret',
+      })
+
+      expect(result.content).toBe(ANONYMOUS_SECRET_TRACE_REPLACEMENT)
+    })
+
+    it.each(['123', 'true'])(
+      'preserves function and tool-call controls while projecting low-entropy secret %s',
+      async (secret) => {
+        const registry = new ResolvedSecretTraceRegistry([
+          { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+        ])
+        const converted = secret === '123' ? 123 : true
+        const message: Message = {
+          role: 'assistant',
+          content: `Result: ${secret}`,
+          function_call: {
+            name: secret,
+            arguments: JSON.stringify({ value: secret, converted }),
+          },
+          tool_calls: [
+            {
+              id: secret,
+              type: 'function',
+              function: {
+                name: secret,
+                arguments: JSON.stringify({ value: secret, converted }),
+              },
+            },
+          ],
+        }
+
+        const projected = (memoryService as any).projectMessageForModel(
+          createContext(registry),
+          message
+        ) as Message
+
+        expect(projected).toMatchObject({
+          content: 'Result: {{TOKEN}}',
+          function_call: {
+            name: secret,
+            arguments: '{"value":"{{TOKEN}}","converted":"{{TOKEN}}"}',
+          },
+          tool_calls: [
+            {
+              id: secret,
+              type: 'function',
+              function: {
+                name: secret,
+                arguments: '{"value":"{{TOKEN}}","converted":"{{TOKEN}}"}',
+              },
+            },
+          ],
+        })
+
+        const appendMessage = vi
+          .spyOn(memoryService as any, 'appendMessage')
+          .mockResolvedValue(undefined)
+        await memoryService.appendToMemory(createContext(registry) as never, inputs, message)
+        const stored = appendMessage.mock.calls.at(-1)?.[2] as Message
+        expect(JSON.parse(stored.function_call?.arguments ?? '')).toEqual({
+          value: '{{TOKEN}}',
+          converted: '{{TOKEN}}',
+        })
+
+        vi.spyOn(memoryService as any, 'fetchMemory').mockResolvedValueOnce([message])
+        const [fetched] = await memoryService.fetchMemoryMessages(
+          createContext(registry) as never,
+          inputs
+        )
+        expect(JSON.parse(fetched.tool_calls?.[0]?.function.arguments ?? '')).toEqual({
+          value: '{{TOKEN}}',
+          converted: '{{TOKEN}}',
+        })
+      }
+    )
+  })
+
+  describe('secret-safe diagnostics', () => {
+    it('never logs conversation IDs while retaining structural memory metadata', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'TOKEN',
+          plaintext: 'conversation-secret',
+          encryptedValue: 'encrypted-conversation-secret',
+        },
+      ])
+      const ctx = {
+        workspaceId: 'workspace-1',
+        resolvedSecretTraceRegistry: registry,
+      }
+      const inputs = {
+        memoryType: 'conversation' as const,
+        conversationId: 'conversation-secret __var_TOKEN __sim_runtime_test_1',
+      }
+      vi.spyOn(memoryService as never, 'appendMessage' as never).mockResolvedValue(
+        undefined as never
+      )
+
+      await memoryService.appendToMemory(ctx as never, inputs, {
+        role: 'user',
+        content: 'ordinary message',
+      })
+
+      expect(mockMemoryLogger.debug).toHaveBeenCalledWith('Appended message to memory', {
+        workspaceId: 'workspace-1',
+        role: 'user',
+      })
+      let serializedCalls = JSON.stringify(mockMemoryLogger.debug.mock.calls)
+      expect(serializedCalls).not.toContain('conversation-secret')
+      expect(serializedCalls).not.toContain('__var_')
+      expect(serializedCalls).not.toContain('__sim_')
+
+      mockMemoryLogger.debug.mockClear()
+      vi.spyOn(memoryService as never, 'seedMemoryRecord' as never).mockResolvedValue(
+        undefined as never
+      )
+
+      await memoryService.seedMemory(ctx as never, inputs, [
+        { role: 'assistant', content: 'ordinary response' },
+      ])
+
+      expect(mockMemoryLogger.debug).toHaveBeenCalledWith('Seeded memory', {
+        workspaceId: 'workspace-1',
+        count: 1,
+      })
+      serializedCalls = JSON.stringify(mockMemoryLogger.debug.mock.calls)
+      expect(serializedCalls).not.toContain('conversation-secret')
+      expect(serializedCalls).not.toContain('__var_')
+      expect(serializedCalls).not.toContain('__sim_')
     })
   })
 

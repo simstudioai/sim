@@ -148,10 +148,12 @@ export class RouterBlockHandler implements BlockHandler {
       const chosenBlock = targetBlocks?.find((b) => b.id === chosenBlockId)
 
       if (!chosenBlock) {
-        logger.error(
-          `Invalid routing decision. Response content: "${result.content}", available blocks:`,
-          targetBlocks?.map((b) => ({ id: b.id, title: b.title })) || []
-        )
+        logger.error('Invalid routing decision', {
+          responseContentType: typeof result.content,
+          responseContentLength:
+            typeof result.content === 'string' ? result.content.length : undefined,
+          availableBlockCount: targetBlocks?.length ?? 0,
+        })
         throw new Error(`Invalid routing decision: ${chosenBlockId}`)
       }
 
@@ -188,7 +190,9 @@ export class RouterBlockHandler implements BlockHandler {
         selectedRoute: String(chosenBlock.id),
       } as BlockOutput
     } catch (error) {
-      logger.error('Router execution failed:', error)
+      logger.error('Router execution failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      })
       throw error
     }
   }
@@ -311,9 +315,12 @@ export class RouterBlockHandler implements BlockHandler {
         const parsedResponse = JSON.parse(result.content)
         chosenRouteId = parsedResponse.route?.trim() || ''
         reasoning = parsedResponse.reasoning || ''
-      } catch (_parseError) {
+      } catch (error) {
         logger.error('Router response was not valid JSON despite responseFormat', {
-          content: result.content,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          responseContentType: typeof result.content,
+          responseContentLength:
+            typeof result.content === 'string' ? result.content.length : undefined,
         })
         chosenRouteId = result.content.trim()
       }
@@ -330,14 +337,12 @@ export class RouterBlockHandler implements BlockHandler {
       const chosenRoute = routes.find((r) => r.id === chosenRouteId)
 
       if (!chosenRoute) {
-        const availableRoutes = routes.map((r) => ({
-          id: r.id,
-          title: r.title,
-        }))
-        logger.error(
-          `Invalid routing decision. Response content: "${result.content}". Available routes:`,
-          availableRoutes
-        )
+        logger.error('Invalid routing decision', {
+          responseContentType: typeof result.content,
+          responseContentLength:
+            typeof result.content === 'string' ? result.content.length : undefined,
+          availableRouteCount: routes.length,
+        })
         throw new Error(
           `Router could not determine a valid route. LLM response: "${result.content}". Available route IDs: ${routes.map((r) => r.id).join(', ')}`
         )
@@ -391,7 +396,9 @@ export class RouterBlockHandler implements BlockHandler {
             },
       } as BlockOutput
     } catch (error) {
-      logger.error('Router V2 execution failed:', error)
+      logger.error('Router V2 execution failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      })
       throw error
     }
   }
@@ -409,7 +416,11 @@ export class RouterBlockHandler implements BlockHandler {
       }
       return []
     } catch (error) {
-      logger.error('Failed to parse routes:', { input, error })
+      logger.error('Failed to parse routes', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        inputType: typeof input,
+        inputLength: typeof input === 'string' ? input.length : undefined,
+      })
       return []
     }
   }

@@ -562,6 +562,7 @@ async function sanitizeMaterializedValue(
   const withSafeRefs = await replaceLargeValues(value, context, path, withinRefWorker)
   const projection = projectResolvedSecretContent(withSafeRefs, context.matcher, maxBytes, {
     isOpaqueSafeObject: (candidate) => context.safeLargeValues.has(candidate),
+    sanitizeInternalIdentifiers: true,
   })
   if (!projection.safe) {
     throw new TraceSecretProjectionError('Trace content could not be sanitized')

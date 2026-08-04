@@ -4,6 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   getPrivateToolMetadataField,
+  inspectPrivateToolMetadataEnvelope,
+  inspectPrivateToolMetadataResponseCapability,
   isPrivateToolMetadataType,
   PRIVATE_TOOL_METADATA_REQUEST_HEADER,
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
@@ -58,5 +60,69 @@ describe('private tool metadata protocol', () => {
     expect(getPrivateToolMetadataField(RESOLVED_SECRET_PROVENANCE_METADATA_V1)).toBe(
       RESOLVED_SECRET_PROVENANCE_FIELD
     )
+  })
+
+  it('distinguishes supported, legacy, and mismatched response capabilities', () => {
+    expect(
+      inspectPrivateToolMetadataResponseCapability(
+        new Headers(),
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1
+      )
+    ).toEqual({ status: 'unsupported' })
+    expect(
+      inspectPrivateToolMetadataResponseCapability(
+        new Headers({
+          [PRIVATE_TOOL_METADATA_RESPONSE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+        }),
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1
+      )
+    ).toEqual({ status: 'supported' })
+    expect(
+      inspectPrivateToolMetadataResponseCapability(
+        new Headers({
+          [PRIVATE_TOOL_METADATA_RESPONSE_HEADER]: RESOLVED_SECRET_NAMES_METADATA_V1,
+        }),
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1
+      )
+    ).toEqual({
+      status: 'mismatched',
+      receivedType: RESOLVED_SECRET_NAMES_METADATA_V1,
+    })
+  })
+
+  it('treats only complete marker-and-field envelopes as verified', () => {
+    const supportedHeaders = new Headers({
+      [PRIVATE_TOOL_METADATA_RESPONSE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+    })
+    const provenance = { version: 1, complete: true, entries: [] }
+
+    expect(
+      inspectPrivateToolMetadataEnvelope(
+        supportedHeaders,
+        { [RESOLVED_SECRET_PROVENANCE_FIELD]: provenance },
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1
+      )
+    ).toEqual({ status: 'verified', value: provenance })
+    expect(
+      inspectPrivateToolMetadataEnvelope(
+        new Headers(),
+        { output: 'legacy' },
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1
+      )
+    ).toEqual({ status: 'unsupported' })
+    expect(
+      inspectPrivateToolMetadataEnvelope(
+        supportedHeaders,
+        { output: 'missing field' },
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1
+      )
+    ).toEqual({ status: 'invalid' })
+    expect(
+      inspectPrivateToolMetadataEnvelope(
+        new Headers(),
+        { [RESOLVED_SECRET_PROVENANCE_FIELD]: provenance },
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1
+      )
+    ).toEqual({ status: 'invalid' })
   })
 })

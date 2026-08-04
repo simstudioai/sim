@@ -40,6 +40,7 @@ import {
   waitForWorkflowToolCompletion,
 } from '@/lib/copilot/request/tools/client'
 import { sealClientToolContext } from '@/lib/copilot/request/tools/client-completion-seal.server'
+import { TOOL_RESULT_UNAVAILABLE_ERROR } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const TRACE_SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -592,7 +593,11 @@ describe('generic client tool completion', () => {
       registry,
     })
 
-    expect(first).toEqual({ status: 'success', message: 'Tool completed' })
+    expect(first).toEqual({
+      status: 'success',
+      message: 'Tool completed',
+      data: { content: '{{SECRET}}' },
+    })
     expect(registry.isPermanentlyIncomplete()).toBe(false)
     finishSiblingActivation()
     expect(registry.isComplete()).toBe(true)
@@ -647,12 +652,16 @@ describe('generic client tool completion', () => {
       timeoutMs: 1_000,
     })
 
-    expect(completion).toEqual({ status: 'success', message: 'Tool completed' })
+    expect(completion).toEqual({
+      status: 'success',
+      message: 'Tool completed',
+      data: { success: true },
+    })
     expect(decryptSecret).not.toHaveBeenCalled()
     expect(replaceTerminalAsyncToolCallResult).toHaveBeenCalledWith({
       toolCallId: 'tool-1',
       status: 'completed',
-      result: null,
+      result: { success: true },
       error: null,
     })
   })
@@ -683,12 +692,16 @@ describe('generic client tool completion', () => {
       registry,
     })
 
-    expect(completion).toEqual({ status: 'success', message: 'Tool completed' })
+    expect(completion).toEqual({
+      status: 'success',
+      message: 'Tool completed',
+      data: { success: true },
+    })
     expect(registry.isComplete()).toBe(false)
     expect(replaceTerminalAsyncToolCallResult).toHaveBeenCalledWith({
       toolCallId: 'tool-1',
       status: 'completed',
-      result: null,
+      result: { success: true },
       error: null,
     })
     expect(JSON.stringify(completion)).not.toContain('untrusted-secret')
@@ -724,12 +737,16 @@ describe('generic client tool completion', () => {
       registry: resumedRegistry,
     })
 
-    expect(completion).toEqual({ status: 'success', message: 'Tool completed' })
+    expect(completion).toEqual({
+      status: 'success',
+      message: 'Tool completed',
+      data: { success: true },
+    })
     expect(resumedRegistry.isComplete()).toBe(false)
     expect(replaceTerminalAsyncToolCallResult).toHaveBeenCalledWith({
       toolCallId: 'tool-1',
       status: 'completed',
-      result: null,
+      result: { success: true },
       error: null,
     })
     expect(JSON.stringify(completion)).not.toContain('resolved-secret')
@@ -751,13 +768,17 @@ describe('generic client tool completion', () => {
       registry,
     })
 
-    expect(completion).toEqual({ status: 'error', message: 'Tool result omitted' })
+    expect(completion).toEqual({
+      status: 'error',
+      message: TOOL_RESULT_UNAVAILABLE_ERROR,
+      data: { error: TOOL_RESULT_UNAVAILABLE_ERROR },
+    })
     expect(registry.isComplete()).toBe(false)
     expect(replaceTerminalAsyncToolCallResult).toHaveBeenCalledWith({
       toolCallId: 'tool-1',
       status: 'failed',
-      result: null,
-      error: 'Tool result omitted',
+      result: { error: TOOL_RESULT_UNAVAILABLE_ERROR },
+      error: TOOL_RESULT_UNAVAILABLE_ERROR,
     })
     expect(JSON.stringify(completion)).not.toContain('raw')
   })

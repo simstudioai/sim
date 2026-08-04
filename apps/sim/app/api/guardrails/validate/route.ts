@@ -14,6 +14,7 @@ import {
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
+import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
@@ -26,6 +27,7 @@ import {
   ModelNotAllowedError,
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('GuardrailsValidateAPI')
@@ -134,6 +136,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let resolvedWorkspaceId: string | undefined
     let billingAttribution: BillingAttributionSnapshot | undefined
+    let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
 
     if (validationType === 'hallucination' && model) {
       if (!workflowId || typeof workflowId !== 'string') {
@@ -168,6 +171,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       resolvedWorkspaceId = authorization.workflow.workspaceId
+      resolvedSecretTraceRegistry = (
+        await prepareCopilotEnvironmentContext(auth.userId, resolvedWorkspaceId)
+      ).resolvedSecretTraceRegistry
       try {
         billingAttribution =
           auth.authType === AuthType.INTERNAL_JWT
@@ -284,7 +290,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       piiLanguage,
       piiCustomPatterns,
       authHeaders,
-      requestId
+      requestId,
+      resolvedSecretTraceRegistry
     )
 
     /**
@@ -397,7 +404,8 @@ async function executeValidation(
   piiLanguage: string | undefined,
   piiCustomPatterns: CustomPiiPattern[] | undefined,
   authHeaders: { cookie?: string; authorization?: string; billingAttribution?: string } | undefined,
-  requestId: string
+  requestId: string,
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
 ): Promise<{
   passed: boolean
   error?: string
@@ -433,6 +441,9 @@ async function executeValidation(
         error: 'Model is required for hallucination validation',
       }
     }
+    if (!resolvedSecretTraceRegistry) {
+      throw new Error('Secret projection context is unavailable for hallucination validation')
+    }
 
     return await validateHallucination({
       userInput: inputStr,
@@ -446,6 +457,7 @@ async function executeValidation(
       workspaceId,
       authHeaders,
       requestId,
+      resolvedSecretTraceRegistry,
     })
   }
   if (validationType === 'pii') {

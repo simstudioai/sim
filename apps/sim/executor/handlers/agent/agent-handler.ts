@@ -3,6 +3,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
@@ -50,6 +51,7 @@ import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/execu
 import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
@@ -65,6 +67,69 @@ import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('AgentBlockHandler')
+
+function projectAgentDiagnosticMetadata(
+  ctx: ExecutionContext,
+  metadata: Record<string, unknown>,
+  fallback: Record<string, unknown>
+): Record<string, unknown> {
+  const projection = projectResolvedSecretModelContent(metadata, ctx.resolvedSecretTraceRegistry)
+  return projection.safe && isPlainRecord(projection.value) ? projection.value : fallback
+}
+
+function getErrorDiagnosticMetadata(error: unknown): Record<string, unknown> {
+  const normalizedError = toError(error)
+  return {
+    errorName: normalizedError.name,
+    errorMessage: normalizedError.message,
+    ...(normalizedError.stack ? { errorStack: normalizedError.stack } : {}),
+  }
+}
+
+function getErrorDiagnosticFallback(error: unknown): Record<string, unknown> {
+  return {
+    errorType: error instanceof Error ? 'error' : typeof error,
+  }
+}
+
+function getToolDiagnosticMetadata(tool: ToolInput): Record<string, unknown> {
+  return {
+    toolType: tool.type,
+    customToolId: tool.customToolId,
+    title: tool.title,
+    operation: tool.operation,
+    usageControl: tool.usageControl,
+    toolName: tool.params?.toolName,
+    serverId: tool.params?.serverId,
+    hasSchema: tool.schema !== undefined,
+    hasParams: tool.params !== undefined,
+  }
+}
+
+function getToolDiagnosticFallback(tool: ToolInput): Record<string, unknown> {
+  return {
+    hasToolType: typeof tool.type === 'string',
+    hasCustomToolId: typeof tool.customToolId === 'string',
+    hasToolName: typeof tool.params?.toolName === 'string',
+    hasServerId: typeof tool.params?.serverId === 'string',
+    hasSchema: tool.schema !== undefined,
+    hasParams: tool.params !== undefined,
+  }
+}
+
+function isAutoRoutingSignals(value: unknown): value is AutoRoutingSignals {
+  if (!isPlainRecord(value)) return false
+  return (
+    (value.systemPrompt === undefined || typeof value.systemPrompt === 'string') &&
+    (value.lastMessage === undefined || typeof value.lastMessage === 'string') &&
+    typeof value.messageCount === 'number' &&
+    Array.isArray(value.toolNames) &&
+    value.toolNames.every((name) => typeof name === 'string') &&
+    (value.mediaKind === 'none' || value.mediaKind === 'image' || value.mediaKind === 'file') &&
+    typeof value.hasResponseFormat === 'boolean' &&
+    typeof value.approxInputTokens === 'number'
+  )
+}
 
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
@@ -94,19 +159,34 @@ export class AgentBlockHandler implements BlockHandler {
     let model = configuredModel
     let autoRouting: AutoRoutingResult | null = null
     if (isAutoModel(configuredModel)) {
+      const routingSignals = this.projectAutoRoutingSignals(
+        ctx,
+        this.buildAutoRoutingSignals(filteredInputs, responseFormat)
+      )
       autoRouting = await resolveAutoModel({
         ctx,
         blockId: block.id,
-        signals: this.buildAutoRoutingSignals(filteredInputs, responseFormat),
+        signals: routingSignals,
         fallbackModel: AGENT.DEFAULT_MODEL,
       })
       model = autoRouting.model
-      logger.info('Resolved sim-auto model', {
-        blockId: block.id,
-        model,
-        tier: autoRouting.tier,
-        decidedBy: autoRouting.decidedBy,
-      })
+      logger.info(
+        'Resolved sim-auto model',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          {
+            blockId: block.id,
+            model,
+            tier: autoRouting.tier,
+            decidedBy: autoRouting.decidedBy,
+          },
+          {
+            blockId: block.id,
+            tier: autoRouting.tier,
+            decidedBy: autoRouting.decidedBy,
+          }
+        )
+      )
       // Hidden identity preamble for every auto execution (fallback included):
       // keeps pool models in English by default and off the topic of which
       // underlying model they are. Applied after signal building so the
@@ -217,6 +297,28 @@ export class AgentBlockHandler implements BlockHandler {
       hasResponseFormat: Boolean(responseFormat),
       approxInputTokens: Math.ceil(approxChars / 4),
     }
+  }
+
+  private projectAutoRoutingSignals(
+    ctx: ExecutionContext,
+    signals: AutoRoutingSignals
+  ): AutoRoutingSignals {
+    const projection = projectResolvedSecretModelContent(
+      {
+        systemPrompt: signals.systemPrompt,
+        lastMessage: signals.lastMessage,
+        toolNames: signals.toolNames,
+      },
+      ctx.resolvedSecretTraceRegistry
+    )
+    if (!projection.safe || !isPlainRecord(projection.value)) {
+      throw new Error('Model routing input could not be safely projected')
+    }
+    const projectedSignals = { ...signals, ...projection.value }
+    if (!isAutoRoutingSignals(projectedSignals)) {
+      throw new Error('Model routing input could not be safely projected')
+    }
+    return projectedSignals
   }
 
   /**
@@ -377,7 +479,14 @@ export class AgentBlockHandler implements BlockHandler {
           }
         }
       } catch (error) {
-        logger.warn('Failed to check MCP server availability, including all tools:', error)
+        logger.warn(
+          'Failed to check MCP server availability, including all tools',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            getErrorDiagnosticMetadata(error),
+            getErrorDiagnosticFallback(error)
+          )
+        )
         for (const serverId of serverIds) {
           availableServerIds.add(serverId)
         }
@@ -433,7 +542,14 @@ export class AgentBlockHandler implements BlockHandler {
           }
           return this.transformBlockTool(ctx, tool, canonicalModes, toolIndex)
         } catch (error) {
-          logger.error(`[AgentHandler] Error creating tool:`, { tool, error })
+          logger.error(
+            '[AgentHandler] Error creating tool',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { ...getToolDiagnosticMetadata(tool), ...getErrorDiagnosticMetadata(error) },
+              { ...getToolDiagnosticFallback(tool), ...getErrorDiagnosticFallback(error) }
+            )
+          )
           return null
         }
       })
@@ -459,13 +575,27 @@ export class AgentBlockHandler implements BlockHandler {
         schema = resolved.schema
         title = resolved.title
       } else if (!schema) {
-        logger.error(`Custom tool not found: ${tool.customToolId}`)
+        logger.error(
+          'Custom tool not found',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            getToolDiagnosticMetadata(tool),
+            getToolDiagnosticFallback(tool)
+          )
+        )
         return null
       }
     }
 
     if (!schema?.function) {
-      logger.error('Custom tool missing schema:', { customToolId: tool.customToolId, title })
+      logger.error(
+        'Custom tool missing schema',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          { customToolId: tool.customToolId, title },
+          { hasCustomToolId: typeof tool.customToolId === 'string', hasTitle: Boolean(title) }
+        )
+      )
       return null
     }
 
@@ -495,7 +625,14 @@ export class AgentBlockHandler implements BlockHandler {
     customToolId: string
   ): Promise<{ schema: any; title: string } | null> {
     if (!ctx.userId) {
-      logger.error('Cannot fetch custom tool without userId:', { customToolId })
+      logger.error(
+        'Cannot fetch custom tool without userId',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          { customToolId },
+          { hasCustomToolId: customToolId.length > 0 }
+        )
+      )
       return null
     }
 
@@ -507,7 +644,14 @@ export class AgentBlockHandler implements BlockHandler {
       })
 
       if (!tool) {
-        logger.warn(`Custom tool not found by ID: ${customToolId}`)
+        logger.warn(
+          'Custom tool not found by ID',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            { customToolId },
+            { hasCustomToolId: customToolId.length > 0 }
+          )
+        )
         return null
       }
 
@@ -516,7 +660,14 @@ export class AgentBlockHandler implements BlockHandler {
         title: tool.title,
       }
     } catch (error) {
-      logger.error('Error fetching custom tool:', { customToolId, error })
+      logger.error(
+        'Error fetching custom tool',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          { customToolId, ...getErrorDiagnosticMetadata(error) },
+          { hasCustomToolId: customToolId.length > 0, ...getErrorDiagnosticFallback(error) }
+        )
+      )
       return null
     }
   }
@@ -540,14 +691,28 @@ export class AgentBlockHandler implements BlockHandler {
       const toolName = tool.params?.toolName
 
       if (!serverId || !toolName) {
-        logger.error('MCP tool missing serverId or toolName:', tool)
+        logger.error(
+          'MCP tool missing serverId or toolName',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            getToolDiagnosticMetadata(tool),
+            getToolDiagnosticFallback(tool)
+          )
+        )
         continue
       }
 
       if (tool.schema) {
         toolsWithSchema.push(tool)
       } else {
-        logger.warn(`MCP tool ${toolName} missing cached schema, will need discovery`)
+        logger.warn(
+          'MCP tool missing cached schema, will need discovery',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            getToolDiagnosticMetadata(tool),
+            getToolDiagnosticFallback(tool)
+          )
+        )
         toolsNeedingDiscovery.push(tool)
       }
     }
@@ -557,7 +722,14 @@ export class AgentBlockHandler implements BlockHandler {
         const created = await this.createMcpToolFromCachedSchema(ctx, tool)
         if (created) results.push(created)
       } catch (error) {
-        logger.error(`Error creating MCP tool from cached schema:`, { tool, error })
+        logger.error(
+          'Error creating MCP tool from cached schema',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            { ...getToolDiagnosticMetadata(tool), ...getErrorDiagnosticMetadata(error) },
+            { ...getToolDiagnosticFallback(tool), ...getErrorDiagnosticFallback(error) }
+          )
+        )
       }
     }
 
@@ -610,7 +782,14 @@ export class AgentBlockHandler implements BlockHandler {
           const discoveredTools = await this.discoverMcpToolsForServer(ctx, serverId)
           return { serverId, tools, discoveredTools, error: null as Error | null }
         } catch (error) {
-          logger.error(`Failed to discover tools from server ${serverId}:`)
+          logger.error(
+            'Failed to discover tools from MCP server',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { serverId, ...getErrorDiagnosticMetadata(error) },
+              { hasServerId: serverId.length > 0, ...getErrorDiagnosticFallback(error) }
+            )
+          )
           return { serverId, tools, discoveredTools: [] as any[], error: error as Error }
         }
       })
@@ -626,14 +805,28 @@ export class AgentBlockHandler implements BlockHandler {
           const mcpTool = discoveredTools.find((t: any) => t.name === toolName)
 
           if (!mcpTool) {
-            logger.error(`MCP tool ${toolName} not found on server ${serverId}`)
+            logger.error(
+              'MCP tool not found on server',
+              projectAgentDiagnosticMetadata(
+                ctx,
+                { toolName, serverId },
+                { hasToolName: Boolean(toolName), hasServerId: serverId.length > 0 }
+              )
+            )
             continue
           }
 
           const created = await this.createMcpToolFromDiscoveredData(ctx, tool, mcpTool, serverId)
           if (created) results.push(created)
         } catch (error) {
-          logger.error(`Error creating MCP tool:`, { tool, error })
+          logger.error(
+            'Error creating MCP tool',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { ...getToolDiagnosticMetadata(tool), ...getErrorDiagnosticMetadata(error) },
+              { ...getToolDiagnosticFallback(tool), ...getErrorDiagnosticFallback(error) }
+            )
+          )
         }
       }
     }
@@ -669,7 +862,12 @@ export class AgentBlockHandler implements BlockHandler {
           const errorText = await response.text()
           if (this.isRetryableError(errorText) && attempt < maxAttempts - 1) {
             logger.warn(
-              `[AgentHandler] Session error discovering tools from ${serverId}, retrying (attempt ${attempt + 1})`
+              '[AgentHandler] Session error discovering tools, retrying',
+              projectAgentDiagnosticMetadata(
+                ctx,
+                { serverId, attempt: attempt + 1 },
+                { hasServerId: serverId.length > 0, attempt: attempt + 1 }
+              )
             )
             await sleep(100)
             continue
@@ -687,8 +885,16 @@ export class AgentBlockHandler implements BlockHandler {
         const errorMsg = toError(error).message
         if (this.isRetryableError(errorMsg) && attempt < maxAttempts - 1) {
           logger.warn(
-            `[AgentHandler] Retryable error discovering tools from ${serverId} (attempt ${attempt + 1}):`,
-            error
+            '[AgentHandler] Retryable error discovering tools',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { serverId, attempt: attempt + 1, ...getErrorDiagnosticMetadata(error) },
+              {
+                hasServerId: serverId.length > 0,
+                attempt: attempt + 1,
+                ...getErrorDiagnosticFallback(error),
+              }
+            )
           )
           await sleep(100)
           continue
@@ -1233,7 +1439,7 @@ export class AgentBlockHandler implements BlockHandler {
         }
       )
 
-      return this.processProviderResponse(response, block, responseFormat)
+      return this.processProviderResponse(response, block, responseFormat, ctx)
     } catch (error) {
       this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
       throw error
@@ -1250,25 +1456,28 @@ export class AgentBlockHandler implements BlockHandler {
   ) {
     const executionTime = Date.now() - startTime
 
-    logger.error('Error executing provider request:', {
-      error,
-      executionTime,
-      provider,
-      model,
-      workflowId: ctx.workflowId,
-      blockId: block.id,
-    })
+    logger.error(
+      'Error executing provider request',
+      projectAgentDiagnosticMetadata(
+        ctx,
+        {
+          executionTime,
+          provider,
+          model,
+          workflowId: ctx.workflowId,
+          blockId: block.id,
+          ...getErrorDiagnosticMetadata(error),
+        },
+        {
+          executionTime,
+          workflowId: ctx.workflowId,
+          blockId: block.id,
+          ...getErrorDiagnosticFallback(error),
+        }
+      )
+    )
 
     if (!(error instanceof Error)) return
-
-    logger.error('Provider request error details', {
-      workflowId: ctx.workflowId,
-      blockId: block.id,
-      errorName: error.name,
-      errorMessage: error.message,
-      errorStack: error.stack,
-      timestamp: new Date().toISOString(),
-    })
 
     if (error.name === 'AbortError') {
       throw new Error('Provider request timed out - the API took too long to respond')
@@ -1295,7 +1504,14 @@ export class AgentBlockHandler implements BlockHandler {
         try {
           await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
         } catch (error) {
-          logger.error('Failed to persist streaming response:', error)
+          logger.error(
+            'Failed to persist streaming response',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              getErrorDiagnosticMetadata(error),
+              getErrorDiagnosticFallback(error)
+            )
+          )
         }
       },
     }
@@ -1315,17 +1531,24 @@ export class AgentBlockHandler implements BlockHandler {
       await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
       logger.debug('Persisted assistant response to memory', {
         workflowId: ctx.workflowId,
-        conversationId: inputs.conversationId,
       })
     } catch (error) {
-      logger.error('Failed to persist response to memory:', error)
+      logger.error(
+        'Failed to persist response to memory',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          getErrorDiagnosticMetadata(error),
+          getErrorDiagnosticFallback(error)
+        )
+      )
     }
   }
 
   private processProviderResponse(
     response: any,
     block: SerializedBlock,
-    responseFormat: any
+    responseFormat: any,
+    ctx: ExecutionContext
   ): BlockOutput | StreamingExecution {
     if (this.isStreamingExecution(response)) {
       return this.processStreamingExecution(response, block)
@@ -1335,7 +1558,7 @@ export class AgentBlockHandler implements BlockHandler {
       return this.createMinimalStreamingExecution(response)
     }
 
-    return this.processRegularResponse(response, responseFormat)
+    return this.processRegularResponse(response, responseFormat, ctx)
   }
 
   private isStreamingExecution(response: any): boolean {
@@ -1376,15 +1599,23 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  private processRegularResponse(result: any, responseFormat: any): BlockOutput {
+  private processRegularResponse(
+    result: any,
+    responseFormat: any,
+    ctx: ExecutionContext
+  ): BlockOutput {
     if (responseFormat) {
-      return this.processStructuredResponse(result, responseFormat)
+      return this.processStructuredResponse(result, responseFormat, ctx)
     }
 
     return this.processStandardResponse(result)
   }
 
-  private processStructuredResponse(result: any, responseFormat: any): BlockOutput {
+  private processStructuredResponse(
+    result: any,
+    responseFormat: any,
+    ctx: ExecutionContext
+  ): BlockOutput {
     const content = result.content
 
     try {
@@ -1394,10 +1625,20 @@ export class AgentBlockHandler implements BlockHandler {
         ...this.createResponseMetadata(result),
       }
     } catch (error) {
-      logger.error('LLM did not adhere to structured response format:', {
-        content: truncate(content, 200),
-        responseFormat: responseFormat,
-      })
+      logger.error(
+        'LLM did not adhere to structured response format',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          {
+            content: truncate(content, 200),
+            responseFormat,
+          },
+          {
+            contentLength: typeof content === 'string' ? content.length : undefined,
+            hasResponseFormat: responseFormat !== undefined && responseFormat !== null,
+          }
+        )
+      )
 
       const standardResponse = this.processStandardResponse(result)
       return Object.assign(standardResponse, {

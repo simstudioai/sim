@@ -43,12 +43,18 @@ import { safeConsoleStringify, useTerminalStore } from '@/stores/terminal'
 
 interface OutputCodeContentProps {
   code: string
-  language: 'javascript' | 'json'
+  language: 'javascript' | 'json' | 'python' | 'bash'
   wrapText: boolean
   searchQuery: string | undefined
   currentMatchIndex: number
   onMatchCountChange: (count: number) => void
   contentRef: React.RefObject<HTMLDivElement | null>
+}
+
+function outputCodeLanguage(language: unknown): OutputCodeContentProps['language'] {
+  if (language === 'shell') return 'bash'
+  if (language === 'python' || language === 'json' || language === 'bash') return language
+  return 'javascript'
 }
 
 const OutputCodeContent = React.memo(function OutputCodeContent({
@@ -599,7 +605,7 @@ export const OutputPanel = React.memo(function OutputPanel({
           {shouldShowCodeDisplay ? (
             <OutputCodeContent
               code={selectedEntry.input.code}
-              language={(selectedEntry.input.language as 'javascript' | 'json') || 'javascript'}
+              language={outputCodeLanguage(selectedEntry.input.language)}
               wrapText={wrapText}
               searchQuery={structuredSearchQuery}
               currentMatchIndex={currentMatchIndex}

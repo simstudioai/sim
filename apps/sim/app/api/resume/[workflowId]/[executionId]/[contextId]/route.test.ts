@@ -5,19 +5,34 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockEnqueue,
   mockEnqueueOrStartResume,
   mockGetCurrentPayer,
   mockGetPauseContextDetail,
   mockGetPausedExecutionDetail,
   mockPreprocessExecution,
+  mockExecuteResumeJob,
+  mockShouldExecuteInline,
   mockValidateWorkflowAccess,
 } = vi.hoisted(() => ({
+  mockEnqueue: vi.fn(),
   mockEnqueueOrStartResume: vi.fn(),
   mockGetCurrentPayer: vi.fn(),
   mockGetPauseContextDetail: vi.fn(),
   mockGetPausedExecutionDetail: vi.fn(),
   mockPreprocessExecution: vi.fn(),
+  mockExecuteResumeJob: vi.fn(),
+  mockShouldExecuteInline: vi.fn(() => false),
   mockValidateWorkflowAccess: vi.fn(),
+}))
+
+vi.mock('@/lib/core/async-jobs', () => ({
+  getJobQueue: vi.fn(async () => ({ enqueue: mockEnqueue })),
+  shouldExecuteInline: mockShouldExecuteInline,
+}))
+
+vi.mock('@/background/resume-execution', () => ({
+  executeResumeJob: mockExecuteResumeJob,
 }))
 
 vi.mock('@/app/api/workflows/middleware', () => ({
@@ -84,6 +99,7 @@ interface PausedExecutionOverrides {
   snapshotWorkspaceId?: string
   snapshotActorUserId?: string
   billingAttribution?: unknown
+  executionMode?: 'sync' | 'async' | 'stream'
 }
 
 function createPausedExecution(overrides: PausedExecutionOverrides = {}) {
@@ -108,7 +124,7 @@ function createPausedExecution(overrides: PausedExecutionOverrides = {}) {
           triggerType: 'manual',
           useDraftState: false,
           startTime: '2026-07-10T00:00:00.000Z',
-          executionMode: 'sync',
+          executionMode: overrides.executionMode ?? 'sync',
         },
         workflow: { version: '1', blocks: [], connections: [] },
         input: {},
@@ -170,6 +186,9 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
       resumeExecutionId: EXECUTION_ID,
       queuePosition: 1,
     })
+    mockEnqueue.mockResolvedValue('resume-job-1')
+    mockExecuteResumeJob.mockResolvedValue({ success: true })
+    mockShouldExecuteInline.mockReturnValue(false)
   })
 
   it('returns 401 before validating malformed route input', async () => {
@@ -227,6 +246,87 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
       userId: 'current-api-key-user',
       allowedPauseKinds: ['human'],
     })
+  })
+
+  it('correlates an async resume job to its parent workflow execution', async () => {
+    const pausedExecution = createPausedExecution({ executionMode: 'async' })
+    mockGetPausedExecutionDetail.mockResolvedValueOnce(pausedExecution)
+    mockEnqueueOrStartResume.mockResolvedValueOnce({
+      status: 'starting',
+      resumeExecutionId: 'resume-attempt-1',
+      resumeEntryId: 'resume-entry-1',
+      pausedExecution,
+      contextId: CONTEXT_ID,
+      resumeInput: { approved: true },
+      userId: 'current-api-key-user',
+    })
+    const { request, context } = makeRequest()
+
+    const response = await POST(request, context)
+
+    expect(response.status).toBe(202)
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'resume-execution',
+      expect.objectContaining({
+        parentExecutionId: EXECUTION_ID,
+        resumeExecutionId: 'resume-attempt-1',
+        workflowId: WORKFLOW_ID,
+      }),
+      expect.objectContaining({
+        maxDurationSeconds: 600,
+        metadata: {
+          executionId: EXECUTION_ID,
+          workflowId: WORKFLOW_ID,
+          workspaceId: WORKSPACE_ID,
+          userId: 'current-api-key-user',
+          resumeExecutionId: 'resume-attempt-1',
+          correlation: {
+            executionId: EXECUTION_ID,
+            requestId: expect.any(String),
+            source: 'workflow',
+            workflowId: WORKFLOW_ID,
+            triggerType: 'resume',
+          },
+        },
+      })
+    )
+  })
+
+  it('forwards database inline timeout failures so the queue marks the resume job failed', async () => {
+    const pausedExecution = createPausedExecution({ executionMode: 'async' })
+    mockGetPausedExecutionDetail.mockResolvedValueOnce(pausedExecution)
+    mockEnqueueOrStartResume.mockResolvedValueOnce({
+      status: 'starting',
+      resumeExecutionId: 'resume-attempt-1',
+      resumeEntryId: 'resume-entry-1',
+      pausedExecution,
+      contextId: CONTEXT_ID,
+      resumeInput: { approved: true },
+      userId: 'current-api-key-user',
+    })
+    mockShouldExecuteInline.mockReturnValueOnce(true)
+    const timeoutError = Object.assign(new Error('Execution timed out after 5 minutes'), {
+      name: 'TimeoutError',
+    })
+    mockExecuteResumeJob.mockRejectedValueOnce(timeoutError)
+    const { request, context } = makeRequest()
+
+    const response = await POST(request, context)
+    const options = mockEnqueue.mock.calls[0]?.[2] as {
+      runner?: (payload: unknown, signal: AbortSignal) => Promise<unknown>
+    }
+    const signal = new AbortController().signal
+
+    expect(response.status).toBe(202)
+    expect(options.runner).toBeTypeOf('function')
+    await expect(options.runner?.({}, signal)).rejects.toBe(timeoutError)
+    expect(mockExecuteResumeJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resumeEntryId: 'resume-entry-1',
+        resumeExecutionId: 'resume-attempt-1',
+      }),
+      signal
+    )
   })
 
   it.each([

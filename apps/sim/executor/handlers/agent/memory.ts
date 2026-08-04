@@ -2,12 +2,17 @@ import { db } from '@sim/db'
 import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import { and, eq, sql } from 'drizzle-orm'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { getAccurateTokenCount } from '@/lib/tokenization/estimators'
 import { MEMORY } from '@/executor/constants'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
+import {
+  projectResolvedSecretModelContent,
+  projectResolvedSecretModelJsonStrings,
+} from '@/executor/utils/resolved-secret-content-projection'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const logger = createLogger('Memory')
@@ -21,7 +26,9 @@ export class Memory {
     const workspaceId = this.requireWorkspaceId(ctx)
     this.validateConversationId(inputs.conversationId)
 
-    const messages = await this.fetchMemory(workspaceId, inputs.conversationId!)
+    const messages = (await this.fetchMemory(workspaceId, inputs.conversationId!)).map((message) =>
+      this.projectMessageForModel(ctx, message)
+    )
 
     switch (inputs.memoryType) {
       case 'conversation':
@@ -70,7 +77,6 @@ export class Memory {
 
     logger.debug('Appended message to memory', {
       workspaceId,
-      key,
       role: message.role,
     })
   }
@@ -114,7 +120,6 @@ export class Memory {
 
     logger.debug('Seeded memory', {
       workspaceId,
-      key,
       count: messagesToStore.length,
     })
   }
@@ -126,18 +131,105 @@ export class Memory {
    * `onFailure: 'throw'` aborts rather than persisting unredacted content.
    */
   private async maskContentForStorage(ctx: ExecutionContext, message: Message): Promise<Message> {
-    if (!ctx.piiBlockOutputRedaction?.enabled || !message.content) {
-      return message
+    const projectedMessage = this.projectMessageForModel(ctx, message)
+    if (!ctx.piiBlockOutputRedaction?.enabled || !projectedMessage.content) {
+      return projectedMessage
     }
     return {
-      ...message,
-      content: await redactObjectStrings(message.content, {
+      ...projectedMessage,
+      content: await redactObjectStrings(projectedMessage.content, {
         entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
         language: ctx.piiBlockOutputRedaction.language,
         customPatterns: ctx.piiBlockOutputRedaction.customPatterns,
         onFailure: 'throw',
       }),
     }
+  }
+
+  private projectMessageForModel(ctx: ExecutionContext, message: Message): Message {
+    const functionArguments = this.readFunctionCallArguments(message.function_call)
+    const toolArguments = message.tool_calls?.map((toolCall) => {
+      if (!isPlainRecord(toolCall)) {
+        throw new Error('Memory content could not be safely projected')
+      }
+      return this.readFunctionCallArguments(toolCall.function)
+    })
+    const contentProjection = projectResolvedSecretModelContent(
+      message.content,
+      ctx.resolvedSecretTraceRegistry
+    )
+    const argumentProjection = projectResolvedSecretModelJsonStrings(
+      [functionArguments, ...(toolArguments ?? [])],
+      ctx.resolvedSecretTraceRegistry
+    )
+    if (
+      !contentProjection.safe ||
+      typeof contentProjection.value !== 'string' ||
+      !argumentProjection.safe ||
+      !Array.isArray(argumentProjection.value) ||
+      argumentProjection.value.length !== 1 + (toolArguments?.length ?? 0)
+    ) {
+      throw new Error('Memory content could not be safely projected')
+    }
+
+    const content = contentProjection.value
+    const [projectedFunctionArguments, ...projectedToolArguments] = argumentProjection.value
+    if (
+      (functionArguments !== undefined && typeof projectedFunctionArguments !== 'string') ||
+      (functionArguments === undefined && projectedFunctionArguments !== undefined)
+    ) {
+      throw new Error('Memory content could not be safely projected')
+    }
+    if (
+      (toolArguments !== undefined && projectedToolArguments.length !== toolArguments.length) ||
+      (toolArguments === undefined && projectedToolArguments.length !== 0)
+    ) {
+      throw new Error('Memory content could not be safely projected')
+    }
+
+    const projectedToolCalls = message.tool_calls?.map((toolCall, index) => {
+      const argument = (projectedToolArguments as unknown[])[index]
+      const originalFunction = isPlainRecord(toolCall) ? toolCall.function : undefined
+      if (originalFunction === undefined || originalFunction === null) return toolCall
+      if (!isPlainRecord(originalFunction)) {
+        throw new Error('Memory content could not be safely projected')
+      }
+      if (!Object.hasOwn(originalFunction, 'arguments')) return toolCall
+      if (typeof argument !== 'string') {
+        throw new Error('Memory content could not be safely projected')
+      }
+      return {
+        ...toolCall,
+        function: { ...originalFunction, arguments: argument },
+      }
+    })
+
+    let projectedFunctionCall = message.function_call
+    if (isPlainRecord(message.function_call) && Object.hasOwn(message.function_call, 'arguments')) {
+      projectedFunctionCall = {
+        ...message.function_call,
+        arguments: projectedFunctionArguments,
+      }
+    }
+
+    return {
+      ...message,
+      content,
+      ...(message.function_call !== undefined ? { function_call: projectedFunctionCall } : {}),
+      ...(projectedToolCalls !== undefined ? { tool_calls: projectedToolCalls } : {}),
+    }
+  }
+
+  private readFunctionCallArguments(functionCall: unknown): string | undefined {
+    if (functionCall === undefined || functionCall === null) return undefined
+    if (!isPlainRecord(functionCall)) {
+      throw new Error('Memory content could not be safely projected')
+    }
+    if (!Object.hasOwn(functionCall, 'arguments')) return undefined
+    if (typeof functionCall.arguments !== 'string') {
+      throw new Error('Memory content could not be safely projected')
+    }
+    return functionCall.arguments
   }
 
   private requireWorkspaceId(ctx: ExecutionContext): string {

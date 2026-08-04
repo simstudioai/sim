@@ -3,6 +3,7 @@
  */
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
 const { mockCancellationSubscribers } = vi.hoisted(() => ({
   mockCancellationSubscribers: new Set<(event: { executionId: string }) => void>(),
@@ -476,6 +477,7 @@ describe('ExecutionEngine', () => {
 
       expect(result.status).toBe('cancelled')
       expect(nodeOrchestrator.executionCount).toBe(0)
+      expect(context.abortSignal?.aborted).toBe(true)
     })
 
     it('should stop execution when aborted mid-workflow', async () => {
@@ -554,6 +556,37 @@ describe('ExecutionEngine', () => {
   })
 
   describe('Cancellation via Redis', () => {
+    it('aborts the active execution signal without dropping its deadline', async () => {
+      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
+      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+      const timeoutController = createTimeoutAbortController(60_000)
+      const startNode = createMockNode('start', 'starter')
+      const context = createMockContext({
+        executionId: 'pubsub-signal-execution',
+        abortSignal: timeoutController.signal,
+      })
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([startNode]),
+        createMockEdgeManager(),
+        createMockNodeOrchestrator()
+      )
+
+      try {
+        expect(context.abortSignal).not.toBe(timeoutController.signal)
+        expect(getRemainingExecutionMs(context.abortSignal)).toBeGreaterThan(0)
+
+        for (const handler of mockCancellationSubscribers) {
+          handler({ executionId: 'pubsub-signal-execution' })
+        }
+
+        expect(context.abortSignal?.aborted).toBe(true)
+        await expect(engine.run('start')).resolves.toMatchObject({ status: 'cancelled' })
+      } finally {
+        timeoutController.cleanup()
+      }
+    })
+
     it('should check Redis for cancellation when enabled', async () => {
       ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
       ;(isExecutionCancelled as Mock).mockResolvedValue(false)
@@ -680,6 +713,7 @@ describe('ExecutionEngine', () => {
 
       expect(result.status).toBe('cancelled')
       expect(nodeOrchestrator.executionCount).toBe(0)
+      expect(context.abortSignal?.aborted).toBe(true)
     })
 
     it('calls isExecutionCancelled once as the startup backstop check', async () => {

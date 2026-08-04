@@ -1,5 +1,6 @@
 import '@sim/testing/mocks/executor'
 
+import { createLogger } from '@sim/logger'
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -42,6 +43,10 @@ const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGenerateRouterV2Prompt = generateRouterV2Prompt as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockFetch = vi.fn()
+const mockLogger =
+  vi.mocked(createLogger).mock.results[
+    vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'RouterBlockHandler')
+  ].value
 
 describe('RouterBlockHandler', () => {
   let handler: RouterBlockHandler
@@ -292,6 +297,40 @@ describe('RouterBlockHandler', () => {
     )
   })
 
+  it('does not log sensitive provider content when routing fails', async () => {
+    const plaintext = 'router-provider-plaintext-secret'
+    const content = `${plaintext} __var_API_KEY __sim_runtime`
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          content,
+          model: 'mock-model',
+          tokens: {},
+          cost: 0,
+          timing: {},
+        }),
+    })
+
+    await expect(handler.execute(mockContext, mockBlock, { prompt: 'Test' })).rejects.toThrow(
+      `Invalid routing decision: ${content.toLowerCase()}`
+    )
+
+    expect(mockLogger.error).toHaveBeenCalledWith('Invalid routing decision', {
+      responseContentType: 'string',
+      responseContentLength: content.length,
+      availableBlockCount: 2,
+    })
+    expect(mockLogger.error).toHaveBeenCalledWith('Router execution failed', {
+      errorName: 'Error',
+    })
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain(plaintext)
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
+  })
+
   it('should use default model and temperature if not provided', async () => {
     const inputs = { prompt: 'Choose.', apiKey: 'test-api-key' }
 
@@ -319,6 +358,28 @@ describe('RouterBlockHandler', () => {
     })
 
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow('Server error')
+  })
+
+  it('does not log sensitive provider errors while preserving the thrown error', async () => {
+    const providerError = 'provider-plaintext-secret __var_API_KEY __sim_runtime'
+
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({ error: providerError }),
+    })
+
+    await expect(handler.execute(mockContext, mockBlock, { prompt: 'Test' })).rejects.toThrow(
+      providerError
+    )
+
+    expect(mockLogger.error).toHaveBeenCalledWith('Router execution failed', {
+      errorName: 'Error',
+    })
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain('provider-plaintext-secret')
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
   })
 
   it('should handle Azure OpenAI models with endpoint and API version', async () => {
@@ -736,6 +797,28 @@ describe('RouterBlockHandler V2', () => {
     )
   })
 
+  it('does not log sensitive resolved route input when JSON parsing fails', async () => {
+    const plaintext = 'router-input-plaintext-secret'
+    const routes = `[{"id":"${plaintext} __var_API_KEY __sim_runtime"`
+
+    await expect(
+      handler.execute(mockContext, mockRouterV2Block, {
+        context: 'Test context',
+        routes,
+      })
+    ).rejects.toThrow('No routes defined for router')
+
+    expect(mockLogger.error).toHaveBeenCalledWith('Failed to parse routes', {
+      errorName: 'SyntaxError',
+      inputType: 'string',
+      inputLength: routes.length,
+    })
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain(plaintext)
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
+  })
+
   it('should handle fallback when JSON parsing fails', async () => {
     const inputs = {
       context: 'Test context',
@@ -760,5 +843,48 @@ describe('RouterBlockHandler V2', () => {
 
     expect(result.selectedRoute).toBe('route-1')
     expect(result.reasoning).toBe('')
+  })
+
+  it('does not log sensitive invalid structured responses', async () => {
+    const plaintext = 'router-v2-response-plaintext-secret'
+    const content = `${plaintext} __var_API_KEY __sim_runtime`
+    const inputs = {
+      context: 'Test context',
+      model: 'gpt-4o',
+      routes: [{ id: 'route-1', title: 'Route 1', value: 'Description' }],
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          content,
+          model: 'gpt-4o',
+          tokens: { input: 100, output: 5, total: 105 },
+        }),
+    })
+
+    await expect(handler.execute(mockContext, mockRouterV2Block, inputs)).rejects.toThrow(content)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Router response was not valid JSON despite responseFormat',
+      {
+        errorName: 'SyntaxError',
+        responseContentType: 'string',
+        responseContentLength: content.length,
+      }
+    )
+    expect(mockLogger.error).toHaveBeenCalledWith('Invalid routing decision', {
+      responseContentType: 'string',
+      responseContentLength: content.length,
+      availableRouteCount: 1,
+    })
+    expect(mockLogger.error).toHaveBeenCalledWith('Router V2 execution failed', {
+      errorName: 'Error',
+    })
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain(plaintext)
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
   })
 })

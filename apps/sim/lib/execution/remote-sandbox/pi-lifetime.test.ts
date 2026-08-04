@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 async function resolveWith(options: {
   provider?: string
   lifetimeMs?: string
-}): Promise<{ lifetime: number | undefined; min: number; max: number }> {
+}): Promise<{ lifetime: number; min: number; max: number }> {
   vi.resetModules()
   vi.doMock('@/lib/core/config/env', () => ({
     env: {
@@ -32,7 +32,7 @@ beforeEach(() => {
 })
 
 describe('resolvePiSandboxLifetimeMs', () => {
-  it('defaults to the sub-hour cap on E2B', async () => {
+  it('defaults to the provider cap on E2B', async () => {
     const { lifetime, max } = await resolveWith({})
 
     expect(lifetime).toBe(max)
@@ -44,32 +44,34 @@ describe('resolvePiSandboxLifetimeMs', () => {
     expect(lifetime).toBe(max)
   })
 
-  it('has no lifetime to report when the provider stops on inactivity', async () => {
-    // Daytona has no absolute lifetime, so reporting E2B's would cut the agent
-    // turn to fit a ceiling that does not apply — the regression this prevents.
-    const { lifetime } = await resolveWith({ provider: 'daytona' })
+  it('uses the full execution ceiling for Daytona', async () => {
+    const { lifetime, max } = await resolveWith({ provider: 'daytona' })
 
-    expect(lifetime).toBeUndefined()
+    expect(lifetime).toBe(max)
   })
 
-  it('ignores a configured lifetime entirely on that provider', async () => {
-    const { lifetime } = await resolveWith({ provider: 'daytona', lifetimeMs: '600000' })
+  it('honors a configured Daytona lifetime', async () => {
+    const configured = 45 * 60 * 1000
+    const { lifetime } = await resolveWith({
+      provider: 'daytona',
+      lifetimeMs: String(configured),
+    })
 
-    expect(lifetime).toBeUndefined()
+    expect(lifetime).toBe(configured)
   })
 
   it('lets a configured value lower the lifetime', async () => {
     const { lifetime, min, max } = await resolveWith({ lifetimeMs: String(45 * 60 * 1000) })
 
     expect(lifetime).toBe(45 * 60 * 1000)
-    expect(lifetime!).toBeGreaterThan(min)
-    expect(lifetime!).toBeLessThan(max)
+    expect(lifetime).toBeGreaterThan(min)
+    expect(lifetime).toBeLessThan(max)
   })
 
   it('refuses to be raised above the cap', async () => {
-    // A Hobby key rejects a create above one hour, so an over-large override
-    // would otherwise fail every Pi run rather than lengthening one.
-    const { lifetime, max } = await resolveWith({ lifetimeMs: String(6 * 60 * 60 * 1000) })
+    // E2B rejects a create above its continuous-session limit, so an over-large
+    // override would otherwise fail every Pi run rather than lengthening one.
+    const { lifetime, max } = await resolveWith({ lifetimeMs: String(48 * 60 * 60 * 1000) })
 
     expect(lifetime).toBe(max)
   })
@@ -150,7 +152,7 @@ describe('resolvePiRunLifetimeMs', () => {
     expect(resolvePiRunLifetimeMs(new AbortController().signal)).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
   })
 
-  it('has no lifetime to narrow on a provider without one', async () => {
+  it('narrows Daytona to the remaining execution deadline', async () => {
     vi.resetModules()
     vi.doMock('@/lib/core/config/env', () => ({
       env: { SANDBOX_PROVIDER: 'daytona' },
@@ -158,11 +160,11 @@ describe('resolvePiRunLifetimeMs', () => {
     const { createTimeoutAbortController } = await import('@/lib/core/execution-limits')
     const { resolvePiRunLifetimeMs } = await import('@/lib/execution/remote-sandbox/pi-lifetime')
 
-    // Daytona stops on inactivity, so imposing the run's deadline as an absolute
-    // lifetime would cut a turn to fit a limit that does not apply to it.
     const timeout = createTimeoutAbortController(5 * 60 * 1000)
+    const lifetime = resolvePiRunLifetimeMs(timeout.signal)
 
-    expect(resolvePiRunLifetimeMs(timeout.signal)).toBeUndefined()
+    expect(lifetime).toBeLessThanOrEqual(5 * 60 * 1000)
+    expect(lifetime).toBeGreaterThan(4 * 60 * 1000)
     timeout.cleanup()
   })
 })

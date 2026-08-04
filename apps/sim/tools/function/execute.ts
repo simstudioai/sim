@@ -13,7 +13,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
   id: 'function_execute',
   name: 'Function Execute',
   description:
-    'Execute JavaScript, Python, or shell scripts in a secure sandbox. For JS: fetch() is available, code runs in async IIFE wrapper. For shell: workspace env vars available as $VAR_NAME, pre-installed CLI tools (jq, curl, awscli, psql, gh, etc.). Use outputPath/outputTable to persist returned data, or outputSandboxPath + outputPath to export a file created inside the sandbox into the workspace.',
+    'Execute JavaScript, Python, or shell scripts in a secure sandbox. For JS: fetch() is available, code runs in an async IIFE wrapper. Shell includes general utilities such as jq, curl, git, and rg; service-specific CLIs come from the selected workspace sandbox. Use outputPath/outputTable to persist returned data, or outputSandboxPath + outputPath to export a file created inside the sandbox into the workspace.',
   version: '1.0.0',
 
   params: {
@@ -22,7 +22,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Raw JavaScript statements (NOT a function). Code is auto-wrapped in async context. MUST use fetch() for HTTP (NOT xhr/axios/request libs). Write like: await fetch(url) then return result. NO import/require statements.',
+        'Source code in the selected language. JavaScript runs as an async function body and returns a result with return. Python runs as a module and returns an optional result through __sim_result__; legacy snippets with a top-level return remain supported. Shell runs as Bash and can emit a typed result with __SIM_RESULT__=<json>.',
     },
     language: {
       type: 'string',
@@ -89,7 +89,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Workspace sandbox whose packages this code can import',
+      description: 'Workspace sandbox providing importable packages and CLI tools',
     },
     secretScope: {
       type: 'string',
@@ -223,7 +223,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
   },
 
   outputs: {
-    result: { type: 'string', description: 'The result of the code execution' },
+    result: { type: 'json', description: 'The structured result emitted by the executed code' },
     stdout: { type: 'string', description: 'The standard output of the code execution' },
   },
 }

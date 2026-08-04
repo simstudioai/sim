@@ -1,3 +1,5 @@
+import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
+
 const activeExecutionAborters = new Map<string, () => void>()
 
 export function registerManualExecutionAborter(executionId: string, abort: () => void): void {
@@ -11,9 +13,16 @@ export function unregisterManualExecutionAborter(executionId: string): void {
 export function abortManualExecution(executionId: string): boolean {
   const abort = activeExecutionAborters.get(executionId)
   if (!abort) {
+    recordExecutionCancellationBackendResult({ backend: 'in_process', result: 'not_found' })
     return false
   }
 
-  abort()
-  return true
+  try {
+    abort()
+    recordExecutionCancellationBackendResult({ backend: 'in_process', result: 'cancelled' })
+    return true
+  } catch (error) {
+    recordExecutionCancellationBackendResult({ backend: 'in_process', result: 'error' })
+    throw error
+  }
 }

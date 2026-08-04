@@ -33,7 +33,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Sand
 
   const parsed = await parseRequest(updateSandboxContract, request, context)
   if (!parsed.success) return parsed.response
-  const { name, language, dependencies } = parsed.data.body
+  const { name, language, dependencies, cliTools, systemPackages } = parsed.data.body
 
   const [existing] = await db
     .select({
@@ -41,6 +41,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Sand
       name: workspaceSandbox.name,
       language: workspaceSandbox.language,
       dependencies: workspaceSandbox.dependencies,
+      cliTools: workspaceSandbox.cliTools,
+      systemPackages: workspaceSandbox.systemPackages,
       specHash: workspaceSandbox.specHash,
     })
     .from(workspaceSandbox)
@@ -56,13 +58,20 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Sand
     return nameConflictResponse(name)
   }
 
-  // Both halves are revalidated together even when only one changed: switching
+  // The complete spec is revalidated even when only one field changed: switching
   // language has to re-check the existing list against the new language's rules,
   // and editing dependencies has to check them against the stored language.
   const nextLanguage = language ?? (existing.language as 'javascript' | 'python')
   const nextDependencies = dependencies ?? existing.dependencies ?? []
+  const nextCliTools = cliTools ?? existing.cliTools ?? []
+  const nextSystemPackages = systemPackages ?? existing.systemPackages ?? []
 
-  const built = buildSpecOrResponse(nextLanguage, nextDependencies)
+  const built = buildSpecOrResponse(
+    nextLanguage,
+    nextDependencies,
+    nextCliTools,
+    nextSystemPackages
+  )
   if (!built.ok) return built.response
   const { spec } = built
 
@@ -73,6 +82,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Sand
         name: nextName,
         language: spec.language,
         dependencies: spec.dependencies,
+        cliTools: spec.cliTools,
+        systemPackages: spec.systemPackages,
         specHash: spec.specHash,
         updatedAt: new Date(),
       })

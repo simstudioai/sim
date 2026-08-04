@@ -1,8 +1,16 @@
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import {
+  createResolvedSecretMatcher,
+  OPAQUE_RESOLVED_SECRET_REPLACEMENT,
+  type ResolvedSecretMatcher,
+  scanResolvedSecretString,
+} from '@/executor/utils/resolved-secret-matcher'
+import { getResolvedSecretMatcherCapacityFailure } from '@/executor/utils/resolved-secret-matcher-capacity'
 
-export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = '[REDACTED_SECRET]'
+export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = OPAQUE_RESOLVED_SECRET_REPLACEMENT
+export const RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION = 1
 
 const MAX_PROVENANCE_ENTRIES = 10_000
 const MAX_SERIALIZED_PROVENANCE_BYTES = 8 * 1024 * 1024
@@ -10,7 +18,7 @@ const MAX_TRACE_CATALOG_ENTRIES = MAX_PROVENANCE_ENTRIES
 const MAX_TRACE_CATALOG_BYTES = 8 * 1024 * 1024
 const MAX_PROVENANCE_FILTER_NODES = 50_000
 const MAX_PROVENANCE_FILTER_CHARACTERS = 16 * 1024 * 1024
-const MAX_PROVENANCE_FILTER_COMPARISONS = 1_000_000
+const MAX_PROVENANCE_FILTER_MATCH_EVENTS = 1_000_000
 const ERROR_CONTENT_PROPERTY_NAMES = ['name', 'message', 'stack', 'cause', 'errors'] as const
 const PROVENANCE_PROPERTY_NAMES = new Set(['version', 'complete', 'entries', 'scope'])
 const PROVENANCE_ENTRY_PROPERTY_NAMES = new Set(['encryptedValue', 'name'])
@@ -26,6 +34,10 @@ export interface ResolvedSecretTraceMatch {
   plaintext: string
   replacement: string
 }
+
+export type ResolvedSecretModelEgressSnapshot =
+  | { complete: true; matches: readonly ResolvedSecretTraceMatch[] }
+  | { complete: false }
 
 export interface ResolvedSecretTraceProvenanceEntryV1 {
   encryptedValue: string
@@ -64,6 +76,8 @@ export interface CreateResolvedSecretTraceRegistryOptions {
   workspaceDecrypted: Record<string, string>
   decryptionFailures?: readonly string[]
   restoredProvenance?: unknown
+  restoredCheckpointVersion?: unknown
+  legacyRestoredState?: unknown
   restoreTrusted?: boolean
   requireRestoredProvenance?: boolean
   scope?: ResolvedSecretTraceScopeV1
@@ -374,7 +388,11 @@ export class ResolvedSecretTraceProvenanceAccumulator {
     const merged: ResolvedSecretTraceProvenanceV1 = {
       version: 1,
       complete: true,
-      entries: [...entries.values()],
+      entries: [...entries.values()].sort(
+        (left, right) =>
+          compareStrings(left.name ?? '', right.name ?? '') ||
+          compareStrings(left.encryptedValue, right.encryptedValue)
+      ),
       ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
     }
     if (!isResolvedSecretTraceProvenanceV1(merged)) {
@@ -406,16 +424,20 @@ export class ResolvedSecretTraceProvenanceAccumulator {
 }
 
 /**
- * Tracks Secrets-tab values that were actually substituted through `{{NAME}}` during one run.
- * The current catalog is inert until a successful resolution activates an entry.
+ * Owns the execution's bounded secret catalog and activated cross-boundary provenance.
+ * Trace projection uses activated entries; model egress also uses the dormant local catalog so
+ * direct environment-map reads are projected without treating every configured value as resolved.
  */
 export class ResolvedSecretTraceRegistry {
   private readonly catalog = new Map<string, ResolvedSecretTraceCatalogEntry>()
   private catalogBytes = 0
+  private readonly modelEgressOnlyEntries = new Map<string, { name: string; plaintext: string }>()
+  private modelEgressOnlyBytes = 0
   private readonly activeEntries = new Map<string, ActiveSecretEntry>()
   private activeProvenanceEntryBytes = 0
   private complete = true
   private pendingActivations = 0
+  private modelEgressRevision = 0
   private readonly scope?: ResolvedSecretTraceScopeV1
   private readonly completeProvenanceEnvelopeBytes: number
 
@@ -436,6 +458,41 @@ export class ResolvedSecretTraceRegistry {
         break
       }
       if (!this.addCatalogEntry(entry)) break
+    }
+  }
+
+  /**
+   * Creates an isolated registry for one tool call.
+   *
+   * Active/catalogued values are copied, but temporary activation guards are not: a sibling
+   * tool that is still resolving a secret must not suppress this call's otherwise safe result.
+   * The caller must merge the child back after settlement so newly activated provenance remains
+   * available to later calls in the run.
+   */
+  forkForToolCall(): ResolvedSecretTraceRegistry {
+    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    for (const entry of this.modelEgressOnlyEntries.values()) {
+      fork.addModelEgressValues({ [entry.name]: entry.plaintext })
+    }
+    for (const entry of this.activeEntries.values()) {
+      fork.addActiveEntry({ ...entry })
+    }
+    if (!this.complete) fork.markIncomplete()
+    return fork
+  }
+
+  /** Merges one settled tool-call registry into the turn-scoped registry. */
+  mergeToolCallRegistry(child: ResolvedSecretTraceRegistry): void {
+    if (!scopesMatch(this.scope, child.scope) || !child.complete || child.pendingActivations > 0) {
+      this.markIncomplete()
+      return
+    }
+
+    for (const entry of child.modelEgressOnlyEntries.values()) {
+      this.addModelEgressValues({ [entry.name]: entry.plaintext })
+    }
+    for (const entry of child.activeEntries.values()) {
+      this.addActiveEntry({ ...entry })
     }
   }
 
@@ -511,8 +568,113 @@ export class ResolvedSecretTraceRegistry {
 
   /** Returns deterministic literal replacements for the terminal TraceSpan projection. */
   getActiveMatches(): readonly ResolvedSecretTraceMatch[] {
+    return this.buildMatches(this.activeEntries.values())
+  }
+
+  /**
+   * Returns every literal that must be removed before content can cross into a model.
+   *
+   * Unlike trace projection, model egress includes the complete local catalog because code can
+   * read an environment value directly without resolving a placeholder. Projection still fails
+   * closed while any activation is pending because a concurrent boundary may be importing a
+   * foreign value that is not present in the local catalog yet.
+   */
+  getModelEgressSnapshot(): ResolvedSecretModelEgressSnapshot {
+    if (!this.isComplete()) return { complete: false }
+
+    const catalogEntries = [...this.catalog.values()].map(
+      (entry): ActiveSecretEntry => ({ ...entry, anonymous: false })
+    )
+    const modelOnlyEntries = [...this.modelEgressOnlyEntries.values()].map(
+      (entry): ActiveSecretEntry => ({
+        ...entry,
+        encryptedValue: '',
+        anonymous: false,
+      })
+    )
+    const modelEntries = [...catalogEntries, ...modelOnlyEntries, ...this.activeEntries.values()]
+    const legacyAliasEntries = modelEntries
+      .filter((entry) => entry.name.length > 0)
+      .map(
+        (entry): ActiveSecretEntry => ({
+          ...entry,
+          plaintext: `__var_${entry.name.replace(/[^a-zA-Z0-9_]/g, '_')}`,
+        })
+      )
+    const matches = this.withJsonStringEncodedMatches(
+      this.buildMatches([...modelEntries, ...legacyAliasEntries])
+    )
+    if (getResolvedSecretMatcherCapacityFailure(matches.map((match) => match.plaintext))) {
+      return { complete: false }
+    }
+    return { complete: true, matches }
+  }
+
+  /** Monotonic revision used to reuse model-egress matchers until registry state changes. */
+  getModelEgressRevision(): number {
+    return this.modelEgressRevision
+  }
+
+  /** Adds trusted runtime literals to model egress without claiming encrypted provenance. */
+  addModelEgressValues(values: Readonly<Record<string, string>>): boolean {
+    for (const [name, plaintext] of Object.entries(values)) {
+      if (!plaintext) continue
+      const catalogEntry = this.catalog.get(name)
+      if (catalogEntry?.plaintext === plaintext) continue
+      const key = `${name}\u0000${plaintext}`
+      if (this.modelEgressOnlyEntries.has(key)) continue
+      const entryBytes = Buffer.byteLength(name, 'utf8') + Buffer.byteLength(plaintext, 'utf8')
+      if (
+        this.catalog.size + this.modelEgressOnlyEntries.size >= MAX_TRACE_CATALOG_ENTRIES ||
+        this.catalogBytes + this.modelEgressOnlyBytes + entryBytes > MAX_TRACE_CATALOG_BYTES
+      ) {
+        this.markIncomplete()
+        return false
+      }
+      this.modelEgressOnlyEntries.set(key, { name, plaintext })
+      this.modelEgressOnlyBytes += entryBytes
+      this.modelEgressRevision += 1
+    }
+    return true
+  }
+
+  private withJsonStringEncodedMatches(
+    matches: readonly ResolvedSecretTraceMatch[]
+  ): readonly ResolvedSecretTraceMatch[] {
+    const replacementByPlaintext = new Map<string, string>()
+    const addMatch = (plaintext: string, replacement: string): void => {
+      if (!plaintext) return
+      const existing = replacementByPlaintext.get(plaintext)
+      if (
+        existing === undefined ||
+        replacement === ANONYMOUS_SECRET_TRACE_REPLACEMENT ||
+        (existing !== ANONYMOUS_SECRET_TRACE_REPLACEMENT &&
+          compareStrings(replacement, existing) < 0)
+      ) {
+        replacementByPlaintext.set(plaintext, replacement)
+      }
+    }
+
+    for (const match of matches) {
+      addMatch(match.plaintext, match.replacement)
+      const encodedPlaintext = JSON.stringify(match.plaintext).slice(1, -1)
+      const encodedReplacement = JSON.stringify(match.replacement).slice(1, -1)
+      addMatch(encodedPlaintext, encodedReplacement)
+    }
+
+    return [...replacementByPlaintext]
+      .map(([plaintext, replacement]) => ({ plaintext, replacement }))
+      .sort(
+        (left, right) =>
+          right.plaintext.length - left.plaintext.length ||
+          compareStrings(left.plaintext, right.plaintext) ||
+          compareStrings(left.replacement, right.replacement)
+      )
+  }
+
+  private buildMatches(entries: Iterable<ActiveSecretEntry>): readonly ResolvedSecretTraceMatch[] {
     const candidatesByPlaintext = new Map<string, ActiveSecretEntry[]>()
-    for (const entry of this.activeEntries.values()) {
+    for (const entry of entries) {
       if (entry.plaintext.length === 0) continue
       const candidates = candidatesByPlaintext.get(entry.plaintext) ?? []
       candidates.push(entry)
@@ -549,7 +711,9 @@ export class ResolvedSecretTraceRegistry {
   }
 
   markIncomplete(): void {
+    if (!this.complete) return
     this.complete = false
+    this.modelEgressRevision += 1
   }
 
   /**
@@ -558,12 +722,14 @@ export class ResolvedSecretTraceRegistry {
    */
   beginPendingActivation(): () => void {
     this.pendingActivations += 1
+    this.modelEgressRevision += 1
     let completed = false
 
     return () => {
       if (completed) return
       completed = true
       this.pendingActivations = Math.max(0, this.pendingActivations - 1)
+      this.modelEgressRevision += 1
     }
   }
 
@@ -581,6 +747,24 @@ export class ResolvedSecretTraceRegistry {
   }
 
   /**
+   * Captures a durable checkpoint after all completed mutations while ignoring temporary
+   * activation guards. In-flight calls have not committed outputs to the snapshot, so persisting
+   * their guard as permanent incompleteness would incorrectly poison a later resume.
+   */
+  exportCheckpointProvenance(): ResolvedSecretTraceProvenanceV1 {
+    const entries = this.complete
+      ? this.buildProvenanceEntries([...this.activeEntries.values()])
+      : []
+
+    return {
+      version: 1,
+      complete: this.complete,
+      entries,
+      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+    }
+  }
+
+  /**
    * Exports only active provenance whose exact plaintext occurs in a cross-boundary value.
    * Bounded traversal returns incomplete provenance instead of broadening to unrelated secrets.
    */
@@ -590,24 +774,90 @@ export class ResolvedSecretTraceRegistry {
   ): ResolvedSecretTraceProvenanceV1 {
     if (!this.isComplete()) return { version: 1, complete: false, entries: [] }
 
+    return this.exportProvenanceForValueFromEntries(value, this.activeEntries.values(), options)
+  }
+
+  /**
+   * Filters the complete local catalog plus imported active values against a crossing value.
+   * This captures direct environment-map reads without activating unrelated catalog entries.
+   */
+  exportModelEgressProvenanceForValue(
+    value: unknown,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
+  ): ResolvedSecretTraceProvenanceV1 {
+    if (!this.isComplete()) {
+      return { version: 1, complete: false, entries: [] }
+    }
+
+    const catalogEntries = [...this.catalog.values()].map(
+      (entry): ActiveSecretEntry => ({ ...entry, anonymous: false })
+    )
+    return this.exportProvenanceForValueFromEntries(
+      value,
+      [...catalogEntries, ...this.activeEntries.values()],
+      options
+    )
+  }
+
+  /**
+   * Reconstructs a legacy local Function response while that same call owns a pending guard.
+   * Only the already-known local catalog and committed active entries participate; unrelated
+   * pending foreign calls remain unavailable and cannot broaden this compatibility path.
+   */
+  exportLegacyLocalProvenanceForValue(
+    value: unknown,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
+  ): ResolvedSecretTraceProvenanceV1 {
+    if (!this.complete) return { version: 1, complete: false, entries: [] }
+
+    const catalogEntries = [...this.catalog.values()].map(
+      (entry): ActiveSecretEntry => ({ ...entry, anonymous: false })
+    )
+    return this.exportProvenanceForValueFromEntries(
+      value,
+      [...catalogEntries, ...this.activeEntries.values()],
+      options
+    )
+  }
+
+  private exportProvenanceForValueFromEntries(
+    value: unknown,
+    candidateEntries: Iterable<ActiveSecretEntry>,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions
+  ): ResolvedSecretTraceProvenanceV1 {
     const candidatesByPlaintext = new Map<string, ActiveSecretEntry>()
-    const sortedActiveEntries = [...this.activeEntries.values()].sort(
+    const sortedCandidateEntries = [...candidateEntries].sort(
       (left, right) =>
         compareStrings(left.name, right.name) ||
         compareStrings(left.encryptedValue, right.encryptedValue)
     )
-    for (const entry of sortedActiveEntries) {
-      if (entry.plaintext.length > 0 && !candidatesByPlaintext.has(entry.plaintext)) {
+    for (const entry of sortedCandidateEntries) {
+      if (entry.plaintext.length === 0) continue
+      const existing = candidatesByPlaintext.get(entry.plaintext)
+      if (!existing || (!existing.anonymous && entry.anonymous)) {
         candidatesByPlaintext.set(entry.plaintext, entry)
       }
     }
 
     const matchedEntries = new Map<string, ActiveSecretEntry>()
+    let matcher: ResolvedSecretMatcher | undefined
+    try {
+      matcher = createResolvedSecretMatcher(
+        [...candidatesByPlaintext.keys()].map((plaintext) => ({ plaintext, replacement: '' }))
+      )
+    } catch {
+      return {
+        version: 1,
+        complete: false,
+        entries: [],
+        ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+      }
+    }
     const pendingValues: unknown[] = [value]
     const visited = new WeakSet<object>()
     let scannedNodes = 0
     let scannedCharacters = 0
-    let comparisons = 0
+    let matchEvents = 0
     let enumeratedProperties = 0
     let scanComplete = true
 
@@ -615,13 +865,19 @@ export class ResolvedSecretTraceRegistry {
       scannedCharacters += candidate.length
       if (scannedCharacters > MAX_PROVENANCE_FILTER_CHARACTERS) return false
 
-      for (const [plaintext, entry] of candidatesByPlaintext) {
-        if (matchedEntries.has(plaintext)) continue
-        comparisons++
-        if (comparisons > MAX_PROVENANCE_FILTER_COMPARISONS) return false
-        if (candidate.includes(plaintext)) {
-          matchedEntries.set(plaintext, entry)
-        }
+      if (!matcher) return true
+      try {
+        matchEvents += scanResolvedSecretString(
+          candidate,
+          matcher,
+          (plaintext) => {
+            const entry = candidatesByPlaintext.get(plaintext)
+            if (entry) matchedEntries.set(plaintext, entry)
+          },
+          MAX_PROVENANCE_FILTER_MATCH_EVENTS - matchEvents
+        )
+      } catch {
+        return false
       }
       return true
     }
@@ -717,8 +973,18 @@ export class ResolvedSecretTraceRegistry {
 
   private addActiveEntry(entry: ActiveSecretEntry): void {
     const key = `${entry.anonymous ? 'anonymous' : entry.name}\u0000${entry.encryptedValue}`
-    if (this.activeEntries.has(key)) {
+    const existing = this.activeEntries.get(key)
+    if (existing) {
+      if (
+        existing.name === entry.name &&
+        existing.plaintext === entry.plaintext &&
+        existing.encryptedValue === entry.encryptedValue &&
+        existing.anonymous === entry.anonymous
+      ) {
+        return
+      }
       this.activeEntries.set(key, entry)
+      this.modelEgressRevision += 1
       return
     }
 
@@ -737,6 +1003,7 @@ export class ResolvedSecretTraceRegistry {
     }
     this.activeEntries.set(key, entry)
     this.activeProvenanceEntryBytes += separatorBytes + entryBytes
+    this.modelEgressRevision += 1
   }
 
   private addCatalogEntry(entry: ResolvedSecretTraceCatalogEntry): boolean {
@@ -753,6 +1020,7 @@ export class ResolvedSecretTraceRegistry {
 
     this.catalog.set(entry.name, { ...entry })
     this.catalogBytes = nextCatalogBytes
+    this.modelEgressRevision += 1
     return true
   }
 
@@ -787,7 +1055,22 @@ export async function createResolvedSecretTraceRegistry(
       trusted: options.restoreTrusted === true,
     })
   } else if (options.requireRestoredProvenance) {
-    registry.markIncomplete()
+    const isRecognizedLegacyCheckpoint =
+      options.restoreTrusted === true &&
+      options.restoredCheckpointVersion === undefined &&
+      options.legacyRestoredState !== undefined
+    if (isRecognizedLegacyCheckpoint) {
+      const reconstructed = registry.exportModelEgressProvenanceForValue(
+        options.legacyRestoredState
+      )
+      if (reconstructed.complete) {
+        await registry.importProvenance(reconstructed, { trusted: true })
+      } else {
+        registry.markIncomplete()
+      }
+    } else {
+      registry.markIncomplete()
+    }
   }
 
   return registry

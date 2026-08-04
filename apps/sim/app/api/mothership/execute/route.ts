@@ -194,33 +194,32 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       actorUserId: userId,
       workspaceId,
     })
-    if (includePrivateProvenance) {
-      const scope = { userId, workspaceId }
-      try {
-        const environment = await getPersonalAndWorkspaceEnv(userId, workspaceId, {
-          workspaceAccess,
-        })
-        environmentContext = await createCopilotEnvironmentContext(userId, workspaceId, environment)
-        resolvedSecretTraceRegistry = environmentContext.resolvedSecretTraceRegistry
-      } catch (error) {
-        logger.warn('Failed to build Mothership trace secret catalog', {
-          error: getErrorMessage(error),
-          userId,
-          workspaceId,
-        })
-        resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(scope)
-      }
+    const scope = { userId, workspaceId }
+    let activeResolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
+    try {
+      const environment = await getPersonalAndWorkspaceEnv(userId, workspaceId, {
+        workspaceAccess,
+      })
+      environmentContext = await createCopilotEnvironmentContext(userId, workspaceId, environment)
+      const registry = environmentContext.resolvedSecretTraceRegistry
+      if (!registry) throw new Error('Mothership model-egress secret catalog is unavailable')
+      activeResolvedSecretTraceRegistry = registry
+    } catch (error) {
+      logger.warn('Failed to build Mothership model-egress secret catalog', {
+        error: getErrorMessage(error),
+        userId,
+        workspaceId,
+      })
+      activeResolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(scope)
     }
-    const activeResolvedSecretTraceRegistry = resolvedSecretTraceRegistry
+    resolvedSecretTraceRegistry = activeResolvedSecretTraceRegistry
     const mcpDiscoveryProvenance = new ResolvedSecretTraceProvenanceAccumulator({
       userId,
       workspaceId,
     })
-    const recordMcpDiscoveryProvenance = includePrivateProvenance
-      ? (provenance: unknown): void => {
-          mcpDiscoveryProvenance.record(provenance)
-        }
-      : undefined
+    const recordMcpDiscoveryProvenance = (provenance: unknown): void => {
+      mcpDiscoveryProvenance.record(provenance)
+    }
 
     const effectiveChatId = chatId || generateId()
     messageId = providedMessageId || generateId()
@@ -231,7 +230,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
     })
-    const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
+    const lastUserMessage = messages.filter((message) => message.role === 'user').at(-1)?.content
     // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
     const agentMentions = contexts as unknown as ChatContext[] | undefined
     const taggedMcpServerIds = (agentMentions ?? []).flatMap((context) =>
@@ -268,7 +267,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
     const [workspaceContext, integrationTools, mothershipTools, entitlements, agentContexts] =
       await Promise.all([
-        generateWorkspaceContext(workspaceId, userId, { workspaceAccess }),
+        generateWorkspaceContext(workspaceId, userId, {
+          workspaceAccess,
+          secretMountPolicy,
+        }),
         buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
         mothershipToolsPromise,
         computeWorkspaceEntitlements(workspaceId, userId),

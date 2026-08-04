@@ -361,10 +361,11 @@ Storage follows the paid tier: Pro and Pro for Teams share the Pro limit, while 
 | Plan | Sync | Async |
 |------|------|-------|
 | **Free** | 5 minutes | 90 minutes |
-| **Pro / Max / Team / Enterprise** | 50 minutes | 90 minutes |
+| **Pro / Max / Team** | 50 minutes | 90 minutes |
+| **Enterprise** | 50 minutes | 90 minutes by default; configurable up to 7 days |
 
 **Sync runs** complete immediately and return results directly. These are triggered via the API with `async: false` (default) or through the UI.
-**Async runs** (triggered via API with `async: true`, webhooks, or schedules) run in the background.
+**Async runs** (triggered via API with `async: true`, webhooks, schedules, polling triggers, or table workflow columns) run in the background. A direct async API request can shorten the account policy for that request, but cannot extend it.
 
 <Callout type="info">
   If a workflow exceeds its time limit, it will be terminated and marked as failed with a timeout error. Design long-running workflows to use async runs or break them into smaller workflows.

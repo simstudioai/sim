@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { FunctionExecute, RunCode } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   projectToolResultForCopilot,
-  TOOL_RESULT_OMITTED_ERROR,
+  TOOL_RESULT_UNAVAILABLE_ERROR,
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -46,6 +46,38 @@ describe('projectToolResultForCopilot', () => {
       expect(runtimeResult).toEqual(runtimeSnapshot)
     }
   )
+
+  it('projects an exact-name/exact-value Function result to an opaque marker', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('Test', 'Test')
+    const runtimeResult = {
+      success: true,
+      output: {
+        result: 'Test',
+        embedded: 'Bearer Test',
+        legacy: '__var_Test',
+        compiler: '__sim_code_0_binding_0',
+      },
+    }
+
+    const projected = projectToolResultForCopilot(runtimeResult, registry)
+
+    expect(projected).toEqual({
+      success: true,
+      output: {
+        result: '[REDACTED_SECRET]',
+        embedded: 'Bearer [REDACTED_SECRET]',
+        legacy: '[REDACTED_SECRET]',
+        compiler: '[RUNTIME_BINDING]',
+      },
+    })
+    expect(JSON.stringify(projected)).not.toContain('Test')
+    expect(JSON.stringify(projected)).not.toContain('__var_')
+    expect(JSON.stringify(projected)).not.toContain('__sim_code_')
+    expect(runtimeResult.output.result).toBe('Test')
+  })
 
   it('projects both output and error from a failed Function execution', () => {
     const registry = createRegistry()
@@ -92,12 +124,10 @@ describe('projectToolResultForCopilot', () => {
         },
         registry
       )
-    ).toEqual({
-      success: true,
-    })
+    ).toEqual({ success: true })
   })
 
-  it('omits content when one replacement creates another active literal', () => {
+  it('uses an opaque marker when a replacement contains another active literal', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'MIDDLE', plaintext: 'B', encryptedValue: 'encrypted-b' },
       { name: 'BRACE', plaintext: '{', encryptedValue: 'encrypted-brace' },
@@ -109,10 +139,11 @@ describe('projectToolResultForCopilot', () => {
 
     expect(projectToolResultForCopilot({ success: true, output: 'aBc' }, registry)).toEqual({
       success: true,
+      output: 'a[REDACTED_SECRET]c',
     })
   })
 
-  it('keeps the control error safe from active one-character values', () => {
+  it('keeps content and the control error safe from active one-character values', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'F_SECRET', plaintext: 'F', encryptedValue: 'encrypted-f' },
     ])
@@ -127,10 +158,11 @@ describe('projectToolResultForCopilot', () => {
       registry
     )
 
-    expect(projected.success).toBe(false)
-    expect(projected).not.toHaveProperty('output')
-    expect(projected.error).toBeTruthy()
-    expect(projected.error).not.toContain('F')
+    expect(projected).toEqual({
+      success: false,
+      output: { '[REDACTED_SECRET]': 'first', '': 'second' },
+      error: '[REDACTED_SECRET]',
+    })
   })
 
   it('does not project transformed values', () => {
@@ -143,14 +175,79 @@ describe('projectToolResultForCopilot', () => {
     ).toEqual({ success: true, output: { result: encoded } })
   })
 
-  it('leaves configured but unused values unchanged', () => {
+  it('projects exact typed primitive secrets and the same values as strings', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'NUMBER', plaintext: '123', encryptedValue: 'number-ciphertext' },
+      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
+      { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
+    ])
+
+    expect(
+      projectToolResultForCopilot(
+        {
+          success: true,
+          output: {
+            number: 123,
+            boolean: true,
+            nothing: null,
+            numberText: '123',
+            booleanText: 'true',
+            nilText: 'null',
+          },
+        },
+        registry
+      )
+    ).toEqual({
+      success: true,
+      output: {
+        number: '{{NUMBER}}',
+        boolean: '{{BOOLEAN}}',
+        nothing: '{{NULL}}',
+        numberText: '{{NUMBER}}',
+        booleanText: '{{BOOLEAN}}',
+        nilText: '{{NULL}}',
+      },
+    })
+  })
+
+  it('projects configured values before any resolver records them as active', () => {
     const registry = createRegistry()
     const result = {
       success: true,
       output: { result: 'secret-value', stdout: '' },
     }
 
-    expect(projectToolResultForCopilot(result, registry)).toEqual(result)
+    expect(projectToolResultForCopilot(result, registry)).toEqual({
+      success: true,
+      output: { result: '{{SECRET}}', stdout: '' },
+    })
+  })
+
+  it('removes internal runtime identifiers even when the registry has no secret literals', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+
+    expect(
+      projectToolResultForCopilot(
+        {
+          success: true,
+          output: {
+            legacy: '__var_FOREIGN_KEY',
+            binding: '__sim_code_12_binding_3',
+            marker: '__sim_code_12_binding_3_marker_a__',
+            runtime: '__sim_runtime_payload_4',
+          },
+        },
+        registry
+      )
+    ).toEqual({
+      success: true,
+      output: {
+        legacy: '[REDACTED_SECRET]',
+        binding: '[RUNTIME_BINDING]',
+        marker: '[RUNTIME_BINDING]',
+        runtime: '[RUNTIME_BINDING]',
+      },
+    })
   })
 
   it.each([
@@ -174,10 +271,7 @@ describe('projectToolResultForCopilot', () => {
         },
         registry
       )
-    ).toEqual({
-      success: false,
-      error: TOOL_RESULT_OMITTED_ERROR,
-    })
+    ).toEqual({ success: false, error: TOOL_RESULT_UNAVAILABLE_ERROR })
   })
 
   it('projects Copilot-visible resource metadata without changing the runtime result', () => {
@@ -185,18 +279,56 @@ describe('projectToolResultForCopilot', () => {
     registry.recordResolved('SECRET', 'secret-value')
     const result = {
       success: true,
-      resources: [{ type: 'file' as const, id: 'file-secret-value', title: 'secret-value.txt' }],
+      resources: [
+        {
+          type: 'file' as const,
+          id: 'file-1',
+          title: 'secret-value.txt',
+          path: '/workspace/report.txt',
+        },
+      ],
     }
 
     expect(projectToolResultForCopilot(result, registry)).toEqual({
       success: true,
-      resources: [{ type: 'file', id: 'file-secret-value', title: '{{SECRET}}.txt' }],
+      resources: [
+        {
+          type: 'file',
+          id: 'file-1',
+          title: '{{SECRET}}.txt',
+          path: '/workspace/report.txt',
+        },
+      ],
     })
     expect(result.resources[0]).toEqual({
       type: 'file',
-      id: 'file-secret-value',
+      id: 'file-1',
       title: 'secret-value.txt',
+      path: '/workspace/report.txt',
     })
+  })
+
+  it.each([
+    { type: 'file' as const, id: 'file-secret-value', title: 'report.txt' },
+    {
+      type: 'file' as const,
+      id: 'file-1',
+      title: 'report.txt',
+      path: '/workspace/secret-value/report.txt',
+    },
+  ])('omits resources whose routing controls contain a secret', (resource) => {
+    const registry = createRegistry()
+    const projected = projectToolResultForCopilot(
+      {
+        success: true,
+        output: {},
+        resources: [resource],
+      },
+      registry
+    )
+
+    expect(projected).toEqual({ success: true, output: {}, resources: [] })
+    expect(JSON.stringify(projected)).not.toContain('secret-value')
   })
 
   it('projects every tool result once provenance is active', () => {
@@ -211,7 +343,7 @@ describe('projectToolResultForCopilot', () => {
     expect(result).toEqual({ success: true, output: 'secret-value' })
   })
 
-  it('omits every tool result when no trusted provenance registry exists', () => {
+  it('preserves successful settlement when no trusted result payload is available', () => {
     expect(
       projectToolResultForCopilot({ success: true, output: 'possibly-secret' }, undefined)
     ).toEqual({ success: true })

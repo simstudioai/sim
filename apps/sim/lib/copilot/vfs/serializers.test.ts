@@ -9,6 +9,7 @@ import {
   serializeApiKeyIntegrations,
   serializeBlockSchema,
   serializeCredentials,
+  serializeDeployments,
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
@@ -45,6 +46,19 @@ function hostedTool(id: string, conditional = false): ToolConfig {
 }
 
 describe('VFS metadata serializers', () => {
+  it('serializes an undeployed API explicitly instead of as an empty object', () => {
+    const deployment = JSON.parse(
+      serializeDeployments({
+        workflowId: 'workflow-1',
+        isDeployed: false,
+        mcp: [],
+        versions: [],
+      })
+    )
+
+    expect(deployment).toEqual({ api: { isDeployed: false } })
+  })
+
   it('includes the authoritative file update timestamp', () => {
     const metadata = JSON.parse(
       serializeFileMeta({

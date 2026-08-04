@@ -12,6 +12,7 @@ import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   createResolvedSecretTraceRegistry,
   isResolvedSecretTraceProvenanceV1,
+  RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
@@ -50,8 +51,8 @@ describe('ResolvedSecretTraceProvenanceAccumulator', () => {
       version: 1,
       complete: true,
       entries: [
-        { name: 'OLD_TOKEN', encryptedValue: 'encrypted-v1' },
         { name: 'NEW_TOKEN', encryptedValue: 'encrypted-v2' },
+        { name: 'OLD_TOKEN', encryptedValue: 'encrypted-v1' },
       ],
       scope,
     })
@@ -164,6 +165,111 @@ describe('ResolvedSecretTraceRegistry', () => {
     ])
   })
 
+  it('includes dormant catalog values only in model-egress snapshots', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-value' },
+    ])
+
+    expect(registry.getActiveMatches()).toEqual([])
+    const snapshot = registry.getModelEgressSnapshot()
+    expect(snapshot.complete).toBe(true)
+    if (snapshot.complete) {
+      expect(snapshot.matches).toEqual(
+        expect.arrayContaining([
+          { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
+          { plaintext: '__var_API_KEY', replacement: '{{API_KEY}}' },
+        ])
+      )
+    }
+  })
+
+  it('does not invalidate the model matcher for duplicate activations', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-value' },
+    ])
+
+    expect(registry.recordResolved('API_KEY', 'secret-value')).toBe(true)
+    const revision = registry.getModelEgressRevision()
+    expect(registry.recordResolved('API_KEY', 'secret-value')).toBe(true)
+    expect(registry.getModelEgressRevision()).toBe(revision)
+  })
+
+  it('adds trusted runtime values to model egress without claiming provenance', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+
+    expect(registry.addModelEgressValues({ RUNTIME_TOKEN: 'runtime-secret' })).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
+    expect(registry.exportProvenanceForValue('runtime-secret')).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+    })
+
+    const snapshot = registry.getModelEgressSnapshot()
+    expect(snapshot.complete).toBe(true)
+    if (snapshot.complete) {
+      expect(snapshot.matches).toEqual(
+        expect.arrayContaining([
+          { plaintext: 'runtime-secret', replacement: '{{RUNTIME_TOKEN}}' },
+          { plaintext: '__var_RUNTIME_TOKEN', replacement: '{{RUNTIME_TOKEN}}' },
+        ])
+      )
+    }
+  })
+
+  it('fails model egress closed when the catalog cannot be compiled into a matcher', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'OVERSIZED',
+        plaintext: 's'.repeat(64 * 1024 + 1),
+        encryptedValue: 'encrypted-value',
+      },
+    ])
+
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
+  })
+
+  it('fails model egress closed when aggregate matcher nodes exceed the compiler limit', () => {
+    const suffix = 'x'.repeat(62_500)
+    const registry = new ResolvedSecretTraceRegistry(
+      ['a', 'b', 'c', 'd'].map((prefix, index) => ({
+        name: `SECRET_${index}`,
+        plaintext: `${prefix}${suffix}`,
+        encryptedValue: `encrypted-${index}`,
+      }))
+    )
+
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
+  })
+
+  it('uses anonymous model replacement when local and foreign entries share plaintext', async () => {
+    mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'same-secret' })
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'LOCAL', plaintext: 'same-secret', encryptedValue: 'local-ciphertext' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    await registry.importProvenance(
+      {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'FOREIGN', encryptedValue: 'foreign-ciphertext' }],
+        scope: { userId: 'user-2', workspaceId: 'workspace-2' },
+      },
+      { trusted: true }
+    )
+
+    const snapshot = registry.getModelEgressSnapshot()
+    expect(snapshot.complete).toBe(true)
+    if (snapshot.complete) {
+      expect(snapshot.matches).toContainEqual({
+        plaintext: 'same-secret',
+        replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+      })
+    }
+  })
+
   it('fails closed while one or more secret activations are pending', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-value' },
@@ -172,6 +278,7 @@ describe('ResolvedSecretTraceRegistry', () => {
     const completeSecond = registry.beginPendingActivation()
 
     expect(registry.isComplete()).toBe(false)
+    expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
     expect(registry.exportProvenance()).toEqual({
       version: 1,
       complete: false,
@@ -179,6 +286,12 @@ describe('ResolvedSecretTraceRegistry', () => {
     })
 
     registry.recordResolved('API_KEY', 'secret-value')
+    expect(registry.exportCheckpointProvenance()).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-value' }],
+    })
+
     completeFirst()
     expect(registry.isComplete()).toBe(false)
 
@@ -263,6 +376,7 @@ describe('ResolvedSecretTraceRegistry', () => {
       personalDecrypted: { TOKEN: 'new-secret' },
       workspaceDecrypted: {},
       restoredProvenance: oldProvenance,
+      restoredCheckpointVersion: RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
       restoreTrusted: true,
       requireRestoredProvenance: true,
     })
@@ -279,7 +393,42 @@ describe('ResolvedSecretTraceRegistry', () => {
     ])
   })
 
-  it('marks untrusted, missing, malformed, and undecryptable restoration incomplete', async () => {
+  it('reconstructs bounded catalog matches from a trusted legacy checkpoint', async () => {
+    mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'legacy-secret' })
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: { TOKEN: 'legacy-ciphertext' },
+      workspaceEncrypted: {},
+      personalDecrypted: { TOKEN: 'legacy-secret' },
+      workspaceDecrypted: {},
+      restoreTrusted: true,
+      requireRestoredProvenance: true,
+      legacyRestoredState: {
+        blockStates: { prior: { output: 'Bearer legacy-secret' } },
+      },
+    })
+
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'legacy-secret', replacement: '{{TOKEN}}' },
+    ])
+    expect(JSON.stringify(registry.exportCheckpointProvenance())).not.toContain('legacy-secret')
+  })
+
+  it('fails closed when a legacy checkpoint cannot be scanned within bounds', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: { TOKEN: 'ciphertext' },
+      workspaceEncrypted: {},
+      personalDecrypted: { TOKEN: 'secret-value' },
+      workspaceDecrypted: {},
+      restoreTrusted: true,
+      requireRestoredProvenance: true,
+      legacyRestoredState: { output: 'x'.repeat(16 * 1024 * 1024 + 1) },
+    })
+
+    expect(registry.isComplete()).toBe(false)
+  })
+
+  it('marks untrusted, current-missing, malformed, and undecryptable restoration incomplete', async () => {
     const provenance: ResolvedSecretTraceProvenanceV1 = {
       version: 1,
       complete: true,
@@ -295,6 +444,7 @@ describe('ResolvedSecretTraceRegistry', () => {
       workspaceEncrypted: {},
       personalDecrypted: {},
       workspaceDecrypted: {},
+      restoredCheckpointVersion: RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
       requireRestoredProvenance: true,
       restoreTrusted: true,
     })
@@ -453,6 +603,25 @@ describe('ResolvedSecretTraceRegistry', () => {
       complete: true,
       entries: [{ encryptedValue: 'present-ciphertext' }],
     })
+  })
+
+  it('filters dormant catalog provenance for model crossings without activating trace matches', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'PRESENT', plaintext: 'present-secret', encryptedValue: 'present-ciphertext' },
+      { name: 'ABSENT', plaintext: 'absent-secret', encryptedValue: 'absent-ciphertext' },
+    ])
+
+    expect(
+      registry.exportModelEgressProvenanceForValue(
+        { output: 'Bearer present-secret' },
+        { anonymous: true }
+      )
+    ).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'present-ciphertext' }],
+    })
+    expect(registry.getActiveMatches()).toEqual([])
   })
 
   it('exports active numeric, boolean, and null literals crossing a value boundary', () => {

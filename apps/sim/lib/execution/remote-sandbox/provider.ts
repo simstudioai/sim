@@ -1,3 +1,4 @@
+import { normalizeSandboxProvider } from '@sim/utils/sandbox-references'
 import { env } from '@/lib/core/config/env'
 import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
 import { e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
@@ -29,9 +30,9 @@ export function resolveProvider(): SandboxProvider {
   // Normalize casing identically to env-flags' availability gate — otherwise a
   // value like `Daytona` would pass the gate (which lowercases) but miss this
   // lowercase-keyed map and throw at create time.
-  const configured = env.SANDBOX_PROVIDER?.toLowerCase()
-  if (!configured) return PROVIDERS[DEFAULT_PROVIDER]
-  const provider = PROVIDERS[configured as SandboxProviderId]
+  const configured = normalizeSandboxProvider(env.SANDBOX_PROVIDER)
+  if (!env.SANDBOX_PROVIDER) return PROVIDERS[DEFAULT_PROVIDER]
+  const provider = configured ? PROVIDERS[configured] : undefined
   if (!provider) {
     throw new Error(
       `Unknown SANDBOX_PROVIDER "${env.SANDBOX_PROVIDER}" (expected one of: ${Object.keys(PROVIDERS).join(', ')})`

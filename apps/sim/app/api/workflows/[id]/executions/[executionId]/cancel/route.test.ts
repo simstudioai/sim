@@ -4,8 +4,10 @@
 
 import {
   databaseMock,
+  dbChainMockFns,
   hybridAuthMockFns,
   posthogServerMock,
+  resetDbChainMock,
   workflowAuthzMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
@@ -14,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockMarkExecutionCancelled,
+  mockClearExecutionCancellation,
   mockAbortManualExecution,
   mockBeginPausedCancellation,
   mockBlockQueuedResumesForCancellation,
@@ -24,8 +27,12 @@ const {
   mockReadExecutionMetaState,
   mockWriteEvent,
   mockWriteTerminalEvent,
+  mockCancelByExecution,
+  mockGetJobQueue,
+  mockReleaseExecutionSlot,
 } = vi.hoisted(() => ({
   mockMarkExecutionCancelled: vi.fn(),
+  mockClearExecutionCancellation: vi.fn(),
   mockAbortManualExecution: vi.fn(),
   mockBeginPausedCancellation: vi.fn(),
   mockBlockQueuedResumesForCancellation: vi.fn(),
@@ -36,10 +43,22 @@ const {
   mockReadExecutionMetaState: vi.fn(),
   mockWriteEvent: vi.fn(),
   mockWriteTerminalEvent: vi.fn(),
+  mockCancelByExecution: vi.fn(),
+  mockGetJobQueue: vi.fn(),
+  mockReleaseExecutionSlot: vi.fn(),
+}))
+
+vi.mock('@/lib/core/async-jobs', () => ({
+  getJobQueue: mockGetJobQueue,
+}))
+
+vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
+  releaseExecutionSlot: mockReleaseExecutionSlot,
 }))
 
 vi.mock('@/lib/execution/cancellation', () => ({
   markExecutionCancelled: (...args: unknown[]) => mockMarkExecutionCancelled(...args),
+  clearExecutionCancellation: (...args: unknown[]) => mockClearExecutionCancellation(...args),
 }))
 
 vi.mock('@/lib/execution/manual-cancellation', () => ({
@@ -84,10 +103,20 @@ const makeParams = () => ({ params: Promise.resolve({ id: 'wf-1', executionId: '
 describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({ success: true, userId: 'user-1' })
     workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
+      workflow: { workspaceId: 'workspace-1' },
     })
+    dbChainMockFns.limit.mockResolvedValue([
+      { executionDeadlineAt: null, status: 'running', workspaceId: 'workspace-1' },
+    ])
+    dbChainMockFns.returning.mockResolvedValue([{ status: 'cancelled' }])
+    mockCancelByExecution.mockResolvedValue(0)
+    mockGetJobQueue.mockResolvedValue({ cancelByExecution: mockCancelByExecution })
+    mockReleaseExecutionSlot.mockResolvedValue(undefined)
+    mockClearExecutionCancellation.mockResolvedValue(undefined)
     mockAbortManualExecution.mockReturnValue(false)
     mockBeginPausedCancellation.mockResolvedValue(false)
     mockBlockQueuedResumesForCancellation.mockResolvedValue(false)
@@ -118,6 +147,14 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
       pausedCancelled: false,
       reason: 'recorded',
     })
+    expect(mockCancelByExecution).toHaveBeenCalledWith({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
   })
 
   it('returns unsuccessful response when Redis is unavailable', async () => {
@@ -179,6 +216,84 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
       pausedCancelled: false,
       reason: 'redis_unavailable',
     })
+  })
+
+  it('returns success when the queue backend cancels the active job', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+    mockCancelByExecution.mockResolvedValue(1)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      executionId: 'ex-1',
+      durablyRecorded: false,
+      locallyAborted: false,
+      reason: 'queue_cancelled',
+    })
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+  })
+
+  it('cancels a queued execution before its workflow log exists', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    mockCancelByExecution.mockResolvedValueOnce(1)
+    mockMarkExecutionCancelled.mockResolvedValueOnce({
+      durablyRecorded: true,
+      reason: 'recorded',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      executionId: 'ex-1',
+      redisAvailable: true,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'queue_cancelled',
+    })
+    expect(mockCancelByExecution).toHaveBeenCalledWith({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('ex-1')
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('ex-1')
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+  })
+
+  it('aborts an active local execution before its workflow log exists', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    mockAbortManualExecution.mockReturnValueOnce(true)
+    mockMarkExecutionCancelled.mockResolvedValueOnce({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      executionId: 'ex-1',
+      redisAvailable: false,
+      durablyRecorded: false,
+      locallyAborted: true,
+      pausedCancelled: false,
+      reason: 'locally_aborted',
+    })
+    expect(mockAbortManualExecution).toHaveBeenCalledWith('ex-1')
+    expect(mockCancelByExecution).toHaveBeenCalledWith({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('ex-1')
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
   })
 
   it('returns success when a paused HITL execution is cancelled directly in the database', async () => {
@@ -288,6 +403,84 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(response.status).toBe(403)
   })
 
+  it('returns 404 when the execution does not belong to the workflow', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(404)
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).toHaveBeenCalledWith({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+    })
+  })
+
+  it('treats an already-cancelled execution as an idempotent success', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { executionDeadlineAt: null, status: 'cancelled', workspaceId: 'workspace-1' },
+    ])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      reason: 'already_cancelled',
+    })
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+  })
+
+  it('returns 409 when the execution is already terminal', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { status: 'completed', workspaceId: 'workspace-1' },
+    ])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+  })
+
+  it('returns 409 when completion wins the terminal database race', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { executionDeadlineAt: null, status: 'running', workspaceId: 'workspace-1' },
+      ])
+      .mockResolvedValueOnce([{ status: 'completed' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Execution cannot be cancelled while completed',
+    })
+    expect(mockClearExecutionCancellation).toHaveBeenCalledWith('ex-1')
+    expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
+  it('treats a concurrent cancellation as an idempotent success', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { executionDeadlineAt: null, status: 'running', workspaceId: 'workspace-1' },
+      ])
+      .mockResolvedValueOnce([{ status: 'cancelled' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ success: true, reason: 'recorded' })
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+    expect(mockWriteTerminalEvent).toHaveBeenCalledTimes(1)
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('ex-1')
+  })
+
   it('updates execution log status in DB when durably recorded', async () => {
     const mockWhere = vi.fn().mockResolvedValue(undefined)
     const mockSet = vi.fn(() => ({ where: mockWhere }))
@@ -303,6 +496,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(mockSet).toHaveBeenCalledWith({
       status: 'cancelled',
       endedAt: expect.any(Date),
+      executionDeadlineAt: null,
     })
   })
 
@@ -322,6 +516,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(mockSet).toHaveBeenCalledWith({
       status: 'cancelled',
       endedAt: expect.any(Date),
+      executionDeadlineAt: null,
     })
   })
 
@@ -333,7 +528,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(databaseMock.db.update).not.toHaveBeenCalled()
   })
 
-  it('returns success even if direct DB update fails', async () => {
+  it('does not confirm cancellation until the terminal database update succeeds', async () => {
     mockMarkExecutionCancelled.mockResolvedValue({
       durablyRecorded: true,
       reason: 'recorded',
@@ -350,6 +545,10 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
 
     expect(response.status).toBe(200)
     const data = await response.json()
-    expect(data.success).toBe(true)
+    expect(data).toMatchObject({
+      success: false,
+      reason: 'cancellation_not_finalized',
+    })
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
   })
 })

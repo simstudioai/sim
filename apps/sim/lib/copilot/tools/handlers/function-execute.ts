@@ -479,7 +479,7 @@ export async function executeFunctionExecute(
 ): Promise<ToolExecutionResult> {
   const enrichedParams = { ...params }
   const requestedNames = applySecretMountPolicy(
-    extractCodeSecretNames(params.code, params.language),
+    await extractCodeSecretNames(params.code, params.language),
     context.secretMountPolicy
   )
   const completePendingActivation =

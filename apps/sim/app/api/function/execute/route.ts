@@ -17,9 +17,21 @@ import {
   writeWorkspaceFileByPath,
 } from '@/lib/copilot/vfs/resource-writer'
 import { isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
+import {
+  createTimeoutAbortController,
+  isTimeoutAbortReason,
+  type TimeoutAbortController,
+} from '@/lib/core/execution-limits'
 import { setRecordValue } from '@/lib/core/utils/records'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  CodePlaceholderCompileError,
+  type CodePlaceholderPrivateInput,
+  type CodePlaceholderRuntimeBinding,
+  compileCodePlaceholders,
+} from '@/lib/execution/code-placeholders'
+import { parseExecutionDeadlineHeader } from '@/lib/execution/execution-deadline-header'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
@@ -47,6 +59,11 @@ import {
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
 } from '@/lib/execution/remote-sandbox'
+import {
+  isSandboxOutputFileError,
+  isSandboxOutputLimitError,
+  MAX_SANDBOX_OUTPUT_BYTES,
+} from '@/lib/execution/remote-sandbox/output-limits'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import {
   fetchWorkspaceFileBuffer,
@@ -55,15 +72,19 @@ import {
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
-import { formatLiteralForCode } from '@/executor/utils/code-formatting'
-import { createCodeEnvVarPattern } from '@/executor/utils/code-secret-references'
 import {
-  createEnvVarPattern,
   createReferencePattern,
   createWorkflowVariablePattern,
 } from '@/executor/utils/reference-validation'
+import {
+  createResolvedSecretMatcher,
+  projectResolvedSecretContent,
+  type ResolvedSecretMatcher,
+} from '@/executor/utils/resolved-secret-content-projection'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+/** Static host ceiling; the trusted workflow deadline applies the smaller per-call budget. */
+export const maxDuration = 604800
 
 const logger = createLogger('FunctionExecuteAPI')
 
@@ -72,9 +93,172 @@ const TAG_PATTERN = createReferencePattern()
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
 const MAX_SANDBOX_OUTPUT_FILES = 20
-const MAX_SANDBOX_OUTPUT_BYTES = 50 * 1024 * 1024
 const MAX_PRIVATE_RESOLVED_SECRET_NAMES = 10_000
 const MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES = 1024 * 1024
+const SANDBOX_RUNTIME_PAYLOAD_PATH_ENV = '__SIM_RUNTIME_PAYLOAD_PATH'
+
+interface SandboxRuntimePayload {
+  params: Record<string, unknown>
+  environmentVariables: Record<string, string>
+  contextVariables: SandboxRuntimeContextVariable[]
+}
+
+type SandboxRuntimeContextVariable =
+  | { name: string; kind: 'json'; value: unknown }
+  | { name: string; kind: 'undefined' }
+  | { name: string; kind: 'non-finite-number'; value: 'nan' | 'positive' | 'negative' }
+
+function encodeSandboxRuntimeContextVariables(
+  contextVariables: Record<string, unknown>
+): SandboxRuntimeContextVariable[] {
+  return Object.entries(contextVariables).map(([name, value]) => {
+    if (value === undefined) return { name, kind: 'undefined' }
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      return {
+        name,
+        kind: 'non-finite-number',
+        value: Number.isNaN(value) ? 'nan' : value > 0 ? 'positive' : 'negative',
+      }
+    }
+    return { name, kind: 'json', value }
+  })
+}
+
+function createRuntimeIdentifier(
+  code: string,
+  reservedNames: Set<string>,
+  label: string,
+  options: { occupiedIdentifiers?: ReadonlySet<string>; suffix?: string } = {}
+): string {
+  for (let index = 0; ; index += 1) {
+    const candidate = `__sim_runtime_${label}_${index}${options.suffix ?? ''}`
+    if (
+      !code.includes(candidate) &&
+      !reservedNames.has(candidate) &&
+      !options.occupiedIdentifiers?.has(candidate)
+    ) {
+      reservedNames.add(candidate)
+      return candidate
+    }
+  }
+}
+
+function createSandboxRuntimePrivateInput(
+  payload: SandboxRuntimePayload
+): CodePlaceholderPrivateInput {
+  return {
+    environmentVariable: SANDBOX_RUNTIME_PAYLOAD_PATH_ENV,
+    content: JSON.stringify(payload),
+  }
+}
+
+function buildJavaScriptSandboxRuntime(
+  code: string,
+  contextVariableNames: string[],
+  runtimeBindings: CodePlaceholderRuntimeBinding[],
+  occupiedIdentifiers: ReadonlySet<string>
+): { importSource: string; prologue: string; internalIdentifiers: string[]; lineCount: number } {
+  const reservedNames = new Set([
+    ...contextVariableNames,
+    ...runtimeBindings.map((binding) => binding.name),
+  ])
+  const identifierOptions = { occupiedIdentifiers }
+  const readFile = createRuntimeIdentifier(code, reservedNames, 'read', identifierOptions)
+  const unlink = createRuntimeIdentifier(code, reservedNames, 'unlink', identifierOptions)
+  const payloadPath = createRuntimeIdentifier(code, reservedNames, 'path', identifierOptions)
+  const payload = createRuntimeIdentifier(code, reservedNames, 'payload', identifierOptions)
+  const entry = createRuntimeIdentifier(code, reservedNames, 'entry', identifierOptions)
+  const value = createRuntimeIdentifier(code, reservedNames, 'value', identifierOptions)
+  const importSource = `import { readFileSync as ${readFile}, unlinkSync as ${unlink} } from 'node:fs';\n`
+  const lines = [
+    `const ${payloadPath} = process.env[${JSON.stringify(SANDBOX_RUNTIME_PAYLOAD_PATH_ENV)}];`,
+    `if (!${payloadPath}) throw new Error('Function runtime payload is unavailable');`,
+    `const ${payload} = JSON.parse(${readFile}(${payloadPath}, 'utf8'));`,
+    `${unlink}(${payloadPath});`,
+    `delete process.env[${JSON.stringify(SANDBOX_RUNTIME_PAYLOAD_PATH_ENV)}];`,
+    `const params = ${payload}.params;`,
+    `const environmentVariables = ${payload}.environmentVariables;`,
+    `for (const ${entry} of ${payload}.contextVariables) {`,
+    `  let ${value};`,
+    `  if (${entry}.kind === 'json') ${value} = ${entry}.value;`,
+    `  else if (${entry}.kind === 'undefined') ${value} = undefined;`,
+    `  else if (${entry}.kind === 'non-finite-number') ${value} = ${entry}.value === 'nan' ? NaN : ${entry}.value === 'positive' ? Infinity : -Infinity;`,
+    `  else throw new Error('Function runtime context value is invalid');`,
+    `  globalThis[${entry}.name] = ${value};`,
+    '}',
+  ]
+  for (const name of contextVariableNames) {
+    if (SAFE_IDENTIFIER.test(name) && !JS_RESERVED_WORDS.has(name)) {
+      lines.push(`const ${name} = globalThis[${JSON.stringify(name)}];`)
+    }
+  }
+  return {
+    importSource,
+    prologue: `${lines.join('\n')}\n`,
+    internalIdentifiers: [readFile, unlink, payloadPath, payload, entry, value],
+    lineCount: lines.length + 1,
+  }
+}
+
+function buildPythonSandboxRuntime(
+  code: string,
+  contextVariableNames: string[]
+): { prologue: string; internalIdentifiers: string[]; lineCount: number } {
+  const reservedNames = new Set(contextVariableNames)
+  const identifierOptions = { suffix: '__' }
+  const payloadPath = createRuntimeIdentifier(code, reservedNames, 'path', identifierOptions)
+  const payloadFile = createRuntimeIdentifier(code, reservedNames, 'file', identifierOptions)
+  const payload = createRuntimeIdentifier(code, reservedNames, 'payload', identifierOptions)
+  const entry = createRuntimeIdentifier(code, reservedNames, 'entry', identifierOptions)
+  const value = createRuntimeIdentifier(code, reservedNames, 'value', identifierOptions)
+  const lines = [
+    'import json',
+    'import os',
+    `${payloadPath} = os.environ.pop(${JSON.stringify(SANDBOX_RUNTIME_PAYLOAD_PATH_ENV)}, None)`,
+    `if ${payloadPath} is None: raise RuntimeError('Function runtime payload is unavailable')`,
+    `with open(${payloadPath}, 'r', encoding='utf-8') as ${payloadFile}:`,
+    `    ${payload} = json.load(${payloadFile})`,
+    `os.unlink(${payloadPath})`,
+    `params = ${payload}['params']`,
+    `environmentVariables = ${payload}['environmentVariables']`,
+    `for ${entry} in ${payload}['contextVariables']:`,
+    `    if ${entry}['kind'] == 'json': ${value} = ${entry}['value']`,
+    `    elif ${entry}['kind'] == 'undefined': ${value} = None`,
+    `    elif ${entry}['kind'] == 'non-finite-number': ${value} = float('nan') if ${entry}['value'] == 'nan' else (float('inf') if ${entry}['value'] == 'positive' else float('-inf'))`,
+    `    else: raise RuntimeError('Function runtime context value is invalid')`,
+    `    globals()[${entry}['name']] = ${value}`,
+  ]
+  return {
+    prologue: `${lines.join('\n')}\n`,
+    internalIdentifiers: [payloadPath, payloadFile, payload, entry, value],
+    lineCount: lines.length,
+  }
+}
+
+/**
+ * Runs syntactically valid Python modules as modules while retaining the legacy
+ * Function-body contract for snippets whose top-level `return` only compiles
+ * after being wrapped in a function.
+ */
+function buildPythonSandboxWrapper(source: string): string {
+  return [
+    `__sim_source__ = ${JSON.stringify(source)}`,
+    '__sim_exec_globals__ = dict(globals())',
+    '__sim_exec_globals__["__name__"] = "__main__"',
+    'try:',
+    '    __sim_compiled__ = compile(__sim_source__, "<sim-function-module>", "exec")',
+    'except SyntaxError as __sim_compile_error__:',
+    '    if "return" not in str(__sim_compile_error__) or "outside function" not in str(__sim_compile_error__):',
+    '        raise',
+    '    __sim_wrapped_source__ = "def __sim_main__():\\n" + "\\n".join("    " + line for line in __sim_source__.split("\\n"))',
+    '    exec(compile(__sim_wrapped_source__, "<sim-function-body>", "exec"), __sim_exec_globals__, __sim_exec_globals__)',
+    '    __sim_result__ = __sim_exec_globals__["__sim_main__"]()',
+    'else:',
+    '    exec(__sim_compiled__, __sim_exec_globals__, __sim_exec_globals__)',
+    '    __sim_result__ = __sim_exec_globals__.get("__sim_result__", None)',
+    `print('\\n${SIM_RESULT_PREFIX}' + json.dumps(__sim_result__))`,
+  ].join('\n')
+}
 
 /** Matches valid JS identifier names (letters, digits, underscore; no leading digit). */
 const SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/
@@ -147,9 +331,12 @@ async function loadTypeScriptModule(): Promise<TypeScriptModule> {
   return typescriptModulePromise
 }
 
-async function extractJavaScriptImports(
-  code: string
-): Promise<{ imports: string; remainingCode: string; importLineCount: number }> {
+async function extractJavaScriptImports(code: string): Promise<{
+  imports: string
+  remainingCode: string
+  hasRequireCalls: boolean
+  identifierNames: ReadonlySet<string>
+}> {
   try {
     const tsModule = await loadTypeScriptModule()
 
@@ -162,6 +349,21 @@ async function extractJavaScriptImports(
     )
 
     const importSegments: Array<{ text: string; start: number; end: number }> = []
+    const identifierNames = new Set<string>()
+    let hasRequireCalls = false
+
+    const visit = (node: import('@typescript/typescript6').Node): void => {
+      if (tsModule.isIdentifier(node)) identifierNames.add(node.text)
+      if (
+        tsModule.isCallExpression(node) &&
+        tsModule.isIdentifier(node.expression) &&
+        node.expression.text === 'require'
+      ) {
+        hasRequireCalls = true
+      }
+      tsModule.forEachChild(node, visit)
+    }
+    visit(sourceFile)
 
     sourceFile.statements.forEach((statement) => {
       if (
@@ -177,7 +379,7 @@ async function extractJavaScriptImports(
     })
 
     if (importSegments.length === 0) {
-      return { imports: '', remainingCode: code, importLineCount: 0 }
+      return { imports: '', remainingCode: code, hasRequireCalls, identifierNames }
     }
 
     importSegments.sort((a, b) => a.start - b.start)
@@ -186,16 +388,12 @@ async function extractJavaScriptImports(
 
     let cursor = 0
     const parts: string[] = []
-    let importLineCount = 0
-
     for (const segment of importSegments) {
       if (segment.start > cursor) {
         parts.push(code.slice(cursor, segment.start))
       }
 
       const removedSegment = code.slice(segment.start, segment.end)
-      importLineCount += removedSegment.split('\n').length - 1
-
       const newlinePlaceholder = removedSegment.replace(/[^\n]/g, '')
       parts.push(newlinePlaceholder)
 
@@ -208,10 +406,15 @@ async function extractJavaScriptImports(
 
     const remainingCode = parts.join('')
 
-    return { imports, remainingCode, importLineCount: Math.max(importLineCount, 0) }
-  } catch (error) {
-    logger.error('Failed to extract JavaScript imports', { error })
-    return { imports: '', remainingCode: code, importLineCount: 0 }
+    return { imports, remainingCode, hasRequireCalls, identifierNames }
+  } catch {
+    logger.error('Failed to extract JavaScript imports')
+    return {
+      imports: '',
+      remainingCode: code,
+      hasRequireCalls: false,
+      identifierNames: new Set(),
+    }
   }
 }
 
@@ -224,7 +427,6 @@ interface EnhancedError {
   column?: number
   stack?: string
   name: string
-  originalError: any
   lineContent?: string
 }
 
@@ -239,7 +441,6 @@ function extractEnhancedError(
   const enhanced: EnhancedError = {
     message: error.message || 'Unknown error',
     name: error.name || 'Error',
-    originalError: error,
   }
 
   if (error.stack) {
@@ -332,8 +533,14 @@ function formatE2BError(
   let cleanErrorMsg = ''
 
   if (language === CodeLanguage.Python) {
+    const moduleMatch = errorOutput.match(/<sim-function-module>[^\n]*line (\d+)/)
+    const bodyMatch = errorOutput.match(/<sim-function-body>[^\n]*line (\d+)/)
     const cellMatch = errorOutput.match(/Cell In\[\d+\], line (\d+)/)
-    if (cellMatch) {
+    if (moduleMatch) {
+      userLine = Number.parseInt(moduleMatch[1], 10)
+    } else if (bodyMatch) {
+      userLine = Number.parseInt(bodyMatch[1], 10) - 1
+    } else if (cellMatch) {
       const originalLine = Number.parseInt(cellMatch[1], 10)
       userLine = originalLine - totalOffset
     }
@@ -399,11 +606,7 @@ function formatE2BError(
 /**
  * Create a detailed error message for users
  */
-function createUserFriendlyErrorMessage(
-  enhanced: EnhancedError,
-  requestId: string,
-  userCode?: string
-): string {
+function createUserFriendlyErrorMessage(enhanced: EnhancedError, userCode?: string): string {
   let errorMessage = enhanced.message
 
   if (enhanced.line !== undefined) {
@@ -477,6 +680,14 @@ function getErrorDisplayMessage(
   }
 
   return message.replace(/\s+["']globalThis["']/g, '')
+}
+
+function scrubInternalIdentifiers(message: string, identifiers: readonly string[]): string {
+  let scrubbed = message
+  for (const identifier of identifiers) {
+    if (identifier) scrubbed = scrubbed.split(identifier).join('[runtime binding]')
+  }
+  return scrubbed
 }
 
 function resolveWorkflowVariables(
@@ -592,62 +803,6 @@ function scopeEnvironmentVariables(
   return scoped
 }
 
-function resolveEnvironmentVariables(
-  code: string,
-  params: Record<string, any>,
-  envVars: Record<string, string>,
-  contextVariables: Record<string, any>,
-  onResolvedSecret?: (name: string) => void
-): string {
-  let resolvedCode = code
-
-  const regex = createEnvVarPattern()
-  let match: RegExpExecArray | null
-  const replacements: Array<{ match: string; index: number; varName: string; varValue: string }> =
-    []
-
-  const resolverVars: Record<string, string> = {}
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      setRecordValue(resolverVars, key, String(value))
-    }
-  })
-  Object.entries(envVars).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      setRecordValue(resolverVars, key, value)
-    }
-  })
-
-  while ((match = regex.exec(code)) !== null) {
-    const varName = match[1].trim()
-
-    if (!Object.hasOwn(resolverVars, varName)) {
-      continue
-    }
-
-    replacements.push({
-      match: match[0],
-      index: match.index,
-      varName,
-      varValue: resolverVars[varName],
-    })
-  }
-
-  for (let i = replacements.length - 1; i >= 0; i--) {
-    const { match: matchStr, index, varName, varValue } = replacements[i]
-
-    const safeVarName = `__var_${varName.replace(/[^a-zA-Z0-9_]/g, '_')}`
-    contextVariables[safeVarName] = varValue
-    if (Object.hasOwn(envVars, varName) && envVars[varName] === varValue) {
-      onResolvedSecret?.(varName)
-    }
-    resolvedCode =
-      resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
-  }
-
-  return resolvedCode
-}
-
 function resolveTagVariables(
   code: string,
   blockData: Record<string, unknown>,
@@ -704,34 +859,22 @@ function resolveTagVariables(
 }
 
 /**
- * Resolves environment variables and tags in code
+ * Resolves non-environment references before the shared placeholder compiler runs.
  * @param code - Code with variables
- * @param params - Parameters that may contain variable values
- * @param envVars - Environment variables from the workflow
  * @returns Resolved code
  */
 function resolveCodeVariables(
   code: string,
-  params: Record<string, unknown>,
-  envVars: Record<string, string> = {},
   blockData: Record<string, unknown> = {},
   blockNameMapping: Record<string, string> = {},
   blockOutputSchemas: Record<string, OutputSchema> = {},
   workflowVariables: Record<string, unknown> = {},
-  language = 'javascript',
-  onResolvedSecret?: (name: string) => void
+  language = 'javascript'
 ): { resolvedCode: string; contextVariables: Record<string, unknown> } {
   let resolvedCode = code
   const contextVariables: Record<string, unknown> = {}
 
   resolvedCode = resolveWorkflowVariables(resolvedCode, workflowVariables, contextVariables)
-  resolvedCode = resolveEnvironmentVariables(
-    resolvedCode,
-    params,
-    envVars,
-    contextVariables,
-    onResolvedSecret
-  )
   resolvedCode = resolveTagVariables(
     resolvedCode,
     blockData,
@@ -819,6 +962,8 @@ interface FunctionRouteExecutionContext {
   requestId: string
   resolvedSecretNames: Set<string>
   includePrivateResolvedSecretNames: boolean
+  outputSecretMatcher?: ResolvedSecretMatcher
+  outputSecretNamesByPlaintext: Map<string, string[]>
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -954,18 +1099,47 @@ async function functionJsonResponse<T>(
   context: FunctionRouteExecutionContext,
   init?: ResponseInit
 ) {
-  const response = NextResponse.json(
-    await compactFunctionRouteBody(
-      {
-        ...body,
-        largeValueKeys: context.largeValueKeys,
-        fileKeys: context.fileKeys,
-      },
-      context
-    ),
-    init
+  const responseBody = {
+    ...body,
+    largeValueKeys: context.largeValueKeys,
+    fileKeys: context.fileKeys,
+  }
+  if (context.includePrivateResolvedSecretNames) {
+    activateOutputSecretProvenance(responseBody, context)
+  }
+  const response = NextResponse.json(await compactFunctionRouteBody(responseBody, context), init)
+  return appendPrivateResolvedSecretNames(
+    response,
+    context.includePrivateResolvedSecretNames ? getPrivateResolvedSecretNames(context) : null
   )
-  return appendResolvedSecretNames(response, context)
+}
+
+function activateOutputSecretProvenance(
+  body: unknown,
+  context: FunctionRouteExecutionContext
+): void {
+  if (!context.outputSecretMatcher) return
+
+  const matchedPlaintexts = new Set<string>()
+  const projection = projectResolvedSecretContent(
+    body,
+    context.outputSecretMatcher,
+    MAX_SANDBOX_OUTPUT_BYTES,
+    {
+      onMatch: (plaintext) => matchedPlaintexts.add(plaintext),
+    }
+  )
+  if (!projection.safe) {
+    for (const names of context.outputSecretNamesByPlaintext.values()) {
+      for (const name of names) context.resolvedSecretNames.add(name)
+    }
+    return
+  }
+  for (const plaintext of matchedPlaintexts) {
+    for (const name of context.outputSecretNamesByPlaintext.get(plaintext) ?? []) {
+      context.resolvedSecretNames.add(name)
+    }
+  }
 }
 
 function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): string[] | null {
@@ -984,10 +1158,17 @@ async function appendResolvedSecretNames(
   response: NextResponse,
   context: FunctionRouteExecutionContext
 ): Promise<NextResponse> {
-  const names = context.includePrivateResolvedSecretNames
-    ? getPrivateResolvedSecretNames(context)
-    : null
-  return appendPrivateResolvedSecretNames(response, names)
+  if (!context.includePrivateResolvedSecretNames) return response
+  try {
+    activateOutputSecretProvenance(await response.clone().json(), context)
+  } catch {
+    if (context.outputSecretMatcher) {
+      for (const names of context.outputSecretNamesByPlaintext.values()) {
+        for (const name of names) context.resolvedSecretNames.add(name)
+      }
+    }
+  }
+  return appendPrivateResolvedSecretNames(response, getPrivateResolvedSecretNames(context))
 }
 
 async function appendPrivateResolvedSecretNames(
@@ -1132,6 +1313,17 @@ async function maybeExportSandboxFileToWorkspace(args: {
     FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, outputFormat)] ||
     'application/octet-stream'
   const isBinary = !TEXT_MIMES.has(resolvedMimeType)
+  const outputBytes = Buffer.byteLength(exportedFileContent, isBinary ? 'base64' : 'utf-8')
+  if (outputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      },
+      { status: 400 }
+    )
+  }
   const fileBuffer = isBinary
     ? Buffer.from(exportedFileContent, 'base64')
     : Buffer.from(exportedFileContent, 'utf-8')
@@ -1479,8 +1671,15 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   let userCodeStartLine = 3 // Default value for error reporting
   let resolvedCode = '' // Store resolved code for error reporting
   let sourceCodeForErrors: string | undefined
+  let compilerInternalIdentifiers: string[] = []
+  let compilerPrivateInputs: CodePlaceholderPrivateInput[] = []
+  let compilerRuntimeBindings: CodePlaceholderRuntimeBinding[] = []
   let routeContext: FunctionRouteExecutionContext | undefined
   let includePrivateResolvedSecretNames = false
+  let timeoutForError: number | undefined
+  let executionDeadlineAt: number | undefined
+  let executionDeadlineController: TimeoutAbortController | undefined
+  let executionSignal = req.signal
 
   try {
     const auth = await checkInternalAuth(req)
@@ -1489,6 +1688,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
+    executionDeadlineAt = parseExecutionDeadlineHeader(req.headers)
     includePrivateResolvedSecretNames = requestsPrivateToolMetadata(
       req.headers,
       RESOLVED_SECRET_NAMES_METADATA_V1
@@ -1509,7 +1709,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       code,
       sourceCode,
       params = {},
-      timeout = DEFAULT_EXECUTION_TIMEOUT_MS,
+      timeout: requestedTimeout,
       language = DEFAULT_CODE_LANGUAGE,
       outputPath,
       outputFormat,
@@ -1536,11 +1736,20 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       isCustomTool = false,
       _sandboxFiles,
     } = body
+    const remainingExecutionMs =
+      executionDeadlineAt === undefined ? undefined : Math.max(1, executionDeadlineAt - Date.now())
+    const timeout =
+      remainingExecutionMs === undefined
+        ? (requestedTimeout ?? DEFAULT_EXECUTION_TIMEOUT_MS)
+        : Math.max(1, Math.min(requestedTimeout ?? remainingExecutionMs, remainingExecutionMs))
+    executionDeadlineController = createTimeoutAbortController(timeout, req.signal)
+    executionSignal = executionDeadlineController.signal
+    timeoutForError = timeout
     // Scoped before {{VAR}} resolution so the `{{NAME}}` path and the
     // `environmentVariables[...]` dict narrow together — filtering only the dict
     // would leave `{{OTHER_SECRET}}` resolving, which is a hole, not a scope.
     const envVars = scopeEnvironmentVariables(rawEnvVars, secretScope, mountedSecrets)
-    sourceCodeForErrors = sourceCode
+    sourceCodeForErrors = sourceCode ?? code
     const outputFiles = getOutputFileDeclarations({
       outputs,
       outputPath,
@@ -1589,41 +1798,71 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       requestId,
       resolvedSecretNames: new Set<string>(),
       includePrivateResolvedSecretNames,
+      outputSecretNamesByPlaintext: new Map(),
+    }
+    if (includePrivateResolvedSecretNames) {
+      for (const [name, plaintext] of Object.entries(envVars)) {
+        if (!plaintext) continue
+        const names = routeContext.outputSecretNamesByPlaintext.get(plaintext) ?? []
+        names.push(name)
+        routeContext.outputSecretNamesByPlaintext.set(plaintext, names)
+      }
+      try {
+        routeContext.outputSecretMatcher = createResolvedSecretMatcher(
+          [...routeContext.outputSecretNamesByPlaintext].map(([plaintext, names]) => ({
+            plaintext,
+            replacement: `{{${names[0]}}}`,
+          }))
+        )
+      } catch {
+        /**
+         * Provenance scanning is auxiliary and must never make an otherwise valid persisted
+         * Function or Custom Tool stop executing. If the scoped secret catalog exceeds the
+         * bounded matcher, conservatively report every scoped name to downstream projectors.
+         */
+        for (const names of routeContext.outputSecretNamesByPlaintext.values()) {
+          for (const name of names) routeContext.resolvedSecretNames.add(name)
+        }
+      }
     }
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
 
-    let contextVariables: Record<string, unknown> = {}
-    if (lang === CodeLanguage.Shell) {
-      // For shell, env vars are injected as OS env vars via shellEnvs.
-      // Replace {{VAR}} placeholders with $VAR so the shell can access them natively.
-      resolvedCode = code.replace(createCodeEnvVarPattern(lang), (_match, name) => {
-        if (Object.hasOwn(envVars, name)) {
-          routeContext?.resolvedSecretNames.add(name)
-        }
-        return `$${name}`
-      })
-      // Carry pre-resolved block output variables (e.g. __blockRef_N) so they can be
-      // injected as shell env vars below. The executor replaces block references in the
-      // code with these names, so the values must be present at runtime.
-      contextVariables = { ...preResolvedContextVariables }
-    } else {
-      const codeResolution = resolveCodeVariables(
-        code,
-        executionParams,
-        envVars,
-        blockData,
-        blockNameMapping,
-        blockOutputSchemas,
-        workflowVariables,
-        lang,
-        (name) => routeContext?.resolvedSecretNames.add(name)
-      )
-      resolvedCode = codeResolution.resolvedCode
-      // Merge pre-resolved block output variables from the executor. These take precedence
-      // because they were produced by the resolver using full execution-state context
-      // (including loop/parallel scope) and should not be overwritten.
-      contextVariables = { ...codeResolution.contextVariables, ...preResolvedContextVariables }
+    const codeResolution = resolveCodeVariables(
+      code,
+      blockData,
+      blockNameMapping,
+      blockOutputSchemas,
+      workflowVariables,
+      lang
+    )
+    /**
+     * Pre-resolved block outputs take precedence because the executor produced them with the
+     * complete loop/parallel scope. Environment placeholders remain untouched until this point,
+     * so Custom Tools and visual Function blocks share exactly one compiler.
+     */
+    const contextVariables: Record<string, unknown> = {
+      ...codeResolution.contextVariables,
+      ...preResolvedContextVariables,
+    }
+    const compilation = await compileCodePlaceholders({
+      code: codeResolution.resolvedCode,
+      language: lang,
+      params: executionParams,
+      environmentVariables: envVars,
+      reservedNames: Object.keys(contextVariables),
+    })
+    resolvedCode = compilation.code
+    compilerInternalIdentifiers = [...compilation.internalIdentifiers]
+    compilerPrivateInputs = [...compilation.privateInputs]
+    compilerRuntimeBindings = [...compilation.runtimeBindings]
+    for (const binding of compilation.bindings) {
+      setRecordValue(contextVariables, binding.name, binding.value)
+    }
+    if (includePrivateResolvedSecretNames) {
+      for (const name of compilation.resolvedSecretNames) {
+        routeContext.resolvedSecretNames.add(name)
+      }
     }
 
     if (lang === CodeLanguage.Shell && containsLargeValueRef(contextVariables)) {
@@ -1634,15 +1873,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     let jsImports = ''
     let jsRemainingCode = resolvedCode
+    let jsIdentifierNames: ReadonlySet<string> = new Set()
     let hasImports = false
 
     if (lang === CodeLanguage.JavaScript) {
       const extractionResult = await extractJavaScriptImports(resolvedCode)
       jsImports = extractionResult.imports
       jsRemainingCode = extractionResult.remainingCode
+      jsIdentifierNames = extractionResult.identifierNames
 
-      const hasRequireStatements = /require\s*\(\s*['"`]/.test(resolvedCode)
-      hasImports = jsImports.trim().length > 0 || hasRequireStatements
+      hasImports = jsImports.trim().length > 0 || extractionResult.hasRequireCalls
     }
 
     if (lang === CodeLanguage.Shell) {
@@ -1679,17 +1919,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         envs: shellEnvs,
         timeoutMs: timeout,
         sandboxFiles: _sandboxFiles,
+        privateInputs: compilerPrivateInputs,
         outputSandboxPath,
         outputSandboxPaths,
         workspaceId,
         sandboxId: selectedSandboxId,
+        signal: executionSignal,
       })
       const executionTime = Date.now() - execStart
 
       logger.info(`[${requestId}] E2B shell sandbox`, {
         sandboxId,
-        stdoutPreview: shellStdout?.slice(0, 200),
-        error: shellError,
+        succeeded: !shellError,
         executionTime,
       })
 
@@ -1697,7 +1938,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         return functionJsonResponse(
           {
             success: false,
-            error: shellError,
+            error: scrubInternalIdentifiers(shellError, compilerInternalIdentifiers),
             output: { result: null, stdout: cleanStdout(shellStdout), executionTime },
           },
           routeContext,
@@ -1785,11 +2026,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         language: lang,
       })
-      let prologue = ''
-
       if (lang === CodeLanguage.JavaScript) {
-        let prologueLineCount = 0
-
         const imports = jsImports
         const remainingCode = jsRemainingCode
 
@@ -1798,17 +2035,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
         const codeBody = remainingCode
         resolvedCode = importSection ? `${imports}\n\n${codeBody}` : codeBody
-
-        prologue += `const params = JSON.parse(${JSON.stringify(JSON.stringify(executionParams))});\n`
-        prologueLineCount++
-        prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
-        prologueLineCount++
-        for (const [k, v] of Object.entries(contextVariables)) {
-          prologue += `globalThis[${JSON.stringify(k)}] = ${formatLiteralForCode(v, 'javascript')};\n`
-          prologue += `const ${k} = globalThis[${JSON.stringify(k)}];\n`
-          prologueLineCount++
-          prologueLineCount++
-        }
+        const runtime = buildJavaScriptSandboxRuntime(
+          resolvedCode,
+          Object.keys(contextVariables),
+          compilerRuntimeBindings,
+          jsIdentifierNames
+        )
+        compilerInternalIdentifiers.push(...runtime.internalIdentifiers)
+        const runtimePrivateInput = createSandboxRuntimePrivateInput({
+          params: executionParams,
+          environmentVariables: envVars,
+          contextVariables: encodeSandboxRuntimeContextVariables(contextVariables),
+        })
 
         const wrapped = [
           ';(async () => {',
@@ -1827,7 +2065,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           '  }',
           '})();',
         ].join('\n')
-        const codeForE2B = importSection + prologue + wrapped
+        const codeForE2B = runtime.importSource + importSection + runtime.prologue + wrapped
 
         const execStart = Date.now()
         const {
@@ -1842,28 +2080,33 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           language: CodeLanguage.JavaScript,
           timeoutMs: timeout,
           sandboxFiles: _sandboxFiles,
+          privateInputs: [...compilerPrivateInputs, runtimePrivateInput],
+          runtimeBindings: compilerRuntimeBindings,
           outputSandboxPath,
           outputSandboxPaths,
           workspaceId,
           sandboxId: selectedSandboxId,
+          signal: executionSignal,
         })
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
 
         logger.info(`[${requestId}] E2B JS sandbox`, {
           sandboxId,
-          stdoutPreview: e2bStdout?.slice(0, 200),
-          error: e2bError,
+          succeeded: !e2bError,
         })
 
         if (e2bError) {
           const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
           const { formattedError, cleanedOutput } = formatE2BError(
-            getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
+            scrubInternalIdentifiers(
+              getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
+              compilerInternalIdentifiers
+            ),
             e2bStdout,
             lang,
             errorDisplayCode,
-            prologueLineCount + importLineCount
+            runtime.lineCount + importLineCount
           )
           return functionJsonResponse(
             {
@@ -1901,25 +2144,15 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         )
       }
 
-      let prologueLineCount = 0
-      prologue += 'import json\n'
-      prologueLineCount++
-      prologue += `params = json.loads(${JSON.stringify(JSON.stringify(executionParams))})\n`
-      prologueLineCount++
-      prologue += `environmentVariables = json.loads(${JSON.stringify(JSON.stringify(envVars))})\n`
-      prologueLineCount++
-      for (const [k, v] of Object.entries(contextVariables)) {
-        prologue += `${k} = ${formatLiteralForCode(v, 'python')}\n`
-        prologueLineCount++
-      }
-      const wrapped = [
-        'def __sim_main__():',
-        ...resolvedCode.split('\n').map((l) => `    ${l}`),
-        '__sim_result__ = __sim_main__()',
-        // Leading \n: same fresh-line guarantee as the JS wrapper's marker.
-        `print('\\n${SIM_RESULT_PREFIX}' + json.dumps(__sim_result__))`,
-      ].join('\n')
-      const codeForE2B = prologue + wrapped
+      const runtime = buildPythonSandboxRuntime(resolvedCode, Object.keys(contextVariables))
+      compilerInternalIdentifiers.push(...runtime.internalIdentifiers)
+      const runtimePrivateInput = createSandboxRuntimePrivateInput({
+        params: executionParams,
+        environmentVariables: envVars,
+        contextVariables: encodeSandboxRuntimeContextVariables(contextVariables),
+      })
+      const wrapped = buildPythonSandboxWrapper(resolvedCode)
+      const codeForE2B = runtime.prologue + wrapped
 
       const execStart = Date.now()
       const {
@@ -1934,28 +2167,32 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         language: CodeLanguage.Python,
         timeoutMs: timeout,
         sandboxFiles: _sandboxFiles,
+        privateInputs: [...compilerPrivateInputs, runtimePrivateInput],
         outputSandboxPath,
         outputSandboxPaths,
         workspaceId,
         sandboxId: selectedSandboxId,
+        signal: executionSignal,
       })
       const executionTime = Date.now() - execStart
       stdout += e2bStdout
 
       logger.info(`[${requestId}] E2B Py sandbox`, {
         sandboxId,
-        stdoutPreview: e2bStdout?.slice(0, 200),
-        error: e2bError,
+        succeeded: !e2bError,
       })
 
       if (e2bError) {
         const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
         const { formattedError, cleanedOutput } = formatE2BError(
-          getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
+          scrubInternalIdentifiers(
+            getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
+            compilerInternalIdentifiers
+          ),
           e2bStdout,
           lang,
           errorDisplayCode,
-          prologueLineCount
+          runtime.lineCount
         )
         return functionJsonResponse(
           {
@@ -1995,27 +2232,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const executionMethod = 'isolated-vm'
 
-    const isSafeParamKey = (key: string) => SAFE_IDENTIFIER.test(key) && !JS_RESERVED_WORDS.has(key)
-
-    const wrapperLines = ['(async () => {', '  try {']
-    if (isCustomTool) {
-      Object.keys(executionParams).forEach((key) => {
-        if (isSafeParamKey(key)) {
-          wrapperLines.push(`    const ${key} = params.${key};`)
-        } else {
-          logger.warn('Skipping param key — not a safe JS identifier', { key, requestId })
-        }
-      })
-    }
-    userCodeStartLine = wrapperLines.length + 1
+    const isSafeParamKey = (key: string) =>
+      key !== 'params' && SAFE_IDENTIFIER.test(key) && !JS_RESERVED_WORDS.has(key)
+    const customToolParamKeys = isCustomTool
+      ? Object.keys(executionParams).filter((key) => {
+          const safe = isSafeParamKey(key)
+          if (!safe)
+            logger.warn('Skipping param key — not a safe JS identifier', { key, requestId })
+          return safe
+        })
+      : []
+    userCodeStartLine = customToolParamKeys.length + 3
 
     let codeToExecute = resolvedCode
-    let prependedLineCount = 0
-    if (isCustomTool) {
-      const paramKeys = Object.keys(executionParams).filter(isSafeParamKey)
-      const paramDestructuring = paramKeys.map((key) => `const ${key} = params.${key};`).join('\n')
+    const prependedLineCount = customToolParamKeys.length
+    if (customToolParamKeys.length > 0) {
+      const paramDestructuring = customToolParamKeys
+        .map((key) => `const ${key} = params.${key};`)
+        .join('\n')
       codeToExecute = `${paramDestructuring}\n${resolvedCode}`
-      prependedLineCount = paramKeys.length
     }
 
     const isolatedResult = await executeInIsolatedVM(
@@ -2024,23 +2259,34 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         params: executionParams,
         envVars,
         contextVariables,
+        runtimeBindings: compilerRuntimeBindings,
         timeoutMs: timeout,
         requestId,
         ownerKey: `user:${auth.userId}`,
         ownerWeight: 1,
       },
-      { brokers: createFunctionRuntimeBrokers(routeContext) }
+      { brokers: createFunctionRuntimeBrokers(routeContext), signal: executionSignal }
     )
 
     const executionTime = Date.now() - startTime
+    stdout = isolatedResult.stdout
 
     if (isolatedResult.error) {
+      if (isolatedResult.termination === 'timeout') {
+        throw new DOMException('timeout', 'AbortError')
+      }
+      if (isolatedResult.termination === 'cancelled') {
+        throw executionSignal.reason instanceof Error
+          ? executionSignal.reason
+          : new DOMException('user', 'AbortError')
+      }
+
       const isSystemError = isolatedResult.error.isSystemError === true
       const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
       logFn(`[${requestId}] Function execution failed in isolated-vm`, {
-        error: isolatedResult.error,
         executionTime,
         isSystemError,
+        hasStack: Boolean(isolatedResult.error.stack),
       })
 
       const ivmError = isolatedResult.error
@@ -2050,17 +2296,17 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         adjustedLine = Math.max(1, ivmError.line - prependedLineCount)
       }
       const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
-      const displayMessage = getErrorDisplayMessage(
-        ivmError.message,
-        sourceCodeForErrors,
-        resolvedCode
+      const displayMessage = scrubInternalIdentifiers(
+        getErrorDisplayMessage(ivmError.message, sourceCodeForErrors, resolvedCode),
+        compilerInternalIdentifiers
       )
       adjustedLineContent = getLineContent(errorDisplayCode, adjustedLine) ?? adjustedLineContent
       const enhancedError: EnhancedError = {
         message: displayMessage,
         name: ivmError.name,
-        stack: ivmError.stack,
-        originalError: ivmError,
+        stack: ivmError.stack
+          ? scrubInternalIdentifiers(ivmError.stack, compilerInternalIdentifiers)
+          : undefined,
         line: adjustedLine,
         column: ivmError.column,
         lineContent: adjustedLineContent,
@@ -2068,18 +2314,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       const userFriendlyErrorMessage = createUserFriendlyErrorMessage(
         enhancedError,
-        requestId,
         errorDisplayCode
       )
 
       const detailLogFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
       detailLogFn(`[${requestId}] Enhanced error details`, {
-        originalMessage: ivmError.message,
-        enhancedMessage: userFriendlyErrorMessage,
         line: enhancedError.line,
         column: enhancedError.column,
-        lineContent: enhancedError.lineContent,
-        errorType: enhancedError.name,
       })
 
       return functionJsonResponse(
@@ -2104,7 +2345,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    stdout = isolatedResult.stdout
     logger.info(`[${requestId}] Function executed successfully using ${executionMethod}`, {
       executionTime,
     })
@@ -2118,6 +2358,62 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
   } catch (error: any) {
     const executionTime = Date.now() - startTime
+    if (executionSignal.aborted || (error instanceof Error && error.name === 'AbortError')) {
+      const timedOut =
+        executionDeadlineController?.isTimedOut() === true ||
+        isTimeoutAbortReason(executionSignal.reason) ||
+        isTimeoutAbortReason(req.signal.reason) ||
+        isTimeoutAbortReason(error?.cause ?? error) ||
+        (executionDeadlineAt !== undefined && Date.now() >= executionDeadlineAt)
+      const abortResponse = {
+        success: false,
+        error: timedOut
+          ? `Function execution timed out${timeoutForError ? ` after ${timeoutForError}ms` : ''}`
+          : 'Function execution was cancelled',
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      }
+      logger.warn(`[${requestId}] Function execution ${timedOut ? 'timed out' : 'was cancelled'}`, {
+        executionTime,
+      })
+      return routeContext
+        ? functionJsonResponse(abortResponse, routeContext, { status: timedOut ? 408 : 499 })
+        : appendPrivateResolvedSecretNames(
+            NextResponse.json(abortResponse, { status: timedOut ? 408 : 499 }),
+            includePrivateResolvedSecretNames ? [] : null
+          )
+    }
+    if (error instanceof CodePlaceholderCompileError) {
+      const compilerResponse = {
+        success: false,
+        error: scrubInternalIdentifiers(error.message, compilerInternalIdentifiers),
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+        debug: {
+          line: error.line,
+          column: error.column,
+          errorType: error.name,
+          lineContent: getLineContent(sourceCodeForErrors ?? '', error.line),
+        },
+      }
+      return routeContext
+        ? functionJsonResponse(compilerResponse, routeContext, { status: 422 })
+        : appendPrivateResolvedSecretNames(
+            NextResponse.json(compilerResponse, { status: 422 }),
+            includePrivateResolvedSecretNames ? [] : null
+          )
+    }
+    if (isSandboxOutputLimitError(error) || isSandboxOutputFileError(error)) {
+      const outputLimitResponse = {
+        success: false,
+        error: error.message,
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      }
+      return routeContext
+        ? functionJsonResponse(outputLimitResponse, routeContext, { status: 400 })
+        : appendPrivateResolvedSecretNames(
+            NextResponse.json(outputLimitResponse, { status: 400 }),
+            includePrivateResolvedSecretNames ? [] : null
+          )
+    }
     if (isExecutionResourceLimitError(error)) {
       logger.warn(`[${requestId}] Function execution exceeded resource limits`, {
         resource: error.resource,
@@ -2158,10 +2454,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     if (isLikelySandboxKill(error)) {
-      const underlying = (error?.message || String(error)).slice(0, 300)
+      const underlying = scrubInternalIdentifiers(
+        (error?.message || String(error)).slice(0, 300),
+        compilerInternalIdentifiers
+      )
       logger.warn(`[${requestId}] Sandbox terminated before completion (likely OOM or timeout)`, {
         executionTime,
-        underlying,
       })
       const killResponse = {
         success: false,
@@ -2179,26 +2477,20 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     logger.error(`[${requestId}] Function execution failed`, {
-      error: error.message || 'Unknown error',
-      stack: error.stack,
       executionTime,
+      hasStack: Boolean(error.stack),
     })
 
     const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
     const enhancedError = extractEnhancedError(error, userCodeStartLine, errorDisplayCode)
-    const userFriendlyErrorMessage = createUserFriendlyErrorMessage(
-      enhancedError,
-      requestId,
-      errorDisplayCode
+    const userFriendlyErrorMessage = scrubInternalIdentifiers(
+      createUserFriendlyErrorMessage(enhancedError, errorDisplayCode),
+      compilerInternalIdentifiers
     )
 
     logger.error(`[${requestId}] Enhanced error details`, {
-      originalMessage: error.message,
-      enhancedMessage: userFriendlyErrorMessage,
       line: enhancedError.line,
       column: enhancedError.column,
-      lineContent: enhancedError.lineContent,
-      errorType: enhancedError.name,
       userCodeStartLine,
     })
 
@@ -2214,8 +2506,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         line: enhancedError.line,
         column: enhancedError.column,
         errorType: enhancedError.name,
-        lineContent: enhancedError.lineContent,
-        stack: enhancedError.stack,
+        lineContent: enhancedError.lineContent
+          ? scrubInternalIdentifiers(enhancedError.lineContent, compilerInternalIdentifiers)
+          : undefined,
+        stack: enhancedError.stack
+          ? scrubInternalIdentifiers(enhancedError.stack, compilerInternalIdentifiers)
+          : undefined,
       },
     }
 
@@ -2227,5 +2523,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       NextResponse.json(errorResponse, { status: 500 }),
       includePrivateResolvedSecretNames ? [] : null
     )
+  } finally {
+    executionDeadlineController?.cleanup()
   }
 })

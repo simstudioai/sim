@@ -336,7 +336,9 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
+                    const selfHostedUnlocked = Boolean(item.selfHostedOverride && !isHosted)
                     const isLocked =
+                      !selfHostedUnlocked &&
                       item.requiresMax &&
                       (item.id === 'inbox'
                         ? !inboxEntitled

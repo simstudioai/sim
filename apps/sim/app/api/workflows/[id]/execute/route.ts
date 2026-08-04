@@ -11,6 +11,7 @@ import {
   executeWorkflowHeadersSchema,
   executionIdSchema,
   WORKFLOW_EXECUTION_ID_HEADER,
+  WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER,
 } from '@/lib/api/contracts/workflows'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
@@ -33,7 +34,9 @@ import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
+  isTimeoutAbortReason,
   isTimeoutError,
+  toTriggerMaxDurationSeconds,
 } from '@/lib/core/execution-limits'
 import { isCrossSiteSessionRequest } from '@/lib/core/security/same-origin'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -58,6 +61,10 @@ import {
   initializeExecutionStreamMeta,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
+import {
+  INTERNAL_EXECUTION_DEADLINE_HEADER,
+  parseExecutionDeadlineHeader,
+} from '@/lib/execution/execution-deadline-header'
 import { processInputFileFields } from '@/lib/execution/files'
 import {
   registerManualExecutionAborter,
@@ -268,6 +275,13 @@ function clientCancelledResponse(): NextResponse {
   return NextResponse.json({ success: false, error: 'Client cancelled request' }, { status: 499 })
 }
 
+function executionTimedOutResponse(timeoutMs?: number): NextResponse {
+  return NextResponse.json(
+    { success: false, error: getTimeoutErrorMessage(null, timeoutMs) },
+    { status: 408 }
+  )
+}
+
 function payloadTooLargeResponse(message = 'Workflow execution response exceeds maximum size') {
   return NextResponse.json(
     { success: false, error: message, code: 'workflow_response_too_large' },
@@ -360,6 +374,7 @@ type AsyncExecutionParams = {
   triggerType: CoreTriggerType
   executionId: string
   callChain?: string[]
+  executionTimeoutMs: number
 }
 
 interface AsyncExecutionResult {
@@ -414,6 +429,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     triggerType,
     executionId,
     callChain,
+    executionTimeoutMs,
   } = params
   const asyncLogger = logger.withMetadata({
     requestId,
@@ -444,6 +460,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     callChain,
     executionMode: 'async',
     admissionCompleted: true,
+    executionTimeoutMs,
   }
 
   let jobQueue: Awaited<ReturnType<typeof getJobQueue>>
@@ -461,9 +478,17 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
   }
 
   const deterministicJobId = `${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`
+  const executeInline = shouldExecuteInline()
   const enqueueOptions = {
     jobId: deterministicJobId,
     metadata: { workflowId, workspaceId, userId, correlation },
+    maxDurationSeconds: toTriggerMaxDurationSeconds(executionTimeoutMs),
+    ...(executeInline
+      ? {
+          runner: (_queuedPayload: unknown, signal: AbortSignal) =>
+            executeWorkflowJob(payload, signal),
+        }
+      : {}),
   }
   let jobId: string | undefined
   let enqueueError: unknown
@@ -525,39 +550,6 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
   }
 
   asyncLogger.info('Queued async workflow execution', { jobId })
-
-  if (shouldExecuteInline()) {
-    void (async () => {
-      let workerOwnsReservation = false
-      try {
-        await jobQueue.startJob(jobId)
-        workerOwnsReservation = true
-        const output = await executeWorkflowJob(payload)
-        await jobQueue.completeJob(jobId, output)
-      } catch (error) {
-        const errorMessage = toError(error).message
-        asyncLogger.error('Async workflow execution failed', {
-          jobId,
-          error: errorMessage,
-        })
-        /**
-         * Before worker ownership transfers, no LoggingSession exists to
-         * release the route's reservation.
-         */
-        if (!workerOwnsReservation) {
-          await releaseExecutionSlot(executionId)
-        }
-        try {
-          await jobQueue.markJobFailed(jobId, errorMessage)
-        } catch (markFailedError) {
-          asyncLogger.error('Failed to mark job as failed', {
-            jobId,
-            error: toError(markFailedError).message,
-          })
-        }
-      }
-    })()
-  }
 
   return {
     response: NextResponse.json(
@@ -639,6 +631,28 @@ async function handleExecutePost(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    const executionModeHeader = req.headers.get('X-Execution-Mode')
+    const isAsyncMode = executionModeHeader === 'async'
+    const trustedDeadlineHeader =
+      auth.success && auth.authType === AuthType.INTERNAL_JWT && !isAsyncMode
+        ? req.headers.get(INTERNAL_EXECUTION_DEADLINE_HEADER)
+        : null
+    const inheritedExecutionDeadlineAt =
+      trustedDeadlineHeader === null ? undefined : parseExecutionDeadlineHeader(req.headers)
+    if (trustedDeadlineHeader !== null && inheritedExecutionDeadlineAt === undefined) {
+      return NextResponse.json(
+        { error: 'Invalid internal execution deadline header' },
+        { status: 400 }
+      )
+    }
+    const hasInheritedDeadlineExpired = () =>
+      inheritedExecutionDeadlineAt !== undefined && Date.now() >= inheritedExecutionDeadlineAt
+    const requestAbortResponse = () =>
+      hasInheritedDeadlineExpired() ? executionTimedOutResponse() : clientCancelledResponse()
+    if (hasInheritedDeadlineExpired()) {
+      return executionTimedOutResponse()
+    }
+
     const isMcpBridgeRequest =
       auth.authType === AuthType.INTERNAL_JWT && req.headers.get(MCP_TOOL_BRIDGE_HEADER) === 'true'
     const includePrivateTraceProvenance =
@@ -703,7 +717,7 @@ async function handleExecutePost(
         )
       }
       if (req.signal.aborted) {
-        return clientCancelledResponse()
+        return requestAbortResponse()
       }
       reqLogger.warn('Failed to parse request body', { error: toError(error).message })
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
@@ -726,14 +740,22 @@ async function handleExecutePost(
 
     const headerValidation = executeWorkflowHeadersSchema.safeParse({
       [WORKFLOW_EXECUTION_ID_HEADER]: req.headers.get(WORKFLOW_EXECUTION_ID_HEADER) ?? undefined,
+      [WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER]:
+        req.headers.get(WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER) ?? undefined,
     })
     if (!headerValidation.success) {
-      reqLogger.warn('Invalid execution ID header', {
+      const invalidExecutionId = headerValidation.error.issues.some(
+        (issue) => issue.path[0] === WORKFLOW_EXECUTION_ID_HEADER
+      )
+      const errorMessage = invalidExecutionId
+        ? 'Invalid execution ID header'
+        : 'Invalid execution timeout header'
+      reqLogger.warn(errorMessage, {
         issues: headerValidation.error.issues,
       })
       return NextResponse.json(
         {
-          error: 'Invalid execution ID header',
+          error: errorMessage,
           details: headerValidation.error.issues.map((issue) => ({
             path: issue.path.join('.'),
             message: issue.message,
@@ -772,8 +794,13 @@ async function handleExecutePost(
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
     const enableSSE = streamHeader || streamParam === true
-    const executionModeHeader = req.headers.get('X-Execution-Mode')
-    const isAsyncMode = executionModeHeader === 'async'
+    const requestedTimeoutSeconds = headerValidation.data[WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER]
+    if (requestedTimeoutSeconds !== undefined && !isAsyncMode) {
+      return NextResponse.json(
+        { error: `${WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER} is supported only for async runs` },
+        { status: 400 }
+      )
+    }
     if (admittedDeploymentVersionId && !isMcpBridgeRequest) {
       return NextResponse.json(
         { error: 'deploymentVersionId is reserved for internal MCP execution' },
@@ -973,7 +1000,7 @@ async function handleExecutePost(
     )
 
     if (req.signal.aborted) {
-      return clientCancelledResponse()
+      return requestAbortResponse()
     }
 
     if (
@@ -1112,7 +1139,7 @@ async function handleExecutePost(
         : undefined
 
     if (req.signal.aborted) {
-      return clientCancelledResponse()
+      return requestAbortResponse()
     }
 
     try {
@@ -1196,6 +1223,11 @@ async function handleExecutePost(
       useAuthenticatedUserAsActor,
       workflowRecord: workflowAuthorization.workflow ?? undefined,
       billingAttribution: upstreamBillingAttribution,
+      executionType: isAsyncMode ? 'async' : 'sync',
+      requestedTimeoutSeconds,
+      ...(inheritedExecutionDeadlineAt !== undefined
+        ? { executionDeadlineAt: inheritedExecutionDeadlineAt }
+        : {}),
     })
 
     if (!preprocessResult.success) {
@@ -1209,9 +1241,13 @@ async function handleExecutePost(
     // Preprocessing reserved an admission slot (released when the LoggingSession
     // finalizes). Any path that exits before execution starts must release it
     // here, or the slot leaks until its TTL and wrongly throttles later runs.
+    if (hasInheritedDeadlineExpired()) {
+      await releaseExecutionSlot(executionId)
+      return executionTimedOutResponse()
+    }
     if (req.signal.aborted) {
       await releaseExecutionSlot(executionId)
-      return clientCancelledResponse()
+      return requestAbortResponse()
     }
 
     let validatedContext: ValidatedPreprocessContext
@@ -1232,6 +1268,11 @@ async function handleExecutePost(
 
     reqLogger.info('Preprocessing passed')
 
+    const getEffectiveSyncTimeoutMs = () =>
+      inheritedExecutionDeadlineAt === undefined
+        ? preprocessResult.executionTimeout.sync
+        : Math.max(1, inheritedExecutionDeadlineAt - Date.now())
+
     if (isAsyncMode) {
       const asyncResult = await handleAsyncExecution({
         requestId,
@@ -1243,6 +1284,7 @@ async function handleExecutePost(
         triggerType: loggingTriggerType,
         executionId,
         callChain,
+        executionTimeoutMs: preprocessResult.executionTimeout.async,
       })
       executionIdClaimCommitted = asyncResult.retainExecutionClaim
       return asyncResult.response
@@ -1261,7 +1303,7 @@ async function handleExecutePost(
     try {
       if (req.signal.aborted) {
         await releaseExecutionSlot(executionId)
-        return clientCancelledResponse()
+        return requestAbortResponse()
       }
       const workflowData = shouldUseDraftState
         ? await loadWorkflowFromNormalizedTables(workflowId)
@@ -1275,7 +1317,7 @@ async function handleExecutePost(
 
       if (req.signal.aborted) {
         await releaseExecutionSlot(executionId)
-        return clientCancelledResponse()
+        return requestAbortResponse()
       }
 
       if (workflowData) {
@@ -1389,9 +1431,13 @@ async function handleExecutePost(
 
       const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
 
-      const timeoutController = createTimeoutAbortController(
-        preprocessResult.executionTimeout?.sync
-      )
+      const timeoutController = createTimeoutAbortController(getEffectiveSyncTimeoutMs())
+      const didExecutionTimeOut = (error?: unknown) =>
+        timeoutController.isTimedOut() ||
+        hasInheritedDeadlineExpired() ||
+        isTimeoutAbortReason(timeoutController.signal.reason) ||
+        isTimeoutAbortReason(req.signal.reason) ||
+        isTimeoutError(error)
       const requestAbort = bindRequestAbort(req.signal, timeoutController)
       const shouldRejectLargeInlineOutput = isMcpBridgeRequest
       const workflowResponseCompaction = {
@@ -1427,18 +1473,14 @@ async function handleExecutePost(
         if (
           result.status === 'cancelled' &&
           requestAbort.isRequestAborted() &&
-          !timeoutController.isTimedOut()
+          !didExecutionTimeOut()
         ) {
           reqLogger.info('Non-SSE execution cancelled by client disconnect')
           await loggingSession.markAsFailed('Client cancelled request')
           return clientCancelledResponse()
         }
 
-        if (
-          result.status === 'cancelled' &&
-          timeoutController.isTimedOut() &&
-          timeoutController.timeoutMs
-        ) {
+        if (result.status === 'cancelled' && didExecutionTimeOut() && timeoutController.timeoutMs) {
           const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
           reqLogger.info('Non-SSE execution timed out', {
             timeoutMs: timeoutController.timeoutMs,
@@ -1538,9 +1580,12 @@ async function handleExecutePost(
           result
         )
       } catch (error: unknown) {
-        const errorMessage = getErrorMessage(error, 'Unknown error')
+        const executionTimedOut = didExecutionTimeOut(error)
+        const errorMessage = executionTimedOut
+          ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
+          : getErrorMessage(error, 'Unknown error')
 
-        if (requestAbort.isRequestAborted() && !timeoutController.isTimedOut()) {
+        if (requestAbort.isRequestAborted() && !executionTimedOut) {
           reqLogger.info('Non-SSE execution aborted after client disconnect')
           return clientCancelledResponse()
         }
@@ -1555,7 +1600,7 @@ async function handleExecutePost(
         reqLogger.error(`Non-SSE execution failed: ${errorMessage}`)
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
-        const status = getExecutionErrorStatus(error)
+        const status = executionTimedOut ? 408 : getExecutionErrorStatus(error)
         let compactErrorOutput: NormalizedBlockOutput | undefined
         if (executionResult && Object.hasOwn(executionResult, 'output')) {
           try {
@@ -1578,7 +1623,9 @@ async function handleExecutePost(
           {
             success: false,
             output: compactErrorOutput,
-            error: executionResult?.error || errorMessage || 'Execution failed',
+            error: executionTimedOut
+              ? errorMessage
+              : executionResult?.error || errorMessage || 'Execution failed',
             metadata: executionResult?.metadata
               ? {
                   duration: executionResult.metadata.duration,
@@ -1653,7 +1700,7 @@ async function handleExecutePost(
           workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
           includeFileBase64,
           base64MaxBytes,
-          timeoutMs: preprocessResult.executionTimeout?.sync,
+          timeoutMs: getEffectiveSyncTimeoutMs(),
           includeThinking: requestedIncludeThinking,
           includeToolCalls: requestedIncludeToolCalls,
         },
@@ -1710,7 +1757,13 @@ async function handleExecutePost(
     }
 
     const encoder = new TextEncoder()
-    const timeoutController = createTimeoutAbortController(preprocessResult.executionTimeout?.sync)
+    const timeoutController = createTimeoutAbortController(getEffectiveSyncTimeoutMs())
+    const didExecutionTimeOut = (error?: unknown) =>
+      timeoutController.isTimedOut() ||
+      hasInheritedDeadlineExpired() ||
+      isTimeoutAbortReason(timeoutController.signal.reason) ||
+      isTimeoutAbortReason(req.signal.reason) ||
+      isTimeoutError(error)
     let isStreamClosed = false
     let isManualAbortRegistered = false
 
@@ -2141,7 +2194,7 @@ async function handleExecutePost(
           })
 
           if (result.status === 'cancelled') {
-            if (timeoutController.isTimedOut() && timeoutController.timeoutMs) {
+            if (didExecutionTimeOut() && timeoutController.timeoutMs) {
               const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
               reqLogger.info('Workflow execution timed out', {
                 timeoutMs: timeoutController.timeoutMs,
@@ -2260,7 +2313,7 @@ async function handleExecutePost(
           }
         } catch (error: unknown) {
           await awaitBoundCopilotPostExecution()
-          const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
+          const isTimeout = didExecutionTimeOut(error)
           const errorMessage = isTimeout
             ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
             : getErrorMessage(error, 'Unknown error')

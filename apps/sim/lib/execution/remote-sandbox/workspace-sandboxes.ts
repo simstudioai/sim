@@ -2,14 +2,22 @@ import { db } from '@sim/db'
 import { sandboxImage, workspaceSandbox } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Sandbox } from '@/lib/api/contracts/sandboxes'
+import {
+  canonicalizeSandboxCliTools,
+  type SandboxCliToolId,
+} from '@/lib/execution/remote-sandbox/cli-tools'
+import { assertSandboxCliToolsSupported } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import { ensureSandboxImage } from '@/lib/execution/remote-sandbox/image-registry'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import { invalidateSandboxResolution } from '@/lib/execution/remote-sandbox/resolve'
 import {
+  canonicalizeSystemPackages,
   type DependencyIssue,
   hashSandboxSpec,
   type SandboxLanguage,
+  type SystemPackageIssue,
   validateDependencies,
+  validateSystemPackages,
 } from '@/lib/execution/remote-sandbox/sandbox-spec'
 import type { SandboxDependencyStrategy } from '@/lib/execution/remote-sandbox/types'
 
@@ -42,9 +50,19 @@ export class SandboxDependencyError extends Error {
   }
 }
 
+/** Thrown when a submitted Debian package coordinate is invalid. */
+export class SandboxSystemPackageError extends Error {
+  constructor(readonly issues: SystemPackageIssue[]) {
+    super(issues[0]?.reason ?? 'Invalid system package list')
+    this.name = 'SandboxSystemPackageError'
+  }
+}
+
 export interface SandboxSpecUpdate {
   language: SandboxLanguage
   dependencies: string[]
+  cliTools: SandboxCliToolId[]
+  systemPackages: string[]
   specHash: string
 }
 
@@ -55,14 +73,29 @@ export interface SandboxSpecUpdate {
  */
 export function buildSpecUpdate(
   language: SandboxLanguage,
-  submitted: readonly string[]
+  submitted: readonly string[],
+  submittedCliTools: readonly string[] = [],
+  submittedSystemPackages: readonly string[] = []
 ): SandboxSpecUpdate {
   const validation = validateDependencies(language, submitted)
   if (!validation.ok) throw new SandboxDependencyError(validation.issues)
+  const systemPackageValidation = validateSystemPackages(submittedSystemPackages)
+  if (!systemPackageValidation.ok) {
+    throw new SandboxSystemPackageError(systemPackageValidation.issues)
+  }
+  const cliTools = canonicalizeSandboxCliTools(submittedCliTools)
+  assertSandboxCliToolsSupported(cliTools, resolveProvider().id)
   return {
     language,
     dependencies: validation.dependencies,
-    specHash: hashSandboxSpec({ language, dependencies: validation.dependencies }),
+    cliTools,
+    systemPackages: systemPackageValidation.systemPackages,
+    specHash: hashSandboxSpec({
+      language,
+      dependencies: validation.dependencies,
+      cliTools,
+      systemPackages: systemPackageValidation.systemPackages,
+    }),
   }
 }
 
@@ -75,6 +108,8 @@ interface SandboxRow {
   name: string
   language: string
   dependencies: string[] | null
+  cliTools: string[] | null
+  systemPackages: string[] | null
   createdAt: Date
   updatedAt: Date
 }
@@ -93,6 +128,8 @@ function toSandbox(row: SandboxRow, image: ImageRow | undefined): Sandbox {
     name: row.name,
     language: row.language as Sandbox['language'],
     dependencies: row.dependencies ?? [],
+    cliTools: canonicalizeSandboxCliTools(row.cliTools ?? []),
+    systemPackages: canonicalizeSystemPackages(row.systemPackages ?? []),
     // A runtime-strategy deployment has no build, so the status is genuinely absent
     // rather than pending — the UI branches on that to explain the tradeoff.
     buildStatus: (image?.status as Sandbox['buildStatus']) ?? null,
@@ -141,6 +178,8 @@ const SANDBOX_COLUMNS = {
   name: workspaceSandbox.name,
   language: workspaceSandbox.language,
   dependencies: workspaceSandbox.dependencies,
+  cliTools: workspaceSandbox.cliTools,
+  systemPackages: workspaceSandbox.systemPackages,
   specHash: workspaceSandbox.specHash,
   createdAt: workspaceSandbox.createdAt,
   updatedAt: workspaceSandbox.updatedAt,
@@ -186,7 +225,12 @@ export async function readWorkspaceSandbox(
 export async function scheduleSandboxBuild(spec: SandboxSpecUpdate): Promise<void> {
   invalidateSandboxResolution()
   await ensureSandboxImage(
-    { language: spec.language, dependencies: spec.dependencies },
+    {
+      language: spec.language,
+      dependencies: spec.dependencies,
+      cliTools: spec.cliTools,
+      systemPackages: spec.systemPackages,
+    },
     spec.specHash
   )
 }

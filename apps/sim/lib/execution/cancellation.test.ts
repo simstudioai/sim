@@ -1,11 +1,14 @@
 import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRedisSet, mockPublish, mockSubscribe } = vi.hoisted(() => ({
-  mockRedisSet: vi.fn(),
-  mockPublish: vi.fn(),
-  mockSubscribe: vi.fn(),
-}))
+const { mockRedisSet, mockPublish, mockSubscribe, mockRecordCancellationResult } = vi.hoisted(
+  () => ({
+    mockRedisSet: vi.fn(),
+    mockPublish: vi.fn(),
+    mockSubscribe: vi.fn(),
+    mockRecordCancellationResult: vi.fn(),
+  })
+)
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
@@ -17,7 +20,15 @@ vi.mock('@/lib/events/pubsub', () => ({
   }),
 }))
 
-import { getCancellationChannel, markExecutionCancelled } from './cancellation'
+vi.mock('@/lib/core/execution-limits/metrics', () => ({
+  recordExecutionCancellationBackendResult: mockRecordCancellationResult,
+}))
+
+import {
+  EXECUTION_CANCEL_MIN_RETENTION_MS,
+  getCancellationChannel,
+  markExecutionCancelled,
+} from './cancellation'
 import {
   abortManualExecution,
   registerManualExecutionAborter,
@@ -46,6 +57,42 @@ describe('markExecutionCancelled', () => {
       durablyRecorded: true,
       reason: 'recorded',
     })
+
+    const expiryAt = mockRedisSet.mock.calls[0]?.[3]
+    expect(mockRedisSet).toHaveBeenCalledWith(
+      'execution:cancel:execution-1',
+      '1',
+      'PXAT',
+      expect.any(Number)
+    )
+    expect(expiryAt).toBeGreaterThanOrEqual(Date.now() + EXECUTION_CANCEL_MIN_RETENTION_MS - 100)
+  })
+
+  it('uses the exact execution deadline when it is later than queue retention', async () => {
+    const executionDeadlineAt = new Date(Date.now() + EXECUTION_CANCEL_MIN_RETENTION_MS * 2)
+    mockRedisSet.mockResolvedValue('OK')
+    mockGetRedisClient.mockReturnValue({ set: mockRedisSet })
+
+    await markExecutionCancelled('execution-deadline', { executionDeadlineAt })
+
+    expect(mockRedisSet).toHaveBeenCalledWith(
+      'execution:cancel:execution-deadline',
+      '1',
+      'PXAT',
+      executionDeadlineAt.getTime()
+    )
+  })
+
+  it('keeps the 14-day minimum when the execution deadline is sooner', async () => {
+    const before = Date.now()
+    const executionDeadlineAt = new Date(before + 60_000)
+    mockRedisSet.mockResolvedValue('OK')
+    mockGetRedisClient.mockReturnValue({ set: mockRedisSet })
+
+    await markExecutionCancelled('execution-short-deadline', { executionDeadlineAt })
+
+    const expiryAt = mockRedisSet.mock.calls[0]?.[3]
+    expect(expiryAt).toBeGreaterThanOrEqual(before + EXECUTION_CANCEL_MIN_RETENTION_MS)
   })
 
   it('returns redis_write_failed when Redis write throws', async () => {
@@ -96,6 +143,7 @@ describe('getCancellationChannel', () => {
 
 describe('manual execution cancellation registry', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     unregisterManualExecutionAborter('execution-1')
   })
 
@@ -106,10 +154,30 @@ describe('manual execution cancellation registry', () => {
 
     expect(abortManualExecution('execution-1')).toBe(true)
     expect(abort).toHaveBeenCalledTimes(1)
+    expect(mockRecordCancellationResult).toHaveBeenCalledWith({
+      backend: 'in_process',
+      result: 'cancelled',
+    })
   })
 
   it('returns false when no execution is registered', () => {
     expect(abortManualExecution('execution-missing')).toBe(false)
+    expect(mockRecordCancellationResult).toHaveBeenCalledWith({
+      backend: 'in_process',
+      result: 'not_found',
+    })
+  })
+
+  it('records an error when an in-process aborter throws', () => {
+    registerManualExecutionAborter('execution-1', () => {
+      throw new Error('abort failed')
+    })
+
+    expect(() => abortManualExecution('execution-1')).toThrow('abort failed')
+    expect(mockRecordCancellationResult).toHaveBeenCalledWith({
+      backend: 'in_process',
+      result: 'error',
+    })
   })
 
   it('unregisters executions', () => {

@@ -10,10 +10,11 @@ import { env } from '@/lib/core/config/env'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
 import {
+  inspectPrivateToolMetadataEnvelope,
+  inspectPrivateToolMetadataResponseCapability,
   PRIVATE_TOOL_METADATA_REQUEST_HEADER,
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
-  responseHasPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
 import {
   createFileContentFromBase64,
@@ -31,6 +32,7 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -61,20 +63,57 @@ type MothershipExecuteStreamEvent =
       Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>
     >)
 
+function projectMothershipPrompt(
+  prompt: string,
+  registry: ResolvedSecretTraceRegistry | undefined
+): string {
+  const projection = projectResolvedSecretModelContent(prompt, registry)
+  if (!projection.safe || typeof projection.value !== 'string') {
+    throw new Error('Mothership input could not be safely projected')
+  }
+  return projection.value
+}
+
 async function consumeMothershipProvenance(
   payload: Partial<Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>>,
   response: Response,
   registry?: ResolvedSecretTraceRegistry
 ): Promise<boolean> {
-  if (!registry) return true
-  if (
-    !responseHasPrivateToolMetadata(response.headers, RESOLVED_SECRET_PROVENANCE_METADATA_V1) ||
-    !Object.hasOwn(payload, RESOLVED_SECRET_PROVENANCE_FIELD)
-  ) {
-    registry.markIncomplete()
-    return false
+  if (!registry) throw new Error('Mothership model-egress provenance registry is unavailable')
+
+  const inspection = inspectPrivateToolMetadataEnvelope(
+    response.headers,
+    payload,
+    RESOLVED_SECRET_PROVENANCE_METADATA_V1
+  )
+  const provenance = payload[RESOLVED_SECRET_PROVENANCE_FIELD]
+  payload[RESOLVED_SECRET_PROVENANCE_FIELD] = undefined
+  if (inspection.status === 'unsupported') {
+    throw new Error('Mothership response does not support private provenance metadata')
   }
-  return registry.importProvenance(payload[RESOLVED_SECRET_PROVENANCE_FIELD], { trusted: true })
+  if (inspection.status === 'invalid') {
+    registry.markIncomplete()
+    throw new Error('Mothership response provenance metadata is invalid')
+  }
+
+  const imported = await registry.importProvenance(provenance, { trusted: true })
+  if (!imported) throw new Error('Mothership response provenance metadata is invalid')
+  return true
+}
+
+function assertMothershipResponseCapability(
+  response: Response,
+  registry: ResolvedSecretTraceRegistry | undefined
+): void {
+  if (!registry) throw new Error('Mothership model-egress provenance registry is unavailable')
+
+  const capability = inspectPrivateToolMetadataResponseCapability(
+    response.headers,
+    RESOLVED_SECRET_PROVENANCE_METADATA_V1
+  )
+  if (capability.status === 'supported') return
+  if (capability.status === 'mismatched') registry.markIncomplete()
+  throw new Error('Mothership response does not support private provenance metadata')
 }
 
 function parseMothershipExecuteStreamLine(line: string): MothershipExecuteStreamEvent | undefined {
@@ -130,9 +169,16 @@ async function readMothershipExecuteResponse(
   response: Response,
   registry?: ResolvedSecretTraceRegistry
 ): Promise<MothershipExecuteResult> {
+  assertMothershipResponseCapability(response, registry)
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.includes('application/x-ndjson')) {
-    const result = (await response.json()) as MothershipExecuteResult
+    let result: MothershipExecuteResult
+    try {
+      result = (await response.json()) as MothershipExecuteResult
+    } catch {
+      registry?.markIncomplete()
+      throw new Error('Mothership response provenance metadata is invalid')
+    }
     await consumeMothershipProvenance(result, response, registry)
     return result
   }
@@ -206,6 +252,7 @@ function createMothershipStreamingExecution(
     registry?: ResolvedSecretTraceRegistry
   } = {}
 ): StreamingExecution {
+  assertMothershipResponseCapability(response, options.registry)
   if (!response.body) {
     throw new Error('Sim execution stream ended without a response body')
   }
@@ -392,7 +439,12 @@ export class MothershipBlockHandler implements BlockHandler {
     if (!prompt || typeof prompt !== 'string') {
       throw new Error('Prompt input is required')
     }
-    const messages = [{ role: 'user' as const, content: prompt }]
+    const messages = [
+      {
+        role: 'user' as const,
+        content: projectMothershipPrompt(prompt, ctx.resolvedSecretTraceRegistry),
+      },
+    ]
     const providedConversationId =
       typeof inputs.conversationId === 'string' ? inputs.conversationId.trim() : ''
     const chatId = providedConversationId || generateId()
@@ -462,7 +514,6 @@ export class MothershipBlockHandler implements BlockHandler {
       requestId,
       workflowId: ctx.workflowId,
       executionId: ctx.executionId,
-      chatId,
       fileAttachmentCount: fileAttachments?.length ?? 0,
       mcpToolCount: mcpTools.length,
       skillCount: skillContexts.length,
@@ -527,14 +578,15 @@ export class MothershipBlockHandler implements BlockHandler {
       })
 
       if (!response.ok) {
-        if (ctx.resolvedSecretTraceRegistry) {
-          try {
-            const payload = (await response.clone().json()) as MothershipExecuteResult
-            await consumeMothershipProvenance(payload, response, ctx.resolvedSecretTraceRegistry)
-          } catch {
-            ctx.resolvedSecretTraceRegistry.markIncomplete()
-          }
+        assertMothershipResponseCapability(response, ctx.resolvedSecretTraceRegistry)
+        let payload: MothershipExecuteResult
+        try {
+          payload = (await response.clone().json()) as MothershipExecuteResult
+        } catch {
+          ctx.resolvedSecretTraceRegistry?.markIncomplete()
+          throw new Error('Mothership response provenance metadata is invalid')
         }
+        await consumeMothershipProvenance(payload, response, ctx.resolvedSecretTraceRegistry)
         const errorMsg = await extractAPIErrorMessage(response)
         throw new Error(`Sim execution failed: ${errorMsg}`)
       }

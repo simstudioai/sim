@@ -31,6 +31,10 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
 import { recordVfsMaterialize } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
+import {
+  filterSecretNamesByMountPolicy,
+  type SecretMountPolicy,
+} from '@/lib/copilot/secret-mount-policy'
 import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
@@ -107,10 +111,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
-import {
-  loadWorkflowDeploymentSnapshot,
-  loadWorkflowFromNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
@@ -120,13 +121,12 @@ import {
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
-import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
+import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import type { ToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
@@ -561,15 +561,11 @@ export class WorkspaceVFS {
   }
 
   /** Load a workflow's deployment data once per instance (deployment.json + versions.json share it). */
-  private loadDeployments(wf: {
-    id: string
-    isDeployed: boolean
-    deployedAt: Date | null
-  }): Promise<DeploymentData | null> {
-    let cached = this.deploymentCache.get(wf.id)
+  private loadDeployments(workflowId: string): Promise<DeploymentData | null> {
+    let cached = this.deploymentCache.get(workflowId)
     if (!cached) {
-      cached = this.getWorkflowDeployments(wf.id, this._workspaceId, wf.isDeployed, wf.deployedAt)
-      this.deploymentCache.set(wf.id, cached)
+      cached = this.getWorkflowDeployments(workflowId, this._workspaceId)
+      this.deploymentCache.set(workflowId, cached)
     }
     return cached
   }
@@ -594,7 +590,8 @@ export class WorkspaceVFS {
         path,
         error: toError(err).message,
       })
-      content = null
+      this.lazy.set(path, loader)
+      throw err
     }
     if (content !== null) this.files.set(path, content)
     return content
@@ -646,7 +643,11 @@ export class WorkspaceVFS {
    * Uses shared service functions for all data access, then generates
    * WORKSPACE.md from the summaries returned by each materializer.
    */
-  async materialize(workspaceId: string, userId: string): Promise<void> {
+  async materialize(
+    workspaceId: string,
+    userId: string,
+    options?: { secretMountPolicy?: SecretMountPolicy }
+  ): Promise<void> {
     const start = Date.now()
     this.files = new Map()
     this.lazy = new Map()
@@ -691,7 +692,10 @@ export class WorkspaceVFS {
               timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId, userId)),
               timed('tables', this.materializeTables(workspaceId)),
               timed('files', this.materializeFiles(workspaceId)),
-              timed('environment', this.materializeEnvironment(workspaceId, userId)),
+              timed(
+                'environment',
+                this.materializeEnvironment(workspaceId, userId, options?.secretMountPolicy)
+              ),
               timed('custom_tools', this.materializeCustomTools(workspaceId, userId)),
               timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
@@ -1326,6 +1330,33 @@ export class WorkspaceVFS {
       listWorkflows(workspaceId),
       listFolders(workspaceId),
     ])
+    const deploymentVersionRows =
+      workflowRows.length === 0
+        ? []
+        : await db
+            .select({
+              workflowId: workflowDeploymentVersion.workflowId,
+              isActive: workflowDeploymentVersion.isActive,
+              createdAt: workflowDeploymentVersion.createdAt,
+            })
+            .from(workflowDeploymentVersion)
+            .where(
+              inArray(
+                workflowDeploymentVersion.workflowId,
+                workflowRows.map((workflowRow) => workflowRow.id)
+              )
+            )
+    const versionedWorkflowIds = new Set(
+      deploymentVersionRows.map((deploymentVersion) => deploymentVersion.workflowId)
+    )
+    const activeDeploymentDates = new Map<string, Date>()
+    for (const deploymentVersion of deploymentVersionRows) {
+      if (!deploymentVersion.isActive) continue
+      const current = activeDeploymentDates.get(deploymentVersion.workflowId)
+      if (!current || current < deploymentVersion.createdAt) {
+        activeDeploymentDates.set(deploymentVersion.workflowId, deploymentVersion.createdAt)
+      }
+    }
 
     const folderPaths = this.buildFolderPaths(folderRows)
     const lockedFolderIds = this.computeLockedFolderIds(folderRows)
@@ -1340,12 +1371,21 @@ export class WorkspaceVFS {
 
     await Promise.all(
       workflowRows.map(async (wf) => {
+        const deployedAt = activeDeploymentDates.get(wf.id) ?? null
+        const authoritativeWorkflow = {
+          ...wf,
+          isDeployed: deployedAt !== null,
+          deployedAt,
+        }
         const folderPath = wf.folderId ? folderPaths.get(wf.folderId) : null
         const prefix = `${canonicalWorkflowVfsDir({ name: wf.name, folderPath })}/`
         const workflowPath = prefix.replace(/\/$/, '')
 
         const inheritedFolderLock = wf.folderId ? lockedFolderIds.has(wf.folderId) : false
-        this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf, { inheritedFolderLock }))
+        this.files.set(
+          `${prefix}meta.json`,
+          serializeWorkflowMeta(authoritativeWorkflow, { inheritedFolderLock })
+        )
 
         // Heavy per-workflow content is LAZY: a read/glob never loads the block
         // graph, runs lint, or queries executions/deployments. Only a read of the
@@ -1416,15 +1456,13 @@ export class WorkspaceVFS {
           })
         }
 
-        // deployment.json / versions.json are advertised when the workflow is
-        // deployed (cheap signal: isDeployed). Both share one memoized query.
-        if (wf.isDeployed) {
+        if (versionedWorkflowIds.has(wf.id)) {
           this.registerLazy(`${prefix}deployment.json`, async () => {
-            const deploymentData = await this.loadDeployments(wf)
+            const deploymentData = await this.loadDeployments(wf.id)
             return deploymentData ? serializeDeployments(deploymentData) : null
           })
           this.registerLazy(`${prefix}versions.json`, async () => {
-            const deploymentData = await this.loadDeployments(wf)
+            const deploymentData = await this.loadDeployments(wf.id)
             return deploymentData?.versions && deploymentData.versions.length > 0
               ? serializeVersions(deploymentData.versions)
               : null
@@ -1436,7 +1474,7 @@ export class WorkspaceVFS {
     return workflowRows.map((wf) => ({
       id: wf.id,
       name: wf.name,
-      isDeployed: wf.isDeployed,
+      isDeployed: activeDeploymentDates.has(wf.id),
       lastRunAt: wf.lastRunAt,
       folderPath: wf.folderId ? (folderPaths.get(wf.folderId) ?? null) : null,
     }))
@@ -1713,9 +1751,7 @@ export class WorkspaceVFS {
    */
   private async getWorkflowDeployments(
     workflowId: string,
-    workspaceId: string,
-    isDeployed: boolean,
-    deployedAt: Date | null
+    workspaceId: string
   ): Promise<DeploymentData | null> {
     const [chatRows, mcpRows, versionRows, allVersionRows] = await Promise.all([
       db
@@ -1747,27 +1783,21 @@ export class WorkspaceVFS {
             isNull(workflowMcpServer.deletedAt)
           )
         ),
-      isDeployed
-        ? db
-            .select({
-              version: workflowDeploymentVersion.version,
-              state: workflowDeploymentVersion.state,
-              createdAt: workflowDeploymentVersion.createdAt,
-            })
-            .from(workflowDeploymentVersion)
-            .where(
-              and(
-                eq(workflowDeploymentVersion.workflowId, workflowId),
-                eq(workflowDeploymentVersion.isActive, true)
-              )
-            )
-            // Match checkNeedsRedeployment/loadDeployedWorkflowState. Historical
-            // workflows can contain more than one active row, so an unordered
-            // limit may compare the draft with an older deployment while the UI
-            // correctly compares against the newest active deployment.
-            .orderBy(desc(workflowDeploymentVersion.createdAt))
-            .limit(1)
-        : Promise.resolve([]),
+      db
+        .select({
+          version: workflowDeploymentVersion.version,
+          state: workflowDeploymentVersion.state,
+          createdAt: workflowDeploymentVersion.createdAt,
+        })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+        .orderBy(desc(workflowDeploymentVersion.createdAt))
+        .limit(1),
       db
         .select({
           id: workflowDeploymentVersion.id,
@@ -1782,29 +1812,14 @@ export class WorkspaceVFS {
         .orderBy(desc(workflowDeploymentVersion.version)),
     ])
 
+    const deployedVersion = versionRows[0]
+    const isDeployed = Boolean(deployedVersion)
+    const deployedAt = deployedVersion?.createdAt ?? null
     const hasAnyDeployment = isDeployed || chatRows.length > 0 || mcpRows.length > 0
     if (!hasAnyDeployment && allVersionRows.length === 0) return null
 
-    let needsRedeployment: boolean | undefined
-    const deployedVersion = versionRows[0]
-    if (isDeployed && deployedVersion?.state) {
-      try {
-        // Use the canonical deployment snapshot (includes variables) so this
-        // matches check_deployment_status exactly. The reshaped normalized load
-        // dropped variables, which made any workflow with deployment variables
-        // permanently report needsRedeployment: true.
-        const currentSnapshot = await loadWorkflowDeploymentSnapshot(workflowId)
-        needsRedeployment = computeNeedsRedeployment(
-          currentSnapshot,
-          deployedVersion.state as WorkflowState
-        )
-      } catch (err) {
-        logger.warn('Failed to compute needsRedeployment', {
-          workflowId,
-          error: toError(err).message,
-        })
-      }
-    }
+    const needsRedeployment =
+      isDeployed && deployedVersion?.state ? await checkNeedsRedeployment(workflowId) : undefined
 
     return {
       workflowId,
@@ -2346,7 +2361,8 @@ export class WorkspaceVFS {
    */
   private async materializeEnvironment(
     workspaceId: string,
-    userId: string
+    userId: string,
+    secretMountPolicy?: SecretMountPolicy
   ): Promise<{
     oauthIntegrations: WorkspaceMdData['oauthIntegrations']
     envVariables: WorkspaceMdData['envVariables']
@@ -2359,11 +2375,20 @@ export class WorkspaceVFS {
         listApiKeys(workspaceId),
         getPersonalAndWorkspaceEnv(userId, workspaceId),
       ])
+      const visibleEnvCredentialNames = new Set(
+        filterSecretNamesByMountPolicy(
+          envCredentials.map((credential) => credential.envKey),
+          secretMountPolicy
+        )
+      )
+      const visibleEnvCredentials = envCredentials.filter((credential) =>
+        visibleEnvCredentialNames.has(credential.envKey)
+      )
 
       this.files.set(
         'environment/credentials.json',
         serializeCredentials([
-          ...envCredentials.map((c) => ({
+          ...visibleEnvCredentials.map((c) => ({
             providerId: c.envKey,
             scope: c.type === 'env_workspace' ? 'workspace' : 'personal',
             createdAt: c.updatedAt,
@@ -2382,14 +2407,20 @@ export class WorkspaceVFS {
 
       this.files.set('environment/api-keys.json', serializeApiKeys(apiKeyRows))
 
-      const personalVarNames = Object.keys(envData.personalEncrypted)
-      const workspaceVarNames = Object.keys(envData.workspaceEncrypted)
+      const personalVarNames = filterSecretNamesByMountPolicy(
+        Object.keys(envData.personalEncrypted),
+        secretMountPolicy
+      )
+      const workspaceVarNames = filterSecretNamesByMountPolicy(
+        Object.keys(envData.workspaceEncrypted),
+        secretMountPolicy
+      )
       this.files.set(
         'environment/variables.json',
         serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
       )
 
-      const envKeys = [...new Set(envCredentials.map((c) => c.envKey))]
+      const envKeys = [...visibleEnvCredentialNames]
       return {
         oauthIntegrations: oauthCredentials.map((c) => ({
           id: c.id,
@@ -2416,11 +2447,12 @@ export class WorkspaceVFS {
  */
 export async function getOrMaterializeVFS(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { secretMountPolicy?: SecretMountPolicy }
 ): Promise<WorkspaceVFS> {
   await assertActiveWorkspaceAccess(workspaceId, userId)
   const vfs = new WorkspaceVFS()
-  await vfs.materialize(workspaceId, userId)
+  await vfs.materialize(workspaceId, userId, options)
   return vfs
 }
 

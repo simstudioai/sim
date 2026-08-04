@@ -57,9 +57,9 @@ export const POST = withRouteHandler(
 
     const parsed = await parseRequest(createSandboxContract, request, context)
     if (!parsed.success) return parsed.response
-    const { name, language, dependencies } = parsed.data.body
+    const { name, language, dependencies, cliTools, systemPackages } = parsed.data.body
 
-    const built = buildSpecOrResponse(language, dependencies)
+    const built = buildSpecOrResponse(language, dependencies, cliTools, systemPackages)
     if (!built.ok) return built.response
     const { spec } = built
 
@@ -75,6 +75,8 @@ export const POST = withRouteHandler(
         name,
         language: spec.language,
         dependencies: spec.dependencies,
+        cliTools: spec.cliTools,
+        systemPackages: spec.systemPackages,
         specHash: spec.specHash,
         createdBy: authorized.actor.userId,
       })

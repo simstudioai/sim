@@ -149,7 +149,8 @@ export class VariableResolver {
    *
    * Returns runtime inputs, display inputs, and a `contextVariables` map. Callers
    * should inject contextVariables into the function execution request body so the
-   * isolated VM can access them as global variables.
+   * runtime can access them as globals. Environment placeholders remain in source so
+   * the shared execution-boundary compiler handles both Function blocks and Custom Tools.
    */
   async resolveInputsForFunctionBlock(
     ctx: ExecutionContext,
@@ -238,41 +239,40 @@ export class VariableResolver {
     const resolved: Record<string, any> = {}
 
     const isConditionBlock = block?.metadata?.id === BlockType.CONDITION
-    if (isConditionBlock && typeof params.conditions === 'string') {
-      try {
-        const parsed = JSON.parse(params.conditions)
-        if (Array.isArray(parsed)) {
-          resolved.conditions = await Promise.all(
-            parsed.map(async (cond: any) => ({
-              ...cond,
-              value:
-                typeof cond.value === 'string'
-                  ? await this.resolveTemplateWithoutConditionFormatting(
-                      ctx,
-                      currentNodeId,
-                      cond.value
-                    )
-                  : cond.value,
-            }))
-          )
-        } else {
-          resolved.conditions = await this.resolveValue(
-            ctx,
-            currentNodeId,
-            params.conditions,
-            undefined,
-            block
-          )
+    if (isConditionBlock) {
+      let conditions: unknown = params.conditions
+      if (typeof conditions === 'string') {
+        try {
+          const parsedConditions: unknown = JSON.parse(conditions)
+          if (Array.isArray(parsedConditions)) conditions = parsedConditions
+        } catch (parseError) {
+          conditions = params.conditions
+          logger.warn('Failed to parse conditions JSON, falling back to normal resolution', {
+            errorName: toError(parseError).name,
+            inputLength: params.conditions.length,
+          })
         }
-      } catch (parseError) {
-        logger.warn('Failed to parse conditions JSON, falling back to normal resolution', {
-          error: parseError,
-          conditions: params.conditions,
-        })
+      }
+
+      if (Array.isArray(conditions)) {
+        resolved.conditions = await Promise.all(
+          conditions.map(async (condition) => {
+            if (!condition || typeof condition !== 'object') return condition
+            const value = Reflect.get(condition, 'value')
+            return {
+              ...condition,
+              value:
+                typeof value === 'string'
+                  ? await this.resolveTemplateWithoutConditionFormatting(ctx, currentNodeId, value)
+                  : value,
+            }
+          })
+        )
+      } else {
         resolved.conditions = await this.resolveValue(
           ctx,
           currentNodeId,
-          params.conditions,
+          conditions,
           undefined,
           block
         )
@@ -367,9 +367,8 @@ export class VariableResolver {
   /**
    * Resolves a code template for a function block. Block output references are stored
    * in `contextVarAccumulator` as named variables (e.g. `__blockRef_0`) and replaced
-   * with those variable names in the returned code string. Non-block references (loop
-   * items, workflow variables, env vars) are still inlined as literals so they remain
-   * available without any extra passing mechanism.
+   * with those variable names in the returned code string. Environment placeholders are
+   * deliberately preserved for the shared execution-boundary compiler.
    */
   private async resolveCodeWithContextVars(
     ctx: ExecutionContext,
@@ -396,7 +395,7 @@ export class VariableResolver {
     let displayResult = ''
     let displayCursor = 0
 
-    let result = await replaceValidReferencesAsync(template, async (match, index) => {
+    const result = await replaceValidReferencesAsync(template, async (match, index) => {
       if (replacementError) return match
       displayResult += template.slice(displayCursor, index)
       displayCursor = index + match.length
@@ -593,15 +592,6 @@ export class VariableResolver {
     if (replacementError !== null) {
       throw replacementError
     }
-
-    result = await replaceEnvVarsAsync(result, async (match) => {
-      const resolved = await this.resolveReference(match, resolutionContext)
-      return typeof resolved === 'string' ? resolved : match
-    })
-    displayResult = await replaceEnvVarsAsync(displayResult, async (match) => {
-      const resolved = await this.resolveReference(match, resolutionContext)
-      return typeof resolved === 'string' ? resolved : match
-    })
 
     return { resolvedCode: result, displayCode: displayResult }
   }

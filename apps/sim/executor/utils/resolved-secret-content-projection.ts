@@ -1,31 +1,39 @@
+import { isDeepStrictEqual } from 'node:util'
 import { isPlainRecord } from '@sim/utils/object'
 import { LARGE_ARRAY_MANIFEST_MARKER } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/materialization.server'
-import type { ResolvedSecretTraceMatch } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  containsResolvedSecret,
+  createResolvedSecretMatcher,
+  OPAQUE_RESOLVED_SECRET_REPLACEMENT,
+  type ResolvedSecretMatcher,
+  sanitizeResolvedSecretPrimitive,
+  sanitizeResolvedSecretString,
+} from '@/executor/utils/resolved-secret-matcher'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+export {
+  containsResolvedSecret,
+  createResolvedSecretMatcher,
+  type ResolvedSecretMatcher,
+  sanitizeResolvedSecretString,
+  scanResolvedSecretString,
+} from '@/executor/utils/resolved-secret-matcher'
 
 const MAX_CONTENT_NODES = 100_000
 const MAX_CONTENT_DEPTH = 100
-const MAX_MATCHER_NODES = 250_000
-const MAX_SECRET_LITERAL_LENGTH = 64 * 1024
-const MAX_MATCH_EVENTS = 1_000_000
+const INTERNAL_MODEL_IDENTIFIER_PATTERN =
+  /__var_[A-Za-z0-9_]+|__sim_code_\d+_(?:binding|input|runtime)_\d+[A-Za-z0-9_]*|__sim_placeholder_[a-f0-9]{64}__|__sim_runtime_[A-Za-z0-9_]+_\d+[A-Za-z0-9_]*|__SIM_RUNTIME_PAYLOAD_PATH/g
 
-interface SecretReplacement {
-  plaintext: string
-  replacement: string
-}
+const modelEgressMatcherCache = new WeakMap<
+  ResolvedSecretTraceRegistry,
+  { revision: number; complete: boolean; matcher?: ResolvedSecretMatcher }
+>()
 
-interface SecretTrieNode {
-  children: Map<string, SecretTrieNode>
-  failure?: SecretTrieNode
-  outputLink?: SecretTrieNode
-  replacement?: SecretReplacement
-}
-
-export interface ResolvedSecretMatcher {
-  root: SecretTrieNode
-  maxPatternLength: number
-}
+export type ResolvedSecretModelMatcherSnapshot =
+  | { complete: true; matcher?: ResolvedSecretMatcher }
+  | { complete: false }
 
 interface ProjectionState {
   nodes: number
@@ -37,6 +45,12 @@ interface ProjectionState {
 export interface ResolvedSecretContentProjectionOptions {
   /** Values already materialized and verified by a boundary-specific projector. */
   isOpaqueSafeObject?: (value: object) => boolean
+  /** Whether string-shaped secret literals should also match typed number/boolean/null values. */
+  projectPrimitiveLiterals?: boolean
+  /** Whether internal legacy and compiler runtime identifiers must be removed from model content. */
+  sanitizeInternalIdentifiers?: boolean
+  /** Receives each exact string secret detected while traversing content. */
+  onMatch?: (plaintext: string) => void
 }
 
 export type ResolvedSecretContentProjection = { safe: true; value: unknown } | { safe: false }
@@ -48,213 +62,22 @@ class ResolvedSecretContentProjectionError extends Error {
   }
 }
 
-function compareStrings(left: string, right: string): number {
-  if (left < right) return -1
-  if (left > right) return 1
-  return 0
+function internalModelIdentifierReplacement(identifier: string): string {
+  return identifier.startsWith('__var_') ? '[REDACTED_SECRET]' : '[RUNTIME_BINDING]'
 }
 
-function createMatcherFromReplacements(
-  replacements: readonly SecretReplacement[]
-): ResolvedSecretMatcher {
-  const root: SecretTrieNode = { children: new Map<string, SecretTrieNode>() }
-  root.failure = root
-  let nodeCount = 1
-  let maxPatternLength = 0
-
-  for (const replacement of replacements) {
-    if (replacement.plaintext.length > MAX_SECRET_LITERAL_LENGTH) {
-      throw new ResolvedSecretContentProjectionError(
-        'Secret literal exceeds the matcher size limit'
-      )
-    }
-    maxPatternLength = Math.max(maxPatternLength, replacement.plaintext.length)
-    let node = root
-    for (let index = 0; index < replacement.plaintext.length; index += 1) {
-      const character = replacement.plaintext[index]
-      let child = node.children.get(character)
-      if (!child) {
-        child = { children: new Map<string, SecretTrieNode>() }
-        node.children.set(character, child)
-        nodeCount += 1
-        if (nodeCount > MAX_MATCHER_NODES) {
-          throw new ResolvedSecretContentProjectionError('Secret matcher node limit exceeded')
-        }
-      }
-      node = child
-    }
-    node.replacement = replacement
-  }
-
-  const queue: SecretTrieNode[] = []
-  for (const child of root.children.values()) {
-    child.failure = root
-    queue.push(child)
-  }
-  for (let cursor = 0; cursor < queue.length; cursor += 1) {
-    const node = queue[cursor]
-    for (const [character, child] of node.children) {
-      let fallback = node.failure ?? root
-      while (fallback !== root && !fallback.children.has(character)) {
-        fallback = fallback.failure ?? root
-      }
-      const transition = fallback.children.get(character)
-      child.failure = transition && transition !== child ? transition : root
-      child.outputLink = child.failure.replacement ? child.failure : child.failure.outputLink
-      queue.push(child)
-    }
-  }
-
-  return { root, maxPatternLength }
+function sanitizeInternalModelIdentifiers(value: string): string {
+  return value.replace(INTERNAL_MODEL_IDENTIFIER_PATTERN, internalModelIdentifierReplacement)
 }
 
-function advanceMatcher(
-  matcher: ResolvedSecretMatcher,
-  node: SecretTrieNode,
-  character: string
-): SecretTrieNode {
-  let current = node
-  while (current !== matcher.root && !current.children.has(character)) {
-    current = current.failure ?? matcher.root
-  }
-  return current.children.get(character) ?? matcher.root
-}
-
-export function containsResolvedSecret(value: string, matcher: ResolvedSecretMatcher): boolean {
-  let node = matcher.root
-  for (let index = 0; index < value.length; index += 1) {
-    node = advanceMatcher(matcher, node, value[index])
-    if (node.replacement || node.outputLink) return true
-  }
-  return false
-}
-
-export function sanitizeResolvedSecretString(
+function sanitizeCollisionProneInternalModelIdentifiers(
   value: string,
-  matcher: ResolvedSecretMatcher,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
+  matcher: ResolvedSecretMatcher
 ): string {
-  if (maxBytes < 0) {
-    throw new ResolvedSecretContentProjectionError(
-      'Sanitized secret-bearing string exceeds the size limit'
-    )
-  }
-  if (Buffer.byteLength(value, 'utf8') > maxBytes) {
-    throw new ResolvedSecretContentProjectionError('Secret-bearing string exceeds the size limit')
-  }
-  if (matcher.maxPatternLength === 0 || value.length === 0) return value
-
-  let emitCursor = 0
-  let literalStart = 0
-  let outputBytes = 0
-  let matchEvents = 0
-  const chunks: string[] = []
-  const windowSize = matcher.maxPatternLength
-  const slotStarts = new Int32Array(windowSize)
-  const slotEnds = new Int32Array(windowSize)
-  slotStarts.fill(-1)
-  const slotReplacements = new Array<string | undefined>(windowSize)
-
-  const append = (chunk: string): void => {
-    if (!chunk) return
-    outputBytes += Buffer.byteLength(chunk, 'utf8')
-    if (outputBytes > maxBytes) {
-      throw new ResolvedSecretContentProjectionError(
-        'Sanitized secret-bearing string exceeds the size limit'
-      )
-    }
-    const lastIndex = chunks.length - 1
-    if (lastIndex >= 0 && chunks[lastIndex].length + chunk.length <= 64 * 1024) {
-      chunks[lastIndex] += chunk
-    } else {
-      chunks.push(chunk)
-    }
-  }
-
-  const finalizeThrough = (limit: number): void => {
-    while (emitCursor <= limit && emitCursor < value.length) {
-      const slot = emitCursor % windowSize
-      if (slotStarts[slot] === emitCursor && slotReplacements[slot] !== undefined) {
-        append(value.slice(literalStart, emitCursor))
-        append(slotReplacements[slot] ?? '')
-        emitCursor = slotEnds[slot]
-        literalStart = emitCursor
-      } else {
-        emitCursor += 1
-      }
-    }
-  }
-
-  let node = matcher.root
-  for (let index = 0; index < value.length; index += 1) {
-    node = advanceMatcher(matcher, node, value[index])
-    let outputNode: SecretTrieNode | undefined = node.replacement ? node : node.outputLink
-    while (outputNode?.replacement) {
-      matchEvents += 1
-      if (matchEvents > MAX_MATCH_EVENTS) {
-        throw new ResolvedSecretContentProjectionError('Secret matcher event limit exceeded')
-      }
-      const start = index - outputNode.replacement.plaintext.length + 1
-      if (start >= emitCursor) {
-        const slot = start % windowSize
-        const end = index + 1
-        if (slotStarts[slot] !== start || end > slotEnds[slot]) {
-          slotStarts[slot] = start
-          slotEnds[slot] = end
-          slotReplacements[slot] = outputNode.replacement.replacement
-        }
-      }
-      outputNode = outputNode.outputLink
-    }
-    finalizeThrough(index - matcher.maxPatternLength + 1)
-  }
-
-  finalizeThrough(value.length - 1)
-  append(value.slice(literalStart))
-  const sanitized = chunks.join('')
-  if (containsResolvedSecret(sanitized, matcher)) {
-    throw new ResolvedSecretContentProjectionError(
-      'Sanitized content still contains an active secret'
-    )
-  }
-  return sanitized
-}
-
-export function createResolvedSecretMatcher(
-  matches: readonly ResolvedSecretTraceMatch[]
-): ResolvedSecretMatcher | undefined {
-  const replacementByPlaintext = new Map<string, string>()
-
-  for (const match of matches) {
-    if (!match.plaintext) continue
-    const current = replacementByPlaintext.get(match.plaintext)
-    if (current === undefined || compareStrings(match.replacement, current) < 0) {
-      replacementByPlaintext.set(match.plaintext, match.replacement)
-    }
-  }
-
-  const provisional = [...replacementByPlaintext.keys()]
-    .map((plaintext) => ({
-      plaintext,
-      replacement: replacementByPlaintext.get(plaintext) ?? '',
-    }))
-    .sort(
-      (left, right) =>
-        right.plaintext.length - left.plaintext.length ||
-        compareStrings(left.replacement, right.replacement) ||
-        compareStrings(left.plaintext, right.plaintext)
-    )
-
-  if (provisional.length === 0) return undefined
-
-  const detector = createMatcherFromReplacements(
-    provisional.map(({ plaintext }) => ({ plaintext, replacement: '' }))
-  )
-  return createMatcherFromReplacements(
-    provisional.map(({ plaintext, replacement }) => ({
-      plaintext,
-      replacement: containsResolvedSecret(replacement, detector) ? '' : replacement,
-    }))
+  return value.replace(INTERNAL_MODEL_IDENTIFIER_PATTERN, (identifier) =>
+    containsResolvedSecret(identifier, matcher) && !matcher.exactReplacements.has(identifier)
+      ? internalModelIdentifierReplacement(identifier)
+      : identifier
   )
 }
 
@@ -312,30 +135,33 @@ function* arrayDataEntries(value: readonly unknown[]): Generator<[number, unknow
 
 function sanitizeContent(
   value: unknown,
-  matcher: ResolvedSecretMatcher,
+  matcher: ResolvedSecretMatcher | undefined,
   state: ProjectionState,
   options: ResolvedSecretContentProjectionOptions,
   depth = 0
 ): unknown {
   visitNode(state, depth)
   if (typeof value === 'string') {
-    const sanitized = sanitizeResolvedSecretString(
+    const sanitized = sanitizeProjectedString(
       value,
       matcher,
-      state.maxBytes - state.outputBytes
+      state.maxBytes - state.outputBytes,
+      options
     )
     state.outputBytes += Buffer.byteLength(sanitized, 'utf8')
     return sanitized
   }
   if (value === null || typeof value === 'number' || typeof value === 'boolean') {
+    if (!matcher || options.projectPrimitiveLiterals === false) return value
     const rendered = String(value)
-    if (!containsResolvedSecret(rendered, matcher)) return value
-    const sanitized = sanitizeResolvedSecretString(
-      rendered,
-      matcher,
-      state.maxBytes - state.outputBytes
-    )
+    const sanitized = sanitizeResolvedSecretPrimitive(rendered, matcher, options.onMatch)
+    if (sanitized === undefined) return value
     state.outputBytes += Buffer.byteLength(sanitized, 'utf8')
+    if (state.outputBytes > state.maxBytes) {
+      throw new ResolvedSecretContentProjectionError(
+        'Sanitized secret-bearing primitive exceeds the size limit'
+      )
+    }
     return sanitized
   }
   if (value === undefined) return value
@@ -375,10 +201,11 @@ function sanitizeContent(
     const sanitized = Object.create(Object.getPrototypeOf(value)) as Record<string, unknown>
     const sanitizedKeys = new Set<string>()
     for (const [key, item] of enumerableDataEntries(value)) {
-      const sanitizedKey = sanitizeResolvedSecretString(
+      const sanitizedKey = sanitizeProjectedString(
         key,
         matcher,
-        state.maxBytes - state.outputBytes
+        state.maxBytes - state.outputBytes,
+        options
       )
       state.outputBytes += Buffer.byteLength(sanitizedKey, 'utf8')
       if (sanitizedKeys.has(sanitizedKey)) {
@@ -400,11 +227,47 @@ function sanitizeContent(
   }
 }
 
-export function projectResolvedSecretContent(
+function sanitizeProjectedString(
+  value: string,
+  matcher: ResolvedSecretMatcher | undefined,
+  maxBytes: number,
+  options: ResolvedSecretContentProjectionOptions
+): string {
+  let sanitized =
+    options.sanitizeInternalIdentifiers && matcher
+      ? sanitizeCollisionProneInternalModelIdentifiers(value, matcher)
+      : value
+  sanitized = matcher
+    ? sanitizeResolvedSecretString(sanitized, matcher, maxBytes, options.onMatch)
+    : sanitized
+  sanitized = sanitized.replaceAll(
+    `{{${OPAQUE_RESOLVED_SECRET_REPLACEMENT}}}`,
+    OPAQUE_RESOLVED_SECRET_REPLACEMENT
+  )
+  if (options.sanitizeInternalIdentifiers) {
+    sanitized = sanitizeInternalModelIdentifiers(sanitized)
+  }
+  if (matcher && containsResolvedSecret(sanitized, matcher)) {
+    sanitized = sanitizeResolvedSecretString(sanitized, matcher, maxBytes, options.onMatch)
+    if (containsResolvedSecret(sanitized, matcher)) {
+      throw new ResolvedSecretContentProjectionError(
+        'Secret replacement could not produce safe model content'
+      )
+    }
+  }
+  if (maxBytes < 0 || Buffer.byteLength(sanitized, 'utf8') > maxBytes) {
+    throw new ResolvedSecretContentProjectionError(
+      'Sanitized secret-bearing string exceeds the size limit'
+    )
+  }
+  return sanitized
+}
+
+function projectContent(
   value: unknown,
-  matcher: ResolvedSecretMatcher,
-  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
-  options: ResolvedSecretContentProjectionOptions = {}
+  matcher: ResolvedSecretMatcher | undefined,
+  maxBytes: number,
+  options: ResolvedSecretContentProjectionOptions
 ): ResolvedSecretContentProjection {
   try {
     return {
@@ -424,4 +287,152 @@ export function projectResolvedSecretContent(
   } catch {
     return { safe: false }
   }
+}
+
+export function projectResolvedSecretContent(
+  value: unknown,
+  matcher: ResolvedSecretMatcher,
+  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
+  options: ResolvedSecretContentProjectionOptions = {}
+): ResolvedSecretContentProjection {
+  return projectContent(value, matcher, maxBytes, options)
+}
+
+/** Returns the registry-revision-cached matcher used for all model-visible projection. */
+export function getResolvedSecretModelMatcher(
+  registry: ResolvedSecretTraceRegistry | undefined
+): ResolvedSecretModelMatcherSnapshot {
+  if (!registry) return { complete: false }
+
+  try {
+    const revision = registry.getModelEgressRevision()
+    let cached = modelEgressMatcherCache.get(registry)
+    if (!cached || cached.revision !== revision) {
+      const snapshot = registry.getModelEgressSnapshot()
+      cached = {
+        revision,
+        complete: snapshot.complete,
+        ...(snapshot.complete ? { matcher: createResolvedSecretMatcher(snapshot.matches) } : {}),
+      }
+      modelEgressMatcherCache.set(registry, cached)
+    }
+    return cached.complete ? { complete: true, matcher: cached.matcher } : { complete: false }
+  } catch {
+    return { complete: false }
+  }
+}
+
+/** Produces a nonempty model control message only when the registry can prove it secret-free. */
+export function projectResolvedSecretModelControlMessage(
+  message: string,
+  registry: ResolvedSecretTraceRegistry | undefined
+): string | undefined {
+  const projection = projectResolvedSecretModelContent(message, registry)
+  if (projection.safe && typeof projection.value === 'string' && projection.value.length > 0) {
+    return projection.value
+  }
+
+  const snapshot = getResolvedSecretModelMatcher(registry)
+  if (!snapshot.complete) return undefined
+  for (let codePoint = 0x21; codePoint <= 0x10ffff; codePoint += 1) {
+    if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
+      codePoint = 0xdfff
+      continue
+    }
+    const candidate = String.fromCodePoint(codePoint)
+    if (!snapshot.matcher || !containsResolvedSecret(candidate, snapshot.matcher)) return candidate
+  }
+  return undefined
+}
+
+/**
+ * Projects content that is about to become model-visible using every secret the execution could
+ * access, not only values activated through placeholder resolution. Missing, pending, or
+ * incomplete registry state fails closed.
+ */
+export function projectResolvedSecretModelContent(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined,
+  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
+  options: ResolvedSecretContentProjectionOptions = {}
+): ResolvedSecretContentProjection {
+  const snapshot = getResolvedSecretModelMatcher(registry)
+  if (!snapshot.complete) return { safe: false }
+
+  return projectContent(value, snapshot.matcher, maxBytes, {
+    projectPrimitiveLiterals: true,
+    sanitizeInternalIdentifiers: true,
+    ...options,
+  })
+}
+
+/**
+ * Returns true only when model projection can prove that content needs no secret or internal-alias
+ * substitution. Use this for protocol handles that must retain their exact bytes.
+ */
+export function isResolvedSecretModelContentUnchanged(
+  value: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined
+): boolean {
+  const projection = projectResolvedSecretModelContent(value, registry)
+  return projection.safe && isDeepStrictEqual(projection.value, value)
+}
+
+/**
+ * Projects JSON-encoded model fields structurally, preserving valid JSON while redacting exact
+ * typed primitive secrets such as `123` and `true`. Invalid legacy JSON remains a plain string.
+ */
+export function projectResolvedSecretModelJsonStrings(
+  values: readonly (string | undefined)[],
+  registry: ResolvedSecretTraceRegistry | undefined,
+  maxBytes = MAX_INLINE_MATERIALIZATION_BYTES
+): ResolvedSecretContentProjection {
+  const snapshot = getResolvedSecretModelMatcher(registry)
+  if (!snapshot.complete) return { safe: false }
+
+  const projected: Array<string | undefined> = []
+  let outputBytes = 0
+  const options: ResolvedSecretContentProjectionOptions = {
+    projectPrimitiveLiterals: true,
+    sanitizeInternalIdentifiers: true,
+  }
+
+  for (const value of values) {
+    if (value === undefined) {
+      projected.push(undefined)
+      continue
+    }
+
+    let parsed: unknown
+    let parsedJson = true
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      parsed = value
+      parsedJson = false
+    }
+
+    const remainingBytes = maxBytes - outputBytes
+    const projection = projectContent(parsed, snapshot.matcher, remainingBytes, options)
+    if (!projection.safe) return { safe: false }
+
+    let serialized: string
+    if (parsedJson) {
+      try {
+        serialized = JSON.stringify(projection.value)
+      } catch {
+        return { safe: false }
+      }
+    } else if (typeof projection.value === 'string') {
+      serialized = projection.value
+    } else {
+      return { safe: false }
+    }
+
+    outputBytes += Buffer.byteLength(serialized, 'utf8')
+    if (outputBytes > maxBytes) return { safe: false }
+    projected.push(serialized)
+  }
+
+  return { safe: true, value: projected }
 }

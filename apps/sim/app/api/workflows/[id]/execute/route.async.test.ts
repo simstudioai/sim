@@ -25,12 +25,15 @@ import {
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
+import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
+import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
 
 const {
   mockAssertBillingAttributionSnapshot,
   mockClaimExecutionId,
   mockClaimWorkflowToolExecution,
   mockEnqueue,
+  mockExecuteWorkflowJob,
   mockExecuteWorkflowCore,
   mockGenerateId,
   mockGetWorkspaceBillingSettings,
@@ -45,6 +48,7 @@ const {
   mockReleaseExecutionSlot,
   mockReleaseWorkflowToolExecutionClaim,
   mockRequireBillingAttributionHeader,
+  mockShouldExecuteInline,
   mockValidatePublicApiAllowed,
 } = vi.hoisted(() => ({
   mockAssertBillingAttributionSnapshot: vi.fn((value: unknown) => {
@@ -56,6 +60,7 @@ const {
   mockClaimExecutionId: vi.fn(),
   mockClaimWorkflowToolExecution: vi.fn(),
   mockEnqueue: vi.fn().mockResolvedValue('job-123'),
+  mockExecuteWorkflowJob: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
   mockGenerateId: vi.fn(() => 'execution-123'),
   mockGetWorkspaceBillingSettings: vi.fn(),
@@ -70,6 +75,7 @@ const {
   mockReleaseExecutionSlot: vi.fn(),
   mockReleaseWorkflowToolExecutionClaim: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
+  mockShouldExecuteInline: vi.fn().mockReturnValue(false),
   mockValidatePublicApiAllowed: vi.fn(),
 }))
 
@@ -144,11 +150,8 @@ vi.mock('@/lib/execution/payloads/store', () => ({
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({
     enqueue: mockEnqueue,
-    startJob: vi.fn(),
-    completeJob: vi.fn(),
-    markJobFailed: vi.fn(),
   }),
-  shouldExecuteInline: vi.fn().mockReturnValue(false),
+  shouldExecuteInline: mockShouldExecuteInline,
 }))
 
 vi.mock('@/lib/execution/call-chain', () => ({
@@ -161,7 +164,7 @@ vi.mock('@/lib/execution/call-chain', () => ({
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/background/workflow-execution', () => ({
-  executeWorkflowJob: vi.fn(),
+  executeWorkflowJob: mockExecuteWorkflowJob,
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -308,7 +311,8 @@ function configureExecutionCaller(caller: ExecutionCallerCase, requestCount = 1)
 function createCallerExecutionRequest(
   caller: ExecutionCallerCase,
   executionId?: string,
-  executionMode: 'async' | 'sync' = 'async'
+  executionMode: 'async' | 'sync' = 'async',
+  additionalHeaders: Record<string, string> = {}
 ): NextRequest {
   const input = { hello: 'world' }
   const body = caller.usesExternalInput
@@ -319,6 +323,7 @@ function createCallerExecutionRequest(
     'Content-Type': 'application/json',
     ...(executionMode === 'async' ? { 'X-Execution-Mode': 'async' } : {}),
     ...caller.headers,
+    ...additionalHeaders,
   })
 }
 
@@ -362,6 +367,7 @@ describe('workflow execute async route', () => {
       allowPersonalApiKeys: true,
     })
     mockRequireBillingAttributionHeader.mockReturnValue(undefined)
+    mockShouldExecuteInline.mockReturnValue(false)
     mockValidatePublicApiAllowed.mockResolvedValue(undefined)
 
     mockCheckHybridAuth.mockResolvedValue({
@@ -388,6 +394,7 @@ describe('workflow execute async route', () => {
         workspaceId: 'workspace-1',
       },
       billingAttribution,
+      executionTimeout: { sync: 300_000, async: 5_400_000 },
     })
     workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState.mockResolvedValue(null)
     workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables.mockResolvedValue(null)
@@ -410,6 +417,7 @@ describe('workflow execute async route', () => {
       close: vi.fn().mockResolvedValue(undefined),
     })
     loggingSessionMockFns.mockWaitForPostExecution.mockReset().mockResolvedValue(undefined)
+    mockExecuteWorkflowJob.mockReset().mockResolvedValue({ success: true })
   })
 
   it('binds a Copilot workflow tool only to its server log and waits before terminal SSE', async () => {
@@ -805,6 +813,303 @@ describe('workflow execute async route', () => {
           }),
         }),
       })
+    )
+  })
+
+  it('runs database-inline workflow jobs through the queue cancellation signal', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { input: { hello: 'world' } },
+        { 'Content-Type': 'application/json', 'X-Execution-Mode': 'async' }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+    const options = mockEnqueue.mock.calls[0]?.[2] as {
+      runner?: (payload: unknown, signal: AbortSignal) => Promise<unknown>
+    }
+    const controller = new AbortController()
+
+    expect(response.status).toBe(202)
+    expect(options.runner).toBeTypeOf('function')
+    await options.runner?.({}, controller.signal)
+    expect(mockExecuteWorkflowJob).toHaveBeenCalledWith(
+      expect.objectContaining({ executionId: 'execution-123', workflowId: 'workflow-1' }),
+      controller.signal
+    )
+  })
+
+  it('rejects the execution timeout header for a synchronous run', async () => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { input: { hello: 'world' } },
+        {
+          'Content-Type': 'application/json',
+          'X-Execution-Timeout-Seconds': '60',
+          Cookie: 'session=value',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'X-Execution-Timeout-Seconds is supported only for async runs',
+    })
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('inherits a trusted parent deadline instead of applying the synchronous plan timeout', async () => {
+    const caller = EXECUTION_CALLERS.find(({ caseName }) => caseName === 'internal JWT')!
+    configureExecutionCaller(caller)
+    const deadlineAt = Date.now() + 2 * 60 * 60_000
+    let remainingExecutionMs: number | undefined
+    mockExecuteWorkflowCore.mockImplementationOnce(
+      async ({ abortSignal }: { abortSignal: AbortSignal }) => {
+        remainingExecutionMs = getRemainingExecutionMs(abortSignal)
+        return {
+          success: true,
+          status: 'completed',
+          output: { ok: true },
+          metadata: {
+            duration: 100,
+            startTime: '2026-01-01T00:00:00Z',
+            endTime: '2026-01-01T00:00:01Z',
+          },
+        }
+      }
+    )
+
+    const response = await POST(
+      createCallerExecutionRequest(caller, undefined, 'sync', {
+        [INTERNAL_EXECUTION_DEADLINE_HEADER]: String(deadlineAt),
+      }),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(remainingExecutionMs).toBeGreaterThan(60 * 60_000)
+    expect(remainingExecutionMs).toBeLessThanOrEqual(2 * 60 * 60_000)
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executionType: 'sync',
+        executionDeadlineAt: deadlineAt,
+      })
+    )
+  })
+
+  it('ignores the internal deadline header from an untrusted caller', async () => {
+    const caller = EXECUTION_CALLERS.find(({ caseName }) => caseName === 'session')!
+    configureExecutionCaller(caller)
+    let remainingExecutionMs: number | undefined
+    mockExecuteWorkflowCore.mockImplementationOnce(
+      async ({ abortSignal }: { abortSignal: AbortSignal }) => {
+        remainingExecutionMs = getRemainingExecutionMs(abortSignal)
+        return {
+          success: true,
+          status: 'completed',
+          output: { ok: true },
+          metadata: {
+            duration: 100,
+            startTime: '2026-01-01T00:00:00Z',
+            endTime: '2026-01-01T00:00:01Z',
+          },
+        }
+      }
+    )
+
+    const response = await POST(
+      createCallerExecutionRequest(caller, undefined, 'sync', {
+        [INTERNAL_EXECUTION_DEADLINE_HEADER]: String(Date.now() + 2 * 60 * 60_000),
+      }),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(remainingExecutionMs).toBeGreaterThan(4 * 60_000)
+    expect(remainingExecutionMs).toBeLessThanOrEqual(5 * 60_000)
+    expect(mockPreprocessExecution.mock.calls[0]?.[0]).not.toHaveProperty('executionDeadlineAt')
+  })
+
+  it('fails an already-expired trusted parent deadline as a timeout', async () => {
+    const caller = EXECUTION_CALLERS.find(({ caseName }) => caseName === 'internal JWT')!
+    configureExecutionCaller(caller)
+
+    const response = await POST(
+      createCallerExecutionRequest(caller, undefined, 'sync', {
+        [INTERNAL_EXECUTION_DEADLINE_HEADER]: String(Date.now() - 1),
+      }),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(408)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: 'Execution timed out',
+    })
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('classifies a parent disconnect at the inherited deadline as a timeout', async () => {
+    const caller = EXECUTION_CALLERS.find(({ caseName }) => caseName === 'internal JWT')!
+    configureExecutionCaller(caller)
+    const requestController = new AbortController()
+    const initialNow = Date.now()
+    const deadlineAt = initialNow + 60_000
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(initialNow)
+    mockExecuteWorkflowCore.mockImplementationOnce(
+      async ({ abortSignal }: { abortSignal: AbortSignal }) => {
+        nowSpy.mockReturnValue(deadlineAt)
+        requestController.abort(new DOMException('The operation was aborted.', 'AbortError'))
+        expect(abortSignal.aborted).toBe(true)
+        return {
+          success: false,
+          status: 'cancelled',
+          output: { partial: true },
+          metadata: {
+            duration: 100,
+            startTime: '2026-01-01T00:00:00Z',
+            endTime: '2026-01-01T00:00:01Z',
+          },
+        }
+      }
+    )
+    const request = new NextRequest('http://localhost:3000/api/workflows/workflow-1/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...caller.headers,
+        [INTERNAL_EXECUTION_DEADLINE_HEADER]: String(deadlineAt),
+      },
+      body: JSON.stringify({ hello: 'world' }),
+      signal: requestController.signal,
+    })
+
+    try {
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'workflow-1' }),
+      })
+
+      expect(response.status).toBe(408)
+      await expect(response.json()).resolves.toMatchObject({
+        success: false,
+        error: expect.stringContaining('Execution timed out'),
+      })
+    } finally {
+      nowSpy.mockRestore()
+    }
+  })
+
+  it('rejects a malformed trusted parent deadline instead of resetting the child budget', async () => {
+    const caller = EXECUTION_CALLERS.find(({ caseName }) => caseName === 'internal JWT')!
+    configureExecutionCaller(caller)
+
+    const response = await POST(
+      createCallerExecutionRequest(caller, undefined, 'sync', {
+        [INTERNAL_EXECUTION_DEADLINE_HEADER]: 'not-a-deadline',
+      }),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid internal execution deadline header',
+    })
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('rejects an execution timeout above seven days', async () => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { input: { hello: 'world' } },
+        {
+          'Content-Type': 'application/json',
+          'X-Execution-Mode': 'async',
+          'X-Execution-Timeout-Seconds': '604801',
+          Cookie: 'session=value',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Invalid execution timeout header',
+    })
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('queues the smaller request timeout resolved against account policy', async () => {
+    mockPreprocessExecution.mockImplementationOnce(async (options) => ({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+      },
+      billingAttribution,
+      executionTimeout: {
+        sync: 300_000,
+        async: Math.min(5_400_000, (options.requestedTimeoutSeconds ?? 5_400) * 1000),
+      },
+    }))
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { input: { hello: 'world' } },
+        {
+          'Content-Type': 'application/json',
+          'X-Execution-Mode': 'async',
+          'X-Execution-Timeout-Seconds': '60',
+          Cookie: 'session=value',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ executionType: 'async', requestedTimeoutSeconds: 60 })
+    )
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'workflow-execution',
+      expect.objectContaining({ executionTimeoutMs: 60_000 }),
+      expect.objectContaining({ maxDurationSeconds: 360 })
+    )
+  })
+
+  it('never lets a request timeout extend the account policy', async () => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { input: { hello: 'world' } },
+        {
+          'Content-Type': 'application/json',
+          'X-Execution-Mode': 'async',
+          'X-Execution-Timeout-Seconds': '7200',
+          Cookie: 'session=value',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ executionType: 'async', requestedTimeoutSeconds: 7_200 })
+    )
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'workflow-execution',
+      expect.objectContaining({ executionTimeoutMs: 5_400_000 }),
+      expect.objectContaining({ maxDurationSeconds: 5_700 })
     )
   })
 

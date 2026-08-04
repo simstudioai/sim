@@ -23,6 +23,8 @@ vi.mock('@sim/db', () => ({ ...databaseMock, ...schemaMock }))
 
 import {
   applyScheduleFailureUpdate,
+  buildScheduleCancellationUpdate,
+  classifyScheduleExecutionResult,
   readScheduledMothershipErrorResponse,
   readScheduledMothershipJsonResponse,
   releaseScheduleLock,
@@ -106,6 +108,44 @@ describe('releaseScheduleLock', () => {
   })
 })
 
+describe('schedule cancellation accounting', () => {
+  it('keeps a user cancellation distinct from a workflow failure', () => {
+    expect(classifyScheduleExecutionResult({ success: false, status: 'cancelled' }, false)).toBe(
+      'cancelled'
+    )
+  })
+
+  it('continues to classify timeout cancellation as failure', () => {
+    expect(classifyScheduleExecutionResult({ success: false, status: 'cancelled' }, true)).toBe(
+      'failure'
+    )
+  })
+
+  it('uses the persisted cancellation CAS as the authoritative terminal outcome', () => {
+    expect(
+      classifyScheduleExecutionResult({ success: true, status: 'completed' }, false, 'cancelled')
+    ).toBe('cancelled')
+    expect(
+      classifyScheduleExecutionResult({ success: false, status: 'cancelled' }, true, 'cancelled')
+    ).toBe('cancelled')
+  })
+
+  it('advances cadence and releases the claim without changing failure accounting', () => {
+    const now = new Date('2026-08-03T12:00:00.000Z')
+    const nextRunAt = new Date('2026-08-03T13:00:00.000Z')
+
+    expect(buildScheduleCancellationUpdate(now, nextRunAt)).toEqual({
+      lastRanAt: now,
+      updatedAt: now,
+      nextRunAt,
+      lastQueuedAt: null,
+      infraRetryCount: 0,
+    })
+    expect(buildScheduleCancellationUpdate(now, nextRunAt)).not.toHaveProperty('failedCount')
+    expect(buildScheduleCancellationUpdate(now, nextRunAt)).not.toHaveProperty('lastFailedAt')
+  })
+})
+
 describe('scheduled Mothership response handling', () => {
   it('parses JSON responses', async () => {
     const response = new Response(JSON.stringify({ content: 'ok' }), {
@@ -137,7 +177,7 @@ describe('scheduled Mothership response handling', () => {
     expect(error.message).not.toContain('secret-bearing-non-json')
   })
 
-  it('preserves the functional error body when no private metadata is present', async () => {
+  it('drops a legacy error body without poisoning later provenance', async () => {
     const registry = {
       markIncomplete: vi.fn(),
       importProvenance: vi.fn(),
@@ -146,7 +186,25 @@ describe('scheduled Mothership response handling', () => {
 
     const message = await readScheduledMothershipErrorResponse(response, registry)
 
-    expect(message).toBe('secret-bearing-error-body')
+    expect(message).toBe('Internal Mothership response metadata could not be verified')
+    expect(message).not.toContain('secret-bearing-error-body')
+    expect(registry.markIncomplete).not.toHaveBeenCalled()
+  })
+
+  it('poisons provenance when a declared error response omits its private field', async () => {
+    const registry = {
+      markIncomplete: vi.fn(),
+      importProvenance: vi.fn(),
+    } as unknown as ResolvedSecretTraceRegistry
+    const response = new Response(JSON.stringify({ error: 'unsafe detail' }), {
+      status: 500,
+      headers: { 'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1' },
+    })
+
+    const message = await readScheduledMothershipErrorResponse(response, registry)
+
+    expect(message).toBe('Internal Mothership response metadata could not be verified')
+    expect(message).not.toContain('unsafe detail')
     expect(registry.markIncomplete).toHaveBeenCalledTimes(1)
   })
 

@@ -19,6 +19,7 @@ const {
   mockExecuteWorkflowCore,
   mockWasExecutionFinalizedByCore,
   mockExecuteWithIdempotency,
+  mockRefreshExecutionSlotExpiry,
   mockReleaseExecutionSlot,
   mockLoadDeploymentVersionState,
   mockGetProviderHandler,
@@ -28,6 +29,7 @@ const {
   mockExecuteWorkflowCore: vi.fn(),
   mockWasExecutionFinalizedByCore: vi.fn(),
   mockExecuteWithIdempotency: vi.fn(),
+  mockRefreshExecutionSlotExpiry: vi.fn().mockResolvedValue(true),
   mockReleaseExecutionSlot: vi.fn(),
   mockGetProviderHandler: vi.fn(() => ({})),
   mockSetResolvedSecretTraceRegistry: vi.fn(),
@@ -60,6 +62,7 @@ vi.mock('@/lib/workflows/executor/execution-core', () => ({
 }))
 
 vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
+  refreshExecutionSlotExpiry: mockRefreshExecutionSlotExpiry,
   releaseExecutionSlot: mockReleaseExecutionSlot,
 }))
 
@@ -88,13 +91,19 @@ vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
 }))
 
 vi.mock('@/lib/core/execution-limits', () => ({
+  capExecutionTimeoutMs: vi.fn((policyTimeoutMs, requestedTimeoutMs) =>
+    requestedTimeoutMs === undefined ? policyTimeoutMs : requestedTimeoutMs
+  ),
   createTimeoutAbortController: vi.fn(() => ({
     signal: new AbortController().signal,
     cleanup: vi.fn(),
     isTimedOut: () => false,
     timeoutMs: 120_000,
   })),
+  getAsyncExecutionTimeoutForBillingAttribution: vi.fn(() => 120_000),
+  getExecutionDeadlineAt: vi.fn(() => new Date(Date.now() + 120_000)),
   getTimeoutErrorMessage: vi.fn(() => 'timed out'),
+  RESERVATION_TTL_BUFFER_MS: 300_000,
 }))
 
 vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
@@ -217,6 +226,7 @@ describe('executeWebhookJob fault vs error handling', () => {
         safeCompleteWithError: loggingSessionMockFns.mockSafeCompleteWithError,
         waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
         markAsFailed: loggingSessionMockFns.mockMarkAsFailed,
+        setExecutionDeadlineAt: loggingSessionMockFns.mockSetExecutionDeadlineAt,
         setResolvedSecretTraceRegistry: mockSetResolvedSecretTraceRegistry,
       }
     })

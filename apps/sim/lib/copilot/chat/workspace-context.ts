@@ -17,6 +17,10 @@ import type {
   VfsSnapshotV1Job,
   VfsSnapshotV1Workflow,
 } from '@/lib/copilot/generated/vfs-snapshot-v1'
+import {
+  filterSecretNamesByMountPolicy,
+  type SecretMountPolicy,
+} from '@/lib/copilot/secret-mount-policy'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import {
@@ -567,10 +571,15 @@ const WORKSPACE_CONTEXT_UNAVAILABLE_MD =
 export async function generateWorkspaceContext(
   workspaceId: string,
   userId: string,
-  options?: { workspaceAccess?: WorkspaceAccess }
+  options?: { workspaceAccess?: WorkspaceAccess; secretMountPolicy?: SecretMountPolicy }
 ): Promise<string> {
   const data = await buildWorkspaceMdData(workspaceId, userId, options)
-  return data ? buildWorkspaceMd(data) : WORKSPACE_CONTEXT_UNAVAILABLE_MD
+  if (!data) return WORKSPACE_CONTEXT_UNAVAILABLE_MD
+
+  return buildWorkspaceMd({
+    ...data,
+    envVariables: filterSecretNamesByMountPolicy(data.envVariables, options?.secretMountPolicy),
+  })
 }
 
 /**

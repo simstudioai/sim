@@ -102,6 +102,8 @@ export interface SerializableExecutionState {
   }
   /** Encrypted-only provenance for Secrets-tab values resolved during this execution. */
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Presence distinguishes current checkpoints from legacy states that predate provenance. */
+  resolvedSecretTraceCheckpointVersion?: 1
 }
 
 /**

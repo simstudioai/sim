@@ -15,6 +15,7 @@ import {
   environmentUtilsMockFns,
   inputValidationMock,
   inputValidationMockFns,
+  loggerMock,
   type MockFetchResponse,
   resetEnvFlagsMock,
   resetEnvironmentUtilsMock,
@@ -27,6 +28,8 @@ import { sleep } from '@sim/utils/helpers'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import { createTimeoutAbortController } from '@/lib/core/execution-limits'
+import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   ResolvedSecretTraceRegistry,
@@ -340,6 +343,10 @@ import { executeTool, postProcessToolOutput } from '@/tools'
 import { tools } from '@/tools/registry'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
+
+const mockToolsLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'Tools')
+].value
 
 /**
  * Overlay the mock tools onto the REAL registry object instead of vi.mock:
@@ -710,6 +717,123 @@ describe('executeTool Function', () => {
     ])
   })
 
+  it('does not log plaintext or runtime aliases from Function errors', async () => {
+    const secret = 'function-error-secret-value'
+    const runtimeAlias = '__var_API_KEY'
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'API_KEY',
+        plaintext: secret,
+        encryptedValue: 'encrypted-value',
+      },
+    ])
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: `Execution failed with ${secret} via ${runtimeAlias}`,
+            __resolvedSecretNames: ['API_KEY'],
+          }),
+          {
+            status: 422,
+            headers: {
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-names-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'function_execute',
+      {
+        code: 'throw new Error({{API_KEY}})',
+        envVars: { API_KEY: secret },
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain(secret)
+    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
+    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
+    expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(secret)
+    expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(
+      runtimeAlias
+    )
+  })
+
+  it('uses structural-only Function error logs when no provenance registry is available', async () => {
+    const secret = 'direct-function-error-secret-value'
+    const runtimeAlias = '__var_DIRECT_KEY'
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: `Execution failed with ${secret} via ${runtimeAlias}`,
+          }),
+          { status: 422, headers: { 'content-type': 'application/json' } }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('function_execute', {
+      code: 'throw new Error(environmentVariables.DIRECT_KEY)',
+      envVars: { DIRECT_KEY: secret },
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain(secret)
+    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
+    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
+    expect(mockToolsLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Internal API error for function_execute'),
+      expect.objectContaining({ status: 422, redacted: true })
+    )
+  })
+
+  it('does not log a secret-bearing non-OK response stream error', async () => {
+    const secret = 'function-body-stream-secret-value'
+    const streamError = `${secret} __var_API_KEY __sim_code_0_binding_0`
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.error(new Error(streamError))
+            },
+          }),
+          {
+            status: 422,
+            statusText: 'Unprocessable Entity',
+            headers: { 'content-type': 'application/json' },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('function_execute', {
+      code: 'throw new Error(environmentVariables.API_KEY)',
+      envVars: { API_KEY: secret },
+    })
+
+    expect(result.success).toBe(false)
+    const logged = JSON.stringify(mockToolsLogger.warn.mock.calls)
+    expect(logged).not.toContain(secret)
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
+    expect(mockToolsLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to read non-OK response body for function_execute'),
+      { errorName: 'Error' }
+    )
+  })
+
   it('fails concurrent projection closed while custom-tool provenance is pending', async () => {
     const secret = 'custom-tool-secret-value'
     const registry = new ResolvedSecretTraceRegistry([
@@ -792,7 +916,7 @@ describe('executeTool Function', () => {
     ).toMatchObject({ output: { result: '{{API_KEY}}' } })
   })
 
-  it('keeps the Function result unchanged when requested provenance is missing', async () => {
+  it('accepts a legacy Function response after reconstructing its local provenance', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     global.fetch = Object.assign(
       vi
@@ -817,7 +941,38 @@ describe('executeTool Function', () => {
       success: true,
       output: { result: 'unchanged', stdout: '' },
     })
-    expect(registry.isComplete()).toBe(false)
+    expect(registry.isComplete()).toBe(true)
+  })
+
+  it('reconstructs a crossing secret from a legacy Function response', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'legacy-secret', encryptedValue: 'encrypted-value' },
+    ])
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'legacy-secret' })
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            output: { result: 'Bearer legacy-secret', stdout: '' },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return "Bearer {{API_KEY}}"', envVars: { API_KEY: 'legacy-secret' } },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(result.success).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'legacy-secret', replacement: '{{API_KEY}}' },
+    ])
+    expect(registry.isComplete()).toBe(true)
   })
 
   it('filters cross-scope workflow provenance to literals present in the unchanged result', async () => {
@@ -893,6 +1048,39 @@ describe('executeTool Function', () => {
         replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT,
       },
     ])
+    expect(registry.isComplete()).toBe(true)
+  })
+
+  it('drops a legacy workflow response without poisoning later provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'parent-user',
+      workspaceId: 'workspace-456',
+    })
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            workflowId: 'child-workflow',
+            output: { value: 'unverifiable legacy output' },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'workflow_executor_child-workflow',
+      { workflowId: 'child-workflow', inputMapping: {} },
+      {
+        executionContext: createToolExecutionContext({ userId: 'parent-user' }),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(result)).not.toContain('unverifiable legacy output')
     expect(registry.isComplete()).toBe(true)
   })
 
@@ -1024,9 +1212,11 @@ describe('executeTool Function', () => {
       transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
     }
 
+    let observedHeaders: Headers | undefined
     let observedSignal: AbortSignal | undefined
     global.fetch = Object.assign(
       vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        observedHeaders = new Headers(init.headers)
         observedSignal = init.signal as AbortSignal
         return new Promise((_resolve, reject) => {
           observedSignal!.addEventListener('abort', () => {
@@ -1039,22 +1229,29 @@ describe('executeTool Function', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const callerController = new AbortController()
-    const resultPromise = executeTool(
-      'function_execute',
-      { code: 'return 1', timeout: 5000 },
-      { skipPostProcess: true, signal: callerController.signal }
-    )
+    const callerController = createTimeoutAbortController(60_000)
+    try {
+      const resultPromise = executeTool(
+        'function_execute',
+        { code: 'return 1', timeout: 5000 },
+        { skipPostProcess: true, signal: callerController.signal }
+      )
 
-    await sleep(1)
-    callerController.abort()
-    const result = await resultPromise
+      await sleep(1)
+      callerController.abort()
+      const result = await resultPromise
 
-    expect(observedSignal?.aborted).toBe(true)
-    expect(result.success).toBe(false)
-    expect(result.error).not.toMatch(/timed out/i)
-
-    tools.function_execute = originalFunctionTool
+      expect(Number(observedHeaders?.get(INTERNAL_EXECUTION_DEADLINE_HEADER))).toBeGreaterThan(
+        Date.now()
+      )
+      expect(observedSignal?.aborted).toBe(true)
+      expect(observedSignal?.reason).toBe(callerController.signal.reason)
+      expect(result.success).toBe(false)
+      expect(result.error).not.toMatch(/timed out/i)
+    } finally {
+      callerController.cleanup()
+      tools.function_execute = originalFunctionTool
+    }
   })
 
   it('aborts immediately when the caller signal is already aborted at call time', async () => {
@@ -2481,10 +2678,45 @@ describe('MCP Tool Execution', () => {
       }
     )
 
-    expect(result.success).toBe(true)
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Internal tool response metadata could not be verified',
+    })
     expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
     expect(registry.getActiveMatches()).toEqual([])
     expect(registry.isComplete()).toBe(false)
+  })
+
+  it('drops a legacy MCP response without poisoning later provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { output: { content: [{ type: 'text', text: 'legacy output' }] } },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'mcp-123-list_files',
+      { path: '/test' },
+      {
+        executionContext: createToolExecutionContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Internal tool response metadata could not be verified',
+    })
+    expect(JSON.stringify(result)).not.toContain('legacy output')
+    expect(registry.isComplete()).toBe(true)
   })
 
   it('preserves MCP error semantics while stripping marked private provenance', async () => {
@@ -2620,6 +2852,48 @@ describe('MCP Tool Execution', () => {
         tool: 'read_file',
       },
       { executionContext: mockContext3 }
+    )
+  })
+
+  it('does not log secret-bearing malformed MCP arguments', async () => {
+    const secret = 'mcp-arguments-secret-value'
+    const malformedArguments = `{"token":"${secret} __var_API_KEY __sim_runtime"`
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (_url, options) => {
+        const body = JSON.parse(options?.body as string)
+        expect(body.arguments).toEqual({})
+
+        return {
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              data: { output: { content: [{ type: 'text', text: 'Handled' }] } },
+            }),
+        }
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'mcp-123-read_file',
+      { arguments: malformedArguments },
+      { executionContext: createToolExecutionContext() }
+    )
+
+    expect(result.success).toBe(true)
+    const logged = JSON.stringify(mockToolsLogger.warn.mock.calls)
+    expect(logged).not.toContain(secret)
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
+    expect(mockToolsLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to parse MCP arguments JSON'),
+      {
+        errorName: 'SyntaxError',
+        argumentsType: 'string',
+        argumentsLength: malformedArguments.length,
+      }
     )
   })
 

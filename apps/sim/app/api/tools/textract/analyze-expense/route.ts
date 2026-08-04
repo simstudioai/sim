@@ -23,7 +23,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 /** Mirrors maxDuration in ../parse/route.ts — see that file's TSDoc for details. */
-export const maxDuration = 5400
+export const maxDuration = 604800
 
 const logger = createLogger('TextractAnalyzeExpenseAPI')
 

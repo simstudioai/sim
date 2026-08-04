@@ -442,10 +442,11 @@ export class WorkflowBlockHandler implements BlockHandler {
           scope: { userId: loadUserId, workspaceId: sourceWorkspaceId },
         })
         if (ctx.resolvedSecretTraceRegistry) {
-          const crossingProvenance = ctx.resolvedSecretTraceRegistry.exportProvenanceForValue(
-            childWorkflowInput,
-            { anonymous: true }
-          )
+          const crossingProvenance =
+            ctx.resolvedSecretTraceRegistry.exportModelEgressProvenanceForValue(
+              childWorkflowInput,
+              { anonymous: true }
+            )
           await childResolvedSecretTraceRegistry.importProvenance(crossingProvenance, {
             trusted: true,
             anonymous: true,
@@ -702,10 +703,10 @@ export class WorkflowBlockHandler implements BlockHandler {
       if (isCustomBlock) {
         const exposedOutput = this.projectCustomBlockOutput(executionResult, exposedOutputs)
         if (ctx.resolvedSecretTraceRegistry && childResolvedSecretTraceRegistry) {
-          const crossingProvenance = childResolvedSecretTraceRegistry.exportProvenanceForValue(
-            exposedOutput,
-            { anonymous: true }
-          )
+          const crossingProvenance =
+            childResolvedSecretTraceRegistry.exportModelEgressProvenanceForValue(exposedOutput, {
+              anonymous: true,
+            })
           await ctx.resolvedSecretTraceRegistry.importProvenance(crossingProvenance, {
             trusted: true,
             anonymous: true,
@@ -716,7 +717,10 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       return mappedResult
     } catch (error: unknown) {
-      logger.error(`Error executing child workflow ${workflowId}:`, error)
+      logger.error('Error executing child workflow', {
+        errorName: toError(error).name,
+        hasWorkflowId: workflowId.length > 0,
+      })
 
       // The child's own log row records the real failure in the source workspace,
       // so the publisher sees what the consumer deliberately cannot.
@@ -1021,8 +1025,11 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       const json = await response.json()
       return !!json?.data?.deployedState || !!json?.deployedState
-    } catch (e) {
-      logger.error(`Failed to check child deployment for ${workflowId}:`, e)
+    } catch (error) {
+      logger.error('Failed to check child deployment', {
+        errorName: toError(error).name,
+        hasWorkflowId: workflowId.length > 0,
+      })
       return false
     }
   }
@@ -1122,7 +1129,10 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       return transformedSpans
     } catch (error) {
-      logger.error(`Error capturing child workflow logs for ${childWorkflowName}:`, error)
+      logger.error('Error capturing child workflow logs', {
+        errorName: toError(error).name,
+        hasChildWorkflowName: childWorkflowName.length > 0,
+      })
       return []
     }
   }

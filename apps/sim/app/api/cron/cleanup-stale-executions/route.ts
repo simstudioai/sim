@@ -1,19 +1,27 @@
-import { asyncJobs, db } from '@sim/db'
-import { tableJobs, workflowDeploymentOperation, workflowExecutionLogs } from '@sim/db/schema'
+import { db } from '@sim/db'
+import {
+  asyncJobs,
+  tableJobs,
+  workflowDeploymentOperation,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, exists, gt, inArray, lt, sql } from 'drizzle-orm'
+import { and, eq, exists, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { JOB_PENDING_RETENTION_HOURS, JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
+import {
+  getExecutionReservationTtlMs,
+  RESERVATION_TTL_BUFFER_MS,
+} from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('CleanupStaleExecutions')
 
-const STALE_THRESHOLD_MS = getMaxExecutionTimeout() + 5 * 60 * 1000
+const STALE_THRESHOLD_MS = getExecutionReservationTtlMs()
 const STALE_THRESHOLD_MINUTES = Math.ceil(STALE_THRESHOLD_MS / 60000)
 const MAX_INT32 = 2_147_483_647
 /** Terminal table-jobs older than this are pruned; only the latest job per table is ever read. */
@@ -26,6 +34,52 @@ const TABLE_JOB_RETENTION_HOURS = 24
 const DEPLOYMENT_OPERATION_RETENTION_DAYS = 30
 const DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE = 2000
 const DEPLOYMENT_OPERATION_PRUNE_MAX_BATCHES = 10
+const STATE_MUTATION_BATCH_SIZE = 1000
+const STATE_MUTATION_MAX_ROWS_PER_RUN = 10_000
+const RETENTION_DELETE_BATCH_SIZE = 2000
+const RETENTION_DELETE_MAX_ROWS_PER_RUN = 20_000
+const TABLE_JOB_PRUNE_BATCH_SIZE = 100
+const TABLE_JOB_PRUNE_MAX_ROWS_PER_RUN = 1000
+
+interface BatchedMutationResult {
+  affected: number
+  reachedLimit: boolean
+}
+
+interface RunBatchedMutationOptions<TRow> {
+  batchSize: number
+  maxRowsPerRun: number
+  mutation: (limit: number) => Promise<TRow[]>
+  onBatch?: (rows: TRow[]) => Promise<void>
+}
+
+/**
+ * Runs a mutation in bounded pages. Candidate selection happens inside each
+ * mutation query, so only the bounded RETURNING rows enter application memory.
+ */
+async function runBatchedMutation<TRow>({
+  batchSize,
+  maxRowsPerRun,
+  mutation,
+  onBatch,
+}: RunBatchedMutationOptions<TRow>): Promise<BatchedMutationResult> {
+  let affected = 0
+
+  while (affected < maxRowsPerRun) {
+    const limit = Math.min(batchSize, maxRowsPerRun - affected)
+    const rows = await mutation(limit)
+    if (rows.length > limit) {
+      throw new Error(`Cleanup mutation returned ${rows.length} rows for a ${limit}-row batch`)
+    }
+    if (rows.length === 0) break
+
+    affected += rows.length
+    if (onBatch) await onBatch(rows)
+    if (rows.length < limit) break
+  }
+
+  return { affected, reachedLimit: affected >= maxRowsPerRun }
+}
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -36,7 +90,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     logger.info('Starting stale execution cleanup job')
 
-    const staleThreshold = new Date(Date.now() - STALE_THRESHOLD_MINUTES * 60 * 1000)
+    const now = new Date()
+    const staleDeadlineThreshold = new Date(now.getTime() - RESERVATION_TTL_BUFFER_MS)
+    const staleThreshold = new Date(now.getTime() - STALE_THRESHOLD_MINUTES * 60 * 1000)
+    const stalePendingThreshold = new Date(
+      now.getTime() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000
+    )
 
     const staleExecutions = await db
       .select({
@@ -44,12 +103,19 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         executionId: workflowExecutionLogs.executionId,
         workflowId: workflowExecutionLogs.workflowId,
         startedAt: workflowExecutionLogs.startedAt,
+        executionDeadlineAt: workflowExecutionLogs.executionDeadlineAt,
       })
       .from(workflowExecutionLogs)
       .where(
         and(
           eq(workflowExecutionLogs.status, 'running'),
-          lt(workflowExecutionLogs.startedAt, staleThreshold)
+          or(
+            lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
+            and(
+              isNull(workflowExecutionLogs.executionDeadlineAt),
+              lt(workflowExecutionLogs.startedAt, staleThreshold)
+            )
+          )
         )
       )
       .limit(100)
@@ -65,11 +131,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         const staleDurationMinutes = Math.round(staleDurationMs / 60000)
         const totalDurationMs = Math.min(staleDurationMs, MAX_INT32)
 
-        await db
+        const [updatedExecution] = await db
           .update(workflowExecutionLogs)
           .set({
             status: 'failed',
             endedAt: new Date(),
+            executionDeadlineAt: null,
             totalDurationMs,
             executionData: sql`jsonb_set(
               COALESCE(execution_data, '{}'::jsonb),
@@ -77,7 +144,27 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               to_jsonb(${`Execution terminated: worker timeout or crash after ${staleDurationMinutes} minutes`}::text)
             )`,
           })
-          .where(eq(workflowExecutionLogs.id, execution.id))
+          .where(
+            and(
+              eq(workflowExecutionLogs.id, execution.id),
+              eq(workflowExecutionLogs.status, 'running'),
+              or(
+                lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
+                and(
+                  isNull(workflowExecutionLogs.executionDeadlineAt),
+                  lt(workflowExecutionLogs.startedAt, staleThreshold)
+                )
+              )
+            )
+          )
+          .returning({ id: workflowExecutionLogs.id })
+
+        if (!updatedExecution) {
+          logger.debug('Skipped stale execution whose state changed during cleanup', {
+            executionId: execution.executionId,
+          })
+          continue
+        }
 
         logger.info(`Cleaned up stale execution ${execution.executionId}`, {
           workflowId: execution.workflowId,
@@ -99,22 +186,50 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     let asyncJobsMarkedFailed = 0
 
     try {
-      const staleAsyncJobs = await db
-        .update(asyncJobs)
-        .set({
-          status: JOB_STATUS.FAILED,
-          completedAt: new Date(),
-          error: `Job terminated: stuck in processing for more than ${STALE_THRESHOLD_MINUTES} minutes`,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(eq(asyncJobs.status, JOB_STATUS.PROCESSING), lt(asyncJobs.startedAt, staleThreshold))
+      const staleProcessingPredicate = and(
+        eq(asyncJobs.status, JOB_STATUS.PROCESSING),
+        or(
+          and(
+            sql`jsonb_typeof(${asyncJobs.metadata}->'maxDurationSeconds') = 'number'`,
+            sql`${asyncJobs.startedAt} + ((${asyncJobs.metadata}->>'maxDurationSeconds')::double precision * interval '1 second') < ${now}`
+          ),
+          and(
+            sql`jsonb_typeof(${asyncJobs.metadata}->'maxDurationSeconds') IS DISTINCT FROM 'number'`,
+            lt(asyncJobs.startedAt, staleThreshold)
+          )
         )
-        .returning({ id: asyncJobs.id })
+      )
+      const staleProcessingResult = await runBatchedMutation({
+        batchSize: STATE_MUTATION_BATCH_SIZE,
+        maxRowsPerRun: STATE_MUTATION_MAX_ROWS_PER_RUN,
+        mutation: (limit) => {
+          const candidates = db
+            .select({ id: asyncJobs.id })
+            .from(asyncJobs)
+            .where(staleProcessingPredicate)
+            .limit(limit)
 
-      asyncJobsMarkedFailed = staleAsyncJobs.length
+          return db
+            .update(asyncJobs)
+            .set({
+              status: JOB_STATUS.FAILED,
+              completedAt: new Date(),
+              error: `Job terminated: stuck in processing for more than ${STALE_THRESHOLD_MINUTES} minutes`,
+              updatedAt: new Date(),
+            })
+            .where(and(staleProcessingPredicate, inArray(asyncJobs.id, candidates)))
+            .returning({ id: asyncJobs.id })
+        },
+      })
+
+      asyncJobsMarkedFailed = staleProcessingResult.affected
       if (asyncJobsMarkedFailed > 0) {
         logger.info(`Marked ${asyncJobsMarkedFailed} stale async jobs as failed`)
+      }
+      if (staleProcessingResult.reachedLimit) {
+        logger.info('Deferred remaining stale async jobs after reaching the per-run cap', {
+          maxRowsPerRun: STATE_MUTATION_MAX_ROWS_PER_RUN,
+        })
       }
     } catch (error) {
       logger.error('Failed to clean up stale async jobs:', {
@@ -130,44 +245,81 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     let staleTableJobsMarkedFailed = 0
     try {
       const now = new Date()
-      const staleJobs = await db
-        .update(tableJobs)
-        .set({
-          status: 'failed',
-          error: `Job terminated: no progress for more than ${STALE_THRESHOLD_MINUTES} minutes (worker timeout or crash)`,
-          completedAt: now,
-          updatedAt: now,
-        })
-        .where(and(eq(tableJobs.status, 'running'), lt(tableJobs.updatedAt, staleThreshold)))
-        .returning({ id: tableJobs.id })
+      const staleTableJobPredicate = and(
+        eq(tableJobs.status, 'running'),
+        lt(tableJobs.updatedAt, staleThreshold)
+      )
+      const staleTableJobResult = await runBatchedMutation({
+        batchSize: STATE_MUTATION_BATCH_SIZE,
+        maxRowsPerRun: STATE_MUTATION_MAX_ROWS_PER_RUN,
+        mutation: (limit) => {
+          const candidates = db
+            .select({ id: tableJobs.id })
+            .from(tableJobs)
+            .where(staleTableJobPredicate)
+            .limit(limit)
 
-      staleTableJobsMarkedFailed = staleJobs.length
+          return db
+            .update(tableJobs)
+            .set({
+              status: 'failed',
+              error: `Job terminated: no progress for more than ${STALE_THRESHOLD_MINUTES} minutes (worker timeout or crash)`,
+              completedAt: now,
+              updatedAt: now,
+            })
+            .where(and(staleTableJobPredicate, inArray(tableJobs.id, candidates)))
+            .returning({ id: tableJobs.id })
+        },
+      })
+
+      staleTableJobsMarkedFailed = staleTableJobResult.affected
       if (staleTableJobsMarkedFailed > 0) {
         logger.info(`Marked ${staleTableJobsMarkedFailed} stale table jobs as failed`)
       }
 
       const terminalRetention = new Date(Date.now() - TABLE_JOB_RETENTION_HOURS * 60 * 60 * 1000)
-      const pruned = await db
-        .delete(tableJobs)
-        .where(
-          and(
-            inArray(tableJobs.status, ['ready', 'failed', 'canceled']),
-            lt(tableJobs.updatedAt, terminalRetention)
-          )
-        )
-        .returning({ type: tableJobs.type, payload: tableJobs.payload })
+      const terminalTableJobPredicate = and(
+        inArray(tableJobs.status, ['ready', 'failed', 'canceled']),
+        lt(tableJobs.updatedAt, terminalRetention)
+      )
+      const terminalTableJobResult = await runBatchedMutation({
+        batchSize: TABLE_JOB_PRUNE_BATCH_SIZE,
+        maxRowsPerRun: TABLE_JOB_PRUNE_MAX_ROWS_PER_RUN,
+        mutation: (limit) => {
+          const candidates = db
+            .select({ id: tableJobs.id })
+            .from(tableJobs)
+            .where(terminalTableJobPredicate)
+            .limit(limit)
 
-      // Pruned export jobs carry the generated file's storage key — delete the file with the job
-      // so the exports prefix doesn't accumulate. Best-effort: a miss just orphans one object.
-      for (const job of pruned) {
-        if (job.type !== 'export') continue
-        const resultKey = (job.payload as { resultKey?: string } | null)?.resultKey
-        if (!resultKey) continue
-        await deleteFile({ key: resultKey, context: 'workspace' }).catch((err) => {
-          logger.warn('Failed to delete pruned export file', {
-            resultKey,
-            error: toError(err).message,
-          })
+          return db
+            .delete(tableJobs)
+            .where(and(terminalTableJobPredicate, inArray(tableJobs.id, candidates)))
+            .returning({
+              type: tableJobs.type,
+              resultKey: sql<string | null>`${tableJobs.payload}->>'resultKey'`,
+            })
+        },
+        onBatch: async (jobs) => {
+          /**
+           * Pruned export jobs carry the generated file's storage key. The scalar
+           * key is returned instead of the full JSON payload, and cleanup stays
+           * sequential so storage concurrency is bounded at one request.
+           */
+          for (const { type, resultKey } of jobs) {
+            if (type !== 'export' || !resultKey) continue
+            await deleteFile({ key: resultKey, context: 'workspace' }).catch((err) => {
+              logger.warn('Failed to delete pruned export file', {
+                resultKey,
+                error: toError(err).message,
+              })
+            })
+          }
+        },
+      })
+      if (terminalTableJobResult.reachedLimit) {
+        logger.info('Deferred remaining terminal table jobs after reaching the per-run cap', {
+          maxRowsPerRun: TABLE_JOB_PRUNE_MAX_ROWS_PER_RUN,
         })
       }
     } catch (error) {
@@ -180,22 +332,41 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     let stalePendingJobsMarkedFailed = 0
 
     try {
-      const stalePendingJobs = await db
-        .update(asyncJobs)
-        .set({
-          status: JOB_STATUS.FAILED,
-          completedAt: new Date(),
-          error: `Job terminated: stuck in pending state for more than ${STALE_THRESHOLD_MINUTES} minutes (never started)`,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(eq(asyncJobs.status, JOB_STATUS.PENDING), lt(asyncJobs.createdAt, staleThreshold))
-        )
-        .returning({ id: asyncJobs.id })
+      const stalePendingPredicate = and(
+        eq(asyncJobs.status, JOB_STATUS.PENDING),
+        lt(asyncJobs.createdAt, stalePendingThreshold)
+      )
+      const stalePendingResult = await runBatchedMutation({
+        batchSize: STATE_MUTATION_BATCH_SIZE,
+        maxRowsPerRun: STATE_MUTATION_MAX_ROWS_PER_RUN,
+        mutation: (limit) => {
+          const candidates = db
+            .select({ id: asyncJobs.id })
+            .from(asyncJobs)
+            .where(stalePendingPredicate)
+            .limit(limit)
 
-      stalePendingJobsMarkedFailed = stalePendingJobs.length
+          return db
+            .update(asyncJobs)
+            .set({
+              status: JOB_STATUS.FAILED,
+              completedAt: new Date(),
+              error: `Job terminated: stuck in pending state for more than ${JOB_PENDING_RETENTION_HOURS} hours (never started)`,
+              updatedAt: new Date(),
+            })
+            .where(and(stalePendingPredicate, inArray(asyncJobs.id, candidates)))
+            .returning({ id: asyncJobs.id })
+        },
+      })
+
+      stalePendingJobsMarkedFailed = stalePendingResult.affected
       if (stalePendingJobsMarkedFailed > 0) {
         logger.info(`Marked ${stalePendingJobsMarkedFailed} stale pending jobs as failed`)
+      }
+      if (stalePendingResult.reachedLimit) {
+        logger.info('Deferred remaining stale pending jobs after reaching the per-run cap', {
+          maxRowsPerRun: STATE_MUTATION_MAX_ROWS_PER_RUN,
+        })
       }
     } catch (error) {
       logger.error('Failed to clean up stale pending jobs:', {
@@ -208,21 +379,37 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     let asyncJobsDeleted = 0
 
     try {
-      const deletedJobs = await db
-        .delete(asyncJobs)
-        .where(
-          and(
-            inArray(asyncJobs.status, [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED]),
-            lt(asyncJobs.completedAt, retentionThreshold)
-          )
-        )
-        .returning({ id: asyncJobs.id })
+      const retainedJobPredicate = and(
+        inArray(asyncJobs.status, [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED]),
+        lt(asyncJobs.completedAt, retentionThreshold)
+      )
+      const retainedJobResult = await runBatchedMutation({
+        batchSize: RETENTION_DELETE_BATCH_SIZE,
+        maxRowsPerRun: RETENTION_DELETE_MAX_ROWS_PER_RUN,
+        mutation: (limit) => {
+          const candidates = db
+            .select({ id: asyncJobs.id })
+            .from(asyncJobs)
+            .where(retainedJobPredicate)
+            .limit(limit)
 
-      asyncJobsDeleted = deletedJobs.length
+          return db
+            .delete(asyncJobs)
+            .where(and(retainedJobPredicate, inArray(asyncJobs.id, candidates)))
+            .returning({ id: asyncJobs.id })
+        },
+      })
+
+      asyncJobsDeleted = retainedJobResult.affected
       if (asyncJobsDeleted > 0) {
         logger.info(
           `Deleted ${asyncJobsDeleted} old async jobs (retention: ${JOB_RETENTION_HOURS}h)`
         )
+      }
+      if (retainedJobResult.reachedLimit) {
+        logger.info('Deferred remaining retained async jobs after reaching the per-run cap', {
+          maxRowsPerRun: RETENTION_DELETE_MAX_ROWS_PER_RUN,
+        })
       }
     } catch (error) {
       logger.error('Failed to delete old async jobs:', {

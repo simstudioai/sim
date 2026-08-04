@@ -1,10 +1,11 @@
 import '@sim/testing/mocks/executor'
 
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { loggerMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothership-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
+import { createResolvedSecretMatcher } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -22,6 +23,7 @@ const BILLING_ATTRIBUTION = {
 } as const
 
 const PRIVATE_PROVENANCE_TYPE = 'resolved-secret-provenance-v1'
+const PRIVATE_PROVENANCE_FIELD = '__resolvedSecretTraceProvenance'
 const PRIVATE_PROVENANCE = {
   version: 1,
   complete: true,
@@ -62,8 +64,15 @@ vi.mock('@/lib/execution/cancellation', () => ({
 }))
 
 vi.mock('@/lib/execution/payloads/materialization.server', () => ({
+  MAX_INLINE_MATERIALIZATION_BYTES: 50 * 1024 * 1024,
   readUserFileContent: mockReadUserFileContent,
 }))
+
+const mockMothershipLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi
+    .mocked(loggerMock.createLogger)
+    .mock.calls.findIndex(([name]) => name === 'MothershipBlockHandler')
+].value
 
 function createAbortError(): Error {
   const error = new Error('The operation was aborted')
@@ -105,13 +114,21 @@ async function readStreamText(stream: ReadableStream): Promise<string> {
 }
 
 function createTraceRegistryMock(): ResolvedSecretTraceRegistry & {
+  getModelEgressRevision: ReturnType<typeof vi.fn>
+  getModelEgressSnapshot: ReturnType<typeof vi.fn>
   importProvenance: ReturnType<typeof vi.fn>
   markIncomplete: ReturnType<typeof vi.fn>
 } {
   return {
+    getModelEgressRevision: vi.fn().mockReturnValue(0),
+    getModelEgressSnapshot: vi
+      .fn()
+      .mockReturnValue({ complete: true, matches: [], matcher: undefined }),
     importProvenance: vi.fn().mockResolvedValue(true),
     markIncomplete: vi.fn(),
   } as unknown as ResolvedSecretTraceRegistry & {
+    getModelEgressRevision: ReturnType<typeof vi.fn>
+    getModelEgressSnapshot: ReturnType<typeof vi.fn>
     importProvenance: ReturnType<typeof vi.fn>
     markIncomplete: ReturnType<typeof vi.fn>
   }
@@ -163,6 +180,7 @@ describe('MothershipBlockHandler', () => {
       completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
+      resolvedSecretTraceRegistry: createTraceRegistryMock(),
     } as ExecutionContext
   })
 
@@ -173,12 +191,45 @@ describe('MothershipBlockHandler', () => {
     resetEnvMock()
   })
 
+  function createJsonResponse(payload: Record<string, unknown>, status = 200): Response {
+    return new Response(
+      JSON.stringify({
+        ...payload,
+        [PRIVATE_PROVENANCE_FIELD]: PRIVATE_PROVENANCE,
+      }),
+      {
+        status,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
+        },
+      }
+    )
+  }
+
   function createNdjsonResponse(events: unknown[], headers: Record<string, string> = {}): Response {
     const encoder = new TextEncoder()
+    const enrichedEvents = events.map((event) => {
+      if (!event || typeof event !== 'object' || Array.isArray(event)) return event
+      const record = event as Record<string, unknown>
+      if (record.type === 'error') {
+        return { ...record, [PRIVATE_PROVENANCE_FIELD]: PRIVATE_PROVENANCE }
+      }
+      if (record.type === 'final' && record.data && typeof record.data === 'object') {
+        return {
+          ...record,
+          data: {
+            ...(record.data as Record<string, unknown>),
+            [PRIVATE_PROVENANCE_FIELD]: PRIVATE_PROVENANCE,
+          },
+        }
+      }
+      return event
+    })
     return new Response(
       new ReadableStream({
         start(controller) {
-          for (const event of events) {
+          for (const event of enrichedEvents) {
             controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`))
           }
           controller.close()
@@ -186,7 +237,11 @@ describe('MothershipBlockHandler', () => {
       }),
       {
         status: 200,
-        headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', ...headers },
+        headers: {
+          'Content-Type': 'application/x-ndjson; charset=utf-8',
+          'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
+          ...headers,
+        },
       }
     )
   }
@@ -230,7 +285,38 @@ describe('MothershipBlockHandler', () => {
     expect(JSON.stringify(result)).not.toContain('encrypted-secret')
   })
 
-  it('rejects unmarked provenance while keeping private metadata out of block output', async () => {
+  it('projects parent execution secrets before sending a Mothership prompt', async () => {
+    const registry = createTraceRegistryMock()
+    const matches = [
+      {
+        plaintext: 'cross-workspace-secret',
+        replacement: '[REDACTED_SECRET]',
+      },
+    ]
+    registry.getModelEgressSnapshot.mockReturnValue({
+      complete: true,
+      matches,
+      matcher: createResolvedSecretMatcher(matches),
+    })
+    context.resolvedSecretTraceRegistry = registry
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+
+    await handler.execute(context, block, {
+      prompt: 'Use cross-workspace-secret and __var_FOREIGN',
+    })
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = String(options.body)
+    expect(body).toContain('[REDACTED_SECRET]')
+    expect(body).not.toContain('cross-workspace-secret')
+    expect(body).not.toContain('__var_FOREIGN')
+  })
+
+  it('drops a legacy response without poisoning later provenance', async () => {
     const registry = createTraceRegistryMock()
     context.resolvedSecretTraceRegistry = registry
     mockGenerateId
@@ -248,13 +334,42 @@ describe('MothershipBlockHandler', () => {
       )
     )
 
-    const result = await handler.execute(context, block, { prompt: 'Hello' })
+    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
+      'does not support private provenance metadata'
+    )
+
+    expect(registry.importProvenance).not.toHaveBeenCalled()
+    expect(registry.markIncomplete).not.toHaveBeenCalled()
+  })
+
+  it('poisons provenance when a declared response omits its private field', async () => {
+    const registry = createTraceRegistryMock()
+    context.resolvedSecretTraceRegistry = registry
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ content: 'unsafe output', toolCalls: [] }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
+        },
+      })
+    )
+
+    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
+      'provenance metadata is invalid'
+    )
 
     expect(registry.importProvenance).not.toHaveBeenCalled()
     expect(registry.markIncomplete).toHaveBeenCalledOnce()
-    expect(result).toMatchObject({ content: 'unchanged output' })
-    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
-    expect(JSON.stringify(result)).not.toContain('encrypted-secret')
+  })
+
+  it('fails closed before the request when the model-egress registry is unavailable', async () => {
+    context.resolvedSecretTraceRegistry = undefined
+
+    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
+      'Mothership input could not be safely projected'
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('imports provenance from a terminal NDJSON error without forcing structural fallback', async () => {
@@ -332,19 +447,13 @@ describe('MothershipBlockHandler', () => {
     mockGenerateId.mockReturnValueOnce('request-uuid')
 
     fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          content: 'done',
-          model: 'mothership',
-          conversationId: 'chat-uuid',
-          tokens: { total: 5 },
-          toolCalls: [],
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      createJsonResponse({
+        content: 'done',
+        model: 'mothership',
+        conversationId: 'chat-uuid',
+        tokens: { total: 5 },
+        toolCalls: [],
+      })
     )
 
     const result = await handler.execute(context, block, { prompt: 'Hello from workflow' })
@@ -407,19 +516,13 @@ describe('MothershipBlockHandler', () => {
     mockGenerateId.mockReturnValueOnce('request-uuid')
 
     fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          content: 'continued',
-          model: 'mothership',
-          conversationId: 'existing-chat-id',
-          tokens: {},
-          toolCalls: [],
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      createJsonResponse({
+        content: 'continued',
+        model: 'mothership',
+        conversationId: 'existing-chat-id',
+        tokens: {},
+        toolCalls: [],
+      })
     )
 
     const result = await handler.execute(context, block, {
@@ -453,17 +556,40 @@ describe('MothershipBlockHandler', () => {
     expect(mockGenerateId).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps a resolved conversation ID out of logs while forwarding it unchanged', async () => {
+    const conversationId = 'chat-plaintext-secret-__var_API_KEY-__sim_secret_API_KEY'
+    mockGenerateId.mockReturnValueOnce('message-uuid').mockReturnValueOnce('request-uuid')
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        content: 'continued',
+        model: 'mothership',
+        conversationId,
+        tokens: {},
+        toolCalls: [],
+      })
+    )
+
+    await handler.execute(context, block, {
+      prompt: 'Continue this thread',
+      conversationId,
+    })
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(options.body))
+    expect(body.chatId).toBe(conversationId)
+
+    const logged = JSON.stringify(mockMothershipLogger.info.mock.calls)
+    expect(logged).not.toContain('chat-plaintext-secret')
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
+  })
+
   it('forwards only enabled MCP tools and selected skills', async () => {
     mockGenerateId
       .mockReturnValueOnce('chat-uuid')
       .mockReturnValueOnce('message-uuid')
       .mockReturnValueOnce('request-uuid')
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ content: 'done', toolCalls: [] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
 
     await handler.execute(context, block, {
       prompt: 'Use my tools',
@@ -695,19 +821,13 @@ describe('MothershipBlockHandler', () => {
     mockReadUserFileContent.mockResolvedValueOnce(fileContent)
 
     fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          content: 'analyzed',
-          model: 'mothership',
-          conversationId: 'chat-uuid',
-          tokens: {},
-          toolCalls: [],
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      createJsonResponse({
+        content: 'analyzed',
+        model: 'mothership',
+        conversationId: 'chat-uuid',
+        tokens: {},
+        toolCalls: [],
+      })
     )
 
     const result = await handler.execute(context, block, {
@@ -821,7 +941,10 @@ describe('MothershipBlockHandler', () => {
           }),
           {
             status: 200,
-            headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
+            headers: {
+              'Content-Type': 'application/x-ndjson; charset=utf-8',
+              'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
+            },
           }
         )
       )

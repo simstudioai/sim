@@ -4,7 +4,7 @@ import { Code } from '@sim/emcn'
 
 interface CodeBlockProps {
   code: string
-  language: 'javascript' | 'json' | 'python'
+  language: 'javascript' | 'json' | 'python' | 'bash'
 }
 
 export function CodeBlock({ code, language }: CodeBlockProps) {

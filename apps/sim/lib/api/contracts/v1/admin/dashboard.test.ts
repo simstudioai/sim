@@ -58,6 +58,7 @@ describe('admin dashboard credit grant contract', () => {
         externalCollaboratorCount: 0,
         seats: 0,
         concurrencyLimit: null,
+        workflowExecutionTimeoutSeconds: null,
         planAllowanceDollars: null,
         usageLimitDollars: 0.001,
         effectiveUsageLimitDollars: 0.001,

@@ -30,6 +30,9 @@ interface LogRowContextMenuProps {
   onClearAllFilters: () => void
   onCancelExecution: () => void
   onRetryExecution: () => void
+  canCancelExecution: boolean
+  isCancelPending?: boolean
+  cancelPendingExecutionId?: string
   isRetryPending?: boolean
   isFilteredByThisWorkflow: boolean
   hasActiveFilters: boolean
@@ -52,6 +55,9 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onClearAllFilters,
   onCancelExecution,
   onRetryExecution,
+  canCancelExecution,
+  isCancelPending = false,
+  cancelPendingExecutionId,
   isRetryPending = false,
   isFilteredByThisWorkflow,
   hasActiveFilters,
@@ -60,6 +66,11 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
   const isCancellable =
     (log?.status === 'running' || log?.status === 'pending') && hasExecutionId && hasWorkflow
+  const isStopping =
+    log?.status === 'cancelling' ||
+    (isCancelPending && cancelPendingExecutionId === log?.executionId)
+  const showCancelAction =
+    canCancelExecution && hasExecutionId && hasWorkflow && (isCancellable || isStopping)
   const isRetryable = log?.status === 'failed' && hasWorkflow && log?.trigger !== 'mothership'
 
   return (
@@ -93,11 +104,11 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
             <DropdownMenuSeparator />
           </>
         )}
-        {isCancellable && (
+        {showCancelAction && (
           <>
-            <DropdownMenuItem onSelect={onCancelExecution}>
+            <DropdownMenuItem onSelect={onCancelExecution} disabled={isStopping}>
               <X />
-              Cancel Run
+              {isStopping ? 'Stopping…' : 'Cancel Run'}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>

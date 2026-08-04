@@ -178,6 +178,26 @@ describe('vfs handlers oversize policy', () => {
     expect(vfs.read).toHaveBeenCalledWith('files/report.csv', undefined, undefined)
   })
 
+  it('materializes VFS reads with the request secret policy', async () => {
+    const vfs = makeVfs()
+    vfs.read.mockReturnValue({ content: '{}', totalLines: 1 })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    const secretMountPolicy = {
+      secretScope: 'selected' as const,
+      mountedSecrets: ['VISIBLE_KEY'],
+    }
+
+    const result = await executeVfsRead(
+      { path: 'environment/variables.json' },
+      { ...GREP_CTX, secretMountPolicy }
+    )
+
+    expect(result.success).toBe(true)
+    expect(getOrMaterializeVFS).toHaveBeenCalledWith('ws-1', 'user-1', {
+      secretMountPolicy,
+    })
+  })
+
   it('uses dynamic file reads for canonical style paths', async () => {
     const vfs = makeVfs()
     vfs.readFileContent.mockResolvedValue({

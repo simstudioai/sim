@@ -1,3 +1,12 @@
+import {
+  IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR,
+  IMMUTABLE_E2B_TEMPLATE_REF_ERROR,
+  isImmutableDaytonaSnapshotRef,
+  isImmutableE2BTemplateRef,
+  isValidSandboxReleaseGeneration,
+  normalizeSandboxProvider,
+  SANDBOX_RELEASE_GENERATION_ERROR,
+} from '@sim/utils/sandbox-references'
 import { portOpen } from './detect.ts'
 import {
   type EnvFile,
@@ -385,23 +394,55 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
-  // NEXT_PUBLIC_SANDBOX_ENABLED is not a 1:1 twin: remote execution is available
-  // under E2B_ENABLED or, when SANDBOX_PROVIDER=daytona, DAYTONA_API_KEY. Without
-  // it the Function block hides its language dropdown and sandbox selector even
-  // though the server would happily run Python.
-  const sandboxProvider = (sim.vars.get('SANDBOX_PROVIDER') || 'e2b').toLowerCase()
+  /**
+   * NEXT_PUBLIC_SANDBOXES_ENABLED is not a 1:1 twin: each provider needs its
+   * credential and dedicated Function base. Without the browser flag the
+   * Function block hides its language and sandbox controls even when the server
+   * is ready.
+   */
+  const configuredSandboxProvider = sim.vars.get('SANDBOX_PROVIDER')
+  const sandboxProvider =
+    normalizeSandboxProvider(configuredSandboxProvider) ??
+    (configuredSandboxProvider ? undefined : 'e2b')
+  if (configuredSandboxProvider && !sandboxProvider) {
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message: `SANDBOX_PROVIDER is "${configuredSandboxProvider}" (expected e2b or daytona)`,
+      fix: 'set SANDBOX_PROVIDER=e2b or SANDBOX_PROVIDER=daytona',
+    })
+  }
+  const e2bFunctionRef = sim.vars.get('E2B_FUNCTION_TEMPLATE_ID')
+  const e2bFunctionGeneration = sim.vars.get('E2B_FUNCTION_TEMPLATE_GENERATION')
+  const daytonaFunctionRef = sim.vars.get('DAYTONA_FUNCTION_SNAPSHOT_ID')
   const remoteSandboxAvailable =
     sandboxProvider === 'daytona'
-      ? Boolean(sim.vars.get('DAYTONA_API_KEY'))
-      : isTruthy(sim.vars.get('E2B_ENABLED'))
-  if (remoteSandboxAvailable && !isTruthy(sim.vars.get('NEXT_PUBLIC_SANDBOX_ENABLED'))) {
+      ? Boolean(sim.vars.get('DAYTONA_API_KEY')) &&
+        Boolean(daytonaFunctionRef && isImmutableDaytonaSnapshotRef(daytonaFunctionRef))
+      : sandboxProvider === 'e2b'
+        ? isTruthy(sim.vars.get('E2B_ENABLED')) &&
+          Boolean(sim.vars.get('E2B_API_KEY')) &&
+          Boolean(e2bFunctionRef && isImmutableE2BTemplateRef(e2bFunctionRef)) &&
+          Boolean(e2bFunctionGeneration && isValidSandboxReleaseGeneration(e2bFunctionGeneration))
+        : false
+  const publicSandboxEnabled = isTruthy(sim.vars.get('NEXT_PUBLIC_SANDBOXES_ENABLED'))
+  if (remoteSandboxAvailable && !publicSandboxEnabled) {
     findings.push({
       group: 'coherence',
       status: 'fail',
       message:
-        'remote sandboxes are configured but NEXT_PUBLIC_SANDBOX_ENABLED is unset — the Function block will hide its language and sandbox controls',
-      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOX_ENABLED=true',
-      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOX_ENABLED: 'true' }),
+        'remote sandboxes are configured but NEXT_PUBLIC_SANDBOXES_ENABLED is unset — the Function block will hide its language and sandbox controls',
+      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOXES_ENABLED=true',
+      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOXES_ENABLED: 'true' }),
+    })
+  } else if (!remoteSandboxAvailable && publicSandboxEnabled) {
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message:
+        'NEXT_PUBLIC_SANDBOXES_ENABLED is on but the selected provider lacks credentials or a valid immutable Function base — the UI exposes a runtime that will reject execution',
+      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOXES_ENABLED=false; finish provider setup before enabling it',
+      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOXES_ENABLED: 'false' }),
     })
   }
 
@@ -433,7 +474,11 @@ function checkCoherence(ctx: CheckContext): Finding[] {
 
   const featureRules: Array<{ flag: string; needs: string[]; label: string }> = [
     { flag: 'BILLING_ENABLED', needs: ['STRIPE_SECRET_KEY'], label: 'billing' },
-    { flag: 'E2B_ENABLED', needs: ['E2B_API_KEY'], label: 'E2B code execution' },
+    {
+      flag: 'E2B_ENABLED',
+      needs: ['E2B_API_KEY', 'E2B_FUNCTION_TEMPLATE_ID', 'E2B_FUNCTION_TEMPLATE_GENERATION'],
+      label: 'E2B Function execution',
+    },
     { flag: 'SSO_ENABLED', needs: ['SSO_ISSUER'], label: 'SSO' },
   ]
   for (const rule of featureRules) {
@@ -445,6 +490,43 @@ function checkCoherence(ctx: CheckContext): Finding[] {
         status: 'fail',
         message: `${rule.flag} is on but ${missing.join(', ')} is not set — ${rule.label} will fail at runtime`,
         fix: `set ${missing.join(', ')} or remove ${rule.flag}`,
+      })
+    }
+  }
+  if (e2bFunctionRef && !isImmutableE2BTemplateRef(e2bFunctionRef)) {
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message: `E2B_FUNCTION_TEMPLATE_ID ${IMMUTABLE_E2B_TEMPLATE_REF_ERROR}`,
+      fix: 'run the Function E2B builder and copy the exact <template>:<build-id> value it prints',
+    })
+  }
+  if (e2bFunctionGeneration && !isValidSandboxReleaseGeneration(e2bFunctionGeneration)) {
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message: `E2B_FUNCTION_TEMPLATE_GENERATION ${SANDBOX_RELEASE_GENERATION_ERROR}`,
+      fix: 'run the Function E2B builder and copy the release generation it prints',
+    })
+  }
+  if (daytonaFunctionRef && !isImmutableDaytonaSnapshotRef(daytonaFunctionRef)) {
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message: `DAYTONA_FUNCTION_SNAPSHOT_ID ${IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR}`,
+      fix: 'run the Function Daytona builder and copy the snapshot ID it prints',
+    })
+  }
+  if (sandboxProvider === 'daytona') {
+    const missing = ['DAYTONA_API_KEY', 'DAYTONA_FUNCTION_SNAPSHOT_ID'].filter(
+      (key) => !sim.vars.get(key)
+    )
+    if (missing.length > 0) {
+      findings.push({
+        group: 'coherence',
+        status: 'fail',
+        message: `SANDBOX_PROVIDER is daytona but ${missing.join(', ')} is not set — Daytona Function execution will fail at runtime`,
+        fix: `set ${missing.join(', ')} or select another SANDBOX_PROVIDER`,
       })
     }
   }

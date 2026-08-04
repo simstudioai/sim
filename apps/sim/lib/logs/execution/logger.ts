@@ -12,7 +12,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { checkUsageStatus as checkResolvedUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import {
   type BillingAttributionSnapshot,
@@ -58,6 +58,7 @@ import {
 } from '@/lib/logs/execution/trace-store'
 import type {
   BlockOutputData,
+  CompletedWorkflowExecutionLog,
   ExecutionEnvironment,
   ExecutionFinalizationPath,
   ExecutionTrigger,
@@ -623,6 +624,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     billingAttribution?: BillingAttributionSnapshot
     workflowState: WorkflowState
     deploymentVersionId?: string
+    executionDeadlineAt?: Date
   }): Promise<{
     workflowLog: WorkflowExecutionLog
     snapshot: WorkflowExecutionSnapshot
@@ -636,6 +638,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       billingAttribution,
       workflowState,
       deploymentVersionId,
+      executionDeadlineAt,
     } = params
     const execLog = logger.withMetadata({ workflowId, workspaceId, executionId })
 
@@ -650,6 +653,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     if (existingLog.length > 0) {
       execLog.debug('Execution log already exists, skipping duplicate INSERT (idempotent)')
+      await execDb
+        .update(workflowExecutionLogs)
+        .set({ executionDeadlineAt: executionDeadlineAt ?? null })
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            sql`${workflowExecutionLogs.status} IN ('pending', 'running')`
+          )
+        )
       const snapshot = await snapshotService.getSnapshot(existingLog[0].stateSnapshotId)
       if (!snapshot) {
         throw new Error(`Snapshot ${existingLog[0].stateSnapshotId} not found for existing log`)
@@ -694,6 +706,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         startedAt: startTime,
         endedAt: null,
         totalDurationMs: null,
+        executionDeadlineAt: executionDeadlineAt ?? null,
         executionData: {
           environment,
           trigger,
@@ -792,11 +805,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
     originalState: SerializableExecutionState | undefined
   ): SerializableExecutionState | undefined {
     const provenance = originalState?.resolvedSecretTraceProvenance
+    const provenanceCheckpointVersion = originalState?.resolvedSecretTraceCheckpointVersion
     const trustedLargeValueAccess = originalState?.trustedLargeValueAccess
     return redactedState
       ? {
           ...redactedState,
           ...(provenance !== undefined ? { resolvedSecretTraceProvenance: provenance } : {}),
+          ...(provenanceCheckpointVersion !== undefined
+            ? { resolvedSecretTraceCheckpointVersion: provenanceCheckpointVersion }
+            : {}),
           ...(trustedLargeValueAccess !== undefined ? { trustedLargeValueAccess } : {}),
         }
       : redactedState
@@ -888,7 +905,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
     actorUserId?: string | null
     billingAttribution?: BillingAttributionSnapshot
-  }): Promise<WorkflowExecutionLog> {
+  }): Promise<CompletedWorkflowExecutionLog> {
     const {
       executionId,
       endedAt,
@@ -1111,7 +1128,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
     const completedExecutionLargeValueKeys = collectLargeValueReferenceKeys(storedExecutionData)
 
-    const updatedLog = await execDb.transaction(async (tx) => {
+    const { updatedLog, completionPersisted } = await execDb.transaction(async (tx) => {
       await setExecutionLogWriteTimeouts(tx)
 
       const [log] = await tx
@@ -1121,6 +1138,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           status,
           endedAt: new Date(endedAt),
           totalDurationMs: totalDuration,
+          executionDeadlineAt: null,
           files: executionFiles.length > 0 ? executionFiles : null,
           executionData: storedExecutionData,
           // Faithful projection of the usage_log ledger. Neither cost_total nor
@@ -1134,10 +1152,36 @@ export class ExecutionLogger implements IExecutionLoggerService {
             ? { modelsUsed: Object.keys(costSummary.models) }
             : {}),
         })
-        .where(eq(workflowExecutionLogs.executionId, executionId))
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            status === 'cancelled'
+              ? inArray(workflowExecutionLogs.status, [
+                  'running',
+                  'pending',
+                  'paused',
+                  'redacting',
+                  'cancelled',
+                ])
+              : sql`${workflowExecutionLogs.status} != 'cancelled'`
+          )
+        )
         .returning()
 
       if (!log) {
+        const [currentLog] = await tx
+          .select()
+          .from(workflowExecutionLogs)
+          .where(eq(workflowExecutionLogs.executionId, executionId))
+          .limit(1)
+
+        const competingTerminalStateWon =
+          currentLog?.status === 'cancelled' ||
+          (status === 'cancelled' &&
+            (currentLog?.status === 'completed' || currentLog?.status === 'failed'))
+        if (competingTerminalStateWon) {
+          return { updatedLog: currentLog, completionPersisted: false }
+        }
         throw new Error(`Workflow log not found for execution ${executionId}`)
       }
 
@@ -1152,7 +1196,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         completedExecutionLargeValueKeys
       )
 
-      return log
+      return { updatedLog: log, completionPersisted: true }
     })
 
     if (progressMarkers !== null) void clearProgressMarkers(executionId)
@@ -1311,7 +1355,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
       execLog.warn('Usage threshold notification check failed (non-fatal)', { error: e })
     }
 
-    execLog.debug('Completed workflow execution')
+    if (completionPersisted) {
+      execLog.debug('Completed workflow execution')
+    } else {
+      execLog.debug('Preserved competing terminal execution status', {
+        requestedStatus: status,
+        persistedStatus: updatedLog.status,
+      })
+    }
 
     const completedLog: WorkflowExecutionLog = {
       id: updatedLog.id,
@@ -1327,17 +1378,24 @@ export class ExecutionLogger implements IExecutionLoggerService {
       // and finalOutput), not the slim externalized row — downstream consumers
       // (notification delivery, events) need the complete payload without an
       // extra storage round-trip.
-      executionData: completedExecutionData as WorkflowExecutionLog['executionData'],
+      executionData: completionPersisted
+        ? (completedExecutionData as WorkflowExecutionLog['executionData'])
+        : (updatedLog.executionData as WorkflowExecutionLog['executionData']),
       // From the in-memory cost summary (not the deprecated cost jsonb column).
       cost: executionCost as WorkflowExecutionLog['cost'],
       createdAt: updatedLog.createdAt.toISOString(),
     }
 
-    emitExecutionCompletedEvent(completedLog).catch((error) => {
-      execLog.error('Failed to emit workspace execution event', { error })
-    })
+    if (completionPersisted) {
+      emitExecutionCompletedEvent(completedLog).catch((error) => {
+        execLog.error('Failed to emit workspace execution event', { error })
+      })
+    }
 
-    return completedLog
+    return {
+      ...completedLog,
+      persistedStatus: updatedLog.status as CompletedWorkflowExecutionLog['persistedStatus'],
+    }
   }
 
   async getWorkflowExecution(executionId: string): Promise<WorkflowExecutionLog | null> {

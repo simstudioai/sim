@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
 import {
   getCancellationChannel,
   isExecutionCancelled,
@@ -37,6 +38,8 @@ export class ExecutionEngine {
   private executionError: Error | null = null
   private abortPromise!: Promise<void>
   private abortResolve!: () => void
+  private cancellationController = new AbortController()
+  private abortSignalListener: (() => void) | null = null
   private cancellationUnsubscribe: (() => void) | null = null
   private execLogger: Logger
 
@@ -54,6 +57,11 @@ export class ExecutionEngine {
       userId: this.context.userId,
       requestId: this.context.metadata.requestId,
     })
+    this.context.abortSignal = combineExecutionAbortSignals(
+      this.context.abortSignal
+        ? [this.context.abortSignal, this.cancellationController.signal]
+        : [this.cancellationController.signal]
+    )
     this.initializeAbortHandler()
     this.subscribeToCancellationChannel()
   }
@@ -75,17 +83,22 @@ export class ExecutionEngine {
 
     if (!this.context.abortSignal) return
 
-    if (this.context.abortSignal.aborted) {
-      this.signalCancelled()
+    const signal = this.context.abortSignal
+    if (signal.aborted) {
+      this.signalCancelled(signal.reason)
       return
     }
 
-    this.context.abortSignal.addEventListener('abort', () => this.signalCancelled(), { once: true })
+    this.abortSignalListener = () => this.signalCancelled(signal.reason)
+    signal.addEventListener('abort', this.abortSignalListener, { once: true })
   }
 
-  private signalCancelled(): void {
+  private signalCancelled(reason: unknown = new DOMException('user', 'AbortError')): void {
     if (this.cancelledFlag) return
     this.cancelledFlag = true
+    if (!this.cancellationController.signal.aborted) {
+      this.cancellationController.abort(reason)
+    }
     this.abortResolve()
   }
 
@@ -194,6 +207,10 @@ export class ExecutionEngine {
   }
 
   private cleanup(): void {
+    if (this.abortSignalListener && this.context.abortSignal) {
+      this.context.abortSignal.removeEventListener('abort', this.abortSignalListener)
+      this.abortSignalListener = null
+    }
     if (this.cancellationUnsubscribe) {
       this.cancellationUnsubscribe()
       this.cancellationUnsubscribe = null

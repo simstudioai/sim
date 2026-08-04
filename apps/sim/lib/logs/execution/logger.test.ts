@@ -1,9 +1,15 @@
-import { usageLog, workflow } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { usageLog, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
+import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 afterAll(resetDbChainMock)
@@ -87,6 +93,13 @@ vi.mock('@/lib/workspace-events/emitter', () => ({
   emitExecutionCompletedEvent: vi.fn(() => Promise.resolve()),
 }))
 
+vi.mock('@/lib/logs/execution/progress-markers', () => ({
+  clearProgressMarkers: vi.fn(() => Promise.resolve()),
+  getProgressMarkers: vi.fn(() => Promise.resolve(null)),
+  pickLatestCompletedMarker: vi.fn((current, persisted) => current ?? persisted),
+  pickLatestStartedMarker: vi.fn((current, persisted) => current ?? persisted),
+}))
+
 // Mock snapshot service
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: {
@@ -141,6 +154,69 @@ describe('ExecutionLogger', () => {
 
     test('should have getWorkflowExecution method', () => {
       expect(typeof logger.getWorkflowExecution).toBe('function')
+    })
+
+    test('preserves a cancellation that wins the completion update race', async () => {
+      const startedAt = new Date('2026-08-03T12:00:00.000Z')
+      const createdAt = new Date('2026-08-03T12:00:00.000Z')
+      const runningLog = {
+        id: 'log-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        stateSnapshotId: 'snapshot-1',
+        level: 'info',
+        status: 'running',
+        trigger: 'api',
+        startedAt,
+        endedAt: null,
+        totalDurationMs: null,
+        executionData: {},
+        createdAt,
+      }
+      const cancelledLog = {
+        ...runningLog,
+        status: 'cancelled',
+        endedAt: new Date('2026-08-03T12:00:01.000Z'),
+        totalDurationMs: 1000,
+        executionData: { finalOutput: { cancelled: true } },
+      }
+      queueTableRows(workflowExecutionLogs, [runningLog])
+      queueTableRows(workflowExecutionLogs, [cancelledLog])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      vi.spyOn(logger as any, 'applyPiiRedaction').mockImplementation(
+        async (_workspaceId: unknown, payload: unknown) => payload
+      )
+      vi.spyOn(logger as any, 'recordExecutionUsage').mockResolvedValue(0)
+
+      const result = await logger.completeWorkflowExecution({
+        executionId: 'execution-1',
+        endedAt: '2026-08-03T12:00:02.000Z',
+        totalDurationMs: 2000,
+        costSummary: {
+          totalCost: 0,
+          totalInputCost: 0,
+          totalOutputCost: 0,
+          totalTokens: 0,
+          totalPromptTokens: 0,
+          totalCompletionTokens: 0,
+          baseExecutionCharge: 0,
+          models: {},
+        },
+        finalOutput: { completed: true },
+        traceSpans: [],
+      })
+
+      const completionGuard = dbChainMockFns.where.mock.calls
+        .flatMap(([condition]) => flattenMockConditions(condition))
+        .find(
+          (condition) =>
+            Array.isArray(condition.strings) &&
+            String(Array.from(condition.strings as string[])).includes("!= 'cancelled'")
+        )
+      expect(completionGuard).toBeDefined()
+      expect(result.executionData).toEqual(cancelledLog.executionData)
+      expect(emitExecutionCompletedEvent).not.toHaveBeenCalled()
     })
 
     test('preserves correlation and diagnostics when execution completes', () => {
