@@ -3,12 +3,19 @@ import { AgentIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  getAgentModelOptions,
   getModelCapabilityCondition,
-  getModelOptions,
   getProviderCredentialSubBlocks,
   normalizeFileInput,
   RESPONSE_FORMAT_WAND_CONFIG,
 } from '@/blocks/utils'
+import {
+  CUSTOM_MODEL_CONFIG_DEFAULT,
+  CUSTOM_MODEL_CONFIG_JSON_SCHEMA,
+  CUSTOM_MODEL_ID,
+  isCustomModel,
+  parseCustomModelConfig,
+} from '@/providers/custom-model'
 import {
   getBaseModelProviders,
   getMaxTemperature,
@@ -135,8 +142,27 @@ Return ONLY the JSON array.`,
       placeholder: 'Type or select a model...',
       required: true,
       defaultValue: 'claude-sonnet-5',
-      options: getModelOptions,
+      options: getAgentModelOptions,
       commandSearchable: true,
+    },
+    {
+      id: 'customModelConfig',
+      title: 'Custom Model Configuration',
+      type: 'code',
+      language: 'json',
+      placeholder: 'Enter custom provider and model configuration...',
+      description:
+        'Provider, model, credentials, and provider-specific generation settings. Tools, response format, skills, files, prompts, and memory remain configured separately.',
+      defaultValue: CUSTOM_MODEL_CONFIG_DEFAULT,
+      superUserOnly: true,
+      required: {
+        field: 'model',
+        value: CUSTOM_MODEL_ID,
+      },
+      condition: {
+        field: 'model',
+        value: CUSTOM_MODEL_ID,
+      },
     },
     {
       id: 'attachmentFiles',
@@ -472,7 +498,7 @@ Return ONLY the JSON array.`,
       mode: 'advanced',
       condition: {
         field: 'model',
-        value: MODELS_WITH_DEEP_RESEARCH,
+        value: [...MODELS_WITH_DEEP_RESEARCH, CUSTOM_MODEL_ID],
         not: true,
       },
     },
@@ -514,6 +540,9 @@ Return ONLY the JSON array.`,
         const model = params.model || 'claude-sonnet-5'
         if (!model) {
           throw new Error('No model selected')
+        }
+        if (isCustomModel(model)) {
+          return parseCustomModelConfig(params.customModelConfig).provider
         }
         // sim-auto resolves to a concrete pool model at execution time, where
         // the agent handler derives the provider from the resolved model and
@@ -599,6 +628,12 @@ Return ONLY the JSON array.`,
         'Maximum number of tokens for token-based sliding window memory (when memoryType is sliding_window_tokens, e.g., "4000")',
     },
     model: { type: 'string', description: 'AI model to use' },
+    customModelConfig: {
+      type: 'json',
+      description:
+        'Custom provider/model execution configuration. Tools, response format, skills, files, prompts, and memory are separate Agent inputs.',
+      schema: CUSTOM_MODEL_CONFIG_JSON_SCHEMA,
+    },
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },

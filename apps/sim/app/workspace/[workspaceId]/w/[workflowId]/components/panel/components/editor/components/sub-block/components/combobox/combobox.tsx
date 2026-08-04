@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Combobox, type ComboboxOption, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
+import { useSession } from '@/lib/auth/auth-client'
 import { SandboxCreateModal } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/sandbox-create-modal'
 import type { SandboxLanguage } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -13,7 +14,9 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { isCustomModel } from '@/providers/custom-model'
 import { getProviderFromModel } from '@/providers/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
@@ -42,7 +45,12 @@ const CREATE_ACTION_VALUE = '__sub-block-create-action__'
  */
 type ComboBoxOption =
   | string
-  | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }
+  | {
+      label: string
+      id: string
+      icon?: React.ComponentType<{ className?: string }>
+      requiresSuperUser?: boolean
+    }
 
 /**
  * Props for the ComboBox component
@@ -96,6 +104,8 @@ export const ComboBox = memo(function ComboBox({
 }: ComboBoxProps) {
   const activeSearchTarget = useActiveSearchTarget()
   // Hooks and context
+  const { data: session } = useSession()
+  const { data: generalSettings } = useGeneralSettings()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const reactFlowInstance = useReactFlow()
@@ -112,14 +122,20 @@ export const ComboBox = memo(function ComboBox({
     isModelAllowed,
     isLoading: isPermissionLoading,
   } = usePermissionConfig()
+  const effectiveSuperUser =
+    session?.user?.role === 'admin' && (generalSettings?.superUserModeEnabled ?? false)
 
   // Evaluate static options if provided as a function
   const staticOptions = useMemo(() => {
     const opts = typeof options === 'function' ? options() : options
+    const visibleOptions = opts.filter(
+      (option) => typeof option === 'string' || !option.requiresSuperUser || effectiveSuperUser
+    )
 
     if (subBlockId === 'model') {
-      return opts.filter((opt) => {
+      return visibleOptions.filter((opt) => {
         const modelId = typeof opt === 'string' ? opt : opt.id
+        if (isCustomModel(modelId)) return effectiveSuperUser
         if (!isModelAllowed(modelId)) return false
         try {
           return isProviderAllowed(getProviderFromModel(modelId))
@@ -129,8 +145,8 @@ export const ComboBox = memo(function ComboBox({
       })
     }
 
-    return opts
-  }, [options, subBlockId, isProviderAllowed, isModelAllowed])
+    return visibleOptions
+  }, [options, subBlockId, isProviderAllowed, isModelAllowed, effectiveSuperUser])
 
   const {
     fetchedOptions,
@@ -186,6 +202,7 @@ export const ComboBox = memo(function ComboBox({
     if (subBlockId === 'model' && fetchOptions && normalizedFetchedOptions.length > 0) {
       opts = opts.filter((opt) => {
         const modelId = typeof opt === 'string' ? opt : opt.id
+        if (isCustomModel(modelId)) return effectiveSuperUser
         if (!isModelAllowed(modelId)) return false
         try {
           return isProviderAllowed(getProviderFromModel(modelId))
@@ -196,7 +213,7 @@ export const ComboBox = memo(function ComboBox({
     }
 
     // Merge hydrated option if not already present
-    if (hydratedOption) {
+    if (hydratedOption && (!isCustomModel(hydratedOption.id) || effectiveSuperUser)) {
       const alreadyPresent = opts.some((o) =>
         typeof o === 'string' ? o === hydratedOption.id : o.id === hydratedOption.id
       )
@@ -227,6 +244,7 @@ export const ComboBox = memo(function ComboBox({
     subBlockId,
     isProviderAllowed,
     isModelAllowed,
+    effectiveSuperUser,
   ])
 
   // Convert options to Combobox format

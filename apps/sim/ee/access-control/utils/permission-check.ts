@@ -397,7 +397,8 @@ export async function validateModelProvider(
   userId: string | undefined,
   workspaceId: string | undefined,
   model: string,
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
+  providerOverride?: string
 ): Promise<void> {
   if (!userId || !workspaceId) {
     return
@@ -410,7 +411,7 @@ export async function validateModelProvider(
   }
 
   if (config.allowedModelProviders !== null) {
-    const providerId = getProviderFromModel(model)
+    const providerId = providerOverride ?? getProviderFromModel(model)
 
     if (!config.allowedModelProviders.includes(providerId)) {
       logger.warn('Model provider blocked by permission group', {

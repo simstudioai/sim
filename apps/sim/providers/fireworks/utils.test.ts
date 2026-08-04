@@ -6,6 +6,9 @@ import { resolveFireworksWireModel } from '@/providers/fireworks/utils'
 
 describe('resolveFireworksWireModel', () => {
   it('maps the static hosted catalog ids to their serverless resource paths', () => {
+    expect(resolveFireworksWireModel('deepseek-v4-pro')).toBe(
+      'accounts/fireworks/models/deepseek-v4-pro'
+    )
     expect(resolveFireworksWireModel('glm-5.2')).toBe('accounts/fireworks/models/glm-5p2')
     expect(resolveFireworksWireModel('kimi-k3')).toBe('accounts/fireworks/models/kimi-k3')
   })

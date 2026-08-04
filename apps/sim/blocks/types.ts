@@ -258,6 +258,8 @@ export interface SubBlockConfig {
   id: string
   title?: string
   type: SubBlockType
+  /** Shows this authoring control only while effective super-user mode is enabled. */
+  superUserOnly?: boolean
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode. 'trigger-advanced' is the advanced side of a trigger field — either a canonical pair member or a standalone field shown under the block-level advanced toggle
   canonicalParamId?: string
   /** Controls parameter visibility in agent/tool-input context */
@@ -317,6 +319,8 @@ export interface SubBlockConfig {
         hidden?: boolean
         defaultChecked?: boolean
         description?: string
+        /** Omits this option unless effective super-user mode is enabled. */
+        requiresSuperUser?: boolean
       }[]
     | (() => {
         label: string
@@ -326,6 +330,8 @@ export interface SubBlockConfig {
         hidden?: boolean
         defaultChecked?: boolean
         description?: string
+        /** Omits this option unless effective super-user mode is enabled. */
+        requiresSuperUser?: boolean
       }[])
   min?: number
   max?: number

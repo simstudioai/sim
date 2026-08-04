@@ -178,10 +178,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     contextInformationAvailable: false,
     /**
-     * Static Fireworks serverless entries: the sim-auto routing pool. These are
-     * hosted-billable (platform FIREWORKS_API_KEY) and priced at the Fireworks
-     * serverless rate, which differs from the vendors' native rates. Text-only:
-     * the Fireworks serving endpoints reject image inputs. User-configured
+     * Static hosted Fireworks serverless entries, including the models used by
+     * sim-auto. These are billed through the platform FIREWORKS_API_KEY at the
+     * Fireworks serverless rate, which differs from the vendors' native rates.
+     * Attachment support is model-specific (Kimi K3 accepts images; GLM 5.2 and
+     * DeepSeek V4 Pro are text-only). User-configured
      * `fireworks/<anything-else>` ids remain dynamic/BYO-key as before.
      */
     models: [
@@ -215,6 +216,21 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-07-16',
+        recommended: true,
+      },
+      {
+        id: 'fireworks/deepseek-v4-pro',
+        pricing: {
+          input: 1.74,
+          cachedInput: 0.145,
+          output: 3.48,
+          updatedAt: '2026-08-03',
+        },
+        capabilities: {
+          toolUsageControl: true,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-04-24',
         recommended: true,
       },
     ],
@@ -398,10 +414,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'gpt-5.6-terra',
         pricing: {
-          input: 2.5,
-          cachedInput: 0.25,
-          output: 15.0,
-          updatedAt: '2026-07-09',
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 12.0,
+          updatedAt: '2026-08-03',
         },
         capabilities: {
           reasoningEffort: {
@@ -418,10 +434,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'gpt-5.6-luna',
         pricing: {
-          input: 1.0,
-          cachedInput: 0.1,
-          output: 6.0,
-          updatedAt: '2026-07-09',
+          input: 0.2,
+          cachedInput: 0.02,
+          output: 1.2,
+          updatedAt: '2026-08-03',
         },
         capabilities: {
           reasoningEffort: {
@@ -4233,11 +4249,11 @@ export function getHostedModels(): string[] {
     ...getProviderModels('zai'),
     ...getProviderModels('xai'),
     ...getProviderModels('kimi'),
-    // The STATIC Fireworks catalog only (the sim-auto pool, platform key) —
+    // The static hosted Fireworks catalog only (platform key) —
     // deliberately not the live provider list, which `updateFireworksModels`
     // merges a workspace's own dynamic ids into. Those must never enter the
     // hosted set: it gates both billing and the platform-key handout.
-    ...STATIC_FIREWORKS_MODELS.map((model) => model.id),
+    ...getHostedFireworksModels(),
   ]
 }
 
@@ -4304,13 +4320,18 @@ export function updateLiteLLMModels(models: string[]): void {
 }
 
 /**
- * The static Fireworks catalog (the hosted sim-auto pool), captured at module
- * load before any dynamic sync runs. Hosted billing, pricing, and the agent
- * block's API-key condition all key on these ids, so a workspace's own
- * Fireworks models are merged on top of them rather than replacing them —
- * unlike the other dynamic providers, whose static list is empty.
+ * The static hosted Fireworks catalog, captured at module load before any
+ * dynamic sync runs. Hosted billing, pricing, and the agent block's API-key
+ * condition all key on these ids, so a workspace's own Fireworks models are
+ * merged on top of them rather than replacing them — unlike the other dynamic
+ * providers, whose static list is empty.
  */
 const STATIC_FIREWORKS_MODELS = PROVIDER_DEFINITIONS.fireworks.models
+
+/** Returns only platform-hosted Fireworks ids, excluding workspace BYOK models. */
+export function getHostedFireworksModels(): string[] {
+  return STATIC_FIREWORKS_MODELS.map((model) => model.id)
+}
 
 export function updateFireworksModels(models: string[]): void {
   const staticIds = new Set(STATIC_FIREWORKS_MODELS.map((model) => model.id.toLowerCase()))

@@ -161,6 +161,29 @@ describe('fireworksProvider', () => {
     expect(result).toMatchObject({ model: 'fireworks/glm-5.2' })
   })
 
+  it('passes custom options and reasoning through while canonical fields win', async () => {
+    mockCreate.mockResolvedValueOnce(textResponse('ok'))
+
+    await fireworksProvider.executeRequest({
+      ...baseRequest,
+      model: 'fireworks/accounts/acme/models/future',
+      reasoningEffort: 'high',
+      temperature: 0.2,
+      providerOptions: {
+        top_p: 0.8,
+        model: 'must-not-win',
+        temperature: 0.9,
+      },
+    })
+
+    expect(callBody(0)).toMatchObject({
+      model: 'accounts/acme/models/future',
+      top_p: 0.8,
+      temperature: 0.2,
+      reasoning_effort: 'high',
+    })
+  })
+
   it('wraps API errors in a ProviderError', async () => {
     mockCreate.mockRejectedValueOnce(new Error('boom'))
 

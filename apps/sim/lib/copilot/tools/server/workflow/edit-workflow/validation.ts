@@ -16,9 +16,10 @@ import {
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getModelOptions } from '@/blocks/utils'
+import { getAgentModelOptions, getModelOptions } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
+import { isCustomModel } from '@/providers/custom-model'
 import { isAutoModel, isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
 import { getTool } from '@/tools/utils'
@@ -34,6 +35,23 @@ import { SELECTOR_TYPES } from './types'
 
 const validationLogger = createLogger('EditWorkflowValidation')
 const agentToolLintLogger = createLogger('EditWorkflowAgentToolLint')
+
+/**
+ * Detect privileged Agent custom-model writes anywhere in an edit operation,
+ * including nested subflow nodes. Key-aware traversal avoids treating ordinary
+ * prompt text that happens to mention the sentinel as a privileged mutation.
+ */
+export function operationsUseCustomModelConfiguration(operations: unknown): boolean {
+  const visit = (value: unknown, key?: string): boolean => {
+    if (key === 'customModelConfig') return true
+    if (key === 'model' && isCustomModel(value)) return true
+    if (Array.isArray(value)) return value.some((item) => visit(item))
+    if (!value || typeof value !== 'object') return false
+    return Object.entries(value).some(([childKey, childValue]) => visit(childValue, childKey))
+  }
+
+  return visit(operations)
+}
 
 /**
  * Finds an existing block with the same normalized name.
@@ -569,11 +587,16 @@ export function validateValueForSubBlockType(
     case 'long-input':
     case 'combobox': {
       const usesProviderCatalog =
-        fieldName === 'model' && subBlockConfig.options === getModelOptions
+        fieldName === 'model' &&
+        (subBlockConfig.options === getModelOptions ||
+          subBlockConfig.options === getAgentModelOptions)
 
       if (usesProviderCatalog) {
         const stringValue = typeof value === 'string' ? value : String(value)
         const trimmed = stringValue.trim()
+        if (trimmed !== '' && isCustomModel(trimmed)) {
+          return { valid: true, value: trimmed.toLowerCase() }
+        }
         // sim-auto is a valid model value on hosted Sim only (mirrors the
         // options array the agent reads: it is absent from self-hosted
         // snapshots, so writes of it there are rejected as unknown).

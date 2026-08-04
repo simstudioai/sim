@@ -249,6 +249,39 @@ interface SanitizedWorkflowState {
 }
 
 /**
+ * The Super User custom-model contract stores its optional explicit key inside
+ * JSON rather than in a password subblock. Scrub that nested value anywhere a
+ * workflow leaves its workspace, preserving only an unresolved env reference
+ * for explicit exports when requested.
+ */
+function sanitizeCustomModelCredential(value: unknown, preserveEnvVars: boolean): unknown {
+  const wasString = typeof value === 'string'
+  let parsed: unknown = value
+  if (wasString) {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return null
+    }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+
+  const config = structuredClone(parsed) as Record<string, unknown>
+  const credentials = config.credentials
+  if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials)) {
+    return value
+  }
+
+  const sanitizedCredentials = credentials as Record<string, unknown>
+  const apiKey = sanitizedCredentials.apiKey
+  const preserveReference =
+    preserveEnvVars && typeof apiKey === 'string' && /^\{\{[^{}]+\}\}$/.test(apiKey.trim())
+  if (!preserveReference) sanitizedCredentials.apiKey = undefined
+
+  return wasString ? JSON.stringify(config, null, 2) : config
+}
+
+/**
  * Sanitize workflow state by removing all credentials and workspace-specific data
  * This is used for both template creation and workflow export to ensure consistency
  *
@@ -301,6 +334,14 @@ export function sanitizeWorkflowForSharing(
             }
           }
 
+          // Nested explicit key in the Super User custom-model JSON contract.
+          else if (subBlockConfig.id === 'customModelConfig') {
+            block.subBlocks[subBlockConfig.id]!.value = sanitizeCustomModelCredential(
+              subBlock?.value,
+              options.preserveEnvVars === true
+            )
+          }
+
           // Clear workspace-specific selectors
           else if (WORKSPACE_SPECIFIC_TYPES.has(subBlockConfig.type)) {
             block.subBlocks[subBlockConfig.id]!.value = null
@@ -317,6 +358,12 @@ export function sanitizeWorkflowForSharing(
     // Process subBlocks without config (fallback)
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([key, subBlock]) => {
+        if (key === 'customModelConfig' && subBlock) {
+          subBlock.value = sanitizeCustomModelCredential(
+            subBlock.value,
+            options.preserveEnvVars === true
+          )
+        }
         // Clear workspace-specific fields by key name
         if (WORKSPACE_SPECIFIC_FIELDS.has(key) && subBlock) {
           subBlock.value = null

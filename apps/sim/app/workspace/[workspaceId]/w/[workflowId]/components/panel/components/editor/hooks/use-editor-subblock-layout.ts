@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react'
+import { useSession } from '@/lib/auth/auth-client'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
@@ -10,6 +11,7 @@ import {
   shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
@@ -38,10 +40,14 @@ export function useEditorSubblockLayout(
   blockSubBlockValues: Record<string, any>,
   isSnapshotView: boolean
 ) {
+  const { data: session } = useSession()
+  const { data: generalSettings } = useGeneralSettings()
   const blockDataFromStore = useWorkflowStore(
     useCallback((state) => state.blocks?.[blockId]?.data, [blockId])
   )
   const { config: permissionConfig } = usePermissionConfig()
+  const effectiveSuperUser =
+    session?.user?.role === 'admin' && (generalSettings?.superUserModeEnabled ?? false)
 
   // Evaluate reactive conditions (hooks-based, must be called before useMemo)
   const hiddenByReactiveCondition = useReactiveConditions(
@@ -117,6 +123,7 @@ export function useEditorSubblockLayout(
 
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
       if (block.hidden) return false
+      if (block.superUserOnly && !effectiveSuperUser) return false
 
       // Configures the block as an agent tool; it has no meaning on the canvas.
       if (isToolInputOnlySubBlock(block)) return false
@@ -169,5 +176,6 @@ export function useEditorSubblockLayout(
     blockDataFromStore,
     hiddenByReactiveCondition,
     permissionConfig.disableSkills,
+    effectiveSuperUser,
   ])
 }

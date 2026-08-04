@@ -8,11 +8,17 @@ afterAll(resetEnvFlagsMock)
 
 const {
   mockGetHostedModels,
+  mockGetHostedFireworksModels,
   mockGetProviderModels,
   mockGetProviderIcon,
   mockGetBaseModelProviders,
 } = vi.hoisted(() => ({
   mockGetHostedModels: vi.fn(() => []),
+  mockGetHostedFireworksModels: vi.fn(() => [
+    'fireworks/glm-5.2',
+    'fireworks/kimi-k3',
+    'fireworks/deepseek-v4-pro',
+  ]),
   mockGetProviderModels: vi.fn(() => []),
   mockGetProviderIcon: vi.fn(() => null),
   mockGetBaseModelProviders: vi.fn(() => ({})),
@@ -23,10 +29,13 @@ const { mockProviders } = vi.hoisted(() => ({
     value: {
       base: { models: [] as string[], isLoading: false },
       ollama: { models: [] as string[], isLoading: false },
+      'ollama-cloud': { models: [] as string[], isLoading: false },
       vllm: { models: [] as string[], isLoading: false },
       litellm: { models: [] as string[], isLoading: false },
       openrouter: { models: [] as string[], isLoading: false },
       fireworks: { models: [] as string[], isLoading: false },
+      together: { models: [] as string[], isLoading: false },
+      baseten: { models: [] as string[], isLoading: false },
     },
   },
 }))
@@ -37,9 +46,12 @@ vi.mock('@/providers/models', () => ({
     .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
   INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getHostedModels: mockGetHostedModels,
+  getHostedFireworksModels: mockGetHostedFireworksModels,
   getProviderModels: mockGetProviderModels,
   getProviderIcon: mockGetProviderIcon,
   getBaseModelProviders: mockGetBaseModelProviders,
+  getModelSunsetStatus: vi.fn(() => undefined),
+  orderModelIdsByReleaseDate: vi.fn((models: string[]) => models),
   SIM_AUTO_MODEL_ID: 'sim-auto',
   isAutoModel: (model: string) => model.trim().toLowerCase() === 'sim-auto',
 }))
@@ -51,6 +63,11 @@ vi.mock('@/providers/utils', () => ({
     'function' in toolCall &&
     (toolCall as { function?: unknown }).function != null,
   getProviderFromModel: vi.fn(() => 'openai'),
+}))
+
+vi.mock('@/providers/custom-model', () => ({
+  CUSTOM_MODEL_ID: 'sim-custom',
+  isCustomModel: (model: string) => model.trim().toLowerCase() === 'sim-custom',
 }))
 
 vi.mock('@/stores/providers/store', () => ({
@@ -69,8 +86,10 @@ vi.mock('@/lib/oauth/utils', () => ({
 
 import type { SubBlockConfig } from '@/blocks/types'
 import {
+  getAgentModelOptions,
   getApiKeyCondition,
   getDependsOnFields,
+  getModelOptions,
   getSubBlocksDependingOnChange,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
@@ -99,10 +118,13 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     mockProviders.value = {
       base: { models: [], isLoading: false },
       ollama: { models: [], isLoading: false },
+      'ollama-cloud': { models: [], isLoading: false },
       vllm: { models: [], isLoading: false },
       litellm: { models: [], isLoading: false },
       openrouter: { models: [], isLoading: false },
       fireworks: { models: [], isLoading: false },
+      together: { models: [], isLoading: false },
+      baseten: { models: [], isLoading: false },
     }
     mockGetHostedModels.mockReturnValue([])
     mockGetProviderModels.mockReturnValue([])
@@ -117,6 +139,10 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     it('does not require API key when model is whitespace', () => {
       expect(evaluateCondition('   ')).toBe(false)
     })
+  })
+
+  it('keeps the standard API-key control hidden for custom model configuration', () => {
+    expect(evaluateCondition('sim-custom')).toBe(false)
   })
 
   describe('hosted models', () => {
@@ -274,6 +300,37 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       expect(evaluateCondition('llama3:latest')).toBe(true)
       expect(evaluateCondition('mistral:latest')).toBe(true)
       expect(evaluateCondition('gpt-4o')).toBe(true)
+    })
+  })
+})
+
+describe('getModelOptions', () => {
+  it('always includes the static Fireworks catalog and preserves dynamic BYOK models', () => {
+    mockProviders.value.fireworks.models = [
+      'fireworks/kimi-k3',
+      'fireworks/accounts/acme/models/custom',
+    ]
+
+    const ids = getModelOptions().map((option) => option.id)
+
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        'fireworks/glm-5.2',
+        'fireworks/kimi-k3',
+        'fireworks/deepseek-v4-pro',
+        'fireworks/accounts/acme/models/custom',
+      ])
+    )
+    expect(ids.filter((id) => id === 'fireworks/kimi-k3')).toHaveLength(1)
+  })
+
+  it('adds the super-user custom option only to the Agent model options', () => {
+    expect(getModelOptions().some((option) => option.id === 'sim-custom')).toBe(false)
+    expect(getAgentModelOptions()).toContainEqual({
+      label: 'Custom',
+      id: 'sim-custom',
+      group: 'Advanced',
+      requiresSuperUser: true,
     })
   })
 })

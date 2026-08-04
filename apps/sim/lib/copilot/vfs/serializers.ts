@@ -12,6 +12,7 @@ import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { isHiddenUnder } from '@/blocks/visibility/context'
+import { CUSTOM_MODEL_ID } from '@/providers/custom-model'
 import {
   DYNAMIC_MODEL_PROVIDERS,
   PROVIDER_DEFINITIONS,
@@ -82,6 +83,8 @@ export interface ComponentSerializationOptions {
   hosted?: boolean
   toolConfigs?: ReadonlyMap<string, ToolConfig>
   ownerBlockType?: string
+  /** Exposes fields and options reserved for effective Super Users. Defaults fail-closed. */
+  effectiveSuperUser?: boolean
 }
 
 /**
@@ -552,7 +555,10 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
  * Serialize a SubBlockConfig for the VFS component schema.
  * Strips functions and UI-only fields. Includes static options arrays.
  */
-function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
+function serializeSubBlock(
+  sb: SubBlockConfig,
+  effectiveSuperUser: boolean
+): Record<string, unknown> {
   const result: Record<string, unknown> = {
     id: sb.id,
     type: sb.type,
@@ -567,7 +573,7 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
 
   // Include static options arrays for dropdowns
   if (Array.isArray(sb.options)) {
-    result.options = sb.options
+    result.options = sb.options.filter((option) => effectiveSuperUser || !option.requiresSuperUser)
   }
 
   return result
@@ -584,24 +590,40 @@ export function serializeBlockSchema(
   // treat `hidden` as hidden for them so those never reach the agent's schema.
   const customBlock = isCustomBlockType(block.type)
   const hosted = options?.hosted ?? isHosted
+  const effectiveSuperUser = options?.effectiveSuperUser === true
   const visibleSubBlocks = block.subBlocks.filter(
-    (sb) => !sb.hideFromCopilot && !isSubBlockHidden(sb, { hosted }) && !(customBlock && sb.hidden)
+    (sb) =>
+      !sb.hideFromCopilot &&
+      (!sb.superUserOnly || effectiveSuperUser) &&
+      !isSubBlockHidden(sb, { hosted }) &&
+      !(customBlock && sb.hidden)
   )
   const visibleIds = new Set(visibleSubBlocks.map((sb) => sb.id))
   const hiddenIds = new Set(
     block.subBlocks
       .filter(
-        (sb) => sb.hideFromCopilot || isSubBlockHidden(sb, { hosted }) || (customBlock && sb.hidden)
+        (sb) =>
+          sb.hideFromCopilot ||
+          (sb.superUserOnly && !effectiveSuperUser) ||
+          isSubBlockHidden(sb, { hosted }) ||
+          (customBlock && sb.hidden)
       )
       .map((sb) => sb.id)
       .filter((id) => !visibleIds.has(id))
   )
 
   const subBlocks = visibleSubBlocks.map((sb) => {
-    const serialized = serializeSubBlock(sb)
+    const serialized = serializeSubBlock(sb, effectiveSuperUser)
 
     if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
       serialized.options = getStaticModelOptionsForVFS()
+      if (effectiveSuperUser && block.type === 'agent') {
+        ;(serialized.options as StaticModelOption[]).push({
+          id: CUSTOM_MODEL_ID,
+          provider: 'custom',
+          hosted: false,
+        })
+      }
       serialized.dynamicProviders = DYNAMIC_PROVIDERS_NOTE
     }
 

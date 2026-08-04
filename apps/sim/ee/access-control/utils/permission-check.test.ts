@@ -420,6 +420,14 @@ describe('validateModelProvider', () => {
     await validateModelProvider('user-123', 'workspace-1', 'gpt-4')
   })
 
+  it('uses an explicit provider for uncataloged custom model IDs', async () => {
+    queueGroupResolution([{ config: { allowedModelProviders: ['xai'] } }])
+
+    await validateModelProvider('user-123', 'workspace-1', 'grok-future', undefined, 'xai')
+
+    expect(mockGetProviderFromModel).not.toHaveBeenCalled()
+  })
+
   it('throws ModelNotAllowedError when the model is on the denylist', async () => {
     queueGroupResolution([{ config: { deniedModels: ['gpt-4'] } }])
     mockGetProviderFromModel.mockReturnValue('openai')

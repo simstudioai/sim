@@ -18,6 +18,7 @@ import { ArrowLeft, ChevronRight, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
+import { useSession } from '@/lib/auth/auth-client'
 import {
   getIssueBadgeLabel,
   getIssueBadgeVariant,
@@ -74,6 +75,7 @@ import {
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
 import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import {
   useAllowedMcpDomains,
   useCreateMcpServer,
@@ -472,6 +474,10 @@ export const ToolInput = memo(function ToolInput({
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
   const activeSearchTarget = useActiveSearchTarget()
+  const { data: session } = useSession()
+  const { data: generalSettings } = useGeneralSettings()
+  const effectiveSuperUser =
+    session?.user?.role === 'admin' && (generalSettings?.superUserModeEnabled ?? false)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
@@ -1807,8 +1813,9 @@ export const ToolInput = memo(function ToolInput({
           const displaySubBlocks: BlockSubBlockConfig[] = useSubBlocks
             ? subBlocksResult!.subBlocks.filter(
                 (sb) =>
-                  !sb.reactiveCondition ||
-                  toolCredential?.type === sb.reactiveCondition.requiredType
+                  (!sb.superUserOnly || effectiveSuperUser) &&
+                  (!sb.reactiveCondition ||
+                    toolCredential?.type === sb.reactiveCondition.requiredType)
               )
             : []
 

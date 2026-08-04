@@ -373,17 +373,21 @@ describe('xai provider definition', () => {
   })
 })
 
-describe('fireworks static catalog (the sim-auto pool)', () => {
-  const poolModels = ['fireworks/glm-5.2', 'fireworks/kimi-k3']
+describe('hosted Fireworks static catalog', () => {
+  const hostedFireworksModels = [
+    'fireworks/glm-5.2',
+    'fireworks/kimi-k3',
+    'fireworks/deepseek-v4-pro',
+  ]
 
   it('is included in getHostedModels since Sim provides the Fireworks key server-side', () => {
-    for (const model of poolModels) {
+    for (const model of hostedFireworksModels) {
       expect(getHostedModels()).toContain(model)
     }
   })
 
-  it('prices every pool model so hosted usage is billable', () => {
-    for (const model of poolModels) {
+  it('prices every hosted model so usage is billable', () => {
+    for (const model of hostedFireworksModels) {
       const pricing = getModelPricing(model)
       expect(pricing?.input).toBeGreaterThan(0)
       expect(pricing?.output).toBeGreaterThan(0)
@@ -393,20 +397,37 @@ describe('fireworks static catalog (the sim-auto pool)', () => {
   it('survives a dynamic model sync, which merges rather than replaces', () => {
     updateFireworksModels(['fireworks/accounts/acme/models/custom'])
 
-    for (const model of poolModels) {
+    for (const model of hostedFireworksModels) {
       expect(getHostedModels()).toContain(model)
       expect(getModelPricing(model)?.input).toBeGreaterThan(0)
     }
     expect(getProviderModels('fireworks')).toContain('fireworks/accounts/acme/models/custom')
   })
 
-  it('does not duplicate a pool model the dynamic listing also returns', () => {
+  it('does not duplicate a hosted model the dynamic listing also returns', () => {
     updateFireworksModels(['fireworks/glm-5.2'])
 
     expect(getProviderModels('fireworks').filter((id) => id === 'fireworks/glm-5.2')).toHaveLength(
       1
     )
     expect(getModelPricing('fireworks/glm-5.2')?.input).toBeGreaterThan(0)
+  })
+})
+
+describe('GPT-5.6 pricing', () => {
+  it('uses the current standard rates for Terra and Luna', () => {
+    expect(getModelPricing('gpt-5.6-terra')).toMatchObject({
+      input: 2,
+      cachedInput: 0.2,
+      output: 12,
+      updatedAt: '2026-08-03',
+    })
+    expect(getModelPricing('gpt-5.6-luna')).toMatchObject({
+      input: 0.2,
+      cachedInput: 0.02,
+      output: 1.2,
+      updatedAt: '2026-08-03',
+    })
   })
 })
 

@@ -173,6 +173,7 @@ export async function executeResponsesProviderRequest(
   const initialInput = buildResponsesInputFromMessages(allMessages, config.providerId)
 
   const basePayload: Record<string, unknown> = {
+    ...(request.providerOptions ?? {}),
     model: config.modelName,
   }
 
@@ -200,7 +201,7 @@ export async function executeResponsesProviderRequest(
    * organization verification; see the strip-and-retry fallback in the
    * request helpers below.
    */
-  if (supportsReasoningEffort(config.modelName)) {
+  if (supportsReasoningEffort(config.modelName) || request.capabilityPolicy === 'passthrough') {
     const hasExplicitEffort =
       request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto'
     const reasoning: Record<string, unknown> = {

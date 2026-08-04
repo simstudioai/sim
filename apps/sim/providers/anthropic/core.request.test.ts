@@ -89,6 +89,81 @@ describe('executeAnthropicProviderRequest request identity and usage', () => {
     })
   })
 
+  it('passes custom options and temperature through for an uncataloged model', async () => {
+    const create = vi.fn().mockResolvedValue({
+      id: 'msg-custom',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-future',
+      content: [{ type: 'text', text: 'Done' }],
+      stop_reason: 'end_turn',
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    })
+
+    await executeAnthropicProviderRequest(
+      {
+        model: 'claude-future',
+        apiKey: 'test-key',
+        capabilityPolicy: 'passthrough',
+        temperature: 0.2,
+        providerOptions: {
+          metadata: { user_id: 'custom-user' },
+          model: 'must-not-win',
+          temperature: 0.9,
+        },
+      },
+      {
+        providerId: 'anthropic',
+        providerLabel: 'Anthropic',
+        createClient: () => ({ messages: { create } }) as never,
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      }
+    )
+
+    expect(create.mock.calls[0][0]).toMatchObject({
+      model: 'claude-future',
+      temperature: 0.2,
+      metadata: { user_id: 'custom-user' },
+    })
+  })
+
+  it('uses adaptive thinking and explicit effort for an uncataloged passthrough model', async () => {
+    const create = vi.fn().mockResolvedValue({
+      id: 'msg-custom-thinking',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-future',
+      content: [{ type: 'text', text: 'Done' }],
+      stop_reason: 'end_turn',
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    })
+
+    await executeAnthropicProviderRequest(
+      {
+        model: 'claude-future',
+        apiKey: 'test-key',
+        capabilityPolicy: 'passthrough',
+        temperature: 0.2,
+        thinkingLevel: 'adaptive',
+        reasoningEffort: 'xhigh',
+      },
+      {
+        providerId: 'anthropic',
+        providerLabel: 'Anthropic',
+        createClient: () => ({ messages: { create } }) as never,
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      }
+    )
+
+    expect(create.mock.calls[0][0]).toMatchObject({
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'xhigh' },
+    })
+    expect(create.mock.calls[0][0].temperature).toBeUndefined()
+  })
+
   it('applies tool post-processing consistently in non-streaming tool loops', async () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { posted: true } })
     const create = vi

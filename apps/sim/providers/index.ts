@@ -56,12 +56,13 @@ function normalizeModelLevel(value: string | undefined): string | undefined {
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   const sanitizedRequest = { ...request }
   const model = sanitizedRequest.model
+  const useCatalogCapabilities = sanitizedRequest.capabilityPolicy !== 'passthrough'
 
   sanitizedRequest.reasoningEffort = normalizeModelLevel(sanitizedRequest.reasoningEffort)
   sanitizedRequest.verbosity = normalizeModelLevel(sanitizedRequest.verbosity)
   sanitizedRequest.thinkingLevel = normalizeModelLevel(sanitizedRequest.thinkingLevel)
 
-  if (model && !supportsTemperature(model)) {
+  if (useCatalogCapabilities && model && !supportsTemperature(model)) {
     sanitizedRequest.temperature = undefined
   }
 
@@ -75,19 +76,19 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
    */
   const isCatalogued = Boolean(model) && isKnownModelId(model)
 
-  if (model && isCatalogued && !supportsReasoningEffort(model)) {
+  if (useCatalogCapabilities && model && isCatalogued && !supportsReasoningEffort(model)) {
     sanitizedRequest.reasoningEffort = undefined
   }
 
-  if (model && isCatalogued && !supportsVerbosity(model)) {
+  if (useCatalogCapabilities && model && isCatalogued && !supportsVerbosity(model)) {
     sanitizedRequest.verbosity = undefined
   }
 
-  if (model && isCatalogued && !supportsThinking(model)) {
+  if (useCatalogCapabilities && model && isCatalogued && !supportsThinking(model)) {
     sanitizedRequest.thinkingLevel = undefined
   }
 
-  if (model && !supportsPromptCaching(model)) {
+  if (useCatalogCapabilities && model && !supportsPromptCaching(model)) {
     sanitizedRequest.promptCaching = undefined
   }
 
@@ -142,7 +143,20 @@ export async function executeProviderRequest(
   let resolvedRequest = sanitizeRequest(request)
   let isBYOK = false
 
-  if (request.workspaceId) {
+  if (request.credentialMode === 'explicit') {
+    if (!request.apiKey?.trim()) {
+      throw new Error('An API key is required when custom credentials mode is explicit')
+    }
+    resolvedRequest = { ...resolvedRequest, apiKey: request.apiKey }
+    // Explicit custom credentials are always user-supplied and therefore
+    // never billable as Sim-hosted model usage.
+    isBYOK = true
+    logger.info('Using explicit custom-model API key', {
+      provider: providerId,
+      model: request.model,
+      isBYOK,
+    })
+  } else if (request.workspaceId) {
     try {
       const result = await getApiKeyWithBYOK(
         providerId,

@@ -123,12 +123,16 @@ export const fireworksProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
+      ...(request.providerOptions ?? {}),
       model: requestedModel,
       messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
     if (request.maxTokens != null) payload.max_tokens = request.maxTokens
+    if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
+      payload.reasoning_effort = request.reasoningEffort
+    }
 
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
     let hasActiveTools = false
@@ -504,6 +508,7 @@ export const fireworksProvider: ProviderConfig = {
 
       if (request.responseFormat && hasActiveTools) {
         const finalPayload: any = {
+          ...(request.providerOptions ?? {}),
           model: payload.model,
           messages: [...currentMessages],
         }
@@ -512,6 +517,9 @@ export const fireworksProvider: ProviderConfig = {
         }
         if (payload.max_tokens !== undefined) {
           finalPayload.max_tokens = payload.max_tokens
+        }
+        if (payload.reasoning_effort !== undefined) {
+          finalPayload.reasoning_effort = payload.reasoning_effort
         }
 
         finalPayload.messages = await applyResponseFormat(

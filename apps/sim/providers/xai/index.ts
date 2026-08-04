@@ -94,12 +94,16 @@ export const xAIProvider: ProviderConfig = {
       )
     }
     const basePayload: any = {
+      ...(request.providerOptions ?? {}),
       model: request.model,
       messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) basePayload.temperature = request.temperature
     if (request.maxTokens != null) basePayload.max_completion_tokens = request.maxTokens
+    if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
+      basePayload.reasoning_effort = request.reasoningEffort
+    }
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
     if (tools?.length) {

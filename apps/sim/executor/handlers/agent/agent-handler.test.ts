@@ -22,12 +22,21 @@ import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
 import { installStreamingCostPolicy } from '@/providers/cost-policy'
+import { CUSTOM_MODEL_ID } from '@/providers/custom-model'
 import { SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+
+const { mockVerifyEffectiveSuperUser } = vi.hoisted(() => ({
+  mockVerifyEffectiveSuperUser: vi.fn(),
+}))
+
+vi.mock('@/lib/permissions/super-user', () => ({
+  verifyEffectiveSuperUser: (...args: unknown[]) => mockVerifyEffectiveSuperUser(...args),
+}))
 
 vi.mock('@/providers/utils', () => ({
   isFunctionToolCall: (toolCall: unknown) =>
@@ -132,6 +141,11 @@ describe('AgentBlockHandler', () => {
   beforeEach(() => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
+    mockVerifyEffectiveSuperUser.mockResolvedValue({
+      effectiveSuperUser: true,
+      isSuperUser: true,
+      superUserModeEnabled: true,
+    })
     resetDbChainMock()
     // The MCP server lookup awaits select().from(mcpServers).where(...) directly;
     // queue a set per lookup so the structural where spy keeps its default wiring.
@@ -280,6 +294,68 @@ describe('AgentBlockHandler', () => {
       expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
       expect(mockExecuteProviderRequest).toHaveBeenCalled()
       expect(result).toEqual(expectedOutput)
+    })
+
+    it('routes a Super User custom model through the explicit provider contract', async () => {
+      mockContext.userId = 'super-user'
+
+      await handler.execute(mockContext, mockBlock, {
+        model: CUSTOM_MODEL_ID,
+        customModelConfig: {
+          provider: 'xai',
+          model: 'grok-future',
+          parameters: {
+            reasoningEffort: 'xhigh',
+            temperature: 0.15,
+            maxTokens: 12345,
+          },
+          credentials: { mode: 'explicit', apiKey: 'xai-secret' },
+          providerOptions: { service_tier: 'priority' },
+        },
+        userPrompt: 'Hello',
+        responseFormat: {
+          name: 'answer',
+          schema: { type: 'object', properties: { answer: { type: 'string' } } },
+        },
+      })
+
+      expect(mockVerifyEffectiveSuperUser).toHaveBeenCalledWith('super-user')
+      expect(mockGetProviderFromModel).not.toHaveBeenCalledWith(CUSTOM_MODEL_ID)
+      expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+        'xai',
+        expect.objectContaining({
+          model: 'grok-future',
+          apiKey: 'xai-secret',
+          credentialMode: 'explicit',
+          capabilityPolicy: 'passthrough',
+          reasoningEffort: 'xhigh',
+          temperature: 0.15,
+          maxTokens: 12345,
+          providerOptions: { service_tier: 'priority' },
+          responseFormat: expect.objectContaining({ name: 'answer' }),
+        }),
+        expect.anything()
+      )
+    })
+
+    it('rejects custom model execution when Super User mode is off', async () => {
+      mockContext.userId = 'admin-with-toggle-off'
+      mockVerifyEffectiveSuperUser.mockResolvedValue({
+        effectiveSuperUser: false,
+        isSuperUser: true,
+        superUserModeEnabled: false,
+      })
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: CUSTOM_MODEL_ID,
+          customModelConfig: {
+            provider: 'openai',
+            model: 'gpt-future',
+          },
+        })
+      ).rejects.toThrow('only while Super User mode is enabled')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
 
     it('reports a sim-auto run under the sim-auto identity, not the model that served it', async () => {

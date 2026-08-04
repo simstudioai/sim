@@ -317,16 +317,20 @@ export async function executeAnthropicProviderRequest(
    * then means only one place knows the wire shape.
    */
   const systemTexts = systemPrompt ? [systemPrompt] : []
+  const includeTemperature =
+    supportsTemperature(request.model) ||
+    (request.capabilityPolicy === 'passthrough' && request.temperature !== undefined)
 
-  const payload: AnthropicPayload = {
+  const payload = {
+    ...(request.providerOptions ?? {}),
     model: wireModel,
     messages,
     max_tokens:
       Number.parseInt(String(request.maxTokens)) || getMaxOutputTokensForModel(request.model),
-    ...(supportsTemperature(request.model) && {
+    ...(includeTemperature && {
       temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
     }),
-  }
+  } as AnthropicPayload
 
   if (request.responseFormat) {
     const schema = request.responseFormat.schema || request.responseFormat
@@ -350,11 +354,13 @@ export async function executeAnthropicProviderRequest(
   // Add extended thinking configuration if supported and requested
   // The 'none' sentinel means "disable thinking" — skip configuration entirely.
   if (request.thinkingLevel && request.thinkingLevel !== 'none') {
-    const thinkingConfig = buildThinkingConfig(
-      request.model,
-      request.thinkingLevel,
-      request.agentEvents === true
-    )
+    const thinkingConfig =
+      buildThinkingConfig(request.model, request.thinkingLevel, request.agentEvents === true) ??
+      (request.capabilityPolicy === 'passthrough'
+        ? {
+            thinking: { type: 'adaptive' as const },
+          }
+        : null)
     if (thinkingConfig) {
       payload.thinking = thinkingConfig.thinking
       if (thinkingConfig.outputConfig) {
@@ -402,6 +408,17 @@ export async function executeAnthropicProviderRequest(
       logger.warn(
         `Thinking level "${describeModelLevel(request.thinkingLevel)}" not supported for model: ${modelId}, ignoring`
       )
+    }
+  }
+
+  if (
+    request.capabilityPolicy === 'passthrough' &&
+    request.reasoningEffort !== undefined &&
+    request.reasoningEffort !== 'auto'
+  ) {
+    payload.output_config = {
+      ...payload.output_config,
+      effort: request.reasoningEffort as Anthropic.Messages.OutputConfig['effort'],
     }
   }
 

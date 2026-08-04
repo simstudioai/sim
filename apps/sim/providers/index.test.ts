@@ -554,3 +554,48 @@ describe('executeProviderRequest — model level normalization', () => {
     expect(sentRequest().reasoningEffort).toBeUndefined()
   })
 })
+
+describe('executeProviderRequest — custom model policy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExecuteRequest.mockResolvedValue({ content: 'ok', model: 'future-model' })
+  })
+
+  it('passes explicit custom parameters through for uncataloged models', async () => {
+    await executeProviderRequest('openai', {
+      model: 'future-model',
+      workspaceId: 'ws-1',
+      apiKey: 'sk-explicit',
+      credentialMode: 'explicit',
+      capabilityPolicy: 'passthrough',
+      temperature: 0.2,
+      reasoningEffort: 'xhigh',
+      verbosity: 'high',
+      providerOptions: { service_tier: 'priority' },
+    })
+
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+    expect(mockExecuteRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'future-model',
+        apiKey: 'sk-explicit',
+        isBYOK: true,
+        temperature: 0.2,
+        reasoningEffort: 'xhigh',
+        verbosity: 'high',
+        providerOptions: { service_tier: 'priority' },
+      })
+    )
+  })
+
+  it('rejects explicit credential mode without a key', async () => {
+    await expect(
+      executeProviderRequest('xai', {
+        model: 'grok-future',
+        credentialMode: 'explicit',
+        capabilityPolicy: 'passthrough',
+      })
+    ).rejects.toThrow('API key is required')
+    expect(mockExecuteRequest).not.toHaveBeenCalled()
+  })
+})

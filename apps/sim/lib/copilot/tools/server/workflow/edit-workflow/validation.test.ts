@@ -8,6 +8,7 @@ import { normalizeConditionRouterIds } from './builders'
 const {
   mockValidateSelectorIds,
   mockGetModelOptions,
+  mockGetAgentModelOptions,
   mockGetTool,
   mockGetCustomToolById,
   mockGetSkillById,
@@ -16,6 +17,7 @@ const {
 } = vi.hoisted(() => ({
   mockValidateSelectorIds: vi.fn(),
   mockGetModelOptions: vi.fn(() => []),
+  mockGetAgentModelOptions: vi.fn(() => []),
   mockGetTool: vi.fn(),
   mockGetCustomToolById: vi.fn(),
   mockGetSkillById: vi.fn(),
@@ -53,7 +55,8 @@ const agentBlockConfig = {
   name: 'Agent',
   outputs: {},
   subBlocks: [
-    { id: 'model', type: 'combobox', options: mockGetModelOptions },
+    { id: 'model', type: 'combobox', options: mockGetAgentModelOptions },
+    { id: 'customModelConfig', type: 'code', superUserOnly: true },
     { id: 'tools', type: 'tool-input' },
     { id: 'skills', type: 'skill-input' },
   ],
@@ -226,6 +229,7 @@ vi.mock('@/blocks/registry', () => ({
 
 vi.mock('@/blocks/utils', () => ({
   getModelOptions: mockGetModelOptions,
+  getAgentModelOptions: mockGetAgentModelOptions,
 }))
 
 vi.mock('@/tools/utils', () => ({
@@ -260,6 +264,7 @@ vi.mock('@/lib/integrations/availability.server', () => ({
 import {
   collectUnresolvedAgentToolReferences,
   collectUnresolvedReferences,
+  operationsUseCustomModelConfiguration,
   preValidateCredentialInputs,
   validateInputsForBlock,
   validateWorkflowSelectorIds,
@@ -403,6 +408,13 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.model).toBe('claude-sonnet-4-6')
   })
 
+  it('recognizes the Super User custom Agent model sentinel', () => {
+    const result = validateInputsForBlock('agent', { model: '  SIM-CUSTOM  ' }, 'agent-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.model).toBe('sim-custom')
+  })
+
   it('rejects hallucinated agent model ids that match a static provider pattern', () => {
     const result = validateInputsForBlock('agent', { model: 'claude-sonnet-4.6' }, 'agent-1')
 
@@ -493,6 +505,47 @@ describe('validateInputsForBlock', () => {
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]?.error).toContain('gpt-100-ultra')
     expect(result.errors[0]?.error).not.toMatch(/\s{2,}/)
+  })
+})
+
+describe('operationsUseCustomModelConfiguration', () => {
+  it('detects both custom config fields and the model sentinel in nested nodes', () => {
+    expect(
+      operationsUseCustomModelConfiguration([
+        {
+          operation_type: 'add',
+          block_id: 'agent-1',
+          params: { type: 'agent', inputs: { customModelConfig: '{}' } },
+        },
+      ])
+    ).toBe(true)
+
+    expect(
+      operationsUseCustomModelConfiguration([
+        {
+          operation_type: 'add',
+          block_id: 'loop-1',
+          params: {
+            type: 'loop',
+            nestedNodes: {
+              'agent-1': { type: 'agent', inputs: { model: 'sim-custom' } },
+            },
+          },
+        },
+      ])
+    ).toBe(true)
+  })
+
+  it('does not gate ordinary prompt text that merely mentions the sentinel', () => {
+    expect(
+      operationsUseCustomModelConfiguration([
+        {
+          operation_type: 'edit',
+          block_id: 'agent-1',
+          params: { inputs: { systemPrompt: 'Explain sim-custom to the user' } },
+        },
+      ])
+    ).toBe(false)
   })
 })
 

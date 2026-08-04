@@ -209,6 +209,19 @@ export interface ProviderRequest {
    * `sanitizeRequest` clears it otherwise.
    */
   promptCaching?: boolean
+  /**
+   * `passthrough` is reserved for the Super User custom-model contract. It
+   * bypasses catalog capability stripping so explicitly requested parameters
+   * reach the selected provider adapter even when the model ID is not cataloged.
+   */
+  capabilityPolicy?: 'catalog' | 'passthrough'
+  /** How the shared provider layer resolves credentials for this request. */
+  credentialMode?: 'auto' | 'explicit'
+  /**
+   * Provider-native top-level options for custom models. The parser rejects
+   * canonical/reserved fields before this reaches an adapter.
+   */
+  providerOptions?: Record<string, unknown>
   /** Stable identity of the block issuing the request, used for cache routing. */
   blockId?: string
   isDeployedContext?: boolean

@@ -14,6 +14,7 @@ import {
   resolveAutoModel,
   SIM_AUTO_SYSTEM_PREAMBLE,
 } from '@/lib/model-router/resolve'
+import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import {
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
   processFilesToUserFiles,
@@ -58,6 +59,11 @@ import {
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
+import {
+  type CustomModelConfig,
+  isCustomModel,
+  parseCustomModelConfig,
+} from '@/providers/custom-model'
 import {
   canUseProviderLargeFilePath,
   getInlineHydrationMaxBytes,
@@ -113,8 +119,34 @@ export class AgentBlockHandler implements BlockHandler {
     const configuredModel = filteredInputs.model || AGENT.DEFAULT_MODEL
 
     let model = configuredModel
+    let customModelConfig: CustomModelConfig | undefined
     let autoRouting: AutoRoutingResult | null = null
-    if (isAutoModel(configuredModel)) {
+    if (isCustomModel(configuredModel)) {
+      if (!ctx.userId) {
+        throw new Error('Custom models require an authenticated Super User')
+      }
+      const { effectiveSuperUser } = await verifyEffectiveSuperUser(ctx.userId)
+      if (!effectiveSuperUser) {
+        throw new Error('Custom models are available only while Super User mode is enabled')
+      }
+
+      customModelConfig = parseCustomModelConfig(filteredInputs.customModelConfig)
+      model = customModelConfig.model
+
+      // The custom JSON owns only model execution. Tools, response format,
+      // skills, files, prompts, and memory remain their existing subblocks.
+      const parameters = customModelConfig.parameters
+      filteredInputs.reasoningEffort = parameters.reasoningEffort ?? undefined
+      filteredInputs.verbosity = parameters.verbosity ?? undefined
+      filteredInputs.thinkingLevel = parameters.thinkingLevel ?? undefined
+      filteredInputs.temperature = parameters.temperature ?? undefined
+      filteredInputs.maxTokens = parameters.maxTokens ?? undefined
+      filteredInputs.promptCaching = parameters.promptCaching === true
+      filteredInputs.apiKey =
+        customModelConfig.credentials.mode === 'explicit'
+          ? customModelConfig.credentials.apiKey
+          : undefined
+    } else if (isAutoModel(configuredModel)) {
       autoRouting = await resolveAutoModel({
         ctx,
         blockId: block.id,
@@ -137,9 +169,8 @@ export class AgentBlockHandler implements BlockHandler {
         .join('\n\n')
     }
 
-    await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
-
-    const providerId = getProviderFromModel(model)
+    const providerId = customModelConfig?.provider ?? getProviderFromModel(model)
+    await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx, providerId)
     const formattedTools = await this.formatTools(
       ctx,
       filteredInputs.tools || [],
@@ -180,6 +211,7 @@ export class AgentBlockHandler implements BlockHandler {
       formattedTools,
       responseFormat,
       streaming: streamingConfig.shouldUseStreaming ?? false,
+      customModelConfig,
     })
 
     const result = await this.executeProviderRequest(ctx, providerRequest, block, responseFormat)
@@ -1138,9 +1170,19 @@ export class AgentBlockHandler implements BlockHandler {
     formattedTools: any[]
     responseFormat: any
     streaming: boolean
+    customModelConfig?: CustomModelConfig
   }) {
-    const { ctx, providerId, model, messages, inputs, formattedTools, responseFormat, streaming } =
-      config
+    const {
+      ctx,
+      providerId,
+      model,
+      messages,
+      inputs,
+      formattedTools,
+      responseFormat,
+      streaming,
+      customModelConfig,
+    } = config
 
     const validMessages = this.validateMessages(messages)
 
@@ -1182,6 +1224,9 @@ export class AgentBlockHandler implements BlockHandler {
       verbosity: inputs.verbosity,
       thinkingLevel: inputs.thinkingLevel,
       promptCaching: inputs.promptCaching === true,
+      capabilityPolicy: customModelConfig ? ('passthrough' as const) : ('catalog' as const),
+      credentialMode: customModelConfig?.credentials.mode,
+      providerOptions: customModelConfig?.providerOptions,
       previousInteractionId: inputs.previousInteractionId,
       /** Agent-events remains the opt-in for exposing thinking and tool lifecycle events. */
       agentEvents: streaming && ctx.metadata?.agentEvents === true,
@@ -1267,6 +1312,9 @@ export class AgentBlockHandler implements BlockHandler {
           verbosity: providerRequest.verbosity,
           thinkingLevel: providerRequest.thinkingLevel,
           promptCaching: providerRequest.promptCaching,
+          capabilityPolicy: providerRequest.capabilityPolicy,
+          credentialMode: providerRequest.credentialMode,
+          providerOptions: providerRequest.providerOptions,
           // Stable per-block identity; providers use it to route cache lookups.
           blockId: block.id,
           previousInteractionId: providerRequest.previousInteractionId,

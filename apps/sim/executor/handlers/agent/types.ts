@@ -8,6 +8,7 @@ export interface SkillInput {
 
 export interface AgentInputs {
   model?: string
+  customModelConfig?: string | Record<string, unknown>
   responseFormat?: string | object
   tools?: ToolInput[]
   skills?: SkillInput[]
@@ -25,8 +26,8 @@ export interface AgentInputs {
   // Deep research multi-turn
   previousInteractionId?: string // Interactions API previous interaction reference
   // LLM parameters
-  temperature?: string
-  maxTokens?: string
+  temperature?: string | number
+  maxTokens?: string | number
   apiKey?: string
   azureEndpoint?: string
   azureApiVersion?: string

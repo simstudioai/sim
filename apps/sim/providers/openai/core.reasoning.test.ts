@@ -227,6 +227,24 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
     expect(body.reasoning).toBeUndefined()
   })
 
+  it('passes custom options and reasoning through for an uncataloged passthrough model', async () => {
+    await run({
+      model: 'gpt-future',
+      capabilityPolicy: 'passthrough',
+      reasoningEffort: 'max',
+      temperature: 0.2,
+      providerOptions: { store: false, model: 'must-not-win', temperature: 0.9 },
+    })
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body).toMatchObject({
+      model: 'gpt-future',
+      store: false,
+      temperature: 0.2,
+      reasoning: { summary: 'auto', effort: 'max' },
+    })
+  })
+
   describe('live streaming tool loop', () => {
     it('streams reasoning and tool lifecycle in real time without a regeneration call', async () => {
       const toolTurnResponse = {

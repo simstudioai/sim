@@ -3,7 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeGeminiRequest } from '@/providers/gemini/core'
-import type { ProviderResponse } from '@/providers/types'
+import type { ProviderRequest, ProviderResponse } from '@/providers/types'
 import { calculateCost } from '@/providers/utils'
 
 const { mockExecuteTool } = vi.hoisted(() => ({
@@ -46,13 +46,18 @@ function toolTurn(usageMetadata: Record<string, number>) {
   }
 }
 
-async function run(generateContent: ReturnType<typeof vi.fn>, withTools = false) {
+async function run(
+  generateContent: ReturnType<typeof vi.fn>,
+  withTools = false,
+  requestOverrides: Partial<ProviderRequest> = {}
+) {
+  const model = requestOverrides.model ?? MODEL
   return (await executeGeminiRequest({
     ai: { models: { generateContent, generateContentStream: vi.fn() } } as never,
-    model: MODEL,
+    model,
     providerType: 'google',
     request: {
-      model: MODEL,
+      model,
       apiKey: 'test-key',
       messages: [{ role: 'user', content: 'Look this up' }],
       ...(withTools
@@ -67,6 +72,7 @@ async function run(generateContent: ReturnType<typeof vi.fn>, withTools = false)
             ],
           }
         : {}),
+      ...requestOverrides,
     },
   })) as ProviderResponse
 }
@@ -156,5 +162,38 @@ describe('Gemini block cost with implicit prompt caching', () => {
       total: 101_000,
     })
     expect(response.cost).toEqual(calculateCost(MODEL, 100_000, 1_000))
+  })
+
+  it('passes custom options through and falls back from reasoning effort to thinking level', async () => {
+    const generateContent = vi.fn().mockResolvedValue(
+      textTurn({
+        promptTokenCount: 10,
+        candidatesTokenCount: 2,
+        totalTokenCount: 12,
+      })
+    )
+
+    await run(generateContent, false, {
+      model: 'gemini-3.6-flash',
+      capabilityPolicy: 'passthrough',
+      reasoningEffort: 'xhigh',
+      temperature: 0.2,
+      maxTokens: 123,
+      providerOptions: {
+        candidateCount: 2,
+        temperature: 0.9,
+        maxOutputTokens: 999,
+      },
+    })
+
+    expect(generateContent.mock.calls[0][0]).toMatchObject({
+      model: 'gemini-3.6-flash',
+      config: {
+        candidateCount: 2,
+        temperature: 0.2,
+        maxOutputTokens: 123,
+        thinkingConfig: { includeThoughts: false, thinkingLevel: 'XHIGH' },
+      },
+    })
   })
 })

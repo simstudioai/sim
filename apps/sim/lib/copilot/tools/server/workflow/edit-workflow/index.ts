@@ -16,6 +16,7 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import {
   applyTargetedLayout,
   getTargetedLayoutImpact,
@@ -48,6 +49,7 @@ import { type EditWorkflowParams, isDeferredSkippedItem, type ValidationError } 
 import {
   collectUnresolvedAgentToolReferences,
   collectUnresolvedReferences,
+  operationsUseCustomModelConfiguration,
   preValidateCredentialInputs,
   UNRESOLVABLE_AT_LINT_NOTE,
 } from './validation'
@@ -110,6 +112,15 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     })
     if (!authorization.allowed) {
       throw new Error(authorization.message || 'Unauthorized workflow access')
+    }
+
+    if (operationsUseCustomModelConfiguration(operations)) {
+      const { effectiveSuperUser } = await verifyEffectiveSuperUser(context.userId)
+      if (!effectiveSuperUser) {
+        throw new Error(
+          'Custom model configuration is available only while effective Super User mode is enabled'
+        )
+      }
     }
 
     await assertWorkflowMutable(workflowId)

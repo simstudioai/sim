@@ -49,6 +49,7 @@ function createBlock(overrides: Partial<BlockConfig> = {}): BlockConfig {
           { label: 'OpenAI', id: 'openai' },
           { label: 'Fal.ai (Multi-Model)', id: 'falai' },
           { label: 'Hidden Provider', id: 'hidden', hidden: true },
+          { label: 'Custom Super User Provider', id: 'custom-provider', requiresSuperUser: true },
         ],
       },
     ],
@@ -85,6 +86,8 @@ describe('search modal store', () => {
       expect(searchValue).toContain('falai')
       expect(searchValue).not.toContain('Hidden Provider')
       expect(searchValue).not.toContain('hidden')
+      expect(searchValue).not.toContain('Custom Super User Provider')
+      expect(searchValue).not.toContain('custom-provider')
     })
 
     it('does not index dropdowns that only use in-dropdown search', () => {

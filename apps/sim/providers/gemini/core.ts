@@ -945,7 +945,9 @@ export async function executeGeminiRequest(
     const { contents, tools, systemInstruction } = convertToGeminiFormat(request, providerType)
 
     // Build configuration
-    const geminiConfig: GenerateContentConfig = {}
+    const geminiConfig = {
+      ...(request.providerOptions ?? {}),
+    } as GenerateContentConfig
 
     if (request.abortSignal) {
       geminiConfig.abortSignal = request.abortSignal
@@ -978,16 +980,25 @@ export async function executeGeminiRequest(
     // Gemini 3.x takes thinkingLevel directly; Gemini 2.5-series rejects it and needs thinkingBudget.
     // includeThoughts is required for thought parts to appear; it is requested
     // only on agent-events runs so legacy runs keep the pre-agent-events payload.
-    if (request.thinkingLevel && request.thinkingLevel !== 'none') {
+    const thinkingLevel =
+      request.thinkingLevel ??
+      (request.capabilityPolicy === 'passthrough' && request.reasoningEffort !== 'auto'
+        ? request.reasoningEffort
+        : undefined)
+
+    if (thinkingLevel && thinkingLevel !== 'none') {
       const thinkingConfig: ThinkingConfig = { includeThoughts: request.agentEvents === true }
       if (isGemini3Model(model)) {
-        thinkingConfig.thinkingLevel = mapToThinkingLevel(request.thinkingLevel)
+        thinkingConfig.thinkingLevel =
+          request.capabilityPolicy === 'passthrough'
+            ? (thinkingLevel.toUpperCase() as ThinkingConfig['thinkingLevel'])
+            : mapToThinkingLevel(thinkingLevel)
       } else {
-        thinkingConfig.thinkingBudget = mapToThinkingBudget(model, request.thinkingLevel)
+        thinkingConfig.thinkingBudget = mapToThinkingBudget(model, thinkingLevel)
       }
       geminiConfig.thinkingConfig = thinkingConfig
     } else if (
-      request.thinkingLevel === 'none' &&
+      thinkingLevel === 'none' &&
       !isGemini3Model(model) &&
       supportsDisablingGemini25Thinking(model)
     ) {

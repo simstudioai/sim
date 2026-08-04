@@ -10,8 +10,10 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
+import { CUSTOM_MODEL_ID, isCustomModel } from '@/providers/custom-model'
 import {
   getBaseModelProviders,
+  getHostedFireworksModels,
   getHostedModels,
   getModelSunsetStatus,
   getProviderIcon,
@@ -26,6 +28,7 @@ import { useProvidersStore } from '@/stores/providers/store'
 
 export const VERTEX_MODELS = getProviderModels('vertex')
 export const BEDROCK_MODELS = getProviderModels('bedrock')
+export const FIREWORKS_MODELS = getHostedFireworksModels()
 export const AZURE_MODELS = [
   ...getProviderModels('azure-openai'),
   ...getProviderModels('azure-anthropic'),
@@ -73,6 +76,7 @@ export function getModelOptions() {
       ...vllmModels,
       ...litellmModels,
       ...openrouterModels,
+      ...FIREWORKS_MODELS,
       ...fireworksModels,
       ...togetherModels,
       ...basetenModels,
@@ -94,6 +98,22 @@ export function getModelOptions() {
   }
 
   return options
+}
+
+/**
+ * Agent-only model options. The custom passthrough entry is filtered by the
+ * editor unless the user has effective super-user mode enabled.
+ */
+export function getAgentModelOptions() {
+  return [
+    ...getModelOptions(),
+    {
+      label: 'Custom',
+      id: CUSTOM_MODEL_ID,
+      group: 'Advanced',
+      requiresSuperUser: true,
+    },
+  ]
 }
 
 /**
@@ -195,6 +215,10 @@ function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
 function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
+
+  // Custom model credentials live inside customModelConfig so the standard
+  // provider credential control would be both ambiguous and duplicative.
+  if (isCustomModel(normalizedModel)) return false
 
   // On hosted Sim the auto pseudo-model resolves server-side to a hosted pool
   // model. On self-hosted it exists only via imported workflows and always

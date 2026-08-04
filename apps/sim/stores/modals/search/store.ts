@@ -26,6 +26,7 @@ type CommandSearchableOption = {
   label: string
   id: string
   hidden?: boolean
+  requiresSuperUser?: boolean
 }
 
 function getCommandSearchableOptions(subBlock: SubBlockConfig): CommandSearchableOption[] {
@@ -51,7 +52,7 @@ export function buildCommandSearchableOptionSearchValue(block: BlockConfig): str
     }
 
     for (const option of getCommandSearchableOptions(subBlock)) {
-      if (option.hidden) continue
+      if (option.hidden || option.requiresSuperUser) continue
 
       const subBlockTitle = subBlock.title ?? subBlock.id
       terms.add(subBlockTitle)
