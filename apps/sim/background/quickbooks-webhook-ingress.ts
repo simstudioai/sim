@@ -12,8 +12,6 @@ export const QUICKBOOKS_WEBHOOK_INGRESS_CONCURRENCY_LIMIT = 50
 export const QUICKBOOKS_WEBHOOK_INGRESS_MAX_ATTEMPTS = 3
 
 export interface QuickBooksWebhookIngressPayload {
-  afterWebhookId?: string
-  eventIndex?: number
   events: QuickBooksWebhookEvent[]
   headers: { 'content-type': string }
   requestId: string
@@ -23,92 +21,99 @@ export interface QuickBooksWebhookIngressPayload {
 export interface QuickBooksWebhookIngressResult {
   failed: number
   ignored: number
-  nextCursor?: string
   processed: number
   targetCount: number
 }
 
-/** Process one event against one bounded target page. */
+/** Process the bounded delivery sequentially, retaining at most one target page at a time. */
 export async function executeQuickBooksWebhookIngress(
   payload: QuickBooksWebhookIngressPayload
 ): Promise<QuickBooksWebhookIngressResult> {
-  const eventIndex = payload.eventIndex ?? 0
-  const event = payload.events[eventIndex]
-  if (!event) return { failed: 0, ignored: 0, processed: 0, targetCount: 0 }
-
-  const request = new NextRequest('http://internal/api/webhooks/quickbooks', {
-    method: 'POST',
-    headers: payload.headers,
-    body: JSON.stringify(event),
-  })
-  const page = await findQuickBooksWebhookTargetPage(
-    event.intuitaccountid,
-    payload.requestId,
-    payload.afterWebhookId
-  )
-  const nextCursor = page.hasMore ? page.nextCursor : null
-  if (page.hasMore && (!nextCursor || nextCursor === payload.afterWebhookId)) {
-    throw new Error('QuickBooks webhook target pagination did not advance')
-  }
-
   let ignored = 0
   let processed = 0
   let failed = 0
-  for (const { webhook, workflow } of page.targets) {
-    const result = await dispatchResolvedWebhookTarget(webhook, workflow, event, request, {
-      requestId: payload.requestId,
-      path: webhook.path ?? undefined,
-      receivedAt: payload.receivedAt,
-      triggerTimestampMs: Date.parse(event.time),
+  let targetCount = 0
+
+  for (const [eventIndex, event] of payload.events.entries()) {
+    const request = new NextRequest('http://internal/api/webhooks/quickbooks', {
+      method: 'POST',
+      headers: payload.headers,
+      body: JSON.stringify(event),
     })
-    if (result.outcome === 'queued') processed += 1
-    else if (result.outcome === 'ignored') ignored += 1
-    else failed += 1
+    let afterWebhookId: string | undefined
+
+    while (true) {
+      try {
+        const page = await findQuickBooksWebhookTargetPage(
+          event.intuitaccountid,
+          payload.requestId,
+          afterWebhookId
+        )
+        const nextCursor = page.hasMore ? page.nextCursor : null
+        if (page.hasMore && (!nextCursor || nextCursor === afterWebhookId)) {
+          throw new Error('QuickBooks webhook target pagination did not advance')
+        }
+
+        targetCount += page.targets.length
+        for (const { webhook, workflow } of page.targets) {
+          try {
+            const result = await dispatchResolvedWebhookTarget(webhook, workflow, event, request, {
+              requestId: payload.requestId,
+              path: webhook.path ?? undefined,
+              receivedAt: payload.receivedAt,
+              triggerTimestampMs: Date.parse(event.time),
+            })
+            if (result.outcome === 'queued') processed += 1
+            else if (result.outcome === 'ignored') ignored += 1
+            else failed += 1
+          } catch (error) {
+            failed += 1
+            logger.error(`[${payload.requestId}] QuickBooks webhook target dispatch failed`, {
+              error,
+              eventId: event.id,
+              eventIndex,
+              webhookId: webhook.id,
+            })
+          }
+        }
+
+        logger.info(`[${payload.requestId}] QuickBooks webhook page completed`, {
+          eventId: event.id,
+          eventIndex,
+          ignored,
+          processed,
+          targetCount: page.targets.length,
+        })
+        if (!nextCursor) break
+        afterWebhookId = nextCursor
+      } catch (error) {
+        failed += 1
+        logger.error(`[${payload.requestId}] QuickBooks webhook event page failed`, {
+          error,
+          eventId: event.id,
+          eventIndex,
+        })
+        break
+      }
+    }
   }
 
-  logger.info(`[${payload.requestId}] QuickBooks webhook page completed`, {
-    eventId: event.id,
-    eventIndex,
-    ignored,
-    processed,
-    targetCount: page.targets.length,
-  })
-  return {
+  logger.info(`[${payload.requestId}] QuickBooks webhook delivery completed`, {
+    eventCount: payload.events.length,
     failed,
     ignored,
     processed,
-    targetCount: page.targets.length,
-    ...(nextCursor ? { nextCursor } : {}),
-  }
-}
-
-async function enqueueQuickBooksWebhookContinuation(
-  payload: QuickBooksWebhookIngressPayload,
-  result: QuickBooksWebhookIngressResult
-): Promise<void> {
-  const eventIndex = payload.eventIndex ?? 0
-  if (result.nextCursor) {
-    await enqueueQuickBooksWebhookIngress({ ...payload, afterWebhookId: result.nextCursor })
-  } else if (eventIndex + 1 < payload.events.length) {
-    await enqueueQuickBooksWebhookIngress({
-      ...payload,
-      eventIndex: eventIndex + 1,
-      afterWebhookId: undefined,
-    })
-  }
+    targetCount,
+  })
+  return { failed, ignored, processed, targetCount }
 }
 
 async function runQuickBooksWebhookIngressJob(
   payload: QuickBooksWebhookIngressPayload
 ): Promise<void> {
   const result = await executeQuickBooksWebhookIngress(payload)
-  // The continuation has a deterministic job id, so retries cannot duplicate it. Enqueue it
-  // before retrying this page to avoid stranding later events in an already-acknowledged batch.
-  await enqueueQuickBooksWebhookContinuation(payload, result)
   if (result.failed > 0) {
-    throw new Error(
-      `Failed to dispatch ${result.failed} of ${result.targetCount} QuickBooks targets`
-    )
+    throw new Error(`QuickBooks webhook delivery completed with ${result.failed} failures`)
   }
 }
 
@@ -116,9 +121,8 @@ export async function enqueueQuickBooksWebhookIngress(
   payload: QuickBooksWebhookIngressPayload
 ): Promise<string> {
   const jobQueue = await getJobQueue()
-  const eventIndex = payload.eventIndex ?? 0
   return jobQueue.enqueue('quickbooks-webhook-ingress', payload, {
-    jobId: `quickbooks-webhook-ingress:${payload.requestId}:${eventIndex}:${payload.afterWebhookId ?? 'root'}`,
+    jobId: `quickbooks-webhook-ingress:${payload.requestId}`,
     maxAttempts: QUICKBOOKS_WEBHOOK_INGRESS_MAX_ATTEMPTS,
     concurrencyKey: 'quickbooks-webhook-ingress',
     concurrencyLimit: QUICKBOOKS_WEBHOOK_INGRESS_CONCURRENCY_LIMIT,

@@ -44,16 +44,27 @@ describe('QuickBooks webhook ingress job', () => {
     mockEnqueue.mockResolvedValue('job-1')
   })
 
-  it('routes one event to one company and dispatches targets sequentially', async () => {
+  it('routes the batch by company and dispatches targets sequentially', async () => {
     const order: string[] = []
-    mockFindPage.mockResolvedValue({
-      hasMore: false,
-      nextCursor: null,
-      targets: [
-        { webhook: { id: 'w1' }, workflow: { id: 'wf1' } },
-        { webhook: { id: 'w2' }, workflow: { id: 'wf2' } },
-      ],
-    })
+    mockFindPage
+      .mockResolvedValueOnce({
+        hasMore: true,
+        nextCursor: 'w2',
+        targets: [
+          { webhook: { id: 'w1' }, workflow: { id: 'wf1' } },
+          { webhook: { id: 'w2' }, workflow: { id: 'wf2' } },
+        ],
+      })
+      .mockResolvedValueOnce({
+        hasMore: false,
+        nextCursor: null,
+        targets: [{ webhook: { id: 'w3' }, workflow: { id: 'wf3' } }],
+      })
+      .mockResolvedValueOnce({
+        hasMore: false,
+        nextCursor: null,
+        targets: [{ webhook: { id: 'w4' }, workflow: { id: 'wf4' } }],
+      })
     mockDispatch.mockImplementation(async (webhook: { id: string }) => {
       order.push(webhook.id)
       return { outcome: 'queued' }
@@ -61,61 +72,71 @@ describe('QuickBooks webhook ingress job', () => {
     await expect(executeQuickBooksWebhookIngress(payload)).resolves.toEqual({
       failed: 0,
       ignored: 0,
-      processed: 2,
-      targetCount: 2,
+      processed: 4,
+      targetCount: 4,
     })
     expect(mockFindPage).toHaveBeenCalledWith('456', 'request-1', undefined)
-    expect(order).toEqual(['w1', 'w2'])
+    expect(mockFindPage).toHaveBeenCalledWith('456', 'request-1', 'w2')
+    expect(mockFindPage).toHaveBeenCalledWith('789', 'request-1', undefined)
+    expect(order).toEqual(['w1', 'w2', 'w3', 'w4'])
   })
 
-  it('continues target pages before advancing to the next event', async () => {
-    mockFindPage.mockResolvedValue({
-      hasMore: true,
-      nextCursor: 'webhook-100',
-      targets: [],
-    })
-    await enqueueQuickBooksWebhookIngress(payload)
-    const options = mockEnqueue.mock.calls[0][2] as { runner: () => Promise<void> }
-    await options.runner()
-    expect(mockEnqueue).toHaveBeenNthCalledWith(
-      2,
-      'quickbooks-webhook-ingress',
-      expect.objectContaining({ afterWebhookId: 'webhook-100' }),
-      expect.objectContaining({
-        jobId: 'quickbooks-webhook-ingress:request-1:0:webhook-100',
-      })
-    )
-  })
-
-  it('advances to the next event only after the current event finishes', async () => {
+  it('enqueues the bounded delivery once without copying it into continuation jobs', async () => {
     mockFindPage.mockResolvedValue({ hasMore: false, nextCursor: null, targets: [] })
     await enqueueQuickBooksWebhookIngress(payload)
     const options = mockEnqueue.mock.calls[0][2] as { runner: () => Promise<void> }
     await options.runner()
-    expect(mockEnqueue).toHaveBeenNthCalledWith(
-      2,
+    expect(mockEnqueue).toHaveBeenCalledOnce()
+    expect(mockEnqueue).toHaveBeenCalledWith(
       'quickbooks-webhook-ingress',
-      expect.objectContaining({ eventIndex: 1, afterWebhookId: undefined }),
-      expect.objectContaining({ jobId: 'quickbooks-webhook-ingress:request-1:1:root' })
+      payload,
+      expect.objectContaining({
+        jobId: 'quickbooks-webhook-ingress:request-1',
+      })
     )
   })
 
-  it('durably continues the batch before retrying a failed target page', async () => {
-    mockFindPage.mockResolvedValue({
-      hasMore: false,
-      nextCursor: null,
-      targets: [{ webhook: { id: 'w1' }, workflow: { id: 'wf1' } }],
-    })
-    mockDispatch.mockResolvedValue({ outcome: 'failed' })
+  it('continues later events before retrying a delivery with failed targets', async () => {
+    mockFindPage
+      .mockResolvedValueOnce({
+        hasMore: false,
+        nextCursor: null,
+        targets: [
+          { webhook: { id: 'w1' }, workflow: { id: 'wf1' } },
+          { webhook: { id: 'w2' }, workflow: { id: 'wf2' } },
+        ],
+      })
+      .mockResolvedValueOnce({
+        hasMore: false,
+        nextCursor: null,
+        targets: [{ webhook: { id: 'w3' }, workflow: { id: 'wf3' } }],
+      })
+    mockDispatch
+      .mockRejectedValueOnce(new Error('dispatch unavailable'))
+      .mockResolvedValueOnce({ outcome: 'failed' })
+      .mockResolvedValueOnce({ outcome: 'queued' })
 
     await enqueueQuickBooksWebhookIngress(payload)
     const options = mockEnqueue.mock.calls[0][2] as { runner: () => Promise<void> }
-    await expect(options.runner()).rejects.toThrow('Failed to dispatch 1 of 1 QuickBooks targets')
-    expect(mockEnqueue).toHaveBeenNthCalledWith(
-      2,
-      'quickbooks-webhook-ingress',
-      expect.objectContaining({ eventIndex: 1, afterWebhookId: undefined }),
-      expect.objectContaining({ jobId: 'quickbooks-webhook-ingress:request-1:1:root' })
+    await expect(options.runner()).rejects.toThrow(
+      'QuickBooks webhook delivery completed with 2 failures'
     )
+    expect(mockFindPage).toHaveBeenCalledWith('789', 'request-1', undefined)
+    expect(mockDispatch).toHaveBeenCalledTimes(3)
+    expect(mockEnqueue).toHaveBeenCalledOnce()
+  })
+
+  it('continues later events when a target page cannot be resolved', async () => {
+    mockFindPage
+      .mockRejectedValueOnce(new Error('database unavailable'))
+      .mockResolvedValueOnce({ hasMore: false, nextCursor: null, targets: [] })
+
+    await expect(executeQuickBooksWebhookIngress(payload)).resolves.toEqual({
+      failed: 1,
+      ignored: 0,
+      processed: 0,
+      targetCount: 0,
+    })
+    expect(mockFindPage).toHaveBeenCalledWith('789', 'request-1', undefined)
   })
 })
