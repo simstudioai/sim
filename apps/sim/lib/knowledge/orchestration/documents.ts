@@ -10,6 +10,7 @@ import {
   createSingleDocument,
   type DocumentData,
   deleteDocument,
+  getDocumentByUploadId,
   markDocumentAsFailedTimeout,
   type ProcessingOptions,
   processDocumentAsync,
@@ -59,7 +60,10 @@ export interface KnowledgeDocumentInput {
  */
 export type KnowledgeDocumentProcessing = 'queue' | 'async'
 
-export type CreatedKnowledgeDocument = Awaited<ReturnType<typeof createSingleDocument>>
+export type CreatedKnowledgeDocument = Awaited<ReturnType<typeof createSingleDocument>> & {
+  /** Present when an idempotent completion returns an already-processing document. */
+  processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
+}
 
 export interface PerformUploadKnowledgeDocumentParams extends KnowledgeOperationContext {
   knowledgeBase: KnowledgeBaseTarget
@@ -69,11 +73,48 @@ export interface PerformUploadKnowledgeDocumentParams extends KnowledgeOperation
   billingAttribution?: BillingAttributionSnapshot
   /** Row owner recorded on the document; defaults to the acting user. */
   uploadedBy?: string | null
+  /** Deterministic id carried by a stateless upload token for completion retries. */
+  documentId?: string
 }
 
 export type PerformUploadKnowledgeDocumentResult = KnowledgeOrchestrationResult<{
   document: CreatedKnowledgeDocument
+  created: boolean
 }>
+
+function isSameKnowledgeDocumentUpload(
+  existing: CreatedKnowledgeDocument,
+  document: KnowledgeDocumentInput
+): boolean {
+  return (
+    existing.filename === document.filename &&
+    existing.fileUrl === document.fileUrl &&
+    existing.fileSize === document.fileSize &&
+    existing.mimeType === document.mimeType
+  )
+}
+
+export type BoundKnowledgeDocument =
+  | { status: 'absent' }
+  | { status: 'bound'; document: CreatedKnowledgeDocument }
+  | { status: 'conflict' }
+
+/**
+ * Resolves what a stateless upload id is already bound to. Callers use this to answer a
+ * completion retry from existing state before doing any work that can fail independently
+ * of the upload — resolving a billing payer, or deleting the uploaded object.
+ */
+export async function findBoundKnowledgeDocument(params: {
+  documentId: string
+  knowledgeBaseId: string
+  document: KnowledgeDocumentInput
+}): Promise<BoundKnowledgeDocument> {
+  const existing = await getDocumentByUploadId(params.documentId, params.knowledgeBaseId)
+  if (!existing) return { status: 'absent' }
+  return isSameKnowledgeDocumentUpload(existing, params.document)
+    ? { status: 'bound', document: existing }
+    : { status: 'conflict' }
+}
 
 function auditUpload(
   params: KnowledgeOperationContext & { knowledgeBase: KnowledgeBaseTarget },
@@ -137,14 +178,49 @@ export async function performUploadKnowledgeDocument(
   const requestId = params.requestId ?? generateRequestId()
 
   let created: CreatedKnowledgeDocument
-  try {
-    created = await createSingleDocument(
+  if (params.documentId) {
+    const bound = await findBoundKnowledgeDocument({
+      documentId: params.documentId,
+      knowledgeBaseId: knowledgeBase.id,
       document,
-      knowledgeBase.id,
-      requestId,
-      params.uploadedBy ?? params.userId
-    )
+    })
+    if (bound.status === 'conflict') {
+      return fail('Upload id is already bound to a different document', 'conflict')
+    }
+    if (bound.status === 'bound') {
+      return { success: true, document: bound.document, created: false }
+    }
+  }
+
+  try {
+    created = params.documentId
+      ? await createSingleDocument(
+          document,
+          knowledgeBase.id,
+          requestId,
+          params.uploadedBy ?? params.userId,
+          params.documentId
+        )
+      : await createSingleDocument(
+          document,
+          knowledgeBase.id,
+          requestId,
+          params.uploadedBy ?? params.userId
+        )
   } catch (error) {
+    if (params.documentId) {
+      const bound = await findBoundKnowledgeDocument({
+        documentId: params.documentId,
+        knowledgeBaseId: knowledgeBase.id,
+        document,
+      })
+      if (bound.status === 'conflict') {
+        return fail('Upload id is already bound to a different document', 'conflict')
+      }
+      if (bound.status === 'bound') {
+        return { success: true, document: bound.document, created: false }
+      }
+    }
     return classifyKnowledgeFailure(
       error,
       requestId,
@@ -205,7 +281,7 @@ export async function performUploadKnowledgeDocument(
     },
   })
 
-  return { success: true, document: created }
+  return { success: true, document: created, created: true }
 }
 
 export interface PerformUploadKnowledgeDocumentsParams extends KnowledgeOperationContext {

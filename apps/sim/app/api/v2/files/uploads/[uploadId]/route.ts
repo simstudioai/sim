@@ -43,6 +43,7 @@ export const DELETE = withRouteHandler(
         uploadId,
         workspaceId,
         userId,
+        purpose: 'workspace_file',
         uploadToken: parsed.data.headers['upload-token'],
       })
       const aborted = await abortUploadSession(session)

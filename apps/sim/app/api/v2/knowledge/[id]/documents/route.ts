@@ -24,6 +24,7 @@ import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/typ
 import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
 import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
@@ -44,7 +45,7 @@ const logger = createLogger('V2KnowledgeDocumentsAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024
+const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
 const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 interface DocumentsRouteParams {

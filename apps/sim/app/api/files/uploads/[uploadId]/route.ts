@@ -27,6 +27,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Upl
       uploadId: parsed.data.params.uploadId,
       workspaceId,
       userId: user,
+      purpose: 'workspace_file',
       uploadToken: parsed.data.headers['upload-token'],
     })
     return NextResponse.json({ data: toV2FileUpload(await abortUploadSession(upload), null) })

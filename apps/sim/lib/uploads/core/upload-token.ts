@@ -9,6 +9,8 @@ export interface UploadTokenPayload {
   userId: string
   workspaceId: string
   context: StorageContext
+  /** Knowledge base bound to a knowledge-document multipart session. */
+  knowledgeBaseId?: string
   /** Original file name, carried so the completion handler can record ownership metadata. */
   fileName?: string
   /** File MIME type, carried for ownership metadata at completion. */
@@ -16,7 +18,7 @@ export interface UploadTokenPayload {
   /** File size in bytes, carried for ownership metadata at completion. */
   fileSize?: number
   /** Multipart-session purpose. Omitted by the legacy multipart endpoint. */
-  purpose?: 'workspace_file' | 'table_import'
+  purpose?: 'workspace_file' | 'table_import' | 'knowledge_document'
   /** Storage provider that owns the multipart upload state. */
   provider?: 's3' | 'blob' | 'gcs' | 'local'
   /** Provider-issued multipart upload id. Local and block-blob uploads do not need one. */
@@ -44,8 +46,11 @@ const fromBase64Url = (input: string): string => Buffer.from(input, 'base64url')
 const sign = (payload: string): string => hmacSha256Base64(payload, env.INTERNAL_API_SECRET)
 
 /**
- * Sign an upload session token binding (uploadId, key, userId, workspaceId, context).
- * Used to prevent IDOR on multipart upload follow-up calls (get-part-urls, complete, abort).
+ * Sign an upload session token binding every supplied field to its signature.
+ * Multipart sessions include the caller, workspace, storage context and key,
+ * purpose, provider state, file metadata, part geometry, and—for knowledge
+ * documents—the target knowledge base. Follow-up calls reconstruct their
+ * complete trusted session exclusively from this signed state.
  */
 export function signUploadToken(payload: UploadTokenPayload, expiresInSeconds = 60 * 60): string {
   const signed: SignedPayload = {
@@ -103,10 +108,15 @@ export function verifyUploadToken(token: string): UploadTokenVerification {
       userId: parsed.userId,
       workspaceId: parsed.workspaceId,
       context: parsed.context as StorageContext,
+      ...(typeof parsed.knowledgeBaseId === 'string'
+        ? { knowledgeBaseId: parsed.knowledgeBaseId }
+        : {}),
       ...(typeof parsed.fileName === 'string' ? { fileName: parsed.fileName } : {}),
       ...(typeof parsed.contentType === 'string' ? { contentType: parsed.contentType } : {}),
       ...(typeof parsed.fileSize === 'number' ? { fileSize: parsed.fileSize } : {}),
-      ...(parsed.purpose === 'workspace_file' || parsed.purpose === 'table_import'
+      ...(parsed.purpose === 'workspace_file' ||
+      parsed.purpose === 'table_import' ||
+      parsed.purpose === 'knowledge_document'
         ? { purpose: parsed.purpose }
         : {}),
       ...(parsed.provider === 's3' ||

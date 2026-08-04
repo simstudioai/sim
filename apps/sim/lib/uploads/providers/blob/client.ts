@@ -745,40 +745,12 @@ export async function completeMultipartUpload(
 }
 
 /**
- * Abort multipart upload by deleting the blob if it exists
+ * Abandons an Azure multipart upload without deleting its key.
+ *
+ * Azure has no cancellation operation for staged blocks and garbage-collects uncommitted blocks
+ * after a week. Deleting by key is unsafe because a concurrent completion may already have
+ * committed the final blob at that key.
  */
-export async function abortMultipartUpload(key: string, customConfig?: BlobConfig): Promise<void> {
-  const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
-  let blobServiceClient: BlobServiceClientType
-  let containerName: string
-
-  if (customConfig) {
-    if (customConfig.connectionString) {
-      blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
-    } else if (customConfig.accountName && customConfig.accountKey) {
-      const credential = new StorageSharedKeyCredential(
-        customConfig.accountName,
-        customConfig.accountKey
-      )
-      blobServiceClient = new BlobServiceClient(
-        `https://${customConfig.accountName}.blob.core.windows.net`,
-        credential
-      )
-    } else {
-      throw new Error('Invalid custom blob configuration')
-    }
-    containerName = customConfig.containerName
-  } else {
-    blobServiceClient = await getBlobServiceClient()
-    containerName = BLOB_CONFIG.containerName
-  }
-
-  const containerClient = blobServiceClient.getContainerClient(containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
-
-  try {
-    await blockBlobClient.deleteIfExists()
-  } catch (error) {
-    logger.warn('Error cleaning up multipart upload:', error)
-  }
+export function abortMultipartUpload(_key: string, _customConfig?: BlobConfig): Promise<void> {
+  return Promise.resolve()
 }

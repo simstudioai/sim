@@ -51,6 +51,7 @@ vi.mock('@/lib/uploads/config', () => ({
 }))
 
 import {
+  abortMultipartUpload,
   deleteFromBlob,
   downloadFromBlob,
   getPresignedUrl,
@@ -191,6 +192,15 @@ describe('Azure Blob Storage Client', () => {
 
       expect(mockGetBlockBlobClient).toHaveBeenCalledWith(testKey)
       expect(mockDeleteIfExists).toHaveBeenCalled()
+    })
+  })
+
+  describe('abortMultipartUpload', () => {
+    it('leaves the blob key untouched while Azure garbage-collects uncommitted blocks', async () => {
+      await abortMultipartUpload('test-file-key')
+
+      expect(mockGetBlockBlobClient).not.toHaveBeenCalled()
+      expect(mockDeleteIfExists).not.toHaveBeenCalled()
     })
   })
 
