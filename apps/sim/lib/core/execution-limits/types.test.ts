@@ -29,6 +29,7 @@ vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
  * it always evaluates fresh with the mocks above.
  */
 declare module '@/lib/core/execution-limits/types?execution-limits-test' {
+  // biome-ignore lint/suspicious/noExportsInTest: ambient type re-declaration for the query-suffixed specifier, not a runtime export
   export * from '@/lib/core/execution-limits/types'
 }
 

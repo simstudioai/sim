@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
@@ -34,8 +35,16 @@ import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import { ExecutionEngine } from './engine'
+
+const executionEngineLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'ExecutionEngine'
+)
+const executionEngineBaseLogger =
+  loggerMock.createLogger.mock.results[executionEngineLoggerCallIndex]?.value
+if (!executionEngineBaseLogger) throw new Error('ExecutionEngine logger mock was not initialized')
 
 function createMockBlock(id: string): SerializedBlock {
   return {
@@ -951,12 +960,18 @@ describe('ExecutionEngine', () => {
 
   describe('Error handling in execution', () => {
     it('should fail execution when a single node throws an error', async () => {
+      const secret = 'engine-error-secret-7f3a91'
+      const rawError = `Block execution failed ${secret} __var_API_KEY __sim_code_2_binding_0`
       const startNode = createMockNode('start', 'starter')
       const errorNode = createMockNode('error-node', 'function')
       startNode.outgoingEdges.set('edge1', { target: 'error-node' })
 
       const dag = createMockDAG([startNode, errorNode])
-      const context = createMockContext()
+      const context = createMockContext({
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([
+          { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
+        ]),
+      })
       const edgeManager = createMockEdgeManager((node) => {
         if (node.id === 'start') return ['error-node']
         return []
@@ -966,7 +981,7 @@ describe('ExecutionEngine', () => {
         executionCount: 0,
         executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
           if (nodeId === 'error-node') {
-            throw new Error('Block execution failed')
+            throw new Error(rawError)
           }
           return { nodeId, output: {}, isFinalOutput: false }
         }),
@@ -975,7 +990,15 @@ describe('ExecutionEngine', () => {
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
 
-      await expect(engine.run('start')).rejects.toThrow('Block execution failed')
+      await expect(engine.run('start')).rejects.toThrow(rawError)
+
+      const executionLogger = executionEngineBaseLogger.withMetadata.mock.results.at(-1)?.value
+      expect(executionLogger).toBeDefined()
+      const loggerCalls = JSON.stringify(executionLogger?.error.mock.calls)
+      expect(loggerCalls).toContain('{{API_KEY}}')
+      expect(loggerCalls).not.toContain(secret)
+      expect(loggerCalls).not.toContain('__var_')
+      expect(loggerCalls).not.toContain('__sim_')
     })
 
     it('should stop parallel branches when one branch throws an error', async () => {

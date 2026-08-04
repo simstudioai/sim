@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -49,6 +50,15 @@ vi.mock('@/executor/execution/snapshot', () => ({
 
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
 
+const resumeExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'TriggerResumeExecution'
+)
+const resumeExecutionLogger =
+  loggerMock.createLogger.mock.results[resumeExecutionLoggerCallIndex]?.value
+if (!resumeExecutionLogger) {
+  throw new Error('TriggerResumeExecution logger mock was not initialized')
+}
+
 const payload: ResumeExecutionPayload = {
   resumeEntryId: 'resume-entry-1',
   resumeExecutionId: 'resume-execution-1',
@@ -86,7 +96,8 @@ describe('executeResumeJob terminal errors', () => {
   })
 
   it('rethrows the original core-finalized resume error', async () => {
-    const rawError = Object.assign(new Error('Agent tool exposed activated-secret-value'), {
+    const secret = 'activated-secret-value'
+    const rawError = Object.assign(new Error(`Agent tool exposed ${secret} __var_API_KEY`), {
       executionResult: {
         success: false,
         output: { error: 'Agent tool failed' },
@@ -96,6 +107,15 @@ describe('executeResumeJob terminal errors', () => {
     mockStartResumeExecution.mockRejectedValue(rawError)
 
     await expect(executeResumeJob(payload)).rejects.toBe(rawError)
+
+    expect(resumeExecutionLogger.error).toHaveBeenCalledWith('Background resume execution failed', {
+      errorType: 'error',
+      hasStack: true,
+    })
+    const loggerPayload = JSON.stringify(resumeExecutionLogger.error.mock.calls)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(rawError.message).toContain(secret)
   })
 
   it('rethrows the original genuine resume fault', async () => {

@@ -1,5 +1,4 @@
 import { createLogger, type Logger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
@@ -51,6 +50,7 @@ import {
 } from '@/executor/utils/iteration-context'
 import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import {
   buildBranchNodeId,
   buildOuterBranchScopedId,
@@ -488,12 +488,17 @@ export class BlockExecutor {
       }
     }
 
+    const errorDiagnostic = projectResolvedSecretDiagnosticError(
+      error,
+      ctx.resolvedSecretTraceRegistry
+    )
+
     this.execLogger.error(
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
       {
         blockId: node.id,
         blockType: block.metadata?.id,
-        error: errorMessage,
+        ...errorDiagnostic,
       }
     )
 
@@ -524,7 +529,7 @@ export class BlockExecutor {
       }
       this.execLogger.info('Block has error port - returning error output instead of throwing', {
         blockId: node.id,
-        error: errorMessage,
+        ...errorDiagnostic,
       })
       return errorOutput
     }
@@ -723,7 +728,7 @@ export class BlockExecutor {
         this.execLogger.warn('Block start callback failed', {
           blockId,
           blockType,
-          error: toError(error).message,
+          ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
         })
       })
   }
@@ -775,7 +780,7 @@ export class BlockExecutor {
       this.execLogger.warn('Block completion callback failed', {
         blockId,
         blockType,
-        error: toError(error).message,
+        ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
       })
     })
   }
@@ -902,7 +907,10 @@ export class BlockExecutor {
           clientStreamTransformed: processedClientStream !== pump.textStream,
         })
         .catch(async (error) => {
-          this.execLogger.error('Error in onStream callback', { blockId, error })
+          this.execLogger.error('Error in onStream callback', {
+            blockId,
+            ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
+          })
           await processedClientStream?.cancel().catch(() => {})
         })
     }
@@ -911,7 +919,10 @@ export class BlockExecutor {
     try {
       pumpResult = await pump.run()
     } catch (error) {
-      this.execLogger.error('Error reading stream for block', { blockId, error })
+      this.execLogger.error('Error reading stream for block', {
+        blockId,
+        ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
+      })
       if (onStreamPromise) {
         await onStreamPromise.catch(() => {})
       }
@@ -1001,7 +1012,7 @@ export class BlockExecutor {
         } catch (error) {
           this.execLogger.warn('Failed to parse streamed content for response format', {
             blockId,
-            error,
+            ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
           })
         }
       }
@@ -1014,7 +1025,10 @@ export class BlockExecutor {
       try {
         await streamingExec.onFullContent(fullContent)
       } catch (error) {
-        this.execLogger.error('onFullContent callback failed', { blockId, error })
+        this.execLogger.error('onFullContent callback failed', {
+          blockId,
+          ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
+        })
       }
     }
   }

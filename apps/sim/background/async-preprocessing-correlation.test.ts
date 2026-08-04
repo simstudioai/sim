@@ -8,6 +8,7 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   LoggingSessionMock,
+  loggerMock,
   loggingSessionMock,
   loggingSessionMockFns,
   resetDbChainMock,
@@ -114,6 +115,15 @@ vi.mock('@/executor/utils/errors', () => ({
 
 import { executeScheduleJob } from './schedule-execution'
 import { executeWorkflowJob } from './workflow-execution'
+
+const workflowExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'TriggerWorkflowExecution'
+)
+const workflowExecutionLogger =
+  loggerMock.createLogger.mock.results[workflowExecutionLoggerCallIndex]?.value
+if (!workflowExecutionLogger) {
+  throw new Error('TriggerWorkflowExecution logger mock was not initialized')
+}
 
 const billingAttribution = {
   actorUserId: 'actor-1',
@@ -285,7 +295,15 @@ describe('async preprocessing correlation threading', () => {
   })
 
   it('persists and rethrows the original unfinalized execution error', async () => {
-    const rawError = new Error('Function 1 failed with activated-secret-value')
+    const secret = 'activated-secret-value'
+    const rawError = new Error(
+      `Function 1 failed with ${secret} __var_API_KEY __sim_code_1_binding_0`
+    )
+    const projectedError = 'Function 1 failed with {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]'
+    loggingSessionMockFns.mockProjectDiagnosticError.mockReturnValueOnce({
+      executionId: 'execution-fault',
+      error: projectedError,
+    })
     mockPreprocessExecution.mockResolvedValueOnce({
       success: true,
       actorUserId: 'actor-1',
@@ -315,10 +333,22 @@ describe('async preprocessing correlation threading', () => {
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
       expect.objectContaining({
         error: expect.objectContaining({
-          message: 'Function 1 failed with activated-secret-value',
+          message: rawError.message,
         }),
       })
     )
+    expect(loggingSessionMockFns.mockProjectDiagnosticError).toHaveBeenCalledWith(rawError, {
+      executionId: 'execution-fault',
+    })
+    expect(workflowExecutionLogger.error).toHaveBeenCalledWith(
+      '[request-fault] Workflow execution failed: workflow-1',
+      { executionId: 'execution-fault', error: projectedError }
+    )
+    const loggerPayload = JSON.stringify(workflowExecutionLogger.error.mock.calls)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toContain(secret)
   })
 
   it('does not pre-start schedule logging before core execution', async () => {

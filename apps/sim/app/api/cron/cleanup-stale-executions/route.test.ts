@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { workflowExecutionLogs } from '@sim/db/schema'
+import { asyncJobs, workflowExecutionLogs } from '@sim/db/schema'
 import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -80,6 +80,30 @@ describe('stale execution cleanup deadline grace', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('reports a configured job duration cap while preserving the generic stale fallback', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const staleProcessingUpdateIndex = dbChainMockFns.update.mock.calls.findIndex(
+      ([table]) => table === asyncJobs
+    )
+    expect(staleProcessingUpdateIndex).toBeGreaterThanOrEqual(0)
+
+    const update = dbChainMockFns.set.mock.calls[staleProcessingUpdateIndex]?.[0] as {
+      error: { toSQL: () => { sql: string; params: unknown[] } }
+    }
+    const errorExpression = update.error.toSQL()
+
+    expect(errorExpression.sql).toContain("->>'maxDurationSeconds'")
+    expect(errorExpression.sql).toContain(
+      "'Job terminated: exceeded configured maximum duration of '"
+    )
+    expect(errorExpression.sql).toContain("|| ' seconds'")
+    expect(errorExpression.params).toContainEqual(
+      expect.stringMatching(/^Job terminated: stuck in processing for more than \d+ minutes$/)
+    )
   })
 
   it('caps every bulk mutation and returns only scalar export cleanup fields', async () => {

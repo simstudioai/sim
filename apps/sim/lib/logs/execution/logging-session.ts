@@ -41,6 +41,7 @@ import type {
 } from '@/lib/logs/types'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog } from '@/executor/types'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import {
   RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
   ResolvedSecretTraceRegistry,
@@ -231,6 +232,14 @@ export class LoggingSession {
   /** Installs the run-scoped provenance used only at the terminal TraceSpan boundary. */
   setResolvedSecretTraceRegistry(registry: ResolvedSecretTraceRegistry): void {
     this.resolvedSecretTraceRegistry = registry
+  }
+
+  /** Projects an execution error for operational logs and telemetry without mutating runtime data. */
+  projectDiagnosticError(
+    error: unknown,
+    details: Record<string, unknown> = {}
+  ): Record<string, unknown> {
+    return projectResolvedSecretDiagnosticError(error, this.resolvedSecretTraceRegistry, details)
   }
 
   /** Adds server-validated lifecycle correlation without exposing it to executor metadata. */

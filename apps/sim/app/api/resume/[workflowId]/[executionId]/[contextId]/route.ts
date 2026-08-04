@@ -29,6 +29,7 @@ import {
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WorkflowResumeAPI')
 
@@ -394,12 +395,14 @@ export const POST = withRouteHandler(
       }
 
       PauseResumeManager.startResumeExecution(resumeArgs).catch((error) => {
-        logger.error('Failed to start resume execution', {
-          workflowId,
-          parentExecutionId: executionId,
-          resumeExecutionId: enqueueResult.resumeExecutionId,
-          error,
-        })
+        logger.error(
+          'Failed to start resume execution',
+          projectResolvedSecretDiagnosticError(error, undefined, {
+            workflowId,
+            parentExecutionId: executionId,
+            resumeExecutionId: enqueueResult.resumeExecutionId,
+          })
+        )
       })
 
       return NextResponse.json({
@@ -408,12 +411,14 @@ export const POST = withRouteHandler(
         message: 'Resume execution started.',
       })
     } catch (error) {
-      logger.error('Resume request failed', {
-        workflowId,
-        executionId,
-        contextId,
-        error,
-      })
+      logger.error(
+        'Resume request failed',
+        projectResolvedSecretDiagnosticError(error, undefined, {
+          workflowId,
+          executionId,
+          contextId,
+        })
+      )
       const statusCode =
         isRecordLike(error) && typeof error.statusCode === 'number' ? error.statusCode : 400
       return NextResponse.json(

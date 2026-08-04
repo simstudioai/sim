@@ -1447,6 +1447,36 @@ describe('Function Execute API Route', () => {
       expect(Object.values(request.contextVariables)).not.toContain('must-not-bind')
     })
 
+    it('lowers missing shell placeholders while preserving comments and heredoc delimiters', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: [
+              '# {{COMMENT_ONLY}}',
+              'printf \'%s\\n\' "before{{MISSING}}after"',
+              "cat <<'{{DELIMITER}}'",
+              'literal body',
+              '{{DELIMITER}}',
+            ].join('\n'),
+            language: 'shell',
+            envVars: { COMMENT_ONLY: 'must-not-bind' },
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+
+      const [request] = mockExecuteShellInSandbox.mock.calls.at(-1) ?? []
+      expect(response.status).toBe(200)
+      expect((await response.json()).__resolvedSecretNames).toEqual([])
+      expect(request.code).toContain('# {{COMMENT_ONLY}}')
+      expect(request.code).toContain('"beforeafter"')
+      expect(request.code).toContain("cat <<'{{DELIMITER}}'")
+      expect(request.code).toContain('\n{{DELIMITER}}')
+      expect(request.code).not.toContain('{{MISSING}}')
+    })
+
     it.each([
       {
         language: 'javascript',

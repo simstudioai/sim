@@ -21,6 +21,7 @@ import type {
   ResumeStatus,
 } from '@/executor/types'
 import { attachExecutionResult, normalizeError } from '@/executor/utils/errors'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('ExecutionEngine')
 
@@ -186,7 +187,10 @@ export class ExecutionEngine {
       this.finalizeIncompleteLogs()
 
       const errorMessage = normalizeError(error)
-      this.execLogger.error('Execution failed', { error: errorMessage })
+      this.execLogger.error(
+        'Execution failed',
+        projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry)
+      )
 
       const executionResult: ExecutionResult = {
         success: false,
@@ -441,8 +445,10 @@ export class ExecutionEngine {
         })
       }
     } catch (error) {
-      const errorMessage = normalizeError(error)
-      this.execLogger.error('Node execution failed', { nodeId, error: errorMessage })
+      this.execLogger.error('Node execution failed', {
+        nodeId,
+        ...projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
+      })
       throw error
     }
   }

@@ -74,6 +74,7 @@ import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
@@ -686,14 +687,6 @@ async function runWorkflowExecution({
       }
     }
 
-    logger.error(
-      `[${requestId}] Early failure in scheduled workflow ${payload.workflowId}`,
-      error,
-      {
-        cause: describeError(error),
-      }
-    )
-
     if (wasExecutionFinalizedByCore(error, executionId)) {
       throw error
     }
@@ -1159,7 +1152,7 @@ export async function executeScheduleJob(
         } catch (error: unknown) {
           logger.error(
             `[${requestId}] Error executing scheduled workflow ${payload.workflowId}`,
-            error
+            loggingSession.projectDiagnosticError(error)
           )
 
           const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
@@ -1726,11 +1719,12 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       timeoutController.cleanup()
     }
   } catch (error) {
-    const errorMessage = toError(error).message
-    logger.error(`[${requestId}] Job execution failed`, {
-      scheduleId: payload.scheduleId,
-      error: errorMessage,
-    })
+    logger.error(
+      `[${requestId}] Job execution failed`,
+      projectResolvedSecretDiagnosticError(error, resolvedSecretTraceRegistry, {
+        scheduleId: payload.scheduleId,
+      })
+    )
 
     const newFailedCount = (payload.failedCount || 0) + 1
     const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES

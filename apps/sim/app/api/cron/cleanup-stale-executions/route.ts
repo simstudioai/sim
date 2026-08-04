@@ -23,6 +23,7 @@ const logger = createLogger('CleanupStaleExecutions')
 
 const STALE_THRESHOLD_MS = getExecutionReservationTtlMs()
 const STALE_THRESHOLD_MINUTES = Math.ceil(STALE_THRESHOLD_MS / 60000)
+const GENERIC_STALE_PROCESSING_ERROR = `Job terminated: stuck in processing for more than ${STALE_THRESHOLD_MINUTES} minutes`
 const MAX_INT32 = 2_147_483_647
 /** Terminal table-jobs older than this are pruned; only the latest job per table is ever read. */
 const TABLE_JOB_RETENTION_HOURS = 24
@@ -214,7 +215,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             .set({
               status: JOB_STATUS.FAILED,
               completedAt: new Date(),
-              error: `Job terminated: stuck in processing for more than ${STALE_THRESHOLD_MINUTES} minutes`,
+              error: sql<string>`CASE
+                WHEN jsonb_typeof(${asyncJobs.metadata}->'maxDurationSeconds') = 'number'
+                  THEN 'Job terminated: exceeded configured maximum duration of '
+                    || (${asyncJobs.metadata}->>'maxDurationSeconds')
+                    || ' seconds'
+                ELSE ${GENERIC_STALE_PROCESSING_ERROR}
+              END`,
               updatedAt: new Date(),
             })
             .where(and(staleProcessingPredicate, inArray(asyncJobs.id, candidates)))

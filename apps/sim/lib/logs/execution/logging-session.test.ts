@@ -103,8 +103,8 @@ vi.mock('@/lib/logs/execution/logging-factory', () => ({
 }))
 
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
-import type {
-  ResolvedSecretTraceMatch,
+import {
+  type ResolvedSecretTraceMatch,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { LoggingSession } from './logging-session'
@@ -122,6 +122,40 @@ function createSecretRegistry(
     exportCheckpointProvenance: () => ({ version: 1, complete, entries: [] }),
   } as unknown as ResolvedSecretTraceRegistry
 }
+
+describe('LoggingSession diagnostic projection', () => {
+  it('projects execution errors with the run-scoped secret provenance', () => {
+    const secret = 'logging-session-secret-7f3a91'
+    const error = new Error(`failed ${secret} __var_API_KEY __sim_code_2_binding_1`)
+    const session = new LoggingSession('workflow-1', 'execution-1', 'manual')
+    session.setResolvedSecretTraceRegistry(
+      new ResolvedSecretTraceRegistry([
+        { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
+      ])
+    )
+
+    const diagnostic = session.projectDiagnosticError(error, { workflowId: 'workflow-1' })
+
+    expect(diagnostic).toMatchObject({
+      workflowId: 'workflow-1',
+      error: 'failed {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]',
+    })
+    expect(JSON.stringify(diagnostic)).not.toContain(secret)
+    expect(JSON.stringify(diagnostic)).not.toContain('__var_')
+    expect(JSON.stringify(diagnostic)).not.toContain('__sim_')
+    expect(error.message).toContain(secret)
+  })
+
+  it('fails closed when the run-scoped provenance is unavailable', () => {
+    const session = new LoggingSession('workflow-1', 'execution-1', 'manual')
+
+    expect(
+      session.projectDiagnosticError(new Error('untrusted secret'), {
+        workflowId: 'workflow-1',
+      })
+    ).toEqual({ errorType: 'error', hasStack: true })
+  })
+})
 
 describe('LoggingSession terminal provenance', () => {
   beforeEach(() => {

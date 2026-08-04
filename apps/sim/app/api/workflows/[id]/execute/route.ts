@@ -1598,7 +1598,10 @@ async function handleExecutePost(
           return payloadTooLargeResponse()
         }
 
-        reqLogger.error(`Non-SSE execution failed: ${errorMessage}`)
+        reqLogger.error(
+          'Non-SSE execution failed',
+          loggingSession.projectDiagnosticError(error, { isTimeout: executionTimedOut })
+        )
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
         const status = executionTimedOut ? 408 : getExecutionErrorStatus(error)
@@ -1826,11 +1829,13 @@ async function handleExecutePost(
               // events still reach the active client and the UI doesn't hang on "running".
               // Marking a terminal event delivered-live as published lets finalization close
               // the stream cleanly instead of aborting it with controller.error().
-              reqLogger.warn('Event buffer write failed; delivering event over live stream only', {
-                eventType: event.type,
-                terminal: Boolean(terminalStatus),
-                error: toError(e).message,
-              })
+              reqLogger.warn(
+                'Event buffer write failed; delivering event over live stream only',
+                loggingSession.projectDiagnosticError(e, {
+                  eventType: event.type,
+                  terminal: Boolean(terminalStatus),
+                })
+              )
               terminalBufferWriteFailed = Boolean(terminalStatus)
               terminalEventPublished ||= Boolean(terminalStatus)
             }
@@ -2095,7 +2100,10 @@ async function handleExecutePost(
               }
             } catch (error) {
               if (!timeoutController.signal.aborted && !isStreamClosed) {
-                reqLogger.error('Error streaming block content:', error)
+                reqLogger.error(
+                  'Error streaming block content',
+                  loggingSession.projectDiagnosticError(error, { blockId })
+                )
               }
             } finally {
               unsubscribe()
@@ -2337,7 +2345,10 @@ async function handleExecutePost(
             ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
             : getErrorMessage(error, 'Unknown error')
 
-          reqLogger.error(`SSE execution failed: ${errorMessage}`, { isTimeout })
+          reqLogger.error(
+            'SSE execution failed',
+            loggingSession.projectDiagnosticError(error, { isTimeout })
+          )
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
           let compactErrorLogs: BlockLog[] | undefined
@@ -2355,9 +2366,10 @@ async function handleExecutePost(
                 )
               : undefined
           } catch (compactionError) {
-            reqLogger.warn('Failed to compact SSE error logs, omitting oversized error details', {
-              error: toError(compactionError).message,
-            })
+            reqLogger.warn(
+              'Failed to compact SSE error logs, omitting oversized error details',
+              loggingSession.projectDiagnosticError(compactionError)
+            )
           }
 
           finalMetaStatus = 'error'
@@ -2403,18 +2415,19 @@ async function handleExecutePost(
             }
           } else if (terminalEventPublished) {
             await eventWriter.close().catch((closeError) => {
-              reqLogger.warn('Failed to close execution event writer after terminal publish', {
-                executionId,
-                error: getErrorMessage(closeError),
-              })
+              reqLogger.warn(
+                'Failed to close execution event writer after terminal publish',
+                loggingSession.projectDiagnosticError(closeError, { executionId })
+              )
             })
           } else {
             try {
               await eventWriter.close()
             } catch (closeError) {
-              reqLogger.warn('Failed to close event writer', {
-                error: toError(closeError).message,
-              })
+              reqLogger.warn(
+                'Failed to close event writer',
+                loggingSession.projectDiagnosticError(closeError, { executionId })
+              )
             }
           }
           timeoutController.cleanup()

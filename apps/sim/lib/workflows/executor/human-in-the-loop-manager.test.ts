@@ -1,10 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { pausedExecutions } from '@sim/db/schema'
+import { pausedExecutions, resumeQueue } from '@sim/db/schema'
 import {
   dbChainMockFns,
   flattenMockConditions,
+  loggerMock,
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
@@ -37,6 +38,20 @@ import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paus
 import { AUTOMATIC_RESUME_WAITING_REASON_MAX_LENGTH } from '@/lib/workflows/executor/resume-policy'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { PausePoint, SerializedSnapshot } from '@/executor/types'
+
+const humanInTheLoopLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'HumanInTheLoopManager'
+)
+const humanInTheLoopLogger =
+  loggerMock.createLogger.mock.results[humanInTheLoopLoggerCallIndex]?.value
+if (!humanInTheLoopLogger) {
+  throw new Error('HumanInTheLoopManager logger mock was not initialized')
+}
+
+interface PauseResumeManagerInternals {
+  markResumeFailed: (...args: unknown[]) => Promise<void>
+  runResumeExecution: (...args: unknown[]) => Promise<unknown>
+}
 
 function createBillingAttribution(extra: Record<string, unknown> = {}) {
   return {
@@ -171,6 +186,125 @@ describe('queued resume attempt deadlines', () => {
     controller.cleanup()
     upstream.cleanup()
     vi.useRealTimers()
+  })
+})
+
+describe('resume failure diagnostic projection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('rethrows the raw resume error while projecting the internal failure log', async () => {
+    const secret = 'hitl-resume-secret-value'
+    const message = `Resume execution exposed ${secret} __var_API_KEY __sim_code_1_binding_0`
+    const rawError = new Error(message)
+    const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+    const runResumeExecutionSpy = vi
+      .spyOn(managerInternals, 'runResumeExecution')
+      .mockRejectedValueOnce(rawError)
+    const markResumeFailedSpy = vi
+      .spyOn(managerInternals, 'markResumeFailed')
+      .mockResolvedValueOnce()
+    const processQueuedResumesSpy = vi
+      .spyOn(PauseResumeManager, 'processQueuedResumes')
+      .mockResolvedValueOnce()
+    type StartResumeArgs = Parameters<typeof PauseResumeManager.startResumeExecution>[0]
+    const pausedExecution = {
+      id: 'paused-execution-1',
+      workflowId: 'workflow-1',
+      executionId: 'parent-execution-1',
+      pausePoints: {
+        'context-1': { contextId: 'context-1', blockId: 'hitl-1' },
+      },
+      executionSnapshot: createSnapshotSeed(),
+      metadata: {},
+    } as StartResumeArgs['pausedExecution']
+
+    try {
+      await expect(
+        PauseResumeManager.startResumeExecution({
+          resumeEntryId: 'resume-entry-1',
+          resumeExecutionId: 'resume-execution-1',
+          pausedExecution,
+          contextId: 'context-1',
+          resumeInput: { approved: true },
+          userId: 'user-1',
+        })
+      ).rejects.toBe(rawError)
+
+      expect(humanInTheLoopLogger.error).toHaveBeenCalledWith('Resume execution failed', {
+        errorType: 'error',
+        hasStack: true,
+      })
+      const loggerPayload = JSON.stringify(humanInTheLoopLogger.error.mock.calls)
+      expect(loggerPayload).not.toContain(secret)
+      expect(loggerPayload).not.toContain('__var_')
+      expect(loggerPayload).not.toContain('__sim_')
+      expect(rawError.message).toBe(message)
+    } finally {
+      runResumeExecutionSpy.mockRestore()
+      markResumeFailedSpy.mockRestore()
+      processQueuedResumesSpy.mockRestore()
+    }
+  })
+
+  it('keeps queued resume dispatch detached while projecting its rejected promise', async () => {
+    const secret = 'queued-resume-secret-value'
+    const message = `Queued resume exposed ${secret} __var_API_KEY __sim_code_2_binding_0`
+    const rawError = new Error(message)
+    const pausedExecution = {
+      id: 'paused-execution-1',
+      workflowId: 'workflow-1',
+      executionId: 'parent-execution-1',
+      status: 'paused',
+      pausePoints: {
+        'context-1': {
+          contextId: 'context-1',
+          blockId: 'hitl-1',
+          resumeStatus: 'queued',
+        },
+      },
+      metadata: { executorUserId: 'user-1' },
+    }
+    const queueEntry = {
+      id: 'resume-entry-1',
+      pausedExecutionId: pausedExecution.id,
+      parentExecutionId: pausedExecution.executionId,
+      newExecutionId: 'resume-execution-1',
+      contextId: 'context-1',
+      resumeInput: { approved: true },
+      status: 'pending',
+      queuedAt: new Date('2026-08-04T12:00:00.000Z'),
+    }
+    queueTableRows(pausedExecutions, [pausedExecution])
+    queueTableRows(resumeQueue, [])
+    queueTableRows(resumeQueue, [queueEntry])
+    const startResumeExecutionSpy = vi
+      .spyOn(PauseResumeManager, 'startResumeExecution')
+      .mockRejectedValueOnce(rawError)
+
+    try {
+      await expect(
+        PauseResumeManager.processQueuedResumes('parent-execution-1', 'workflow-1')
+      ).resolves.toBeUndefined()
+      await Promise.resolve()
+
+      expect(humanInTheLoopLogger.error).toHaveBeenCalledWith(
+        'Failed to start queued resume execution',
+        {
+          errorType: 'error',
+          hasStack: true,
+        }
+      )
+      const loggerPayload = JSON.stringify(humanInTheLoopLogger.error.mock.calls)
+      expect(loggerPayload).not.toContain(secret)
+      expect(loggerPayload).not.toContain('__var_')
+      expect(loggerPayload).not.toContain('__sim_')
+      expect(rawError.message).toBe(message)
+    } finally {
+      startResumeExecutionSpy.mockRestore()
+    }
   })
 })
 

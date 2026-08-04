@@ -67,6 +67,7 @@ import type {
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import type { SerializedConnection } from '@/serializer/types'
 
 /**
@@ -770,10 +771,12 @@ export class PauseResumeManager {
               executorUserId: result.metadata?.userId,
             })
           } catch (pauseError) {
-            logger.error('Failed to persist pause result for resumed execution', {
-              resumeExecutionId,
-              error: toError(pauseError).message,
-            })
+            logger.error(
+              'Failed to persist pause result for resumed execution',
+              projectResolvedSecretDiagnosticError(pauseError, undefined, {
+                resumeExecutionId,
+              })
+            )
             await LoggingSession.markExecutionAsFailed(
               effectiveExecutionId,
               `Failed to persist pause state: ${toError(pauseError).message}`,
@@ -860,12 +863,14 @@ export class PauseResumeManager {
           failureReason: message,
         })
       }
-      logger.error('Resume execution failed', {
-        parentExecutionId: pausedExecution.executionId,
-        resumeExecutionId,
-        contextId,
-        error,
-      })
+      logger.error(
+        'Resume execution failed',
+        projectResolvedSecretDiagnosticError(error, undefined, {
+          parentExecutionId: pausedExecution.executionId,
+          resumeExecutionId,
+          contextId,
+        })
+      )
       if (!(error instanceof ResumeAdmissionError)) {
         await PauseResumeManager.processQueuedResumes(
           pausedExecution.executionId,
@@ -1397,11 +1402,13 @@ export class PauseResumeManager {
       error: unknown
     ) => {
       terminalPublishDegraded = true
-      logger.warn('Failed to publish resume terminal event', {
-        resumeExecutionId,
-        status: terminalStatus,
-        error: toError(error).message,
-      })
+      logger.warn(
+        'Failed to publish resume terminal event',
+        loggingSession.projectDiagnosticError(error, {
+          resumeExecutionId,
+          status: terminalStatus,
+        })
+      )
       const metaPersisted = await setExecutionMeta(resumeExecutionId, {
         status: terminalStatus,
       }).catch(() => false)
@@ -1429,11 +1436,13 @@ export class PauseResumeManager {
               // primary delivery path. Awaiting this bare let a failed write
               // propagate into the executor callback and fail work that had
               // already run, so degrade the same way the execute route does.
-              logger.warn('Resume event buffer write failed; delivering live only', {
-                resumeExecutionId,
-                eventType: event.type,
-                error: toError(error).message,
-              })
+              logger.warn(
+                'Resume event buffer write failed; delivering live only',
+                loggingSession.projectDiagnosticError(error, {
+                  resumeExecutionId,
+                  eventType: event.type,
+                })
+              )
               return null
             })
         // Leave `eventId` unset when the write failed, matching the execute
@@ -1631,11 +1640,13 @@ export class PauseResumeManager {
             data: { blockId },
           } as ExecutionEvent)
         } catch (streamError) {
-          logger.error('Error streaming block content during resume', {
-            resumeExecutionId,
-            blockId,
-            error: toError(streamError).message,
-          })
+          logger.error(
+            'Error streaming block content during resume',
+            loggingSession.projectDiagnosticError(streamError, {
+              resumeExecutionId,
+              blockId,
+            })
+          )
         } finally {
           unsubscribe()
           try {
@@ -1793,10 +1804,10 @@ export class PauseResumeManager {
             )
           : undefined
       } catch (compactionError) {
-        logger.warn('Failed to compact resume error logs, omitting oversized error details', {
-          resumeExecutionId,
-          error: toError(compactionError).message,
-        })
+        logger.warn(
+          'Failed to compact resume error logs, omitting oversized error details',
+          loggingSession.projectDiagnosticError(compactionError, { resumeExecutionId })
+        )
       }
       finalMetaStatus = 'error'
       const terminalError = toError(execError).message
@@ -1836,10 +1847,10 @@ export class PauseResumeManager {
         )
       } else {
         await eventWriter.close().catch((error) => {
-          logger.warn('Failed to close resume event writer after terminal publish', {
-            resumeExecutionId,
-            error: toError(error).message,
-          })
+          logger.warn(
+            'Failed to close resume event writer after terminal publish',
+            loggingSession.projectDiagnosticError(error, { resumeExecutionId })
+          )
         })
       }
       void cleanupExecutionBase64Cache(resumeExecutionId)
@@ -2738,11 +2749,13 @@ export class PauseResumeManager {
         resumeMetadata?.executorUserId ??
         (typeof pausedMetadata.executorUserId === 'string' ? pausedMetadata.executorUserId : ''),
     }).catch((error) => {
-      logger.error('Failed to start queued resume execution', {
-        parentExecutionId,
-        resumeEntryId: entry.id,
-        error,
-      })
+      logger.error(
+        'Failed to start queued resume execution',
+        projectResolvedSecretDiagnosticError(error, undefined, {
+          parentExecutionId,
+          resumeEntryId: entry.id,
+        })
+      )
     })
   }
 

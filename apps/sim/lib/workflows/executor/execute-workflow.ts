@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   assertBillingAttributionSnapshot,
@@ -212,7 +211,8 @@ export async function executeWorkflow(
 
     return result
   } catch (error: unknown) {
-    logger.error(`[${requestId}] Workflow execution failed:`, error)
+    const errorDiagnostic = loggingSession.projectDiagnosticError(error)
+    logger.error(`[${requestId}] Workflow execution failed`, errorDiagnostic)
 
     captureServerEvent(
       actorUserId,
@@ -221,7 +221,10 @@ export async function executeWorkflow(
         workflow_id: workflow.id,
         workspace_id: workspaceId,
         trigger_type: streamConfig?.workflowTriggerType || 'api',
-        error_message: toError(error).message,
+        error_message:
+          typeof errorDiagnostic.error === 'string'
+            ? errorDiagnostic.error
+            : 'Workflow execution failed',
       },
       { groups: { workspace: workspaceId } }
     )

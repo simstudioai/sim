@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,6 +12,7 @@ const {
   mockGetPauseContextDetail,
   mockGetPausedExecutionDetail,
   mockPreprocessExecution,
+  mockStartResumeExecution,
   mockExecuteResumeJob,
   mockShouldExecuteInline,
   mockValidateWorkflowAccess,
@@ -21,6 +23,7 @@ const {
   mockGetPauseContextDetail: vi.fn(),
   mockGetPausedExecutionDetail: vi.fn(),
   mockPreprocessExecution: vi.fn(),
+  mockStartResumeExecution: vi.fn(),
   mockExecuteResumeJob: vi.fn(),
   mockShouldExecuteInline: vi.fn(() => false),
   mockValidateWorkflowAccess: vi.fn(),
@@ -58,11 +61,19 @@ vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
     getPausedExecutionDetail: mockGetPausedExecutionDetail,
     markResumeAttemptFailed: vi.fn(),
     processQueuedResumes: vi.fn(),
-    startResumeExecution: vi.fn(),
+    startResumeExecution: mockStartResumeExecution,
   },
 }))
 
 import { GET, POST } from '@/app/api/resume/[workflowId]/[executionId]/[contextId]/route'
+
+const resumeApiLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'WorkflowResumeAPI'
+)
+const resumeApiLogger = loggerMock.createLogger.mock.results[resumeApiLoggerCallIndex]?.value
+if (!resumeApiLogger) {
+  throw new Error('WorkflowResumeAPI logger mock was not initialized')
+}
 
 const WORKFLOW_ID = 'workflow-1'
 const EXECUTION_ID = 'execution-1'
@@ -188,6 +199,12 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
     })
     mockEnqueue.mockResolvedValue('resume-job-1')
     mockExecuteResumeJob.mockResolvedValue({ success: true })
+    mockStartResumeExecution.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+    })
     mockShouldExecuteInline.mockReturnValue(false)
   })
 
@@ -327,6 +344,77 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
       }),
       signal
     )
+  })
+
+  it('projects rejected resume requests for logs without changing the API error response', async () => {
+    const secret = 'resume-request-secret-value'
+    const message = `Resume request exposed ${secret} __var_API_KEY __sim_code_1_binding_0`
+    const rawError = new Error(message)
+    mockEnqueueOrStartResume.mockRejectedValueOnce(rawError)
+    const { request, context } = makeRequest()
+
+    const response = await POST(request, context)
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: message })
+    expect(resumeApiLogger.error).toHaveBeenCalledWith('Resume request failed', {
+      errorType: 'error',
+      hasStack: true,
+    })
+    const loggerPayload = JSON.stringify(resumeApiLogger.error.mock.calls)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toBe(message)
+  })
+
+  it('projects detached resume failures without changing the started response', async () => {
+    const secret = 'detached-resume-secret-value'
+    const message = `Detached resume exposed ${secret} __var_API_KEY __sim_code_2_binding_0`
+    const rawError = new Error(message)
+    const pausedExecution = createPausedExecution()
+    mockValidateWorkflowAccess.mockResolvedValueOnce({
+      workflow: {
+        id: WORKFLOW_ID,
+        workspaceId: WORKSPACE_ID,
+      },
+      auth: {
+        success: true,
+        userId: 'current-session-user',
+        authType: 'session',
+        workspaceId: WORKSPACE_ID,
+      },
+    })
+    mockEnqueueOrStartResume.mockResolvedValueOnce({
+      status: 'starting',
+      resumeExecutionId: 'resume-attempt-1',
+      resumeEntryId: 'resume-entry-1',
+      pausedExecution,
+      contextId: CONTEXT_ID,
+      resumeInput: { approved: true },
+      userId: 'current-session-user',
+    })
+    mockStartResumeExecution.mockRejectedValueOnce(rawError)
+    const { request, context } = makeRequest()
+
+    const response = await POST(request, context)
+    await Promise.resolve()
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      status: 'started',
+      executionId: 'resume-attempt-1',
+      message: 'Resume execution started.',
+    })
+    expect(resumeApiLogger.error).toHaveBeenCalledWith('Failed to start resume execution', {
+      errorType: 'error',
+      hasStack: true,
+    })
+    const loggerPayload = JSON.stringify(resumeApiLogger.error.mock.calls)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toBe(message)
   })
 
   it.each([

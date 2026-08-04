@@ -1,12 +1,13 @@
 /**
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { BlockType } from '@/executor/constants'
+import { BlockType, EDGE } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
@@ -14,6 +15,13 @@ import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+
+const blockExecutorLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'BlockExecutor'
+)
+const blockExecutorBaseLogger =
+  loggerMock.createLogger.mock.results[blockExecutorLoggerCallIndex]?.value
+if (!blockExecutorBaseLogger) throw new Error('BlockExecutor logger mock was not initialized')
 
 const { mockUploadFile } = vi.hoisted(() => ({
   mockUploadFile: vi.fn(),
@@ -317,6 +325,84 @@ describe('BlockExecutor', () => {
     expect(events).toEqual(['start-called', 'start-done', 'execute', 'complete'])
   })
 
+  it('projects lifecycle callback diagnostics without changing block execution', async () => {
+    const secret = 'lifecycle-secret-7f3a91'
+    const startError = new Error(`start failed ${secret} __var_API_KEY`)
+    const completionError = new Error(`completion failed ${secret} __sim_code_6_binding_0`)
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const output = { result: `raw ${secret}` }
+    const executor = new BlockExecutor(
+      [{ canHandle: () => true, execute: async () => output }],
+      resolver,
+      {
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        metadata: {
+          requestId: 'request-1',
+          executionId: 'execution-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          triggerType: 'manual',
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        },
+        onBlockStart: async () => {
+          throw startError
+        },
+        onBlockComplete: async () => {
+          throw completionError
+        },
+      },
+      state
+    )
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
+    ])
+
+    await expect(executor.execute(ctx, createNode(block), block)).resolves.toEqual(output)
+    expect(state.getBlockOutput(block.id)).toEqual(output)
+
+    const executionLogger = blockExecutorBaseLogger.withMetadata.mock.results.at(-1)?.value
+    expect(executionLogger).toBeDefined()
+    await vi.waitFor(() => {
+      expect(executionLogger?.warn).toHaveBeenCalledWith(
+        'Block completion callback failed',
+        expect.objectContaining({
+          blockId: block.id,
+          blockType: BlockType.FUNCTION,
+          error: 'completion failed {{API_KEY}} [RUNTIME_BINDING]',
+        })
+      )
+    })
+    expect(executionLogger?.warn).toHaveBeenCalledWith(
+      'Block start callback failed',
+      expect.objectContaining({
+        blockId: block.id,
+        blockType: BlockType.FUNCTION,
+        error: 'start failed {{API_KEY}} {{API_KEY}}',
+      })
+    )
+    const loggerPayload = JSON.stringify(executionLogger?.warn.mock.calls)
+    expect(loggerPayload).toContain('{{API_KEY}}')
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(startError.message).toContain(secret)
+    expect(completionError.message).toContain(secret)
+  })
+
   it('fires block completion callbacks for pausing blocks so clients receive pause output', async () => {
     const block = {
       ...createBlock(),
@@ -606,6 +692,72 @@ describe('BlockExecutor', () => {
     ])
     expect(JSON.stringify(projectedTraceSpans)).not.toContain(secret)
   })
+
+  it('keeps raw error-port output while projecting operational logger metadata', async () => {
+    const secret = 'function-error-secret-7f3a91'
+    const rawError = `failed ${secret} __var_API_KEY __sim_code_3_binding_1`
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async () => {
+        throw new Error(rawError)
+      },
+    }
+    const executor = new BlockExecutor(
+      [handler],
+      resolver,
+      {
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        metadata: {
+          requestId: 'request-1',
+          executionId: 'execution-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          triggerType: 'manual',
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        },
+      },
+      state
+    )
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'API_KEY',
+        plaintext: secret,
+        encryptedValue: 'encrypted-api-key',
+      },
+    ])
+    const node = createNode(block)
+    node.outgoingEdges.set('error-edge', { target: 'error-handler', sourceHandle: EDGE.ERROR })
+
+    await expect(executor.execute(ctx, node, block)).resolves.toEqual({ error: rawError })
+
+    expect(state.getBlockOutput(block.id)).toEqual({ error: rawError })
+    expect(ctx.blockLogs[0]).toMatchObject({ error: rawError, output: { error: rawError } })
+    const executionLogger = blockExecutorBaseLogger.withMetadata.mock.results.at(-1)?.value
+    expect(executionLogger).toBeDefined()
+    const loggerCalls = JSON.stringify({
+      error: executionLogger?.error.mock.calls,
+      info: executionLogger?.info.mock.calls,
+    })
+    expect(loggerCalls).toContain('{{API_KEY}}')
+    expect(loggerCalls).not.toContain(secret)
+    expect(loggerCalls).not.toContain('__var_')
+    expect(loggerCalls).not.toContain('__sim_')
+  })
 })
 
 describe('BlockExecutor streaming pump', () => {
@@ -659,6 +811,7 @@ describe('BlockExecutor streaming pump', () => {
     events: Array<Record<string, unknown>>
     attachThinkingOnDrain?: string
     failAfterText?: string
+    streamError?: Error
     onFullContent?: (content: string) => void | Promise<void>
   }): BlockHandler {
     return {
@@ -692,7 +845,7 @@ describe('BlockExecutor streaming pump', () => {
                 text: options.failAfterText,
                 turn: 'final',
               })
-              controller.error(new Error('provider reset'))
+              controller.error(options.streamError ?? new Error('provider reset'))
               return
             }
             for (const event of options.events) {
@@ -786,11 +939,17 @@ describe('BlockExecutor streaming pump', () => {
   })
 
   it('throws on mid-stream provider error (no truncated success)', async () => {
+    const secret = 'stream-pump-secret-7f3a91'
+    const rawError = new Error(`provider reset ${secret} __var_API_KEY __sim_code_4_binding_1`)
     const handler = createAgentEventsStreamingHandler({
       failAfterText: 'partial',
+      streamError: rawError,
     })
     const { executor, block, state } = createExecutor(handler)
     const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
+    ])
     ctx.onStream = async (streamingExec) => {
       const reader = streamingExec.stream.getReader()
       try {
@@ -803,8 +962,68 @@ describe('BlockExecutor streaming pump', () => {
       }
     }
 
-    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow('provider reset')
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(rawError.message)
     expect(state.getBlockOutput(block.id)?.content).not.toBe('partial')
+
+    const executionLogger = blockExecutorBaseLogger.withMetadata.mock.results.at(-1)?.value
+    expect(executionLogger).toBeDefined()
+    expect(executionLogger?.error).toHaveBeenCalledWith('Error reading stream for block', {
+      blockId: block.id,
+      error: 'provider reset {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]',
+      errorName: 'Error',
+      stack: expect.any(String),
+    })
+    const loggerPayload = JSON.stringify(executionLogger?.error.mock.calls)
+    expect(loggerPayload).toContain('{{API_KEY}}')
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toContain(secret)
+  })
+
+  it('projects response parsing and full-content callback diagnostics without changing output', async () => {
+    const secret = 'stream-content-secret-7f3a91'
+    const content = `not-json ${secret}`
+    const callbackError = new Error(
+      `callback failed ${secret} __var_API_KEY __sim_code_5_binding_0`
+    )
+    const handler = createAgentEventsStreamingHandler({
+      events: [{ type: 'text_delta', text: content, turn: 'final' }],
+      onFullContent: async () => {
+        throw callbackError
+      },
+    })
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = { responseFormat: 'json' }
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
+    ])
+
+    await executor.execute(ctx, createNode(block), block)
+
+    expect(state.getBlockOutput(block.id)?.content).toBe(content)
+    const executionLogger = blockExecutorBaseLogger.withMetadata.mock.results.at(-1)?.value
+    expect(executionLogger).toBeDefined()
+    expect(executionLogger?.warn).toHaveBeenCalledWith(
+      'Failed to parse streamed content for response format',
+      expect.objectContaining({ blockId: block.id, errorName: 'SyntaxError' })
+    )
+    expect(executionLogger?.error).toHaveBeenCalledWith('onFullContent callback failed', {
+      blockId: block.id,
+      error: 'callback failed {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]',
+      errorName: 'Error',
+      stack: expect.any(String),
+    })
+    const loggerPayload = JSON.stringify({
+      warn: executionLogger?.warn.mock.calls,
+      error: executionLogger?.error.mock.calls,
+    })
+    expect(loggerPayload).toContain('{{API_KEY}}')
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(callbackError.message).toContain(secret)
   })
 
   it('soft-completes on user abort with drained answer text (no failed block)', async () => {

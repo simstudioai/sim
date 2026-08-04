@@ -367,6 +367,41 @@ export function projectResolvedSecretModelContent(
 }
 
 /**
+ * Produces logger-safe metadata for an execution error without changing the error itself.
+ * Complete provenance preserves useful diagnostics after projection; unavailable or incomplete
+ * provenance fails closed to structural fields that cannot contain user-controlled text.
+ */
+export function projectResolvedSecretDiagnosticError(
+  error: unknown,
+  registry: ResolvedSecretTraceRegistry | undefined,
+  details: Record<string, unknown> = {}
+): Record<string, unknown> {
+  let hasStack = false
+  try {
+    hasStack = error instanceof Error && typeof error.stack === 'string'
+    const diagnostic =
+      error instanceof Error
+        ? {
+            ...details,
+            error: error.message,
+            errorName: error.name,
+            ...(hasStack ? { stack: error.stack } : {}),
+          }
+        : {
+            ...details,
+            error: String(error),
+          }
+    const projection = projectResolvedSecretModelContent(diagnostic, registry)
+    if (projection.safe && isPlainRecord(projection.value)) return projection.value
+  } catch {}
+
+  return {
+    errorType: error instanceof Error ? 'error' : error === null ? 'null' : typeof error,
+    hasStack,
+  }
+}
+
+/**
  * Returns true only when model projection can prove that content needs no secret or internal-alias
  * substitution. Use this for protocol handles that must retain their exact bytes.
  */

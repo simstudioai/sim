@@ -8,6 +8,7 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   LoggingSessionMock,
+  loggerMock,
   loggingSessionMock,
   loggingSessionMockFns,
   resetEnvironmentUtilsMock,
@@ -137,6 +138,15 @@ import {
   type WebhookExecutionPayload,
 } from './webhook-execution'
 
+const webhookExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'TriggerWebhookExecution'
+)
+const webhookExecutionLogger =
+  loggerMock.createLogger.mock.results[webhookExecutionLoggerCallIndex]?.value
+if (!webhookExecutionLogger) {
+  throw new Error('TriggerWebhookExecution logger mock was not initialized')
+}
+
 describe('resolveWebhookExecutionProviderConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -228,6 +238,7 @@ describe('executeWebhookJob fault vs error handling', () => {
         markAsFailed: loggingSessionMockFns.mockMarkAsFailed,
         setExecutionDeadlineAt: loggingSessionMockFns.mockSetExecutionDeadlineAt,
         setResolvedSecretTraceRegistry: mockSetResolvedSecretTraceRegistry,
+        projectDiagnosticError: loggingSessionMockFns.mockProjectDiagnosticError,
       }
     })
     mockGetProviderHandler.mockReturnValue({})
@@ -279,7 +290,16 @@ describe('executeWebhookJob fault vs error handling', () => {
   })
 
   it('faults the run (re-throws) when the failure was not finalized by core', async () => {
-    const rawError = new Error('Workflow state not found')
+    const secret = 'webhook-error-secret-7f3a91'
+    const rawError = new Error(
+      `Workflow state not found ${secret} __var_API_KEY __sim_code_1_binding_0`
+    )
+    const projectedError = 'Workflow state not found {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]'
+    loggingSessionMockFns.mockProjectDiagnosticError.mockReturnValueOnce({
+      workflowId: 'workflow-1',
+      provider: 'gmail',
+      error: projectedError,
+    })
     mockExecuteWorkflowCore.mockRejectedValue(rawError)
     mockWasExecutionFinalizedByCore.mockReturnValue(false)
 
@@ -288,6 +308,19 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalled()
     // Pipeline/infra errors are recorded here before re-throwing to fault the trigger.dev run.
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()
+    expect(loggingSessionMockFns.mockProjectDiagnosticError).toHaveBeenCalledWith(rawError, {
+      workflowId: 'workflow-1',
+      provider: 'gmail',
+    })
+    expect(webhookExecutionLogger.error).toHaveBeenCalledWith(
+      '[request-1] Webhook execution failed',
+      { workflowId: 'workflow-1', provider: 'gmail', error: projectedError }
+    )
+    const loggerPayload = JSON.stringify(webhookExecutionLogger.error.mock.calls)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toContain(secret)
   })
 
   it('executes against the deployment version admitted by webhook ingress', async () => {

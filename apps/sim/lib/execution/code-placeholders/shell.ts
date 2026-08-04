@@ -652,13 +652,12 @@ export async function compileShellPlaceholders(
       let hasResolvedPlaceholder = false
       for (const occurrence of bodyOccurrences) {
         const resolved = resolveShellValue(occurrence)
-        if (!resolved) continue
         bodyEdits.push({
           start: occurrence.start - heredoc.bodyStart,
           end: occurrence.end - heredoc.bodyStart,
-          text: resolved.value,
+          text: resolved?.value ?? '',
         })
-        hasResolvedPlaceholder = true
+        if (resolved) hasResolvedPlaceholder = true
       }
       if (bodyEdits.length === 0) continue
       if (!hasResolvedPlaceholder) {
@@ -700,39 +699,44 @@ export async function compileShellPlaceholders(
     for (const occurrence of bodyOccurrences) {
       const occurrenceContext = bodyContexts.get(occurrence)
       if (!occurrenceContext) continue
-      if (occurrenceContext.unsupported && context.hasValue(occurrence.name)) {
-        if (input.analysisOnly) {
-          context.resolveValue(occurrence)
-          continue
+      if (occurrenceContext.unsupported) {
+        if (context.hasValue(occurrence.name)) {
+          if (input.analysisOnly) {
+            context.resolveValue(occurrence)
+            continue
+          }
+          throw new CodePlaceholderCompileError(
+            `Variable placeholder "${occurrence.name}" is not supported in an escaped shell sequence`,
+            input.code,
+            occurrence.start
+          )
         }
-        throw new CodePlaceholderCompileError(
-          `Variable placeholder "${occurrence.name}" is not supported in an escaped shell sequence`,
-          input.code,
-          occurrence.start
-        )
+        continue
       }
       const unsupportedPosition = getUnsupportedShellPosition(
         input.code,
         occurrence,
         occurrenceContext.quote
       )
-      if (unsupportedPosition && context.hasValue(occurrence.name)) {
-        if (input.analysisOnly) {
-          context.resolveValue(occurrence)
-          continue
+      if (unsupportedPosition) {
+        if (context.hasValue(occurrence.name)) {
+          if (input.analysisOnly) {
+            context.resolveValue(occurrence)
+            continue
+          }
+          throw new CodePlaceholderCompileError(
+            `Variable placeholder "${occurrence.name}" is not supported ${unsupportedPosition}`,
+            input.code,
+            occurrence.start
+          )
         }
-        throw new CodePlaceholderCompileError(
-          `Variable placeholder "${occurrence.name}" is not supported ${unsupportedPosition}`,
-          input.code,
-          occurrence.start
-        )
+        continue
       }
       const resolved = resolveShellOccurrence(occurrence)
-      if (!resolved) continue
       edits.push({
         start: occurrence.start,
         end: occurrence.end,
-        text: shellExpansion(resolved.bindingName, occurrenceContext.quote),
+        text: resolved ? shellExpansion(resolved.bindingName, occurrenceContext.quote) : '',
       })
     }
   }
@@ -750,54 +754,58 @@ export async function compileShellPlaceholders(
   for (const occurrence of rootOccurrences) {
     const occurrenceContext = rootContexts.get(occurrence)
     if (!occurrenceContext) continue
-    if (occurrenceContext.unsupported && context.hasValue(occurrence.name)) {
-      if (input.analysisOnly) {
-        context.resolveValue(occurrence)
-        continue
+    if (occurrenceContext.unsupported) {
+      if (context.hasValue(occurrence.name)) {
+        if (input.analysisOnly) {
+          context.resolveValue(occurrence)
+          continue
+        }
+        throw new CodePlaceholderCompileError(
+          `Variable placeholder "${occurrence.name}" is not supported in an escaped shell sequence`,
+          input.code,
+          occurrence.start
+        )
       }
-      throw new CodePlaceholderCompileError(
-        `Variable placeholder "${occurrence.name}" is not supported in an escaped shell sequence`,
-        input.code,
-        occurrence.start
-      )
+      continue
     }
     const unsupportedPosition = getUnsupportedShellPosition(
       input.code,
       occurrence,
       occurrenceContext.quote
     )
-    if (unsupportedPosition && context.hasValue(occurrence.name)) {
-      if (input.analysisOnly) {
-        context.resolveValue(occurrence)
-        continue
+    if (unsupportedPosition) {
+      if (context.hasValue(occurrence.name)) {
+        if (input.analysisOnly) {
+          context.resolveValue(occurrence)
+          continue
+        }
+        throw new CodePlaceholderCompileError(
+          `Variable placeholder "${occurrence.name}" is not supported ${unsupportedPosition}`,
+          input.code,
+          occurrence.start
+        )
       }
-      throw new CodePlaceholderCompileError(
-        `Variable placeholder "${occurrence.name}" is not supported ${unsupportedPosition}`,
-        input.code,
-        occurrence.start
-      )
+      continue
     }
-    if (
-      occurrenceContext.quote === 'none' &&
-      isShellAssignmentName(input.code, occurrence) &&
-      context.hasValue(occurrence.name)
-    ) {
-      if (input.analysisOnly) {
-        context.resolveValue(occurrence)
-        continue
+    if (occurrenceContext.quote === 'none' && isShellAssignmentName(input.code, occurrence)) {
+      if (context.hasValue(occurrence.name)) {
+        if (input.analysisOnly) {
+          context.resolveValue(occurrence)
+          continue
+        }
+        throw new CodePlaceholderCompileError(
+          `Variable placeholder "${occurrence.name}" is not supported as a shell assignment name`,
+          input.code,
+          occurrence.start
+        )
       }
-      throw new CodePlaceholderCompileError(
-        `Variable placeholder "${occurrence.name}" is not supported as a shell assignment name`,
-        input.code,
-        occurrence.start
-      )
+      continue
     }
     const resolved = resolveShellOccurrence(occurrence)
-    if (!resolved) continue
     edits.push({
       start: occurrence.start,
       end: occurrence.end,
-      text: shellExpansion(resolved.bindingName, occurrenceContext.quote),
+      text: resolved ? shellExpansion(resolved.bindingName, occurrenceContext.quote) : '',
     })
   }
 

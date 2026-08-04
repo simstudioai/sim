@@ -758,36 +758,52 @@ describe('code placeholder compiler', () => {
 
     expect(compiled.code).not.toContain('a"\\')
     expect(compiled.code).toContain('# {{COMMENT}}')
-    expect(compiled.code).toContain('echo {{MISSING}}')
+    expect(compiled.code).not.toContain('echo {{MISSING}}')
     expect(compiled.resolvedSecretNames).toEqual(['BARE', 'KEY'])
     expect(executeShell(compiled.code, compiled.bindings)).toBe(
-      `<bare>\n${`<${secret}>\n`.repeat(3)}{{MISSING}}\n`
+      `<bare>\n${`<${secret}>\n`.repeat(3)}\n`
     )
   })
 
-  it('leaves legacy missing shell placeholders unchanged in every quote context', async () => {
+  it('lowers supported missing shell placeholders to legacy empty values', async () => {
     const compiled = await compileCodePlaceholders({
       code: [
         "printf '<%s>\\n' {{MISSING}}",
         'printf \'<%s>\\n\' "{{MISSING}}"',
         "printf '<%s>\\n' '{{MISSING}}'",
         "printf '<%s>\\n' $'{{MISSING}}'",
+        'printf \'<%s>\\n\' "before{{MISSING}}after"',
+        "printf '<%s>\\n' 'before{{MISSING}}after'",
+        "printf '<%s>\\n' prefix{{MISSING}}suffix",
+        '# {{MISSING}}',
         "cat <<'PAYLOAD'",
-        '{{MISSING}}',
+        'quoted-{{MISSING}}-body',
+        '$UNRELATED `printf unsafe`',
         'PAYLOAD',
+        'cat <<PAYLOAD',
+        'unquoted-{{MISSING}}-body',
+        'PAYLOAD',
+        "cat <<'{{DELIMITER}}'",
+        'delimiter-body',
+        '{{DELIMITER}}',
       ].join('\n'),
       language: CodeLanguage.Shell,
       environmentVariables: {},
     })
 
+    expect(compiled.bindings).toEqual([])
     expect(compiled.privateInputs).toEqual([])
-    expect(compiled.code).toContain("printf '<%s>\\n' {{MISSING}}")
-    expect(compiled.code).toContain('printf \'<%s>\\n\' "{{MISSING}}"')
-    expect(compiled.code).toContain("printf '<%s>\\n' '{{MISSING}}'")
-    expect(compiled.code).toContain("printf '<%s>\\n' $'{{MISSING}}'")
-    expect(compiled.code).toContain('{{MISSING}}\nPAYLOAD')
+    expect(compiled.resolvedSecretNames).toEqual([])
+    expect(compiled.code).not.toContain("printf '<%s>\\n' {{MISSING}}")
+    expect(compiled.code).not.toContain('quoted-{{MISSING}}-body')
+    expect(compiled.code).not.toContain('unquoted-{{MISSING}}-body')
+    expect(compiled.code).toContain('# {{MISSING}}')
+    expect(compiled.code).toContain('$UNRELATED `printf unsafe`')
+    expect(compiled.code).toContain("cat <<'{{DELIMITER}}'")
+    expect(compiled.code).toContain('\n{{DELIMITER}}')
     expect(executeShell(compiled.code, compiled.bindings)).toBe(
-      '<{{MISSING}}>\n<{{MISSING}}>\n<{{MISSING}}>\n<{{MISSING}}>\n{{MISSING}}\n'
+      `${'<>\n'.repeat(4)}${'<beforeafter>\n'.repeat(2)}<prefixsuffix>\n` +
+        'quoted--body\n$UNRELATED `printf unsafe`\nunquoted--body\ndelimiter-body\n'
     )
   })
 

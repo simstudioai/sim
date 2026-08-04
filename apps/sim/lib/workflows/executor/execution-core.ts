@@ -48,9 +48,11 @@ import type {
 } from '@/executor/execution/types'
 import type { ExecutionResult, StartBlockRunMetadata } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import {
   createResolvedSecretTraceRegistry,
   type ResolvedSecretTraceProvenanceV1,
+  type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { isRunMetadataEnabled } from '@/executor/utils/start-block'
 import { buildParallelSentinelEndId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
@@ -301,11 +303,13 @@ async function finalizeExecutionOutcome(params: {
       await clearExecutionCancellationSafely(executionId, requestId)
     }
   } catch (error) {
-    logger.warn(`[${requestId}] Post-execution finalization failed`, {
-      executionId,
-      status: result.status,
-      error,
-    })
+    logger.warn(
+      `[${requestId}] Post-execution finalization failed`,
+      loggingSession.projectDiagnosticError(error, {
+        executionId,
+        status: result.status,
+      })
+    )
   }
 }
 
@@ -337,9 +341,10 @@ async function finalizeExecutionError(params: {
     }
     return finalized
   } catch (postExecError) {
-    logger.error(`[${requestId}] Post-execution error logging failed`, {
-      error: postExecError,
-    })
+    logger.error(
+      `[${requestId}] Post-execution error logging failed`,
+      loggingSession.projectDiagnosticError(postExecError, { executionId })
+    )
     return false
   }
 }
@@ -387,6 +392,7 @@ async function executeWorkflowCoreImpl(
   let processedInput = input || {}
   let deploymentVersionId: string | undefined
   let loggingStarted = false
+  let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
   const pendingLifecycleCallbacks = new Set<Promise<void>>()
 
   const trackLifecycleCallback = (promise: Promise<void>) => {
@@ -503,7 +509,7 @@ async function executeWorkflowCoreImpl(
       ? restoredState?.trustedLargeValueAccess
       : undefined
     const requireRestoredProvenance = restoredState !== undefined
-    const resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+    resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
       personalEncrypted,
       workspaceEncrypted,
       personalDecrypted,
@@ -630,12 +636,14 @@ async function executeWorkflowCoreImpl(
         await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
         persistenceSucceeded = true
       })().catch((error) => {
-        logger.warn(`[${requestId}] Block completion persistence failed`, {
-          executionId,
-          blockId,
-          blockType,
-          error,
-        })
+        logger.warn(
+          `[${requestId}] Block completion persistence failed`,
+          loggingSession.projectDiagnosticError(error, {
+            executionId,
+            blockId,
+            blockType,
+          })
+        )
       })
 
       const lifecyclePromise = (async () => {
@@ -652,12 +660,14 @@ async function executeWorkflowCoreImpl(
             childWorkflowContext
           )
         } catch (error) {
-          logger.warn(`[${requestId}] Block completion callback failed`, {
-            executionId,
-            blockId,
-            blockType,
-            error,
-          })
+          logger.warn(
+            `[${requestId}] Block completion callback failed`,
+            loggingSession.projectDiagnosticError(error, {
+              executionId,
+              blockId,
+              blockType,
+            })
+          )
         }
       })()
 
@@ -678,12 +688,14 @@ async function executeWorkflowCoreImpl(
         await loggingSession.onBlockStart(blockId, blockName, blockType, new Date().toISOString())
         persistenceSucceeded = true
       })().catch((error) => {
-        logger.warn(`[${requestId}] Block start persistence failed`, {
-          executionId,
-          blockId,
-          blockType,
-          error,
-        })
+        logger.warn(
+          `[${requestId}] Block start persistence failed`,
+          loggingSession.projectDiagnosticError(error, {
+            executionId,
+            blockId,
+            blockType,
+          })
+        )
       })
 
       const lifecyclePromise = (async () => {
@@ -700,12 +712,14 @@ async function executeWorkflowCoreImpl(
             childWorkflowContext
           )
         } catch (error) {
-          logger.warn(`[${requestId}] Block start callback failed`, {
-            executionId,
-            blockId,
-            blockType,
-            error,
-          })
+          logger.warn(
+            `[${requestId}] Block start callback failed`,
+            loggingSession.projectDiagnosticError(error, {
+              executionId,
+              blockId,
+              blockType,
+            })
+          )
         }
       })()
 
@@ -945,7 +959,10 @@ async function executeWorkflowCoreImpl(
             }
           }
         } catch (postExecError) {
-          logger.error(`[${requestId}] Post-execution logging failed`, { error: postExecError })
+          logger.error(
+            `[${requestId}] Post-execution logging failed`,
+            loggingSession.projectDiagnosticError(postExecError, { executionId })
+          )
         }
       })()
     )
@@ -961,8 +978,11 @@ async function executeWorkflowCoreImpl(
     const errorCause = describeErrorCause(error)
     logger.error(
       `[${requestId}] Execution failed:`,
-      error,
-      ...(errorCause ? [{ cause: errorCause }] : [])
+      projectResolvedSecretDiagnosticError(
+        error,
+        resolvedSecretTraceRegistry,
+        errorCause ? { cause: errorCause } : undefined
+      )
     )
 
     await waitForLifecycleCallbacks()
@@ -995,9 +1015,10 @@ async function executeWorkflowCoreImpl(
             markExecutionFinalizedByCore(error, executionId)
           }
         } catch (postExecError) {
-          logger.error(`[${requestId}] Post-execution error logging failed`, {
-            error: postExecError,
-          })
+          logger.error(
+            `[${requestId}] Post-execution error logging failed`,
+            loggingSession.projectDiagnosticError(postExecError, { executionId })
+          )
         }
       })()
     )

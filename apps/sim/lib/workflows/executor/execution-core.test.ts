@@ -1,5 +1,6 @@
 import {
   environmentUtilsMockFns,
+  loggerMock,
   resetEnvironmentUtilsMock,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
@@ -28,6 +29,7 @@ const {
   setTraceLargeValueAccessMock,
   setExecutionDeadlineAtMock,
   projectDisplayContentMock,
+  projectDiagnosticErrorMock,
   decryptSecretMock,
 } = vi.hoisted(() => ({
   mergeSubblockStateWithValuesMock: vi.fn(),
@@ -49,6 +51,7 @@ const {
   setTraceLargeValueAccessMock: vi.fn(),
   setExecutionDeadlineAtMock: vi.fn(),
   projectDisplayContentMock: vi.fn(),
+  projectDiagnosticErrorMock: vi.fn(),
   decryptSecretMock: vi.fn(),
 }))
 
@@ -116,6 +119,13 @@ import {
   wasExecutionFinalizedByCore,
 } from './execution-core'
 
+const executionCoreLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'ExecutionCore'
+)
+const executionCoreLogger =
+  loggerMock.createLogger.mock.results[executionCoreLoggerCallIndex]?.value
+if (!executionCoreLogger) throw new Error('ExecutionCore logger mock was not initialized')
+
 describe('executeWorkflowCore terminal finalization sequencing', () => {
   const loggingSession = {
     safeStart: safeStartMock,
@@ -128,6 +138,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     onBlockStart: onBlockStartPersistenceMock,
     onBlockComplete: vi.fn(),
     projectDisplayContent: projectDisplayContentMock,
+    projectDiagnosticError: projectDiagnosticErrorMock,
     setResolvedSecretTraceRegistry: setResolvedSecretTraceRegistryMock,
     setTraceLargeValueAccess: setTraceLargeValueAccessMock,
     setExecutionDeadlineAt: setExecutionDeadlineAtMock,
@@ -211,6 +222,9 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     getPersistedCompletionStatusMock.mockReturnValue('pending')
     onBlockStartPersistenceMock.mockResolvedValue(undefined)
     projectDisplayContentMock.mockImplementation(async (content) => content)
+    projectDiagnosticErrorMock.mockImplementation(
+      (_error: unknown, details: Record<string, unknown> = {}) => details
+    )
     updateWorkflowRunCountsMock.mockResolvedValue(undefined)
     clearExecutionCancellationMock.mockResolvedValue(undefined)
     decryptSecretMock.mockImplementation(async (encryptedValue: string) => ({
@@ -1223,6 +1237,17 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
   })
 
   it('swallows wrapped block complete callback failures without blocking completion', async () => {
+    const secret = 'callback-secret-7f3a91'
+    const callbackError = new Error(
+      `complete callback failed ${secret} __var_API_KEY __sim_code_2_binding_0`
+    )
+    const projectedError = 'complete callback failed {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]'
+    projectDiagnosticErrorMock.mockReturnValueOnce({
+      executionId: 'execution-1',
+      blockId: 'block-1',
+      blockType: 'api',
+      error: projectedError,
+    })
     executorExecuteMock.mockResolvedValue({
       success: true,
       status: 'completed',
@@ -1234,7 +1259,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     await executeWorkflowCore({
       snapshot: createSnapshot() as any,
       callbacks: {
-        onBlockComplete: vi.fn().mockRejectedValue(new Error('complete callback failed')),
+        onBlockComplete: vi.fn().mockRejectedValue(callbackError),
       },
       loggingSession: loggingSession as any,
     })
@@ -1249,10 +1274,29 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         endedAt: 'end',
       })
     ).resolves.toBeUndefined()
+    expect(projectDiagnosticErrorMock).toHaveBeenCalledWith(callbackError, {
+      executionId: 'execution-1',
+      blockId: 'block-1',
+      blockType: 'api',
+    })
+    const loggerPayload = JSON.stringify(executionCoreLogger.warn.mock.calls)
+    expect(loggerPayload).toContain(projectedError)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(callbackError.message).toContain(secret)
   })
 
   it('finalizes errors before rethrowing and marks them as core-finalized', async () => {
-    const error = new Error('engine failed')
+    const secret = 'core-error-secret-7f3a91'
+    const rawError = `engine failed ${secret} __var_API_KEY __sim_code_1_binding_0`
+    const error = new Error(rawError)
+    getPersonalAndWorkspaceEnvMock.mockResolvedValue({
+      personalEncrypted: {},
+      workspaceEncrypted: { API_KEY: 'encrypted-api-key' },
+      personalDecrypted: {},
+      workspaceDecrypted: { API_KEY: secret },
+    })
     const executionState = {
       blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
     }
@@ -1260,7 +1304,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       success: false,
       status: 'failed',
       output: {},
-      error: 'engine failed',
+      error: rawError,
       logs: [],
       metadata: { duration: 55, startTime: 'start', endTime: 'end' },
       executionState,
@@ -1283,6 +1327,11 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     )
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
     expect(wasExecutionFinalizedByCore(error, 'execution-1')).toBe(true)
+    const loggerCalls = JSON.stringify(executionCoreLogger.error.mock.calls)
+    expect(loggerCalls).toContain('{{API_KEY}}')
+    expect(loggerCalls).not.toContain(secret)
+    expect(loggerCalls).not.toContain('__var_')
+    expect(loggerCalls).not.toContain('__sim_')
   })
 
   it('marks non-Error throws as core-finalized using executionId guard', async () => {

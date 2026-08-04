@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  projectResolvedSecretDiagnosticError,
   projectResolvedSecretModelContent,
   projectResolvedSecretModelJsonStrings,
 } from '@/executor/utils/resolved-secret-content-projection'
@@ -197,6 +198,47 @@ describe('projectResolvedSecretModelContent', () => {
         source: 'return [REDACTED_SECRET]',
         error: "NameError: name '[REDACTED_SECRET]' is not defined",
       },
+    })
+  })
+})
+
+describe('projectResolvedSecretDiagnosticError', () => {
+  it('projects plaintext and internal aliases without mutating the runtime error', () => {
+    const secret = 'diagnostic-secret-value'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    const message = `request failed: ${secret} __var_API_KEY __sim_code_4_binding_2`
+    const error = new Error(message)
+    error.stack = `Error: ${message}\n at __sim_runtime_payload_1`
+
+    const diagnostic = projectResolvedSecretDiagnosticError(error, registry, {
+      cause: { message: `nested ${secret}` },
+    })
+
+    expect(error.message).toBe(message)
+    expect(error.stack).toContain(secret)
+    expect(diagnostic).toEqual({
+      cause: { message: 'nested {{API_KEY}}' },
+      error: 'request failed: {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]',
+      errorName: 'Error',
+      stack:
+        'Error: request failed: {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]\n at [RUNTIME_BINDING]',
+    })
+  })
+
+  it('falls back to text-free structure when provenance is missing or incomplete', () => {
+    const error = new Error('secret __var_API_KEY')
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete()
+
+    expect(projectResolvedSecretDiagnosticError(error, undefined)).toEqual({
+      errorType: 'error',
+      hasStack: true,
+    })
+    expect(projectResolvedSecretDiagnosticError(error, registry)).toEqual({
+      errorType: 'error',
+      hasStack: true,
     })
   })
 })

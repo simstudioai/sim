@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task, timeout } from '@trigger.dev/sdk'
 import {
@@ -24,6 +23,7 @@ import {
 import { RESUME_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { SerializedSnapshot } from '@/executor/types'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('TriggerResumeExecution')
 
@@ -210,11 +210,13 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
       executedAt: new Date().toISOString(),
     }
   } catch (error) {
-    logger.error('Background resume execution failed', {
-      resumeExecutionId,
-      workflowId,
-      error: toError(error).message,
-    })
+    logger.error(
+      'Background resume execution failed',
+      projectResolvedSecretDiagnosticError(error, undefined, {
+        resumeExecutionId,
+        workflowId,
+      })
+    )
     throw error
   } finally {
     timeoutController?.cleanup()
@@ -294,8 +296,8 @@ async function buildResumeCellWriters(
     },
     onWriteError: (err) => {
       logger.warn(
-        `Resume per-block partial write failed (table=${cellContext.tableId} row=${cellContext.rowId} group=${cellContext.groupId}):`,
-        err
+        `Resume per-block partial write failed (table=${cellContext.tableId} row=${cellContext.rowId} group=${cellContext.groupId})`,
+        projectResolvedSecretDiagnosticError(err, undefined)
       )
     },
   })

@@ -5,8 +5,8 @@ import { vi } from 'vitest'
  * `@/lib/logs/execution/logging-session`. Every instance method is backed by a
  * shared `vi.fn()` so tests that construct multiple sessions observe identical
  * mock state. `mockSafeStart` defaults to `true` because callers branch on the
- * boolean result. Projection methods return their input; other methods resolve
- * to `undefined`.
+ * boolean result. Display projection methods return their input, diagnostic projection
+ * fails closed to structural metadata, and other methods resolve to `undefined`.
  *
  * @example
  * ```ts
@@ -30,6 +30,10 @@ export const loggingSessionMockFns = {
   mockProjectBlockLogsForDisplay: vi.fn(async (logs: unknown) => logs),
   mockProjectDisplayContent: vi.fn(async (content: unknown) => content),
   mockProjectLiveDisplayText: vi.fn(async (_field: string, value: string) => ({ value })),
+  mockProjectDiagnosticError: vi.fn((error: unknown, _details: Record<string, unknown> = {}) => ({
+    errorType: error instanceof Error ? 'error' : error === null ? 'null' : typeof error,
+    hasStack: error instanceof Error && typeof error.stack === 'string',
+  })),
   mockSafeComplete: vi.fn().mockResolvedValue(undefined),
   mockSafeCompleteWithError: vi.fn().mockResolvedValue(undefined),
   mockSafeCompleteWithCancellation: vi.fn().mockResolvedValue(undefined),
@@ -58,6 +62,7 @@ function buildLoggingSessionInstance() {
     projectBlockLogsForDisplay: loggingSessionMockFns.mockProjectBlockLogsForDisplay,
     projectDisplayContent: loggingSessionMockFns.mockProjectDisplayContent,
     projectLiveDisplayText: loggingSessionMockFns.mockProjectLiveDisplayText,
+    projectDiagnosticError: loggingSessionMockFns.mockProjectDiagnosticError,
     safeComplete: loggingSessionMockFns.mockSafeComplete,
     safeCompleteWithError: loggingSessionMockFns.mockSafeCompleteWithError,
     safeCompleteWithCancellation: loggingSessionMockFns.mockSafeCompleteWithCancellation,

@@ -185,6 +185,10 @@ async function processTriggerFileOutputs(
     executionId: string
     requestId: string
     userId?: string
+    projectDiagnosticError: (
+      error: unknown,
+      details?: Record<string, unknown>
+    ) => Record<string, unknown>
   },
   path = ''
 ): Promise<unknown> {
@@ -221,7 +225,10 @@ async function processTriggerFileOutputs(
         )
         processed[key] = processedFile
       } catch (error) {
-        logger.error(`[${context.requestId}] Error processing ${currentPath}:`, error)
+        logger.error(
+          `[${context.requestId}] Error processing ${currentPath}`,
+          context.projectDiagnosticError(error, { path: currentPath })
+        )
         processed[key] = value
       }
     } else if (
@@ -594,9 +601,10 @@ async function executeWebhookJobInternal(
               scope: secretScope,
             })
           } catch (error) {
-            logger.warn(`[${requestId}] Failed to build webhook trace secret catalog`, {
-              error: toError(error).message,
-            })
+            logger.warn(
+              `[${requestId}] Failed to build webhook trace secret catalog`,
+              loggingSession.projectDiagnosticError(error)
+            )
             resolvedSecretTraceRegistry = createIncompleteResolvedSecretTraceRegistry(secretScope)
           }
           loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
@@ -691,12 +699,17 @@ async function executeWebhookJobInternal(
               executionId,
               requestId,
               userId: payload.userId,
+              projectDiagnosticError: (error, details) =>
+                loggingSession.projectDiagnosticError(error, details),
             })
             safeAssign(input, processedInput as Record<string, unknown>)
           }
         }
       } catch (error) {
-        logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
+        logger.error(
+          `[${requestId}] Error processing trigger file outputs`,
+          loggingSession.projectDiagnosticError(error)
+        )
       }
     }
 
@@ -713,7 +726,10 @@ async function executeWebhookJobInternal(
           userId: payload.userId,
         })
       } catch (error) {
-        logger.error(`[${requestId}] Error processing provider-specific files:`, error)
+        logger.error(
+          `[${requestId}] Error processing provider-specific files`,
+          loggingSession.projectDiagnosticError(error)
+        )
       }
     }
 
@@ -808,12 +824,13 @@ async function executeWebhookJobInternal(
     const errorMessage = toError(error).message
     const errorStack = error instanceof Error ? error.stack : undefined
 
-    logger.error(`[${requestId}] Webhook execution failed`, {
-      error: errorMessage,
-      stack: errorStack,
-      workflowId: payload.workflowId,
-      provider: payload.provider,
-    })
+    logger.error(
+      `[${requestId}] Webhook execution failed`,
+      loggingSession.projectDiagnosticError(error, {
+        workflowId: payload.workflowId,
+        provider: payload.provider,
+      })
+    )
 
     // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the
     // signal is reliable and the failure is fully persisted before we decide fault vs error.
@@ -868,7 +885,10 @@ async function executeWebhookJobInternal(
         executionState: executionResult.executionState,
       })
     } catch (loggingError) {
-      logger.error(`[${requestId}] Failed to complete logging session`, loggingError)
+      logger.error(
+        `[${requestId}] Failed to complete logging session`,
+        loggingSession.projectDiagnosticError(loggingError)
+      )
     }
 
     throw error
