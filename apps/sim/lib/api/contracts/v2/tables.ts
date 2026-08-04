@@ -5,8 +5,6 @@ import {
   cancelTableRunsBodyBaseSchema,
   createTableColumnBodySchema,
   createTableViewBodySchema,
-  csvImportCreateColumnsSchema,
-  csvImportMappingSchema,
   deleteTableColumnBodySchema,
   deleteWorkflowGroupBodySchema,
   exportTableAsyncBodySchema,
@@ -51,9 +49,10 @@ import {
   v2PartUrlsBodySchema,
   v2PartUrlsDataSchema,
   v2UploadTokenHeadersSchema,
+  v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { CSV_MAX_FILE_SIZE_BYTES, CSV_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
 
 /**
  * v2 tables contracts.
@@ -81,6 +80,8 @@ import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 export const V2_DEFAULT_ROW_LIMIT = 100
 /** Hard cap on an explicit page `limit`. Larger pulls use `limit=0` (query) or an export resource. */
 export const V2_MAX_ROW_LIMIT = 1000
+/** Keeps upload-token metadata comfortably below common 8 KiB request-header limits after signing. */
+export const V2_TABLE_IMPORT_OPTIONS_MAX_BYTES = 2 * 1024
 
 /**
  * Public table shape emitted by `toApiTable` (timestamps ISO-serialized).
@@ -928,16 +929,22 @@ export const v2TableImportParamsSchema = z.object({ importId: z.string().min(1) 
 export const v2TableExportParamsSchema = z.object({ exportId: z.string().min(1) })
 export const v2TableTransferWorkspaceQuerySchema = z.object({ workspaceId: workspaceIdSchema })
 
+export const v2TableUploadImportSourceSchema = z
+  .object({
+    type: z.literal('upload'),
+    name: z.string().trim().min(1, 'name is required').max(255),
+    contentType: z.string().trim().min(1, 'contentType is required').max(255),
+    size: z.number().int().min(1).max(CSV_MAX_FILE_SIZE_BYTES, CSV_MAX_FILE_SIZE_MESSAGE),
+  })
+  .strict()
+
+export const v2TableWorkspaceFileImportSourceSchema = z
+  .object({ type: z.literal('workspace_file'), fileId: z.string().min(1) })
+  .strict()
+
 export const v2TableImportSourceSchema = z.discriminatedUnion('type', [
-  z
-    .object({
-      type: z.literal('upload'),
-      name: z.string().trim().min(1, 'name is required').max(255),
-      contentType: z.string().trim().min(1, 'contentType is required').max(255),
-      size: z.number().int().min(1).max(MAX_WORKSPACE_FILE_SIZE),
-    })
-    .strict(),
-  z.object({ type: z.literal('workspace_file'), fileId: z.string().min(1) }).strict(),
+  v2TableUploadImportSourceSchema,
+  v2TableWorkspaceFileImportSourceSchema,
 ])
 export type V2TableImportSource = z.input<typeof v2TableImportSourceSchema>
 
@@ -959,13 +966,43 @@ export const v2TableImportTargetSchema = z.discriminatedUnion('type', [
 ])
 export type V2TableImportTarget = z.input<typeof v2TableImportTargetSchema>
 
+const v2CsvHeaderSchema = z
+  .string()
+  .min(1, 'CSV header must not be empty')
+  .max(
+    TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH,
+    `CSV header must be ${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters or less`
+  )
+
+const v2CsvColumnNameSchema = z
+  .string()
+  .min(1, 'Column name must not be empty')
+  .max(
+    TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH,
+    `Column name must be ${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters or less`
+  )
+
+export const v2CsvImportMappingSchema = z
+  .record(v2CsvHeaderSchema, v2CsvColumnNameSchema.nullable())
+  .refine(
+    (mapping) => Object.keys(mapping).length <= TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
+    `mapping cannot contain more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} entries`
+  )
+
+export const v2CsvImportCreateColumnsSchema = z
+  .array(v2CsvHeaderSchema)
+  .max(
+    TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
+    `createColumns cannot contain more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} items`
+  )
+
 export const v2CreateTableImportBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
     source: v2TableImportSourceSchema,
     target: v2TableImportTargetSchema,
-    mapping: csvImportMappingSchema.optional(),
-    createColumns: csvImportCreateColumnsSchema.optional(),
+    mapping: v2CsvImportMappingSchema.optional(),
+    createColumns: v2CsvImportCreateColumnsSchema.optional(),
     timezone: ianaTimezoneSchema.optional(),
   })
   .strict()
@@ -984,6 +1021,19 @@ export const v2CreateTableImportBodySchema = z
         message: 'createColumns is only supported for an existing table target',
       })
     }
+    const serializedOptions = JSON.stringify({
+      ...(body.mapping !== undefined ? { mapping: body.mapping } : {}),
+      ...(body.createColumns !== undefined ? { createColumns: body.createColumns } : {}),
+    })
+    if (
+      new TextEncoder().encode(serializedOptions).byteLength > V2_TABLE_IMPORT_OPTIONS_MAX_BYTES
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [body.mapping !== undefined ? 'mapping' : 'createColumns'],
+        message: `mapping and createColumns must serialize to at most ${V2_TABLE_IMPORT_OPTIONS_MAX_BYTES} bytes because upload metadata is carried in a signed request token`,
+      })
+    }
   })
 export type V2CreateTableImportBody = z.input<typeof v2CreateTableImportBodySchema>
 
@@ -998,13 +1048,6 @@ export const v2TableImportStatusSchema = z.enum([
 ])
 export type V2TableImportStatus = z.output<typeof v2TableImportStatusSchema>
 
-export const v2TableImportUploadSchema = z.object({
-  uploadToken: z.string().min(1),
-  partSize: z.number().int().positive(),
-  partCount: z.number().int().positive(),
-  expiresAt: z.string().datetime(),
-})
-
 export const v2TableImportSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
@@ -1014,18 +1057,43 @@ export const v2TableImportSchema = z.object({
   tableId: z.string().nullable(),
   rowsProcessed: z.number().int().nonnegative(),
   error: z.string().nullable(),
-  upload: v2TableImportUploadSchema.nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   completedAt: z.string().datetime().nullable(),
 })
 export type V2TableImport = z.output<typeof v2TableImportSchema>
 
+const v2UploadBackedTableImportSchema = v2TableImportSchema.extend({
+  source: v2TableUploadImportSourceSchema,
+})
+
+const v2WorkspaceFileTableImportSchema = v2TableImportSchema.extend({
+  source: v2TableWorkspaceFileImportSourceSchema,
+})
+
+export const v2CreateTableImportDataSchema = z.union([
+  z
+    .object({
+      session: v2UploadBackedTableImportSchema,
+      uploadToken: z.string().min(1),
+      transfer: v2UploadTransferSchema,
+    })
+    .strict(),
+  z
+    .object({
+      session: v2WorkspaceFileTableImportSchema,
+      uploadToken: z.null(),
+      transfer: z.null(),
+    })
+    .strict(),
+])
+export type V2CreateTableImportData = z.output<typeof v2CreateTableImportDataSchema>
+
 export const v2CreateTableImportContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/imports',
   body: v2CreateTableImportBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2CreateTableImportDataSchema) },
 })
 
 export const v2GetTableImportContract = defineRouteContract({

@@ -3,7 +3,7 @@
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { UploadSessionRecord } from '@/lib/uploads/multipart-session/service'
+import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
 const {
   mockAbortUploadSession,
@@ -25,7 +25,7 @@ vi.mock('@/lib/knowledge/orchestration', () => ({
 vi.mock('@/lib/knowledge/orchestration/documents', () => ({
   findBoundKnowledgeDocument: mockFindBoundKnowledgeDocument,
 }))
-vi.mock('@/lib/uploads/multipart-session/service', () => ({
+vi.mock('@/lib/uploads/upload-session/service', () => ({
   abortUploadSession: mockAbortUploadSession,
   createUploadSession: mockCreateUploadSession,
   getOwnedUploadSession: vi.fn(),
@@ -38,6 +38,7 @@ import {
   abortKnowledgeDocumentUpload,
   createKnowledgeDocumentUploadSession,
   finalizeKnowledgeDocumentUpload,
+  toV2KnowledgeDocumentUpload,
 } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -46,9 +47,14 @@ const CLAIMED: UploadSessionRecord = {
   workspaceId: WORKSPACE_ID,
   userId: 'user-1',
   knowledgeBaseId: 'kb-1',
+  workflowId: null,
+  executionId: null,
   purpose: 'knowledge_document',
+  method: 'multipart',
   storageContext: 'knowledge-base',
   storageKey: 'kb/guide.pdf',
+  finalKey: 'kb/guide.pdf',
+  stagingKey: 'upload-sessions/upload-1/guide.pdf',
   storageProvider: 's3',
   providerUploadId: 'provider-1',
   fileName: 'guide.pdf',
@@ -91,6 +97,7 @@ function createSession() {
     contentType: 'application/pdf',
     fileSize: 1024,
     metadata: { tag1: 'product' },
+    localOrigin: 'http://localhost:3000',
   })
 }
 
@@ -114,6 +121,7 @@ describe('createKnowledgeDocumentUploadSession', () => {
       contentType: 'application/pdf',
       fileSize: 1024,
       metadata: { tag1: 'product' },
+      localOrigin: 'http://localhost:3000',
     })
     expect(mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledWith({
       key: 'kb/guide.pdf',
@@ -133,6 +141,17 @@ describe('createKnowledgeDocumentUploadSession', () => {
 
     await expect(createSession()).rejects.toThrow('database unavailable')
     expect(mockAbortUploadSession).toHaveBeenCalledWith(CLAIMED)
+  })
+})
+
+describe('toV2KnowledgeDocumentUpload', () => {
+  it('does not expose reusable upload capabilities after session creation', () => {
+    const serialized = toV2KnowledgeDocumentUpload(CLAIMED, null)
+
+    expect(serialized).not.toHaveProperty('uploadToken')
+    expect(serialized).not.toHaveProperty('partSize')
+    expect(serialized).not.toHaveProperty('partCount')
+    expect(serialized).not.toHaveProperty('transfer')
   })
 })
 

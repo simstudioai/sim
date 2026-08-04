@@ -5,10 +5,12 @@ import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import {
   type V2CreateTableImportBody,
+  type V2CreateTableImportData,
   type V2TableImport,
   type V2TableImportSource,
   type V2TableImportTarget,
   v2CreateTableImportBodySchema,
+  v2CreateTableImportDataSchema,
   v2TableImportSourceSchema,
   v2TableImportTargetSchema,
 } from '@/lib/api/contracts/v2/tables'
@@ -18,6 +20,7 @@ import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { findActiveFolder } from '@/lib/folders/queries'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
+import { CSV_MAX_FILE_SIZE_BYTES, CSV_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markJobCanceled, markJobFailed, markTableJobRunning } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
@@ -26,10 +29,11 @@ import type { TableImportJobPayload } from '@/lib/table/types'
 import { getWorkspaceFile, type WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   abortUploadSession,
+  type CreatedUploadSession,
   createUploadSession,
   getOwnedUploadSession,
   type UploadSessionRecord,
-} from '@/lib/uploads/multipart-session/service'
+} from '@/lib/uploads/upload-session/service'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -46,7 +50,6 @@ interface TableImportResource {
   status: TableImportStatus
   rowsProcessed: number
   error: string | null
-  upload: UploadSessionRecord | null
   createdAt: Date
   updatedAt: Date
   completedAt: Date | null
@@ -54,12 +57,13 @@ interface TableImportResource {
 
 interface CreateTableImportResult {
   record: TableImportResource
-  upload: UploadSessionRecord | null
+  upload: CreatedUploadSession | null
 }
 
 export async function createTableImportResource(
   body: V2CreateTableImportBody,
-  userId: string
+  userId: string,
+  localOrigin: string
 ): Promise<CreateTableImportResult> {
   await assertWorkspaceWrite(userId, body.workspaceId)
   await validateTarget(body.workspaceId, body.target)
@@ -68,6 +72,9 @@ export async function createTableImportResource(
 
   if (body.source.type === 'upload') {
     assertCsvFileName(body.source.name)
+    if (body.source.size > CSV_MAX_FILE_SIZE_BYTES) {
+      throw new OrchestrationError('validation', CSV_MAX_FILE_SIZE_MESSAGE)
+    }
     const upload = await createUploadSession({
       id: importId,
       workspaceId: body.workspaceId,
@@ -77,6 +84,7 @@ export async function createTableImportResource(
       contentType: body.source.contentType,
       fileSize: body.source.size,
       metadata: { tableImport: body },
+      localOrigin,
     })
     return { record: resourceFromUpload(upload, body), upload }
   }
@@ -104,15 +112,16 @@ export async function startUploadedTableImport(
   upload: UploadSessionRecord
 ): Promise<TableImportResource> {
   const body = tableImportBodyFromUpload(upload)
+  const workspaceId = body.workspaceId
   const existing = await findOwnedTableImport({
     importId: upload.id,
-    workspaceId: upload.workspaceId,
+    workspaceId,
     userId: upload.userId,
   })
   if (existing) return existing
   return startTableImport({
     id: upload.id,
-    workspaceId: upload.workspaceId,
+    workspaceId,
     userId: upload.userId,
     source: body.source,
     target: body.target,
@@ -192,7 +201,6 @@ export async function findOwnedTableImport(params: {
     status: tableImportStatus(job.status),
     rowsProcessed: job.rowsProcessed,
     error: job.error,
-    upload: null,
     createdAt: job.startedAt,
     updatedAt: job.updatedAt,
     completedAt: job.completedAt,
@@ -224,18 +232,18 @@ export function toV2TableImport(record: TableImportResource): V2TableImport {
     tableId: record.tableId,
     rowsProcessed: record.rowsProcessed,
     error: record.error,
-    upload: record.upload
-      ? {
-          uploadToken: record.upload.uploadToken,
-          partSize: record.upload.partSize,
-          partCount: record.upload.partCount,
-          expiresAt: record.upload.expiresAt.toISOString(),
-        }
-      : null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
     completedAt: record.completedAt?.toISOString() ?? null,
   }
+}
+
+export function toV2CreateTableImport(result: CreateTableImportResult): V2CreateTableImportData {
+  return v2CreateTableImportDataSchema.parse({
+    session: toV2TableImport(result.record),
+    uploadToken: result.upload?.uploadToken ?? null,
+    transfer: result.upload?.transfer ?? null,
+  })
 }
 
 interface StartTableImportParams {
@@ -340,7 +348,7 @@ function resourceFromUpload(
 ): TableImportResource {
   return {
     id: upload.id,
-    workspaceId: upload.workspaceId,
+    workspaceId: body.workspaceId,
     userId: upload.userId,
     source: body.source,
     target: body.target,
@@ -349,7 +357,6 @@ function resourceFromUpload(
     status: upload.status === 'aborted' ? 'canceled' : 'uploading',
     rowsProcessed: 0,
     error: null,
-    upload,
     createdAt: upload.createdAt,
     updatedAt: upload.updatedAt,
     completedAt: upload.completedAt,
@@ -425,6 +432,9 @@ async function requireWorkspaceSource(
 ): Promise<WorkspaceFileRecord> {
   const file = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
   if (!file) throw new OrchestrationError('not_found', 'Workspace file not found')
+  if (file.size > CSV_MAX_FILE_SIZE_BYTES) {
+    throw new OrchestrationError('validation', CSV_MAX_FILE_SIZE_MESSAGE)
+  }
   return file
 }
 

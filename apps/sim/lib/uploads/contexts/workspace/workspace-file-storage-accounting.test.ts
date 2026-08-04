@@ -196,7 +196,7 @@ describe('workspace file metadata and storage accounting', () => {
     expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 
-  it('does not delete a direct-upload object when atomic finalization rolls back', async () => {
+  it('does not delete an upload-session object when atomic finalization rolls back', async () => {
     mockHasCloudStorage.mockReturnValue(true)
     dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
@@ -218,6 +218,28 @@ describe('workspace file metadata and storage accounting', () => {
     expect(mockHeadObject.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.transaction.mock.invocationCallOrder[0]
     )
+  })
+
+  it('rejects archived upload metadata without charging storage again', async () => {
+    const archivedFile = {
+      ...FILE_ROW,
+      deletedAt: new Date('2026-07-02T00:00:00.000Z'),
+    }
+    mockHasCloudStorage.mockReturnValue(true)
+    dbChainMockFns.limit.mockResolvedValueOnce([archivedFile])
+
+    await expect(
+      registerUploadedWorkspaceFile({
+        workspaceId: FILE_ROW.workspaceId,
+        userId: FILE_ROW.userId,
+        key: FILE_ROW.key,
+        originalName: FILE_ROW.originalName,
+        contentType: FILE_ROW.contentType,
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
+    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
   })
 
   it('archives metadata without changing stored-byte counters', async () => {

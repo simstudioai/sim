@@ -30,6 +30,9 @@ import {
 
 const logger = createLogger('StorageService')
 
+/** Sidecar attached to local objects promoted through the upload-session transport. */
+export const LOCAL_UPLOAD_METADATA_SUFFIX = '.upload-metadata.json'
+
 /**
  * Create a Blob config from StorageConfig
  * @throws Error if required properties are missing
@@ -556,7 +559,7 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
     }
   }
 
-  const { unlink } = await import('fs/promises')
+  const { rm, unlink } = await import('fs/promises')
   const { join } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
@@ -564,6 +567,7 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
 
   await unlink(filePath)
+  await rm(`${filePath}${LOCAL_UPLOAD_METADATA_SUFFIX}`, { force: true })
 }
 
 /** AWS SDK v3 silently caps HTTP connections at 50/endpoint — stay well under. */
@@ -844,36 +848,6 @@ async function generateBlobPresignedUrl(
       ),
     },
   }
-}
-
-/**
- * Generate multiple presigned URLs at once (batch operation)
- */
-export async function generateBatchPresignedUploadUrls(
-  files: Array<{
-    fileName: string
-    contentType: string
-    fileSize: number
-  }>,
-  context: StorageContext,
-  userId?: string,
-  expirationSeconds?: number
-): Promise<PresignedUrlResponse[]> {
-  const results: PresignedUrlResponse[] = []
-
-  for (const file of files) {
-    const result = await generatePresignedUploadUrl({
-      fileName: file.fileName,
-      contentType: file.contentType,
-      fileSize: file.fileSize,
-      context,
-      userId,
-      expirationSeconds,
-    })
-    results.push(result)
-  }
-
-  return results
 }
 
 /**

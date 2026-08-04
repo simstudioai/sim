@@ -4,7 +4,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getOwnedTableImportUpload } from '@/lib/table/orchestration/import-resource'
-import { createUploadPartUrls } from '@/lib/uploads/multipart-session/service'
+import { createUploadPartUrls } from '@/lib/uploads/upload-session/service'
 import { orchestrationErrorResponse } from '@/app/api/table/utils'
 
 interface ImportRouteParams {

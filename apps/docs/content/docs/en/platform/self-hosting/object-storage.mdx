@@ -237,6 +237,26 @@ AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME=og-images
 AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 ```
 
+Direct browser uploads require a Blob service CORS rule on the storage account. Allow your exact
+Sim origin, `GET` and `PUT`, the `Content-Type` header, and the `x-ms-*` prefix used by signed blob
+and metadata headers:
+
+```bash
+az storage cors add \
+  --services b \
+  --methods GET PUT \
+  --origins https://sim.yourdomain.com \
+  --allowed-headers content-type 'x-ms-*' \
+  --exposed-headers ETag \
+  --max-age 3600 \
+  --account-name mystorageaccount \
+  --account-key '<account-key>'
+```
+
+If you authenticate with a connection string, replace the last two options with
+`--connection-string "$AZURE_CONNECTION_STRING"`. CORS is configured once for the account's Blob
+service and applies to all of its containers.
+
 A full Helm example lives at `helm/sim/examples/values-azure.yaml`.
 
 ## Set up Google Cloud Storage
@@ -276,11 +296,13 @@ cat > /tmp/cors.json <<'EOF'
     "responseHeader": [
       "Content-Type",
       "ETag",
+      "x-goog-meta-uploadid",
       "x-goog-meta-originalname",
       "x-goog-meta-uploadedat",
       "x-goog-meta-purpose",
       "x-goog-meta-userid",
       "x-goog-meta-workspaceid",
+      "x-goog-meta-knowledgebaseid",
       "x-goog-meta-folderid",
       "x-goog-meta-workflowid",
       "x-goog-meta-executionid"
@@ -444,6 +466,27 @@ The same browser-reachability and CORS requirements apply.
 
   </Tab>
 </Tabs>
+
+## Configure temporary upload cleanup
+
+Sim stages every direct upload under the `upload-sessions/` prefix before promoting it to its final,
+immutable object key. Apply the cleanup policy to **every** purpose-specific bucket or container
+configured above:
+
+- On AWS S3 and Google Cloud Storage, expire objects under `upload-sessions/` after two days and
+  abort incomplete multipart uploads after two days.
+- On Azure Blob, expire committed blobs under `upload-sessions/` after two days. Azure automatically
+  removes uncommitted blocks after seven days.
+- For an S3-compatible provider, configure both rules when its lifecycle implementation supports
+  them. Check the provider's documentation because lifecycle feature support varies.
+
+The two-day window exceeds the 24-hour upload-token lifetime and leaves time to retry completion.
+Do not apply this prefix rule to final objects outside `upload-sessions/`.
+
+<Callout type="warning">
+  Configure both expiration and incomplete-multipart cleanup where available. Expiring staged
+  objects alone does not necessarily remove abandoned multipart parts.
+</Callout>
 
 ## Verify it works
 

@@ -4,11 +4,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import type { V2KnowledgeDocumentSummary } from '@/lib/api/contracts/v2/knowledge'
 import {
-  runWithConcurrency,
-  type UploadProgressEvent,
-  WHOLE_FILE_PARALLEL_UPLOADS,
-} from '@/lib/uploads/client/direct-upload'
+  assertMultiFileUploadAdmission,
+  MultiFileUploadAdmissionError,
+} from '@/lib/uploads/client/admission'
+import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/client/concurrency'
 import { uploadKnowledgeDocumentSession } from '@/lib/uploads/client/session-upload'
+import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 const logger = createLogger('KnowledgeUpload')
@@ -69,13 +70,13 @@ class KnowledgeUploadError extends Error {
 
 export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   const queryClient = useQueryClient()
-  const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
     stage: 'idle',
     filesCompleted: 0,
     totalFiles: 0,
   })
   const [uploadError, setUploadError] = useState<UploadError | null>(null)
+  const isUploading = uploadProgress.stage !== 'idle'
 
   const updateFileStatus = (fileIndex: number, patch: Partial<FileUploadStatus>) => {
     setUploadProgress((prev) => ({
@@ -195,7 +196,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     }
 
     try {
-      setIsUploading(true)
+      assertMultiFileUploadAdmission(files)
       setUploadError(null)
       setUploadProgress({ stage: 'uploading', filesCompleted: 0, totalFiles: files.length })
 
@@ -217,15 +218,16 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       const error: UploadError =
         err instanceof KnowledgeUploadError
           ? { message: err.message, code: err.code, details: err.details, timestamp: Date.now() }
-          : err instanceof Error
-            ? { message: err.message, timestamp: Date.now() }
-            : { message: 'Unknown error occurred during upload', timestamp: Date.now() }
+          : err instanceof MultiFileUploadAdmissionError
+            ? { message: err.message, code: err.code, timestamp: Date.now() }
+            : err instanceof Error
+              ? { message: err.message, timestamp: Date.now() }
+              : { message: 'Unknown error occurred during upload', timestamp: Date.now() }
 
       setUploadError(error)
       options.onError?.(error)
       throw err
     } finally {
-      setIsUploading(false)
       setUploadProgress({ stage: 'idle', filesCompleted: 0, totalFiles: 0 })
     }
   }

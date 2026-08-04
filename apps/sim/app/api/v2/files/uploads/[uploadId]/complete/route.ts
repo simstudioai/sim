@@ -1,15 +1,11 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { v2CompleteFileUploadContract } from '@/lib/api/contracts/v2/files'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getWorkspaceFile, registerUploadedWorkspaceFile } from '@/lib/uploads/contexts/workspace'
-import {
-  completeUploadSession,
-  getOwnedUploadSession,
-} from '@/lib/uploads/multipart-session/service'
+import { completeUploadSession, getOwnedUploadSession } from '@/lib/uploads/upload-session/service'
+import { finalizeWorkspaceFileUpload } from '@/app/api/files/uploads/finalizers'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2FileUpload } from '@/app/api/v2/files/uploads/utils'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -51,41 +47,20 @@ export const POST = withRouteHandler(
         purpose: 'workspace_file',
         uploadToken: parsed.data.headers['upload-token'],
       })
-      const metadata = session.metadata as { folderId?: string | null }
       const result = await completeUploadSession({
         session,
-        parts: parsed.data.body.parts,
+        completion: parsed.data.body,
         finalize: async (claimed) => {
-          const registered = await registerUploadedWorkspaceFile({
-            workspaceId,
-            userId,
-            key: claimed.storageKey,
-            originalName: claimed.fileName,
-            contentType: claimed.contentType,
-            folderId: metadata.folderId,
+          const finalized = await finalizeWorkspaceFileUpload({
+            session: claimed,
+            actor: { id: userId },
+            request,
+            source: 'api',
           })
-          return { value: registered.file.id, completedFileId: registered.file.id }
+          return { value: finalized.file, completedFileId: finalized.file.id }
         },
       })
-      const fileId = result.value
-      if (!fileId) throw new Error('Completed upload is missing its workspace file id')
-      const file = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
-      if (!file) throw new Error(`Completed workspace file ${fileId} not found`)
-
-      if (!result.alreadyCompleted) {
-        recordAudit({
-          workspaceId,
-          actorId: userId,
-          action: AuditAction.FILE_UPLOADED,
-          resourceType: AuditResourceType.FILE,
-          resourceId: file.id,
-          resourceName: file.name,
-          description: `Uploaded file "${file.name}" via API`,
-          metadata: { fileSize: file.size, fileType: file.type },
-          request,
-        })
-      }
-      return v2Data(toV2FileUpload(result.session, file), { rateLimit })
+      return v2Data(toV2FileUpload(result.session, result.value), { rateLimit })
     } catch (error) {
       const classified = v2CaughtOrchestrationError(error)
       if (classified) return classified

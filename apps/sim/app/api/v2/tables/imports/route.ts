@@ -6,7 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createTableImportResource,
-  toV2TableImport,
+  toV2CreateTableImport,
 } from '@/lib/table/orchestration/import-resource'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -40,8 +40,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const scopeError = await resolveWorkspaceScope(rateLimit, parsed.data.body.workspaceId)
     if (scopeError) return v2WorkspaceAccessError(scopeError)
-    const created = await createTableImportResource(parsed.data.body, userId)
-    return v2Data(await toV2TableImport(created.record), { rateLimit, status: 201 })
+    const created = await createTableImportResource(
+      parsed.data.body,
+      userId,
+      request.nextUrl.origin
+    )
+    return v2Data(toV2CreateTableImport(created), { rateLimit, status: 201 })
   } catch (error) {
     const lockError = v2TableLockError(error)
     if (lockError) return lockError

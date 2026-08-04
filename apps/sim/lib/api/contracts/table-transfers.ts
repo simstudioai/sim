@@ -3,6 +3,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 import {
   v2CreateTableImportBodySchema,
+  v2CreateTableImportDataSchema,
   v2TableExportDownloadDataSchema,
   v2TableExportParamsSchema,
   v2TableExportSchema,
@@ -22,7 +23,7 @@ export const createTableImportResourceContract = defineRouteContract({
   method: 'POST',
   path: '/api/table/imports',
   body: v2CreateTableImportBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2CreateTableImportDataSchema) },
 })
 
 export const getTableImportResourceContract = defineRouteContract({

@@ -29,7 +29,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   assertWorkspaceFileFolderTarget: mockAssertFolder,
 }))
 
-vi.mock('@/lib/uploads/multipart-session/service', () => ({
+vi.mock('@/lib/uploads/upload-session/service', () => ({
   createUploadSession: mockCreateUploadSession,
 }))
 
@@ -66,16 +66,21 @@ describe('POST /api/v2/files/uploads', () => {
       workspaceId: WORKSPACE_ID,
       userId: 'user-1',
       knowledgeBaseId: null,
+      workflowId: null,
+      executionId: null,
       purpose: 'workspace_file',
+      method: 'put',
       storageContext: 'workspace',
       storageKey: `${WORKSPACE_ID}/file.csv`,
+      finalKey: `${WORKSPACE_ID}/file.csv`,
+      stagingKey: 'upload-sessions/upload-1/file.csv',
       storageProvider: 's3',
-      providerUploadId: 'provider-1',
+      providerUploadId: null,
       fileName: 'file.csv',
       contentType: 'text/csv',
       fileSize: 10,
-      partSize: 8 * 1024 * 1024,
-      partCount: 1,
+      partSize: null,
+      partCount: null,
       status: 'uploading',
       uploadToken: 'signed-upload-token',
       metadata: {},
@@ -85,10 +90,15 @@ describe('POST /api/v2/files/uploads', () => {
       createdAt: new Date('2026-08-03T21:00:00.000Z'),
       updatedAt: new Date('2026-08-03T21:00:00.000Z'),
       completedAt: null,
+      transfer: {
+        method: 'put',
+        url: 'https://storage.example/upload',
+        headers: { 'content-type': 'text/csv' },
+      },
     })
   })
 
-  it('creates one signed multipart session for a small file', async () => {
+  it('creates one signed PUT session for a small file', async () => {
     const response = await request({
       workspaceId: WORKSPACE_ID,
       name: 'file.csv',
@@ -97,13 +107,16 @@ describe('POST /api/v2/files/uploads', () => {
     })
 
     expect(response.status).toBe(201)
-    expect((await response.json()).data).toMatchObject({
-      id: 'upload-1',
-      status: 'uploading',
-      partCount: 1,
+    const { data } = await response.json()
+    expect(data).toMatchObject({
+      session: { id: 'upload-1', status: 'uploading', file: null },
       uploadToken: 'signed-upload-token',
-      file: null,
+      transfer: { method: 'put', url: 'https://storage.example/upload' },
     })
+    expect(data.session).not.toHaveProperty('uploadToken')
+    expect(data.session).not.toHaveProperty('transfer')
+    expect(data.session).not.toHaveProperty('partSize')
+    expect(data.session).not.toHaveProperty('partCount')
     expect(mockCreateUploadSession).toHaveBeenCalledWith({
       workspaceId: WORKSPACE_ID,
       userId: 'user-1',
@@ -112,6 +125,7 @@ describe('POST /api/v2/files/uploads', () => {
       contentType: 'text/csv',
       fileSize: 10,
       metadata: { folderId: null },
+      localOrigin: 'http://localhost:3000',
     })
   })
 

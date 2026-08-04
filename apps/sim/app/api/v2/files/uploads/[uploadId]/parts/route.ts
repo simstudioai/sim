@@ -4,10 +4,7 @@ import type { NextRequest } from 'next/server'
 import { v2CreateFileUploadPartUrlsContract } from '@/lib/api/contracts/v2/files'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  createUploadPartUrls,
-  getOwnedUploadSession,
-} from '@/lib/uploads/multipart-session/service'
+import { createUploadPartUrls, getOwnedUploadSession } from '@/lib/uploads/upload-session/service'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {

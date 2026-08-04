@@ -11,7 +11,9 @@ const {
   mockS3ClientConstructor,
   mockPutObjectCommand,
   mockGetObjectCommand,
+  mockHeadObjectCommand,
   mockDeleteObjectCommand,
+  mockCopyObjectCommand,
   mockCompleteMultipartUploadCommand,
   mockGetSignedUrl,
   mockEnv,
@@ -51,7 +53,9 @@ const {
     ),
     mockPutObjectCommand: vi.fn().mockImplementation(class {}),
     mockGetObjectCommand: vi.fn().mockImplementation(class {}),
+    mockHeadObjectCommand: vi.fn().mockImplementation(class {}),
     mockDeleteObjectCommand: vi.fn().mockImplementation(class {}),
+    mockCopyObjectCommand: vi.fn().mockImplementation(class {}),
     mockCompleteMultipartUploadCommand: vi.fn().mockImplementation(class {}),
     mockGetSignedUrl: vi.fn(),
     mockEnv,
@@ -62,7 +66,9 @@ vi.mock('@aws-sdk/client-s3', () => ({
   S3Client: mockS3ClientConstructor,
   PutObjectCommand: mockPutObjectCommand,
   GetObjectCommand: mockGetObjectCommand,
+  HeadObjectCommand: mockHeadObjectCommand,
   DeleteObjectCommand: mockDeleteObjectCommand,
+  CopyObjectCommand: mockCopyObjectCommand,
   CompleteMultipartUploadCommand: mockCompleteMultipartUploadCommand,
 }))
 
@@ -97,9 +103,13 @@ vi.mock('@/lib/uploads/config', () => ({
 import {
   completeS3MultipartUpload,
   deleteFromS3,
+  deleteS3ObjectVersion,
   downloadFromS3,
   getPresignedUrl,
   getS3Client,
+  getS3PresignedUploadUrl,
+  headS3Object,
+  promoteS3Object,
   resetS3ClientForTesting,
   uploadToS3,
 } from '@/lib/uploads/providers/s3/client'
@@ -233,6 +243,91 @@ describe('S3 Client', () => {
       const key = 'test-file.txt'
 
       await expect(getPresignedUrl(key)).rejects.toThrow('Presigned URL generation failed')
+    })
+  })
+
+  describe('staged upload primitives', () => {
+    it('signs a fixed-size PUT with canonical object metadata', async () => {
+      mockGetSignedUrl.mockResolvedValueOnce('https://example.com/signed-put')
+
+      const result = await getS3PresignedUploadUrl({
+        key: 'upload-sessions/upload-1/file.bin',
+        contentType: 'application/octet-stream',
+        fileSize: 3,
+        metadata: { uploadId: 'upload-1', purpose: 'workspace_file' },
+        customConfig: mockS3Config,
+        expiresIn: 600,
+      })
+
+      expect(mockPutObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'upload-sessions/upload-1/file.bin',
+        ContentType: 'application/octet-stream',
+        ContentLength: 3,
+        Metadata: { uploadId: 'upload-1', purpose: 'workspace_file' },
+      })
+      expect(result).toEqual({
+        url: 'https://example.com/signed-put',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'x-amz-meta-uploadid': 'upload-1',
+          'x-amz-meta-purpose': 'workspace_file',
+        },
+      })
+    })
+
+    it('reads the upload identity and immutable ETag', async () => {
+      mockSend.mockResolvedValueOnce({
+        ContentLength: 3,
+        ContentType: 'application/octet-stream',
+        Metadata: { uploadid: 'upload-1' },
+        ETag: '"etag-1"',
+      })
+
+      await expect(
+        headS3Object('upload-sessions/upload-1/file.bin', mockS3Config)
+      ).resolves.toEqual({
+        size: 3,
+        contentType: 'application/octet-stream',
+        uploadId: 'upload-1',
+        version: '"etag-1"',
+      })
+    })
+
+    it('pins the source ETag and requires an absent promotion destination', async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      await promoteS3Object({
+        sourceKey: 'upload-sessions/upload-1/file.bin',
+        destinationKey: 'workspace/workspace-1/file.bin',
+        sourceEtag: '"etag-1"',
+        customConfig: mockS3Config,
+      })
+
+      expect(mockCopyObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'workspace/workspace-1/file.bin',
+        CopySource: 'test-bucket/upload-sessions/upload-1/file.bin',
+        CopySourceIfMatch: '"etag-1"',
+        IfNoneMatch: '*',
+        MetadataDirective: 'COPY',
+      })
+    })
+
+    it('deletes staging only when its ETag still matches', async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      await deleteS3ObjectVersion({
+        key: 'upload-sessions/upload-1/file.bin',
+        etag: '"etag-1"',
+        customConfig: mockS3Config,
+      })
+
+      expect(mockDeleteObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+        Key: 'upload-sessions/upload-1/file.bin',
+        IfMatch: '"etag-1"',
+      })
     })
   })
 

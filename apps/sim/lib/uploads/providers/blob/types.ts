@@ -15,6 +15,8 @@ export interface AzureMultipartUploadInit {
    * Caller is responsible for uniqueness and prefix conventions.
    */
   customKey?: string
+  /** Additional object metadata preserved when the block list is committed. */
+  metadata?: Record<string, string>
 }
 
 export interface AzurePartUploadUrl {

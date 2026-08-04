@@ -71,10 +71,13 @@ describe('POST /api/knowledge/[id]/documents/uploads', () => {
       fileName: 'guide.pdf',
       contentType: 'application/pdf',
       fileSize: 1024,
-      partSize: 8 * 1024 * 1024,
-      partCount: 1,
       uploadToken: 'token',
       error: null,
+      transfer: {
+        method: 'put',
+        url: 'https://storage.example/upload',
+        headers: { 'content-type': 'application/pdf' },
+      },
     })
   })
 
@@ -98,6 +101,12 @@ describe('POST /api/knowledge/[id]/documents/uploads', () => {
         tag1: 'product',
         processingOptions: { recipe: 'default', lang: 'en' },
       },
+      localOrigin: 'http://localhost:3000',
+    })
+    expect((await response.json()).data).toMatchObject({
+      session: { id: 'upload-1', status: 'uploading', document: null },
+      uploadToken: 'token',
+      transfer: { method: 'put', url: 'https://storage.example/upload' },
     })
     expect(mockRequireKnowledgeDocumentUploadBilling.mock.invocationCallOrder[0]).toBeLessThan(
       mockCreateKnowledgeDocumentUploadSession.mock.invocationCallOrder[0]

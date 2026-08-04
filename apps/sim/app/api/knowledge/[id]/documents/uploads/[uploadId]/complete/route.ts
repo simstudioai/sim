@@ -3,7 +3,7 @@ import { completeKnowledgeDocumentUploadContract } from '@/lib/api/contracts/kno
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { completeUploadSession } from '@/lib/uploads/multipart-session/service'
+import { completeUploadSession } from '@/lib/uploads/upload-session/service'
 import { uploadSessionErrorResponse } from '@/app/api/files/uploads/utils'
 import {
   requireKnowledgeDocumentUploadAccess,
@@ -45,7 +45,7 @@ export const POST = withRouteHandler(
       })
       const completed = await completeUploadSession({
         session: upload,
-        parts: parsed.data.body.parts,
+        completion: parsed.data.body,
         finalize: (claimed) =>
           finalizeKnowledgeDocumentUpload({
             claimed,

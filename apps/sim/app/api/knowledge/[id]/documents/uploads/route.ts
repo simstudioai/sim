@@ -50,8 +50,18 @@ export const POST = withRouteHandler(
         contentType,
         fileSize: size,
         metadata,
+        localOrigin: request.nextUrl.origin,
       })
-      return NextResponse.json({ data: toV2KnowledgeDocumentUpload(upload, null) }, { status: 201 })
+      return NextResponse.json(
+        {
+          data: {
+            session: toV2KnowledgeDocumentUpload(upload, null),
+            uploadToken: upload.uploadToken,
+            transfer: upload.transfer,
+          },
+        },
+        { status: 201 }
+      )
     } catch (error) {
       const classified = uploadSessionErrorResponse(error)
       if (classified) return classified

@@ -6,7 +6,7 @@ import { v2CompleteKnowledgeDocumentUploadContract } from '@/lib/api/contracts/v
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { completeUploadSession } from '@/lib/uploads/multipart-session/service'
+import { completeUploadSession } from '@/lib/uploads/upload-session/service'
 import { checkRateLimit } from '@/app/api/v1/middleware'
 import {
   finalizeKnowledgeDocumentUpload,
@@ -68,7 +68,7 @@ export const POST = withRouteHandler(
       })
       const result = await completeUploadSession({
         session,
-        parts: parsed.data.body.parts,
+        completion: parsed.data.body,
         finalize: (claimed) =>
           finalizeKnowledgeDocumentUpload({
             claimed,

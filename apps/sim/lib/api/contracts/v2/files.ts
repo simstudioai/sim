@@ -14,15 +14,15 @@ import {
   v2PartUrlsDataSchema,
   v2UploadStatusSchema,
   v2UploadTokenHeadersSchema,
+  v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
  * v2 files contracts. v2 drops the v1 `{ success, data, limits }` envelope in
  * favor of the canonical v2 shapes (`{ data }` / `{ data, nextCursor }`) and
- * adds cursor pagination to the list. The workspace is always carried as a query
- * param — including on upload — so the route can authorize before reading the
- * multipart body.
+ * adds cursor pagination to the list. List and item routes carry the workspace
+ * as a query parameter; upload-session creation carries it in the JSON body.
  *
  * Folders are referenced but not managed here. A file carries `folderId` /
  * `folderPath`, and `move` retargets it, but there are deliberately no
@@ -80,14 +80,20 @@ export const v2FileUploadSchema = z.object({
   name: z.string(),
   contentType: z.string(),
   size: z.number().int().positive(),
-  partSize: z.number().int().positive(),
-  partCount: z.number().int().positive(),
-  uploadToken: z.string().min(1),
   expiresAt: z.string().datetime(),
   error: z.string().nullable(),
   file: v2FileSchema.nullable(),
 })
 export type V2FileUpload = z.output<typeof v2FileUploadSchema>
+
+export const v2CreateFileUploadDataSchema = z
+  .object({
+    session: v2FileUploadSchema,
+    uploadToken: z.string().min(1),
+    transfer: v2UploadTransferSchema,
+  })
+  .strict()
+export type V2CreateFileUploadData = z.output<typeof v2CreateFileUploadDataSchema>
 
 /** Acknowledgement returned by a successful archive (soft delete). */
 export const v2DeleteFileResultSchema = z.object({
@@ -325,7 +331,7 @@ export const v2CreateFileUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/uploads',
   body: v2CreateFileUploadBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2CreateFileUploadDataSchema) },
 })
 
 export const v2AbortFileUploadContract = defineRouteContract({

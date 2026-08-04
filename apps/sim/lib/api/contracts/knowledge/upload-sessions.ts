@@ -1,6 +1,7 @@
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CreateKnowledgeDocumentUploadBodySchema,
+  v2CreateKnowledgeDocumentUploadDataSchema,
   v2KnowledgeDocumentUploadParamsSchema,
   v2KnowledgeDocumentUploadSchema,
   v2UploadKnowledgeDocumentQuerySchema,
@@ -18,7 +19,10 @@ export const createKnowledgeDocumentUploadContract = defineRouteContract({
   path: '/api/knowledge/[id]/documents/uploads',
   params: v2KnowledgeDocumentUploadParamsSchema.omit({ uploadId: true }),
   body: v2CreateKnowledgeDocumentUploadBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeDocumentUploadSchema) },
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CreateKnowledgeDocumentUploadDataSchema),
+  },
 })
 
 export const abortKnowledgeDocumentUploadContract = defineRouteContract({

@@ -2,6 +2,7 @@ import type { Readable } from 'node:stream'
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
@@ -168,6 +169,38 @@ export async function getPresignedUrlWithConfig(
 }
 
 /**
+ * Generates a signed single-object PUT for a caller-selected staging key.
+ * Every returned header covered by the signature must be sent verbatim by the client.
+ */
+export async function getS3PresignedUploadUrl(params: {
+  key: string
+  contentType: string
+  fileSize: number
+  metadata: Record<string, string>
+  customConfig: S3Config
+  expiresIn: number
+}): Promise<{ url: string; headers: Record<string, string> }> {
+  const metadata = sanitizeStorageMetadata(params.metadata, 2000)
+  const command = new PutObjectCommand({
+    Bucket: params.customConfig.bucket,
+    Key: params.key,
+    ContentType: params.contentType,
+    ContentLength: params.fileSize,
+    Metadata: metadata,
+  })
+  const url = await getSignedUrl(getS3Client(), command, { expiresIn: params.expiresIn })
+  return {
+    url,
+    headers: {
+      'Content-Type': params.contentType,
+      ...Object.fromEntries(
+        Object.entries(metadata).map(([key, value]) => [`x-amz-meta-${key.toLowerCase()}`, value])
+      ),
+    },
+  }
+}
+
+/**
  * Download a file from S3
  * @param key S3 object key
  * @returns File buffer
@@ -243,7 +276,12 @@ export async function downloadFromS3Stream(
 export async function headS3Object(
   key: string,
   customConfig?: S3Config
-): Promise<{ size: number; contentType?: string } | null> {
+): Promise<{
+  size: number
+  contentType?: string
+  uploadId?: string
+  version: string
+} | null> {
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
 
   try {
@@ -253,6 +291,8 @@ export async function headS3Object(
     return {
       size: response.ContentLength ?? 0,
       contentType: response.ContentType,
+      uploadId: readUploadId(response.Metadata),
+      version: response.ETag ?? '',
     }
   } catch (error) {
     const code = (error as { name?: string; $metadata?: { httpStatusCode?: number } } | null)?.name
@@ -263,6 +303,48 @@ export async function headS3Object(
     }
     throw error
   }
+}
+
+/**
+ * Copies one immutable staging version into a destination that must not already exist.
+ */
+export async function promoteS3Object(params: {
+  sourceKey: string
+  destinationKey: string
+  sourceEtag: string
+  customConfig: S3Config
+}): Promise<void> {
+  if (!params.sourceEtag) throw new Error('S3 staging object is missing its ETag')
+  const encodedSource = `${params.customConfig.bucket}/${params.sourceKey
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')}`
+  await getS3Client().send(
+    new CopyObjectCommand({
+      Bucket: params.customConfig.bucket,
+      Key: params.destinationKey,
+      CopySource: encodedSource,
+      CopySourceIfMatch: params.sourceEtag,
+      IfNoneMatch: '*',
+      MetadataDirective: 'COPY',
+    })
+  )
+}
+
+/** Deletes a staging object only if it is still the version completion inspected. */
+export async function deleteS3ObjectVersion(params: {
+  key: string
+  etag: string
+  customConfig: S3Config
+}): Promise<void> {
+  if (!params.etag) throw new Error('S3 staging object is missing its ETag')
+  await getS3Client().send(
+    new DeleteObjectCommand({
+      Bucket: params.customConfig.bucket,
+      Key: params.key,
+      IfMatch: params.etag,
+    })
+  )
 }
 
 /**
@@ -341,7 +423,7 @@ export async function deleteManyFromS3(
 export async function initiateS3MultipartUpload(
   options: S3MultipartUploadInit
 ): Promise<{ uploadId: string; key: string }> {
-  const { fileName, contentType, customConfig, customKey, purpose } = options
+  const { fileName, contentType, customConfig, customKey, purpose, metadata } = options
 
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
@@ -357,6 +439,7 @@ export async function initiateS3MultipartUpload(
       originalName: sanitizeFilenameForMetadata(fileName),
       uploadedAt: new Date().toISOString(),
       purpose: purpose || 'knowledge-base',
+      ...sanitizeStorageMetadata(metadata ?? {}, 2000),
     },
   })
 
@@ -370,6 +453,11 @@ export async function initiateS3MultipartUpload(
     uploadId: response.UploadId,
     key: uniqueKey,
   }
+}
+
+function readUploadId(metadata?: Record<string, string>): string | undefined {
+  if (!metadata) return undefined
+  return Object.entries(metadata).find(([key]) => key.toLowerCase() === 'uploadid')?.[1]
 }
 
 /**

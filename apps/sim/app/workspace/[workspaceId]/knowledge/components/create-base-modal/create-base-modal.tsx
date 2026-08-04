@@ -27,6 +27,10 @@ import { type FieldErrors, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
+import {
+  assertMultiFileUploadAdmission,
+  MultiFileUploadAdmissionError,
+} from '@/lib/uploads/client/admission'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
@@ -202,11 +206,11 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   }, [open, reset])
 
   const processFiles = (selectedFiles: File[]) => {
-    setFileError(null)
-
     if (!selectedFiles || selectedFiles.length === 0) return
 
     try {
+      assertMultiFileUploadAdmission(selectedFiles, { existingFiles: files })
+      setFileError(null)
       const newFiles: File[] = []
       let hasError = false
 
@@ -225,6 +229,10 @@ export const CreateBaseModal = memo(function CreateBaseModal({
         setFiles((prev) => [...prev, ...newFiles])
       }
     } catch (error) {
+      if (error instanceof MultiFileUploadAdmissionError) {
+        setFileError(error.message)
+        return
+      }
       logger.error('Error processing files:', error)
       setFileError('An error occurred while processing files. Please try again.')
     }
@@ -474,7 +482,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             accept={ACCEPT_ATTRIBUTE}
             multiple
             onChange={processFiles}
-            description='PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)'
+            description='PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 20 files, 100MB each, 500MB total)'
             error={fileError}
           />
 

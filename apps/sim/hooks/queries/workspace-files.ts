@@ -14,8 +14,8 @@ import {
   restoreWorkspaceFileContract,
   updateWorkspaceFileContentContract,
 } from '@/lib/api/contracts/workspace-files'
-import type { UploadProgressEvent } from '@/lib/uploads/client/direct-upload'
 import { uploadWorkspaceFileSession } from '@/lib/uploads/client/session-upload'
+import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UserFile } from '@/executor/types'
 import { useFileContentSource } from '@/hooks/use-file-content-source'

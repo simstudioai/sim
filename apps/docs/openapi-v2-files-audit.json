@@ -168,158 +168,13 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
-      },
-      "x-removed-buffered-post": {
-        "operationId": "uploadFile",
-        "summary": "Upload File",
-        "description": "Upload a file to a workspace as `multipart/form-data` with a single `file` field. The workspace — and the optional target `folderId` — are supplied as query parameters (not form fields) so authorization runs before the request body is buffered. Maximum file size is 100MB. A name already taken in the destination folder is **not** an error: the name is auto-suffixed (`data.csv` -> `data (1).csv`), matching the in-app uploader, so a `201` can come back with a `name` different from the one you sent — always read `name` from the response rather than assuming it. `409` is returned only if a unique name cannot be allocated after several attempts. Use `PATCH /api/v2/files/{fileId}` if you need a specific name to be exact-or-fail. Returns `201 Created`.\n\nPresigned upload is not part of the public API: it debits the storage quota only in a separate register step, so a caller that never registers would leave unaccounted bytes in storage. This buffered path debits inside the upload transaction.",
-        "tags": ["Files"],
-        "x-codeSamples": [
-          {
-            "id": "curl",
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/files?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -F \"file=@/path/to/file.csv\""
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/WorkspaceIdQuery"
-          },
-          {
-            "name": "folderId",
-            "in": "query",
-            "required": false,
-            "description": "Target file folder. Omit to upload to the workspace root. Supplied as a query parameter, like `workspaceId`, so authorization runs before the multipart body is buffered.",
-            "schema": {
-              "type": "string",
-              "example": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "description": "The file to upload, sent as multipart/form-data.",
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": ["file"],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "The file to upload. Maximum size is 100MB."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "The file was uploaded successfully.",
-            "headers": {
-              "X-RateLimit-Limit": {
-                "$ref": "#/components/headers/X-RateLimit-Limit"
-              },
-              "X-RateLimit-Remaining": {
-                "$ref": "#/components/headers/X-RateLimit-Remaining"
-              },
-              "X-RateLimit-Reset": {
-                "$ref": "#/components/headers/X-RateLimit-Reset"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/V2FileResponse"
-                },
-                "example": {
-                  "data": {
-                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
-                    "name": "data.csv",
-                    "size": 1024,
-                    "type": "text/csv",
-                    "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
-                    "folderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
-                    "folderPath": "Reports/Q1",
-                    "uploadedBy": "user_abc123",
-                    "uploadedAt": "2026-01-15T10:30:00Z",
-                    "updatedAt": "2026-01-15T10:30:00Z"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request was malformed: an invalid `workspaceId` query parameter, a body that is not valid multipart form data, or a missing `file` form field.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/V2Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "BAD_REQUEST",
-                    "message": "file form field is required"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "409": {
-            "description": "A unique filename could not be allocated in the destination folder after several attempts. An ordinary name collision is auto-suffixed instead, not rejected.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/V2Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "CONFLICT",
-                    "message": "A file named \"data.csv\" already exists in this workspace"
-                  }
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "The upload exceeds the 100MB file size limit, or the workspace storage limit would be exceeded.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/V2Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "PAYLOAD_TOO_LARGE",
-                    "message": "File size exceeds 100MB limit (142.30MB)"
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
       }
     },
     "/api/v2/files/uploads": {
       "post": {
         "operationId": "createFileUpload",
         "summary": "Create File Upload",
-        "description": "Create a stateless multipart upload session and signed upload token. Every file uses this flow; a small file is a single part. The maximum file size is 5 GB.",
+        "description": "Create an upload session and signed control token. Files up to and including 50 MiB receive a single signed PUT URL; larger files receive multipart transfer instructions. The maximum file size is 5 GB.",
         "tags": ["Files"],
         "requestBody": {
           "required": true,
@@ -405,7 +260,7 @@
       "post": {
         "operationId": "completeFileUpload",
         "summary": "Complete File Upload",
-        "description": "Verify every part, assemble the object, and atomically register the workspace file.",
+        "description": "Verify the single PUT or assemble every multipart part, then atomically register the workspace file.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1681,7 +1536,7 @@
         "name": "upload-token",
         "in": "header",
         "required": true,
-        "description": "The signed token returned when the multipart upload was created.",
+        "description": "The signed control token returned when the upload session was created.",
         "schema": { "type": "string", "minLength": 1 }
       },
       "FileIdPath": {

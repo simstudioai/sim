@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createKnowledgeDocumentUploadPartUrlsContract } from '@/lib/api/contracts/knowledge/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createUploadPartUrls } from '@/lib/uploads/multipart-session/service'
+import { createUploadPartUrls } from '@/lib/uploads/upload-session/service'
 import { uploadSessionErrorResponse } from '@/app/api/files/uploads/utils'
 import {
   requireKnowledgeDocumentUploadAccess,

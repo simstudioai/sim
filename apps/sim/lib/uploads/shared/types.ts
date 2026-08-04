@@ -1,6 +1,6 @@
 /**
  * Defense-in-depth ceiling on the size of any single workspace file upload.
- * Enforced both server-side (presigned route) and client-side (Files tab) so
+ * Enforced both server-side (upload-session creation) and client-side (Files tab) so
  * users get fast feedback before bytes are streamed.
  */
 export const MAX_WORKSPACE_FILE_SIZE = 5 * 1024 * 1024 * 1024

@@ -1,7 +1,7 @@
 import type { V2FileUpload } from '@/lib/api/contracts/v2/files'
 import type { V2UploadStatus } from '@/lib/api/contracts/v2/uploads'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import type { UploadSessionRecord } from '@/lib/uploads/multipart-session/service'
+import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import { toV2File } from '@/app/api/v2/files/utils'
 
 export function toV2FileUpload(
@@ -14,9 +14,6 @@ export function toV2FileUpload(
     name: session.fileName,
     contentType: session.contentType,
     size: session.fileSize,
-    partSize: session.partSize,
-    partCount: session.partCount,
-    uploadToken: session.uploadToken,
     expiresAt: session.expiresAt.toISOString(),
     error: session.error,
     file: file ? toV2File(file) : null,

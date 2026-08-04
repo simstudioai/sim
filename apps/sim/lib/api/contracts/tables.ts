@@ -32,7 +32,7 @@ import {
   SORT_DIRECTIONS,
   TABLE_LIMITS,
 } from '@/lib/table/constants'
-import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
+import { CSV_MAX_FILE_SIZE_BYTES, CSV_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
@@ -1038,7 +1038,7 @@ export const csvFileSchema = z
     if (value.size > CSV_MAX_FILE_SIZE_BYTES) {
       ctx.addIssue({
         code: 'custom',
-        message: `File exceeds maximum allowed size of ${CSV_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`,
+        message: CSV_MAX_FILE_SIZE_MESSAGE,
       })
     }
   })

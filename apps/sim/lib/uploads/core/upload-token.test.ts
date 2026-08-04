@@ -4,57 +4,77 @@
 import { describe, expect, it } from 'vitest'
 import { signUploadToken, verifyUploadToken } from '@/lib/uploads/core/upload-token'
 
+const TIMESTAMPS = {
+  createdAt: '2099-08-03T20:00:00.000Z',
+  expiresAt: '2099-08-04T20:00:00.000Z',
+} as const
+
 describe('upload token', () => {
-  it('round-trips stateless multipart session state', () => {
-    const token = signUploadToken({
+  it('round-trips strict multipart session state', () => {
+    const payload = {
       uploadId: 'upload-1',
-      key: 'workspace-1/file.csv',
-      userId: 'user-1',
+      actorId: 'user-1',
       workspaceId: 'workspace-1',
-      context: 'workspace',
+      purpose: 'knowledge_document',
+      knowledgeBaseId: 'kb-1',
+      context: 'knowledge-base',
+      finalKey: 'kb/final-file.csv',
+      stagingKey: 'upload-sessions/upload-1/file.csv',
+      provider: 's3',
+      providerUploadId: 'provider-upload-1',
+      method: 'multipart',
       fileName: 'file.csv',
       contentType: 'text/csv',
       fileSize: 12,
-      purpose: 'workspace_file',
-      provider: 's3',
-      providerUploadId: 'provider-upload-1',
       partSize: 8,
       partCount: 2,
-      metadata: { folderId: 'folder-1' },
-      createdAt: '2026-08-03T20:00:00.000Z',
-      expiresAt: '2026-08-04T20:00:00.000Z',
-    })
+      metadata: { tag1: 'product' },
+      ...TIMESTAMPS,
+    } as const
+    const token = signUploadToken(payload)
 
-    expect(verifyUploadToken(token)).toEqual({
-      valid: true,
-      payload: {
-        uploadId: 'upload-1',
-        key: 'workspace-1/file.csv',
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        context: 'workspace',
-        fileName: 'file.csv',
-        contentType: 'text/csv',
-        fileSize: 12,
-        purpose: 'workspace_file',
-        provider: 's3',
-        providerUploadId: 'provider-upload-1',
-        partSize: 8,
-        partCount: 2,
-        metadata: { folderId: 'folder-1' },
-        createdAt: '2026-08-03T20:00:00.000Z',
-        expiresAt: '2026-08-04T20:00:00.000Z',
-      },
-    })
+    expect(verifyUploadToken(token)).toEqual({ valid: true, payload })
+  })
+
+  it('round-trips a user-scoped PUT without a synthetic workspace', () => {
+    const payload = {
+      uploadId: 'upload-2',
+      actorId: 'user-1',
+      workspaceId: null,
+      purpose: 'profile_picture',
+      context: 'profile-pictures',
+      finalKey: 'profile-pictures/upload-2-avatar.png',
+      stagingKey: 'upload-sessions/upload-2/avatar.png',
+      provider: 'local',
+      providerUploadId: null,
+      method: 'put',
+      fileName: 'avatar.png',
+      contentType: 'image/png',
+      fileSize: 12,
+      metadata: {},
+      ...TIMESTAMPS,
+    } as const
+
+    expect(verifyUploadToken(signUploadToken(payload))).toEqual({ valid: true, payload })
   })
 
   it('rejects a modified token', () => {
     const token = signUploadToken({
       uploadId: 'upload-1',
-      key: 'workspace-1/file.csv',
-      userId: 'user-1',
+      actorId: 'user-1',
       workspaceId: 'workspace-1',
+      purpose: 'workspace_file',
       context: 'workspace',
+      finalKey: 'workspace/workspace-1/final.csv',
+      stagingKey: 'upload-sessions/upload-1/file.csv',
+      provider: 'local',
+      providerUploadId: null,
+      method: 'put',
+      fileName: 'file.csv',
+      contentType: 'text/csv',
+      fileSize: 12,
+      metadata: {},
+      ...TIMESTAMPS,
     })
     const [payload, signature] = token.split('.')
 
