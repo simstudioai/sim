@@ -17,10 +17,6 @@ export interface SandboxMutationActor {
 }
 
 /**
- * Maps a refused write onto the status code the editor expects. Shared by both
- * route files so the create path and the edit/delete path cannot describe the
- * same failure differently.
- *
  * `invalid_dependencies` carries a line number per rejected row, which the
  * generic validation error does not — the editor marks those inline.
  */

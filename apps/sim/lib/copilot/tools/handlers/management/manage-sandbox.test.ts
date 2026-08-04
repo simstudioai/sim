@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 
 const {
-  getUserEntityPermissionsMock,
   hasWorkspaceSandboxAccessMock,
   enforceWorkspaceRateLimitMock,
   createWorkspaceSandboxMock,
@@ -14,17 +13,12 @@ const {
   deleteWorkspaceSandboxMock,
   listWorkspaceSandboxesMock,
 } = vi.hoisted(() => ({
-  getUserEntityPermissionsMock: vi.fn(),
   hasWorkspaceSandboxAccessMock: vi.fn(),
   enforceWorkspaceRateLimitMock: vi.fn(),
   createWorkspaceSandboxMock: vi.fn(),
   updateWorkspaceSandboxMock: vi.fn(),
   deleteWorkspaceSandboxMock: vi.fn(),
   listWorkspaceSandboxesMock: vi.fn(),
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: getUserEntityPermissionsMock,
 }))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -48,7 +42,12 @@ vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', () => ({
 
 import { executeManageSandbox } from '@/lib/copilot/tools/handlers/management/manage-sandbox'
 
-const context = { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' } as ExecutionContext
+const context = {
+  userId: 'user-1',
+  workflowId: 'wf-1',
+  workspaceId: 'ws-1',
+  userPermission: 'admin',
+} as ExecutionContext
 
 const sandbox = {
   id: 'sb-1',
@@ -67,7 +66,6 @@ const sandbox = {
 describe('manage_sandbox', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getUserEntityPermissionsMock.mockResolvedValue('admin')
     hasWorkspaceSandboxAccessMock.mockResolvedValue(true)
     enforceWorkspaceRateLimitMock.mockResolvedValue(null)
     listWorkspaceSandboxesMock.mockResolvedValue([sandbox])
@@ -84,14 +82,14 @@ describe('manage_sandbox', () => {
 
   it('ignores a model-supplied workspaceId and uses the server context', async () => {
     await executeManageSandbox({ operation: 'list', workspaceId: 'other-ws' }, context)
-    expect(getUserEntityPermissionsMock).toHaveBeenCalledWith('user-1', 'workspace', 'ws-1')
     expect(listWorkspaceSandboxesMock).toHaveBeenCalledWith('ws-1')
   })
 
-  it('lists with only read access, and does not spend the mutation budget', async () => {
-    getUserEntityPermissionsMock.mockResolvedValue('read')
-
-    const result = await executeManageSandbox({ operation: 'list' }, context)
+  it('lists without spending the mutation budget or the plan check', async () => {
+    const result = await executeManageSandbox({ operation: 'list' }, {
+      ...context,
+      userPermission: 'write',
+    } as ExecutionContext)
     expect(result.success).toBe(true)
     expect(result.output).toMatchObject({ count: 1, strategy: 'prebuilt' })
     const [listed] = (result.output as { sandboxes: Record<string, unknown>[] }).sandboxes
@@ -102,11 +100,9 @@ describe('manage_sandbox', () => {
   })
 
   it.each(['add', 'edit', 'delete'])('requires workspace admin to %s', async (operation) => {
-    getUserEntityPermissionsMock.mockResolvedValue('write')
-
     const result = await executeManageSandbox(
       { operation, name: 'x', language: 'python', sandboxId: 'sb-1' },
-      context
+      { ...context, userPermission: 'write' } as ExecutionContext
     )
 
     expect(result.success).toBe(false)

@@ -228,7 +228,6 @@ function isSandboxNameConflictError(error: unknown): boolean {
   return message.includes(WORKSPACE_SANDBOX_NAME_INDEX) || message.includes('23505')
 }
 
-/** Why a write was refused, rendered by each caller for its own surface. */
 export type SandboxWriteFailure =
   | { code: 'invalid_name'; message: string }
   | { code: 'name_conflict'; name: string }
@@ -267,17 +266,15 @@ async function readBackOrFail(workspaceId: string, sandboxId: string): Promise<S
 
 export interface CreateWorkspaceSandboxParams {
   workspaceId: string
-  /** Attributed as `createdBy`; the caller has already authorized this actor. */
   userId: string
   name: string
   language: SandboxLanguage
-  /** Raw submitted lines — comments and blanks are stripped during validation. */
   dependencies: readonly string[]
 }
 
 /**
- * Creates a sandbox and enqueues its build. Authorization, entitlement, and rate
- * limiting are the caller's job — the route and the copilot tool differ there.
+ * Authorization, entitlement, and rate limiting are the caller's job — the route
+ * and the copilot tool differ there.
  */
 export async function createWorkspaceSandbox(
   params: CreateWorkspaceSandboxParams
@@ -328,8 +325,6 @@ export interface UpdateWorkspaceSandboxParams {
 }
 
 /**
- * Applies a partial edit and re-enqueues the build.
- *
  * The build is scheduled unconditionally, because the registry decides what a
  * save costs: a `ready` or in-flight row is left alone, so renaming or re-saving
  * an unchanged spec enqueues nothing, while a failed one gets the immediate
@@ -413,9 +408,9 @@ export async function updateWorkspaceSandbox(
 }
 
 /**
- * Deletes a sandbox and releases its build. A block may still reference it;
- * that execution fails closed naming the missing sandbox, rather than silently
- * falling back to an image without its dependencies.
+ * A block may still reference the deleted sandbox; that execution fails closed
+ * naming the missing sandbox, rather than silently falling back to an image
+ * without its dependencies.
  */
 export async function deleteWorkspaceSandbox(
   workspaceId: string,

@@ -80,12 +80,6 @@ describe('workspace sandbox operations', () => {
       )
     })
 
-    /**
-     * The regression this guards: `nextName = name ?? existing.name` treated a
-     * whitespace-only name as "supplied", so it trimmed to empty, skipped the
-     * conflict pre-check (falsy), and wrote an unnamed sandbox the UI cannot
-     * create and the user cannot select.
-     */
     it('refuses a whitespace-only name on edit instead of writing it', async () => {
       queueTableRows(workspaceSandbox, [existingRow])
 

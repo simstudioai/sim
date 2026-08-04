@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { copilotToolCanAdmin } from '@/lib/copilot/tools/permissions'
 import { enforceWorkspaceRateLimit } from '@/lib/core/rate-limiter/route-helpers'
 import {
   isSandboxLanguage,
@@ -19,7 +20,6 @@ import {
   type SandboxWriteFailure,
   updateWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotToolExecutor')
 
@@ -69,7 +69,7 @@ function isStringArray(value: unknown): value is string[] {
 /**
  * Reproduces the REST routes' gate — workspace admin, plan entitlement, then the
  * shared mutation budget — so chat cannot create a sandbox the same user could
- * not create in Settings > Sandboxes. `list` needs only read, matching GET.
+ * not create in Settings > Sandboxes.
  */
 export async function executeManageSandbox(
   rawParams: Record<string, unknown>,
@@ -91,13 +91,8 @@ export async function executeManageSandbox(
   const isWrite = WRITE_OPERATIONS.includes(operation)
 
   try {
-    const permission = await getUserEntityPermissions(context.userId, 'workspace', workspaceId)
-    if (!permission) {
-      return { success: false, error: 'You do not have access to this workspace' }
-    }
-
     if (isWrite) {
-      if (permission !== 'admin') {
+      if (!copilotToolCanAdmin(context.userPermission)) {
         return { success: false, error: SANDBOX_ADMIN_REQUIRED }
       }
       if (!(await hasWorkspaceSandboxAccess(workspaceId))) {

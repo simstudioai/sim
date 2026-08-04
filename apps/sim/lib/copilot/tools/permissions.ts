@@ -9,6 +9,14 @@ export function copilotToolCanWrite(userPermission: string | null | undefined): 
   return permissionSatisfies((userPermission ?? null) as PermissionType | null, 'write')
 }
 
+/**
+ * Whether a copilot tool call may perform an admin-only action. Same fail-closed
+ * contract as {@link copilotToolCanWrite}.
+ */
+export function copilotToolCanAdmin(userPermission: string | null | undefined): boolean {
+  return permissionSatisfies((userPermission ?? null) as PermissionType | null, 'admin')
+}
+
 /** Renders the denial message shared by both copilot execution paths. */
 export function copilotWriteDeniedMessage(
   toolName: string,

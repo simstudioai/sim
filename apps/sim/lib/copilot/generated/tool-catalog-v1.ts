@@ -3646,6 +3646,7 @@ export const ManageSandbox: ToolCatalogEntry = {
     },
     required: ['operation'],
   },
+  requiredPermission: 'write',
 }
 
 export const ManageScheduledTask: ToolCatalogEntry = {
