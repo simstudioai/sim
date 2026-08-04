@@ -36,6 +36,8 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   query?: Record<string, QueryValue>
   body?: unknown
+  /** Contract-declared headers, e.g. the `upload-token` a transfer is bound to. */
+  headers?: Record<string, string>
 }
 
 function buildUrl(endpoint: string, path: string, query?: Record<string, QueryValue>): string {
@@ -135,6 +137,7 @@ export class SimClient {
           'x-api-key': apiKey,
           accept: 'application/json',
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
+          ...options.headers,
         },
         body: hasBody ? JSON.stringify(options.body) : undefined,
       })

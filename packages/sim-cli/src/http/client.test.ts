@@ -97,7 +97,15 @@ describe('destructive operations are gated', () => {
    * and the contract renames it accordingly. Everything else that deletes is
    * gated behind `--yes`.
    */
-  const NOT_DESTRUCTIVE = new Set<V2OperationName>(['undeployWorkflow'])
+  const NOT_DESTRUCTIVE = new Set<V2OperationName>([
+    'undeployWorkflow',
+    // Each of these stops something in flight rather than destroying something
+    // kept: an upload that has not been completed owns nothing but its own
+    // parts, and a cancelled import or export can simply be started again.
+    'abortFileUpload',
+    'cancelTableImport',
+    'cancelTableExport',
+  ])
 
   it('every DELETE carries a confirmation message', () => {
     // Without this, a new v2 domain arrives through generation with working

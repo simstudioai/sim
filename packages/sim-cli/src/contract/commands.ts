@@ -50,6 +50,13 @@ export const CLI_CONTRACT: CliContract = {
   deleteCredential: {
     confirm: 'This deletes the credential; anything authenticating with it stops working.',
   },
+  deleteWorkflow: { confirm: 'This deletes the workflow and its run history.' },
+  deleteTableView: { confirm: 'This deletes the saved view and its filters.' },
+  deleteWorkflowGroup: {
+    // Not just the grouping: the documented behaviour is that every column the
+    // group fed goes with it, values included.
+    confirm: 'This deletes the group, every column it fed, and the values in them.',
+  },
   deleteFolder: {
     // The route archives the folder *and cascades to its contents*, so this is
     // the broadest delete on the surface — the message says so rather than
@@ -243,6 +250,40 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Enable or disable sharing for a file',
   },
 
+  // ─── The expanded tables surface ──────────────────────────────────────────
+  // `/cancel-runs`, `/rows/find`, `/restore`, `/columns/run` and the enrichment
+  // path all put a verb where the deriver expects a sub-resource, so each became
+  // a group holding a lone `create`.
+  cancelTableRuns: { command: 'tables cancel-runs', describe: 'Stop every running column job' },
+  findTableRows: { command: 'tables rows find', describe: 'Find rows matching a predicate' },
+  restoreTable: { command: 'tables restore', describe: 'Restore a deleted table' },
+  runTableColumn: { command: 'tables columns run', describe: 'Run a column’s workflow' },
+  runRowEnrichment: {
+    command: 'tables rows enrich',
+    describe: 'Run one row’s enrichment group',
+  },
+
+  // Transfers are a handshake: create, request part URLs, send the parts, then
+  // complete. Unlike `files upload` there is no single command driving this yet
+  // — the import body carries source/target/mapping choices a one-liner cannot
+  // express — so each step stays reachable under a name that says what it is.
+  createTableImport: { command: 'tables imports create' },
+  createTableImportPartUrls: {
+    command: 'tables imports parts',
+    describe: 'Sign upload URLs for a batch of parts',
+  },
+  completeTableImport: {
+    command: 'tables imports complete',
+    describe: 'Finish an import once every part is uploaded',
+  },
+  cancelTableImport: { command: 'tables imports cancel' },
+  cancelTableExport: { command: 'tables exports cancel' },
+  tableExportDownload: {
+    // GET, but it returns a signed URL rather than a listing.
+    command: 'tables exports download',
+    describe: 'Get the download URL for a finished export',
+  },
+
   // ─── Documents, not records ───────────────────────────────────────────────
   // The payload is the artifact: `sim workflows export <id> > wf.json` has to
   // produce something `sim workflows import` accepts back.
@@ -280,8 +321,18 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── Not a terminal-shaped operation ──────────────────────────────────────
-  // Multipart upload; `sim files upload <path>` needs its own file-reading
-  // command rather than a generated flag surface.
-  uploadFile: { hidden: true },
+  // Multipart upload; `sim knowledge documents upload <path>` would need its own
+  // file-reading command rather than a generated flag surface.
   uploadKnowledgeDocument: { hidden: true },
+
+  // ─── Steps of a transfer, not commands ────────────────────────────────────
+  // Uploading is now a presigned multipart handshake: create the upload, ask for
+  // part URLs in batches, PUT each part to storage, then complete with the
+  // ETags — and abort if any of it fails. Exposing the steps individually would
+  // advertise a protocol whose halfway states leak storage, so `sim files
+  // upload` drives the whole sequence and these stay out of the surface.
+  createFileUpload: { hidden: true },
+  createFileUploadPartUrls: { hidden: true },
+  completeFileUpload: { hidden: true },
+  abortFileUpload: { hidden: true },
 }

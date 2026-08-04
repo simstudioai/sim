@@ -10,6 +10,46 @@
  * `packages/* must not import apps/*` boundary is preserved.
  */
 
+/** `DELETE /api/v2/files/uploads/[uploadId]` */
+export type AbortFileUploadParams = {
+  uploadId: string
+}
+
+export type AbortFileUploadQuery = {
+  workspaceId: string
+}
+
+export type AbortFileUploadHeaders = {
+  'upload-token': string
+}
+
+export type AbortFileUploadResponse = {
+  data: {
+    id: string
+    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+    name: string
+    contentType: string
+    size: number
+    partSize: number
+    partCount: number
+    uploadToken: string
+    expiresAt: string
+    error: string | null
+    file: {
+      id: string
+      name: string
+      size: number
+      type: string
+      key: string
+      folderId: string | null
+      folderPath: string | null
+      uploadedBy: string
+      uploadedAt: string
+      updatedAt: string
+    } | null
+  }
+}
+
 /** `POST /api/v2/tables/[tableId]/columns` */
 export type AddTableColumnParams = {
   tableId: string
@@ -52,6 +92,85 @@ export type AddTableColumnResponse = {
   }
 }
 
+/** `POST /api/v2/tables/[tableId]/groups` */
+export type AddWorkflowGroupParams = {
+  tableId: string
+}
+
+export type AddWorkflowGroupBody = {
+  workspaceId: string
+  group: {
+    id?: string
+    workflowId?: string
+    enrichmentId?: string
+    name?: string
+    type?: 'manual' | 'enrichment'
+    dependencies?: {
+      columns?: Array<string>
+    }
+    outputs: Array<{
+      blockId?: string
+      path?: string
+      outputId?: string
+      columnName: string
+    }>
+    inputMappings?: Array<{
+      inputName: string
+      columnName: string
+    }>
+    deploymentMode?: 'live' | 'deployed'
+    autoRun?: boolean
+  }
+  outputColumns: Array<{
+    name: string
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    required?: boolean
+    unique?: boolean
+  }>
+  autoRun?: boolean
+}
+
+export type AddWorkflowGroupResponse = {
+  data: {
+    group: {
+      id: string
+      workflowId: string
+      enrichmentId?: string
+      name?: string
+      type?: 'manual' | 'enrichment'
+      dependencies?: {
+        columns?: Array<string>
+      }
+      outputs: Array<{
+        blockId: string
+        path: string
+        outputId?: string
+        columnName: string
+      }>
+      inputMappings?: Array<{
+        inputName: string
+        columnName: string
+      }>
+      deploymentMode?: 'live' | 'deployed'
+      autoRun?: boolean
+    }
+    columns: Array<{
+      id?: string
+      name: string
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      required: boolean
+      unique: boolean
+      workflowGroupId?: string
+      options?: Array<{
+        id: string
+        name: string
+      }>
+      multiple?: boolean
+      currencyCode?: unknown
+    }>
+  }
+}
+
 /** `POST /api/v2/files/bulk-archive` */
 export type BulkArchiveFileItemsBody = {
   workspaceId: string
@@ -65,6 +184,104 @@ export type BulkArchiveFileItemsResponse = {
       files: number
       folders: number
     }
+  }
+}
+
+/** `DELETE /api/v2/tables/exports/[exportId]` */
+export type CancelTableExportParams = {
+  exportId: string
+}
+
+export type CancelTableExportQuery = {
+  workspaceId: string
+}
+
+export type CancelTableExportResponse = {
+  data: {
+    id: string
+    tableId: string
+    workspaceId: string
+    format: 'csv' | 'json'
+    status: 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
+    rowsProcessed: number
+    error: string | null
+    createdAt: string
+    updatedAt: string
+    completedAt: string | null
+  }
+}
+
+/** `DELETE /api/v2/tables/imports/[importId]` */
+export type CancelTableImportParams = {
+  importId: string
+}
+
+export type CancelTableImportQuery = {
+  workspaceId: string
+}
+
+export type CancelTableImportHeaders = {
+  'upload-token'?: string
+}
+
+export type CancelTableImportResponse = {
+  data: {
+    id: string
+    workspaceId: string
+    status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
+    source:
+      | {
+          type: 'upload'
+          name: string
+          contentType: string
+          size: number
+        }
+      | {
+          type: 'workspace_file'
+          fileId: string
+        }
+    target:
+      | {
+          type: 'new'
+          name: string
+          folderId?: string
+        }
+      | {
+          type: 'existing'
+          tableId: string
+          mode: 'append' | 'replace'
+        }
+    tableId: string | null
+    rowsProcessed: number
+    error: string | null
+    upload: {
+      uploadToken: string
+      partSize: number
+      partCount: number
+      expiresAt: string
+    } | null
+    createdAt: string
+    updatedAt: string
+    completedAt: string | null
+  }
+}
+
+/** `POST /api/v2/tables/[tableId]/cancel-runs` */
+export type CancelTableRunsParams = {
+  tableId: string
+}
+
+export type CancelTableRunsBody = {
+  workspaceId: string
+  scope: 'all' | 'row'
+  rowId?: string
+  filter?: unknown
+  excludeRowIds?: Array<string>
+}
+
+export type CancelTableRunsResponse = {
+  data: {
+    cancelled: number
   }
 }
 
@@ -88,6 +305,115 @@ export type CancelWorkflowExecutionResponse = {
       | 'redis_write_failed'
       | 'paused_event_publish_failed'
       | 'paused_database_cancel_failed'
+  }
+}
+
+/** `POST /api/v2/files/uploads/[uploadId]/complete` */
+export type CompleteFileUploadParams = {
+  uploadId: string
+}
+
+export type CompleteFileUploadQuery = {
+  workspaceId: string
+}
+
+export type CompleteFileUploadBody = {
+  parts: Array<{
+    partNumber: number
+    etag?: string
+  }>
+}
+
+export type CompleteFileUploadHeaders = {
+  'upload-token': string
+}
+
+export type CompleteFileUploadResponse = {
+  data: {
+    id: string
+    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+    name: string
+    contentType: string
+    size: number
+    partSize: number
+    partCount: number
+    uploadToken: string
+    expiresAt: string
+    error: string | null
+    file: {
+      id: string
+      name: string
+      size: number
+      type: string
+      key: string
+      folderId: string | null
+      folderPath: string | null
+      uploadedBy: string
+      uploadedAt: string
+      updatedAt: string
+    } | null
+  }
+}
+
+/** `POST /api/v2/tables/imports/[importId]/complete` */
+export type CompleteTableImportParams = {
+  importId: string
+}
+
+export type CompleteTableImportQuery = {
+  workspaceId: string
+}
+
+export type CompleteTableImportBody = {
+  parts: Array<{
+    partNumber: number
+    etag?: string
+  }>
+}
+
+export type CompleteTableImportHeaders = {
+  'upload-token': string
+}
+
+export type CompleteTableImportResponse = {
+  data: {
+    id: string
+    workspaceId: string
+    status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
+    source:
+      | {
+          type: 'upload'
+          name: string
+          contentType: string
+          size: number
+        }
+      | {
+          type: 'workspace_file'
+          fileId: string
+        }
+    target:
+      | {
+          type: 'new'
+          name: string
+          folderId?: string
+        }
+      | {
+          type: 'existing'
+          tableId: string
+          mode: 'append' | 'replace'
+        }
+    tableId: string | null
+    rowsProcessed: number
+    error: string | null
+    upload: {
+      uploadToken: string
+      partSize: number
+      partCount: number
+      expiresAt: string
+    } | null
+    createdAt: string
+    updatedAt: string
+    completedAt: string | null
   }
 }
 
@@ -167,6 +493,70 @@ export type CreateCustomToolResponse = {
       createdAt: string
       updatedAt: string
     }
+  }
+}
+
+/** `POST /api/v2/files/uploads` */
+export type CreateFileUploadBody = {
+  workspaceId: string
+  name: string
+  contentType: string
+  size: number
+  folderId?: string
+}
+
+export type CreateFileUploadResponse = {
+  data: {
+    id: string
+    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+    name: string
+    contentType: string
+    size: number
+    partSize: number
+    partCount: number
+    uploadToken: string
+    expiresAt: string
+    error: string | null
+    file: {
+      id: string
+      name: string
+      size: number
+      type: string
+      key: string
+      folderId: string | null
+      folderPath: string | null
+      uploadedBy: string
+      uploadedAt: string
+      updatedAt: string
+    } | null
+  }
+}
+
+/** `POST /api/v2/files/uploads/[uploadId]/parts` */
+export type CreateFileUploadPartUrlsParams = {
+  uploadId: string
+}
+
+export type CreateFileUploadPartUrlsQuery = {
+  workspaceId: string
+}
+
+export type CreateFileUploadPartUrlsBody = {
+  partNumbers: Array<number>
+}
+
+export type CreateFileUploadPartUrlsHeaders = {
+  'upload-token': string
+}
+
+export type CreateFileUploadPartUrlsResponse = {
+  data: {
+    parts: Array<{
+      partNumber: number
+      url: string
+      headers: Record<string, string>
+      expiresAt: string
+    }>
   }
 }
 
@@ -349,9 +739,148 @@ export type CreateTableResponse = {
       }
       rowCount: number
       maxRows: number
+      folderId: string | null
+      locks: {
+        schemaLocked: boolean
+        insertLocked: boolean
+        updateLocked: boolean
+        deleteLocked: boolean
+      }
+      job: {
+        id: string | null
+        type: 'import' | 'delete' | 'export' | 'backfill' | 'update' | null
+        status: 'running' | 'ready' | 'failed' | 'canceled'
+        rowsProcessed: number
+        error: string | null
+      } | null
       createdAt: string
       updatedAt: string
     }
+  }
+}
+
+/** `POST /api/v2/tables/[tableId]/exports` */
+export type CreateTableExportParams = {
+  tableId: string
+}
+
+export type CreateTableExportBody = {
+  workspaceId: string
+  format?: 'csv' | 'json'
+}
+
+export type CreateTableExportResponse = {
+  data: {
+    id: string
+    tableId: string
+    workspaceId: string
+    format: 'csv' | 'json'
+    status: 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
+    rowsProcessed: number
+    error: string | null
+    createdAt: string
+    updatedAt: string
+    completedAt: string | null
+  }
+}
+
+/** `POST /api/v2/tables/imports` */
+export type CreateTableImportBody = {
+  workspaceId: string
+  source:
+    | {
+        type: 'upload'
+        name: string
+        contentType: string
+        size: number
+      }
+    | {
+        type: 'workspace_file'
+        fileId: string
+      }
+  target:
+    | {
+        type: 'new'
+        name: string
+        folderId?: string
+      }
+    | {
+        type: 'existing'
+        tableId: string
+        mode: 'append' | 'replace'
+      }
+  mapping?: unknown
+  createColumns?: unknown
+  timezone?: string
+}
+
+export type CreateTableImportResponse = {
+  data: {
+    id: string
+    workspaceId: string
+    status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
+    source:
+      | {
+          type: 'upload'
+          name: string
+          contentType: string
+          size: number
+        }
+      | {
+          type: 'workspace_file'
+          fileId: string
+        }
+    target:
+      | {
+          type: 'new'
+          name: string
+          folderId?: string
+        }
+      | {
+          type: 'existing'
+          tableId: string
+          mode: 'append' | 'replace'
+        }
+    tableId: string | null
+    rowsProcessed: number
+    error: string | null
+    upload: {
+      uploadToken: string
+      partSize: number
+      partCount: number
+      expiresAt: string
+    } | null
+    createdAt: string
+    updatedAt: string
+    completedAt: string | null
+  }
+}
+
+/** `POST /api/v2/tables/imports/[importId]/parts` */
+export type CreateTableImportPartUrlsParams = {
+  importId: string
+}
+
+export type CreateTableImportPartUrlsQuery = {
+  workspaceId: string
+}
+
+export type CreateTableImportPartUrlsBody = {
+  partNumbers: Array<number>
+}
+
+export type CreateTableImportPartUrlsHeaders = {
+  'upload-token': string
+}
+
+export type CreateTableImportPartUrlsResponse = {
+  data: {
+    parts: Array<{
+      partNumber: number
+      url: string
+      headers: Record<string, string>
+      expiresAt: string
+    }>
   }
 }
 
@@ -394,6 +923,138 @@ export type CreateTableRowsResponse =
         insertedCount: number
       }
     }
+
+/** `POST /api/v2/tables/[tableId]/views` */
+export type CreateTableViewParams = {
+  tableId: string
+}
+
+export type CreateTableViewBody = {
+  workspaceId: string
+  name: string
+  config: {
+    columnWidths?: Record<string, number>
+    columnOrder?: Array<string>
+    pinnedColumns?: Array<string>
+    hiddenColumns?: Array<string>
+    filter?: unknown | null
+    sort?: Array<{
+      field: string
+      direction: 'asc' | 'desc'
+    }> | null
+  }
+}
+
+type CreateTableViewResponseRef0 =
+  | {
+      all: Array<
+        | CreateTableViewResponseRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+  | {
+      any: Array<
+        | CreateTableViewResponseRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+
+export type CreateTableViewResponse = {
+  data: {
+    view: {
+      id: string
+      tableId: string
+      name: string
+      config: {
+        columnWidths?: Record<string, number>
+        columnOrder?: Array<string>
+        pinnedColumns?: Array<string>
+        hiddenColumns?: Array<string>
+        filter?: CreateTableViewResponseRef0 | null
+        sort?: Array<{
+          field: string
+          direction: 'asc' | 'desc'
+        }> | null
+      }
+      isDefault: boolean
+      createdBy: string | null
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `POST /api/v2/workflows` */
+export type CreateWorkflowBody = {
+  workspaceId: string
+  name: string
+  description?: string | null
+  folderId?: string | null
+}
+
+export type CreateWorkflowResponse = {
+  data: {
+    id: string
+    name: string
+    description: string | null
+    folderId: string | null
+    workspaceId: string
+    isDeployed: boolean
+    deployedAt: string | null
+    runCount: number
+    lastRunAt: string | null
+    createdAt: string
+    updatedAt: string
+  }
+}
 
 /** `DELETE /api/v2/credentials/[id]` */
 export type DeleteCredentialParams = {
@@ -614,6 +1275,65 @@ export type DeleteTableRowsResponse = {
   }
 }
 
+/** `DELETE /api/v2/tables/[tableId]/views/[viewId]` */
+export type DeleteTableViewParams = {
+  tableId: string
+  viewId: string
+}
+
+export type DeleteTableViewQuery = {
+  workspaceId: string
+}
+
+export type DeleteTableViewResponse = {
+  data: {
+    id: string
+  }
+}
+
+/** `DELETE /api/v2/workflows/[id]` */
+export type DeleteWorkflowParams = {
+  id: string
+}
+
+export type DeleteWorkflowResponse = {
+  data: {
+    id: string
+    deleted: true
+  }
+}
+
+/** `DELETE /api/v2/tables/[tableId]/groups` */
+export type DeleteWorkflowGroupParams = {
+  tableId: string
+}
+
+export type DeleteWorkflowGroupBody = {
+  workspaceId: string
+  groupId: string
+}
+
+export type DeleteWorkflowGroupResponse = {
+  data: {
+    id: string
+    deleted: true
+    columns: Array<{
+      id?: string
+      name: string
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      required: boolean
+      unique: boolean
+      workflowGroupId?: string
+      options?: Array<{
+        id: string
+        name: string
+      }>
+      multiple?: boolean
+      currencyCode?: unknown
+    }>
+  }
+}
+
 /** `POST /api/v2/workflows/[id]/deploy` */
 export type DeployWorkflowParams = {
   id: string
@@ -829,6 +1549,32 @@ export type ExportWorkflowResponse = {
         exportedAt?: string
       }
     }
+  }
+}
+
+/** `POST /api/v2/tables/[tableId]/rows/find` */
+export type FindTableRowsParams = {
+  tableId: string
+}
+
+export type FindTableRowsBody = {
+  workspaceId: string
+  q: string
+  predicate?: unknown
+  sort?: Array<{
+    field: string
+    direction: 'asc' | 'desc'
+  }>
+}
+
+export type FindTableRowsResponse = {
+  data: {
+    matches: Array<{
+      ordinal: number
+      rowId: string
+      column: string
+    }>
+    truncated: boolean
   }
 }
 
@@ -1186,9 +1932,98 @@ export type GetTableResponse = {
       }
       rowCount: number
       maxRows: number
+      folderId: string | null
+      locks: {
+        schemaLocked: boolean
+        insertLocked: boolean
+        updateLocked: boolean
+        deleteLocked: boolean
+      }
+      job: {
+        id: string | null
+        type: 'import' | 'delete' | 'export' | 'backfill' | 'update' | null
+        status: 'running' | 'ready' | 'failed' | 'canceled'
+        rowsProcessed: number
+        error: string | null
+      } | null
       createdAt: string
       updatedAt: string
     }
+  }
+}
+
+/** `GET /api/v2/tables/exports/[exportId]` */
+export type GetTableExportParams = {
+  exportId: string
+}
+
+export type GetTableExportQuery = {
+  workspaceId: string
+}
+
+export type GetTableExportResponse = {
+  data: {
+    id: string
+    tableId: string
+    workspaceId: string
+    format: 'csv' | 'json'
+    status: 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
+    rowsProcessed: number
+    error: string | null
+    createdAt: string
+    updatedAt: string
+    completedAt: string | null
+  }
+}
+
+/** `GET /api/v2/tables/imports/[importId]` */
+export type GetTableImportParams = {
+  importId: string
+}
+
+export type GetTableImportQuery = {
+  workspaceId: string
+}
+
+export type GetTableImportResponse = {
+  data: {
+    id: string
+    workspaceId: string
+    status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
+    source:
+      | {
+          type: 'upload'
+          name: string
+          contentType: string
+          size: number
+        }
+      | {
+          type: 'workspace_file'
+          fileId: string
+        }
+    target:
+      | {
+          type: 'new'
+          name: string
+          folderId?: string
+        }
+      | {
+          type: 'existing'
+          tableId: string
+          mode: 'append' | 'replace'
+        }
+    tableId: string | null
+    rowsProcessed: number
+    error: string | null
+    upload: {
+      uploadToken: string
+      partSize: number
+      partCount: number
+      expiresAt: string
+    } | null
+    createdAt: string
+    updatedAt: string
+    completedAt: string | null
   }
 }
 
@@ -1207,6 +2042,103 @@ export type GetTableRowResponse = {
     row: {
       id: string
       data: Record<string, unknown>
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `GET /api/v2/tables/[tableId]/views/[viewId]` */
+export type GetTableViewParams = {
+  tableId: string
+  viewId: string
+}
+
+export type GetTableViewQuery = {
+  workspaceId: string
+}
+
+type GetTableViewResponseRef0 =
+  | {
+      all: Array<
+        | GetTableViewResponseRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+  | {
+      any: Array<
+        | GetTableViewResponseRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+
+export type GetTableViewResponse = {
+  data: {
+    view: {
+      id: string
+      tableId: string
+      name: string
+      config: {
+        columnWidths?: Record<string, number>
+        columnOrder?: Array<string>
+        pinnedColumns?: Array<string>
+        hiddenColumns?: Array<string>
+        filter?: GetTableViewResponseRef0 | null
+        sort?: Array<{
+          field: string
+          direction: 'asc' | 'desc'
+        }> | null
+      }
+      isDefault: boolean
+      createdBy: string | null
       createdAt: string
       updatedAt: string
     }
@@ -1311,6 +2243,24 @@ export type GetWorkflowExecutionResponse = {
   }
 }
 
+/** `GET /api/v2/workflows/[id]/versions/[version]` */
+export type GetWorkflowVersionParams = {
+  id: string
+  version: number
+}
+
+export type GetWorkflowVersionResponse = {
+  data: {
+    id: string
+    version: number
+    name: string | null
+    description: string | null
+    isActive: boolean
+    createdAt: string
+    state: unknown
+  }
+}
+
 /** `POST /api/v2/workflows/import` */
 export type ImportWorkflowBody = {
   workspaceId: string
@@ -1369,6 +2319,9 @@ export type ListCredentialsQuery = {
   workspaceId: string
   type?: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
   providerId?: string
+  search?: string
+  sortBy?: 'displayName' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
 }
 
 export type ListCredentialsResponse = {
@@ -1391,6 +2344,9 @@ export type ListCredentialsResponse = {
 /** `GET /api/v2/custom-tools` */
 export type ListCustomToolsQuery = {
   workspaceId: string
+  search?: string
+  sortBy?: 'title' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
 }
 
 export type ListCustomToolsResponse = {
@@ -1420,6 +2376,10 @@ export type ListCustomToolsResponse = {
 export type ListFilesQuery = {
   workspaceId: string
   scope?: 'active' | 'archived'
+  folderId?: string
+  search?: string
+  sortBy?: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
   limit?: number
   cursor?: string
 }
@@ -1445,6 +2405,9 @@ export type ListFoldersQuery = {
   workspaceId: string
   resourceType: 'workflow' | 'knowledge_base' | 'table'
   scope?: 'active' | 'archived'
+  search?: string
+  sortBy?: 'position' | 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
 }
 
 export type ListFoldersResponse = {
@@ -1465,6 +2428,10 @@ export type ListFoldersResponse = {
 /** `GET /api/v2/knowledge` */
 export type ListKnowledgeBasesQuery = {
   workspaceId: string
+  folderId?: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
 }
 
 export type ListKnowledgeBasesResponse = {
@@ -1587,6 +2554,9 @@ export type ListLogsResponse = {
 /** `GET /api/v2/mcp-servers` */
 export type ListMcpServersQuery = {
   workspaceId: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
 }
 
 export type ListMcpServersResponse = {
@@ -1618,6 +2588,9 @@ export type ListMcpServersResponse = {
 /** `GET /api/v2/skills` */
 export type ListSkillsQuery = {
   workspaceId: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
 }
 
 export type ListSkillsResponse = {
@@ -1656,6 +2629,10 @@ export type ListTableRowsResponse = {
 /** `GET /api/v2/tables` */
 export type ListTablesQuery = {
   workspaceId: string
+  folderId?: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
 }
 
 export type ListTablesResponse = {
@@ -1681,6 +2658,115 @@ export type ListTablesResponse = {
     }
     rowCount: number
     maxRows: number
+    folderId: string | null
+    locks: {
+      schemaLocked: boolean
+      insertLocked: boolean
+      updateLocked: boolean
+      deleteLocked: boolean
+    }
+    job: {
+      id: string | null
+      type: 'import' | 'delete' | 'export' | 'backfill' | 'update' | null
+      status: 'running' | 'ready' | 'failed' | 'canceled'
+      rowsProcessed: number
+      error: string | null
+    } | null
+    createdAt: string
+    updatedAt: string
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/tables/[tableId]/views` */
+export type ListTableViewsParams = {
+  tableId: string
+}
+
+export type ListTableViewsQuery = {
+  workspaceId: string
+}
+
+type ListTableViewsResponseRef0 =
+  | {
+      all: Array<
+        | ListTableViewsResponseRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+  | {
+      any: Array<
+        | ListTableViewsResponseRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+
+export type ListTableViewsResponse = {
+  data: Array<{
+    id: string
+    tableId: string
+    name: string
+    config: {
+      columnWidths?: Record<string, number>
+      columnOrder?: Array<string>
+      pinnedColumns?: Array<string>
+      hiddenColumns?: Array<string>
+      filter?: ListTableViewsResponseRef0 | null
+      sort?: Array<{
+        field: string
+        direction: 'asc' | 'desc'
+      }> | null
+    }
+    isDefault: boolean
+    createdBy: string | null
     createdAt: string
     updatedAt: string
   }>
@@ -1727,6 +2813,41 @@ export type ListUsageLogsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/tables/[tableId]/groups` */
+export type ListWorkflowGroupsParams = {
+  tableId: string
+}
+
+export type ListWorkflowGroupsQuery = {
+  workspaceId: string
+}
+
+export type ListWorkflowGroupsResponse = {
+  data: Array<{
+    id: string
+    workflowId: string
+    enrichmentId?: string
+    name?: string
+    type?: 'manual' | 'enrichment'
+    dependencies?: {
+      columns?: Array<string>
+    }
+    outputs: Array<{
+      blockId: string
+      path: string
+      outputId?: string
+      columnName: string
+    }>
+    inputMappings?: Array<{
+      inputName: string
+      columnName: string
+    }>
+    deploymentMode?: 'live' | 'deployed'
+    autoRun?: boolean
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/workflows` */
 export type ListWorkflowsQuery = {
   workspaceId: string
@@ -1734,6 +2855,9 @@ export type ListWorkflowsQuery = {
   deployedOnly?: boolean
   limit?: number
   cursor?: string
+  search?: string
+  sortBy?: 'position' | 'name' | 'createdAt' | 'updatedAt' | 'runCount'
+  sortOrder?: 'asc' | 'desc'
 }
 
 export type ListWorkflowsResponse = {
@@ -1749,6 +2873,30 @@ export type ListWorkflowsResponse = {
     lastRunAt: string | null
     createdAt: string
     updatedAt: string
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workflows/[id]/versions` */
+export type ListWorkflowVersionsParams = {
+  id: string
+}
+
+export type ListWorkflowVersionsQuery = {
+  limit?: number
+  cursor?: string
+}
+
+export type ListWorkflowVersionsResponse = {
+  data: Array<{
+    id: string
+    version: number
+    name?: string | null
+    description?: string | null
+    isActive: boolean
+    createdAt: string
+    deployedBy?: string | null
+    latestOperationStatus?: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded' | null
   }>
   nextCursor: string | null
 }
@@ -1837,6 +2985,59 @@ export type RestoreFileResponse = {
   }
 }
 
+/** `POST /api/v2/tables/[tableId]/restore` */
+export type RestoreTableParams = {
+  tableId: string
+}
+
+export type RestoreTableBody = {
+  workspaceId: string
+}
+
+export type RestoreTableResponse = {
+  data: {
+    table: {
+      id: string
+      name: string
+      description: string | null
+      schema: {
+        columns: Array<{
+          id?: string
+          name: string
+          type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+          required: boolean
+          unique: boolean
+          workflowGroupId?: string
+          options?: Array<{
+            id: string
+            name: string
+          }>
+          multiple?: boolean
+          currencyCode?: unknown
+        }>
+      }
+      rowCount: number
+      maxRows: number
+      folderId: string | null
+      locks: {
+        schemaLocked: boolean
+        insertLocked: boolean
+        updateLocked: boolean
+        deleteLocked: boolean
+      }
+      job: {
+        id: string | null
+        type: 'import' | 'delete' | 'export' | 'backfill' | 'update' | null
+        status: 'running' | 'ready' | 'failed' | 'canceled'
+        rowsProcessed: number
+        error: string | null
+      } | null
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
 /** `POST /api/v2/workflows/[id]/rollback` */
 export type RollbackWorkflowParams = {
   id: string
@@ -1876,6 +3077,47 @@ export type RollbackWorkflowResponse = {
   }
 }
 
+/** `POST /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
+export type RunRowEnrichmentParams = {
+  tableId: string
+  rowId: string
+  groupId: string
+}
+
+export type RunRowEnrichmentBody = {
+  workspaceId: string
+}
+
+export type RunRowEnrichmentResponse = {
+  data: {
+    dispatchId: string | null
+  }
+}
+
+/** `POST /api/v2/tables/[tableId]/columns/run` */
+export type RunTableColumnParams = {
+  tableId: string
+}
+
+export type RunTableColumnBody = {
+  workspaceId: string
+  groupIds: Array<string>
+  runMode?: 'all' | 'incomplete'
+  rowIds?: Array<string>
+  filter?: unknown
+  excludeRowIds?: Array<string>
+  limit?: {
+    type: 'rows'
+    max: number
+  }
+}
+
+export type RunTableColumnResponse = {
+  data: {
+    dispatchId: string | null
+  }
+}
+
 /** `POST /api/v2/knowledge/search` */
 export type SearchKnowledgeBody = {
   workspaceId: string
@@ -1907,6 +3149,23 @@ export type SearchKnowledgeResponse = {
     knowledgeBaseIds: Array<string>
     topK: number
     totalResults: number
+  }
+}
+
+/** `GET /api/v2/tables/exports/[exportId]/download` */
+export type TableExportDownloadParams = {
+  exportId: string
+}
+
+export type TableExportDownloadQuery = {
+  workspaceId: string
+}
+
+export type TableExportDownloadResponse = {
+  data: {
+    url: string
+    fileName: string
+    expiresAt: string
   }
 }
 
@@ -2225,6 +3484,61 @@ export type UpdateSkillResponse = {
   }
 }
 
+/** `PATCH /api/v2/tables/[tableId]` */
+export type UpdateTableParams = {
+  tableId: string
+}
+
+export type UpdateTableBody = {
+  workspaceId: string
+  name?: string
+  folderId?: string | null
+}
+
+export type UpdateTableResponse = {
+  data: {
+    table: {
+      id: string
+      name: string
+      description: string | null
+      schema: {
+        columns: Array<{
+          id?: string
+          name: string
+          type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+          required: boolean
+          unique: boolean
+          workflowGroupId?: string
+          options?: Array<{
+            id: string
+            name: string
+          }>
+          multiple?: boolean
+          currencyCode?: unknown
+        }>
+      }
+      rowCount: number
+      maxRows: number
+      folderId: string | null
+      locks: {
+        schemaLocked: boolean
+        insertLocked: boolean
+        updateLocked: boolean
+        deleteLocked: boolean
+      }
+      job: {
+        id: string | null
+        type: 'import' | 'delete' | 'export' | 'backfill' | 'update' | null
+        status: 'running' | 'ready' | 'failed' | 'canceled'
+        rowsProcessed: number
+        error: string | null
+      } | null
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
 /** `PATCH /api/v2/tables/[tableId]/columns` */
 export type UpdateTableColumnParams = {
   tableId: string
@@ -2288,24 +3602,231 @@ export type UpdateTableRowResponse = {
   }
 }
 
-/** `POST /api/v2/files` */
-export type UploadFileQuery = {
-  workspaceId: string
-  folderId?: string
+/** `PATCH /api/v2/tables/[tableId]/views/[viewId]` */
+export type UpdateTableViewParams = {
+  tableId: string
+  viewId: string
 }
 
-export type UploadFileResponse = {
+export type UpdateTableViewBody = {
+  workspaceId: string
+  name?: string
+  config?: {
+    columnWidths?: Record<string, number>
+    columnOrder?: Array<string>
+    pinnedColumns?: Array<string>
+    hiddenColumns?: Array<string>
+    filter?: unknown | null
+    sort?: Array<{
+      field: string
+      direction: 'asc' | 'desc'
+    }> | null
+  }
+  configPatch?: {
+    columnWidths?: Record<string, number>
+    columnOrder?: Array<string>
+    pinnedColumns?: Array<string>
+    hiddenColumns?: Array<string>
+    filter?: unknown | null
+    sort?: Array<{
+      field: string
+      direction: 'asc' | 'desc'
+    }> | null
+  }
+  isDefault?: boolean
+}
+
+type UpdateTableViewResponseRef0 =
+  | {
+      all: Array<
+        | UpdateTableViewResponseRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+  | {
+      any: Array<
+        | UpdateTableViewResponseRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+
+export type UpdateTableViewResponse = {
+  data: {
+    view: {
+      id: string
+      tableId: string
+      name: string
+      config: {
+        columnWidths?: Record<string, number>
+        columnOrder?: Array<string>
+        pinnedColumns?: Array<string>
+        hiddenColumns?: Array<string>
+        filter?: UpdateTableViewResponseRef0 | null
+        sort?: Array<{
+          field: string
+          direction: 'asc' | 'desc'
+        }> | null
+      }
+      isDefault: boolean
+      createdBy: string | null
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
+/** `PATCH /api/v2/workflows/[id]` */
+export type UpdateWorkflowParams = {
+  id: string
+}
+
+export type UpdateWorkflowBody = {
+  name?: string
+  description?: string | null
+  folderId?: string | null
+}
+
+export type UpdateWorkflowResponse = {
   data: {
     id: string
     name: string
-    size: number
-    type: string
-    key: string
+    description: string | null
     folderId: string | null
-    folderPath: string | null
-    uploadedBy: string
-    uploadedAt: string
+    workspaceId: string
+    isDeployed: boolean
+    deployedAt: string | null
+    runCount: number
+    lastRunAt: string | null
+    createdAt: string
     updatedAt: string
+  }
+}
+
+/** `PATCH /api/v2/tables/[tableId]/groups` */
+export type UpdateWorkflowGroupParams = {
+  tableId: string
+}
+
+export type UpdateWorkflowGroupBody = {
+  workspaceId: string
+  groupId: string
+  workflowId?: string
+  name?: string
+  dependencies?: {
+    columns?: Array<string>
+  }
+  outputs?: Array<{
+    blockId?: string
+    path?: string
+    outputId?: string
+    columnName: string
+  }>
+  newOutputColumns?: Array<{
+    name: string
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    required?: boolean
+    unique?: boolean
+  }>
+  mappingUpdates?: Array<{
+    columnName: string
+    blockId: string
+    path: string
+  }>
+  inputMappings?: Array<{
+    inputName: string
+    columnName: string
+  }>
+  deploymentMode?: 'live' | 'deployed'
+  type?: 'manual' | 'enrichment'
+  autoRun?: boolean
+}
+
+export type UpdateWorkflowGroupResponse = {
+  data: {
+    group: {
+      id: string
+      workflowId: string
+      enrichmentId?: string
+      name?: string
+      type?: 'manual' | 'enrichment'
+      dependencies?: {
+        columns?: Array<string>
+      }
+      outputs: Array<{
+        blockId: string
+        path: string
+        outputId?: string
+        columnName: string
+      }>
+      inputMappings?: Array<{
+        inputName: string
+        columnName: string
+      }>
+      deploymentMode?: 'live' | 'deployed'
+      autoRun?: boolean
+    }
+    columns: Array<{
+      id?: string
+      name: string
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      required: boolean
+      unique: boolean
+      workflowGroupId?: string
+      options?: Array<{
+        id: string
+        name: string
+      }>
+      multiple?: boolean
+      currencyCode?: unknown
+    }>
   }
 }
 
@@ -2401,6 +3922,16 @@ export type UpsertTableRowResponse = {
  * specs so `--help` reuses prose that is already written and already checked.
  */
 export const V2_OPERATIONS = {
+  abortFileUpload: {
+    method: 'DELETE',
+    path: '/api/v2/files/uploads/[uploadId]',
+    pathParams: ['uploadId'] as const,
+    responseMode: 'json',
+    summary: 'Abort File Upload',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
   addTableColumn: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/columns',
@@ -2410,6 +3941,19 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true },
       column: { kind: 'object', required: true },
+    },
+  },
+  addWorkflowGroup: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/groups',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'Add Workflow Group',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      group: { kind: 'object', required: true },
+      outputColumns: { kind: 'array', required: true },
+      autoRun: { kind: 'boolean', default: false },
     },
   },
   bulkArchiveFileItems: {
@@ -2424,12 +3968,72 @@ export const V2_OPERATIONS = {
       folderIds: { kind: 'array', default: [] },
     },
   },
+  cancelTableExport: {
+    method: 'DELETE',
+    path: '/api/v2/tables/exports/[exportId]',
+    pathParams: ['exportId'] as const,
+    responseMode: 'json',
+    summary: 'Cancel Table Export',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  cancelTableImport: {
+    method: 'DELETE',
+    path: '/api/v2/tables/imports/[importId]',
+    pathParams: ['importId'] as const,
+    responseMode: 'json',
+    summary: 'Cancel Table Import',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  cancelTableRuns: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/cancel-runs',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'Cancel Column Runs',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      scope: { kind: 'enum', required: true, values: ['all', 'row'] as const },
+      rowId: { kind: 'string' },
+      filter: { kind: 'unknown' },
+      excludeRowIds: { kind: 'array' },
+    },
+  },
   cancelWorkflowExecution: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/executions/[executionId]/cancel',
     pathParams: ['id', 'executionId'] as const,
     responseMode: 'json',
     summary: 'Cancel an execution',
+  },
+  completeFileUpload: {
+    method: 'POST',
+    path: '/api/v2/files/uploads/[uploadId]/complete',
+    pathParams: ['uploadId'] as const,
+    responseMode: 'json',
+    summary: 'Complete File Upload',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+    body: {
+      parts: { kind: 'array', required: true },
+    },
+  },
+  completeTableImport: {
+    method: 'POST',
+    path: '/api/v2/tables/imports/[importId]/complete',
+    pathParams: ['importId'] as const,
+    responseMode: 'json',
+    summary: 'Complete Table Import Upload',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+    body: {
+      parts: { kind: 'array', required: true },
+    },
   },
   createCredential: {
     method: 'POST',
@@ -2469,6 +4073,33 @@ export const V2_OPERATIONS = {
       title: { kind: 'string', required: true },
       schema: { kind: 'object', required: true },
       code: { kind: 'string', required: true },
+    },
+  },
+  createFileUpload: {
+    method: 'POST',
+    path: '/api/v2/files/uploads',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create File Upload',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string', required: true },
+      contentType: { kind: 'string', required: true },
+      size: { kind: 'integer', required: true },
+      folderId: { kind: 'string' },
+    },
+  },
+  createFileUploadPartUrls: {
+    method: 'POST',
+    path: '/api/v2/files/uploads/[uploadId]/parts',
+    pathParams: ['uploadId'] as const,
+    responseMode: 'json',
+    summary: 'Create File Upload Part URLs',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+    body: {
+      partNumbers: { kind: 'array', required: true },
     },
   },
   createFolder: {
@@ -2550,12 +4181,76 @@ export const V2_OPERATIONS = {
       folderId: { kind: 'string' },
     },
   },
+  createTableExport: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/exports',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'Create Table Export',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      format: { kind: 'enum', values: ['csv', 'json'] as const, default: 'csv' },
+    },
+  },
+  createTableImport: {
+    method: 'POST',
+    path: '/api/v2/tables/imports',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Table Import',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      source: { kind: 'unknown', required: true },
+      target: { kind: 'unknown', required: true },
+      mapping: { kind: 'unknown' },
+      createColumns: { kind: 'unknown' },
+      timezone: { kind: 'string' },
+    },
+  },
+  createTableImportPartUrls: {
+    method: 'POST',
+    path: '/api/v2/tables/imports/[importId]/parts',
+    pathParams: ['importId'] as const,
+    responseMode: 'json',
+    summary: 'Create Table Import Part URLs',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+    body: {
+      partNumbers: { kind: 'array', required: true },
+    },
+  },
   createTableRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
     responseMode: 'json',
     summary: 'Create Rows',
+  },
+  createTableView: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/views',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'Create View',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string', required: true },
+      config: { kind: 'object', required: true },
+    },
+  },
+  createWorkflow: {
+    method: 'POST',
+    path: '/api/v2/workflows',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Workflow',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string', required: true },
+      description: { kind: 'string' },
+      folderId: { kind: 'string' },
+    },
   },
   deleteCredential: {
     method: 'DELETE',
@@ -2686,6 +4381,34 @@ export const V2_OPERATIONS = {
       rowIds: { kind: 'array' },
     },
   },
+  deleteTableView: {
+    method: 'DELETE',
+    path: '/api/v2/tables/[tableId]/views/[viewId]',
+    pathParams: ['tableId', 'viewId'] as const,
+    responseMode: 'json',
+    summary: 'Delete View',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  deleteWorkflow: {
+    method: 'DELETE',
+    path: '/api/v2/workflows/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Delete Workflow',
+  },
+  deleteWorkflowGroup: {
+    method: 'DELETE',
+    path: '/api/v2/tables/[tableId]/groups',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'Delete Workflow Group',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      groupId: { kind: 'string', required: true },
+    },
+  },
   deployWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/deploy',
@@ -2726,6 +4449,19 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Export a workflow',
+  },
+  findTableRows: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/rows/find',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'Find Rows',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      q: { kind: 'string', required: true },
+      predicate: { kind: 'unknown' },
+      sort: { kind: 'array' },
+    },
   },
   getAuditLog: {
     method: 'GET',
@@ -2843,12 +4579,42 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
     },
   },
+  getTableExport: {
+    method: 'GET',
+    path: '/api/v2/tables/exports/[exportId]',
+    pathParams: ['exportId'] as const,
+    responseMode: 'json',
+    summary: 'Get Table Export',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  getTableImport: {
+    method: 'GET',
+    path: '/api/v2/tables/imports/[importId]',
+    pathParams: ['importId'] as const,
+    responseMode: 'json',
+    summary: 'Get Table Import',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
   getTableRow: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
     responseMode: 'json',
     summary: 'Get Row',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  getTableView: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/views/[viewId]',
+    pathParams: ['tableId', 'viewId'] as const,
+    responseMode: 'json',
+    summary: 'Get View',
     query: {
       workspaceId: { kind: 'string', required: true },
     },
@@ -2880,6 +4646,13 @@ export const V2_OPERATIONS = {
       includeOutput: { kind: 'enum', values: ['true', 'false'] as const },
       selectedOutputs: { kind: 'string' },
     },
+  },
+  getWorkflowVersion: {
+    method: 'GET',
+    path: '/api/v2/workflows/[id]/versions/[version]',
+    pathParams: ['id', 'version'] as const,
+    responseMode: 'json',
+    summary: 'Get Workflow Version',
   },
   importWorkflow: {
     method: 'POST',
@@ -2927,6 +4700,13 @@ export const V2_OPERATIONS = {
         values: ['oauth', 'env_workspace', 'env_personal', 'service_account'] as const,
       },
       providerId: { kind: 'string' },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['displayName', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
     },
   },
   listCustomTools: {
@@ -2937,6 +4717,13 @@ export const V2_OPERATIONS = {
     summary: 'List Custom Tools',
     query: {
       workspaceId: { kind: 'string', required: true },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['title', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
     },
   },
   listFiles: {
@@ -2948,6 +4735,14 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true },
       scope: { kind: 'enum', values: ['active', 'archived'] as const, default: 'active' },
+      folderId: { kind: 'string' },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'size', 'uploadedAt', 'updatedAt'] as const,
+        default: 'uploadedAt',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
       limit: { kind: 'number', default: 100 },
       cursor: { kind: 'string' },
     },
@@ -2966,6 +4761,13 @@ export const V2_OPERATIONS = {
         values: ['workflow', 'knowledge_base', 'table'] as const,
       },
       scope: { kind: 'enum', values: ['active', 'archived'] as const, default: 'active' },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['position', 'name', 'createdAt', 'updatedAt'] as const,
+        default: 'position',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
     },
   },
   listKnowledgeBases: {
@@ -2976,6 +4778,14 @@ export const V2_OPERATIONS = {
     summary: 'List Knowledge Bases',
     query: {
       workspaceId: { kind: 'string', required: true },
+      folderId: { kind: 'string' },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
     },
   },
   listKnowledgeDocuments: {
@@ -3046,6 +4856,13 @@ export const V2_OPERATIONS = {
     summary: 'List MCP Servers',
     query: {
       workspaceId: { kind: 'string', required: true },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
     },
   },
   listSkills: {
@@ -3056,6 +4873,13 @@ export const V2_OPERATIONS = {
     summary: 'List Skills',
     query: {
       workspaceId: { kind: 'string', required: true },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
     },
   },
   listTableRows: {
@@ -3076,6 +4900,24 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'List Tables',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      folderId: { kind: 'string' },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+    },
+  },
+  listTableViews: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/views',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'List Views',
     query: {
       workspaceId: { kind: 'string', required: true },
     },
@@ -3113,6 +4955,16 @@ export const V2_OPERATIONS = {
       cursor: { kind: 'string' },
     },
   },
+  listWorkflowGroups: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/groups',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'List Workflow Groups',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
   listWorkflows: {
     method: 'GET',
     path: '/api/v2/workflows',
@@ -3124,6 +4976,24 @@ export const V2_OPERATIONS = {
       folderId: { kind: 'string' },
       deployedOnly: { kind: 'boolean' },
       limit: { kind: 'number', default: 50 },
+      cursor: { kind: 'string' },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['position', 'name', 'createdAt', 'updatedAt', 'runCount'] as const,
+        default: 'position',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+    },
+  },
+  listWorkflowVersions: {
+    method: 'GET',
+    path: '/api/v2/workflows/[id]/versions',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'List Workflow Versions',
+    query: {
+      limit: { kind: 'integer', default: 50 },
       cursor: { kind: 'string' },
     },
   },
@@ -3175,12 +5045,48 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
     },
   },
+  restoreTable: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/restore',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'Restore Table',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
   rollbackWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/rollback',
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Rollback Workflow',
+  },
+  runRowEnrichment: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
+    pathParams: ['tableId', 'rowId', 'groupId'] as const,
+    responseMode: 'json',
+    summary: 'Run Enrichment For One Row',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
+  runTableColumn: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/columns/run',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'Run Column Groups',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      groupIds: { kind: 'array', required: true },
+      runMode: { kind: 'enum', values: ['all', 'incomplete'] as const, default: 'all' },
+      rowIds: { kind: 'array' },
+      filter: { kind: 'unknown' },
+      excludeRowIds: { kind: 'array' },
+      limit: { kind: 'object' },
+    },
   },
   searchKnowledge: {
     method: 'POST',
@@ -3195,6 +5101,16 @@ export const V2_OPERATIONS = {
       topK: { kind: 'number', default: 10 },
       tagFilters: { kind: 'array' },
       searchMode: { kind: 'enum', default: 'vector' },
+    },
+  },
+  tableExportDownload: {
+    method: 'GET',
+    path: '/api/v2/tables/exports/[exportId]/download',
+    pathParams: ['exportId'] as const,
+    responseMode: 'json',
+    summary: 'Download Table Export',
+    query: {
+      workspaceId: { kind: 'string', required: true },
     },
   },
   undeployWorkflow: {
@@ -3328,6 +5244,18 @@ export const V2_OPERATIONS = {
       content: { kind: 'string' },
     },
   },
+  updateTable: {
+    method: 'PATCH',
+    path: '/api/v2/tables/[tableId]',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'Update Table',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string' },
+      folderId: { kind: 'string' },
+    },
+  },
   updateTableColumn: {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/columns',
@@ -3351,15 +5279,51 @@ export const V2_OPERATIONS = {
       data: { kind: 'unknown', required: true },
     },
   },
-  uploadFile: {
-    method: 'POST',
-    path: '/api/v2/files',
-    pathParams: [] as const,
+  updateTableView: {
+    method: 'PATCH',
+    path: '/api/v2/tables/[tableId]/views/[viewId]',
+    pathParams: ['tableId', 'viewId'] as const,
     responseMode: 'json',
-    summary: 'Upload File',
-    query: {
+    summary: 'Update View',
+    body: {
       workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string' },
+      config: { kind: 'object' },
+      configPatch: { kind: 'object' },
+      isDefault: { kind: 'boolean' },
+    },
+  },
+  updateWorkflow: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[id]',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Update Workflow',
+    body: {
+      name: { kind: 'string' },
+      description: { kind: 'string' },
       folderId: { kind: 'string' },
+    },
+  },
+  updateWorkflowGroup: {
+    method: 'PATCH',
+    path: '/api/v2/tables/[tableId]/groups',
+    pathParams: ['tableId'] as const,
+    responseMode: 'json',
+    summary: 'Update Workflow Group',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      groupId: { kind: 'string', required: true },
+      workflowId: { kind: 'string' },
+      name: { kind: 'string' },
+      dependencies: { kind: 'object' },
+      outputs: { kind: 'array' },
+      newOutputColumns: { kind: 'array' },
+      mappingUpdates: { kind: 'array' },
+      inputMappings: { kind: 'array' },
+      deploymentMode: { kind: 'enum', values: ['live', 'deployed'] as const },
+      type: { kind: 'enum', values: ['manual', 'enrichment'] as const },
+      autoRun: { kind: 'boolean' },
     },
   },
   uploadKnowledgeDocument: {

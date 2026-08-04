@@ -6,7 +6,7 @@ import chalk from 'chalk'
 import type { Command } from 'commander'
 import { clientFrom } from '../context.js'
 import type { QueryRowsResponse } from '../generated/v2-api.js'
-import { SimApiError } from '../http/client.js'
+import { SimApiError, type SimClient } from '../http/client.js'
 import { type Column, printList, sanitize, text } from '../output/render.js'
 
 /**
@@ -149,11 +149,91 @@ function contentTypeFor(name: string): string {
   return CONTENT_TYPES[extension] ?? 'application/octet-stream'
 }
 
-/** The route's own ceiling. Checked here so a 100 MB body is never sent to be refused. */
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+interface UploadPartUrl {
+  partNumber: number
+  url: string
+  headers: Record<string, string>
+}
+
+interface FileUpload {
+  id: string
+  size: number
+  partSize: number
+  partCount: number
+  uploadToken: string
+  file: { id: string } | null
+}
+
+/** The parts endpoint signs at most this many URLs per request. */
+const PART_URL_BATCH = 100
+
+/**
+ * Sends every part of a file to the storage URLs the API signs for it, and
+ * returns what `complete` needs to reassemble them.
+ *
+ * URLs are requested in batches because each one is short-lived: signing all
+ * 640 possible parts up front would leave the last ones expired by the time a
+ * slow connection reached them.
+ *
+ * Parts go out one at a time. Concurrency would be faster, but a failure
+ * mid-flight has to abort the whole upload anyway, and a sequential loop makes
+ * "which part failed" unambiguous.
+ */
+async function uploadParts(
+  client: SimClient,
+  workspaceId: string,
+  upload: FileUpload,
+  blob: Blob
+): Promise<Array<{ partNumber: number; etag?: string }>> {
+  const completed: Array<{ partNumber: number; etag?: string }> = []
+
+  for (let first = 1; first <= upload.partCount; first += PART_URL_BATCH) {
+    const partNumbers = []
+    for (let n = first; n < first + PART_URL_BATCH && n <= upload.partCount; n++) {
+      partNumbers.push(n)
+    }
+
+    const signed = await client.request<{ data: { parts: UploadPartUrl[] } }>(
+      `/api/v2/files/uploads/${encodeURIComponent(upload.id)}/parts`,
+      {
+        method: 'POST',
+        query: { workspaceId },
+        headers: { 'upload-token': upload.uploadToken },
+        body: { partNumbers },
+      }
+    )
+
+    for (const part of signed.data.parts) {
+      const start = (part.partNumber - 1) * upload.partSize
+      // `Blob.slice` is a view over the file on disk, so only the part being
+      // sent is ever read — the point of not buffering the upload.
+      const chunk = blob.slice(start, Math.min(start + upload.partSize, upload.size))
+
+      // boundary-raw-fetch: storage-signed URL on another origin, not the API
+      const response = await fetch(part.url, {
+        method: 'PUT',
+        headers: part.headers,
+        body: chunk,
+      })
+      if (!response.ok) {
+        throw new SimApiError(
+          `Part ${part.partNumber} failed with status ${response.status}`,
+          response.status
+        )
+      }
+
+      // S3-compatible stores identify a part by the ETag they return; the API
+      // treats it as optional because not every backend sends one.
+      const etag = response.headers.get('etag')?.replace(/"/g, '')
+      completed.push(etag ? { partNumber: part.partNumber, etag } : { partNumber: part.partNumber })
+    }
+  }
+
+  return completed
+}
 
 export function attachHandWritten(program: Command): void {
-  // ── files upload ── multipart, which the generated flag surface cannot express ──
+  // ── files upload ── a presigned multipart handshake, not one request ──────
   group(program, 'files')
     .command('upload <path>')
     .description('Upload a file to the workspace')
@@ -161,12 +241,8 @@ export function attachHandWritten(program: Command): void {
     .option('--name <name>', 'Store it under a different name')
     .action(
       async (path: string, options: { folderId?: string; name?: string }, command: Command) => {
-        const { client, profile } = clientFrom(command)
+        const { client } = clientFrom(command)
         const workspaceId = client.requireWorkspace()
-
-        if (!profile.apiKey) {
-          throw new SimApiError(`Not logged in on profile "${profile.name}". Run: sim login`, 0)
-        }
 
         let size: number
         try {
@@ -178,43 +254,54 @@ export function attachHandWritten(program: Command): void {
           throw new SimApiError(`Cannot read ${path}: ${(error as Error).message}`, 0)
         }
 
-        // Fail here rather than after streaming 100 MB the server will reject.
-        if (size > MAX_UPLOAD_BYTES) {
-          throw new SimApiError(
-            `${path} is ${(size / 1024 / 1024).toFixed(1)}MB; the limit is 100MB`,
-            0
-          )
-        }
+        // The server sizes its own parts, but it cannot reject an empty file any
+        // more cheaply than we can: a zero-byte upload has no parts to send.
+        if (size === 0) throw new SimApiError(`${path} is empty`, 0)
 
         const name = options.name ?? basename(path)
-        const url = new URL(`${profile.endpoint}/api/v2/files`)
-        url.searchParams.set('workspaceId', workspaceId)
-        if (options.folderId) url.searchParams.set('folderId', options.folderId)
 
-        // `openAsBlob` keeps the file on disk and reads it as the request is
-        // written; building a Buffer first would hold the whole upload in memory.
-        const body = new FormData()
-        body.append('file', await openAsBlob(path, { type: contentTypeFor(name) }), name)
-
-        const response = await fetch(url, {
+        const created = await client.request<{ data: FileUpload }>('/api/v2/files/uploads', {
           method: 'POST',
-          headers: { 'x-api-key': profile.apiKey },
-          body,
+          body: {
+            workspaceId,
+            name,
+            contentType: contentTypeFor(name),
+            size,
+            ...(options.folderId ? { folderId: options.folderId } : {}),
+          },
         })
+        const upload = created.data
 
-        const payload = (await response.json().catch(() => null)) as {
-          data?: { id?: string }
-          error?: { message?: string }
-        } | null
+        // Any failure past this point leaves an upload holding storage, so the
+        // rest runs under an abort that the server also uses to release it.
+        try {
+          const blob = await openAsBlob(path)
+          const parts = await uploadParts(client, workspaceId, upload, blob)
 
-        if (!response.ok) {
-          throw new SimApiError(
-            payload?.error?.message ?? `Upload failed with status ${response.status}`,
-            response.status
+          const completed = await client.request<{ data: FileUpload }>(
+            `/api/v2/files/uploads/${encodeURIComponent(upload.id)}/complete`,
+            {
+              method: 'POST',
+              query: { workspaceId },
+              headers: { 'upload-token': upload.uploadToken },
+              body: { parts },
+            }
           )
+          console.log(
+            chalk.green(`✓ Uploaded ${name} (${completed.data.file?.id ?? completed.data.id})`)
+          )
+        } catch (error) {
+          await client
+            .request(`/api/v2/files/uploads/${encodeURIComponent(upload.id)}`, {
+              method: 'DELETE',
+              query: { workspaceId },
+              headers: { 'upload-token': upload.uploadToken },
+            })
+            // The original failure is what the caller needs; a failed cleanup
+            // must not replace it with a message about the cleanup.
+            .catch(() => undefined)
+          throw error
         }
-
-        console.log(chalk.green(`✓ Uploaded ${name} (${payload?.data?.id ?? 'unknown id'})`))
       }
     )
 
