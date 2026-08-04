@@ -87,14 +87,14 @@ export function recordSimToolMetric(
   durationMs: number
 ): void {
   const { toolDuration, toolCalls } = instruments()
-  const baseAttrs = {
+  const attrs = {
     [TraceAttr.ToolName]: cappedToolName(name),
     [TraceAttr.ToolExecutor]: 'sim',
     [TraceAttr.ToolOutcome]: outcome,
     [TraceAttr.GenAiAgentName]: cappedAgentId(agentId),
   }
-  toolCalls.add(1, baseAttrs)
-  if (durationMs >= 0) toolDuration.record(durationMs, baseAttrs)
+  toolCalls.add(1, attrs)
+  if (durationMs >= 0) toolDuration.record(durationMs, attrs)
 }
 
 // recordVfsMaterialize records VFS materialization time. Call once per phase
