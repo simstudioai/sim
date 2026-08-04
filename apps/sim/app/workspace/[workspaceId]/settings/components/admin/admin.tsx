@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, Button, ChipInput, ChipSelect, cn, Label, Search, Switch } from '@sim/emcn'
+import { Badge, Button, Chip, ChipInput, ChipSelect, cn, Label, Search, Switch } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
@@ -14,6 +14,7 @@ import {
 import { useRecentImpersonations } from '@/app/workspace/[workspaceId]/settings/components/admin/use-recent-impersonations'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type AdminUser,
   useAdminUsers,
@@ -371,99 +372,100 @@ export function Admin() {
 
       <div className='h-px bg-[var(--border)]' />
 
-      <div className='flex flex-col gap-3'>
-        <div className='flex items-center justify-between gap-3'>
-          <p className='font-medium text-[var(--text-muted)] text-small'>User Management</p>
-          <Button variant='primary' onClick={() => setIsAddUserOpen(true)}>
-            Add user
-          </Button>
-        </div>
-        <div className='flex gap-2'>
-          <ChipInput
-            icon={Search}
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder='Search by email or paste a user ID...'
-            className='min-w-0 flex-1'
-          />
-          <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
-            {usersLoading ? 'Searching...' : 'Search'}
-          </Button>
-        </div>
+      <SettingsSection
+        label='User management'
+        action={<Chip onClick={() => setIsAddUserOpen(true)}>Add user</Chip>}
+      >
+        <div className='flex flex-col gap-3'>
+          <div className='flex gap-2'>
+            <ChipInput
+              icon={Search}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder='Search by email or paste a user ID...'
+              className='min-w-0 flex-1'
+            />
+            <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
+              {usersLoading ? 'Searching...' : 'Search'}
+            </Button>
+          </div>
 
-        {usersError && (
-          <p className='text-[var(--text-error)] text-small'>
-            {getErrorMessage(usersError, 'Failed to fetch users')}
-          </p>
-        )}
+          {usersError && (
+            <p className='text-[var(--text-error)] text-small'>
+              {getErrorMessage(usersError, 'Failed to fetch users')}
+            </p>
+          )}
 
-        {(setUserRole.error ||
-          banUser.error ||
-          unbanUser.error ||
-          impersonateUser.error ||
-          impersonationGuardError) && (
-          <p className='text-[var(--text-error)] text-small'>
-            {impersonationGuardError ||
-              (setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
-                ?.message ||
-              'Action failed. Please try again.'}
-          </p>
-        )}
+          {(setUserRole.error ||
+            banUser.error ||
+            unbanUser.error ||
+            impersonateUser.error ||
+            impersonationGuardError) && (
+            <p className='text-[var(--text-error)] text-small'>
+              {impersonationGuardError ||
+                (setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
+                  ?.message ||
+                'Action failed. Please try again.'}
+            </p>
+          )}
 
-        {searchQuery.length > 0 && usersData ? (
-          <>
-            <div className='flex flex-col gap-0.5'>
-              {USER_TABLE_HEADER}
+          {searchQuery.length > 0 && usersData ? (
+            <>
+              <div className='flex flex-col gap-0.5'>
+                {USER_TABLE_HEADER}
 
-              {usersData.users.length === 0 && (
-                <SettingsEmptyState variant='inline'>No users found.</SettingsEmptyState>
-              )}
+                {usersData.users.length === 0 && (
+                  <SettingsEmptyState variant='inline'>No users found.</SettingsEmptyState>
+                )}
 
-              {usersData.users.map((u) => renderUserRow(u))}
-            </div>
-
-            {totalPages > 1 && (
-              <div className='flex items-center justify-between text-[var(--text-secondary)] text-small'>
-                <span>
-                  Page {currentPage} of {totalPages} ({usersData.total} users)
-                </span>
-                <div className='flex gap-1'>
-                  <Button
-                    variant='active'
-                    className='h-[28px] px-2 text-caption'
-                    onClick={() =>
-                      setAdminParams((prev) => ({
-                        offset: Math.max(0, prev.offset - PAGE_SIZE),
-                      }))
-                    }
-                    disabled={usersOffset === 0 || usersLoading}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant='active'
-                    className='h-[28px] px-2 text-caption'
-                    onClick={() => setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))}
-                    disabled={usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading}
-                  >
-                    Next
-                  </Button>
-                </div>
+                {usersData.users.map((u) => renderUserRow(u))}
               </div>
-            )}
-          </>
-        ) : (
-          searchQuery.length === 0 &&
-          recentUsers &&
-          recentUsers.length > 0 && (
-            <div className='flex flex-col gap-0.5'>
-              {USER_TABLE_HEADER}
-              {recentUsers.map((u) => renderUserRow(u))}
-            </div>
-          )
-        )}
-      </div>
+
+              {totalPages > 1 && (
+                <div className='flex items-center justify-between text-[var(--text-secondary)] text-small'>
+                  <span>
+                    Page {currentPage} of {totalPages} ({usersData.total} users)
+                  </span>
+                  <div className='flex gap-1'>
+                    <Button
+                      variant='active'
+                      className='h-[28px] px-2 text-caption'
+                      onClick={() =>
+                        setAdminParams((prev) => ({
+                          offset: Math.max(0, prev.offset - PAGE_SIZE),
+                        }))
+                      }
+                      disabled={usersOffset === 0 || usersLoading}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant='active'
+                      className='h-[28px] px-2 text-caption'
+                      onClick={() =>
+                        setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))
+                      }
+                      disabled={usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            searchQuery.length === 0 &&
+            recentUsers &&
+            recentUsers.length > 0 && (
+              <div className='flex flex-col gap-0.5'>
+                {USER_TABLE_HEADER}
+                {recentUsers.map((u) => renderUserRow(u))}
+              </div>
+            )
+          )}
+        </div>
+      </SettingsSection>
       <AddUserModal
         open={isAddUserOpen}
         onOpenChange={setIsAddUserOpen}
