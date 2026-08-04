@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { asyncJobs, workflowExecutionLogs } from '@sim/db/schema'
+import { asyncJobs, tableJobs, workflowExecutionLogs } from '@sim/db/schema'
 import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_JOB_DURATION_SECONDS, MIN_JOB_DURATION_SECONDS } from '@/lib/core/async-jobs'
@@ -139,6 +139,45 @@ describe('stale execution cleanup deadline grace', () => {
     expect(errorExpression.params).toContainEqual(
       expect.stringMatching(/^Job terminated: stuck in processing for more than \d+ minutes$/)
     )
+  })
+
+  it('keeps table-job heartbeat cleanup independent from workflow timeout policy', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+
+    try {
+      const response = await GET(createRequest())
+
+      expect(response.status).toBe(200)
+      const expectedThreshold = new Date('2026-08-03T10:25:00.000Z')
+      const tableJobComparisons = dbChainMockFns.where.mock.calls
+        .flatMap(([condition]) => flattenConditions(condition))
+        .filter(
+          (condition) =>
+            condition.type === 'lt' &&
+            condition.left === tableJobs.updatedAt &&
+            condition.right instanceof Date &&
+            condition.right.getTime() === expectedThreshold.getTime()
+        )
+
+      expect(tableJobComparisons).toHaveLength(2)
+      expect(tableJobComparisons.map(({ right }) => right)).toEqual([
+        expectedThreshold,
+        expectedThreshold,
+      ])
+
+      const tableJobUpdateIndex = dbChainMockFns.update.mock.calls.findIndex(
+        ([table]) => table === tableJobs
+      )
+      const update = dbChainMockFns.set.mock.calls[tableJobUpdateIndex]?.[0] as {
+        error: string
+      }
+      expect(update.error).toBe(
+        'Job terminated: no progress for more than 95 minutes (worker timeout or crash)'
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('caps every bulk mutation and returns only scalar export cleanup fields', async () => {

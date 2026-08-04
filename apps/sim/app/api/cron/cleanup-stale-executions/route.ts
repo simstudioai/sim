@@ -33,6 +33,11 @@ const STALE_THRESHOLD_MINUTES = Math.ceil(STALE_THRESHOLD_MS / 60000)
 const GENERIC_STALE_PROCESSING_ERROR = `Job terminated: stuck in processing for more than ${STALE_THRESHOLD_MINUTES} minutes`
 const EXECUTION_DEADLINE_ERROR = getTimeoutErrorMessage(undefined)
 const MAX_INT32 = 2_147_483_647
+/**
+ * Table jobs run as detached workers with progress heartbeats, independently of workflow timeout
+ * policy. Preserve their historical 90-minute task window plus five-minute cleanup grace.
+ */
+const TABLE_JOB_STALE_THRESHOLD_MINUTES = 95
 /** Terminal table-jobs older than this are pruned; only the latest job per table is ever read. */
 const TABLE_JOB_RETENTION_HOURS = 24
 /**
@@ -104,6 +109,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const staleThreshold = new Date(now.getTime() - STALE_THRESHOLD_MINUTES * 60 * 1000)
     const stalePendingThreshold = new Date(
       now.getTime() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000
+    )
+    const staleTableJobThreshold = new Date(
+      now.getTime() - TABLE_JOB_STALE_THRESHOLD_MINUTES * 60 * 1000
     )
 
     const staleExecutions = await db
@@ -269,10 +277,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     // doesn't grow unbounded (the latest job per table is what list/detail reads surface).
     let staleTableJobsMarkedFailed = 0
     try {
-      const now = new Date()
       const staleTableJobPredicate = and(
         eq(tableJobs.status, 'running'),
-        lt(tableJobs.updatedAt, staleThreshold)
+        lt(tableJobs.updatedAt, staleTableJobThreshold)
       )
       const staleTableJobResult = await runBatchedMutation({
         batchSize: STATE_MUTATION_BATCH_SIZE,
@@ -288,7 +295,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             .update(tableJobs)
             .set({
               status: 'failed',
-              error: `Job terminated: no progress for more than ${STALE_THRESHOLD_MINUTES} minutes (worker timeout or crash)`,
+              error: `Job terminated: no progress for more than ${TABLE_JOB_STALE_THRESHOLD_MINUTES} minutes (worker timeout or crash)`,
               completedAt: now,
               updatedAt: now,
             })
