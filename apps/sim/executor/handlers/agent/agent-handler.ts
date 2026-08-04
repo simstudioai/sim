@@ -52,7 +52,11 @@ import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
-import { shouldUseLargeFilePath, supportsFileAttachments } from '@/providers/attachments'
+import {
+  formatAttachmentBytes,
+  shouldUseLargeFilePath,
+  supportsFileAttachments,
+} from '@/providers/attachments'
 import {
   canUseProviderLargeFilePath,
   getInlineHydrationMaxBytes,
@@ -974,11 +978,11 @@ export class AgentBlockHandler implements BlockHandler {
           !(canUseProviderLargeFilePath(providerId) && shouldUseLargeFilePath(file, providerId))
       )
       if (missingFile) {
-        const inlineMB = (inlineMaxBytes / (1024 * 1024)).toFixed(0)
+        const inlineMB = formatAttachmentBytes(inlineMaxBytes)
         const oversized = Number.isFinite(missingFile.size) && missingFile.size > inlineMaxBytes
         throw new Error(
           oversized
-            ? `File "${missingFile.name}" (${(missingFile.size / (1024 * 1024)).toFixed(2)}MB) exceeds the ${inlineMB}MB inline attachment limit, and provider "${providerId}" has no large-file upload path for it.`
+            ? `File "${missingFile.name}" (${formatAttachmentBytes(missingFile.size)}MB) exceeds the ${inlineMB}MB inline attachment limit, and provider "${providerId}" has no large-file upload path for it.`
             : `File "${missingFile.name}" could not be read for provider "${providerId}". The file may no longer be accessible.`
         )
       }

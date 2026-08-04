@@ -8,6 +8,7 @@ import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import {
+  formatAttachmentBytes,
   getProviderAttachmentMaxBytes,
   getProviderFileStrategy,
   INLINE_ATTACHMENT_THRESHOLD_BYTES,
@@ -88,8 +89,8 @@ export async function attachLargeFileRemoteUrls(
     if (!file.key || !shouldUseLargeFilePath(file, providerId)) continue
 
     if (Number.isFinite(file.size) && file.size > maxBytes) {
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
-      const maxMB = (maxBytes / (1024 * 1024)).toFixed(0)
+      const sizeMB = formatAttachmentBytes(file.size)
+      const maxMB = formatAttachmentBytes(maxBytes)
       throw new Error(
         `File "${file.name}" (${sizeMB}MB) exceeds the ${maxMB}MB agent attachment limit for provider "${providerId}"`
       )

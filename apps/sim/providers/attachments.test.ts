@@ -11,6 +11,7 @@ import {
   buildOpenAICompatibleChatContent,
   buildOpenAIMessageContent,
   buildOpenRouterMessageContent,
+  formatAttachmentBytes,
   formatMessagesForProvider,
   getProviderAttachmentMaxBytes,
   getProviderFileStrategy,
@@ -284,6 +285,15 @@ describe('provider attachments', () => {
         'deepseek'
       )
     ).toThrow('not supported')
+  })
+})
+
+describe('attachment limit formatting', () => {
+  /** Guards the report of OpenAI's decimal 50 MB ceiling as "48MB" when divided by 1024². */
+  it('reports a decimal-MB ceiling as the vendor publishes it', () => {
+    expect(formatAttachmentBytes(50_000_000)).toBe('50')
+    expect(formatAttachmentBytes(10 * 1024 * 1024)).toBe('10')
+    expect(formatAttachmentBytes(9_591_617)).toBe('9.59')
   })
 })
 

@@ -213,6 +213,18 @@ export function getProviderAttachmentMaxBytes(providerId: ProviderId | string): 
   return getProviderFileAttachment(providerId).maxBytes
 }
 
+/**
+ * Renders a byte count for a user-facing limit message.
+ *
+ * Decimal MB, because that is the unit the vendors publish and therefore the number a user is
+ * comparing against. Dividing by 1024² instead reported OpenAI's 50 MB ceiling as "48MB", so a
+ * user shrinking a 49 MB file to get under it was chasing a limit that did not exist.
+ */
+export function formatAttachmentBytes(bytes: number): string {
+  const megabytes = bytes / 1_000_000
+  return megabytes < 10 ? megabytes.toFixed(2).replace(/\.?0+$/, '') : megabytes.toFixed(0)
+}
+
 export function inferAttachmentMimeType(file: UserFile): string {
   const explicitType = file.type?.trim().toLowerCase()
   return resolveFileType({
@@ -400,8 +412,8 @@ export function prepareProviderAttachments(
 
     const maxBytes = getProviderAttachmentMaxBytes(providerId)
     if (Number.isFinite(file.size) && file.size > maxBytes) {
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
-      const maxMB = (maxBytes / (1024 * 1024)).toFixed(0)
+      const sizeMB = formatAttachmentBytes(file.size)
+      const maxMB = formatAttachmentBytes(maxBytes)
       throw new Error(
         `File "${file.name}" (${sizeMB}MB) exceeds the ${maxMB}MB agent attachment limit for provider "${providerId}"`
       )
