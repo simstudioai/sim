@@ -126,7 +126,7 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
             className='size-[16px] flex-shrink-0 rounded-sm'
           />
           <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{workspaceName}</span>
-          <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+          <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
         </div>
         <PanelLeft className='mr-1.5 size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
       </div>

@@ -268,7 +268,7 @@ export function QuestionDisplay({
                   'before:absolute before:inset-[-8px] before:content-[""] disabled:opacity-50'
                 )}
               >
-                <ChevronLeft className='h-[9px] w-[7px] text-[var(--text-icon)]' />
+                <ChevronLeft className='size-[14px] text-[var(--text-icon)]' />
                 <span className='sr-only'>Previous question</span>
               </Button>
               <span className='whitespace-nowrap text-[var(--text-muted)] text-sm tabular-nums'>
@@ -286,7 +286,7 @@ export function QuestionDisplay({
                   'before:absolute before:inset-[-8px] before:content-[""] disabled:opacity-50'
                 )}
               >
-                <ChevronRight className='h-[9px] w-[7px] text-[var(--text-icon)]' />
+                <ChevronRight className='size-[14px] text-[var(--text-icon)]' />
                 <span className='sr-only'>Next question</span>
               </Button>
             </div>

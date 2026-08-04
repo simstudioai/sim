@@ -1,6 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { ChevronRight } from '@sim/emcn/icons'
 import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
 import { useSidebar } from 'fumadocs-ui/components/sidebar/base'
 import Link from 'next/link'
@@ -10,25 +11,13 @@ import { cn } from '@/lib/utils'
 
 function SidebarChevron({ open, className }: { open: boolean; className?: string }) {
   return (
-    <svg
-      width='5'
-      height='8'
-      viewBox='0 0 6 10'
-      fill='none'
+    <ChevronRight
       className={cn(
-        'flex-shrink-0 transition-transform duration-200',
+        'size-[14px] flex-shrink-0 transition-transform duration-200',
         open && 'rotate-90',
         className
       )}
-    >
-      <path
-        d='M1 1L5 5L1 9'
-        stroke='currentColor'
-        strokeWidth='1.33'
-        strokeLinecap='square'
-        strokeLinejoin='miter'
-      />
-    </svg>
+    />
   )
 }
 

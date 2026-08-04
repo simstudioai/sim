@@ -28,7 +28,7 @@ export function ChipChevronDown({ className }: ChipChevronDownProps) {
         className
       )}
     >
-      <ChevronDown className='h-[6px] w-[10px]' />
+      <ChevronDown className='size-[14px]' />
     </span>
   )
 }

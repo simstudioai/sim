@@ -473,7 +473,7 @@ function MappingKindRow({ controller, group, summary }: MappingKindRowProps) {
         </Badge>
         <ChevronDown
           className={cn(
-            'h-[6px] w-[10px] shrink-0 text-[var(--text-icon)] transition-transform',
+            'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
             open && 'rotate-180'
           )}
         />
