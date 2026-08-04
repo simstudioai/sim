@@ -331,6 +331,63 @@ describe('runCopilotLifecycle', () => {
     })
   })
 
+  it('projects large tool catalogs at the tool-definition boundary', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'catalog-secret', encryptedValue: 'ciphertext' },
+    ])
+    const toolCount = 4_000
+    const propertiesPerTool = 8
+    // These definitions are individually small, but flattening their semantic fields into one
+    // synthetic projection value creates 108,001 traversal nodes and crosses the per-value budget.
+    const integrationTools = Array.from({ length: toolCount }, (_, toolIndex) => {
+      const properties = Object.fromEntries(
+        Array.from({ length: propertiesPerTool }, (_, propertyIndex) => [
+          `field_${propertyIndex}`,
+          {
+            type: 'string',
+            description: `Field ${propertyIndex} for tool ${toolIndex}`,
+          },
+        ])
+      )
+
+      return {
+        name: `tool_${toolIndex}`,
+        description: `Tool ${toolIndex} uses catalog-secret`,
+        input_schema: {
+          type: 'object',
+          properties,
+          required: Object.keys(properties),
+        },
+      }
+    })
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    const result = await runCopilotLifecycle(
+      {
+        message: 'Use the integration catalog',
+        messageId: 'stream-large-tool-catalog',
+        integrationTools,
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    const sent = JSON.parse(capturedRequestBody)
+    expect(sent.integrationTools).toHaveLength(integrationTools.length)
+    expect(sent.integrationTools[0].description).toBe('Tool 0 uses {{TOKEN}}')
+    expect(sent.integrationTools.at(-1).name).toBe(`tool_${toolCount - 1}`)
+    expect(capturedRequestBody).not.toContain('catalog-secret')
+  })
+
   it('projects selected JSON and attachment fields exactly once when plaintext overlaps its alias', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },

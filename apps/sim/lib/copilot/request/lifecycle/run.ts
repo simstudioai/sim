@@ -38,10 +38,7 @@ import {
   COPILOT_VFS_ROUTING_KEYS,
   isCopilotModelTextKey,
 } from '@/lib/copilot/model-visible-content'
-import {
-  collectModelVisibleSchemaContent,
-  getModelVisibleSchemaAction,
-} from '@/lib/copilot/model-visible-schema'
+import { getModelVisibleSchemaAction } from '@/lib/copilot/model-visible-schema'
 import { getAutoAllowedTools } from '@/lib/copilot/persistence/tool-permission/auto-allow'
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
 import { buildToolCallSummaries } from '@/lib/copilot/request/context/result'
@@ -332,9 +329,9 @@ function schemaContentAction(
 }
 
 const toolContentSelector: SelectedContentSelector = (path, key, value) => {
-  if (path.length === 1 && key === 'description') return 'project'
-  if (path.length === 1 && key === 'name') return 'verify'
-  if (path.length === 1 && TOOL_SCHEMA_KEYS.has(key)) return 'traverse'
+  if (path.length === 0 && key === 'description') return 'project'
+  if (path.length === 0 && key === 'name') return 'verify'
+  if (path.length === 0 && TOOL_SCHEMA_KEYS.has(key)) return 'traverse'
 
   const schemaRootIndex = path.findIndex((segment) => TOOL_SCHEMA_KEYS.has(segment))
   if (schemaRootIndex >= 0) {
@@ -402,31 +399,27 @@ const desktopContentSelector: SelectedContentSelector = (_path, key, value) => {
   return value !== null && typeof value === 'object' ? 'traverse' : 'preserve'
 }
 
-function isModelSafeToolPayload(
-  candidate: unknown,
-  registry: ResolvedSecretTraceRegistry
-): boolean {
-  if (!isPlainRecord(candidate) || typeof candidate.name !== 'string') return false
-  if (!isResolvedSecretModelContentUnchanged(candidate.name, registry)) return false
-
-  try {
-    for (const schemaKey of TOOL_SCHEMA_KEYS) {
-      if (!Object.hasOwn(candidate, schemaKey)) continue
-      const guardedValues = collectModelVisibleSchemaContent(candidate[schemaKey]).guardedValues
-      if (!isResolvedSecretModelContentUnchanged(guardedValues, registry)) return false
-    }
-    return true
-  } catch {
-    return false
-  }
-}
-
-function filterModelSafeToolPayloads(
+function projectModelSafeToolPayloads(
   value: unknown,
   registry: ResolvedSecretTraceRegistry
 ): unknown[] {
   if (!Array.isArray(value)) throw new CopilotModelContentProjectionError()
-  return value.filter((candidate) => isModelSafeToolPayload(candidate, registry))
+
+  const projected: unknown[] = []
+  for (const candidate of value) {
+    if (!isPlainRecord(candidate) || typeof candidate.name !== 'string') continue
+
+    try {
+      projected.push(projectStructuredContent(candidate, registry, toolContentSelector, 'record'))
+    } catch {
+      // Tool definitions are independent protocol entities. Reject an unsafe definition without
+      // turning the entire catalog into one synthetic projection value or failing safe siblings.
+    }
+  }
+
+  // Projection completeness is a request-level invariant, even when every candidate was rejected.
+  projectModelContent([], registry)
+  return projected
 }
 
 function hasModelSafeRoutingFields(
@@ -645,12 +638,7 @@ function projectInitialCopilotPayload(
   }
   for (const key of TOOL_PAYLOAD_KEYS) {
     if (Object.hasOwn(payload, key)) {
-      projectedPayload[key] = projectStructuredContent(
-        filterModelSafeToolPayloads(payload[key], registry),
-        registry,
-        toolContentSelector,
-        'array'
-      )
+      projectedPayload[key] = projectModelSafeToolPayloads(payload[key], registry)
     }
   }
   if (Object.hasOwn(payload, 'responseFormat')) {
