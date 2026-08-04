@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useMemo } from 'react'
-import { Combobox, type ComboboxOptionGroup, cn } from '@sim/emcn'
+import { ChipCombobox, Combobox, type ComboboxOptionGroup, cn } from '@sim/emcn'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -64,6 +64,12 @@ interface OutputSelectProps {
   align?: 'start' | 'end' | 'center'
   /** Maximum height of the dropdown content in pixels */
   maxHeight?: number
+  /**
+   * Trigger chrome. `'sm'` is the compact pill used in inline toolbars;
+   * `'md'` is the 30px chip field, for stacking with `ChipInput` in a form.
+   * @default 'sm'
+   */
+  size?: 'sm' | 'md'
   /** Additional class names to apply to the combobox trigger */
   className?: string
 }
@@ -87,6 +93,7 @@ export function OutputSelect({
   valueMode = 'id',
   align = 'start',
   maxHeight = 200,
+  size = 'sm',
   className,
 }: OutputSelectProps) {
   const blocks = useWorkflowStore((state) => state.blocks)
@@ -299,10 +306,12 @@ export function OutputSelect({
       .filter((v): v is string => v !== null)
   }, [selectedOutputs, workflowOutputs, valueMode])
 
+  const Trigger = size === 'md' ? ChipCombobox : Combobox
+
   return (
-    <Combobox
-      size='sm'
-      className={cn('!py-0.5 w-fit min-w-[100px] rounded-md px-2.5', className)}
+    <Trigger
+      size={size}
+      className={cn('min-w-[100px]', size === 'sm' && '!py-0.5 w-fit rounded-md px-2.5', className)}
       groups={comboboxGroups}
       options={[]}
       multiSelect

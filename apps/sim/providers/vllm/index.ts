@@ -27,6 +27,7 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -339,7 +340,8 @@ export const vllmProvider: ProviderConfig = {
           }
         }
 
-        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+        const toolCallsInResponse =
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
@@ -551,11 +553,11 @@ export const vllmProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'vllm' }
         )
 
-        if (currentResponse.choices[0]?.message?.tool_calls?.length) {
+        if (currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)?.length) {
           /**
            * The capped turn still requests tools, so make one tool-disabled call
            * to synthesize an answer from the tool results already gathered.
@@ -593,7 +595,7 @@ export const vllmProvider: ProviderConfig = {
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             synthesisResponse,
-            synthesisResponse.choices[0]?.message?.tool_calls,
+            synthesisResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
             { model: request.model, provider: 'vllm' }
           )
         }

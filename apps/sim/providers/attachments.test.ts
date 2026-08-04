@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { UserFile } from '@/executor/types'
 import {
   buildAnthropicMessageContent,
@@ -10,11 +11,13 @@ import {
   buildOpenAICompatibleChatContent,
   buildOpenAIMessageContent,
   buildOpenRouterMessageContent,
+  formatAttachmentSizes,
   formatMessagesForProvider,
   getProviderAttachmentMaxBytes,
   getProviderFileStrategy,
   INLINE_ATTACHMENT_THRESHOLD_BYTES,
   inferAttachmentMimeType,
+  LARGE_FILE_PATH_THRESHOLD_BYTES,
   prepareProviderAttachments,
   shouldUseLargeFilePath,
 } from '@/providers/attachments'
@@ -285,7 +288,88 @@ describe('provider attachments', () => {
   })
 })
 
+describe('attachment limit formatting', () => {
+  /**
+   * Guards both directions of the unit bug: dividing every ceiling by 1024² reported OpenAI's
+   * decimal 50 MB as "48MB", and dividing every ceiling by 10⁶ reported Anthropic's 50 MiB as
+   * "52MB". Each vendor's number must come back as that vendor publishes it.
+   */
+  it('reports each ceiling in the unit its vendor publishes', () => {
+    expect(formatAttachmentSizes(0, 50_000_000).limit).toBe('50')
+    expect(formatAttachmentSizes(0, 50 * 1024 * 1024).limit).toBe('50')
+    expect(formatAttachmentSizes(0, 20 * 1024 * 1024).limit).toBe('20')
+    expect(formatAttachmentSizes(0, 25 * 1024 * 1024).limit).toBe('25')
+    expect(formatAttachmentSizes(0, 10 * 1024 * 1024).limit).toBe('10')
+  })
+
+  /**
+   * Exercises `limit + 1` for every ceiling in the registry, which is the only input that can
+   * expose this: rounding both figures to the nearest hundredth rendered a file one byte over a
+   * 20 MiB cap as "20.00MB exceeds the 20MB limit". The previous version of this test asserted
+   * a file 0.03MB over and an openai file *under* the limit, so it passed while that was live.
+   */
+  it('never renders an over-limit file as equal to the limit', () => {
+    const ceilings = [
+      50 * 1024 * 1024,
+      25 * 1024 * 1024,
+      20 * 1024 * 1024,
+      10 * 1024 * 1024,
+      6 * 1024 * 1024,
+      50_000_000,
+    ]
+    for (const limit of ceilings) {
+      const justOver = formatAttachmentSizes(limit + 1, limit)
+      expect(justOver.size).not.toBe(justOver.limit)
+    }
+
+    /**
+     * Every ceiling above divides to an exact integer, so floor/round/ceil are indistinguishable
+     * on them — only a ceiling with a fractional remainder pins the limit-side rounding.
+     */
+    const fractional = formatAttachmentSizes(12_345_679, 12_345_678)
+    expect(fractional.size).not.toBe(fractional.limit)
+  })
+
+  it('keeps a comfortably over-limit size readable', () => {
+    const groq = formatAttachmentSizes(21_000_000, 20 * 1024 * 1024)
+    expect(groq.limit).toBe('20')
+    expect(groq.size).toBe('20.03')
+  })
+})
+
 describe('provider large-file capability', () => {
+  /**
+   * Guards the regression where every 6-10 MB attachment died with "Execution memory limit
+   * exceeded": past this size the base64 copy no longer fits the payload store, so an upload
+   * has to take over wherever one is reachable.
+   */
+  it('starts preferring an upload before base64 outgrows the payload store', () => {
+    const encodedBytes = Math.ceil(LARGE_FILE_PATH_THRESHOLD_BYTES / 3) * 4
+    expect(encodedBytes).toBeLessThanOrEqual(LARGE_VALUE_THRESHOLD_BYTES)
+    expect(LARGE_FILE_PATH_THRESHOLD_BYTES).toBeLessThan(INLINE_ATTACHMENT_THRESHOLD_BYTES)
+  })
+
+  /**
+   * A `remote-url` provider only fetches images and PDFs, so it must not take over from base64
+   * early — text documents in the 6-10 MB band inline fine today and would start failing.
+   */
+  /** A size we cannot read must still reach the uploader, which enforces the ceiling itself. */
+  it('routes an unknown-size file to a files-api upload rather than stranding it', () => {
+    const unknown = { size: 0, type: 'text/csv' }
+    expect(shouldUseLargeFilePath(unknown, 'openai')).toBe(true)
+    expect(shouldUseLargeFilePath(unknown, 'anthropic')).toBe(false)
+    expect(shouldUseLargeFilePath({ size: Number.NaN, type: 'text/csv' }, 'openai')).toBe(true)
+  })
+
+  it('crosses over to an upload at different sizes for files-api and remote-url', () => {
+    const midBand = { size: LARGE_FILE_PATH_THRESHOLD_BYTES + 1, type: 'text/plain' }
+    expect(shouldUseLargeFilePath(midBand, 'openai')).toBe(true)
+    expect(shouldUseLargeFilePath(midBand, 'anthropic')).toBe(false)
+
+    const aboveInline = { size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1, type: 'application/pdf' }
+    expect(shouldUseLargeFilePath(aboveInline, 'anthropic')).toBe(true)
+  })
+
   it('reports per-provider strategy and ceiling, defaulting others to inline', () => {
     expect(getProviderFileStrategy('openai')).toBe('files-api')
     expect(getProviderFileStrategy('google')).toBe('files-api')
@@ -304,7 +388,7 @@ describe('provider large-file capability', () => {
 
   it('routes only oversized files on capable providers to the large-file path', () => {
     const small = { ...imageFile, size: 1024 }
-    const large = { ...imageFile, size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1 }
+    const large = { ...imageFile, size: LARGE_FILE_PATH_THRESHOLD_BYTES + 1 }
     expect(shouldUseLargeFilePath(small, 'openai')).toBe(false)
     expect(shouldUseLargeFilePath(large, 'openai')).toBe(true)
     expect(shouldUseLargeFilePath(large, 'bedrock')).toBe(false)
@@ -313,7 +397,7 @@ describe('provider large-file capability', () => {
   it('does not expose generated source through a remote-url large-file path', () => {
     const generated = {
       ...pdfFile,
-      size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1,
+      size: LARGE_FILE_PATH_THRESHOLD_BYTES + 1,
       type: 'text/x-python-pdf',
     }
     expect(shouldUseLargeFilePath(generated, 'openai')).toBe(true)

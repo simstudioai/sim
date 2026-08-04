@@ -77,6 +77,21 @@ export function isLikelyReferenceSegment(segment: string): boolean {
   return true
 }
 
+const ENV_VAR_PATTERN = new RegExp(`\\${REFERENCE.ENV_VAR_START}[^}]+\\${REFERENCE.ENV_VAR_END}`)
+
+/**
+ * Whether a subblock value carries a `<block.path>` / `<variable.name>` reference or a
+ * `{{ENV_VAR}}` placeholder instead of a literal value — i.e. its real value is only known
+ * once the workflow runs. Conditions that gate one field on a sibling's literal value use
+ * this to stay visible while the sibling is bound dynamically.
+ */
+export function containsReference(value: unknown): boolean {
+  if (typeof value !== 'string' || !value) {
+    return false
+  }
+  return extractReferencePrefixes(value).length > 0 || ENV_VAR_PATTERN.test(value)
+}
+
 export function extractReferencePrefixes(value: string): Array<{ raw: string; prefix: string }> {
   if (!value || typeof value !== 'string') {
     return []

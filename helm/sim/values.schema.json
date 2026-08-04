@@ -488,6 +488,44 @@
         }
       }
     },
+    "redis": {
+      "type": "object",
+      "description": "In-cluster Redis for pub/sub, the Socket.IO adapter, and the idempotency/progress stores. Disable and set app.env.REDIS_URL to use a managed instance.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy the bundled Redis. Skipped automatically when app.env.REDIS_URL is set or a secret-manager mode is active."
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "digest": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "maxmemory": { "type": "string", "description": "Redis maxmemory value, e.g. 512mb" },
+        "maxmemoryPolicy": {
+          "type": "string",
+          "enum": [
+            "noeviction",
+            "allkeys-lru",
+            "allkeys-lfu",
+            "allkeys-random",
+            "volatile-lru",
+            "volatile-lfu",
+            "volatile-random",
+            "volatile-ttl"
+          ],
+          "description": "Redis eviction policy. An invalid value makes Redis exit at startup, so it is enumerated."
+        },
+        "resources": { "type": "object" },
+        "nodeSelector": { "type": "object" },
+        "podSecurityContext": { "type": "object" },
+        "securityContext": { "type": "object" }
+      }
+    },
     "postgresql": {
       "type": "object",
       "properties": {

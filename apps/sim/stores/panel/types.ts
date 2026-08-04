@@ -15,6 +15,18 @@ export interface PanelState {
   setHasHydrated: (hasHydrated: boolean) => void
 }
 
+export interface BrowserTextSelection {
+  text: string
+  url?: string
+  title?: string
+}
+
+export interface TerminalTextSelection {
+  text: string
+  startLine: number
+  endLine: number
+}
+
 export type ChatContext =
   | { kind: 'past_chat'; chatId: string; label: string }
   | { kind: 'workflow'; workflowId: string; label: string }
@@ -69,12 +81,12 @@ export type ChatContext =
   | { kind: 'docs'; label: string }
   /**
    * A tab in the desktop browser or terminal panel, dragged into the input to
-   * say "this one". A pointer rather than a snapshot: the agent reads the tab
-   * with its own tools, so what it sees is the live state at the moment it
-   * looks rather than whatever was on screen when the message was sent.
+   * say "this one". Resource tags remain live pointers; tags created from an
+   * explicit text selection additionally carry that immutable excerpt and its
+   * page/line metadata so the exact selection survives send and chat reload.
    */
-  | { kind: 'browser_tab'; tabId: string; label: string }
-  | { kind: 'terminal_tab'; terminalId: string; label: string }
+  | { kind: 'browser_tab'; tabId: string; label: string; selection?: BrowserTextSelection }
+  | { kind: 'terminal_tab'; terminalId: string; label: string; selection?: TerminalTextSelection }
   | { kind: 'slash_command'; command: string; label: string }
   | { kind: 'integration'; blockType: string; label: string }
   | { kind: 'skill'; skillId: string; label: string }

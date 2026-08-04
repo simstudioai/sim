@@ -47,26 +47,13 @@ import { Chip, type ChipProps } from '../chip/chip'
 import { chipContentIconClass, chipContentLabelClass } from '../chip/chip-chrome'
 import { ChipCopyInput } from '../chip-copy-input/chip-copy-input'
 import { ChipDropdown, type ChipDropdownOption } from '../chip-dropdown/chip-dropdown'
+import { ChipEmailsInput, type ChipEmailsInputProps } from '../chip-emails-input/chip-emails-input'
 import { ChipInput } from '../chip-input/chip-input'
 import { ChipSwitch } from '../chip-switch/chip-switch'
 import { ChipTextarea } from '../chip-textarea/chip-textarea'
 import { Label } from '../label/label'
 import { Modal, ModalContent } from '../modal/modal'
-import { TagInput, type TagItem } from '../tag-input/tag-input'
 import { Tooltip } from '../tooltip/tooltip'
-
-/**
- * Generic RFC 5322 email syntax gate for the `type='emails'` field. This is
- * deliberately format-only — app-specific policy (disposable domains, MX/DNS,
- * membership rules) is the consumer's concern and flows through the field's
- * `validate` prop, keeping that logic in the app rather than the design system.
- */
-const EMAIL_SYNTAX_REGEX =
-  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
-
-function isValidEmailSyntax(email: string): boolean {
-  return EMAIL_SYNTAX_REGEX.test(email) && email.length <= 254
-}
 
 /**
  * The modal's hairline divider — used by the header and footer edges, and
@@ -524,29 +511,23 @@ interface ChipModalFileFieldProps extends ChipModalFieldBaseProps {
   loading?: boolean
 }
 
-export interface ChipModalEmailsFieldProps extends ChipModalFieldBaseProps {
+/**
+ * The emails field is a thin row wrapper over {@link ChipEmailsInput} — the
+ * control's own props (`value`, `onChange`, `validate`, `allowDomains`,
+ * `placeholder`, …) pass straight through, so they are declared in one place.
+ * `variant` is not forwarded: the field always uses the tall `block` chip
+ * surface so it stacks as a peer with `textarea` fields.
+ */
+export interface ChipModalEmailsFieldProps
+  extends ChipModalFieldBaseProps,
+    Omit<ChipEmailsInputProps, 'variant' | 'id'> {
   type: 'emails'
-  /** Current list of valid email addresses. */
-  value: string[]
-  /** Called with the next list when valid items are added or removed. */
-  onChange: (next: string[]) => void
-  /**
-   * Optional domain-level validator. Runs AFTER the field's internal format
-   * check passes. Return an error message to reject the email (added as an
-   * invalid chip whose reason shows in a tooltip on hover); return `null`
-   * to accept.
-   */
-  validate?: (email: string) => string | null
   /**
    * External error (e.g. server-side submit failure), rendered in the inline
    * banner below the field. Per-email rejection reasons are shown on the
    * invalid chips themselves, not here.
    */
   error?: React.ReactNode
-  /** Auto-focus the input when the field mounts. */
-  autoFocus?: boolean
-  /** Placeholder shown when no chips exist. Defaults to `'Enter emails'`. */
-  placeholder?: string
 }
 
 /**
@@ -742,118 +723,37 @@ function renderChipModalControl(
 }
 
 /**
- * Derives the post-first-chip placeholder from the initial placeholder so
- * consumers don't have to spell both. Tries an `'Enter <noun>s'` →
- * `'Add <noun>'` singularize; falls back to a generic `'Add another'`.
- */
-function derivePlaceholderWithTags(placeholder: string): string {
-  const match = placeholder.match(/^Enter\s+(.+?)s?$/i)
-  if (match) return `Add ${match[1]}`
-  return 'Add another'
-}
-
-/**
- * Internal renderer for {@link ChipModalField} `type='emails'`. Owns the
- * chip lifecycle (valid + invalid items, dedupe, per-chip error tooltips)
- * and lifts only the valid email list up to the consumer via `onChange`.
- * Each rejected entry carries its rejection reason on the chip itself,
- * surfaced as a tooltip; the inline banner is reserved for the consumer's
- * `error` (e.g. server-side submit failures).
+ * Internal renderer for {@link ChipModalField} `type='emails'`. Delegates the
+ * chip lifecycle to {@link ChipEmailsInput} and adds only the field-level
+ * error banner — per-entry rejection reasons are shown on the chips
+ * themselves, so this banner is reserved for the consumer's `error` (e.g. a
+ * server-side submit failure).
  */
 function ChipModalEmailsControl({
   value,
   onChange,
   validate,
-  error,
+  allowDomains,
+  placeholder,
+  placeholderWithTags,
   autoFocus,
-  placeholder = 'Enter emails',
   disabled,
-  id,
+  error,
   errorId,
+  id,
 }: ChipModalEmailsFieldProps & { id: string; errorId: string }) {
-  const [items, setItems] = React.useState<TagItem[]>([])
-
-  /**
-   * Synchronous mirror of `items`. Pasting multiple values calls `handleAdd`
-   * once per value within a single event, before React re-renders — reading
-   * the `items` state there would make every call see the same stale array
-   * and each add overwrite the previous one (only the last pasted email
-   * survives). All reads and writes go through the ref so consecutive adds
-   * compose; `commitItems` keeps state and ref in lockstep.
-   */
-  const itemsRef = React.useRef<TagItem[]>(items)
-
-  const commitItems = React.useCallback((next: TagItem[]) => {
-    itemsRef.current = next
-    setItems(next)
-  }, [])
-
-  /**
-   * Reconcile internal `items` with the consumer's `value` when the latter
-   * changes externally (programmatic clear, partial-failure reseed, etc.).
-   * When our own `onChange` is the source of the update, the valid items in
-   * `items` already match `value` and this is a no-op.
-   */
-  React.useEffect(() => {
-    const prevValid = itemsRef.current.filter((item) => item.isValid).map((item) => item.value)
-    if (prevValid.length === value.length && prevValid.every((v, idx) => v === value[idx])) {
-      return
-    }
-    itemsRef.current = value.map((v) => ({ value: v, isValid: true }))
-    setItems(itemsRef.current)
-  }, [value])
-
-  const handleAdd = React.useCallback(
-    (raw: string): boolean => {
-      const email = raw.trim().toLowerCase()
-      if (!email) return false
-      const current = itemsRef.current
-      if (current.some((item) => item.value === email)) return false
-
-      if (!isValidEmailSyntax(email)) {
-        commitItems([...current, { value: email, isValid: false, error: 'Invalid email format' }])
-        return false
-      }
-
-      const reason = validate?.(email)
-      if (reason) {
-        commitItems([...current, { value: email, isValid: false, error: reason }])
-        return false
-      }
-
-      const next = [...current, { value: email, isValid: true }]
-      commitItems(next)
-      onChange(next.filter((item) => item.isValid).map((item) => item.value))
-      return true
-    },
-    [validate, onChange, commitItems]
-  )
-
-  const handleRemove = React.useCallback(
-    (_removed: string, index: number) => {
-      const current = itemsRef.current
-      const wasValid = current[index]?.isValid ?? false
-      const next = current.filter((_, i) => i !== index)
-      commitItems(next)
-      if (wasValid) {
-        onChange(next.filter((item) => item.isValid).map((item) => item.value))
-      }
-    },
-    [onChange, commitItems]
-  )
-
   return (
     <>
-      <TagInput
-        variant='block'
-        items={items}
-        onAdd={handleAdd}
-        onRemove={handleRemove}
-        placeholder={placeholder}
-        placeholderWithTags={derivePlaceholderWithTags(placeholder)}
-        disabled={disabled}
-        autoFocus={autoFocus}
+      <ChipEmailsInput
         id={id}
+        value={value}
+        onChange={onChange}
+        validate={validate}
+        allowDomains={allowDomains}
+        placeholder={placeholder}
+        placeholderWithTags={placeholderWithTags}
+        autoFocus={autoFocus}
+        disabled={disabled}
       />
       {error && (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>

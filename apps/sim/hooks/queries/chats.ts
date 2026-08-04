@@ -20,7 +20,7 @@ import {
   verifyChatEmailOtpContract,
 } from '@/lib/api/contracts/chats'
 import type { OutputConfig } from '@/stores/chat/types'
-import { deploymentKeys } from './deployments'
+import { deploymentKeys, invalidateDeploymentQueries } from './deployments'
 
 const logger = createLogger('ChatMutations')
 
@@ -29,8 +29,6 @@ const logger = createLogger('ChatMutations')
  */
 export const chatKeys = {
   all: ['chats'] as const,
-  status: deploymentKeys.chatStatus,
-  detail: deploymentKeys.chatDetail,
   configs: () => [...chatKeys.all, 'config'] as const,
   config: (identifier?: string) => [...chatKeys.configs(), identifier ?? ''] as const,
 }
@@ -296,17 +294,8 @@ export function useCreateChat() {
         throwUserFriendlyIdentifierError(error)
       }
     },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.chatStatus(variables.workflowId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.info(variables.workflowId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.versions(variables.workflowId),
-      })
-    },
+    onSettled: (_data, _error, variables) =>
+      invalidateDeploymentQueries(queryClient, variables.workflowId),
     onError: (error) => {
       logger.error('Failed to create chat', { error })
     },
@@ -342,11 +331,9 @@ export function useUpdateChat() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
-        queryKey: deploymentKeys.chatStatus(variables.workflowId),
-      })
-      queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatDetail(variables.chatId),
       })
+      return invalidateDeploymentQueries(queryClient, variables.workflowId)
     },
     onError: (error) => {
       logger.error('Failed to update chat', { error })

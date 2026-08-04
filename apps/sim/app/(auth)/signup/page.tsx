@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { isEmailSignupDisabled, isRegistrationDisabled } from '@/lib/core/config/env-flags'
+import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { getOAuthProviderStatus } from '@/app/(auth)/components/oauth-provider-checker'
 import SignupForm from '@/app/(auth)/signup/signup-form'
 
@@ -24,6 +25,7 @@ export default async function SignupPage() {
       microsoftAvailable={microsoftAvailable}
       isProduction={isProduction}
       emailSignupEnabled={!isEmailSignupDisabled}
+      emailVerificationEnabled={isEmailVerificationEffectivelyEnabled()}
     />
   )
 }

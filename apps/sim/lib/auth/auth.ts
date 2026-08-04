@@ -90,6 +90,7 @@ import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
+import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
@@ -792,7 +793,7 @@ export const auth = betterAuth({
      * can still sign in.
      */
     disableSignUp: isEmailSignupDisabled,
-    requireEmailVerification: isEmailVerificationEnabled,
+    requireEmailVerification: isEmailVerificationEffectivelyEnabled(),
     /**
      * When someone signs up with an already-registered email, better-auth returns a
      * generic success response (OWASP enumeration protection) instead of leaking that
@@ -1459,7 +1460,7 @@ export const auth = betterAuth({
           organization({
             allowUserToCreateOrganization: async () => false,
             disableOrganizationDeletion: true,
-            requireEmailVerificationOnInvitation: isEmailVerificationEnabled,
+            requireEmailVerificationOnInvitation: isEmailVerificationEffectivelyEnabled(),
             organizationHooks: {
               afterCreateOrganization: async ({ organization, user }) => {
                 logger.info('[organizationHooks.afterCreateOrganization] Organization created', {

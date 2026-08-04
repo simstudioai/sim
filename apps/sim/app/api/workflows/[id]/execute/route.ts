@@ -59,6 +59,7 @@ import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
+  setExecutionMeta,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
 import {
@@ -1808,6 +1809,7 @@ async function handleExecutePost(
         ) => {
           const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
           let eventToSend = event
+          let terminalBufferWriteFailed = false
           if (isBuffered) {
             try {
               const entry = terminalStatus
@@ -1829,6 +1831,7 @@ async function handleExecutePost(
                 terminal: Boolean(terminalStatus),
                 error: toError(e).message,
               })
+              terminalBufferWriteFailed = Boolean(terminalStatus)
               terminalEventPublished ||= Boolean(terminalStatus)
             }
           }
@@ -1837,6 +1840,22 @@ async function handleExecutePost(
               controller.enqueue(encodeSSEEvent(eventToSend))
             } catch {
               isStreamClosed = true
+            }
+          }
+          if (terminalBufferWriteFailed && terminalStatus) {
+            // Without this the reconnect route polls an `active` stream until its
+            // deadline. The meta write is a plain HSET, so it bypasses the byte budget
+            // that rejected the event. Runs after the live enqueue because Redis is the
+            // likely reason we are here at all, and a slow best-effort durability write
+            // must not delay the primary delivery path.
+            const metaPersisted = await setExecutionMeta(executionId, {
+              status: terminalStatus,
+            })
+            if (!metaPersisted) {
+              reqLogger.error(
+                'Failed to record terminal execution meta after buffer write failure',
+                { executionId, status: terminalStatus }
+              )
             }
           }
         }

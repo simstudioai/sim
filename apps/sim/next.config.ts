@@ -219,12 +219,18 @@ const nextConfig: NextConfig = {
      * it lives. Restoring across commits is separately undocumented-as-supported
      * (vercel/next.js#87283 reports stale HTML from a cache built elsewhere).
      *
-     * Pinned explicitly rather than left to the Next default: upstream already
-     * flips this default to true in canary/preview builds (vercel/next.js#94616),
-     * so relying on the default would let a version bump silently re-enable a
-     * config we measured as harmful.
+     * Keep the explicit pin even while we sit on 16.2.12: 16.3.0 flips this
+     * default to true for stable (vercel/next.js#94616), so dropping it would
+     * silently re-enable the slower cache the next time we take that bump.
      */
     turbopackFileSystemCacheForBuild: false,
+    /**
+     * TypeScript 7 ships no JavaScript compiler API until 7.1, so Next's default
+     * checker cannot load it — this shells out to the project-local `tsc` instead.
+     * Pinned because the failure mode is not slower type checking but none at all:
+     * without it 16.2.12 skips the stage silently in 138ms.
+     */
+    useTypeScriptCli: true,
     preloadEntriesOnStart: false,
     /**
      * Under Turbopack this is not a no-op: the list feeds

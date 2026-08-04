@@ -2,6 +2,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 import { app, BrowserWindow, Menu } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { openExternalSafe } from '@/main/navigation'
+import type { FocusedResourceShortcut } from '@/main/resource-shortcuts'
 
 const DOCS_URL = 'https://docs.sim.ai'
 const STATUS_URL = 'https://status.sim.ai'
@@ -14,15 +15,15 @@ export interface MenuDeps {
   openSettings: () => void
   newWindow: () => void
   newChat: () => void
-  closeFocusedBrowserTab: (win: BrowserWindow | null) => boolean
-  reopenClosedBrowserTab: (win: BrowserWindow | null) => boolean
   /**
-   * Terminal counterparts. Menu accelerators are global, so Cmd-W and
-   * Cmd-Shift-T reach here whatever the user is looking at; each panel gets
-   * asked whether the keystroke was meant for it before the window acts.
+   * Menu accelerators are global, so the focused Browser or Terminal gets the
+   * first chance to claim every resource shortcut before the Sim window uses
+   * its application-level fallback.
    */
-  closeFocusedTerminal: (win: BrowserWindow | null) => boolean
-  reopenClosedTerminal: (win: BrowserWindow | null) => boolean
+  handleFocusedResourceShortcut: (
+    win: BrowserWindow | null,
+    shortcut: FocusedResourceShortcut
+  ) => boolean
   toggleSidebar: () => void
   signOut: () => void
   checkForUpdates: () => void
@@ -41,12 +42,24 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     }
   }
 
-  const setZoom = (resolve: (current: number) => number) =>
-    withWindow((win) => {
+  /** Accelerators fire on whichever window has focus; fall back to the main one. */
+  const focusedOrMain = (focusedWindow: unknown): BrowserWindow | null =>
+    focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+
+  const setZoom = (
+    action: 'in' | 'out' | 'reset'
+  ): NonNullable<MenuItemConstructorOptions['click']> => {
+    const resolve = (current: number) =>
+      action === 'reset' ? 0 : action === 'in' ? current + ZOOM_STEP : current - ZOOM_STEP
+    return (_item, focusedWindow) => {
+      const win = focusedOrMain(focusedWindow)
+      if (!win || win.isDestroyed()) return
+      if (deps.handleFocusedResourceShortcut(win, `zoom-${action}`)) return
       const level = resolve(win.webContents.getZoomLevel())
       win.webContents.setZoomLevel(level)
       deps.config.set('zoomLevel', level)
-    })
+    }
+  }
 
   const viewSubmenu: MenuItemConstructorOptions[] = [
     {
@@ -73,20 +86,17 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     {
       label: 'Reload',
       accelerator: 'CmdOrCtrl+R',
-      click: withWindow((win) => win.webContents.reload()),
+      click: (_item, focusedWindow) => {
+        const win = focusedOrMain(focusedWindow)
+        if (!win || win.isDestroyed()) return
+        if (deps.handleFocusedResourceShortcut(win, 'reload-or-clear')) return
+        win.webContents.reload()
+      },
     },
     { type: 'separator' },
-    { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: setZoom(() => 0) },
-    {
-      label: 'Zoom In',
-      accelerator: 'CmdOrCtrl+Plus',
-      click: setZoom((current) => current + ZOOM_STEP),
-    },
-    {
-      label: 'Zoom Out',
-      accelerator: 'CmdOrCtrl+-',
-      click: setZoom((current) => current - ZOOM_STEP),
-    },
+    { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: setZoom('reset') },
+    { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', click: setZoom('in') },
+    { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: setZoom('out') },
     { type: 'separator' },
   ]
   viewSubmenu.push({ role: 'togglefullscreen' })
@@ -113,6 +123,13 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       label: 'File',
       submenu: [
         {
+          label: 'New Tab',
+          accelerator: 'CmdOrCtrl+T',
+          click: (_item, focusedWindow) => {
+            deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'new-tab')
+          },
+        },
+        {
           label: 'New Window',
           accelerator: 'CmdOrCtrl+Shift+N',
           click: deps.newWindow,
@@ -123,22 +140,15 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           label: 'Reopen Closed Tab',
           accelerator: 'CmdOrCtrl+Shift+T',
           click: (_item, focusedWindow) => {
-            const win =
-              focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
-            if (deps.reopenClosedTerminal(win)) return
-            deps.reopenClosedBrowserTab(win)
+            deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'reopen-closed-tab')
           },
         },
         {
           label: 'Close Window',
           accelerator: 'CmdOrCtrl+W',
           click: (_item, focusedWindow) => {
-            const win =
-              focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
-            // Both panels are asked window-scoped, so a claim made in one window
-            // cannot answer an accelerator fired in another.
-            if (deps.closeFocusedTerminal(win)) return
-            if (deps.closeFocusedBrowserTab(win)) return
+            const win = focusedOrMain(focusedWindow)
+            if (deps.handleFocusedResourceShortcut(win, 'close-tab')) return
             if (win && !win.isDestroyed()) win.close()
           },
         },

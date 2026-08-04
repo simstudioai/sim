@@ -53,25 +53,17 @@ const COMPONENTS = {
   ),
 
   ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
-    <ul
-      className='mt-1 mb-1 space-y-1 pl-6 font-sans text-[var(--text-primary)]'
-      style={{ listStyleType: 'disc' }}
-    >
+    <ul className='mt-1 mb-1 list-disc space-y-1 pl-6 font-sans text-[var(--text-primary)]'>
       {children}
     </ul>
   ),
   ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
-    <ol
-      className='mt-1 mb-1 space-y-1 pl-6 font-sans text-[var(--text-primary)]'
-      style={{ listStyleType: 'decimal' }}
-    >
+    <ol className='mt-1 mb-1 list-decimal space-y-1 pl-6 font-sans text-[var(--text-primary)]'>
       {children}
     </ol>
   ),
   li: ({ children }: React.LiHTMLAttributes<HTMLLIElement>) => (
-    <li className='font-sans text-[var(--text-primary)]' style={{ display: 'list-item' }}>
-      {children}
-    </li>
+    <li className='list-item font-sans text-[var(--text-primary)]'>{children}</li>
   ),
 
   pre: ({ children }: HTMLAttributes<HTMLPreElement>) => {
@@ -142,7 +134,7 @@ const COMPONENTS = {
     <tbody className='divide-y divide-[var(--divider)] bg-[var(--surface-2)]'>{children}</tbody>
   ),
   tr: ({ children }: React.HTMLAttributes<HTMLTableRowElement>) => (
-    <tr className='border-[var(--divider)] border-b transition-colors hover:bg-[var(--surface-hover)]'>
+    <tr className='border-[var(--divider)] border-b transition-colors hover-hover:bg-[var(--surface-hover)]'>
       {children}
     </tr>
   ),
