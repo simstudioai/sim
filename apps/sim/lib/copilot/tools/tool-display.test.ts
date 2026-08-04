@@ -98,6 +98,16 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     ).toBeLessThanOrEqual('Searching Sim docs for ""'.length + 60 + '...'.length)
   })
 
+  it('uses path-search wording for glob titles', () => {
+    expect(getToolDisplayTitle('glob')).toBe('Searching by path')
+    expect(getToolDisplayTitle('glob', { toolTitle: 'docs corpus manifest' })).toBe(
+      'Searching by path docs corpus manifest'
+    )
+    expect(
+      getToolCompletedTitle(getToolDisplayTitle('glob', { toolTitle: 'docs corpus manifest' }))
+    ).toBe('Searched by path docs corpus manifest')
+  })
+
   it('uses fetch wording for page-content retrieval', () => {
     const title = getToolDisplayTitle('get_page_contents', {
       urls: ['https://example.com', 'https://example.org'],

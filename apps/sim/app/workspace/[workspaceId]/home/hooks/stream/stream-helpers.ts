@@ -312,7 +312,7 @@ export function resolveStreamingToolDisplayTitle(
 
   if (name === Glob.id) {
     const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
-    return toolTitle ? `Finding ${toolTitle}` : undefined
+    return toolTitle ? `Searching by path ${toolTitle}` : undefined
   }
 
   if (name === 'mv') {

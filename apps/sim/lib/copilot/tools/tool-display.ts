@@ -775,7 +775,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'glob': {
       const target = firstStringArg(args, 'toolTitle', 'title')
-      return target ? `Finding ${target}` : 'Finding files'
+      return target ? `Searching by path ${target}` : 'Searching by path'
     }
     case 'mv': {
       const sources = stringArrayArg(args, 'sources')

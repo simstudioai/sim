@@ -2236,7 +2236,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         toolTitle: {
           type: 'string',
           description:
-            'Required target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
+            'Required target-only UI phrase for the path-search row. The UI prefix is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Searching by path workflow configs".',
         },
       },
       required: ['pattern', 'toolTitle'],

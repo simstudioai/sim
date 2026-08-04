@@ -64,6 +64,9 @@ describe('streaming resource titles', () => {
     expect(resolveStreamingToolDisplayTitle('rm', '{"toolTitle":"Old Report.pdf"}')).toBe(
       'Deleting Old Report.pdf'
     )
+    expect(resolveStreamingToolDisplayTitle('glob', '{"toolTitle":"docs corpus manifest"}')).toBe(
+      'Searching by path docs corpus manifest'
+    )
   })
 })
 
