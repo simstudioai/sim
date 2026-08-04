@@ -2,8 +2,12 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { enforceWorkspaceRateLimit } from '@/lib/core/rate-limiter/route-helpers'
+import {
+  isSandboxLanguage,
+  SANDBOX_LANGUAGES,
+  type SandboxLanguage,
+} from '@/lib/execution/remote-sandbox/sandbox-spec'
 import {
   createWorkspaceSandbox,
   currentSandboxStrategy,
@@ -15,6 +19,7 @@ import {
   type SandboxWriteFailure,
   updateWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotToolExecutor')
 
@@ -22,9 +27,7 @@ type ManageSandboxOperation = 'add' | 'edit' | 'delete' | 'list'
 
 const WRITE_OPERATIONS: readonly string[] = ['add', 'edit', 'delete']
 
-type SandboxLanguage = 'javascript' | 'python'
-
-const SANDBOX_LANGUAGES: readonly string[] = ['javascript', 'python']
+const LANGUAGE_REQUIRED = `'language' must be ${SANDBOX_LANGUAGES.join(' or ')}`
 
 interface ManageSandboxParams {
   operation?: string
@@ -34,9 +37,10 @@ interface ManageSandboxParams {
   dependencies?: string[]
 }
 
-/** Renders a refused write as the sentence the model reads back to the user. */
 function failureMessage(failure: SandboxWriteFailure): string {
   switch (failure.code) {
+    case 'invalid_name':
+      return failure.message
     case 'name_conflict':
       return `A sandbox named "${failure.name}" already exists in this workspace`
     case 'invalid_dependencies': {
@@ -52,25 +56,20 @@ function failureMessage(failure: SandboxWriteFailure): string {
   }
 }
 
-/**
- * Validates the model-supplied language. The parameter is a string on the wire,
- * so an unrecognized value must be rejected here rather than cast into the
- * enum and written to a column that only accepts two values.
- */
-function parseLanguage(value: string | undefined): SandboxLanguage | undefined {
-  if (value === undefined) return undefined
+function parseLanguage(value: unknown): SandboxLanguage | undefined {
+  if (typeof value !== 'string') return undefined
   const normalized = value.toLowerCase()
-  return SANDBOX_LANGUAGES.includes(normalized) ? (normalized as SandboxLanguage) : undefined
+  return isSandboxLanguage(normalized) ? normalized : undefined
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
 }
 
 /**
- * Sandbox CRUD for the mothership.
- *
- * Mirrors the REST routes' gate exactly — workspace admin, then plan
- * entitlement, then the shared per-workspace mutation budget — so a sandbox
- * cannot be created through chat that the same user could not create in
- * Settings > Sandboxes. `list` is readable by any member, matching the GET
- * route, because a downgraded workspace must still see what it already built.
+ * Reproduces the REST routes' gate — workspace admin, plan entitlement, then the
+ * shared mutation budget — so chat cannot create a sandbox the same user could
+ * not create in Settings > Sandboxes. `list` needs only read, matching GET.
  */
 export async function executeManageSandbox(
   rawParams: Record<string, unknown>,
@@ -78,11 +77,8 @@ export async function executeManageSandbox(
 ): Promise<ToolCallResult> {
   const params = rawParams as ManageSandboxParams
   const operation = String(params.operation || '').toLowerCase() as ManageSandboxOperation
-  /**
-   * Server-set context only. A model-supplied `workspaceId` would be authorized
-   * against the context workspace, letting a caller name another workspace and
-   * have it checked against their own. Matches manage_custom_tool.
-   */
+  // Server-set only: a model-supplied workspaceId would be authorized against
+  // the context workspace. Matches manage_custom_tool.
   const workspaceId = context.workspaceId
 
   if (!operation) {
@@ -95,23 +91,18 @@ export async function executeManageSandbox(
   const isWrite = WRITE_OPERATIONS.includes(operation)
 
   try {
-    // Authorization runs before any argument is interpreted, and admin is
-    // required for writes — sandbox builds spend workspace compute.
-    try {
-      await ensureWorkspaceAccess(workspaceId, context.userId, isWrite ? 'admin' : 'read')
-    } catch {
-      return {
-        success: false,
-        error: isWrite ? SANDBOX_ADMIN_REQUIRED : 'You do not have access to this workspace',
-      }
+    const permission = await getUserEntityPermissions(context.userId, 'workspace', workspaceId)
+    if (!permission) {
+      return { success: false, error: 'You do not have access to this workspace' }
     }
 
     if (isWrite) {
+      if (permission !== 'admin') {
+        return { success: false, error: SANDBOX_ADMIN_REQUIRED }
+      }
       if (!(await hasWorkspaceSandboxAccess(workspaceId))) {
         return { success: false, error: MAX_PLAN_REQUIRED }
       }
-      // The same bucket the REST routes spend, so chat cannot be used to double
-      // the workspace's build allowance.
       if (
         await enforceWorkspaceRateLimit('sandbox-mutations', workspaceId, SANDBOX_MUTATION_LIMIT)
       ) {
@@ -122,6 +113,10 @@ export async function executeManageSandbox(
       }
     }
 
+    if (params.dependencies !== undefined && !isStringArray(params.dependencies)) {
+      return { success: false, error: "'dependencies' must be an array of strings" }
+    }
+
     if (operation === 'list') {
       const sandboxes = await listWorkspaceSandboxes(workspaceId)
       return {
@@ -129,7 +124,9 @@ export async function executeManageSandbox(
         output: {
           success: true,
           operation,
-          sandboxes,
+          // errorDetail is a 4KB installer log tail per failed build; errorMessage
+          // is the classified summary, and is all the model is told to read.
+          sandboxes: sandboxes.map(({ errorDetail, ...sandbox }) => sandbox),
           count: sandboxes.length,
           strategy: currentSandboxStrategy(),
         },
@@ -137,22 +134,20 @@ export async function executeManageSandbox(
     }
 
     if (operation === 'add') {
-      const name = params.name?.trim()
-      if (!name) {
+      if (typeof params.name !== 'string' || !params.name.trim()) {
         return { success: false, error: "'name' is required for operation 'add'" }
       }
       const language = parseLanguage(params.language)
       if (!language) {
         return {
           success: false,
-          error: "'language' is required for operation 'add' and must be 'javascript' or 'python'",
+          error: `'language' is required for operation 'add' — ${LANGUAGE_REQUIRED}`,
         }
       }
-
       const result = await createWorkspaceSandbox({
         workspaceId,
         userId: context.userId,
-        name,
+        name: params.name,
         language,
         dependencies: params.dependencies ?? [],
       })
@@ -165,7 +160,7 @@ export async function executeManageSandbox(
           operation,
           sandboxId: result.sandbox.id,
           sandbox: result.sandbox,
-          message: `Created sandbox "${name}"`,
+          message: `Created sandbox "${result.sandbox.name}"`,
         },
       }
     }
@@ -186,13 +181,15 @@ export async function executeManageSandbox(
       }
       const language = parseLanguage(params.language)
       if (params.language !== undefined && !language) {
-        return { success: false, error: "'language' must be 'javascript' or 'python'" }
+        return { success: false, error: LANGUAGE_REQUIRED }
       }
-
+      if (params.name !== undefined && typeof params.name !== 'string') {
+        return { success: false, error: "'name' must be a string" }
+      }
       const result = await updateWorkspaceSandbox({
         workspaceId,
         sandboxId: params.sandboxId,
-        name: params.name?.trim(),
+        name: params.name,
         language,
         dependencies: params.dependencies,
       })

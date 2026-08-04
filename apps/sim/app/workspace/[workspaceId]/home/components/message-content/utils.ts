@@ -39,6 +39,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   get_page_contents: Search,
   search_library_docs: Library,
   manage_mcp_tool: Settings,
+  manage_sandbox: TerminalWindow,
   manage_skill: Asterisk,
   user_memory: Database,
   function_execute: TerminalWindow,

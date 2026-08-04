@@ -884,7 +884,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       })
     }
     case 'manage_sandbox': {
-      const target = firstStringArg(args, 'name', 'sandboxName')
+      const target = firstStringArg(args, 'name')
       return namedOperationTitle(args, target, 'Sandbox action', {
         add: { verb: 'Creating', resource: 'sandbox' },
         edit: { verb: 'Updating', resource: 'sandbox' },

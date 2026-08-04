@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
-import type { Sandbox } from '@/lib/api/contracts/sandboxes'
+import { type Sandbox, sandboxNameSchema } from '@/lib/api/contracts/sandboxes'
 import { runDetached } from '@/lib/core/utils/background'
 import {
   ensureSandboxImage,
@@ -43,14 +43,6 @@ export const SANDBOX_MUTATION_LIMIT = {
   refillIntervalMs: 60_000,
 } as const
 
-/** Thrown when a submitted dependency list has lines the editor should mark. */
-class SandboxDependencyError extends Error {
-  constructor(readonly issues: DependencyIssue[]) {
-    super(issues[0]?.reason ?? 'Invalid dependency list')
-    this.name = 'SandboxDependencyError'
-  }
-}
-
 interface SandboxSpecUpdate {
   language: SandboxLanguage
   dependencies: string[]
@@ -65,13 +57,25 @@ interface SandboxSpecUpdate {
 function buildSpecUpdate(
   language: SandboxLanguage,
   submitted: readonly string[]
-): SandboxSpecUpdate {
+): { ok: true; spec: SandboxSpecUpdate } | { ok: false; failure: SandboxWriteFailure } {
   const validation = validateDependencies(language, submitted)
-  if (!validation.ok) throw new SandboxDependencyError(validation.issues)
+  if (!validation.ok) {
+    return {
+      ok: false,
+      failure: {
+        code: 'invalid_dependencies',
+        message: validation.issues[0]?.reason ?? 'Invalid dependency list',
+        issues: validation.issues,
+      },
+    }
+  }
   return {
-    language,
-    dependencies: validation.dependencies,
-    specHash: hashSandboxSpec({ language, dependencies: validation.dependencies }),
+    ok: true,
+    spec: {
+      language,
+      dependencies: validation.dependencies,
+      specHash: hashSandboxSpec({ language, dependencies: validation.dependencies }),
+    },
   }
 }
 
@@ -224,11 +228,9 @@ function isSandboxNameConflictError(error: unknown): boolean {
   return message.includes(WORKSPACE_SANDBOX_NAME_INDEX) || message.includes('23505')
 }
 
-/**
- * Why a sandbox write was refused, in terms the caller's own surface can render:
- * the REST routes map these to status codes, the copilot tool to a message.
- */
+/** Why a write was refused, rendered by each caller for its own surface. */
 export type SandboxWriteFailure =
+  | { code: 'invalid_name'; message: string }
   | { code: 'name_conflict'; name: string }
   | { code: 'invalid_dependencies'; message: string; issues: DependencyIssue[] }
   | { code: 'not_found'; sandboxId: string }
@@ -238,11 +240,23 @@ export type SandboxWriteResult =
   | { ok: true; sandbox: Sandbox }
   | { ok: false; failure: SandboxWriteFailure }
 
-function dependencyFailure(error: unknown): SandboxWriteFailure {
-  if (error instanceof SandboxDependencyError) {
-    return { code: 'invalid_dependencies', message: error.message, issues: error.issues }
+export type SandboxDeleteResult =
+  | { ok: true; name: string }
+  | { ok: false; failure: SandboxWriteFailure }
+
+/**
+ * Reuses the contract's own name rule, so the copilot tool — which has no schema
+ * in front of it — cannot accept a name the REST path would reject.
+ */
+function normalizeSandboxName(
+  raw: string
+): { ok: true; name: string } | { ok: false; failure: SandboxWriteFailure } {
+  const parsed = sandboxNameSchema.safeParse(raw)
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? 'Invalid sandbox name'
+    return { ok: false, failure: { code: 'invalid_name', message } }
   }
-  throw error
+  return { ok: true, name: parsed.data }
 }
 
 async function readBackOrFail(workspaceId: string, sandboxId: string): Promise<SandboxWriteResult> {
@@ -262,22 +276,21 @@ export interface CreateWorkspaceSandboxParams {
 }
 
 /**
- * Creates a sandbox and enqueues its build.
- *
- * Authorization, entitlement, and rate limiting are the caller's job: this runs
- * for both the REST route and the copilot tool, which authorize differently.
+ * Creates a sandbox and enqueues its build. Authorization, entitlement, and rate
+ * limiting are the caller's job — the route and the copilot tool differ there.
  */
 export async function createWorkspaceSandbox(
   params: CreateWorkspaceSandboxParams
 ): Promise<SandboxWriteResult> {
-  const { workspaceId, userId, name, language, dependencies } = params
+  const { workspaceId, userId, language, dependencies } = params
 
-  let spec: SandboxSpecUpdate
-  try {
-    spec = buildSpecUpdate(language, dependencies)
-  } catch (error) {
-    return { ok: false, failure: dependencyFailure(error) }
-  }
+  const normalized = normalizeSandboxName(params.name)
+  if (!normalized.ok) return normalized
+  const { name } = normalized
+
+  const built = buildSpecUpdate(language, dependencies)
+  if (!built.ok) return built
+  const { spec } = built
 
   if (await isSandboxNameTaken(workspaceId, name)) {
     return { ok: false, failure: { code: 'name_conflict', name } }
@@ -295,8 +308,6 @@ export async function createWorkspaceSandbox(
       createdBy: userId,
     })
   } catch (error) {
-    // The unique index is the real arbiter — the pre-check above only exists to
-    // return a friendlier message when there is no race.
     if (isSandboxNameConflictError(error)) {
       return { ok: false, failure: { code: 'name_conflict', name } }
     }
@@ -304,6 +315,7 @@ export async function createWorkspaceSandbox(
   }
 
   await scheduleSandboxBuild(spec)
+  logger.info('Created workspace sandbox', { workspaceId, sandboxId: id, language: spec.language })
   return readBackOrFail(workspaceId, id)
 }
 
@@ -345,9 +357,17 @@ export async function updateWorkspaceSandbox(
     return { ok: false, failure: { code: 'not_found', sandboxId } }
   }
 
-  const nextName = name ?? existing.name
-  if (name && name !== existing.name && (await isSandboxNameTaken(workspaceId, name, sandboxId))) {
-    return { ok: false, failure: { code: 'name_conflict', name } }
+  // A supplied name is always validated, including a whitespace-only one: it
+  // trims to empty and must be refused, not fall back to the existing name.
+  let nextName = existing.name
+  if (name !== undefined) {
+    const normalized = normalizeSandboxName(name)
+    if (!normalized.ok) return normalized
+    nextName = normalized.name
+  }
+
+  if (nextName !== existing.name && (await isSandboxNameTaken(workspaceId, nextName, sandboxId))) {
+    return { ok: false, failure: { code: 'name_conflict', name: nextName } }
   }
 
   // Both halves are revalidated together even when only one changed: switching
@@ -356,12 +376,9 @@ export async function updateWorkspaceSandbox(
   const nextLanguage = language ?? (existing.language as SandboxLanguage)
   const nextDependencies = dependencies ?? existing.dependencies ?? []
 
-  let spec: SandboxSpecUpdate
-  try {
-    spec = buildSpecUpdate(nextLanguage, nextDependencies)
-  } catch (error) {
-    return { ok: false, failure: dependencyFailure(error) }
-  }
+  const built = buildSpecUpdate(nextLanguage, nextDependencies)
+  if (!built.ok) return built
+  const { spec } = built
 
   try {
     await db
@@ -396,16 +413,14 @@ export async function updateWorkspaceSandbox(
 }
 
 /**
- * Deletes a sandbox and releases its build.
- *
- * A block may still reference it. Deleting is allowed anyway; that execution
- * then fails closed with a message naming the missing sandbox, rather than
- * silently falling back to an image without its dependencies.
+ * Deletes a sandbox and releases its build. A block may still reference it;
+ * that execution fails closed naming the missing sandbox, rather than silently
+ * falling back to an image without its dependencies.
  */
 export async function deleteWorkspaceSandbox(
   workspaceId: string,
   sandboxId: string
-): Promise<{ ok: true; name: string } | { ok: false; failure: SandboxWriteFailure }> {
+): Promise<SandboxDeleteResult> {
   const deleted = await db
     .delete(workspaceSandbox)
     .where(and(eq(workspaceSandbox.id, sandboxId), eq(workspaceSandbox.workspaceId, workspaceId)))

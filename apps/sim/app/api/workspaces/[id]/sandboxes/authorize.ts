@@ -26,6 +26,8 @@ export interface SandboxMutationActor {
  */
 export function sandboxFailureResponse(failure: SandboxWriteFailure): NextResponse {
   switch (failure.code) {
+    case 'invalid_name':
+      return NextResponse.json({ error: failure.message }, { status: 400 })
     case 'name_conflict':
       return NextResponse.json(
         { error: `A sandbox named "${failure.name}" already exists in this workspace` },
@@ -78,16 +80,14 @@ export async function authorizeSandboxMutation(
 }
 
 /** Reads a workspace sandbox list; any member may look, only admins may write. */
-export async function authorizeSandboxRead(
-  workspaceId: string
-): Promise<{ ok: true; userId: string } | { ok: false; response: NextResponse }> {
+export async function authorizeSandboxRead(workspaceId: string): Promise<NextResponse | null> {
   const session = await getSession()
   if (!session?.user?.id) {
-    return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
   if (!permission) {
-    return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  return { ok: true, userId: session.user.id }
+  return null
 }

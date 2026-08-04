@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 
 const {
-  ensureWorkspaceAccessMock,
+  getUserEntityPermissionsMock,
   hasWorkspaceSandboxAccessMock,
   enforceWorkspaceRateLimitMock,
   createWorkspaceSandboxMock,
@@ -14,7 +14,7 @@ const {
   deleteWorkspaceSandboxMock,
   listWorkspaceSandboxesMock,
 } = vi.hoisted(() => ({
-  ensureWorkspaceAccessMock: vi.fn(),
+  getUserEntityPermissionsMock: vi.fn(),
   hasWorkspaceSandboxAccessMock: vi.fn(),
   enforceWorkspaceRateLimitMock: vi.fn(),
   createWorkspaceSandboxMock: vi.fn(),
@@ -23,8 +23,8 @@ const {
   listWorkspaceSandboxesMock: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/tools/handlers/access', () => ({
-  ensureWorkspaceAccess: ensureWorkspaceAccessMock,
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getUserEntityPermissions: getUserEntityPermissionsMock,
 }))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -67,7 +67,7 @@ const sandbox = {
 describe('manage_sandbox', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ensureWorkspaceAccessMock.mockResolvedValue({})
+    getUserEntityPermissionsMock.mockResolvedValue('admin')
     hasWorkspaceSandboxAccessMock.mockResolvedValue(true)
     enforceWorkspaceRateLimitMock.mockResolvedValue(null)
     listWorkspaceSandboxesMock.mockResolvedValue([sandbox])
@@ -84,27 +84,31 @@ describe('manage_sandbox', () => {
 
   it('ignores a model-supplied workspaceId and uses the server context', async () => {
     await executeManageSandbox({ operation: 'list', workspaceId: 'other-ws' }, context)
-    expect(ensureWorkspaceAccessMock).toHaveBeenCalledWith('ws-1', 'user-1', 'read')
+    expect(getUserEntityPermissionsMock).toHaveBeenCalledWith('user-1', 'workspace', 'ws-1')
     expect(listWorkspaceSandboxesMock).toHaveBeenCalledWith('ws-1')
   })
 
   it('lists with only read access, and does not spend the mutation budget', async () => {
+    getUserEntityPermissionsMock.mockResolvedValue('read')
+
     const result = await executeManageSandbox({ operation: 'list' }, context)
     expect(result.success).toBe(true)
     expect(result.output).toMatchObject({ count: 1, strategy: 'prebuilt' })
+    const [listed] = (result.output as { sandboxes: Record<string, unknown>[] }).sandboxes
+    expect(listed).not.toHaveProperty('errorDetail')
+    expect(listed).toMatchObject({ id: 'sb-1', buildStatus: 'pending' })
     expect(enforceWorkspaceRateLimitMock).not.toHaveBeenCalled()
     expect(hasWorkspaceSandboxAccessMock).not.toHaveBeenCalled()
   })
 
   it.each(['add', 'edit', 'delete'])('requires workspace admin to %s', async (operation) => {
-    ensureWorkspaceAccessMock.mockRejectedValue(new Error('Admin access required'))
+    getUserEntityPermissionsMock.mockResolvedValue('write')
 
     const result = await executeManageSandbox(
       { operation, name: 'x', language: 'python', sandboxId: 'sb-1' },
       context
     )
 
-    expect(ensureWorkspaceAccessMock).toHaveBeenCalledWith('ws-1', 'user-1', 'admin')
     expect(result.success).toBe(false)
     expect(result.error).toBe('Only workspace admins can manage sandboxes')
     expect(createWorkspaceSandboxMock).not.toHaveBeenCalled()
@@ -152,7 +156,7 @@ describe('manage_sandbox', () => {
     expect(createWorkspaceSandboxMock).toHaveBeenCalledWith({
       workspaceId: 'ws-1',
       userId: 'user-1',
-      name: 'data-tools',
+      name: '  data-tools  ',
       language: 'python',
       dependencies: ['requests'],
     })
@@ -167,7 +171,7 @@ describe('manage_sandbox', () => {
     )
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('javascript')
+    expect(result.error).toContain('javascript or python')
     expect(createWorkspaceSandboxMock).not.toHaveBeenCalled()
   })
 
@@ -232,6 +236,40 @@ describe('manage_sandbox', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('sb-9')
+  })
+
+  it('forwards a whitespace-only name to the operation, which refuses it', async () => {
+    await executeManageSandbox({ operation: 'edit', sandboxId: 'sb-1', name: '   ' }, context)
+
+    expect(updateWorkspaceSandboxMock).toHaveBeenCalledWith(
+      expect.objectContaining({ name: '   ' })
+    )
+  })
+
+  it('rejects a non-string dependency list', async () => {
+    const result = await executeManageSandbox(
+      { operation: 'add', name: 'data-tools', language: 'python', dependencies: [1, 2] },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('array of strings')
+    expect(createWorkspaceSandboxMock).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an invalid name refused by the operation', async () => {
+    createWorkspaceSandboxMock.mockResolvedValue({
+      ok: false,
+      failure: { code: 'invalid_name', message: 'Name must be 64 characters or fewer' },
+    })
+
+    const result = await executeManageSandbox(
+      { operation: 'add', name: 'x'.repeat(65), language: 'python' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Name must be 64 characters or fewer')
   })
 
   it('rejects an unsupported operation', async () => {

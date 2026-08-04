@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createSandboxContract } from '@/lib/api/contracts/sandboxes'
 import { parseRequest } from '@/lib/api/server'
@@ -15,14 +14,12 @@ import {
   sandboxFailureResponse,
 } from '@/app/api/workspaces/[id]/sandboxes/authorize'
 
-const logger = createLogger('WorkspaceSandboxesAPI')
-
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const workspaceId = (await context.params).id
 
-    const viewer = await authorizeSandboxRead(workspaceId)
-    if (!viewer.ok) return viewer.response
+    const denied = await authorizeSandboxRead(workspaceId)
+    if (denied) return denied
 
     // The list itself is not plan-gated: a workspace that downgraded must still
     // see (and keep executing) what it already built. `entitled` drives whether
@@ -60,11 +57,6 @@ export const POST = withRouteHandler(
     })
     if (!result.ok) return sandboxFailureResponse(result.failure)
 
-    logger.info('Created workspace sandbox', {
-      workspaceId,
-      sandboxId: result.sandbox.id,
-      language,
-    })
     return NextResponse.json({ sandbox: result.sandbox })
   }
 )
