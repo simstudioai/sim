@@ -24,6 +24,11 @@ apps/sim/components/icons.tsx        # Icon definition
 apps/sim/lib/auth/auth.ts           # OAuth config — should use getCanonicalScopesForProvider()
 apps/sim/lib/oauth/oauth.ts         # OAuth provider config — single source of truth for scopes
 apps/sim/lib/oauth/utils.ts               # Scope utilities, SCOPE_DESCRIPTIONS for modal UI
+apps/sim/lib/core/config/env-capabilities.ts # OAuth client runtime capability source of truth
+apps/sim/lib/core/config/env.ts     # Runtime env schema for capability fields
+scripts/setup/capability-config.ts  # Exhaustive CLI input-mode mapping for OAuth fields
+apps/sim/lib/integrations/integrations.json # Generated client-safe integration catalog
+apps/sim/lib/integrations/service-account-metadata.ts # Lightweight service-account projection
 ```
 
 ## Step 2: Pull API Documentation
@@ -227,7 +232,28 @@ Scopes are centralized — the single source of truth is `OAUTH_PROVIDERS` in `l
 - [ ] Each scope has a human-readable description in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
 - [ ] No excess scopes that aren't needed by any tool
 
-## Step 6: Validate Pagination Consistency
+## Step 6: Validate Deployment Availability (if OAuth service)
+
+The deployment UI and setup CLI do not infer OAuth client fields from scopes. They resolve the
+block's generated `oauthServiceId` through the application-owned capability catalog.
+
+- [ ] The visible integration block has exactly one distinct `oauth-input.serviceId`
+- [ ] `resolveOAuthClientCapabilityId(serviceId)` returns the intended provider capability
+- [ ] The resolved provider exists in `OAUTH_CLIENT_CAPABILITIES`
+- [ ] Every field listed by that capability exists in `apps/sim/lib/core/config/env.ts`
+- [ ] Every capability field has the correct `text` or `secret` entry in `OAUTH_CLIENT_SETUP_FIELDS`; no CLI naming heuristic is required
+- [ ] Shared Google/Microsoft service IDs resolve to their provider capability rather than duplicate entries
+- [ ] `bun run setup integration <capabilityId>` is the command emitted by availability; the CLI has only the exhaustive input-mode projection, not a second runtime provider definition
+- [ ] If the canonical OAuth service declares `serviceAccountProviderId`,
+      `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID[serviceId]` has the same provider ID
+- [ ] The service-account `deploymentRequirement` matches how that credential actually works:
+      omitted for an independent path, `'oauth-client'` when it needs the OAuth client fields, or
+      `'preview-gated'` when controlled by a preview block
+
+Treat a missing capability as **critical**: runtime availability intentionally throws instead of
+silently exposing an unusable integration.
+
+## Step 7: Validate Pagination Consistency
 
 If any tools support pagination:
 - [ ] Pagination param names match the API docs (e.g., `pagination_token` vs `next_token` vs `cursor`)
@@ -235,7 +261,7 @@ If any tools support pagination:
 - [ ] Pagination response fields (`nextToken`, `cursor`, etc.) are included in tool outputs
 - [ ] Pagination subBlocks are set to `mode: 'advanced'`
 
-## Step 7: Validate Memory Load Safety
+## Step 8: Validate Memory Load Safety
 
 If any tool lists, searches, exports, imports, downloads, uploads, paginates, batches, transforms arrays, or reads file/HTTP bodies, read `.agents/skills/memory-load-check/SKILL.md` and apply it to the integration.
 
@@ -245,13 +271,13 @@ If any tool lists, searches, exports, imports, downloads, uploads, paginates, ba
 - [ ] Large result payloads are summarized, paginated, referenced, or capped rather than raw-dumped
 - [ ] Pagination and download tests cover caps, early stop behavior, or partial-result preservation when relevant
 
-## Step 8: Validate Error Handling
+## Step 9: Validate Error Handling
 
 - [ ] `transformResponse` checks for error conditions before accessing data
 - [ ] Error responses include meaningful messages (not just generic "failed")
 - [ ] HTTP error status codes are handled (check `response.ok` or status codes)
 
-## Step 9: Report and Fix
+## Step 10: Report and Fix
 
 ### Report Format
 
@@ -264,6 +290,9 @@ Group findings by severity:
 - Missing error handling that would cause crashes
 - Tool ID mismatch between tool file, registry, and block `tools.access`
 - OAuth scopes missing in `auth.ts` that tools need
+- OAuth integration `serviceId` missing from the deployment capability catalog
+- Capability references an env field absent from the runtime env schema
+- Service-account metadata disagrees with the canonical OAuth service configuration
 - `tools.config.tool` returning wrong tool ID for an operation
 - Type coercions in `tools.config.tool` instead of `tools.config.params`
 
@@ -295,11 +324,15 @@ Several files are generated from tool and block definitions. Editing a tool or b
 
 ```bash
 bun run tool-metadata:generate       # repo root — apps/sim/tools/generated/*
-cd apps/sim && bun run generate-docs # docs .mdx + lib/integrations/integrations.json + docs icons
+bun run scripts/generate-docs.ts     # docs .mdx + lib/integrations/integrations.json + docs icons
+bun run integration-catalog:check    # registry ↔ committed deployment metadata drift
 ```
 
 - **`tool-metadata:generate`** — required whenever a tool's `outputs`, `params`, or descriptions change. CI enforces this with `bun run tool-metadata:check`, which fails with *"Generated tool metadata is stale"*. This is the easiest gate to miss, because nothing in the tool file hints that a generated artifact mirrors it.
 - **`generate-docs`** — required whenever block metadata changes (`bgColor`, `name`, `description`, operations, outputs). Regenerates the integration `.mdx`, `integrations.json`, and the docs copy of `components/icons.tsx`.
+- **`integration-catalog:check`** — loads the executable block registry, derives visible integration
+  deployment fields, and compares them with the committed catalog. It catches missing/unexpected
+  entries and stale auth/service IDs without loading the executable registry in client code.
 
 **Always diff the regen output before committing.** These generators rewrite every file they own, so they will also sweep in unrelated drift that accumulated on the base branch — pages losing sections, unrelated icons appearing. Keep only the hunks belonging to the integration under validation and `git checkout --` the rest, otherwise an unrelated doc regression rides along in the PR. Verify no page was silently dropped by comparing the directory listing before and after.
 
@@ -312,8 +345,10 @@ After fixing, confirm:
 2. TypeScript compiles clean (no type errors) — check the error list is empty for the files you touched; pre-existing unrelated errors in a worktree usually mean workspace packages resolve to the main checkout
 3. The integration's tests pass, and any test you added actually fails without its fix (revert it once and watch it go red)
 4. Derived artifacts regenerated and their diffs reviewed (see above)
-5. Re-read all modified files to verify fixes are correct
-6. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
+5. `bun run integration-catalog:check` passes
+6. For OAuth or service-account changes, `bun test apps/sim/lib/integrations/availability.server.test.ts` passes
+7. Re-read all modified files to verify fixes are correct
+8. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary
 
@@ -327,6 +362,9 @@ After fixing, confirm:
 - [ ] Validated block outputs match what tools return, with typed JSON where possible
 - [ ] Validated OAuth scopes use centralized utilities (getScopesForService, getCanonicalScopesForProvider) — no hardcoded arrays
 - [ ] Validated scope descriptions exist in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts` for all scopes
+- [ ] Validated OAuth `serviceId` resolves to the intended `OAUTH_CLIENT_CAPABILITIES` entry and all capability fields exist in the env schema
+- [ ] Validated service-account projection and deployment requirement against the canonical OAuth service config
+- [ ] Regenerated `integrations.json` when block metadata changed and ran `bun run integration-catalog:check`
 - [ ] Validated pagination consistency across tools and block
 - [ ] Validated memory load safety using `.agents/skills/memory-load-check/SKILL.md` when tools list/search/download/import/export/batch data
 - [ ] Validated error handling (error checks, meaningful messages)
