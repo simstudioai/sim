@@ -71,7 +71,6 @@ export interface OutputCondition {
       | null
     not?: boolean
   }
-  or?: OutputCondition
 }
 
 export type OutputFieldDefinition =

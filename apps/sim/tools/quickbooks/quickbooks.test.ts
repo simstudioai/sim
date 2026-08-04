@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { resetEnvMock, setEnv } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { evaluateOutputCondition } from '@/lib/workflows/blocks/block-outputs'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
+import { getBlock } from '@/blocks/registry'
 import {
   quickbooksAddAttachmentTool,
   quickbooksCreateBillPaymentTool,
@@ -1224,25 +1225,28 @@ describe('QuickBooks tool and block boundaries', () => {
       ],
       and: { field: 'readMode', value: 'list' },
     })
-    const listOutputCondition = QuickBooksBlock.outputs.items.condition!
+    vi.mocked(getBlock)
+      .mockReturnValueOnce(QuickBooksBlock)
+      .mockReturnValueOnce(QuickBooksBlock)
+      .mockReturnValueOnce(QuickBooksBlock)
     expect(
-      evaluateOutputCondition(listOutputCondition, {
+      getBlockOutputs('quickbooks', {
         operation: { value: 'quickbooks_read_sales_transactions' },
         readMode: { value: 'by_id' },
       })
-    ).toBe(false)
+    ).not.toHaveProperty('items')
     expect(
-      evaluateOutputCondition(listOutputCondition, {
+      getBlockOutputs('quickbooks', {
         operation: { value: 'quickbooks_read_sales_transactions' },
         readMode: { value: 'list' },
       })
-    ).toBe(true)
+    ).toHaveProperty('items')
     expect(
-      evaluateOutputCondition(listOutputCondition, {
+      getBlockOutputs('quickbooks', {
         operation: { value: 'quickbooks_read_purchasing_transactions' },
         readMode: { value: 'list' },
       })
-    ).toBe(true)
+    ).toHaveProperty('items')
     expect(subBlocks.syncToken.condition).toEqual({
       field: 'operation',
       value: [

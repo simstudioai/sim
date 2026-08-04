@@ -6,9 +6,11 @@ import {
   hybridAuthMockFns,
   inputValidationMock,
   inputValidationMockFns,
+  resetEnvMock,
+  setEnv,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const {
@@ -64,6 +66,7 @@ function createAbortableRequest(body: unknown, signal: AbortSignal): NextRequest
 }
 
 beforeEach(() => {
+  setEnv({ QUICKBOOKS_ENV: 'sandbox' })
   vi.clearAllMocks()
   vi.stubGlobal('fetch', mockFetch)
   hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
@@ -99,6 +102,8 @@ beforeEach(() => {
     originalHostname: 'intuit-download.example',
   })
 })
+
+afterEach(resetEnvMock)
 
 describe('QuickBooks document API routes', () => {
   it('authenticates before parsing a PDF request', async () => {
