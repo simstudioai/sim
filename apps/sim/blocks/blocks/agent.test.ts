@@ -53,6 +53,7 @@ describe('AgentBlock', () => {
       })
     )
     expect(AgentBlock.inputs.customModelConfig?.schema).toBeDefined()
+    expect(AgentBlock.inputs.customModelConfig?.schema?.properties.provider.enum).toContain('sim')
 
     const tools = AgentBlock.subBlocks.find((subBlock) => subBlock.id === 'tools')
     const responseFormat = AgentBlock.subBlocks.find((subBlock) => subBlock.id === 'responseFormat')
@@ -77,6 +78,20 @@ describe('AgentBlock', () => {
         },
       } as never)
     ).toBe('fireworks')
+  })
+
+  it('serializes custom Sim Auto with the same fallback provider shape as first-class Auto', () => {
+    const toolFunction = AgentBlock.tools.config?.tool
+
+    expect(
+      toolFunction?.({
+        model: CUSTOM_MODEL_ID,
+        customModelConfig: {
+          provider: 'sim',
+          model: 'sim-auto',
+        },
+      } as never)
+    ).toBe('anthropic')
   })
 
   describe('tools.config.params function', () => {

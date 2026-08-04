@@ -146,7 +146,12 @@ export class AgentBlockHandler implements BlockHandler {
         customModelConfig.credentials.mode === 'explicit'
           ? customModelConfig.credentials.apiKey
           : undefined
-    } else if (isAutoModel(configuredModel)) {
+    }
+
+    if (
+      isAutoModel(configuredModel) ||
+      (customModelConfig !== undefined && customModelConfig.provider === 'sim')
+    ) {
       autoRouting = await resolveAutoModel({
         ctx,
         blockId: block.id,
@@ -169,7 +174,10 @@ export class AgentBlockHandler implements BlockHandler {
         .join('\n\n')
     }
 
-    const providerId = customModelConfig?.provider ?? getProviderFromModel(model)
+    const providerId =
+      customModelConfig && customModelConfig.provider !== 'sim'
+        ? customModelConfig.provider
+        : getProviderFromModel(model)
     await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx, providerId)
     const formattedTools = await this.formatTools(
       ctx,
@@ -1224,7 +1232,10 @@ export class AgentBlockHandler implements BlockHandler {
       verbosity: inputs.verbosity,
       thinkingLevel: inputs.thinkingLevel,
       promptCaching: inputs.promptCaching === true,
-      capabilityPolicy: customModelConfig ? ('passthrough' as const) : ('catalog' as const),
+      capabilityPolicy:
+        customModelConfig && customModelConfig.provider !== 'sim'
+          ? ('passthrough' as const)
+          : ('catalog' as const),
       credentialMode: customModelConfig?.credentials.mode,
       providerOptions: customModelConfig?.providerOptions,
       previousInteractionId: inputs.previousInteractionId,

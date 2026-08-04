@@ -49,6 +49,47 @@ describe('custom model config', () => {
     }
   })
 
+  it('supports Sim Auto through the custom contract', () => {
+    expect(
+      parseCustomModelConfig({
+        provider: 'auto',
+        model: 'sim-auto',
+        parameters: { reasoningEffort: 'high', temperature: 0.2 },
+        credentials: { mode: 'auto' },
+      })
+    ).toMatchObject({
+      provider: 'sim',
+      model: 'sim-auto',
+      parameters: { reasoningEffort: 'high', temperature: 0.2 },
+      credentials: { mode: 'auto' },
+    })
+  })
+
+  it('keeps Sim Auto provider-independent', () => {
+    expect(() =>
+      parseCustomModelConfig({
+        provider: 'sim',
+        model: 'gpt-5.6-terra',
+      })
+    ).toThrow('model must be "sim-auto"')
+
+    expect(() =>
+      parseCustomModelConfig({
+        provider: 'sim',
+        model: 'sim-auto',
+        credentials: { mode: 'explicit', apiKey: 'sk-secret' },
+      })
+    ).toThrow('credentials.mode must be "auto"')
+
+    expect(() =>
+      parseCustomModelConfig({
+        provider: 'sim',
+        model: 'sim-auto',
+        providerOptions: { service_tier: 'priority' },
+      })
+    ).toThrow('providerOptions must be empty for Sim Auto')
+  })
+
   it('rejects reserved provider option overrides', () => {
     expect(() =>
       parseCustomModelConfig({

@@ -1,15 +1,18 @@
+import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
 
 /** Stored in the Agent block's `model` field when Super User custom routing is active. */
 export const CUSTOM_MODEL_ID = 'sim-custom'
 
-export const CUSTOM_MODEL_PROVIDERS = [
+export const CUSTOM_DIRECT_MODEL_PROVIDERS = [
   'openai',
   'anthropic',
   'google',
   'fireworks',
   'xai',
 ] as const satisfies readonly ProviderId[]
+
+export const CUSTOM_MODEL_PROVIDERS = [...CUSTOM_DIRECT_MODEL_PROVIDERS, 'sim'] as const
 
 export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number]
 export type CustomCredentialMode = 'auto' | 'explicit'
@@ -45,6 +48,9 @@ const PROVIDER_ALIASES: Record<string, CustomModelProvider> = {
   fireworks: 'fireworks',
   xai: 'xai',
   grok: 'xai',
+  sim: 'sim',
+  auto: 'sim',
+  'sim-auto': 'sim',
 }
 
 const TOP_LEVEL_KEYS = new Set([
@@ -247,6 +253,23 @@ export function parseCustomModelConfig(value: unknown): CustomModelConfig {
     providerOptions: parseProviderOptions(parsed.providerOptions),
   }
 
+  if (config.provider === 'sim') {
+    if (!isAutoModel(config.model)) {
+      throw new Error(
+        `customModelConfig.model must be "${SIM_AUTO_MODEL_ID}" when provider is "sim"`
+      )
+    }
+    config.model = SIM_AUTO_MODEL_ID
+    if (config.credentials.mode !== 'auto') {
+      throw new Error('customModelConfig.credentials.mode must be "auto" for Sim Auto')
+    }
+    if (Object.keys(config.providerOptions).length > 0) {
+      throw new Error(
+        'customModelConfig.providerOptions must be empty for Sim Auto because the routed provider is dynamic'
+      )
+    }
+  }
+
   validateCustomModelParameterSupport(config)
   return config
 }
@@ -255,6 +278,10 @@ export function parseCustomModelConfig(value: unknown): CustomModelConfig {
 export function validateCustomModelParameterSupport(config: CustomModelConfig): void {
   const { provider, parameters } = config
   const hasValue = (value: unknown) => value !== undefined && value !== null && value !== 'auto'
+
+  // Sim Auto validates parameters against the concrete routed model through
+  // the ordinary catalog capability policy after routing.
+  if (provider === 'sim') return
 
   if (hasValue(parameters.verbosity) && provider !== 'openai') {
     throw new Error(`customModelConfig.parameters.verbosity is not supported for ${provider}`)
@@ -324,7 +351,7 @@ export const CUSTOM_MODEL_CONFIG_JSON_SCHEMA: Record<string, any> = {
       type: 'string',
       enum: [...CUSTOM_MODEL_PROVIDERS],
       description:
-        'Provider adapter. Aliases gemini, claude, and grok are normalized on execution.',
+        'Provider adapter. Use sim with model sim-auto for dynamic routing. Aliases gemini, claude, grok, and auto are normalized on execution.',
     },
     model: {
       type: 'string',

@@ -391,6 +391,35 @@ describe('AgentBlockHandler', () => {
       expect(result.cost).toEqual({ input: 0.001, output: 0.002, total: 0.003 })
     })
 
+    it('runs Sim Auto from the custom contract through catalog capability handling', async () => {
+      mockContext.userId = 'super-user'
+
+      const result = (await handler.execute(mockContext, mockBlock, {
+        model: CUSTOM_MODEL_ID,
+        customModelConfig: {
+          provider: 'sim',
+          model: SIM_AUTO_MODEL_ID,
+          parameters: { reasoningEffort: 'high', temperature: 0.2 },
+          credentials: { mode: 'auto' },
+        },
+        userPrompt: 'Route this automatically',
+      })) as { model: string }
+
+      expect(mockVerifyEffectiveSuperUser).toHaveBeenCalledWith('super-user')
+      expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+        'mock-provider',
+        expect.objectContaining({
+          model: AGENT.DEFAULT_MODEL,
+          capabilityPolicy: 'catalog',
+          credentialMode: 'auto',
+          reasoningEffort: 'high',
+          temperature: 0.2,
+        }),
+        expect.anything()
+      )
+      expect(result.model).toBe(SIM_AUTO_MODEL_ID)
+    })
+
     /** Reaches the private signal builder; routing depends on nothing else. */
     const buildAutoRoutingSignalsFor = (inputs: Record<string, unknown>) =>
       (

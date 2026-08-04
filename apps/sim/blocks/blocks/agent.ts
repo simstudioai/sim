@@ -152,7 +152,7 @@ Return ONLY the JSON array.`,
       language: 'json',
       placeholder: 'Enter custom provider and model configuration...',
       description:
-        'Provider, model, credentials, and provider-specific generation settings. Tools, response format, skills, files, prompts, and memory remain configured separately.',
+        'Provider, model, credentials, and provider-specific generation settings. Use provider "sim" with model "sim-auto" for automatic routing. Tools, response format, skills, files, prompts, and memory remain configured separately.',
       defaultValue: CUSTOM_MODEL_CONFIG_DEFAULT,
       superUserOnly: true,
       required: {
@@ -542,7 +542,13 @@ Return ONLY the JSON array.`,
           throw new Error('No model selected')
         }
         if (isCustomModel(model)) {
-          return parseCustomModelConfig(params.customModelConfig).provider
+          const customConfig = parseCustomModelConfig(params.customModelConfig)
+          if (customConfig.provider !== 'sim') return customConfig.provider
+
+          // Like the first-class Auto option below, custom Sim Auto resolves to
+          // a concrete provider only at execution time. Serialization stores a
+          // valid fallback provider shape that the Agent handler never uses.
+          return getBaseModelProviders()['claude-sonnet-5']
         }
         // sim-auto resolves to a concrete pool model at execution time, where
         // the agent handler derives the provider from the resolved model and
@@ -631,7 +637,7 @@ Return ONLY the JSON array.`,
     customModelConfig: {
       type: 'json',
       description:
-        'Custom provider/model execution configuration. Tools, response format, skills, files, prompts, and memory are separate Agent inputs.',
+        'Custom provider/model execution configuration. Use provider "sim" with model "sim-auto" for automatic routing. Tools, response format, skills, files, prompts, and memory are separate Agent inputs.',
       schema: CUSTOM_MODEL_CONFIG_JSON_SCHEMA,
     },
     apiKey: { type: 'string', description: 'Provider API key' },
