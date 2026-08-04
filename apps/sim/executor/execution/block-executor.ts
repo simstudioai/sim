@@ -61,6 +61,7 @@ import {
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
   type VariableResolver,
 } from '@/executor/variables/resolver'
+import { finalizeStreamingCostPolicy } from '@/providers/cost-policy'
 import { createAgentStreamPump } from '@/providers/stream-pump'
 import type { SerializedBlock } from '@/serializer/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
@@ -916,6 +917,11 @@ export class BlockExecutor {
         await onStreamPromise.catch(() => {})
       }
       throw error instanceof Error ? error : new Error(String(error))
+    } finally {
+      // Provider segments receive their final usage/cost only while draining.
+      // Reapply the previously installed billing policy before logs or traces
+      // can observe those late-written values.
+      finalizeStreamingCostPolicy(streamingExec.execution?.output)
     }
 
     if (onStreamPromise) {
@@ -995,6 +1001,10 @@ export class BlockExecutor {
             toolCalls: executionOutput.toolCalls,
             providerTiming: executionOutput.providerTiming,
             cost: executionOutput.cost,
+            // Provider metadata is trusted execution state, not model output.
+            // Preserve it across structured-output reconstruction and overwrite
+            // any same-named field the model emitted in `parsed`.
+            estimatedProviderCost: executionOutput.estimatedProviderCost,
             model: executionOutput.model,
           }
           parsedForFormat = true

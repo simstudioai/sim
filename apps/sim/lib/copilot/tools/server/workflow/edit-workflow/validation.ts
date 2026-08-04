@@ -19,7 +19,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { getAgentModelOptions, getModelOptions } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
-import { isCustomModel } from '@/providers/custom-model'
+import { isCustomModel, parseCustomModelConfig } from '@/providers/custom-model'
 import {
   isAutoModel,
   isCustomJsonOnlyModel,
@@ -532,6 +532,27 @@ export function validateValueForSubBlockType(
     }
 
     case 'code': {
+      if (fieldName === 'customModelConfig') {
+        try {
+          // VFS advertises this field as JSON, while the editor's code
+          // subblock persists text. Accept the object Mothership naturally
+          // produces, validate it now, and store one canonical JSON string.
+          const parsed = parseCustomModelConfig(value)
+          return { valid: true, value: JSON.stringify(parsed, null, 2) }
+        } catch (error) {
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Invalid custom model configuration: ${toError(error).message}`,
+            },
+          }
+        }
+      }
+
       // Code must be a string (content can be JS, Python, JSON, SQL, HTML, etc.)
       if (typeof value !== 'string') {
         return {

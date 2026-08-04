@@ -11,7 +11,9 @@ import { checkForForcedToolUsageOpenAI } from '@/providers/utils'
  */
 export function resolveFireworksWireModel(strippedModel: string): string {
   return (
-    getModelWireId(strippedModel) ?? getModelWireId(`fireworks/${strippedModel}`) ?? strippedModel
+    getModelWireId(strippedModel, 'fireworks') ??
+    getModelWireId(`fireworks/${strippedModel}`, 'fireworks') ??
+    strippedModel
   )
 }
 

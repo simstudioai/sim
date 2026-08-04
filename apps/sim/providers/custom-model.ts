@@ -276,7 +276,7 @@ export function parseCustomModelConfig(value: unknown): CustomModelConfig {
   }
 
   if (config.provider === 'fireworks') {
-    config.model = getCanonicalModelId(config.model)
+    config.model = getCanonicalModelId(config.model, 'fireworks')
     if (modelRequiresExplicitCredentials(config.model) && config.credentials.mode !== 'explicit') {
       throw new Error(
         `customModelConfig.credentials.mode must be "explicit" for on-demand Fireworks model ${config.model}`

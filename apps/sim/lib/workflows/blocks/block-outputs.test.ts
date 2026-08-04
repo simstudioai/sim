@@ -51,6 +51,7 @@ describe('block outputs parity', () => {
             properties: {
               min: { type: 'number' },
               max: { type: 'number' },
+              cost: { type: 'string' },
             },
             required: ['min', 'max'],
             additionalProperties: false,
@@ -67,8 +68,19 @@ describe('block outputs parity', () => {
     expect(rootPaths(paths)).toEqual(Object.keys(outputs).sort())
     expect(paths).toContain('min')
     expect(paths).toContain('max')
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        'model',
+        'tokens',
+        'toolCalls',
+        'providerTiming',
+        'cost',
+        'estimatedProviderCost',
+      ])
+    )
     expect(getEffectiveBlockOutputType('agent', 'min', subBlocks, options)).toBe('number')
     expect(getEffectiveBlockOutputType('agent', 'max', subBlocks, options)).toBe('number')
+    expect(getEffectiveBlockOutputType('agent', 'cost', subBlocks, options)).toBe('json')
   })
 
   it.concurrent('surfaces start run metadata paths only when the toggle is on', () => {

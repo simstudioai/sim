@@ -254,7 +254,10 @@ interface SanitizedWorkflowState {
  * workflow leaves its workspace, preserving only an unresolved env reference
  * for explicit exports when requested.
  */
-function sanitizeCustomModelCredential(value: unknown, preserveEnvVars: boolean): unknown {
+function sanitizeCustomModelCredential(
+  value: unknown,
+  preserveEnvVars: boolean
+): SubBlockState['value'] {
   const wasString = typeof value === 'string'
   let parsed: unknown = value
   if (wasString) {
@@ -269,7 +272,7 @@ function sanitizeCustomModelCredential(value: unknown, preserveEnvVars: boolean)
   const config = structuredClone(parsed) as Record<string, unknown>
   const credentials = config.credentials
   if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials)) {
-    return value
+    return wasString ? value : JSON.stringify(config, null, 2)
   }
 
   const sanitizedCredentials = credentials as Record<string, unknown>
@@ -278,7 +281,7 @@ function sanitizeCustomModelCredential(value: unknown, preserveEnvVars: boolean)
     preserveEnvVars && typeof apiKey === 'string' && /^\{\{[^{}]+\}\}$/.test(apiKey.trim())
   if (!preserveReference) sanitizedCredentials.apiKey = undefined
 
-  return wasString ? JSON.stringify(config, null, 2) : config
+  return JSON.stringify(config, null, 2)
 }
 
 /**

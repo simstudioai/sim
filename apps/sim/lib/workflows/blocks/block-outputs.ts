@@ -41,6 +41,15 @@ interface EffectiveOutputOptions {
 
 type ConditionValue = string | number | boolean
 
+const AGENT_STRUCTURED_METADATA_OUTPUTS = new Set([
+  'model',
+  'tokens',
+  'toolCalls',
+  'providerTiming',
+  'cost',
+  'estimatedProviderCost',
+])
+
 /**
  * Checks if a value is a valid primitive for condition comparison.
  */
@@ -410,7 +419,16 @@ export function getEffectiveBlockOutputs(
 
   if (blockType === 'agent') {
     const responseFormatOutputs = getResponseFormatOutputs(subBlocks, 'agent')
-    if (responseFormatOutputs) return responseFormatOutputs
+    if (responseFormatOutputs) {
+      const agentOutputs = getBlockOutputs('agent', subBlocks, false, { includeHidden })
+      const trustedMetadata = Object.fromEntries(
+        Object.entries(agentOutputs).filter(([key]) => AGENT_STRUCTURED_METADATA_OUTPUTS.has(key))
+      )
+      // Runtime structured output is rebuilt the same way: model fields first,
+      // then trusted provider metadata. Keep discovery aligned and prevent a
+      // response schema from redefining billing/token fields.
+      return { ...responseFormatOutputs, ...trustedMetadata }
+    }
   }
 
   let baseOutputs: OutputDefinition

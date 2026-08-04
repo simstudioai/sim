@@ -4143,16 +4143,33 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
 }
 
-function findCatalogModel(modelId: string): { providerId: string; model: ModelDefinition } | null {
+function findCatalogModel(
+  modelId: string,
+  providerScope?: string
+): { providerId: string; model: ModelDefinition } | null {
   const normalized = modelId.trim().toLowerCase()
   if (!normalized) return null
 
-  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+  const providers: Array<[string, ProviderDefinition]> = providerScope
+    ? PROVIDER_DEFINITIONS[providerScope]
+      ? [[providerScope, PROVIDER_DEFINITIONS[providerScope]]]
+      : []
+    : Object.entries(PROVIDER_DEFINITIONS)
+
+  // Canonical ids are globally authoritative. Several resellers expose a
+  // native provider's id as an alias, so checking aliases in the same pass
+  // would make catalog order silently change native pricing and capabilities.
+  for (const [providerId, provider] of providers) {
     for (const model of provider.models) {
-      if (
-        model.id.toLowerCase() === normalized ||
-        model.aliases?.some((alias) => alias.toLowerCase() === normalized)
-      ) {
+      if (model.id.toLowerCase() === normalized) {
+        return { providerId, model }
+      }
+    }
+  }
+
+  for (const [providerId, provider] of providers) {
+    for (const model of provider.models) {
+      if (model.aliases?.some((alias) => alias.toLowerCase() === normalized)) {
         return { providerId, model }
       }
     }
@@ -4161,13 +4178,13 @@ function findCatalogModel(modelId: string): { providerId: string; model: ModelDe
 }
 
 /** Canonical catalog id for an exact model id/alias, or the trimmed input when unknown. */
-export function getCanonicalModelId(modelId: string): string {
-  return findCatalogModel(modelId)?.model.id ?? modelId.trim()
+export function getCanonicalModelId(modelId: string, providerScope?: string): string {
+  return findCatalogModel(modelId, providerScope)?.model.id ?? modelId.trim()
 }
 
 /** Exact provider-side model resource id for a catalog model/alias. */
-export function getModelWireId(modelId: string): string | undefined {
-  return findCatalogModel(modelId)?.model.wireModelId
+export function getModelWireId(modelId: string, providerScope?: string): string | undefined {
+  return findCatalogModel(modelId, providerScope)?.model.wireModelId
 }
 
 /** Whether ordinary model pickers may author this catalog model. */

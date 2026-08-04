@@ -10,6 +10,7 @@ import {
   getModelsWithPromptCaching,
   getModelWireId,
   getPromptCachingMinimumTokens,
+  getProviderFromModel,
   getProviderModels,
   getThinkingStreamVisibility,
   isCustomJsonOnlyModel,
@@ -477,6 +478,17 @@ describe('hosted Fireworks static catalog', () => {
       expect(getCanonicalModelId(expected.wire)).toBe(expected.id)
       expect(modelRequiresExplicitCredentials(expected.id)).toBe(expected.explicit)
     }
+  })
+
+  it('keeps native canonical ids authoritative over Fireworks aliases', () => {
+    expect(getProviderFromModel('deepseek-v4-pro')).toBe('deepseek')
+    expect(getModelPricing('deepseek-v4-pro')).toMatchObject({ input: 0.435, output: 0.87 })
+    expect(getProviderFromModel('glm-5.2')).toBe('zai')
+    expect(getProviderFromModel('kimi-k3')).toBe('kimi')
+
+    expect(getCanonicalModelId('deepseek-v4-pro', 'fireworks')).toBe('fireworks/deepseek-v4-pro')
+    expect(getCanonicalModelId('glm-5.2', 'fireworks')).toBe('fireworks/glm-5.2')
+    expect(getCanonicalModelId('kimi-k3', 'fireworks')).toBe('fireworks/kimi-k3')
   })
 
   it('represents dedicated-only Fireworks pricing as GPU-time rather than free tokens', () => {

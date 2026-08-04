@@ -48,6 +48,11 @@ export interface ModelCostPolicy {
   multiplier: number
 }
 
+const STREAMING_COST_POLICY = Symbol('streaming-cost-policy')
+type PolicyMarkedOutput = NormalizedBlockOutput & {
+  [STREAMING_COST_POLICY]?: ModelCostPolicy
+}
+
 /**
  * Prices at the vendor's list rate with no margin.
  *
@@ -314,6 +319,12 @@ export function installStreamingCostPolicy(
 ): void {
   let raw = output.cost as ModelCost | undefined
 
+  Object.defineProperty(output, STREAMING_COST_POLICY, {
+    value: policy,
+    configurable: true,
+    enumerable: false,
+  })
+
   const updateEstimate = (cost: ModelCost | undefined) => {
     if (!estimatedModel || !cost) return
     output.estimatedProviderCost = buildEstimatedProviderCost(estimatedModel, cost)
@@ -330,6 +341,22 @@ export function installStreamingCostPolicy(
     configurable: true,
     enumerable: true,
   })
+}
+
+/**
+ * Re-applies policy after a stream drains. Providers populate model-segment
+ * costs asynchronously, after the initial interception, so the one-time scrub
+ * in `executeProviderRequest` cannot see them yet.
+ */
+export function finalizeStreamingCostPolicy(output: NormalizedBlockOutput | undefined): void {
+  if (!output) return
+  const policy = (output as PolicyMarkedOutput)[STREAMING_COST_POLICY]
+  if (!policy) return
+
+  const segments = output.providerTiming?.timeSegments
+  if (Array.isArray(segments)) {
+    applySegmentCostPolicy(segments, policy)
+  }
 }
 
 /**

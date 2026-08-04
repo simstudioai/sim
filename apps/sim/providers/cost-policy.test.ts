@@ -9,6 +9,7 @@ import {
   applySegmentCostPolicy,
   buildEstimatedProviderCost,
   calculateBillableModelCost,
+  finalizeStreamingCostPolicy,
   installStreamingCostPolicy,
   LIST_PRICE_POLICY,
   priceModelUsage,
@@ -293,6 +294,34 @@ describe('installStreamingCostPolicy', () => {
       input: 0.0003,
       output: 0.0012,
       total: 0.0015,
+    })
+  })
+
+  it('scrubs model-segment cost written after streaming interception', () => {
+    const output = {
+      cost: { input: 0, output: 0, total: 0 },
+      providerTiming: {
+        startTime: new Date(0).toISOString(),
+        endTime: new Date(1).toISOString(),
+        duration: 1,
+        timeSegments: [],
+      },
+    } as NormalizedBlockOutput
+    installStreamingCostPolicy(output, { billable: false, multiplier: 0 })
+
+    output.providerTiming?.timeSegments?.push({
+      type: 'model',
+      startTime: 0,
+      endTime: 1,
+      duration: 1,
+      cost: { input: 0.1, output: 0.2, total: 0.3 },
+    })
+    finalizeStreamingCostPolicy(output)
+
+    expect(output.providerTiming?.timeSegments?.[0].cost).toEqual({
+      input: 0,
+      output: 0,
+      total: 0,
     })
   })
 })

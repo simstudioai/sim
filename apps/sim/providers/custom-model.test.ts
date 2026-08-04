@@ -66,6 +66,10 @@ describe('custom model config', () => {
         credentials: { mode: 'explicit', apiKey: '{{FIREWORKS_API_KEY}}' },
       }).model
     ).toBe('fireworks/nemotron-3-super-120b-a12b-fp8')
+
+    expect(parseCustomModelConfig({ provider: 'fireworks', model: 'deepseek-v4-pro' }).model).toBe(
+      'fireworks/deepseek-v4-pro'
+    )
   })
 
   it('requires an explicit key for Fireworks on-demand models', () => {

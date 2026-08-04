@@ -10,9 +10,10 @@ import { BlockType } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
-import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import type { BlockHandler, ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
+import { installStreamingCostPolicy } from '@/providers/cost-policy'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const { mockUploadFile } = vi.hoisted(() => ({
@@ -661,6 +662,9 @@ describe('BlockExecutor streaming pump', () => {
     attachThinkingOnDrain?: string
     failAfterText?: string
     onFullContent?: (content: string) => void | Promise<void>
+    outputOverrides?: Partial<NormalizedBlockOutput>
+    attachModelCostOnDrain?: { input: number; output: number; total: number }
+    nonBillableStreamingCost?: boolean
   }): BlockHandler {
     return {
       canHandle: () => true,
@@ -683,6 +687,13 @@ describe('BlockExecutor streaming pump', () => {
             timeSegments: [timeSegment],
           },
           cost: { input: 0, output: 0, total: 0 },
+          ...options.outputOverrides,
+        }
+        if (options.nonBillableStreamingCost) {
+          installStreamingCostPolicy(output as NormalizedBlockOutput, {
+            billable: false,
+            multiplier: 0,
+          })
         }
 
         const stream = new ReadableStream({
@@ -701,6 +712,9 @@ describe('BlockExecutor streaming pump', () => {
             }
             if (options.attachThinkingOnDrain) {
               timeSegment.thinkingContent = options.attachThinkingOnDrain
+            }
+            if (options.attachModelCostOnDrain) {
+              timeSegment.cost = options.attachModelCostOnDrain
             }
             controller.close()
           },
@@ -784,6 +798,53 @@ describe('BlockExecutor streaming pump', () => {
     await executor.execute(ctx, createNode(block), block)
 
     expect(state.getBlockOutput(block.id)?.content).toBe('offline answer')
+  })
+
+  it('preserves trusted custom-model billing metadata through streamed structured output', async () => {
+    const estimatedProviderCost = {
+      available: true,
+      input: 0.0003,
+      output: 0.0006,
+      total: 0.0009,
+      pricing: {
+        input: 0.3,
+        cachedInput: 0.059,
+        output: 1.2,
+        updatedAt: '2026-08-03',
+      },
+    }
+    const handler = createAgentEventsStreamingHandler({
+      events: [
+        {
+          type: 'text_delta',
+          text: JSON.stringify({
+            answer: 'ok',
+            estimatedProviderCost: { available: true, total: 999 },
+          }),
+          turn: 'final',
+        },
+      ],
+      outputOverrides: { estimatedProviderCost },
+      attachModelCostOnDrain: { input: 0.1, output: 0.2, total: 0.3 },
+      nonBillableStreamingCost: true,
+    })
+    const { executor, block, state } = createExecutor(handler)
+    ;(block.config.params as Record<string, unknown>).responseFormat = {
+      name: 'answer',
+      schema: { type: 'object', properties: { answer: { type: 'string' } } },
+    }
+
+    await executor.execute(createContext(state), createNode(block), block)
+
+    expect(state.getBlockOutput(block.id)).toMatchObject({
+      answer: 'ok',
+      tokens: { input: 1, output: 2, total: 3 },
+      cost: { input: 0, output: 0, total: 0 },
+      estimatedProviderCost,
+      providerTiming: {
+        timeSegments: [{ cost: { input: 0, output: 0, total: 0 } }],
+      },
+    })
   })
 
   it('throws on mid-stream provider error (no truncated success)', async () => {

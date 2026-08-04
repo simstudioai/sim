@@ -512,6 +512,38 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.model).toBe('gpt-5.4')
   })
 
+  it('accepts and canonicalizes a custom-model object from the VFS JSON schema', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      {
+        customModelConfig: {
+          provider: 'fireworks',
+          model: 'accounts/fireworks/models/minimax-m2p7',
+          credentials: { mode: 'explicit', apiKey: '{{FIREWORKS_API_KEY}}' },
+        },
+      },
+      'agent-1'
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(JSON.parse(result.validInputs.customModelConfig)).toMatchObject({
+      provider: 'fireworks',
+      model: 'fireworks/minimax-m2.7',
+      credentials: { mode: 'explicit', apiKey: '{{FIREWORKS_API_KEY}}' },
+    })
+  })
+
+  it('rejects an invalid custom-model object before execution', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { customModelConfig: { provider: 'unknown', model: 'future' } },
+      'agent-1'
+    )
+
+    expect(result.validInputs.customModelConfig).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('Invalid custom model configuration')
+  })
+
   it('rejects a pattern-matching but uncataloged id even with surrounding whitespace', () => {
     const result = validateInputsForBlock('agent', { model: '  gpt-100-ultra  ' }, 'agent-1')
 
