@@ -9,6 +9,7 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
+import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import type { RowData, TableDefinition } from '@/lib/table'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
@@ -151,18 +152,23 @@ export async function maybeWriteOutputToTable(
           },
         }
       } catch (err) {
+        const rawMessage = toError(err).message
+        const projectedMessage = projectToolErrorMessageForCopilot(
+          rawMessage,
+          context.resolvedSecretTraceRegistry
+        )
         logger.warn('Failed to write tool output to table', {
           toolName,
           outputTable,
-          error: toError(err).message,
+          error: projectedMessage,
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Failed)
         span.addEvent(TraceEvent.CopilotTableError, {
-          [TraceAttr.ErrorMessage]: toError(err).message.slice(0, 500),
+          [TraceAttr.ErrorMessage]: projectedMessage.slice(0, 500),
         })
         return {
           success: false,
-          error: `Failed to write to table: ${toError(err).message}`,
+          error: `Failed to write to table: ${rawMessage}`,
         }
       }
     }
@@ -281,18 +287,23 @@ export async function maybeWriteReadCsvToTable(
           },
         }
       } catch (err) {
+        const rawMessage = toError(err).message
+        const projectedMessage = projectToolErrorMessageForCopilot(
+          rawMessage,
+          context.resolvedSecretTraceRegistry
+        )
         logger.warn('Failed to write read output to table', {
           toolName,
           outputTable,
-          error: toError(err).message,
+          error: projectedMessage,
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Failed)
         span.addEvent(TraceEvent.CopilotTableError, {
-          [TraceAttr.ErrorMessage]: toError(err).message.slice(0, 500),
+          [TraceAttr.ErrorMessage]: projectedMessage.slice(0, 500),
         })
         return {
           success: false,
-          error: `Failed to import into table: ${toError(err).message}`,
+          error: `Failed to import into table: ${rawMessage}`,
         }
       }
     }

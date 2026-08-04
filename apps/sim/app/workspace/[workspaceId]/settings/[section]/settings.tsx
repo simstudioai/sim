@@ -55,6 +55,11 @@ const RecentlyDeleted = dynamic(() =>
     '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
   ).then((m) => m.RecentlyDeleted)
 )
+const SelfHost = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/self-host/self-host').then(
+    (m) => m.SelfHost
+  )
+)
 const Billing = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then((m) => m.Billing)
 )
@@ -168,6 +173,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
         <Billing
           scope={organizationId ? 'organization' : 'account'}
           organizationId={organizationId ?? undefined}
+          governingWorkspaceName={hostContext.workspace.name}
           creditUsageHref={`/workspace/${hostContext.workspace.id}/settings/billing/credit-usage`}
         />
       )}
@@ -199,6 +205,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
       {effectiveSection === 'inbox' && <Inbox />}
       {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
+      {effectiveSection === 'self-host' && <SelfHost />}
       {effectiveSection === 'admin' && <Admin />}
       {effectiveSection === 'mothership' && <Mothership />}
     </SettingsSectionProvider>

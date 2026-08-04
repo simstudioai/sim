@@ -118,7 +118,12 @@ export async function listVisibleWorkspaceCredentials(params: {
     ...rest,
     hasServiceAccountKey: Boolean(encryptedServiceAccountKey),
     role:
-      isWorkspaceAdmin && isSharedCredentialType(rest.type) ? 'admin' : (memberRole ?? 'member'),
+      // An `env_personal` credential's own env owner administers it regardless of
+      // workspace role — otherwise the owner of a personal secret can't manage it.
+      (rest.type === 'env_personal' && rest.envOwnerUserId === userId) ||
+      (isWorkspaceAdmin && isSharedCredentialType(rest.type))
+        ? 'admin'
+        : (memberRole ?? 'member'),
   }))
 }
 

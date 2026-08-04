@@ -16,7 +16,7 @@ const FULLSCREEN_SUFFIXES = ['/upgrade'] as const
 
 /** Slide timing for the fullscreen sidebar collapse and content shift. */
 const SLIDE_TRANSITION =
-  'duration-[175ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none'
+  '[transition-duration:175ms] [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none'
 
 /**
  * The peek card's floating chrome.

@@ -316,7 +316,9 @@ export function SettingsSidebar({
             .map(({ key, title }) => ({
               key,
               title,
-              items: navigationItems.filter((item) => item.section === key),
+              items: navigationItems
+                .filter((item) => item.section === key)
+                .sort((left, right) => left.order - right.order),
             }))
             .filter(({ items }) => items.length > 0)
             .map(({ key, title, items: sectionItems }, index) => (

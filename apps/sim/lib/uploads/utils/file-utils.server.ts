@@ -16,6 +16,7 @@ import { StorageService } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
 import {
   extractStorageKey,
+  extractWorkspaceIdFromExecutionKey,
   getFileExtension,
   getMimeTypeFromExtension,
   inferContextFromKey,
@@ -384,7 +385,11 @@ export async function downloadServableFileFromStorage(
   const { parseWorkspaceFileKey } = await import(
     '@/lib/uploads/contexts/workspace/workspace-file-manager'
   )
-  const workspaceId = userFile.key ? (parseWorkspaceFileKey(userFile.key) ?? undefined) : undefined
+  const workspaceId = userFile.key
+    ? (parseWorkspaceFileKey(userFile.key) ??
+      extractWorkspaceIdFromExecutionKey(userFile.key) ??
+      undefined)
+    : undefined
 
   const { resolveServableDocBytes } = await import('@/lib/copilot/tools/server/files/doc-compile')
   const resolved = await resolveServableDocBytes({

@@ -5,6 +5,7 @@ import { resetTerminalConsoleMock, terminalConsoleMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addExecutionErrorConsoleEntry,
+  addHttpErrorConsoleEntry,
   createBlockEventHandlers,
   handleExecutionErrorConsole,
   reconcileFinalBlockLogs,
@@ -195,6 +196,171 @@ describe('workflow-execution-utils', () => {
         'exec-1',
       ])
     })
+
+    it('keeps raw completion data functional while writing only the display projection', async () => {
+      const accumulatedBlockLogs: BlockLog[] = []
+      const accumulatedBlockStates = new Map()
+      const updateConsole = vi.fn()
+      const onBlockCompleteCallback = vi.fn().mockResolvedValue(undefined)
+      const handlers = createBlockEventHandlers(
+        {
+          workflowId: 'wf-1',
+          executionIdRef: { current: 'exec-1' },
+          workflowEdges: [],
+          activeBlocksSet: new Set<string>(),
+          activeBlockRefCounts: new Map<string, number>(),
+          accumulatedBlockLogs,
+          accumulatedBlockStates,
+          executedBlockIds: new Set<string>(),
+          includeStartConsoleEntry: true,
+          onBlockCompleteCallback,
+        },
+        {
+          addConsole: vi.fn(),
+          updateConsole,
+          setActiveBlocks: vi.fn(),
+          setBlockRunStatus: vi.fn(),
+          setEdgeRunStatus: vi.fn(),
+        }
+      )
+
+      handlers.onBlockCompleted({
+        blockId: 'fn-1',
+        blockName: 'Function 1',
+        blockType: 'function',
+        executionOrder: 1,
+        input: { code: 'return sk-resolved-secret' },
+        output: { result: 'sk-resolved-secret' },
+        display: {
+          input: { code: 'return {{OPENAI_API_KEY}}' },
+          output: { result: '{{OPENAI_API_KEY}}' },
+        },
+        durationMs: 10,
+        startedAt: '2026-07-31T00:00:00.000Z',
+        endedAt: '2026-07-31T00:00:00.010Z',
+      } as any)
+
+      expect(accumulatedBlockLogs[0]).toMatchObject({
+        input: { code: 'return sk-resolved-secret' },
+        output: { result: 'sk-resolved-secret' },
+      })
+      expect(accumulatedBlockStates.get('fn-1')?.output).toEqual({
+        result: 'sk-resolved-secret',
+      })
+      expect(onBlockCompleteCallback).toHaveBeenCalledWith('fn-1', {
+        result: 'sk-resolved-secret',
+      })
+      expect(updateConsole).toHaveBeenCalledWith(
+        'fn-1',
+        expect.objectContaining({
+          input: { code: 'return {{OPENAI_API_KEY}}' },
+          replaceOutput: { result: '{{OPENAI_API_KEY}}' },
+        }),
+        'exec-1'
+      )
+      expect(updateConsole.mock.calls[0][1]).not.toHaveProperty('clearAgentStreamThinking')
+      expect(JSON.stringify(updateConsole.mock.calls)).not.toContain('sk-resolved-secret')
+    })
+
+    it('does not fall back to a raw block error when the display projection is empty', () => {
+      const accumulatedBlockLogs: BlockLog[] = []
+      const accumulatedBlockStates = new Map()
+      const updateConsole = vi.fn()
+      const handlers = createBlockEventHandlers(
+        {
+          workflowId: 'wf-1',
+          executionIdRef: { current: 'exec-1' },
+          workflowEdges: [],
+          activeBlocksSet: new Set<string>(),
+          activeBlockRefCounts: new Map<string, number>(),
+          accumulatedBlockLogs,
+          accumulatedBlockStates,
+          executedBlockIds: new Set<string>(),
+          includeStartConsoleEntry: true,
+        },
+        {
+          addConsole: vi.fn(),
+          updateConsole,
+          setActiveBlocks: vi.fn(),
+          setBlockRunStatus: vi.fn(),
+          setEdgeRunStatus: vi.fn(),
+        }
+      )
+
+      handlers.onBlockError({
+        blockId: 'fn-1',
+        blockName: 'Function 1',
+        blockType: 'function',
+        executionOrder: 1,
+        input: { code: 'return sk-resolved-secret' },
+        error: 'SyntaxError: sk-resolved-secret',
+        display: {},
+        durationMs: 10,
+        startedAt: '2026-07-31T00:00:00.000Z',
+        endedAt: '2026-07-31T00:00:00.010Z',
+      })
+
+      expect(accumulatedBlockLogs[0]?.error).toBe('SyntaxError: sk-resolved-secret')
+      expect(accumulatedBlockStates.get('fn-1')?.output).toEqual({
+        error: 'SyntaxError: sk-resolved-secret',
+      })
+      expect(updateConsole).toHaveBeenCalledWith(
+        'fn-1',
+        expect.objectContaining({
+          input: {},
+          replaceOutput: {},
+          error: 'Block failed',
+          clearAgentStreamThinking: true,
+        }),
+        'exec-1'
+      )
+      expect(JSON.stringify(updateConsole.mock.calls)).not.toContain('sk-resolved-secret')
+    })
+
+    it('preserves legacy block error display when the server sends no projection', () => {
+      const updateConsole = vi.fn()
+      const handlers = createBlockEventHandlers(
+        {
+          workflowId: 'wf-1',
+          executionIdRef: { current: 'exec-1' },
+          workflowEdges: [],
+          activeBlocksSet: new Set<string>(),
+          activeBlockRefCounts: new Map<string, number>(),
+          accumulatedBlockLogs: [],
+          accumulatedBlockStates: new Map(),
+          executedBlockIds: new Set<string>(),
+          includeStartConsoleEntry: true,
+        },
+        {
+          addConsole: vi.fn(),
+          updateConsole,
+          setActiveBlocks: vi.fn(),
+          setBlockRunStatus: vi.fn(),
+          setEdgeRunStatus: vi.fn(),
+        }
+      )
+
+      handlers.onBlockError({
+        blockId: 'fn-1',
+        blockName: 'Function 1',
+        blockType: 'function',
+        executionOrder: 1,
+        input: { code: 'return ordinary-value' },
+        error: 'SyntaxError: ordinary-value',
+        durationMs: 10,
+        startedAt: '2026-07-31T00:00:00.000Z',
+        endedAt: '2026-07-31T00:00:00.010Z',
+      })
+
+      expect(updateConsole).toHaveBeenCalledWith(
+        'fn-1',
+        expect.objectContaining({
+          input: { code: 'return ordinary-value' },
+          error: 'SyntaxError: ordinary-value',
+        }),
+        'exec-1'
+      )
+    })
   })
 
   describe('addExecutionErrorConsoleEntry', () => {
@@ -204,6 +370,7 @@ describe('workflow-execution-utils', () => {
         workflowId: 'wf-1',
         executionId: 'exec-1',
         error: 'Run failed',
+        displayError: 'Safe run failure',
         durationMs: 1234,
         blockLogs: [],
       })
@@ -212,7 +379,45 @@ describe('workflow-execution-utils', () => {
       const entry = addConsole.mock.calls[0][0]
       expect(entry.blockName).toBe('Run Error')
       expect(entry.blockType).toBe('error')
-      expect(entry.error).toBe('Run failed')
+      expect(entry.error).toBe('Safe run failure')
+    })
+
+    it('does not use the raw execution error when the server projection is empty', () => {
+      const addConsole = vi.fn()
+      addExecutionErrorConsoleEntry(addConsole, {
+        workflowId: 'wf-1',
+        executionId: 'exec-1',
+        error: 'SyntaxError: sk-resolved-secret',
+        hasDisplayProjection: true,
+        blockLogs: [],
+      })
+
+      expect(addConsole.mock.calls[0][0].error).toBe('Run failed')
+      expect(JSON.stringify(addConsole.mock.calls)).not.toContain('sk-resolved-secret')
+    })
+
+    it('preserves legacy execution errors when the server sends no projection', () => {
+      const addConsole = vi.fn()
+      addExecutionErrorConsoleEntry(addConsole, {
+        workflowId: 'wf-1',
+        executionId: 'exec-1',
+        error: 'Legacy run failure',
+        blockLogs: [],
+      })
+
+      expect(addConsole.mock.calls[0][0].error).toBe('Legacy run failure')
+    })
+
+    it('preserves HTTP error detail before SSE projection is available', () => {
+      const addConsole = vi.fn()
+      addHttpErrorConsoleEntry(addConsole, {
+        workflowId: 'wf-1',
+        executionId: 'exec-1',
+        error: 'Workflow is archived',
+        httpStatus: 409,
+      })
+
+      expect(addConsole.mock.calls[0][0].error).toBe('Workflow is archived')
     })
 
     it('skips when blockLogs already contain a block-level error', () => {
@@ -405,6 +610,74 @@ describe('workflow-execution-utils', () => {
       reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [makeLog({ blockId: 'fn-1' })])
 
       expect(updateConsole).not.toHaveBeenCalled()
+    })
+
+    it('reprojects completed content without deep-comparing authoritative finalBlockLogs', () => {
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'fn-1',
+        blockName: 'Function',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: false,
+        success: false,
+        input: { code: 'return sk-resolved-secret' },
+        output: { error: 'sk-resolved-secret' },
+        error: 'SyntaxError: sk-resolved-secret',
+        agentStreamThinking: 'sk-resolved-secret',
+      })
+
+      const updateConsole = vi.fn()
+      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
+        makeLog({
+          blockId: 'fn-1',
+          input: { code: 'return {{OPENAI_API_KEY}}' },
+          output: { error: '{{OPENAI_API_KEY}}' },
+          error: 'SyntaxError: {{OPENAI_API_KEY}}',
+          success: false,
+        }),
+      ])
+
+      expect(updateConsole).toHaveBeenCalledWith(
+        'fn-1',
+        expect.objectContaining({
+          input: { code: 'return {{OPENAI_API_KEY}}' },
+          replaceOutput: { error: '{{OPENAI_API_KEY}}' },
+          error: 'SyntaxError: {{OPENAI_API_KEY}}',
+        }),
+        'exec-1'
+      )
+      expect(updateConsole.mock.calls[0][1]).not.toHaveProperty('clearAgentStreamThinking')
+      expect(JSON.stringify(updateConsole.mock.calls)).not.toContain('sk-resolved-secret')
+    })
+
+    it('clears live content when the final projection is structural-only', () => {
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'fn-1',
+        blockName: 'Function',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: false,
+        success: false,
+        input: { code: 'return sk-resolved-secret' },
+        output: { error: 'sk-resolved-secret' },
+        error: 'SyntaxError: sk-resolved-secret',
+      })
+
+      const updateConsole = vi.fn()
+      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
+        makeLog({ blockId: 'fn-1', success: false }),
+      ])
+
+      expect(updateConsole.mock.calls[0][1]).toMatchObject({
+        input: {},
+        replaceOutput: {},
+        error: null,
+        clearAgentStreamThinking: true,
+      })
     })
 
     it('reconciles child workflow spans before running entries are swept to canceled', () => {

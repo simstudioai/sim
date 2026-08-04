@@ -919,6 +919,12 @@ Derive templates from the service's real use cases. Each prompt should name a co
 - **Ground every skill in operations the block actually exposes** — cross-check each skill's steps against `tools.access`. Never describe an action the integration cannot perform.
 - **Derive skills from real, popular use cases found online — never invent them.** Web-search the service's documented use cases (vendor use-case/solutions pages, official docs describing the workflow, reputable "top automations for X" articles) and only add a skill you can source as something people genuinely do with the service. Do not hallucinate skills.
 
+## Generated tool metadata
+
+Adding a block on its own needs **no** regeneration — a block references existing tool IDs through `tools.access` and does not change any tool's shape.
+
+But if the same change also adds, edits **or removes** a tool, run `bun run tool-metadata:generate` and commit the result, or CI fails on stale artifacts. That matters here because a block's `outputs` are authored to match its tools' outputs, and the UI now reads those from the generated metadata rather than the executable registry — an unregenerated tool change makes the block's outputs disagree with what the panel renders. See `.agents/skills/tool-registry-boundary/SKILL.md`.
+
 ## Checklist Before Finishing
 
 - [ ] `integrationType` is set to the correct `IntegrationType` enum value
@@ -933,6 +939,7 @@ Derive templates from the service's real use cases. Each prompt should name a co
 - [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
 - [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
+- [ ] If any tool was added, changed or removed alongside the block: ran `bun run tool-metadata:generate` and committed the artifacts
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`

@@ -2,11 +2,8 @@ import { isBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import {
-  ASYNC_TOOL_CONFIRMATION_STATUS,
-  type AsyncCompletionSignal,
-} from '@/lib/copilot/async-runs/lifecycle'
-import { markAsyncToolDelivered, upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
+import type { AsyncCompletionSignal } from '@/lib/copilot/async-runs/lifecycle'
+import { upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
@@ -26,7 +23,12 @@ import {
 } from '@/lib/copilot/request/session'
 import { markToolResultSeen, wasToolResultSeen } from '@/lib/copilot/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/copilot/request/tool-call-state'
-import { executeToolAndReport, waitForToolCompletion } from '@/lib/copilot/request/tools/executor'
+import {
+  waitForClientToolCompletion,
+  waitForWorkflowToolCompletion,
+} from '@/lib/copilot/request/tools/client'
+import { sealClientToolContext } from '@/lib/copilot/request/tools/client-completion-seal.server'
+import { executeToolAndReport } from '@/lib/copilot/request/tools/executor'
 import {
   runGatedToolExecution,
   TOOL_AWAITING_APPROVAL_STATUS,
@@ -44,7 +46,7 @@ import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
-import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
 import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolScope } from './types'
 import {
@@ -169,7 +171,8 @@ function rebindResolvedIntegrationCall(
 export async function prePersistClientExecutableToolCall(
   event: StreamEvent,
   context: StreamingContext,
-  options?: OrchestratorOptions
+  options?: OrchestratorOptions,
+  execContext?: ExecutionContext
 ): Promise<void> {
   if (event.type !== 'tool') return
   if (!isToolCallStreamEvent(event)) return
@@ -221,11 +224,30 @@ export async function prePersistClientExecutableToolCall(
 
   if (!context.runId) return
 
+  let sealedContext: Awaited<ReturnType<typeof sealClientToolContext>> | undefined
+  if (execContext?.resolvedSecretTraceRegistry) {
+    try {
+      sealedContext = await sealClientToolContext({
+        toolCallId: data.toolCallId,
+        runId: context.runId,
+        userId: execContext.userId,
+        registry: execContext.resolvedSecretTraceRegistry,
+      })
+    } catch (error) {
+      execContext.resolvedSecretTraceRegistry.markIncomplete()
+      logger.warn('Failed to seal client tool provenance', {
+        toolCallId: data.toolCallId,
+        error: getErrorMessage(error),
+      })
+    }
+  }
+
   await upsertAsyncToolCall({
     runId: context.runId,
     toolCallId: data.toolCallId,
     toolName: data.toolName,
     args: data.arguments,
+    sealedContext,
     // Browser and terminal actions cross a second, native authorization
     // boundary. Leave those rows pending until Electron atomically claims
     // them — the authorize endpoint only hands over a pending call, so a row
@@ -399,11 +421,20 @@ async function handleCallPhase(
 
   if (isPartial && shouldDelayVfsPlaceholder(toolName, args)) return
 
+  if (
+    existing &&
+    (context.pendingToolPromises.has(toolCallId) ||
+      existing.status === 'awaiting_approval' ||
+      existing.status === 'executing')
+  ) {
+    applyToolDisplay(existing)
+    return
+  }
+
   if (isSubagent) {
     if (wasToolResultSeen(toolCallId) || existing?.endTime) {
       if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
-        if (existing && !existing.name && toolName) existing.name = toolName
-        if (existing && !existing.params && args) existing.params = args
+        if (existing) updateToolCallFromFrame(existing, toolName, args, !isPartial)
       }
       applyToolDisplay(existing)
       return
@@ -414,8 +445,7 @@ async function handleCallPhase(
       (existing && existing.status !== 'pending' && existing.status !== 'executing')
     ) {
       if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
-        if (!existing.name && toolName) existing.name = toolName
-        if (!existing.params && args) existing.params = args
+        updateToolCallFromFrame(existing, toolName, args, !isPartial)
       }
       applyToolDisplay(existing)
       return
@@ -430,10 +460,11 @@ async function handleCallPhase(
       args,
       parentToolCallId!,
       ui,
-      spanIdentity
+      spanIdentity,
+      !isPartial
     )
   } else {
-    registerMainToolCall(context, toolCallId, toolName, args, existing, ui)
+    registerMainToolCall(context, toolCallId, toolName, args, existing, ui, !isPartial)
   }
 
   if (isPartial) return
@@ -507,6 +538,16 @@ function removeToolCallContentBlock(context: StreamingContext, toolCallId: strin
   }
 }
 
+function updateToolCallFromFrame(
+  toolCall: ToolCallState,
+  toolName: string,
+  args: Record<string, unknown> | undefined,
+  finalized: boolean
+): void {
+  if (!toolCall.name && toolName) toolCall.name = toolName
+  if (finalized || args !== undefined) toolCall.params = args
+}
+
 function registerSubagentToolCall(
   context: StreamingContext,
   toolCallId: string,
@@ -514,7 +555,8 @@ function registerSubagentToolCall(
   args: Record<string, unknown> | undefined,
   parentToolCallId: string,
   ui: { title?: string; phaseLabel?: string; hidden?: boolean },
-  spanIdentity: { spanId?: string; parentSpanId?: string }
+  spanIdentity: { spanId?: string; parentSpanId?: string },
+  finalized: boolean
 ): void {
   if (!context.subAgentToolCalls[parentToolCallId]) {
     context.subAgentToolCalls[parentToolCallId] = []
@@ -523,8 +565,7 @@ function registerSubagentToolCall(
   let toolCall = context.toolCalls.get(toolCallId)
   if (toolCall) {
     if (!rebindResolvedIntegrationCall(toolCall, toolName, args)) {
-      if (!toolCall.name && toolName) toolCall.name = toolName
-      if (args && !toolCall.params) toolCall.params = args
+      updateToolCallFromFrame(toolCall, toolName, args, finalized)
     }
     applyToolDisplay(toolCall)
     if (hideFromUi) removeToolCallContentBlock(context, toolCallId)
@@ -554,8 +595,7 @@ function registerSubagentToolCall(
   const existingSubagentToolCall = subagentToolCalls.find((tc) => tc.id === toolCallId)
   if (existingSubagentToolCall) {
     if (!rebindResolvedIntegrationCall(existingSubagentToolCall, toolName, args)) {
-      if (!existingSubagentToolCall.name && toolName) existingSubagentToolCall.name = toolName
-      if (args && !existingSubagentToolCall.params) existingSubagentToolCall.params = args
+      updateToolCallFromFrame(existingSubagentToolCall, toolName, args, finalized)
     }
     applyToolDisplay(existingSubagentToolCall)
   } else {
@@ -569,12 +609,13 @@ function registerMainToolCall(
   toolName: string,
   args: Record<string, unknown> | undefined,
   existing: ToolCallState | undefined,
-  ui: { title?: string; phaseLabel?: string; hidden?: boolean }
+  ui: { title?: string; phaseLabel?: string; hidden?: boolean },
+  finalized: boolean
 ): void {
   const hideFromUi = isToolHiddenInUi(toolName) || ui.hidden === true
   if (existing) {
-    if (!rebindResolvedIntegrationCall(existing, toolName, args) && args && !existing.params) {
-      existing.params = args
+    if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
+      updateToolCallFromFrame(existing, toolName, args, finalized)
     }
     applyToolDisplay(existing)
     if (hideFromUi) {
@@ -699,25 +740,27 @@ async function dispatchToolExecution(
         ...(context.runId ? { [TraceAttr.RunId]: context.runId } : {}),
       },
       async (span) => {
-        const completion = await waitForToolCompletion(
-          toolCallId,
-          options.timeout || STREAM_TIMEOUT_MS,
-          options.abortSignal
-        )
+        const completion = isWorkflowToolName(toolName)
+          ? await waitForWorkflowToolCompletion({
+              toolCallId,
+              workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
+              timeoutMs: options.timeout || STREAM_TIMEOUT_MS,
+              abortSignal: options.abortSignal,
+              registry: execContext.resolvedSecretTraceRegistry,
+            })
+          : await waitForClientToolCompletion({
+              toolCallId,
+              runId: context.runId,
+              userId: execContext.userId,
+              timeoutMs: options.timeout || STREAM_TIMEOUT_MS,
+              abortSignal: options.abortSignal,
+              registry: execContext.resolvedSecretTraceRegistry,
+            })
         span.setAttribute(TraceAttr.ToolCompletionReceived, completion !== undefined)
         if (completion) {
           span.setAttribute(TraceAttr.ToolOutcome, completion.status)
         }
         handleClientCompletion(toolCall, toolCallId, completion)
-        if (completion?.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
-          await markAsyncToolDelivered(toolCallId).catch((err) => {
-            logger.warn(`Failed to mark background ${scopeLabel}tool delivered`, {
-              toolCallId,
-              toolName,
-              error: toError(err).message,
-            })
-          })
-        }
         await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
         return (
           completion ?? {

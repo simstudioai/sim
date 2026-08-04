@@ -52,6 +52,183 @@ import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
 const ANIMATION_CLASSES =
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
 
+/**
+ * Renderer layers announce themselves before becoming visible so native
+ * surfaces (for example Electron WebContentsViews) can move behind the effect
+ * before its first painted frame.
+ */
+export const NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT = 'sim:native-surface-occlusion-prepare'
+
+export interface NativeSurfaceOcclusionPrepareDetail {
+  kind: 'modal' | 'takeover'
+  waitUntil: (preparation: Promise<unknown>) => void
+}
+
+interface NativeSurfaceOcclusionPreparation {
+  completion: Promise<void>
+  cancel: () => void
+}
+
+const PENDING_NATIVE_INTERACTION_EVENTS = [
+  'beforeinput',
+  'compositionstart',
+  'compositionupdate',
+  'compositionend',
+  'keydown',
+  'keypress',
+  'keyup',
+  'paste',
+  'cut',
+] as const
+
+let pendingNativeInteractionLocks = 0
+let pendingNativeInteractionSentinel: HTMLSpanElement | null = null
+
+const blockPendingNativeInteraction = (event: Event) => {
+  event.preventDefault()
+  event.stopImmediatePropagation()
+}
+
+/**
+ * Pointer coverage alone is insufficient while an atomic preparation waits:
+ * keyboard events and global shortcuts otherwise keep firing through an
+ * invisible modal. When the native WebContents owns focus, the renderer sees
+ * `<body>` as active, so a sentinel also pulls keyboard ownership back into
+ * Sim. A real renderer control remains focused: Radix can then remember and
+ * restore the correct trigger when the modal closes. This lock exists only
+ * when a native listener actually claims the barrier, so ordinary web modals
+ * retain their exact historical focus and keyboard behavior.
+ */
+function acquirePendingNativeInteractionLock(): () => void {
+  pendingNativeInteractionLocks++
+  if (pendingNativeInteractionLocks === 1) {
+    for (const type of PENDING_NATIVE_INTERACTION_EVENTS) {
+      window.addEventListener(type, blockPendingNativeInteraction, true)
+    }
+    const activeElement = document.activeElement
+    if (
+      activeElement === null ||
+      activeElement === document.body ||
+      activeElement === document.documentElement
+    ) {
+      const sentinel = document.createElement('span')
+      sentinel.tabIndex = -1
+      sentinel.dataset.nativeSurfaceInteractionSentinel = ''
+      Object.assign(sentinel.style, {
+        height: '1px',
+        opacity: '0',
+        pointerEvents: 'none',
+        position: 'fixed',
+        width: '1px',
+      })
+      document.body.appendChild(sentinel)
+      sentinel.focus({ preventScroll: true })
+      pendingNativeInteractionSentinel = sentinel
+    }
+  }
+
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    pendingNativeInteractionLocks = Math.max(0, pendingNativeInteractionLocks - 1)
+    if (pendingNativeInteractionLocks !== 0) return
+    for (const type of PENDING_NATIVE_INTERACTION_EVENTS) {
+      window.removeEventListener(type, blockPendingNativeInteraction, true)
+    }
+    pendingNativeInteractionSentinel?.remove()
+    pendingNativeInteractionSentinel = null
+  }
+}
+
+/**
+ * Dispatches a synchronous preparation request and returns `null` when no
+ * native surface claimed it. Once claimed, preparation is an atomic barrier:
+ * every listener must fulfill before the renderer surface can become visible.
+ * A pending or rejected claim deliberately leaves the surface hidden rather
+ * than exposing an unoccluded native surface underneath it.
+ */
+function requestNativeSurfaceOcclusionPreparation(
+  kind: NativeSurfaceOcclusionPrepareDetail['kind']
+): NativeSurfaceOcclusionPreparation | null {
+  const preparations: Promise<unknown>[] = []
+  const detail: NativeSurfaceOcclusionPrepareDetail = {
+    kind,
+    waitUntil: (preparation) => preparations.push(Promise.resolve(preparation)),
+  }
+  window.dispatchEvent(
+    new CustomEvent<NativeSurfaceOcclusionPrepareDetail>(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, {
+      detail,
+    })
+  )
+  if (preparations.length === 0) return null
+  const releaseInteractionLock = acquirePendingNativeInteractionLock()
+  let releaseFrame: number | null = null
+  const completion = Promise.all(preparations).then(() => undefined)
+  // Keep keyboard input blocked through the first ready paint. The modal's
+  // layout effect can move focus into its real content before interaction is
+  // re-enabled; rejected preparation deliberately remains fail-closed until
+  // the owning surface unmounts and calls `cancel`.
+  void completion.then(
+    () => {
+      releaseFrame = requestAnimationFrame(() => {
+        releaseFrame = null
+        releaseInteractionLock()
+      })
+    },
+    () => {}
+  )
+  return {
+    completion,
+    cancel: () => {
+      if (releaseFrame !== null) cancelAnimationFrame(releaseFrame)
+      releaseFrame = null
+      releaseInteractionLock()
+    },
+  }
+}
+
+/**
+ * Pre-paint readiness for custom modal/takeover surfaces that do not use
+ * `ModalContent`. Keep the surface mounted but visually hidden until this is
+ * true; marker attributes should still reflect `active` so closing can release
+ * the browser lease.
+ */
+export function useNativeSurfaceOcclusionReady(
+  active: boolean,
+  kind: NativeSurfaceOcclusionPrepareDetail['kind']
+): boolean {
+  const [ready, setReady] = React.useState(false)
+
+  React.useLayoutEffect(() => {
+    if (!active) {
+      setReady(false)
+      return
+    }
+    let current = true
+    setReady(false)
+    const preparation = requestNativeSurfaceOcclusionPreparation(kind)
+    if (!preparation) {
+      setReady(true)
+      return
+    }
+    void preparation.completion.then(
+      () => {
+        if (current) setReady(true)
+      },
+      () => {
+        // A failed native-surface transition is unsafe to reveal through.
+      }
+    )
+    return () => {
+      current = false
+      preparation.cancel()
+    }
+  }, [active, kind])
+
+  return active && ready
+}
+
 function hasOpenFloatingLayer() {
   return Boolean(document.querySelector('[data-radix-popper-content-wrapper] [data-state="open"]'))
 }
@@ -118,6 +295,54 @@ const ModalPortal = DialogPrimitive.Portal
  */
 const ModalClose = DialogPrimitive.Close
 
+interface NativeSurfaceModalGateProps {
+  barrierClaimedRef: React.MutableRefObject<boolean>
+  onReadyChange: (ready: boolean) => void
+}
+
+/**
+ * Mounts inside Radix Presence, so preparation starts only when this particular
+ * modal actually opens. Layout effects run before the first paint: the overlay
+ * and dialog remain hidden while listeners replace/hide any native surfaces,
+ * then their normal open animations start together. With no listener (web, or
+ * a renderer-owned terminal) readiness is restored in the same pre-paint pass.
+ */
+function NativeSurfaceModalGate({ barrierClaimedRef, onReadyChange }: NativeSurfaceModalGateProps) {
+  React.useLayoutEffect(() => {
+    let active = true
+
+    onReadyChange(false)
+    const preparation = requestNativeSurfaceOcclusionPreparation('modal')
+    barrierClaimedRef.current = preparation !== null
+    if (!preparation) {
+      onReadyChange(true)
+    } else {
+      void preparation.completion.then(
+        () => {
+          if (active) onReadyChange(true)
+        },
+        () => {
+          // A failed native-surface transition is unsafe to reveal through.
+        }
+      )
+    }
+
+    return () => {
+      active = false
+      barrierClaimedRef.current = false
+      preparation?.cancel()
+    }
+  }, [barrierClaimedRef, onReadyChange])
+
+  return null
+}
+
+interface ModalOverlayProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay> {
+  nativeSurfaceBarrierClaimedRef?: React.MutableRefObject<boolean>
+  nativeSurfaceReady?: boolean
+  onNativeSurfaceReadyChange?: (ready: boolean) => void
+}
+
 /**
  * Modal overlay component with fade transition.
  * Outside interactions are handled by the dialog content so nested poppers can
@@ -125,22 +350,48 @@ const ModalClose = DialogPrimitive.Close
  */
 const ModalOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, style, ...props }, ref) => {
-  return (
-    <DialogPrimitive.Overlay
-      ref={ref}
-      className={cn(
-        'fixed inset-0 z-[var(--z-modal)] bg-black/10 backdrop-blur-[2px]',
-        ANIMATION_CLASSES,
-        className
-      )}
-      style={style}
-      {...props}
-      data-native-surface-overlay=''
-    />
-  )
-})
+  ModalOverlayProps
+>(
+  (
+    {
+      className,
+      style,
+      nativeSurfaceBarrierClaimedRef,
+      nativeSurfaceReady = true,
+      onNativeSurfaceReadyChange,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    return (
+      <DialogPrimitive.Overlay
+        ref={ref}
+        className={cn(
+          'fixed inset-0 z-[var(--z-modal)] bg-black/10 backdrop-blur-[2px]',
+          ANIMATION_CLASSES,
+          !nativeSurfaceReady && 'data-[state=open]:[animation-play-state:paused]',
+          className
+        )}
+        style={{
+          ...style,
+          visibility: nativeSurfaceReady ? style?.visibility : 'hidden',
+        }}
+        {...props}
+        data-native-surface-overlay=''
+        data-native-surface-occlusion='modal'
+      >
+        {onNativeSurfaceReadyChange && nativeSurfaceBarrierClaimedRef ? (
+          <NativeSurfaceModalGate
+            barrierClaimedRef={nativeSurfaceBarrierClaimedRef}
+            onReadyChange={onNativeSurfaceReadyChange}
+          />
+        ) : null}
+        {children}
+      </DialogPrimitive.Overlay>
+    )
+  }
+)
 
 ModalOverlay.displayName = 'ModalOverlay'
 
@@ -225,33 +476,98 @@ const ModalContent = React.forwardRef<
   ) => {
     const pathname = usePathname()
     const isWorkflowPage = pathname?.includes('/w/') ?? false
+    // Ready-by-default preserves the exact pre-desktop/web render path. A
+    // claimed native listener flips this false in the gate's layout effect,
+    // still before the browser can paint the opening surface.
+    const [nativeSurfaceReady, setNativeSurfaceReady] = React.useState(true)
+    const nativeSurfaceBarrierClaimedRef = React.useRef(false)
+    const contentRef = React.useRef<React.ElementRef<typeof DialogPrimitive.Content> | null>(null)
+    const deferredFocusDoneRef = React.useRef(false)
+    const handleNativeSurfaceReadyChange = React.useCallback(
+      (ready: boolean) => setNativeSurfaceReady(ready),
+      []
+    )
+    const setContentRef = React.useCallback(
+      (node: React.ElementRef<typeof DialogPrimitive.Content> | null) => {
+        contentRef.current = node
+        if (typeof ref === 'function') ref(node)
+        else if (ref) ref.current = node
+      },
+      [ref]
+    )
+    const focusModalContent = React.useCallback(() => {
+      const content = contentRef.current
+      if (!content) return
+      if (focusFirstTextInputIn(content)) return
+      const firstControl = content.querySelector<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+      ;(firstControl ?? content).focus()
+    }, [])
+
+    React.useLayoutEffect(() => {
+      // With no claimed listener (the web app and older desktop shells), let
+      // Radix run the original autofocus event untouched. Deferred focus is
+      // exclusively part of the installed-shell atomic barrier.
+      if (!nativeSurfaceBarrierClaimedRef.current) return
+      if (!nativeSurfaceReady) {
+        deferredFocusDoneRef.current = false
+        return
+      }
+      if (deferredFocusDoneRef.current) return
+      deferredFocusDoneRef.current = true
+      if (!onOpenAutoFocus) {
+        focusModalContent()
+        return
+      }
+      const content = contentRef.current
+      if (!content) return
+      const event = new Event('openAutoFocus', { cancelable: true })
+      Object.defineProperty(event, 'currentTarget', { value: content })
+      onOpenAutoFocus(event)
+      if (!event.defaultPrevented && !content.contains(document.activeElement)) {
+        focusModalContent()
+      }
+    }, [focusModalContent, nativeSurfaceReady, onOpenAutoFocus])
 
     return (
       <ModalPortal>
-        <ModalOverlay />
+        <ModalOverlay
+          nativeSurfaceBarrierClaimedRef={nativeSurfaceBarrierClaimedRef}
+          nativeSurfaceReady={nativeSurfaceReady}
+          onNativeSurfaceReadyChange={handleNativeSurfaceReadyChange}
+        />
         <div
-          className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
-          style={
-            size === 'full'
-              ? undefined
+          className={cn(
+            'fixed inset-0 z-[var(--z-modal)] flex items-center justify-center',
+            nativeSurfaceReady ? 'pointer-events-none' : 'pointer-events-auto'
+          )}
+          data-native-surface-modal-content-layer=''
+          style={{
+            ...(size === 'full'
+              ? {}
               : {
                   paddingLeft: isWorkflowPage
                     ? 'calc(var(--sidebar-width) - var(--panel-width))'
                     : 'var(--sidebar-width)',
-                }
-          }
+                }),
+          }}
         >
           <DialogPrimitive.Content
-            ref={ref}
+            ref={setContentRef}
             className={cn(
               'pointer-events-auto flex max-h-[84vh] flex-col text-small',
               !bare && 'overflow-hidden rounded-xl bg-[var(--bg)] ring-1 ring-foreground/10',
               ANIMATION_CLASSES,
               'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-200',
+              !nativeSurfaceReady && 'data-[state=open]:[animation-play-state:paused]',
               MODAL_SIZES[size],
               className
             )}
-            style={style}
+            style={{
+              ...style,
+              visibility: nativeSurfaceReady ? style?.visibility : 'hidden',
+            }}
             onEscapeKeyDown={(e) => {
               e.stopPropagation()
             }}
@@ -280,9 +596,17 @@ const ModalContent = React.forwardRef<
                 e.preventDefault()
               }
             }}
-            onOpenAutoFocus={onOpenAutoFocus ?? focusFirstTextInput}
+            onOpenAutoFocus={(event) => {
+              // Radix fires this once when the (still invisible) Content
+              // mounts. Defer the consumer/default policy until the native
+              // surface barrier releases, then run it exactly once above.
+              if (nativeSurfaceBarrierClaimedRef.current && !nativeSurfaceReady) {
+                event.preventDefault()
+              } else (onOpenAutoFocus ?? focusFirstTextInput)(event)
+            }}
             aria-describedby={ariaDescribedBy}
             {...props}
+            data-native-surface-occlusion='modal'
           >
             <ModalBodyLockReleaser />
             {srTitle ? (

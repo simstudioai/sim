@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { Image as ImageIcon, X } from 'lucide-react'
 import Image from 'next/image'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -13,7 +14,6 @@ import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'

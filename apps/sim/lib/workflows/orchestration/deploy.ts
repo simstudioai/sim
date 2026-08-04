@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
@@ -12,6 +13,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { validateTriggerWebhookConfigForDeploy } from '@/lib/webhooks/deploy'
+import { normalizedStringify } from '@/lib/workflows/comparison/normalize'
 import {
   DEPLOYMENT_ERROR_CODES,
   type DeploymentComponentStatus,
@@ -59,6 +61,8 @@ export interface DeploymentAttemptResult {
   version: number
   action: 'deploy' | 'activate'
   status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+  /** Whether this attempt still describes the workflow's current deployment lifecycle. */
+  isCurrent: boolean
   readiness: {
     webhooks: DeploymentReadinessSummaryStatus
     schedules: DeploymentReadinessSummaryStatus
@@ -88,12 +92,30 @@ export interface PerformFullDeployParams {
    * endpoint, so it stays optional here.
    */
   versionName?: string
+  /** Stable identity for one logical deployment operation. */
+  idempotencyKey?: string
+  /** Correlation ID for logging and outbox tracing. */
   requestId?: string
   /**
    * Override the actor ID used in audit logs and the `deployedBy` field.
    * Defaults to `userId`. Use `'admin-api'` for admin-initiated actions.
    */
   actorId?: string
+}
+
+/**
+ * Resolves a mutation-lock denial to a message instead of throwing, so the entry
+ * points below return their `{ success: false }` result shape rather than
+ * surfacing a 500 to callers that expect one — matching `performRevertToVersion`.
+ */
+async function workflowLockDenial(workflowId: string): Promise<string | null> {
+  try {
+    await assertWorkflowMutable(workflowId)
+    return null
+  } catch (error) {
+    if (error instanceof WorkflowLockedError) return error.message
+    throw error
+  }
 }
 
 export interface PerformFullDeployResult {
@@ -110,7 +132,9 @@ export interface PerformFullDeployResult {
 
 /**
  * Admits a deployment through the v2 prepare/activate protocol. The candidate
- * version remains inactive until every required side effect is ready.
+ * version remains inactive until every required side effect is ready. Callers
+ * that can replay a logical operation must provide a stable `idempotencyKey`;
+ * `requestId` is correlation metadata only.
  */
 export async function performFullDeploy(
   params: PerformFullDeployParams
@@ -118,6 +142,12 @@ export async function performFullDeploy(
   const { workflowId, userId } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
+  const idempotencyKey = params.idempotencyKey ?? generateId()
+
+  // Backstop for every caller — routes may assert first to render their own 423,
+  // but the copilot deploy tools call this directly.
+  const lockDenial = await workflowLockDenial(workflowId)
+  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'validation' }
 
   const [workflowRecord] = await db
     .select()
@@ -134,6 +164,7 @@ export async function performFullDeploy(
       params,
       actorId,
       requestId,
+      idempotencyKey,
     })
   } catch (error) {
     logger.error(`[${requestId}] Deployment preparation failed`, { workflowId, error })
@@ -149,6 +180,7 @@ async function performStableFullDeploy(params: {
   params: PerformFullDeployParams
   actorId: string
   requestId: string
+  idempotencyKey: string
 }): Promise<PerformFullDeployResult> {
   const workflowState = await loadWorkflowDeploymentSnapshot(params.params.workflowId)
   if (!workflowState) {
@@ -170,11 +202,11 @@ async function performStableFullDeploy(params: {
       action: 'deploy',
       workflowId: params.params.workflowId,
       userId: params.params.userId,
-      workflowState,
+      workflowState: canonicalizeDeploymentWorkflowState(workflowState),
       versionName: params.params.versionName ?? null,
       versionDescription: params.params.versionDescription ?? null,
     }),
-    idempotencyKey: params.requestId,
+    idempotencyKey: params.idempotencyKey,
     workflowState,
     name: params.params.versionName,
     description: params.params.versionDescription,
@@ -271,8 +303,22 @@ async function validateDeploymentState(
   return { success: true }
 }
 
+function canonicalizeDeploymentWorkflowState(
+  workflowState: WorkflowState
+): Record<string, unknown> {
+  const { lastSaved: _lastSaved, edges, ...stableState } = workflowState
+  const sortedEdges = [...edges].sort((left, right) => {
+    if (left.id !== right.id) return left.id < right.id ? -1 : 1
+    const normalizedLeft = normalizedStringify(left)
+    const normalizedRight = normalizedStringify(right)
+    if (normalizedLeft === normalizedRight) return 0
+    return normalizedLeft < normalizedRight ? -1 : 1
+  })
+  return { ...stableState, edges: sortedEdges }
+}
+
 function createDeploymentRequestHash(value: Record<string, unknown>): string {
-  return sha256Hex(JSON.stringify(value))
+  return sha256Hex(normalizedStringify(value))
 }
 
 function mapPrepareFailureCode(
@@ -317,7 +363,10 @@ function buildStableDeploymentResult(
         deployedAt: status.activeDeployment.deployedAt.toISOString(),
       }
     : null
-  const latestDeploymentAttempt = summarizeDeploymentOperation(status.latestOperation)
+  const latestDeploymentAttempt = summarizeDeploymentOperation(
+    status.latestOperation,
+    status.activeDeployment?.deploymentVersionId ?? null
+  )
   const warning = getStableDeploymentWarning(
     latestDeploymentAttempt,
     processResult,
@@ -355,7 +404,8 @@ export async function getWorkflowDeploymentSummary(workflowId: string): Promise<
 }
 
 function summarizeDeploymentOperation(
-  operation: WorkflowDeploymentOperation | null
+  operation: WorkflowDeploymentOperation | null,
+  activeDeploymentVersionId: string | null
 ): DeploymentAttemptResult | null {
   if (!operation) return null
   if (
@@ -375,6 +425,10 @@ function summarizeDeploymentOperation(
     version: operation.version,
     action: operation.action,
     status: operation.status,
+    isCurrent:
+      operation.status === 'active'
+        ? operation.deploymentVersionId === activeDeploymentVersionId
+        : operation.status !== 'superseded',
     readiness: {
       webhooks: componentStatus('webhooks'),
       schedules: componentStatus('schedules'),
@@ -400,6 +454,9 @@ function getStableDeploymentWarning(
   hasActiveDeployment: boolean
 ): string | undefined {
   if (!attempt) return undefined
+  if (attempt.status === 'active' && !attempt.isCurrent) {
+    return 'The latest successful deployment attempt is historical; no matching deployment version is currently active.'
+  }
   if (attempt.status === 'preparing' || attempt.status === 'activating') {
     if (processResult === 'processing_error') {
       return hasActiveDeployment
@@ -457,6 +514,9 @@ export async function performFullUndeploy(
   const { workflowId, userId } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
+
+  const lockDenial = await workflowLockDenial(workflowId)
+  if (lockDenial) return { success: false, error: lockDenial }
 
   const [workflowRecord] = await db
     .select()
@@ -524,6 +584,9 @@ export interface PerformActivateVersionParams {
   workflowId: string
   version: number
   userId: string
+  /** Stable identity for one logical activation operation. */
+  idempotencyKey?: string
+  /** Correlation ID for logging and outbox tracing. */
   requestId?: string
   /** Override the actor ID used in audit logs. Defaults to `userId`. */
   actorId?: string
@@ -559,7 +622,8 @@ export interface PerformRevertToVersionResult {
 }
 
 /**
- * Admits an existing version through the v2 prepare/activate protocol.
+ * Admits an existing version through the v2 prepare/activate protocol. Callers
+ * that can replay a logical operation must provide a stable `idempotencyKey`.
  */
 export async function performActivateVersion(
   params: PerformActivateVersionParams
@@ -567,6 +631,10 @@ export async function performActivateVersion(
   const { workflowId, version, userId } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
+  const idempotencyKey = params.idempotencyKey ?? generateId()
+
+  const lockDenial = await workflowLockDenial(workflowId)
+  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'validation' }
 
   const [versionRow] = await db
     .select({
@@ -639,6 +707,7 @@ export async function performActivateVersion(
       userId,
       actorId,
       requestId,
+      idempotencyKey,
     })
   } catch (error) {
     logger.error(`[${requestId}] Version activation preparation failed`, {
@@ -661,6 +730,7 @@ async function performStableVersionActivation(params: {
   userId: string
   actorId: string
   requestId: string
+  idempotencyKey: string
 }): Promise<PerformActivateVersionResult> {
   let outboxEventId: string | undefined
   const prepared = await prepareWorkflowVersionActivation({
@@ -674,7 +744,7 @@ async function performStableVersionActivation(params: {
       version: params.version,
       userId: params.userId,
     }),
-    idempotencyKey: params.requestId,
+    idempotencyKey: params.idempotencyKey,
     readinessComponents: DEPLOYMENT_READINESS_COMPONENTS,
     onPrepareTransaction: async (tx, operation) => {
       if (!operation.deploymentVersionId || operation.version === null) {

@@ -2,6 +2,10 @@ import { db } from '@sim/db'
 import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
+import {
+  collectFunctionalBlockOutputs,
+  type FunctionalExecutionDataSource,
+} from '@/lib/logs/execution/functional-outputs'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import type { PausePoint } from '@/executor/types'
@@ -15,32 +19,10 @@ import type { PausePoint } from '@/executor/types'
 
 type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
-interface TraceSpanShape {
-  blockId?: string
-  output?: Record<string, unknown>
-  children?: TraceSpanShape[]
-}
-
-interface ExecutionDataShape {
+interface ExecutionDataShape extends FunctionalExecutionDataSource {
   finalOutput?: { error?: string } & Record<string, unknown>
   error?: { message?: string } | string
   completionFailure?: string
-  traceSpans?: TraceSpanShape[]
-}
-
-function collectBlockOutputs(spans: TraceSpanShape[] | undefined): Map<string, unknown> {
-  const map = new Map<string, unknown>()
-  const visit = (list?: TraceSpanShape[]): void => {
-    if (!list) return
-    for (const span of list) {
-      if (span.blockId && span.output !== undefined && !map.has(span.blockId)) {
-        map.set(span.blockId, span.output)
-      }
-      if (span.children) visit(span.children)
-    }
-  }
-  visit(spans)
-  return map
 }
 
 function resolvePath(value: unknown, path: string[]): unknown {
@@ -198,7 +180,7 @@ export async function getWorkflowExecutionStatus(
 
   const blockOutputs =
     selectedOutputs.length > 0
-      ? pickSelectedOutputs(selectedOutputs, collectBlockOutputs(executionData?.traceSpans))
+      ? pickSelectedOutputs(selectedOutputs, collectFunctionalBlockOutputs(executionData))
       : null
 
   return {

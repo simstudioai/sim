@@ -3,9 +3,11 @@ import '@sim/testing/mocks/executor'
 import { describe, expect, it } from 'vitest'
 import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/copilot/constants'
 import {
+  buildToolExecutionContext,
   pendingToolWaitBudgetMs,
   toolWatchdogTimeoutMs,
 } from '@/lib/copilot/request/tools/executor'
+import type { ExecutionContext } from '@/lib/copilot/request/types'
 
 describe('toolWatchdogTimeoutMs', () => {
   it('gives request-scoped MCP tools the long-running watchdog', () => {
@@ -30,5 +32,29 @@ describe('pendingToolWaitBudgetMs', () => {
     expect(pendingToolWaitBudgetMs({ name: 'terminal_run', status: 'executing' })).toBe(
       TOOL_WATCHDOG_DEFAULT_MS
     )
+  })
+})
+
+describe('buildToolExecutionContext', () => {
+  it('threads logical tool-call identity into the handler context', () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      runId: 'run-1',
+    }
+
+    expect(
+      buildToolExecutionContext(
+        {
+          id: 'call-1',
+          parentToolCallId: 'parent-1',
+        },
+        executionContext
+      )
+    ).toMatchObject({
+      runId: 'run-1',
+      toolCallId: 'call-1',
+      parentToolCallId: 'parent-1',
+    })
   })
 })

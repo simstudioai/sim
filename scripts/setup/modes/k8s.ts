@@ -8,8 +8,8 @@ import { waitFor } from '../probes.ts'
 import * as p from '../prompter.ts'
 import { chatFlagValues, mothershipOverride, promptCopilotKey } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
+import { APP_SIGNUP_URL, APP_URL } from '../urls.ts'
 
-const APP_URL = 'http://localhost:3000'
 const RELEASE = 'sim-dev'
 const NAMESPACE = 'sim-dev'
 const LOCAL_CONTEXT_PREFIXES = ['kind-', 'docker-desktop', 'minikube', 'orbstack']
@@ -416,7 +416,7 @@ export async function runK8sMode(detection: Detection): Promise<void> {
 
   p.note(
     [
-      `open ${APP_URL} (needs both forwards below)`,
+      `open ${APP_SIGNUP_URL} (needs both forwards below)`,
       `pods:      kubectl --context ${shq(context)} -n ${NAMESPACE} get pods`,
       `app logs:  kubectl --context ${shq(context)} -n ${NAMESPACE} logs deploy/${RELEASE}-app --tail 50`,
       // Both, always: the app alone loads but the editor's socket has nothing to
@@ -454,7 +454,7 @@ export function forwardCommands(context: string): string[] {
  */
 async function offerPortForward(context: string): Promise<void> {
   const forward = await p.confirm({
-    message: `Port-forward now so you can open ${APP_URL}?`,
+    message: `Port-forward now so you can open ${APP_SIGNUP_URL}?`,
     initialValue: true,
   })
   if (!forward) {

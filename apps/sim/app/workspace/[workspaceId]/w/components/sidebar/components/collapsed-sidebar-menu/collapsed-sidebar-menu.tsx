@@ -18,6 +18,7 @@ import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { interleaveSiblings } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -26,6 +27,56 @@ interface FileFolderFlyoutNode extends WorkspaceFileFolderApi {
   children: FileFolderFlyoutNode[]
   files: WorkspaceFileRecord[]
 }
+
+type FileFlyoutEntry =
+  | { kind: 'folder'; id: string; name: string; folder: FileFolderFlyoutNode }
+  | { kind: 'file'; id: string; name: string; file: WorkspaceFileRecord }
+
+/**
+ * Orders one level of the file flyout as a single list. Folders are not hoisted
+ * above the files beside them — the Files page sorts folders and files together,
+ * and a flyout that partitioned them would contradict the page it links into.
+ */
+function fileFlyoutEntries(
+  folders: FileFolderFlyoutNode[],
+  files: WorkspaceFileRecord[]
+): FileFlyoutEntry[] {
+  const entries: FileFlyoutEntry[] = [
+    ...folders.map(
+      (folder): FileFlyoutEntry => ({
+        kind: 'folder',
+        id: folder.id,
+        name: folder.name,
+        folder,
+      })
+    ),
+    ...files.map(
+      (file): FileFlyoutEntry => ({
+        kind: 'file',
+        id: file.id,
+        name: file.name,
+        file,
+      })
+    ),
+  ]
+  return entries.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+}
+
+const FILE_FLYOUT_ICON = (
+  <svg
+    className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
+    viewBox='0 0 24 24'
+    fill='none'
+    stroke='currentColor'
+    strokeWidth='2'
+    strokeLinecap='round'
+    strokeLinejoin='round'
+    aria-hidden='true'
+  >
+    <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
+    <path d='M14 2v4a2 2 0 0 0 2 2h4' />
+  </svg>
+)
 
 export function CollapsedFileFolderItems({
   nodes,
@@ -40,7 +91,22 @@ export function CollapsedFileFolderItems({
 }) {
   return (
     <>
-      {nodes.map((folder) => {
+      {fileFlyoutEntries(nodes, rootFiles ?? []).map((entry) => {
+        if (entry.kind === 'file') {
+          return (
+            <DropdownMenuItem key={entry.id} asChild>
+              <Link
+                href={`/workspace/${workspaceId}/files/${entry.file.id}`}
+                className={cn(currentFileId === entry.file.id && 'bg-[var(--surface-active)]')}
+              >
+                {FILE_FLYOUT_ICON}
+                <span className='truncate'>{entry.name}</span>
+              </Link>
+            </DropdownMenuItem>
+          )
+        }
+
+        const folder = entry.folder
         const hasChildren = folder.children.length > 0 || folder.files.length > 0
 
         if (!hasChildren) {
@@ -61,59 +127,14 @@ export function CollapsedFileFolderItems({
             <DropdownMenuSubContent>
               <CollapsedFileFolderItems
                 nodes={folder.children}
+                rootFiles={folder.files}
                 workspaceId={workspaceId}
                 currentFileId={currentFileId}
               />
-              {folder.files.map((file) => (
-                <DropdownMenuItem key={file.id} asChild>
-                  <Link
-                    href={`/workspace/${workspaceId}/files/${file.id}`}
-                    className={cn(currentFileId === file.id && 'bg-[var(--surface-active)]')}
-                  >
-                    <svg
-                      className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      stroke='currentColor'
-                      strokeWidth='2'
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      aria-hidden='true'
-                    >
-                      <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
-                      <path d='M14 2v4a2 2 0 0 0 2 2h4' />
-                    </svg>
-                    <span className='truncate'>{file.name}</span>
-                  </Link>
-                </DropdownMenuItem>
-              ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )
       })}
-      {rootFiles?.map((file) => (
-        <DropdownMenuItem key={file.id} asChild>
-          <Link
-            href={`/workspace/${workspaceId}/files/${file.id}`}
-            className={cn(currentFileId === file.id && 'bg-[var(--surface-active)]')}
-          >
-            <svg
-              className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
-              viewBox='0 0 24 24'
-              fill='none'
-              stroke='currentColor'
-              strokeWidth='2'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-              aria-hidden='true'
-            >
-              <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
-              <path d='M14 2v4a2 2 0 0 0 2 2h4' />
-            </svg>
-            <span className='truncate'>{file.name}</span>
-          </Link>
-        </DropdownMenuItem>
-      ))}
     </>
   )
 }
@@ -396,22 +417,7 @@ export function CollapsedWorkflowFlyoutItem({
   )
 }
 
-export function CollapsedFolderItems({
-  nodes,
-  workflowsByFolder,
-  workspaceId,
-  currentWorkflowId,
-  editingWorkflowId,
-  editingValue,
-  editInputRef,
-  isRenamingWorkflow,
-  onEditValueChange,
-  onEditKeyDown,
-  onEditBlur,
-  onWorkflowOpenInNewTab,
-  onWorkflowRename,
-  canRenameWorkflow,
-}: {
+interface CollapsedFolderItemsProps {
   nodes: FolderTreeNode[]
   workflowsByFolder: Record<string, WorkflowMetadata[]>
   workspaceId: string
@@ -426,7 +432,32 @@ export function CollapsedFolderItems({
   onWorkflowOpenInNewTab?: (workflow: WorkflowMetadata) => void
   onWorkflowRename?: (workflow: WorkflowMetadata) => void
   canRenameWorkflow?: boolean
-}) {
+}
+
+/**
+ * Renders folder flyouts for one level of the collapsed sidebar. A folder's
+ * submenu interleaves its child folders and workflows by `sortOrder` — the same
+ * single ordering the expanded sidebar and this menu's own root level use, so a
+ * folder never jumps above a workflow the user dragged above it.
+ */
+export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
+  const {
+    nodes,
+    workflowsByFolder,
+    workspaceId,
+    currentWorkflowId,
+    editingWorkflowId,
+    editingValue,
+    editInputRef,
+    isRenamingWorkflow,
+    onEditValueChange,
+    onEditKeyDown,
+    onEditBlur,
+    onWorkflowOpenInNewTab,
+    onWorkflowRename,
+    canRenameWorkflow,
+  } = props
+
   return (
     <>
       {nodes.map((folder) => {
@@ -449,42 +480,32 @@ export function CollapsedFolderItems({
               <span className='truncate'>{folder.name}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <CollapsedFolderItems
-                nodes={folder.children}
-                workflowsByFolder={workflowsByFolder}
-                workspaceId={workspaceId}
-                currentWorkflowId={currentWorkflowId}
-                editingWorkflowId={editingWorkflowId}
-                editingValue={editingValue}
-                editInputRef={editInputRef}
-                isRenamingWorkflow={isRenamingWorkflow}
-                onEditValueChange={onEditValueChange}
-                onEditKeyDown={onEditKeyDown}
-                onEditBlur={onEditBlur}
-                onWorkflowOpenInNewTab={onWorkflowOpenInNewTab}
-                onWorkflowRename={onWorkflowRename}
-                canRenameWorkflow={canRenameWorkflow}
-              />
-              {folderWorkflows.map((workflow) => (
-                <CollapsedWorkflowFlyoutItem
-                  key={workflow.id}
-                  workflow={workflow}
-                  href={`/workspace/${workspaceId}/w/${workflow.id}`}
-                  isCurrentRoute={workflow.id === currentWorkflowId}
-                  isEditing={workflow.id === editingWorkflowId}
-                  editValue={editingValue}
-                  inputRef={editInputRef}
-                  isRenaming={isRenamingWorkflow}
-                  onEditValueChange={onEditValueChange}
-                  onEditKeyDown={onEditKeyDown}
-                  onEditBlur={onEditBlur}
-                  onOpenInNewTab={
-                    onWorkflowOpenInNewTab ? () => onWorkflowOpenInNewTab(workflow) : undefined
-                  }
-                  onRename={onWorkflowRename ? () => onWorkflowRename(workflow) : undefined}
-                  canRename={canRenameWorkflow}
-                />
-              ))}
+              {interleaveSiblings(folder.children, folderWorkflows).map((child) =>
+                child.kind === 'folder' ? (
+                  <CollapsedFolderItems key={child.id} {...props} nodes={[child.node]} />
+                ) : (
+                  <CollapsedWorkflowFlyoutItem
+                    key={child.id}
+                    workflow={child.workflow}
+                    href={`/workspace/${workspaceId}/w/${child.workflow.id}`}
+                    isCurrentRoute={child.workflow.id === currentWorkflowId}
+                    isEditing={child.workflow.id === editingWorkflowId}
+                    editValue={editingValue}
+                    inputRef={editInputRef}
+                    isRenaming={isRenamingWorkflow}
+                    onEditValueChange={onEditValueChange}
+                    onEditKeyDown={onEditKeyDown}
+                    onEditBlur={onEditBlur}
+                    onOpenInNewTab={
+                      onWorkflowOpenInNewTab
+                        ? () => onWorkflowOpenInNewTab(child.workflow)
+                        : undefined
+                    }
+                    onRename={onWorkflowRename ? () => onWorkflowRename(child.workflow) : undefined}
+                    canRename={canRenameWorkflow}
+                  />
+                )
+              )}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )

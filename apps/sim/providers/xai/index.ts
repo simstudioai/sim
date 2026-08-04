@@ -8,6 +8,7 @@ import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -23,6 +24,7 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -32,7 +34,6 @@ import {
   createReadableStreamFromXAIStream,
   createResponseFormatPayload,
 } from '@/providers/xai/utils'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('XAIProvider')
 
@@ -230,7 +231,8 @@ export const xAIProvider: ProviderConfig = {
             content = currentResponse.choices[0].message.content
           }
 
-          const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+          const toolCallsInResponse =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
@@ -271,7 +273,7 @@ export const xAIProvider: ProviderConfig = {
               }
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams, {
+              const result = await executeProviderTool(toolName, executionParams, {
                 signal: request.abortSignal,
               })
               const toolCallEndTime = Date.now()
@@ -468,7 +470,8 @@ export const xAIProvider: ProviderConfig = {
         }
 
         if (iterationCount === MAX_TOOL_ITERATIONS) {
-          const pendingToolCalls = currentResponse.choices[0]?.message?.tool_calls
+          const pendingToolCalls =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             currentResponse,
@@ -519,7 +522,7 @@ export const xAIProvider: ProviderConfig = {
             enrichLastModelSegmentFromChatCompletions(
               timeSegments,
               finalResponse,
-              finalResponse.choices[0]?.message?.tool_calls,
+              finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
               { model: request.model, provider: 'xai' }
             )
           }

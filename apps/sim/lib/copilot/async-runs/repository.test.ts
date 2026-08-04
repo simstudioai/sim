@@ -7,8 +7,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   claimCompletedAsyncToolCall,
   claimPendingAsyncToolCall,
+  claimWorkflowToolExecution,
   completeAsyncToolCall,
-  markAsyncToolDelivered,
+  detachAsyncToolCall,
+  getClaimedWorkflowExecutionId,
+  recordToolPermissionDecision,
+  releaseWorkflowToolExecutionClaim,
+  replaceTerminalAsyncToolCallResult,
+  upsertAsyncToolCall,
 } from './repository'
 
 describe('async tool repository single-row semantics', () => {
@@ -17,27 +23,48 @@ describe('async tool repository single-row semantics', () => {
     resetDbChainMock()
   })
 
-  it('does not overwrite a delivered row on late completion', async () => {
-    const deliveredRow = {
+  it('atomically completes a live row', async () => {
+    const completedRow = {
       toolCallId: 'tool-1',
-      status: 'delivered',
+      status: 'completed',
       result: { ok: true },
       error: null,
     }
-    dbChainMockFns.limit.mockResolvedValueOnce([deliveredRow])
+    dbChainMockFns.returning.mockResolvedValueOnce([completedRow])
 
     const result = await completeAsyncToolCall({
       toolCallId: 'tool-1',
       status: 'completed',
-      result: { ok: false },
+      result: { ok: true },
       error: null,
     })
 
-    expect(result).toEqual(deliveredRow)
-    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
+    expect(result).toEqual(completedRow)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'completed',
+        result: { ok: true },
+        completedAt: expect.any(Date),
+      })
+    )
+    expect(dbChainMockFns.where).toHaveBeenCalled()
   })
 
-  it('marks a row delivered and clears the claim fields', async () => {
+  it('returns null when another terminal transition already won', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const result = await completeAsyncToolCall({
+      toolCallId: 'tool-1',
+      status: 'failed',
+      result: null,
+      error: 'late error',
+    })
+
+    expect(result).toBeNull()
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
+  it('atomically detaches a live background call and clears the claim fields', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([
       {
         toolCallId: 'tool-1',
@@ -45,7 +72,7 @@ describe('async tool repository single-row semantics', () => {
       },
     ])
 
-    await markAsyncToolDelivered('tool-1')
+    await detachAsyncToolCall('tool-1')
 
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -54,6 +81,7 @@ describe('async tool repository single-row semantics', () => {
         claimedAt: null,
       })
     )
+    expect(dbChainMockFns.where).toHaveBeenCalled()
   })
 
   it('claims only completed rows for delivery handoff', async () => {
@@ -103,4 +131,149 @@ describe('async tool repository single-row semantics', () => {
       })
     )
   })
+
+  it('atomically binds an eligible workflow tool to one execution', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'running',
+        claimedBy: 'workflow:execution-1',
+      },
+    ])
+
+    const result = await claimWorkflowToolExecution('workflow-tool', 'execution-1')
+
+    expect(result).toMatchObject({
+      toolCallId: 'workflow-tool',
+      claimedBy: 'workflow:execution-1',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      status: expect.anything(),
+      claimedBy: 'workflow:execution-1',
+      claimedAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+    })
+    expect(getClaimedWorkflowExecutionId(result?.claimedBy)).toBe('execution-1')
+  })
+
+  it('returns null when a workflow tool execution claim loses the race', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(claimWorkflowToolExecution('workflow-tool', 'execution-2')).resolves.toBeNull()
+  })
+
+  it('releases a matching pre-start workflow claim without changing its lifecycle status', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'delivered',
+        claimedBy: null,
+      },
+    ])
+
+    const result = await releaseWorkflowToolExecutionClaim('workflow-tool', 'execution-1')
+
+    expect(result).toMatchObject({
+      toolCallId: 'workflow-tool',
+      status: 'delivered',
+      claimedBy: null,
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      claimedBy: null,
+      claimedAt: null,
+      updatedAt: expect.any(Date),
+    })
+  })
+
+  it('detaches a bound workflow waiter without releasing its execution claim', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'delivered',
+        claimedBy: 'workflow:execution-1',
+      },
+    ])
+
+    await detachAsyncToolCall('workflow-tool', { preserveClaim: true })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'delivered',
+        claimedBy: undefined,
+        claimedAt: undefined,
+      })
+    )
+  })
+
+  it('records an approved workflow decision without changing execution state', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'pending',
+        permissionDecision: 'allow',
+      },
+    ])
+
+    await recordToolPermissionDecision('workflow-tool', 'allow')
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      permissionDecision: 'allow',
+      permissionDecidedAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+    })
+  })
+
+  it('replaces only terminal payload fields after trusted projection', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'workflow-tool',
+        status: 'completed',
+        result: { output: '{{SECRET}}' },
+      },
+    ])
+
+    const result = await replaceTerminalAsyncToolCallResult({
+      toolCallId: 'workflow-tool',
+      status: 'completed',
+      result: { output: '{{SECRET}}' },
+      error: null,
+    })
+
+    expect(result).toMatchObject({
+      toolCallId: 'workflow-tool',
+      status: 'completed',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      status: 'completed',
+      result: { output: '{{SECRET}}' },
+      error: null,
+      updatedAt: expect.any(Date),
+    })
+    expect(dbChainMockFns.where).toHaveBeenCalled()
+  })
+
+  it.each(['pending', 'running'] as const)(
+    'keeps the first finalized call identity immutable after it reaches %s',
+    async (status) => {
+      const existingRow = {
+        runId: 'run-1',
+        toolCallId: 'tool-1',
+        toolName: 'function_execute',
+        args: { language: 'javascript', code: 'return {{FIRST_SECRET}}' },
+        status,
+      }
+      dbChainMockFns.limit.mockResolvedValueOnce([existingRow])
+
+      const result = await upsertAsyncToolCall({
+        runId: 'run-1',
+        toolCallId: 'tool-1',
+        toolName: 'function_execute',
+        args: { language: 'javascript', code: 'return {{SECOND_SECRET}}' },
+        status: 'pending',
+      })
+
+      expect(result).toEqual(existingRow)
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    }
+  )
 })

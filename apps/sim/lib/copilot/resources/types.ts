@@ -105,6 +105,41 @@ export const BROWSER_SESSION_RESOURCE_ID = 'browser-session'
  */
 export const TERMINAL_SESSION_RESOURCE_ID = 'terminal-session'
 
+/**
+ * Collapses page/shell-shaped metadata onto the one top-level desktop panel
+ * each chat can restore. Browser pages and terminal tabs are inner tabs, not
+ * independently addressable Mothership resources.
+ */
+export function canonicalizeDesktopSessionResource(
+  resource: MothershipResource
+): MothershipResource {
+  if (resource.type === 'browser') {
+    return { type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' }
+  }
+  if (resource.type === 'terminal') {
+    return { type: 'terminal', id: TERMINAL_SESSION_RESOURCE_ID, title: 'Terminal' }
+  }
+  return resource
+}
+
+/** Canonicalizes and deduplicates the singleton desktop panels in display order. */
+export function canonicalizeDesktopSessionResources(
+  resources: readonly MothershipResource[]
+): MothershipResource[] {
+  const seenDesktopTypes = new Set<'browser' | 'terminal'>()
+  const canonical: MothershipResource[] = []
+
+  for (const resource of resources) {
+    if (resource.type === 'browser' || resource.type === 'terminal') {
+      if (seenDesktopTypes.has(resource.type)) continue
+      seenDesktopTypes.add(resource.type)
+    }
+    canonical.push(canonicalizeDesktopSessionResource(resource))
+  }
+
+  return canonical
+}
+
 /** Placeholder resource titles that a more specific title may overwrite during dedup. */
 export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Table',

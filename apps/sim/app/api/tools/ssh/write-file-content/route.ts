@@ -6,7 +6,9 @@ import type { Client, SFTPWrapper } from 'ssh2'
 import { sshWriteFileContentContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_SFTP_READ_BYTES, readSftpFileCapped } from '@/app/api/tools/sftp/utils'
 import { createSSHConnection, sanitizePath } from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHWriteFileContentAPI')
@@ -73,22 +75,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // Handle append mode by reading existing content first
       let finalContent = params.content
       if (params.mode === 'append') {
-        const existingContent = await new Promise<string>((resolve) => {
-          const chunks: Buffer[] = []
-          const readStream = sftp.createReadStream(filePath)
-
-          readStream.on('data', (chunk: Buffer) => {
-            chunks.push(chunk)
-          })
-
-          readStream.on('end', () => {
-            resolve(Buffer.concat(chunks).toString('utf-8'))
-          })
-
-          readStream.on('error', () => {
-            resolve('')
-          })
-        })
+        let existingContent = ''
+        try {
+          const existing = await readSftpFileCapped(
+            sftp,
+            filePath,
+            MAX_SFTP_READ_BYTES,
+            `Existing file '${filePath}'`
+          )
+          existingContent = existing.toString('utf-8')
+        } catch (error) {
+          if (isPayloadSizeLimitError(error)) throw error
+        }
         finalContent = existingContent + params.content
       }
 
@@ -124,6 +122,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Unknown error occurred')
+
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn(`[${requestId}] SSH write file content aborted: ${errorMessage}`)
+      return NextResponse.json({ error: errorMessage }, { status: 413 })
+    }
+
     logger.error(`[${requestId}] SSH write file content failed:`, error)
 
     return NextResponse.json(

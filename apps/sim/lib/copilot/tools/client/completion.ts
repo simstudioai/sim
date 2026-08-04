@@ -26,10 +26,12 @@ export async function reportClientToolCompletion(
   toolCallId: string,
   status: AsyncConfirmationStatus,
   message?: string,
-  data?: AsyncCompletionData
+  data?: AsyncCompletionData,
+  executionId?: string
 ): Promise<void> {
   const basePayload = {
     toolCallId,
+    ...(executionId ? { executionId } : {}),
     status,
     message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
     ...(data !== undefined ? { data } : {}),
@@ -61,6 +63,7 @@ export async function reportClientToolCompletion(
         const retryResponse = await send(
           JSON.stringify({
             toolCallId,
+            ...(executionId ? { executionId } : {}),
             status,
             message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
             data: dataWithoutLogs,

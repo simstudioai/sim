@@ -107,6 +107,11 @@ import {
   webflowItemsSelectorContract,
   webflowSitesSelectorContract,
 } from '@/lib/api/contracts/selectors/webflow'
+import {
+  zohoDeskAgentsSelectorContract,
+  zohoDeskDepartmentsSelectorContract,
+  zohoDeskOrganizationsSelectorContract,
+} from '@/lib/api/contracts/selectors/zoho-desk'
 import { zoomMeetingsSelectorContract } from '@/lib/api/contracts/selectors/zoom'
 
 export * from '@/lib/api/contracts/selectors/airtable'
@@ -133,6 +138,7 @@ export * from '@/lib/api/contracts/selectors/slack'
 export * from '@/lib/api/contracts/selectors/trello'
 export * from '@/lib/api/contracts/selectors/wealthbox'
 export * from '@/lib/api/contracts/selectors/webflow'
+export * from '@/lib/api/contracts/selectors/zoho-desk'
 export * from '@/lib/api/contracts/selectors/zoom'
 
 export const selectorContractsByPath = {
@@ -162,6 +168,9 @@ export const selectorContractsByPath = {
   '/api/tools/sharepoint/site': sharepointSiteSelectorContract,
   '/api/tools/sharepoint/sites': sharepointSitesSelectorContract,
   '/api/tools/trello/boards': trelloBoardsSelectorContract,
+  '/api/tools/zoho_desk/organizations': zohoDeskOrganizationsSelectorContract,
+  '/api/tools/zoho_desk/departments': zohoDeskDepartmentsSelectorContract,
+  '/api/tools/zoho_desk/agents': zohoDeskAgentsSelectorContract,
   '/api/tools/zoom/meetings': zoomMeetingsSelectorContract,
   '/api/tools/slack/channels': slackChannelsSelectorContract,
   '/api/tools/slack/users': slackUsersSelectorContract,

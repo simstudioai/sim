@@ -11,18 +11,19 @@ import {
 import { createLogger } from '@sim/logger'
 import { filterUndefined } from '@sim/utils/object'
 import { sanitizeValueForJsonb } from '@sim/utils/string'
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { markSpanForError } from '@/lib/copilot/request/otel'
 import {
   ASYNC_TOOL_STATUS,
   type AsyncCompletionData,
-  isDeliveredAsyncStatus,
-  isTerminalAsyncStatus,
+  type AsyncTerminalStatus,
+  EXECUTABLE_TOOL_PERMISSION_DECISIONS,
 } from './lifecycle'
 
 const logger = createLogger('CopilotAsyncRunsRepo')
+const WORKFLOW_EXECUTION_CLAIM_PREFIX = 'workflow:'
 // Resolve the tracer lazily per-call to avoid capturing the NoOp tracer
 // before NodeSDK installs the global TracerProvider (Next.js 16/Turbopack
 // can evaluate modules before instrumentation-node.ts finishes).
@@ -193,6 +194,7 @@ export async function getRunSegment(runId: string) {
           id: copilotRuns.id,
           userId: copilotRuns.userId,
           status: copilotRuns.status,
+          workflowId: copilotRuns.workflowId,
           // Needed to scope an "allow for this chat" decision to its chat.
           chatId: copilotRuns.chatId,
         })
@@ -243,6 +245,7 @@ export async function upsertAsyncToolCall(input: {
   toolName: string
   args?: Record<string, unknown>
   status?: CopilotAsyncToolStatus
+  sealedContext?: AsyncCompletionData
 }) {
   return withDbSpan(
     TraceSpan.CopilotAsyncRunsUpsertAsyncToolCall,
@@ -256,21 +259,10 @@ export async function upsertAsyncToolCall(input: {
     },
     async () => {
       const existing = await getAsyncToolCall(input.toolCallId)
+      if (existing) return existing
+
       const incomingStatus = input.status ?? 'pending'
-      if (
-        existing &&
-        (isTerminalAsyncStatus(existing.status) || isDeliveredAsyncStatus(existing.status)) &&
-        !isTerminalAsyncStatus(incomingStatus) &&
-        !isDeliveredAsyncStatus(incomingStatus)
-      ) {
-        logger.info('Ignoring async tool upsert that would downgrade terminal state', {
-          toolCallId: input.toolCallId,
-          existingStatus: existing.status,
-          incomingStatus,
-        })
-        return existing
-      }
-      const effectiveRunId = input.runId ?? existing?.runId ?? null
+      const effectiveRunId = input.runId ?? null
       if (!effectiveRunId) {
         logger.warn('upsertAsyncToolCall missing runId and no existing row', {
           toolCallId: input.toolCallId,
@@ -282,6 +274,7 @@ export async function upsertAsyncToolCall(input: {
 
       const now = new Date()
       const args = sanitizeValueForJsonb(input.args ?? {})
+      const sealedContext = sanitizeValueForJsonb(input.sealedContext)
       const [row] = await db
         .insert(copilotAsyncToolCalls)
         .values({
@@ -291,22 +284,13 @@ export async function upsertAsyncToolCall(input: {
           toolName: input.toolName,
           args,
           status: incomingStatus,
+          ...(sealedContext !== undefined ? { result: sealedContext } : {}),
           updatedAt: now,
         })
-        .onConflictDoUpdate({
-          target: copilotAsyncToolCalls.toolCallId,
-          set: {
-            runId: effectiveRunId,
-            checkpointId: input.checkpointId ?? null,
-            toolName: input.toolName,
-            args,
-            status: incomingStatus,
-            updatedAt: now,
-          },
-        })
+        .onConflictDoNothing()
         .returning()
 
-      return row
+      return row ?? getAsyncToolCall(input.toolCallId)
     }
   )
 }
@@ -337,7 +321,8 @@ async function markAsyncToolStatus(
     result?: AsyncCompletionData | null
     error?: string | null
     completedAt?: Date | null
-  } = {}
+  } = {},
+  expectedStatuses?: CopilotAsyncToolStatus[]
 ) {
   return withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -370,7 +355,14 @@ async function markAsyncToolStatus(
           completedAt: updates.completedAt,
           updatedAt: new Date(),
         })
-        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+        .where(
+          expectedStatuses
+            ? and(
+                eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+                inArray(copilotAsyncToolCalls.status, expectedStatuses)
+              )
+            : eq(copilotAsyncToolCalls.toolCallId, toolCallId)
+        )
         .returning()
 
       return row ?? null
@@ -380,6 +372,90 @@ async function markAsyncToolStatus(
 
 export async function markAsyncToolRunning(toolCallId: string, claimedBy: string) {
   return markAsyncToolStatus(toolCallId, 'running', { claimedBy })
+}
+
+export function getClaimedWorkflowExecutionId(claimedBy: string | null | undefined) {
+  if (!claimedBy?.startsWith(WORKFLOW_EXECUTION_CLAIM_PREFIX)) return undefined
+  const executionId = claimedBy.slice(WORKFLOW_EXECUTION_CLAIM_PREFIX.length)
+  return executionId.length > 0 ? executionId : undefined
+}
+
+export async function claimWorkflowToolExecution(toolCallId: string, executionId: string) {
+  const claimedBy = `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
+  return withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
+    },
+    async () => {
+      const now = new Date()
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          status: sql`CASE WHEN ${copilotAsyncToolCalls.status} = ${ASYNC_TOOL_STATUS.pending} THEN ${ASYNC_TOOL_STATUS.running} ELSE ${copilotAsyncToolCalls.status} END`,
+          claimedBy,
+          claimedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            isNull(copilotAsyncToolCalls.claimedBy),
+            or(
+              inArray(copilotAsyncToolCalls.status, [
+                ASYNC_TOOL_STATUS.running,
+                ASYNC_TOOL_STATUS.delivered,
+              ]),
+              and(
+                eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+                inArray(copilotAsyncToolCalls.permissionDecision, [
+                  ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+                ])
+              )
+            )
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
+}
+
+export async function releaseWorkflowToolExecutionClaim(toolCallId: string, executionId: string) {
+  const claimedBy = `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
+  return withDbSpan(
+    TraceSpan.CopilotAsyncRunsReleaseClaim,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
+    },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          claimedBy: null,
+          claimedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            eq(copilotAsyncToolCalls.claimedBy, claimedBy),
+            inArray(copilotAsyncToolCalls.status, [
+              ASYNC_TOOL_STATUS.running,
+              ASYNC_TOOL_STATUS.delivered,
+            ])
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
 }
 
 /**
@@ -425,27 +501,79 @@ export async function completeAsyncToolCall(input: {
   result?: AsyncCompletionData | null
   error?: string | null
 }) {
-  const existing = await getAsyncToolCall(input.toolCallId)
+  return markAsyncToolStatus(
+    input.toolCallId,
+    input.status,
+    {
+      claimedBy: null,
+      claimedAt: null,
+      result: input.result ?? null,
+      error: input.error ?? null,
+      completedAt: new Date(),
+    },
+    [ASYNC_TOOL_STATUS.pending, ASYNC_TOOL_STATUS.running]
+  )
+}
 
-  if (!existing) {
-    logger.warn('completeAsyncToolCall called before pending row existed', {
-      toolCallId: input.toolCallId,
-      status: input.status,
-    })
-    return null
-  }
+/**
+ * Atomically detaches a live client tool after the browser reports that it is
+ * continuing in the background. Whichever terminal or detach transition wins
+ * is the only result eligible for publication.
+ */
+export async function detachAsyncToolCall(
+  toolCallId: string,
+  options?: { preserveClaim?: boolean }
+) {
+  return markAsyncToolStatus(
+    toolCallId,
+    ASYNC_TOOL_STATUS.delivered,
+    options?.preserveClaim ? {} : { claimedBy: null, claimedAt: null },
+    [ASYNC_TOOL_STATUS.pending, ASYNC_TOOL_STATUS.running]
+  )
+}
 
-  if (isTerminalAsyncStatus(existing.status) || isDeliveredAsyncStatus(existing.status)) {
-    return existing
-  }
+/**
+ * Replaces an already-terminal async tool call from a trusted producer.
+ *
+ * Client workflow confirmations are persisted structurally first. The live
+ * Copilot waiter uses this guarded update only after it has restored and
+ * projected the server-owned workflow result.
+ */
+export async function replaceTerminalAsyncToolCallResult(input: {
+  toolCallId: string
+  status: AsyncTerminalStatus
+  result: AsyncCompletionData | null
+  error: string | null
+}) {
+  return withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: input.toolCallId,
+      [TraceAttr.CopilotAsyncToolStatus]: input.status,
+      [TraceAttr.CopilotAsyncToolHasError]: !!input.error,
+    },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          status: input.status,
+          result: sanitizeValueForJsonb(input.result),
+          error: input.error,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+            eq(copilotAsyncToolCalls.status, input.status)
+          )
+        )
+        .returning()
 
-  return markAsyncToolStatus(input.toolCallId, input.status, {
-    claimedBy: null,
-    claimedAt: null,
-    result: input.result ?? null,
-    error: input.error ?? null,
-    completedAt: new Date(),
-  })
+      return row ?? null
+    }
+  )
 }
 
 /**
@@ -480,20 +608,14 @@ export async function recordToolPermissionDecision(
         .where(
           and(
             eq(copilotAsyncToolCalls.toolCallId, toolCallId),
-            isNull(copilotAsyncToolCalls.permissionDecision)
+            isNull(copilotAsyncToolCalls.permissionDecision),
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending)
           )
         )
         .returning()
       return row ?? null
     }
   )
-}
-
-export async function markAsyncToolDelivered(toolCallId: string) {
-  return markAsyncToolStatus(toolCallId, ASYNC_TOOL_STATUS.delivered, {
-    claimedBy: null,
-    claimedAt: null,
-  })
 }
 
 async function listAsyncToolCallsForRun(runId: string) {

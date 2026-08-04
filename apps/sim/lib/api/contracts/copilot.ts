@@ -47,6 +47,7 @@ export const copilotCredentialsQuerySchema = z.object({})
 
 export const copilotConfirmBodySchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
+  executionId: z.string().min(1, 'Execution ID is required').max(255).optional(),
   status: z.enum(
     Object.values(ASYNC_TOOL_CONFIRMATION_STATUS) as [
       AsyncConfirmationStatus,

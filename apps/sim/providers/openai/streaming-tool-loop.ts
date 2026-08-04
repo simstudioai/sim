@@ -11,6 +11,7 @@ import {
   createOpenAIUsageAccumulator,
 } from '@/providers/openai/usage'
 import {
+  convertResponseOutputToInputItems,
   extractResponseText,
   extractResponseToolCalls,
   isMaxOutputTokensIncompleteResponse,
@@ -22,6 +23,7 @@ import {
   type ResponsesToolChoice,
   responseContainsFunctionCall,
 } from '@/providers/openai/utils'
+import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
   isAbortError,
@@ -32,7 +34,6 @@ import {
 } from '@/providers/streaming-tool-loop-shared'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
 import { prepareToolExecution, sumToolCosts } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 export type CreateOpenAIResponsesStream = (
   input: ResponsesInputItem[],
@@ -245,7 +246,7 @@ async function executeOpenAIToolCall(options: {
     }
 
     const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-    const result = await executeTool(toolCall.name, executionParams, {
+    const result = await executeProviderTool(toolCall.name, executionParams, {
       signal: request.abortSignal,
     })
     return completeToolExecution(
@@ -464,7 +465,7 @@ export function createOpenAIResponsesStreamingToolLoopStream(
               break
             }
 
-            currentInput.push(...turn.response.output)
+            currentInput.push(...convertResponseOutputToInputItems(turn.response.output))
 
             if (typeof currentToolChoice === 'object') {
               for (const toolCall of executableTools) {

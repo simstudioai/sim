@@ -43,7 +43,7 @@ This is the level you debug at, because a run fails when one of its blocks fails
 
 ### Input and output
 
-Each block in the sidebar has two tabs. The **Input** tab shows the resolved values the block actually ran with: the literal values you typed, and the earlier outputs it read by reference (with API keys redacted). The **Output** tab shows what the block produced, formatted as an object, with markdown rendered for agent-generated text.
+Each block in the sidebar has two tabs. The **Input** tab shows the resolved values the block actually ran with: the literal values you typed, and the earlier outputs it read by reference. Exact values successfully substituted from Secrets through `{{KEY}}` are masked in this trace copy; see [Execution log protection](/platform/credentials#execution-log-protection). The **Output** tab shows what the block produced, formatted as an object, with markdown rendered for agent-generated text.
 
 The input tab is the important one. A block reads earlier outputs by name, written `<blockName.field>`, and the input tab shows what those references resolved to at run time. If a reference pointed at a value that was not there, you see it here as missing or wrong, not as the tag you wrote. See [how blocks pass data](/workflows/data-flow) for how those references resolve.
 

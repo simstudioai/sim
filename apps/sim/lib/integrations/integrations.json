@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-31",
+  "updatedAt": "2026-08-02",
   "integrations": [
     {
       "type": "onepassword",
@@ -11665,7 +11665,7 @@
       "name": "Logfire",
       "description": "Query traces, logs, and metrics in Pydantic Logfire",
       "longDescription": "Integrate Pydantic Logfire into workflows. Run SQL over your observability data, search spans and logs with structured filters, pull an entire trace by ID, and confirm which project a read token targets.",
-      "bgColor": "#E520E9",
+      "bgColor": "#000000",
       "iconName": "LogfireIcon",
       "docsUrl": "https://docs.sim.ai/integrations/logfire",
       "operations": [
@@ -21811,6 +21811,72 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "sales-engagement"]
+    },
+    {
+      "type": "zoho_desk",
+      "slug": "zoho-desk",
+      "name": "Zoho Desk",
+      "description": "Manage Zoho Desk tickets, comments, threads, and contacts",
+      "longDescription": "Read and update Zoho Desk tickets, manage comments and threads, look up contacts, and download attachments. Can also trigger workflows from Zoho Desk webhook events.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ZohoDeskIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/zoho_desk",
+      "operations": [
+        {
+          "name": "List Tickets",
+          "description": "List tickets from a Zoho Desk organization with optional filters. Returns a list projection: description, resolution, statusType and classification are only available from Get Ticket."
+        },
+        {
+          "name": "Get Ticket",
+          "description": "Retrieve a single Zoho Desk ticket by ID."
+        },
+        {
+          "name": "Update Ticket",
+          "description": "Update fields on an existing Zoho Desk ticket."
+        },
+        {
+          "name": "List Comments",
+          "description": "List comments on a Zoho Desk ticket."
+        },
+        {
+          "name": "Add Comment",
+          "description": "Add a comment to a Zoho Desk ticket."
+        },
+        {
+          "name": "List Threads",
+          "description": "List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread."
+        },
+        {
+          "name": "Get Thread",
+          "description": "Retrieve the full content of a single Zoho Desk ticket thread."
+        },
+        {
+          "name": "Get Contact",
+          "description": "Retrieve a Zoho Desk contact by ID."
+        },
+        {
+          "name": "Get Attachment",
+          "description": "Download a Zoho Desk ticket attachment (from its href) as a file."
+        },
+        {
+          "name": "List Organizations",
+          "description": "List the Zoho Desk organizations (portals) the connected account can access."
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [
+        {
+          "id": "zoho_desk",
+          "name": "Zoho Desk Event",
+          "description": "Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, contact, agent, task, or article changes)."
+        }
+      ],
+      "triggerCount": 1,
+      "authType": "oauth",
+      "oauthServiceId": "zoho-desk",
+      "category": "tools",
+      "integrationType": "support",
+      "tags": ["customer-support", "ticketing", "automation"]
     },
     {
       "type": "zoom",

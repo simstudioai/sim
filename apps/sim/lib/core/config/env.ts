@@ -183,7 +183,7 @@ export const env = createEnv({
     COHERE_API_KEY_1:                      z.string().min(1).optional(),           // Primary Cohere API key for rotation
     COHERE_API_KEY_2:                      z.string().min(1).optional(),           // Additional Cohere API key for load balancing
     COHERE_API_KEY_3:                      z.string().min(1).optional(),           // Additional Cohere API key for load balancing
-    ELEVENLABS_API_KEY:                    z.string().min(1).optional(),           // ElevenLabs API key for text-to-speech in deployed chat
+    ELEVENLABS_API_KEY:                    z.string().min(1).optional(),           // ElevenLabs API key for workspace speech-to-text
     SERPER_API_KEY:                        z.string().min(1).optional(),           // Serper API key for online search
     EXA_API_KEY:                           z.string().min(1).optional(),           // Exa AI API key for enhanced online search
     BLACKLISTED_PROVIDERS:                 z.string().optional(),                  // Comma-separated provider IDs to hide (e.g., "openai,anthropic")
@@ -411,6 +411,8 @@ export const env = createEnv({
     HUBSPOT_CLIENT_SECRET:                 z.string().optional(),                  // HubSpot OAuth client secret
     SALESFORCE_CLIENT_ID:                  z.string().optional(),                  // Salesforce OAuth client ID
     SALESFORCE_CLIENT_SECRET:              z.string().optional(),                  // Salesforce OAuth client secret
+    ZOHO_CLIENT_ID:                        z.string().optional(),                  // Zoho OAuth client ID (Zoho Desk)
+    ZOHO_CLIENT_SECRET:                    z.string().optional(),                  // Zoho OAuth client secret (Zoho Desk)
     WEALTHBOX_CLIENT_ID:                   z.string().optional(),                  // WealthBox OAuth client ID
     WEALTHBOX_CLIENT_SECRET:               z.string().optional(),                  // WealthBox OAuth client secret
     PIPEDRIVE_CLIENT_ID:                   z.string().optional(),                  // Pipedrive OAuth client ID

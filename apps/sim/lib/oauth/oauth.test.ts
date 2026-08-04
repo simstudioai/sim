@@ -45,6 +45,8 @@ beforeAll(() => {
     LINKEDIN_CLIENT_SECRET: 'linkedin_client_secret',
     SALESFORCE_CLIENT_ID: 'salesforce_client_id',
     SALESFORCE_CLIENT_SECRET: 'salesforce_client_secret',
+    ZOHO_CLIENT_ID: 'zoho_client_id',
+    ZOHO_CLIENT_SECRET: 'zoho_client_secret',
     SHOPIFY_CLIENT_ID: 'shopify_client_id',
     SHOPIFY_CLIENT_SECRET: 'shopify_client_secret',
     ZOOM_CLIENT_ID: 'zoom_client_id',

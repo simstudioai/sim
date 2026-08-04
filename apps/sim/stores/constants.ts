@@ -63,11 +63,11 @@ export const OUTPUT_PANEL_WIDTH = {
 /** Home chat resource panel (MothershipView) width constraints */
 export const MOTHERSHIP_WIDTH = {
   MIN: 280,
-  /** Maximum is 65% of viewport, enforced dynamically */
-  MAX_PERCENTAGE: 0.65,
+  /** Maximum is 80% of viewport, enforced dynamically. */
+  MAX_PERCENTAGE: 0.8,
   /**
    * Narrowest the chat column beside the panel may be laid out at — the
-   * `min-w-[320px]` class on that column in home.tsx, so the two must agree.
+   * `min-w-[240px]` class on that column in home.tsx, so the two must agree.
    *
    * The panel is what yields to it: the chat's flex-basis is 0, so the whole of
    * any negative free space is taken out of the panel. A width written past
@@ -75,7 +75,7 @@ export const MOTHERSHIP_WIDTH = {
    * still reads what was asked for, and anything deriving the divider from that
    * value follows an edge that is not on screen.
    */
-  CHAT_MIN: 320,
+  CHAT_MIN: 240,
   /**
    * Share of the viewport the panel takes while unpinned — the `w-1/2` class in
    * mothership-view. Also reported to the desktop shell so it can re-derive the

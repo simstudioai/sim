@@ -6,6 +6,8 @@ import {
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
 } from '@sim/realtime-protocol/file-doc'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { sleep } from '@sim/utils/helpers'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,6 +40,7 @@ import {
   flushAllFileDocRooms,
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
+import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 
 type Handler = (payload?: unknown) => Promise<void> | void
 
@@ -244,6 +247,72 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(mockAuthorizeRoom).not.toHaveBeenCalled()
   })
 
+  it('does not re-enter the room when access was revoked while the join was in flight', async () => {
+    // The sweep records a revocation before it evicts, so a join whose authorize
+    // completed just before that must not put the socket back in the document.
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-race', io, { userId: 'user-race' })
+
+    mockAuthorizeRoom.mockImplementation(async () => {
+      // Simulate the revocation landing between this join's authorize and its commit,
+      // exactly as the sweep would record it.
+      commitRoomPermission(
+        'user-race',
+        { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-1' },
+        null,
+        beginRoomPermissionRead()
+      )
+      return { allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'write' }
+    })
+
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_ERROR,
+      expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
+    )
+    expect(socket.join).not.toHaveBeenCalled()
+    expect(joinSuccessFileId(socket)).toBeUndefined()
+  })
+
+  it('re-reads access when the cached decision expired mid-join, instead of failing open', async () => {
+    // A join stalled longer than the cache TTL: the sweep's denial is recorded with a
+    // later read ticket (so this join's own allow is correctly dropped) but has since
+    // expired. Peeking the cache would read that as "unknown" and let the socket back
+    // into the document, so the join must re-resolve against the database.
+    vi.useFakeTimers()
+    try {
+      const room = { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-stale' }
+      const { io } = createIo()
+      const { socket, handlers } = setup('socket-stale', io, { userId: 'user-stale' })
+
+      mockAuthorizeRoom.mockImplementation(async ({ action }: { action: string }) => {
+        // The authoritative current answer: access is gone.
+        if (action !== 'write')
+          return { allowed: false, status: 403, workspaceId: 'ws-1', workspacePermission: null }
+        // This join's own authorize saw the pre-revocation state, and the sweep records
+        // the revocation (later read ticket) while it is still in flight.
+        commitRoomPermission('user-stale', room, null, beginRoomPermissionRead())
+        await sleep(31_000)
+        return { allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'write' }
+      })
+
+      const joining = handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-stale', clientId: 1 })
+      await vi.advanceTimersByTimeAsync(31_000)
+      await joining
+
+      expect(socket.emit).toHaveBeenCalledWith(
+        FILE_DOC_EVENTS.JOIN_ERROR,
+        expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
+      )
+      expect(socket.join).not.toHaveBeenCalled()
+      expect(joinSuccessFileId(socket)).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('requires write permission and reports 404 as NOT_FOUND', async () => {
     mockAuthorizeRoom.mockResolvedValue({ allowed: false, status: 404, workspacePermission: null })
     const { io } = createIo()
@@ -297,6 +366,87 @@ describe('setupWorkspaceFileDocHandlers', () => {
     cleanupFileDocForSocket('socket-1', io, true)
     await flushMicrotasks()
     expect(mockFetchFileDocPersist).toHaveBeenCalled()
+  })
+
+  it('drops document frames and evicts once the editor loses write access mid-session', async () => {
+    // The join-time check is not a standing right: a collaborator downgraded to `read`
+    // (or removed) must stop landing durable edits on the socket they already hold.
+    // A distinct user/file so the recorded revocation — written under fake timers, so it
+    // outlives this test in real time — cannot leak into siblings through the
+    // module-global role cache.
+    vi.useFakeTimers()
+    try {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
+      const { io, sent } = createIo()
+      const { socket, handlers } = setup('socket-revoked', io, { userId: 'user-revoked' })
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-revoked', clientId: 1 })
+      await vi.advanceTimersByTimeAsync(0)
+
+      // Access is downgraded to read-only, and the cached join-time decision expires.
+      mockAuthorizeRoom.mockResolvedValue({
+        allowed: false,
+        status: 403,
+        workspaceId: 'ws-1',
+        workspacePermission: 'read',
+      })
+      await vi.advanceTimersByTimeAsync(31_000)
+
+      const edit = new Y.Doc()
+      edit.getText(FILE_DOC_FIELD).insert(0, 'edit after revocation')
+      const editFrame = () =>
+        handlers[FILE_DOC_EVENTS.MESSAGE](
+          frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+            syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
+          )
+        )
+
+      // The first frame after expiry finds nothing cached, so it is accepted and kicks
+      // off the authoritative re-read (never a synchronous DB wait on the relay path).
+      editFrame()
+      await vi.advanceTimersByTimeAsync(0)
+
+      // The next frame is gated on the now-authoritative denial: dropped, and the socket
+      // is evicted rather than left holding the room.
+      editFrame()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(socket.emit).toHaveBeenCalledWith(
+        'room-access-revoked',
+        expect.objectContaining({ room: { type: 'workspace-file-doc', id: 'file-revoked' } })
+      )
+      expect(socket.leave).toHaveBeenCalledWith('workspace-file-doc:file-revoked')
+
+      // The binding is gone, so every later frame is inert — nothing is applied and
+      // nothing reaches the room.
+      const sentAfterEviction = sent.length
+      const emitsAfterEviction = socket.emit.mock.calls.length
+      editFrame()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(sent.length).toBe(sentAfterEviction)
+      expect(socket.emit.mock.calls.length).toBe(emitsAfterEviction)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps relaying document frames while the cached permission still allows writing', async () => {
+    const { io, sent } = createIo()
+    const { socket, handlers } = setup('socket-1', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+
+    const before = sent.length
+    const edit = new Y.Doc()
+    edit.getText(FILE_DOC_FIELD).insert(0, 'still allowed')
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
+      )
+    )
+    await flushMicrotasks()
+
+    expect(sent.slice(before).length).toBeGreaterThan(0)
+    expect(socket.emit).not.toHaveBeenCalledWith('room-access-revoked', expect.anything())
   })
 
   it('applies + fans out an agent-streamed frame (SYNC_NO_PERSIST) but never persists it', async () => {

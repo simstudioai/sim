@@ -130,6 +130,11 @@ function toDisplayContexts(
     ...(c.blockType ? { blockType: c.blockType } : {}),
     ...(c.skillId ? { skillId: c.skillId } : {}),
     ...(c.serverId ? { serverId: c.serverId } : {}),
+    ...(c.fileName ? { fileName: c.fileName } : {}),
+    ...(c.tableName ? { tableName: c.tableName } : {}),
+    ...(c.tabId ? { tabId: c.tabId } : {}),
+    ...(c.terminalId ? { terminalId: c.terminalId } : {}),
+    ...(c.selection ? { selection: { ...c.selection } } : {}),
   }))
 }
 

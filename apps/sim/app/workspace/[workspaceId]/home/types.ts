@@ -1,4 +1,5 @@
 import type { ChatContext } from '@/stores/panel'
+import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 const EDIT_CONTENT_TOOL_ID = 'edit_content'
 const RUN_SUBAGENT_ID = 'run'
@@ -148,6 +149,22 @@ export interface ChatMessageContext {
   blockType?: string
   skillId?: string
   serverId?: string
+  /** Selected passage for a `file_selection` context. */
+  text?: string
+  /** Source file name for a `file_selection` context. */
+  fileName?: string
+  /** 1-based inclusive line range for a `file_selection` context. */
+  startLine?: number
+  endLine?: number
+  /** Source table name for a `table_selection` context. */
+  tableName?: string
+  /** Selected row ids for a `table_selection` context. */
+  rowIds?: string[]
+  /** Selected column ids for a `table_selection` cell range. */
+  columnIds?: string[]
+  tabId?: string
+  terminalId?: string
+  selection?: BrowserTextSelection | TerminalTextSelection
 }
 
 export interface ChatMessage {

@@ -9,7 +9,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
@@ -620,10 +620,89 @@ const MAX_CHAT_DISPLAY_NAME_RETRIES = 1000
 export const CHAT_DISPLAY_NAME_INDEX = 'workspace_files_chat_display_name_unique'
 
 /**
+ * Raised when a caller-supplied storage key may not be bound to a chat upload —
+ * it addresses another workspace, or it already has a `workspace_files` record
+ * the caller does not own as an active chat upload.
+ */
+export class WorkspaceFileKeyOwnershipError extends Error {
+  readonly code = 'KEY_NOT_OWNED' as const
+  constructor(key: string) {
+    super(`Storage key is not available for a chat attachment: ${key}`)
+  }
+}
+
+type ClaimableChatUploadRow = { kind: 'update'; id: string } | { kind: 'insert' }
+
+/**
+ * Decide how `trackChatUpload` may bind `s3Key`, or reject the key outright.
+ *
+ * Only two outcomes are safe. Either the caller already owns an active
+ * chat-upload row for the key (re-linking their own upload to a chat), or the
+ * key has no `workspace_files` record whatsoever and a fresh binding can be
+ * minted. Anything else — another member's row, a `context='workspace'` file,
+ * or a soft-deleted record whose object is still readable through the binding —
+ * belongs to somebody else's file and must not be touched.
+ *
+ * Soft-deleted rows count: the active-key unique index is partial on
+ * `deleted_at IS NULL`, so inserting over an archived row would succeed and
+ * hand the caller read access to the archived file's bytes.
+ *
+ * An upload also binds to exactly one chat: a row already linked to a different
+ * chat is not claimable, matching the 409 the sibling `local-files/stage` route
+ * returns for the same case. Re-sending the key within its own chat still works.
+ */
+async function resolveClaimableChatUploadRow(
+  workspaceId: string,
+  userId: string,
+  chatId: string,
+  s3Key: string
+): Promise<ClaimableChatUploadRow> {
+  const rows = await db
+    .select({
+      id: workspaceFiles.id,
+      userId: workspaceFiles.userId,
+      workspaceId: workspaceFiles.workspaceId,
+      context: workspaceFiles.context,
+      chatId: workspaceFiles.chatId,
+      deletedAt: workspaceFiles.deletedAt,
+    })
+    .from(workspaceFiles)
+    .where(eq(workspaceFiles.key, s3Key))
+
+  if (rows.length === 0) {
+    return { kind: 'insert' }
+  }
+
+  const owned = rows.find(
+    (row) =>
+      row.userId === userId &&
+      row.workspaceId === workspaceId &&
+      row.context === 'mothership' &&
+      row.deletedAt === null &&
+      (row.chatId === null || row.chatId === chatId)
+  )
+
+  if (!owned) {
+    throw new WorkspaceFileKeyOwnershipError(s3Key)
+  }
+
+  return { kind: 'update', id: owned.id }
+}
+
+/**
  * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
  * Links the existing workspaceFiles metadata record (created by the storage service
  * during upload) to the chat by setting chatId and context='mothership'.
  * Falls back to inserting a new record if none exists for the key.
+ *
+ * `s3Key` reaches this function from client-supplied request bodies, and
+ * `workspace_files.key` is the trusted binding every file authorization check
+ * resolves the owning workspace from. So the key is treated as untrusted here:
+ * it must address the target workspace, it may only re-link a chat-upload row
+ * the caller already owns, and minting a brand-new binding requires the key to
+ * have no prior record at all. Without those invariants a member could hand in
+ * another member's key and re-parent their file (hiding it from the workspace
+ * Files listing, or destroying it through the chat-delete FK cascade).
  *
  * Allocates a collision-free `displayName` (the partial unique index on
  * (chat_id, display_name) WHERE context='mothership' enforces this) and returns it
@@ -639,27 +718,72 @@ export async function trackChatUpload(
   size: number,
   messageId?: string
 ): Promise<{ displayName: string }> {
+  if (parseWorkspaceFileKey(s3Key) !== workspaceId) {
+    throw new WorkspaceFileKeyOwnershipError(s3Key)
+  }
+
+  const claimable = await resolveClaimableChatUploadRow(workspaceId, userId, chatId, s3Key)
+
+  if (claimable.kind === 'insert' && hasCloudStorage()) {
+    // Hygiene only — the format and no-prior-record guards above already carry
+    // authorization, and a binding to a nonexistent object grants nothing
+    // readable. So reject only on a definitive not-found (`null`); a provider
+    // 5xx/throttle throws, and failing the attachment on that would drop a
+    // legitimate >50MB multipart upload (the sole path reaching this branch).
+    let head: Awaited<ReturnType<typeof headObject>> = null
+    try {
+      head = await headObject(s3Key, 'workspace')
+    } catch (error) {
+      logger.warn('Chat upload existence probe failed; proceeding on the ownership guards', {
+        key: s3Key,
+        error: getErrorMessage(error),
+      })
+      head = { size }
+    }
+    if (!head) {
+      throw new WorkspaceFileKeyOwnershipError(s3Key)
+    }
+  }
+
   for (let n = 1; n <= MAX_CHAT_DISPLAY_NAME_RETRIES; n++) {
     const candidate = suffixedName(fileName, n)
     try {
-      const updated = await db
-        .update(workspaceFiles)
-        .set({
-          chatId,
-          messageId: messageId ?? null,
-          context: 'mothership',
-          displayName: candidate,
-        })
-        .where(
-          and(
-            eq(workspaceFiles.key, s3Key),
-            eq(workspaceFiles.workspaceId, workspaceId),
-            isNull(workspaceFiles.deletedAt)
+      if (claimable.kind === 'update') {
+        const updated = await db
+          .update(workspaceFiles)
+          .set({
+            chatId,
+            messageId: messageId ?? null,
+            context: 'mothership',
+            displayName: candidate,
+          })
+          .where(
+            and(
+              eq(workspaceFiles.id, claimable.id),
+              eq(workspaceFiles.userId, userId),
+              eq(workspaceFiles.workspaceId, workspaceId),
+              eq(workspaceFiles.context, 'mothership'),
+              isNull(workspaceFiles.deletedAt),
+              // Compare-and-swap on the chat binding: an upload belongs to one
+              // chat. Two overlapping requests both observe `chat_id IS NULL`,
+              // but only the first satisfies this predicate — the loser matches
+              // zero rows and fails closed instead of stealing the binding and
+              // its delete-cascade lifecycle.
+              or(isNull(workspaceFiles.chatId), eq(workspaceFiles.chatId, chatId))
+            )
           )
-        )
-        .returning({ id: workspaceFiles.id })
+          .returning({ id: workspaceFiles.id })
 
-      if (updated.length > 0) {
+        if (updated.length === 0) {
+          // The ownership lookup is a separate statement, so re-assert every
+          // predicate here — this UPDATE is the atomic check. A concurrent
+          // `materialize_file` flips the same row to context='workspace' and
+          // clears chatId; matching on id alone would drag that saved file back
+          // into chat scope, hiding it from the Files listing and re-exposing it
+          // to the chat-delete cascade.
+          throw new WorkspaceFileKeyOwnershipError(s3Key)
+        }
+
         logger.info(
           `Linked existing file record to chat: ${fileName} (display: ${candidate}) for chat ${chatId}`
         )

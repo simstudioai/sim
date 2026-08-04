@@ -102,6 +102,7 @@ import {
 describe('run tool execution cancellation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.sessionStorage.clear()
     getCurrentExecutionId.mockReturnValue(null)
     getWorkflowEntries.mockReturnValue([])
     loadExecutionPointer.mockResolvedValue(null)
@@ -133,6 +134,7 @@ describe('run tool execution cancellation', () => {
   it('can report a manual stop using the explicit toolCallId override', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
+    getCurrentExecutionId.mockReturnValueOnce('exec-manual')
 
     await reportManualRunToolStop('wf-1', 'tool-override')
 
@@ -143,13 +145,14 @@ describe('run tool execution cancellation', () => {
         body: expect.stringContaining('"toolCallId":"tool-override"'),
       })
     )
+    expect(fetchMock.mock.calls[0][1]?.body).toContain('"executionId":"exec-manual"')
   })
 
   it('prefers workflow_input, forwards triggerBlockId, and respects useDeployedState', async () => {
     executeWorkflowWithFullLogging.mockResolvedValueOnce({
       success: true,
-      output: { ok: true },
-      logs: [],
+      output: { token: 'raw-secret-output' },
+      logs: [{ output: 'raw-secret-log' }],
     })
 
     executeRunToolOnClient('tool-2', 'run_workflow', {
@@ -172,6 +175,41 @@ describe('run tool execution cancellation', () => {
         useDraftState: false,
       })
     )
+    const executionId = executeWorkflowWithFullLogging.mock.calls[0][0].executionId
+    await vi.waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/copilot/confirm',
+        expect.objectContaining({
+          body: expect.stringContaining(`"executionId":"${executionId}"`),
+        })
+      )
+    })
+    expect(fetch.mock.calls[0][1]?.body).not.toContain('raw-secret')
+  })
+
+  it('reports the workflow execution id with terminal error results', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    executeWorkflowWithFullLogging.mockResolvedValueOnce({
+      success: false,
+      output: {},
+      error: 'workflow failed',
+      logs: [],
+    })
+
+    executeRunToolOnClient('tool-error', 'run_workflow', { workflowId: 'wf-1' })
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/copilot/confirm',
+        expect.objectContaining({
+          body: expect.stringContaining('"status":"error"'),
+        })
+      )
+    })
+    const executionId = executeWorkflowWithFullLogging.mock.calls[0][0].executionId
+    expect(fetchMock.mock.calls[0][1]?.body).toContain(`"executionId":"${executionId}"`)
+    expect(fetchMock.mock.calls[0][1]?.body).not.toContain('workflow failed')
   })
 
   it('treats a tab-local execution pointer as handled in background', async () => {
@@ -197,6 +235,33 @@ describe('run tool execution cancellation', () => {
         body: expect.stringContaining('"status":"background"'),
       })
     )
+    expect(fetchMock.mock.calls[0][1]?.body).toContain('"executionId":"exec-existing"')
+  })
+
+  it('strips raw payloads from legacy pending completion recovery', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    loadExecutionPointer.mockResolvedValueOnce({
+      workflowId: 'wf-1',
+      executionId: 'exec-existing',
+      lastEventId: 7,
+    })
+    window.sessionStorage.setItem(
+      'sim:copilot:run-tool-completion:tool-recovered',
+      JSON.stringify({
+        status: 'success',
+        message: 'legacy raw-secret-error',
+        data: { output: 'legacy raw-secret-output', logs: ['legacy raw-secret-log'] },
+        executionId: 'exec-existing',
+      })
+    )
+
+    await expect(bindRunToolToExecution('tool-recovered', 'wf-1')).resolves.toBe(true)
+
+    const body = fetchMock.mock.calls[0][1]?.body
+    expect(body).toContain('"status":"success"')
+    expect(body).toContain('"executionId":"exec-existing"')
+    expect(body).not.toContain('raw-secret')
   })
 
   it('does not recover from shared console rows without a tab-local pointer', async () => {
@@ -241,6 +306,7 @@ describe('run tool execution cancellation', () => {
     })
     expect(clearExecutionPointer).not.toHaveBeenCalled()
     expect(setIsExecuting).toHaveBeenCalledWith('wf-1', false)
+    expect(fetchMock.mock.calls[0][1]?.body).toContain('"executionId":"exec-1"')
     expect(fetchMock).not.toHaveBeenCalledWith(
       '/api/copilot/confirm',
       expect.objectContaining({

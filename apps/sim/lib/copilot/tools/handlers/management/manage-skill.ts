@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { copilotToolCanWrite, copilotWriteDeniedMessage } from '@/lib/copilot/tools/permissions'
 import {
   performCreateSkill,
   performDeleteSkill,
@@ -38,15 +39,10 @@ export async function executeManageSkill(
 
   // Workspace write gates only creation; edits and deletes are gated per skill
   // below (skill editor — explicit editor row or derived workspace admin).
-  if (
-    operation === 'add' &&
-    context.userPermission &&
-    context.userPermission !== 'write' &&
-    context.userPermission !== 'admin'
-  ) {
+  if (operation === 'add' && !copilotToolCanWrite(context.userPermission)) {
     return {
       success: false,
-      error: `Permission denied: 'add' on manage_skill requires write access. You have '${context.userPermission}' permission.`,
+      error: copilotWriteDeniedMessage('manage_skill', operation, context.userPermission),
     }
   }
 

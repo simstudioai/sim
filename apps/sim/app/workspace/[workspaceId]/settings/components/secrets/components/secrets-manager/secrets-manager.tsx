@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
@@ -17,8 +18,8 @@ import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/cr
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
@@ -981,36 +982,25 @@ export function SecretsManager() {
           onChange: setSearchTerm,
           placeholder: 'Search secrets...',
         }}
-        actions={[
-          ...(hasChanges
-            ? [
-                {
-                  text: 'Discard',
-                  onSelect: handleCancel,
-                  disabled: isListSaving,
-                } satisfies SettingsAction,
-              ]
-            : []),
-          {
-            text: isListSaving ? 'Saving...' : 'Save',
-            onSelect: handleSave,
-            disabled: hasConflicts || hasInvalidKeys || isLoading || !hasChanges || isListSaving,
-            tooltip: hasConflicts
-              ? 'Resolve all conflicts before saving'
-              : hasInvalidKeys
-                ? 'Fix invalid variable names before saving'
-                : undefined,
-          },
-        ]}
+        actions={saveDiscardActions({
+          dirty: hasChanges,
+          saving: isListSaving,
+          onSave: handleSave,
+          onDiscard: handleCancel,
+          saveDisabled: hasConflicts || hasInvalidKeys || isLoading,
+          saveTooltip: hasConflicts
+            ? 'Resolve all conflicts before saving'
+            : hasInvalidKeys
+              ? 'Fix invalid variable names before saving'
+              : undefined,
+        })}
       >
         {!isLoading && (
           <div className='flex flex-col gap-7'>
             {(!searchTerm.trim() ||
               filteredWorkspaceEntries.length > 0 ||
               filteredNewWorkspaceRows.length > 0) && (
-              <section className='flex flex-col'>
-                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Workspace</span>
-                <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
+              <SettingsSection label='Workspace'>
                 <div className={`${GRID_COLS} gap-y-2`}>
                   {(searchTerm.trim()
                     ? filteredWorkspaceEntries
@@ -1053,13 +1043,11 @@ export function SecretsManager() {
                       />
                     ))}
                 </div>
-              </section>
+              </SettingsSection>
             )}
 
             {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
-              <section className='flex flex-col'>
-                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Personal</span>
-                <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
+              <SettingsSection label='Personal'>
                 <div className={`${GRID_COLS} gap-y-2`}>
                   {filteredEnvVars.map(({ envVar, originalIndex }) => (
                     <div key={envVar.id || originalIndex} className='contents'>
@@ -1067,7 +1055,7 @@ export function SecretsManager() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </SettingsSection>
             )}
             {searchTerm.trim() &&
               filteredEnvVars.length === 0 &&

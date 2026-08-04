@@ -128,6 +128,17 @@ export function validateInputsForBlock(
       continue
     }
 
+    if (subBlockConfig.hideFromCopilot === true) {
+      errors.push({
+        blockId,
+        blockType,
+        field: key,
+        value,
+        error: `Field "${key}" on block type "${blockType}" is server-managed and cannot be set by Copilot`,
+      })
+      continue
+    }
+
     // Note: We do NOT check subBlockConfig.condition here.
     // Conditions are for UI display logic (show/hide fields in the editor).
     // For API/Copilot, any valid field in the block schema should be accepted.

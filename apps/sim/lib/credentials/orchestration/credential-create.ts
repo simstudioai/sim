@@ -71,6 +71,7 @@ export interface PerformCreateCredentialParams {
   clientId?: string
   clientSecret?: string
   orgId?: string
+  dataCenter?: string
   /**
    * Client-supplied credential id, honored only for `slack-custom-bot`: the
    * setup modal shows the ingest URL `/api/webhooks/slack/custom/{id}` before
@@ -247,6 +248,7 @@ export async function performCreateCredential(
           clientId: params.clientId,
           clientSecret: params.clientSecret,
           orgId: params.orgId,
+          dataCenter: params.dataCenter,
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null
@@ -497,9 +499,11 @@ export async function performCreateCredential(
       resourceName: resolvedDisplayName,
       description: `Created ${type} credential "${resolvedDisplayName}"`,
       metadata: {
+        // Provider metadata spreads first so this path's own keys stay
+        // authoritative and can never be shadowed, matching the update path.
+        ...extraAuditMetadata,
         credentialType: type,
         providerId: resolvedProviderId,
-        ...extraAuditMetadata,
       },
       request: params.request,
     })

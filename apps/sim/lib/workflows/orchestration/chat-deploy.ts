@@ -4,6 +4,7 @@ import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
+import { chatDeploymentPasswordSchema } from '@/lib/api/contracts/chats'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -34,6 +35,8 @@ export interface ChatDeployPayload {
   /** When true, public SSE may expose tool lifecycle if the client opts into agent-events-v1. */
   includeToolCalls?: boolean
   workspaceId?: string | null
+  /** Stable identity for the underlying workflow deployment operation. */
+  idempotencyKey?: string
 }
 
 export interface PerformChatDeployResult {
@@ -68,6 +71,20 @@ export async function performChatDeploy(
     includeToolCalls = false,
   } = params
 
+  /**
+   * Validate the password here rather than only at the HTTP boundary. The
+   * copilot `deploy_chat` tool reaches this function without going through a
+   * route contract, so a whitespace-only or over-long password would otherwise
+   * be encrypted and stored — and neither can ever be submitted through the
+   * chat login form, permanently locking visitors out of the deployment.
+   */
+  if (password !== undefined) {
+    const validatedPassword = chatDeploymentPasswordSchema.safeParse(password)
+    if (!validatedPassword.success) {
+      return { success: false, error: validatedPassword.error.issues[0].message }
+    }
+  }
+
   const customizations = {
     primaryColor: params.customizations?.primaryColor || 'var(--brand-hover)',
     welcomeMessage: params.customizations?.welcomeMessage || 'Hi there! How can I help you today?',
@@ -99,9 +116,17 @@ export async function performChatDeploy(
       userId,
       versionDescription: params.versionDescription,
       versionName: params.versionName,
+      idempotencyKey: params.idempotencyKey,
     })
     if (!deployResult.success) {
       return { success: false, error: deployResult.error || 'Failed to deploy workflow' }
+    }
+    if (deployResult.latestDeploymentAttempt?.isCurrent === false) {
+      return {
+        success: false,
+        error:
+          'The workflow deployment attempt is historical and no longer describes production. Retry chat deployment as a new tool call.',
+      }
     }
     if (deployResult.latestDeploymentAttempt?.status !== 'active') {
       return {
@@ -109,6 +134,12 @@ export async function performChatDeploy(
         error:
           deployResult.warnings?.[0] ??
           'Workflow deployment is still preparing. Retry chat deployment after it becomes active.',
+      }
+    }
+    if (!deployResult.activeDeployment) {
+      return {
+        success: false,
+        error: 'Workflow deployment reported active without a live deployment version.',
       }
     }
   }
@@ -124,6 +155,16 @@ export async function performChatDeploy(
     .from(chat)
     .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
     .limit(1)
+
+  /**
+   * A password-protected chat must end up with a stored password. Both HTTP
+   * routes already reject this; without the same guard here a copilot
+   * `deploy_chat` call could create one with no password, which fails closed at
+   * login with an opaque "Authentication configuration error".
+   */
+  if (authType === 'password' && !encryptedPassword && !existingDeployment?.password) {
+    return { success: false, error: 'Password is required when using password protection' }
+  }
 
   let chatId: string
   if (existingDeployment) {

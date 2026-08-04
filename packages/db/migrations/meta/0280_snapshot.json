@@ -1,5 +1,5 @@
 {
-  "id": "006931de-2a8e-418b-91ea-92f853773e45",
+  "id": "d1c2701c-3233-4ce4-9bf1-3ee3065c8e9b",
   "prevId": "4b619949-ee98-4251-b621-5f37a9fa23a3",
   "version": "7",
   "dialect": "postgresql",
@@ -16174,6 +16174,20 @@
           "primaryKey": false,
           "notNull": false
         },
+        "secret_scope": {
+          "name": "secret_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'all'"
+        },
+        "mounted_secrets": {
+          "name": "mounted_secrets",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "job_history": {
           "name": "job_history",
           "type": "jsonb",
@@ -16614,6 +16628,20 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "inbox_secret_scope": {
+          "name": "inbox_secret_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'all'"
+        },
+        "inbox_mounted_secrets": {
+          "name": "inbox_mounted_secrets",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "archived_at": {
           "name": "archived_at",
@@ -17219,12 +17247,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
-        },
-        "size_bytes": {
-          "name": "size_bytes",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
         },
         "deleted_at": {
           "name": "deleted_at",
