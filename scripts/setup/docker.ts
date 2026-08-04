@@ -44,8 +44,18 @@ function orbstackSelected(): boolean {
   return result.status === 0 && result.stdout.trim() === 'orbstack'
 }
 
+/**
+ * Whether macOS can launch this app. The well-known directories cover every
+ * normal install without spawning anything; LaunchServices is the authority
+ * for the rest, since a Homebrew `--appdir` can put the bundle anywhere and
+ * `open -a` would still find it there.
+ */
 function appInstalled(app: DockerApp): boolean {
-  return APP_DIRS.some((dir) => existsSync(join(dir, app.bundle)))
+  if (APP_DIRS.some((dir) => existsSync(join(dir, app.bundle)))) return true
+  const lookup = spawnSync('osascript', ['-e', `path to application "${app.name}"`], {
+    stdio: 'ignore',
+  })
+  return lookup.status === 0
 }
 
 /**
