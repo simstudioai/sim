@@ -1,5 +1,6 @@
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import { getModelPricing } from '@/providers/models'
 import type { ModelPricing } from '@/providers/types'
 import { calculateCost, shouldBillModelUsage } from '@/providers/utils'
 
@@ -29,6 +30,16 @@ export interface ModelCost {
 
 /** Cost that always carries pricing, as `ProviderResponse['cost']` requires. */
 export type PricedModelCost = ModelCost & { pricing: ModelPricing }
+
+/** Vendor list-price information shown for explicit custom credentials only. */
+export interface EstimatedProviderCost {
+  available: boolean
+  input?: number
+  output?: number
+  total?: number
+  pricing: ModelPricing
+  unavailableReason?: string
+}
 
 export interface ModelCostPolicy {
   /** True when Sim supplied the credentials and must charge for the tokens. */
@@ -110,6 +121,38 @@ export function applyModelCostPolicy(
     input: roundCost(cost.input * policy.multiplier),
     output: roundCost(cost.output * policy.multiplier),
     total: roundCost(modelTotal * policy.multiplier + toolCost),
+  }
+}
+
+/**
+ * Builds a non-billable vendor estimate from an exact catalog price. Unknown
+ * models return no estimate. GPU-time models carry their public deployment
+ * rates but deliberately omit a fabricated per-request dollar amount.
+ */
+export function buildEstimatedProviderCost(
+  model: string,
+  rawCost: ModelCost
+): EstimatedProviderCost | undefined {
+  const catalogPricing = getModelPricing(model)
+  if (!catalogPricing) return undefined
+
+  const pricing = rawCost.pricing ?? catalogPricing
+  if (pricing.billingMode === 'gpu_time') {
+    return {
+      available: false,
+      pricing,
+      unavailableReason:
+        'This model is billed by active GPU time; token counts cannot determine per-request cost.',
+    }
+  }
+
+  const toolCost = rawCost.toolCost ?? 0
+  return {
+    available: true,
+    input: rawCost.input,
+    output: rawCost.output,
+    total: roundCost(Math.max(0, rawCost.total - toolCost)),
+    pricing,
   }
 }
 
@@ -266,14 +309,23 @@ export function resolveProxiedModelCost(cost: unknown): ModelCost {
  */
 export function installStreamingCostPolicy(
   output: NormalizedBlockOutput,
-  policy: ModelCostPolicy
+  policy: ModelCostPolicy,
+  estimatedModel?: string
 ): void {
   let raw = output.cost as ModelCost | undefined
+
+  const updateEstimate = (cost: ModelCost | undefined) => {
+    if (!estimatedModel || !cost) return
+    output.estimatedProviderCost = buildEstimatedProviderCost(estimatedModel, cost)
+  }
+
+  updateEstimate(raw)
 
   Object.defineProperty(output, 'cost', {
     get: () => applyModelCostPolicy(raw, policy),
     set: (value: ModelCost | undefined) => {
       raw = value
+      updateEstimate(value)
     },
     configurable: true,
     enumerable: true,

@@ -12,16 +12,24 @@ const {
   mockGetProviderModels,
   mockGetProviderIcon,
   mockGetBaseModelProviders,
+  mockIsModelVisibleInStandardAuthoring,
 } = vi.hoisted(() => ({
   mockGetHostedModels: vi.fn(() => []),
   mockGetHostedFireworksModels: vi.fn(() => [
     'fireworks/glm-5.2',
     'fireworks/kimi-k3',
     'fireworks/deepseek-v4-pro',
+    'fireworks/minimax-m2.7',
   ]),
   mockGetProviderModels: vi.fn(() => []),
   mockGetProviderIcon: vi.fn(() => null),
   mockGetBaseModelProviders: vi.fn(() => ({})),
+  mockIsModelVisibleInStandardAuthoring: vi.fn(
+    (model: string) =>
+      !['fireworks/minimax-m2.7', 'fireworks/accounts/fireworks/models/minimax-m2p7'].includes(
+        model
+      )
+  ),
 }))
 
 const { mockProviders } = vi.hoisted(() => ({
@@ -50,6 +58,7 @@ vi.mock('@/providers/models', () => ({
   getProviderModels: mockGetProviderModels,
   getProviderIcon: mockGetProviderIcon,
   getBaseModelProviders: mockGetBaseModelProviders,
+  isModelVisibleInStandardAuthoring: mockIsModelVisibleInStandardAuthoring,
   getModelSunsetStatus: vi.fn(() => undefined),
   orderModelIdsByReleaseDate: vi.fn((models: string[]) => models),
   SIM_AUTO_MODEL_ID: 'sim-auto',
@@ -308,6 +317,7 @@ describe('getModelOptions', () => {
   it('always includes the static Fireworks catalog and preserves dynamic BYOK models', () => {
     mockProviders.value.fireworks.models = [
       'fireworks/kimi-k3',
+      'fireworks/accounts/fireworks/models/minimax-m2p7',
       'fireworks/accounts/acme/models/custom',
     ]
 
@@ -322,6 +332,8 @@ describe('getModelOptions', () => {
       ])
     )
     expect(ids.filter((id) => id === 'fireworks/kimi-k3')).toHaveLength(1)
+    expect(ids).not.toContain('fireworks/minimax-m2.7')
+    expect(ids).not.toContain('fireworks/accounts/fireworks/models/minimax-m2p7')
   })
 
   it('adds the super-user custom option only to the Agent model options', () => {

@@ -1,28 +1,18 @@
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
+import { getModelWireId } from '@/providers/models'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { checkForForcedToolUsageOpenAI } from '@/providers/utils'
-
-/**
- * Wire model names for the static hosted Fireworks catalog entries. Catalog
- * ids are the short `fireworks/<name>` form; the Fireworks API requires the
- * full serverless resource path. User-configured dynamic ids are sent verbatim
- * after prefix-stripping, exactly as before — only ids in this map are
- * rewritten.
- */
-const FIREWORKS_WIRE_NAMES: Record<string, string> = {
-  'deepseek-v4-pro': 'accounts/fireworks/models/deepseek-v4-pro',
-  'glm-5.2': 'accounts/fireworks/models/glm-5p2',
-  'kimi-k3': 'accounts/fireworks/models/kimi-k3',
-}
 
 /**
  * Resolves the wire model name Fireworks expects from a prefix-stripped
  * catalog id.
  */
 export function resolveFireworksWireModel(strippedModel: string): string {
-  return FIREWORKS_WIRE_NAMES[strippedModel] ?? strippedModel
+  return (
+    getModelWireId(strippedModel) ?? getModelWireId(`fireworks/${strippedModel}`) ?? strippedModel
+  )
 }
 
 /**

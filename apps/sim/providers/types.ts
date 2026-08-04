@@ -33,6 +33,22 @@ export interface ModelPricing {
   cachedInput?: number // Per 1M tokens (if supported)
   output: number // Per 1M tokens
   updatedAt: string // Last updated date
+  /** Defaults to per-token. GPU-time models cannot produce a token-derived request cost. */
+  billingMode?: 'per_token' | 'gpu_time'
+  /** Public Fireworks on-demand rates. Actual cost depends on deployment shape and active time. */
+  gpuHourlyRates?: {
+    h100?: number
+    h200?: number
+    b200?: number
+    b300?: number
+  }
+  /** Alternate per-token rates once a request crosses the provider's long-context threshold. */
+  longContext?: {
+    threshold: number
+    input: number
+    cachedInput?: number
+    output: number
+  }
 }
 
 export type ModelPricingMap = Record<string, ModelPricing>
@@ -111,6 +127,19 @@ export interface ProviderResponse {
     toolCost?: number
     total: number
     pricing: ModelPricing
+  }
+  /**
+   * Vendor list-price estimate for explicit custom credentials. This is
+   * informational only and never enters Sim's usage ledger; `cost` remains the
+   * authoritative amount Sim charges.
+   */
+  estimatedProviderCost?: {
+    available: boolean
+    input?: number
+    output?: number
+    total?: number
+    pricing: ModelPricing
+    unavailableReason?: string
   }
   /** Interaction ID returned by the Interactions API (used for multi-turn deep research) */
   interactionId?: string

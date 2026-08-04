@@ -1,4 +1,9 @@
-import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import {
+  getCanonicalModelId,
+  isAutoModel,
+  modelRequiresExplicitCredentials,
+  SIM_AUTO_MODEL_ID,
+} from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
 
 /** Stored in the Agent block's `model` field when Super User custom routing is active. */
@@ -270,6 +275,15 @@ export function parseCustomModelConfig(value: unknown): CustomModelConfig {
     }
   }
 
+  if (config.provider === 'fireworks') {
+    config.model = getCanonicalModelId(config.model)
+    if (modelRequiresExplicitCredentials(config.model) && config.credentials.mode !== 'explicit') {
+      throw new Error(
+        `customModelConfig.credentials.mode must be "explicit" for on-demand Fireworks model ${config.model}`
+      )
+    }
+  }
+
   validateCustomModelParameterSupport(config)
   return config
 }
@@ -342,10 +356,51 @@ export const CUSTOM_MODEL_CONFIG_DEFAULT = JSON.stringify(
   2
 )
 
-export const CUSTOM_MODEL_CONFIG_JSON_SCHEMA: Record<string, any> = {
+export const CUSTOM_MODEL_CONFIG_EXAMPLES = [
+  {
+    provider: 'fireworks',
+    model: 'fireworks/minimax-m2.7',
+    parameters: {
+      reasoningEffort: 'high',
+      temperature: 0.6,
+      maxTokens: 32768,
+    },
+    credentials: {
+      mode: 'explicit',
+      apiKey: '{{FIREWORKS_API_KEY}}',
+    },
+    providerOptions: {},
+  },
+  {
+    provider: 'xai',
+    model: 'grok-4.5',
+    parameters: {
+      reasoningEffort: 'high',
+      temperature: 0.7,
+      maxTokens: 32768,
+    },
+    credentials: { mode: 'auto' },
+    providerOptions: {},
+  },
+] as const
+
+const CUSTOM_MODEL_ID_EXAMPLES = [
+  'fireworks/minimax-m2.7',
+  'fireworks/qwen3.7-max',
+  'fireworks/gpt-oss-120b',
+  'fireworks/nemotron-3-ultra-nvfp4',
+  'fireworks/nemotron-3-ultra-bf16',
+  'fireworks/nemotron-3-super-120b-a12b-nvfp4',
+  'fireworks/nemotron-3-super-120b-a12b-fp8',
+  'fireworks/ling-3-flash',
+  'grok-4.5',
+] as const
+
+export const CUSTOM_MODEL_CONFIG_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['provider', 'model'],
+  examples: CUSTOM_MODEL_CONFIG_EXAMPLES,
   properties: {
     provider: {
       type: 'string',
@@ -356,7 +411,9 @@ export const CUSTOM_MODEL_CONFIG_JSON_SCHEMA: Record<string, any> = {
     model: {
       type: 'string',
       minLength: 1,
-      description: 'Exact provider model ID sent on the wire.',
+      examples: CUSTOM_MODEL_ID_EXAMPLES,
+      description:
+        'Provider model ID. Known Fireworks aliases normalize to the exact accounts/fireworks/models resource; on-demand Fireworks entries require explicit credentials.',
     },
     parameters: {
       type: 'object',

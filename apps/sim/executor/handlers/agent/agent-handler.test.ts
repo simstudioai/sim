@@ -298,8 +298,22 @@ describe('AgentBlockHandler', () => {
 
     it('routes a Super User custom model through the explicit provider contract', async () => {
       mockContext.userId = 'super-user'
+      mockExecuteProviderRequest.mockResolvedValue({
+        content: 'Custom response',
+        model: 'grok-4.5',
+        tokens: { input: 1200, output: 300, total: 1500 },
+        toolCalls: [],
+        cost: { input: 0, output: 0, total: 0 },
+        estimatedProviderCost: {
+          available: true,
+          input: 0.0024,
+          output: 0.0018,
+          total: 0.0042,
+          pricing: { input: 2, cachedInput: 0.3, output: 6, updatedAt: '2026-07-08' },
+        },
+      })
 
-      await handler.execute(mockContext, mockBlock, {
+      const result = await handler.execute(mockContext, mockBlock, {
         model: CUSTOM_MODEL_ID,
         customModelConfig: {
           provider: 'xai',
@@ -336,6 +350,16 @@ describe('AgentBlockHandler', () => {
         }),
         expect.anything()
       )
+      expect(result).toMatchObject({
+        tokens: { input: 1200, output: 300, total: 1500 },
+        cost: { input: 0, output: 0, total: 0 },
+        estimatedProviderCost: {
+          available: true,
+          input: 0.0024,
+          output: 0.0018,
+          total: 0.0042,
+        },
+      })
     })
 
     it('rejects custom model execution when Super User mode is off', async () => {

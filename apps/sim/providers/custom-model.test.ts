@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  CUSTOM_MODEL_CONFIG_JSON_SCHEMA,
   CUSTOM_MODEL_ID,
   isCustomModel,
   parseCustomModelConfig,
@@ -47,6 +48,53 @@ describe('custom model config', () => {
         }).parameters.reasoningEffort
       ).toBe('vendor-future-level')
     }
+  })
+
+  it('normalizes documented Fireworks resource ids to their JSON catalog aliases', () => {
+    expect(
+      parseCustomModelConfig({
+        provider: 'fireworks',
+        model: 'accounts/fireworks/models/minimax-m2p7',
+        credentials: { mode: 'explicit', apiKey: '{{FIREWORKS_API_KEY}}' },
+      }).model
+    ).toBe('fireworks/minimax-m2.7')
+
+    expect(
+      parseCustomModelConfig({
+        provider: 'fireworks',
+        model: 'nvidia-nemotron-3-super-120b-a12b-fp8',
+        credentials: { mode: 'explicit', apiKey: '{{FIREWORKS_API_KEY}}' },
+      }).model
+    ).toBe('fireworks/nemotron-3-super-120b-a12b-fp8')
+  })
+
+  it('requires an explicit key for Fireworks on-demand models', () => {
+    expect(() =>
+      parseCustomModelConfig({
+        provider: 'fireworks',
+        model: 'fireworks/qwen3.7-max',
+        credentials: { mode: 'auto' },
+      })
+    ).toThrow('credentials.mode must be "explicit"')
+  })
+
+  it('includes every requested Fireworks model and xAI Grok 4.5 in the JSON schema', () => {
+    expect(CUSTOM_MODEL_CONFIG_JSON_SCHEMA.properties.model.examples).toEqual(
+      expect.arrayContaining([
+        'fireworks/minimax-m2.7',
+        'fireworks/qwen3.7-max',
+        'fireworks/gpt-oss-120b',
+        'fireworks/nemotron-3-ultra-nvfp4',
+        'fireworks/nemotron-3-ultra-bf16',
+        'fireworks/nemotron-3-super-120b-a12b-nvfp4',
+        'fireworks/nemotron-3-super-120b-a12b-fp8',
+        'fireworks/ling-3-flash',
+        'grok-4.5',
+      ])
+    )
+    expect(CUSTOM_MODEL_CONFIG_JSON_SCHEMA.examples).toEqual(
+      expect.arrayContaining([expect.objectContaining({ provider: 'xai', model: 'grok-4.5' })])
+    )
   })
 
   it('supports Sim Auto through the custom contract', () => {

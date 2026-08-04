@@ -907,13 +907,19 @@ export function calculateCost(
     }
   }
 
+  const longContextPricing =
+    pricing.longContext && promptTokens >= pricing.longContext.threshold
+      ? pricing.longContext
+      : undefined
+  const inputRate = longContextPricing?.input ?? pricing.input
+  const cachedInputRate = longContextPricing?.cachedInput ?? pricing.cachedInput
+  const outputRate = longContextPricing?.output ?? pricing.output
+
   const inputCost =
     promptTokens *
-    (useCachedInput && pricing.cachedInput
-      ? pricing.cachedInput / 1_000_000
-      : pricing.input / 1_000_000)
+    (useCachedInput && cachedInputRate ? cachedInputRate / 1_000_000 : inputRate / 1_000_000)
 
-  const outputCost = completionTokens * (pricing.output / 1_000_000)
+  const outputCost = completionTokens * (outputRate / 1_000_000)
   const finalInputCost = inputCost * (inputMultiplier ?? 1)
   const finalOutputCost = outputCost * (outputMultiplier ?? 1)
   const finalTotalCost = finalInputCost + finalOutputCost

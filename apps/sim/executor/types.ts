@@ -159,7 +159,30 @@ interface BlockCost {
     output: number
     cachedInput?: number
     updatedAt: string
+    billingMode?: 'per_token' | 'gpu_time'
+    gpuHourlyRates?: {
+      h100?: number
+      h200?: number
+      b200?: number
+      b300?: number
+    }
+    longContext?: {
+      threshold: number
+      input: number
+      cachedInput?: number
+      output: number
+    }
   }
+}
+
+/** Informational vendor estimate that is deliberately excluded from Sim billing. */
+interface EstimatedProviderCost {
+  available: boolean
+  input?: number
+  output?: number
+  total?: number
+  pricing: NonNullable<BlockCost['pricing']>
+  unavailableReason?: string
 }
 
 /** Token usage from provider. `prompt`/`completion` are legacy aliases. */
@@ -204,6 +227,7 @@ export interface NormalizedBlockOutput {
   toolCalls?: BlockToolCalls
   providerTiming?: BlockProviderTiming
   cost?: BlockCost
+  estimatedProviderCost?: EstimatedProviderCost
   files?: UserFile[]
   selectedPath?: {
     blockId: string

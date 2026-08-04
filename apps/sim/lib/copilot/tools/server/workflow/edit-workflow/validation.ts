@@ -20,7 +20,12 @@ import { getAgentModelOptions, getModelOptions } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import { isCustomModel } from '@/providers/custom-model'
-import { isAutoModel, isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
+import {
+  isAutoModel,
+  isCustomJsonOnlyModel,
+  isKnownModelId,
+  suggestModelIdsForUnknownModel,
+} from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
 import { getTool } from '@/tools/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
@@ -602,6 +607,18 @@ export function validateValueForSubBlockType(
         // snapshots, so writes of it there are rejected as unknown).
         if (trimmed !== '' && isAutoModel(trimmed) && isHostedDeployment) {
           return { valid: true, value: trimmed.toLowerCase() }
+        }
+        if (trimmed !== '' && isCustomJsonOnlyModel(trimmed)) {
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Model "${trimmed}" is available only through an Agent block's Super User Custom model configuration. Set model to "sim-custom" and provide customModelConfig instead.`,
+            },
+          }
         }
         if (trimmed !== '' && !isKnownModelId(trimmed)) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)

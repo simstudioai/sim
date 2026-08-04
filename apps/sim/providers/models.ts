@@ -88,6 +88,10 @@ export interface ModelCapabilities {
 
 interface ModelDefinition {
   id: string
+  /** Alternate JSON/wire ids that resolve to this canonical catalog entry. */
+  aliases?: string[]
+  /** Exact provider-side identifier when it differs from the canonical Sim id. */
+  wireModelId?: string
   pricing: ModelPricing
   capabilities: ModelCapabilities
   contextWindow?: number
@@ -95,6 +99,10 @@ interface ModelDefinition {
   releaseDate?: string
   recommended?: boolean
   speedOptimized?: boolean
+  /** Callable only through the Super User custom-model JSON, never ordinary pickers. */
+  customJsonOnly?: boolean
+  /** The platform key cannot serve this model; Custom JSON must provide a user key. */
+  requiresExplicitCredentials?: boolean
   /**
    * Post-availability lifecycle, mirroring `BlockConfig.sunset`. `legacy` —
    * superseded but still callable (amber); `deprecated` — the provider retired
@@ -162,6 +170,24 @@ export function getProviderFileAttachment(providerId: string): ProviderFileAttac
   return PROVIDER_DEFINITIONS[providerId]?.fileAttachment ?? DEFAULT_FILE_ATTACHMENT
 }
 
+/**
+ * Fireworks bills dedicated deployments by active GPU-second, not request
+ * tokens. Zero token rates are compatibility placeholders only; callers must
+ * inspect `billingMode` and never present them as a free per-token model.
+ */
+const FIREWORKS_ON_DEMAND_PRICING: ModelPricing = {
+  input: 0,
+  output: 0,
+  updatedAt: '2026-08-03',
+  billingMode: 'gpu_time',
+  gpuHourlyRates: {
+    h100: 7,
+    h200: 7,
+    b200: 10,
+    b300: 12,
+  },
+}
+
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   fireworks: {
     id: 'fireworks',
@@ -178,16 +204,22 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     contextInformationAvailable: false,
     /**
-     * Static hosted Fireworks serverless entries, including the models used by
-     * sim-auto. These are billed through the platform FIREWORKS_API_KEY at the
-     * Fireworks serverless rate, which differs from the vendors' native rates.
-     * Attachment support is model-specific (Kimi K3 accepts images; GLM 5.2 and
-     * DeepSeek V4 Pro are text-only). User-configured
-     * `fireworks/<anything-else>` ids remain dynamic/BYO-key as before.
+     * Fireworks catalog entries. Standard entries may appear in ordinary model
+     * authoring and use the platform key. `customJsonOnly` entries are hidden
+     * from those pickers; serverless ones may still use the platform key while
+     * on-demand-only entries require explicit Custom JSON credentials.
      */
     models: [
       {
         id: 'fireworks/glm-5.2',
+        aliases: [
+          'glm-5.2',
+          'glm-5p2',
+          'fireworks/glm-5p2',
+          'accounts/fireworks/models/glm-5p2',
+          'fireworks/accounts/fireworks/models/glm-5p2',
+        ],
+        wireModelId: 'accounts/fireworks/models/glm-5p2',
         pricing: {
           input: 1.4,
           cachedInput: 0.14,
@@ -204,6 +236,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       },
       {
         id: 'fireworks/kimi-k3',
+        aliases: [
+          'kimi-k3',
+          'accounts/fireworks/models/kimi-k3',
+          'fireworks/accounts/fireworks/models/kimi-k3',
+        ],
+        wireModelId: 'accounts/fireworks/models/kimi-k3',
         pricing: {
           input: 3.0,
           cachedInput: 0.3,
@@ -220,6 +258,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       },
       {
         id: 'fireworks/deepseek-v4-pro',
+        aliases: [
+          'deepseek-v4-pro',
+          'accounts/fireworks/models/deepseek-v4-pro',
+          'fireworks/accounts/fireworks/models/deepseek-v4-pro',
+        ],
+        wireModelId: 'accounts/fireworks/models/deepseek-v4-pro',
         pricing: {
           input: 1.74,
           cachedInput: 0.145,
@@ -232,6 +276,148 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 1048576,
         releaseDate: '2026-04-24',
         recommended: true,
+      },
+      {
+        id: 'fireworks/minimax-m2.7',
+        aliases: [
+          'minimax-m2.7',
+          'minimax-m2p7',
+          'fireworks/minimax-m2p7',
+          'accounts/fireworks/models/minimax-m2p7',
+          'fireworks/accounts/fireworks/models/minimax-m2p7',
+        ],
+        wireModelId: 'accounts/fireworks/models/minimax-m2p7',
+        pricing: {
+          input: 0.3,
+          cachedInput: 0.059,
+          output: 1.2,
+          updatedAt: '2026-08-03',
+          billingMode: 'per_token',
+        },
+        capabilities: { toolUsageControl: true },
+        contextWindow: 196608,
+        releaseDate: '2026-04-11',
+        customJsonOnly: true,
+      },
+      {
+        id: 'fireworks/qwen3.7-max',
+        aliases: [
+          'qwen3.7-max',
+          'qwen3p7-max',
+          'fireworks/qwen3p7-max',
+          'accounts/fireworks/models/qwen3p7-max',
+          'fireworks/accounts/fireworks/models/qwen3p7-max',
+        ],
+        wireModelId: 'accounts/fireworks/models/qwen3p7-max',
+        pricing: FIREWORKS_ON_DEMAND_PRICING,
+        capabilities: { toolUsageControl: true },
+        releaseDate: '2026-06-17',
+        customJsonOnly: true,
+        requiresExplicitCredentials: true,
+      },
+      {
+        id: 'fireworks/gpt-oss-120b',
+        aliases: [
+          'gpt-oss-120b',
+          'accounts/fireworks/models/gpt-oss-120b',
+          'fireworks/accounts/fireworks/models/gpt-oss-120b',
+        ],
+        wireModelId: 'accounts/fireworks/models/gpt-oss-120b',
+        pricing: {
+          input: 0.15,
+          cachedInput: 0.014,
+          output: 0.6,
+          updatedAt: '2026-08-03',
+          billingMode: 'per_token',
+        },
+        capabilities: { toolUsageControl: true },
+        contextWindow: 131072,
+        releaseDate: '2025-08-04',
+        customJsonOnly: true,
+      },
+      {
+        id: 'fireworks/nemotron-3-ultra-nvfp4',
+        aliases: [
+          'nemotron-3-ultra-nvfp4',
+          'accounts/fireworks/models/nemotron-3-ultra-nvfp4',
+          'fireworks/accounts/fireworks/models/nemotron-3-ultra-nvfp4',
+        ],
+        wireModelId: 'accounts/fireworks/models/nemotron-3-ultra-nvfp4',
+        pricing: {
+          input: 0.6,
+          cachedInput: 0.119,
+          output: 2.4,
+          updatedAt: '2026-08-03',
+          billingMode: 'per_token',
+        },
+        capabilities: { toolUsageControl: true },
+        contextWindow: 262144,
+        releaseDate: '2026-06-02',
+        customJsonOnly: true,
+      },
+      {
+        id: 'fireworks/nemotron-3-ultra-bf16',
+        aliases: [
+          'nemotron-3-ultra-bf16',
+          'accounts/fireworks/models/nemotron-3-ultra-bf16',
+          'fireworks/accounts/fireworks/models/nemotron-3-ultra-bf16',
+        ],
+        wireModelId: 'accounts/fireworks/models/nemotron-3-ultra-bf16',
+        pricing: FIREWORKS_ON_DEMAND_PRICING,
+        capabilities: { toolUsageControl: true },
+        contextWindow: 262144,
+        releaseDate: '2026-06-02',
+        customJsonOnly: true,
+        requiresExplicitCredentials: true,
+      },
+      {
+        id: 'fireworks/nemotron-3-super-120b-a12b-nvfp4',
+        aliases: [
+          'nemotron-3-super-120b-a12b-nvfp4',
+          'nvidia-nemotron-3-super-120b-a12b-nvfp4',
+          'fireworks/nvidia-nemotron-3-super-120b-a12b-nvfp4',
+          'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-nvfp4',
+          'fireworks/accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-nvfp4',
+        ],
+        wireModelId: 'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-nvfp4',
+        pricing: FIREWORKS_ON_DEMAND_PRICING,
+        capabilities: { toolUsageControl: true },
+        contextWindow: 262144,
+        releaseDate: '2026-03-20',
+        customJsonOnly: true,
+        requiresExplicitCredentials: true,
+      },
+      {
+        id: 'fireworks/nemotron-3-super-120b-a12b-fp8',
+        aliases: [
+          'nemotron-3-super-120b-a12b-fp8',
+          'nvidia-nemotron-3-super-120b-a12b-fp8',
+          'fireworks/nvidia-nemotron-3-super-120b-a12b-fp8',
+          'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
+          'fireworks/accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
+        ],
+        wireModelId: 'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
+        pricing: FIREWORKS_ON_DEMAND_PRICING,
+        capabilities: { toolUsageControl: true },
+        contextWindow: 262144,
+        releaseDate: '2026-03-11',
+        customJsonOnly: true,
+        requiresExplicitCredentials: true,
+      },
+      {
+        id: 'fireworks/ling-3-flash',
+        aliases: [
+          'ling-3-flash',
+          'accounts/fireworks/models/ling-3-flash',
+          'fireworks/accounts/fireworks/models/ling-3-flash',
+        ],
+        wireModelId: 'accounts/fireworks/models/ling-3-flash',
+        pricing: FIREWORKS_ON_DEMAND_PRICING,
+        capabilities: { toolUsageControl: true },
+        contextWindow: 256000,
+        releaseDate: '2026-07-23',
+        customJsonOnly: true,
+        requiresExplicitCredentials: true,
       },
     ],
   },
@@ -2163,8 +2349,15 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'grok-4.5',
         pricing: {
           input: 2.0,
+          cachedInput: 0.3,
           output: 6.0,
           updatedAt: '2026-07-08',
+          longContext: {
+            threshold: 200000,
+            input: 4.0,
+            cachedInput: 0.6,
+            output: 12.0,
+          },
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -3950,6 +4143,48 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
 }
 
+function findCatalogModel(modelId: string): { providerId: string; model: ModelDefinition } | null {
+  const normalized = modelId.trim().toLowerCase()
+  if (!normalized) return null
+
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (
+        model.id.toLowerCase() === normalized ||
+        model.aliases?.some((alias) => alias.toLowerCase() === normalized)
+      ) {
+        return { providerId, model }
+      }
+    }
+  }
+  return null
+}
+
+/** Canonical catalog id for an exact model id/alias, or the trimmed input when unknown. */
+export function getCanonicalModelId(modelId: string): string {
+  return findCatalogModel(modelId)?.model.id ?? modelId.trim()
+}
+
+/** Exact provider-side model resource id for a catalog model/alias. */
+export function getModelWireId(modelId: string): string | undefined {
+  return findCatalogModel(modelId)?.model.wireModelId
+}
+
+/** Whether ordinary model pickers may author this catalog model. */
+export function isModelVisibleInStandardAuthoring(modelId: string): boolean {
+  return findCatalogModel(modelId)?.model.customJsonOnly !== true
+}
+
+/** Whether this model is reserved for the Super User custom-model JSON path. */
+export function isCustomJsonOnlyModel(modelId: string): boolean {
+  return findCatalogModel(modelId)?.model.customJsonOnly === true
+}
+
+/** Whether this catalog model cannot be served with a Sim platform credential. */
+export function modelRequiresExplicitCredentials(modelId: string): boolean {
+  return findCatalogModel(modelId)?.model.requiresExplicitCredentials === true
+}
+
 export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
 }
@@ -4047,6 +4282,8 @@ export function isKnownModelId(modelId: string): boolean {
   if (!modelId || typeof modelId !== 'string') return false
   const trimmed = modelId.trim()
   if (!trimmed) return false
+
+  if (findCatalogModel(trimmed)) return true
 
   if (STATIC_MODEL_ID_SET.has(trimmed.toLowerCase())) return true
 
@@ -4149,6 +4386,9 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
 
+  const catalogMatch = findCatalogModel(normalizedModel)
+  if (catalogMatch) return catalogMatch.providerId as ProviderId
+
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (
       provider.models.some((providerModel) => providerModel.id.toLowerCase() === normalizedModel)
@@ -4176,22 +4416,14 @@ export function getProviderDefaultModel(providerId: string): string {
 }
 
 export function getModelPricing(modelId: string): ModelPricing | null {
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    const model = provider.models.find((m) => m.id.toLowerCase() === modelId.toLowerCase())
-    if (model) {
-      return model.pricing
-    }
-  }
-  return null
+  return findCatalogModel(modelId)?.model.pricing ?? null
 }
 
 export function getModelCapabilities(modelId: string): ModelCapabilities | null {
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    const model = provider.models.find((m) => m.id.toLowerCase() === modelId.toLowerCase())
-    if (model) {
-      const capabilities: ModelCapabilities = { ...provider.capabilities, ...model.capabilities }
-      return capabilities
-    }
+  const catalogMatch = findCatalogModel(modelId)
+  if (catalogMatch) {
+    const provider = PROVIDER_DEFINITIONS[catalogMatch.providerId]
+    return { ...provider.capabilities, ...catalogMatch.model.capabilities }
   }
 
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
@@ -4328,9 +4560,11 @@ export function updateLiteLLMModels(models: string[]): void {
  */
 const STATIC_FIREWORKS_MODELS = PROVIDER_DEFINITIONS.fireworks.models
 
-/** Returns only platform-hosted Fireworks ids, excluding workspace BYOK models. */
+/** Returns only Fireworks ids the platform key can serve. */
 export function getHostedFireworksModels(): string[] {
-  return STATIC_FIREWORKS_MODELS.map((model) => model.id)
+  return STATIC_FIREWORKS_MODELS.filter((model) => !model.requiresExplicitCredentials).map(
+    (model) => model.id
+  )
 }
 
 export function updateFireworksModels(models: string[]): void {

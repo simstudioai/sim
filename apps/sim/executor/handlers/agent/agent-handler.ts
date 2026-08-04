@@ -1532,6 +1532,7 @@ export class AgentBlockHandler implements BlockHandler {
     toolCalls?: Array<any>
     timing?: any
     cost?: any
+    estimatedProviderCost?: any
   }) {
     return {
       model: result.model,
@@ -1546,6 +1547,9 @@ export class AgentBlockHandler implements BlockHandler {
       },
       providerTiming: result.timing,
       cost: result.cost,
+      ...(result.estimatedProviderCost && {
+        estimatedProviderCost: result.estimatedProviderCost,
+      }),
     }
   }
 

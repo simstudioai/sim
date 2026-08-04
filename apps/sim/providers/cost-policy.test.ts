@@ -7,6 +7,7 @@ import type { NormalizedBlockOutput } from '@/executor/types'
 import {
   applyModelCostPolicy,
   applySegmentCostPolicy,
+  buildEstimatedProviderCost,
   calculateBillableModelCost,
   installStreamingCostPolicy,
   LIST_PRICE_POLICY,
@@ -62,6 +63,51 @@ describe('applyModelCostPolicy', () => {
     )
 
     expect(projected).toMatchObject({ input: 0, output: 0, total: 0.25, toolCost: 0.25 })
+  })
+})
+
+describe('buildEstimatedProviderCost', () => {
+  it('returns a list-price estimate for a known per-token model', () => {
+    expect(
+      buildEstimatedProviderCost('fireworks/minimax-m2.7', {
+        input: 0.0003,
+        output: 0.0012,
+        total: 0.0015,
+      })
+    ).toMatchObject({
+      available: true,
+      input: 0.0003,
+      output: 0.0012,
+      total: 0.0015,
+      pricing: { input: 0.3, cachedInput: 0.059, output: 1.2 },
+    })
+  })
+
+  it('reports GPU-time billing without fabricating a request cost', () => {
+    expect(
+      buildEstimatedProviderCost('fireworks/qwen3.7-max', {
+        input: 0,
+        output: 0,
+        total: 0,
+      })
+    ).toMatchObject({
+      available: false,
+      pricing: {
+        billingMode: 'gpu_time',
+        gpuHourlyRates: { h100: 7, h200: 7, b200: 10, b300: 12 },
+      },
+      unavailableReason: expect.stringContaining('active GPU time'),
+    })
+  })
+
+  it('omits estimates for uncataloged arbitrary custom models', () => {
+    expect(
+      buildEstimatedProviderCost('fireworks/accounts/acme/models/private', {
+        input: 1,
+        output: 2,
+        total: 3,
+      })
+    ).toBeUndefined()
   })
 })
 
@@ -233,6 +279,21 @@ describe('installStreamingCostPolicy', () => {
     output.cost = { input: 0.5, output: 1.5, total: 2 }
 
     expect(output.cost).toMatchObject({ input: 0, output: 0, total: 0 })
+  })
+
+  it('keeps a late list-price estimate separate from the zero explicit-key charge', () => {
+    const output = { cost: { input: 0, output: 0, total: 0 } } as NormalizedBlockOutput
+    installStreamingCostPolicy(output, { billable: false, multiplier: 0 }, 'fireworks/minimax-m2.7')
+
+    output.cost = { input: 0.0003, output: 0.0012, total: 0.0015 }
+
+    expect(output.cost).toMatchObject({ input: 0, output: 0, total: 0 })
+    expect(output.estimatedProviderCost).toMatchObject({
+      available: true,
+      input: 0.0003,
+      output: 0.0012,
+      total: 0.0015,
+    })
   })
 })
 

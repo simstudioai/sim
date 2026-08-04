@@ -598,4 +598,82 @@ describe('executeProviderRequest — custom model policy', () => {
     ).rejects.toThrow('API key is required')
     expect(mockExecuteRequest).not.toHaveBeenCalled()
   })
+
+  it('returns exact tokens and a separate list-price estimate for explicit custom keys', async () => {
+    mockExecuteRequest.mockResolvedValue({
+      content: 'ok',
+      model: 'fireworks/minimax-m2.7',
+      tokens: { input: 1000, output: 500, total: 1500 },
+    })
+
+    const result = (await executeProviderRequest('fireworks', {
+      model: 'fireworks/minimax-m2.7',
+      apiKey: 'fw-explicit',
+      credentialMode: 'explicit',
+      capabilityPolicy: 'passthrough',
+    })) as ProviderResponse
+
+    expect(result.tokens).toEqual({ input: 1000, output: 500, total: 1500 })
+    expect(result.cost).toMatchObject({ input: 0, output: 0, total: 0 })
+    expect(result.estimatedProviderCost).toMatchObject({
+      available: true,
+      input: 0.0003,
+      output: 0.0006,
+      total: 0.0009,
+      pricing: { input: 0.3, cachedInput: 0.059, output: 1.2 },
+    })
+  })
+
+  it('reports GPU-time billing without inventing an on-demand request price', async () => {
+    mockExecuteRequest.mockResolvedValue({
+      content: 'ok',
+      model: 'fireworks/qwen3.7-max',
+      tokens: { input: 1000, output: 500, total: 1500 },
+    })
+
+    const result = (await executeProviderRequest('fireworks', {
+      model: 'fireworks/qwen3.7-max',
+      apiKey: 'fw-explicit',
+      credentialMode: 'explicit',
+      capabilityPolicy: 'passthrough',
+    })) as ProviderResponse
+
+    expect(result.tokens).toEqual({ input: 1000, output: 500, total: 1500 })
+    expect(result.cost?.total).toBe(0)
+    expect(result.estimatedProviderCost).toMatchObject({
+      available: false,
+      pricing: { billingMode: 'gpu_time' },
+      unavailableReason: expect.stringContaining('active GPU time'),
+    })
+    expect(result.estimatedProviderCost).not.toHaveProperty('total')
+  })
+
+  it('does not fabricate an estimate for an arbitrary uncataloged custom id', async () => {
+    mockExecuteRequest.mockResolvedValue({
+      content: 'ok',
+      model: 'fireworks/accounts/acme/models/private',
+      tokens: { input: 1000, output: 500, total: 1500 },
+    })
+
+    const result = (await executeProviderRequest('fireworks', {
+      model: 'fireworks/accounts/acme/models/private',
+      apiKey: 'fw-explicit',
+      credentialMode: 'explicit',
+      capabilityPolicy: 'passthrough',
+    })) as ProviderResponse
+
+    expect(result.tokens).toEqual({ input: 1000, output: 500, total: 1500 })
+    expect(result.cost?.total).toBe(0)
+    expect(result.estimatedProviderCost).toBeUndefined()
+  })
+
+  it('rejects JSON-only catalog models outside the custom passthrough path', async () => {
+    await expect(
+      executeProviderRequest('fireworks', {
+        model: 'fireworks/minimax-m2.7',
+        apiKey: 'fw-key',
+      })
+    ).rejects.toThrow('only through the Super User custom-model JSON')
+    expect(mockExecuteRequest).not.toHaveBeenCalled()
+  })
 })

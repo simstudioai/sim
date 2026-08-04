@@ -718,6 +718,11 @@ Return ONLY the JSON array.`,
       description: 'Provider timing information',
     },
     cost: { type: 'json', description: 'Cost of the API call' },
+    estimatedProviderCost: {
+      type: 'json',
+      description:
+        'Informational vendor list-price estimate for explicit Custom credentials; never charged by Sim. GPU-time models report why a per-request estimate is unavailable.',
+    },
     interactionId: {
       type: 'string',
       description: 'Interaction ID for multi-turn deep research follow-ups',

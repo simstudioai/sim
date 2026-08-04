@@ -415,6 +415,20 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.model).toBe('sim-custom')
   })
 
+  it('rejects JSON-only Fireworks models in ordinary Agent and Router model fields', () => {
+    for (const [blockType, model] of [
+      ['agent', 'fireworks/minimax-m2.7'],
+      ['router_v2', 'fireworks/accounts/fireworks/models/minimax-m2p7'],
+    ]) {
+      const result = validateInputsForBlock(blockType, { model }, `${blockType}-1`)
+
+      expect(result.validInputs.model).toBeUndefined()
+      expect(result.errors).toHaveLength(1)
+      expect(result.errors[0]?.error).toContain('Super User Custom model configuration')
+      expect(result.errors[0]?.error).toContain('sim-custom')
+    }
+  })
+
   it('rejects hallucinated agent model ids that match a static provider pattern', () => {
     const result = validateInputsForBlock('agent', { model: 'claude-sonnet-4.6' }, 'agent-1')
 

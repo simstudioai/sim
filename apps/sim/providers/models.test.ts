@@ -4,13 +4,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   getBaseModelProviders,
+  getCanonicalModelId,
   getHostedModels,
   getModelPricing,
   getModelsWithPromptCaching,
+  getModelWireId,
   getPromptCachingMinimumTokens,
   getProviderModels,
   getThinkingStreamVisibility,
+  isCustomJsonOnlyModel,
   isModelDeprecated,
+  isModelVisibleInStandardAuthoring,
+  modelRequiresExplicitCredentials,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
   updateFireworksModels,
@@ -371,6 +376,20 @@ describe('xai provider definition', () => {
   it('is included in getHostedModels since Sim provides the xAI key server-side', () => {
     expect(getHostedModels()).toContain('grok-4.5')
   })
+
+  it('carries Grok 4.5 standard, cached, and long-context billing data', () => {
+    expect(getModelPricing('grok-4.5')).toMatchObject({
+      input: 2,
+      cachedInput: 0.3,
+      output: 6,
+      longContext: {
+        threshold: 200000,
+        input: 4,
+        cachedInput: 0.6,
+        output: 12,
+      },
+    })
+  })
 })
 
 describe('hosted Fireworks static catalog', () => {
@@ -378,6 +397,60 @@ describe('hosted Fireworks static catalog', () => {
     'fireworks/glm-5.2',
     'fireworks/kimi-k3',
     'fireworks/deepseek-v4-pro',
+    'fireworks/minimax-m2.7',
+    'fireworks/gpt-oss-120b',
+    'fireworks/nemotron-3-ultra-nvfp4',
+  ]
+
+  const customOnlyModels = [
+    {
+      id: 'fireworks/minimax-m2.7',
+      wire: 'accounts/fireworks/models/minimax-m2p7',
+      contextWindow: 196608,
+      explicit: false,
+    },
+    {
+      id: 'fireworks/qwen3.7-max',
+      wire: 'accounts/fireworks/models/qwen3p7-max',
+      contextWindow: undefined,
+      explicit: true,
+    },
+    {
+      id: 'fireworks/gpt-oss-120b',
+      wire: 'accounts/fireworks/models/gpt-oss-120b',
+      contextWindow: 131072,
+      explicit: false,
+    },
+    {
+      id: 'fireworks/nemotron-3-ultra-nvfp4',
+      wire: 'accounts/fireworks/models/nemotron-3-ultra-nvfp4',
+      contextWindow: 262144,
+      explicit: false,
+    },
+    {
+      id: 'fireworks/nemotron-3-ultra-bf16',
+      wire: 'accounts/fireworks/models/nemotron-3-ultra-bf16',
+      contextWindow: 262144,
+      explicit: true,
+    },
+    {
+      id: 'fireworks/nemotron-3-super-120b-a12b-nvfp4',
+      wire: 'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-nvfp4',
+      contextWindow: 262144,
+      explicit: true,
+    },
+    {
+      id: 'fireworks/nemotron-3-super-120b-a12b-fp8',
+      wire: 'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
+      contextWindow: 262144,
+      explicit: true,
+    },
+    {
+      id: 'fireworks/ling-3-flash',
+      wire: 'accounts/fireworks/models/ling-3-flash',
+      contextWindow: 256000,
+      explicit: true,
+    },
   ]
 
   it('is included in getHostedModels since Sim provides the Fireworks key server-side', () => {
@@ -391,6 +464,30 @@ describe('hosted Fireworks static catalog', () => {
       const pricing = getModelPricing(model)
       expect(pricing?.input).toBeGreaterThan(0)
       expect(pricing?.output).toBeGreaterThan(0)
+    }
+  })
+
+  it('keeps the additional Fireworks models JSON-only with exact wire metadata', () => {
+    for (const expected of customOnlyModels) {
+      const model = PROVIDER_DEFINITIONS.fireworks.models.find((entry) => entry.id === expected.id)
+      expect(model?.contextWindow).toBe(expected.contextWindow)
+      expect(isCustomJsonOnlyModel(expected.id)).toBe(true)
+      expect(isModelVisibleInStandardAuthoring(expected.id)).toBe(false)
+      expect(getModelWireId(expected.id)).toBe(expected.wire)
+      expect(getCanonicalModelId(expected.wire)).toBe(expected.id)
+      expect(modelRequiresExplicitCredentials(expected.id)).toBe(expected.explicit)
+    }
+  })
+
+  it('represents dedicated-only Fireworks pricing as GPU-time rather than free tokens', () => {
+    for (const expected of customOnlyModels.filter((model) => model.explicit)) {
+      expect(getModelPricing(expected.id)).toMatchObject({
+        input: 0,
+        output: 0,
+        billingMode: 'gpu_time',
+        gpuHourlyRates: { h100: 7, h200: 7, b200: 10, b300: 12 },
+      })
+      expect(getHostedModels()).not.toContain(expected.id)
     }
   })
 
