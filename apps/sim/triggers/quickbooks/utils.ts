@@ -292,11 +292,13 @@ export function isQuickBooksEventMatch(
   return Array.isArray(selectedActions) && selectedActions.includes(parsed.action)
 }
 
-function quickBooksSetupInstructions(entityLabel: string): string {
+function quickBooksSetupInstructions(entityLabel: string, includeActionSelection = true): string {
   const instructions = [
-    '<strong>App setup:</strong> A Sim operator must register <code>https://&lt;your-sim-domain&gt;/api/webhooks/quickbooks</code> as the app-level endpoint in the Intuit Developer Portal and configure the server-only <code>QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN</code>.',
+    '<strong>App setup:</strong> A Sim operator must register <code>https://&lt;your-sim-domain&gt;/api/webhooks/quickbooks</code> as the app-level endpoint, enable webhook notifications for the supported QuickBooks entities and actions in the Intuit Developer Portal, and configure the server-only <code>QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN</code>.',
     'Connect the <strong>QuickBooks account</strong> whose company should receive these events.',
-    `Select the <strong>${entityLabel}</strong> actions this workflow should handle.`,
+    ...(includeActionSelection
+      ? [`Select the <strong>${entityLabel}</strong> actions this workflow should handle.`]
+      : []),
     '<strong>Deploy</strong> the workflow to activate the trigger.',
   ]
 
@@ -368,7 +370,7 @@ export function buildQuickBooksSingleEventTriggerSubBlocks(triggerId: string): S
       title: 'Setup Instructions',
       hideFromPreview: true,
       type: 'text',
-      defaultValue: quickBooksSetupInstructions(definition.label),
+      defaultValue: quickBooksSetupInstructions(definition.label, false),
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },

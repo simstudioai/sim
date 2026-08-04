@@ -38,6 +38,13 @@ describe('QuickBooks triggers', () => {
       } else {
         expect(eventTypes?.options?.map((option) => option.id)).toEqual(definition.actions)
       }
+      const instructions = trigger.subBlocks.find((subBlock) =>
+        subBlock.id.startsWith('triggerInstructions')
+      )?.defaultValue
+      expect(instructions).toContain('enable webhook notifications')
+      if (definition.id === 'quickbooks_preferences_updated') {
+        expect(instructions).not.toContain('Select the <strong>Preferences Updated</strong>')
+      }
       expect(trigger.outputs).toEqual(getTrigger('quickbooks_invoice_events').outputs)
     }
   })
