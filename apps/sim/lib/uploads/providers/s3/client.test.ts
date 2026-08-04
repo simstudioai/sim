@@ -247,7 +247,7 @@ describe('S3 Client', () => {
   })
 
   describe('staged upload primitives', () => {
-    it('signs a fixed-size PUT with canonical object metadata', async () => {
+    it('signs metadata without returning duplicate x-amz-meta headers', async () => {
       mockGetSignedUrl.mockResolvedValueOnce('https://example.com/signed-put')
 
       const result = await getS3PresignedUploadUrl({
@@ -270,8 +270,6 @@ describe('S3 Client', () => {
         url: 'https://example.com/signed-put',
         headers: {
           'Content-Type': 'application/octet-stream',
-          'x-amz-meta-uploadid': 'upload-1',
-          'x-amz-meta-purpose': 'workspace_file',
         },
       })
     })

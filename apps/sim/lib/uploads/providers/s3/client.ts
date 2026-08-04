@@ -170,7 +170,9 @@ export async function getPresignedUrlWithConfig(
 
 /**
  * Generates a signed single-object PUT for a caller-selected staging key.
- * Every returned header covered by the signature must be sent verbatim by the client.
+ * The AWS presigner hoists `x-amz-meta-*` values into the signed query string,
+ * so only ordinary transfer headers are returned. Repeating that metadata as
+ * request headers makes S3 reject the otherwise-valid signature.
  */
 export async function getS3PresignedUploadUrl(params: {
   key: string
@@ -193,9 +195,6 @@ export async function getS3PresignedUploadUrl(params: {
     url,
     headers: {
       'Content-Type': params.contentType,
-      ...Object.fromEntries(
-        Object.entries(metadata).map(([key, value]) => [`x-amz-meta-${key.toLowerCase()}`, value])
-      ),
     },
   }
 }
