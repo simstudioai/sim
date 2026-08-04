@@ -88,6 +88,17 @@ function startDockerApp({ app, explicit }: DockerChoice): DockerApp | null {
 }
 
 /**
+ * A launch that failed after the user opted into it. Callers passing
+ * required=false have a non-Docker path to offer, so the reason is worth
+ * surfacing but must not abort the wizard.
+ */
+function launchFailed(required: boolean, message: string, hints: string[]): boolean {
+  if (required) throw new SetupError(message, hints)
+  p.log.warn([message, ...hints].join('\n'))
+  return false
+}
+
+/**
  * Returns whether the Docker daemon is available, offering to launch the
  * installed docker app (macOS) when it's stopped. Never installs anything.
  * With required=true, unavailability is a SetupError instead of false.
@@ -126,13 +137,12 @@ export async function ensureDocker(required: boolean): Promise<boolean> {
 
   const app = startDockerApp(choice)
   if (!app) {
-    if (choice.explicit) {
-      throw new SetupError('The docker CLI is pointed at OrbStack, which is not installed.', [
-        `reinstall it: ${theme.command('brew install orbstack')}`,
-        `or point the CLI elsewhere: unset DOCKER_HOST / ${theme.command('docker context use <name>')}`,
-      ])
-    }
-    throw new SetupError('No docker app is installed.', INSTALL_HINTS)
+    return choice.explicit
+      ? launchFailed(required, 'The docker CLI is pointed at OrbStack, which is not installed.', [
+          `reinstall it: ${theme.command('brew install orbstack')}`,
+          `or point the CLI elsewhere: unset DOCKER_HOST and DOCKER_CONTEXT, then ${theme.command('docker context use <name>')}`,
+        ])
+      : launchFailed(required, 'No docker app is installed.', INSTALL_HINTS)
   }
 
   const spin = p.spinner()
@@ -140,7 +150,7 @@ export async function ensureDocker(required: boolean): Promise<boolean> {
   const up = await waitFor(async () => daemonUp(), 90_000, 2000)
   spin.stop(up ? 'Docker is running' : `${glyph.fail} daemon did not come up`)
   if (!up) {
-    throw new SetupError(`${app.name} did not start within 90s.`, [
+    return launchFailed(required, `${app.name} did not start within 90s.`, [
       app === ORBSTACK_APP
         ? 'open OrbStack manually once to finish its first-run setup, then re-run'
         : 'first-ever launch needs a GUI license acceptance — open Docker Desktop manually once, then re-run',
