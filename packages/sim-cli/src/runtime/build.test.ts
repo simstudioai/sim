@@ -27,7 +27,7 @@ vi.mock('../context.js', () => ({
 
 function program(): Command {
   const root = new Command('sim').exitOverride()
-  for (const group of buildGeneratedCommands(new Set())) root.addCommand(group)
+  for (const group of buildGeneratedCommands()) root.addCommand(group)
   // Recursively, not just on the root: a parse error raised by a leaf (an
   // unknown option, an excess argument) exits the process otherwise, which a
   // test cannot assert on.
@@ -39,9 +39,19 @@ function program(): Command {
   return root
 }
 
-async function run(argv: string[]) {
+function commandAt(...names: string[]): Command {
+  let current = program()
+  for (const name of names) {
+    const next = current.commands.find((command) => command.name() === name)
+    if (!next) throw new Error(`Missing command ${names.join(' ')}`)
+    current = next
+  }
+  return current
+}
+
+async function run(argv: string[], response: unknown = { data: [], nextCursor: null }) {
   mockRequest.mockReset()
-  mockRequest.mockResolvedValue({ data: [], nextCursor: null })
+  mockRequest.mockResolvedValue(response)
   vi.spyOn(console, 'log').mockImplementation(() => {})
   await program().parseAsync(['node', 'sim', ...argv])
   return mockRequest.mock.calls[0]
@@ -57,6 +67,37 @@ describe('commands parsed through commander', () => {
     // `min-duration-ms` found nothing and the filter never reached the API.
     const [, options] = await run(['logs', 'list', '--min-duration-ms', '250'])
     expect(options.query).toMatchObject({ minDurationMs: 250 })
+  })
+
+  it('registers singular aliases for every plural resource group', () => {
+    const aliases = {
+      'audit-logs': 'audit-log',
+      credentials: 'credential',
+      'custom-tools': 'custom-tool',
+      files: 'file',
+      folders: 'folder',
+      logs: 'log',
+      'mcp-servers': 'mcp-server',
+      skills: 'skill',
+      tables: 'table',
+      workflows: 'workflow',
+    }
+
+    for (const [name, alias] of Object.entries(aliases)) {
+      expect(
+        program()
+          .commands.find((command) => command.name() === name)
+          ?.alias()
+      ).toBe(alias)
+    }
+  })
+
+  it('dispatches generated commands through their singular resource alias', async () => {
+    const [tablePath] = await run(['table', 'list'])
+    expect(tablePath).toBe('/api/v2/tables')
+
+    const [filePath] = await run(['file', 'list'])
+    expect(filePath).toBe('/api/v2/files')
   })
 
   it('carries every multi-word flag on a command, not just the first', async () => {
@@ -117,6 +158,40 @@ describe('commands parsed through commander', () => {
       /cannot be undone/
     )
     expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('marks required flags in help and rejects omissions before a request', async () => {
+    const help = commandAt('tables', 'create').helpInformation()
+    expect(help).toMatch(/--name.*required/s)
+    expect(help).toMatch(/--schema.*required/s)
+
+    await expect(run(['tables', 'create', '--name', 'Customers'])).rejects.toThrow(
+      /required option '--schema/
+    )
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('shows repeated values and recovered enum choices accurately', async () => {
+    const help = commandAt('knowledge', 'search').helpInformation()
+    expect(help).toContain('--kb <value...>')
+    expect(help).not.toMatch(/--kb[^\n]*JSON/)
+    expect(help).toMatch(/--search-mode.*vector.*hybrid/s)
+
+    await expect(
+      run(['knowledge', 'search', '--kb', 'kb_1', '--search-mode', 'semantic'])
+    ).rejects.toThrow(/allowed choices are vector, hybrid/i)
+
+    const [, options] = await run(
+      ['knowledge', 'search', '--kb', 'kb_1', '--search-mode', 'hybrid'],
+      { data: { results: [] } }
+    )
+    expect(options.body).toMatchObject({ knowledgeBaseIds: ['kb_1'], searchMode: 'hybrid' })
+  })
+
+  it('advertises the file-content encoding choices', () => {
+    expect(commandAt('files', 'set-content').helpInformation()).toMatch(
+      /--encoding.*utf-8.*base64/s
+    )
   })
 })
 
@@ -214,6 +289,101 @@ describe('single-resource rendering', () => {
 
     expect(JSON.parse(printed[0])).toEqual({ row: { id: 'r1' }, operation: 'inserted' })
   })
+
+  it('keeps sensitive execution data out of human log output', async () => {
+    const log = {
+      id: 'log_1',
+      executionId: 'exec_1',
+      workflow: { name: 'Billing' },
+      level: 'info',
+      trigger: 'api',
+      startedAt: '2026-08-04T00:00:00.000Z',
+      endedAt: null,
+      totalDurationMs: 50,
+      cost: { total: 0.001 },
+      files: [],
+      executionData: { env: { SECRET_TOKEN: 'encrypted-value' } },
+    }
+
+    const human = await lines(['logs', 'get', 'log_1'], log, 'text')
+    expect(human.join('\n')).not.toContain('executionData')
+    expect(human.join('\n')).not.toContain('SECRET_TOKEN')
+
+    const machine = await lines(['logs', 'get', 'log_1'], log, 'json')
+    expect(JSON.parse(machine[0])).toMatchObject({ executionData: log.executionData })
+  })
+})
+
+describe('contract-selected list rendering', () => {
+  async function lines(argv: string[], data: unknown): Promise<string[]> {
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data })
+    output.format = 'text'
+    const captured: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => captured.push(line))
+    try {
+      await program().parseAsync(['node', 'sim', ...argv])
+    } finally {
+      output.format = 'json'
+    }
+    return captured
+  }
+
+  it('renders knowledge results as rows instead of a truncated JSON blob', async () => {
+    const printed = await lines(['knowledge', 'search', '--kb', 'kb_1', '--query', 'refund'], {
+      results: [
+        {
+          similarity: 0.91,
+          documentName: 'policy.md',
+          chunkIndex: 2,
+          content: 'Refunds are available for 30 days.',
+        },
+      ],
+      query: 'refund',
+      totalResults: 1,
+    })
+
+    expect(printed).toEqual(['0.91\tpolicy.md\t2\tRefunds are available for 30 days.'])
+  })
+
+  it('renders row matches as rows', async () => {
+    const printed = await lines(['tables', 'rows', 'find', 'tbl_1', '--q', 'alice'], {
+      matches: [{ ordinal: 3, rowId: 'row_1', column: 'email' }],
+      truncated: false,
+    })
+
+    expect(printed).toEqual(['3\trow_1\temail'])
+  })
+
+  it('maps custom-tool and credential fields to their actual response paths', async () => {
+    const tools = await lines(
+      ['custom-tools', 'list'],
+      [
+        {
+          id: 'tool_1',
+          title: 'Lookup',
+          schema: { function: { description: 'Find a customer' } },
+          updatedAt: '2026-08-04T00:00:00.000Z',
+        },
+      ]
+    )
+    expect(tools[0]).toContain('Lookup')
+    expect(tools[0]).toContain('Find a customer')
+
+    const credentials = await lines(
+      ['credentials', 'list'],
+      [
+        {
+          id: 'cred_1',
+          displayName: 'Production Stripe',
+          providerId: 'stripe',
+          updatedAt: '2026-08-04T00:00:00.000Z',
+        },
+      ]
+    )
+    expect(credentials[0]).toContain('Production Stripe')
+    expect(credentials[0]).toContain('stripe')
+  })
 })
 
 describe('pagination slot', () => {
@@ -250,6 +420,18 @@ describe('pagination slot', () => {
 
     expect(mockRequest.mock.calls[1][1].query).toMatchObject({ cursor: 'c1' })
   })
+
+  it('uses a valid per-page size for unlimited and large totals', async () => {
+    for (const requested of ['0', '250']) {
+      mockRequest.mockReset()
+      mockRequest.mockResolvedValue({ data: [], nextCursor: null })
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      await program().parseAsync(['node', 'sim', 'files', 'list', '--limit', requested])
+
+      expect(mockRequest.mock.calls[0][1].query.limit).toBe(100)
+    }
+  })
 })
 
 describe('rows whose content sits in a wrapper', () => {
@@ -276,6 +458,25 @@ describe('rows whose content sits in a wrapper', () => {
     expect(lines[0]).toContain('https://a')
     expect(lines[0]).toContain('A')
     expect(lines[1]).toContain('E')
+  })
+
+  it('uses the generated list command for table rows', async () => {
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({
+      data: [{ id: 'r1', data: { email: 'a@example.com' } }],
+      nextCursor: null,
+    })
+    const lines: string[] = []
+    output.format = 'text'
+    vi.spyOn(console, 'log').mockImplementation((line: string) => lines.push(line))
+    try {
+      await program().parseAsync(['node', 'sim', 'tables', 'rows', 'list', 'tbl_1'])
+    } finally {
+      output.format = 'json'
+    }
+
+    expect(lines[0]).toContain('a@example.com')
+    expect(mockRequest.mock.calls[0][0]).toBe('/api/v2/tables/tbl_1/rows')
   })
 })
 

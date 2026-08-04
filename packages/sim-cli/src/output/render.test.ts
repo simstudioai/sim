@@ -94,6 +94,13 @@ describe('printList', () => {
     expect(JSON.parse(logged[0])).toEqual([{ name: 'alpha', status: 'error' }])
   })
 
+  it('can preserve a containing response for machine output', () => {
+    const rows = [{ name: 'alpha', status: 'error' }]
+    const response = { results: rows, totalResults: 1 }
+    printList('json', rows, COLUMNS, response)
+    expect(JSON.parse(logged[0])).toEqual(response)
+  })
+
   it('prints the raw rows for yaml too', () => {
     printList('yaml', [{ name: 'alpha', status: 'error' }], COLUMNS)
     expect(load(logged[0])).toEqual([{ name: 'alpha', status: 'error' }])

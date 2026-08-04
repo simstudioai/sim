@@ -1,5 +1,11 @@
 import type { CliContract } from './types.js'
 
+const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
+const TABLE_FILTER_HELP =
+  'Predicate tree using all/any and operators eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, or isNotNull'
+const CUSTOM_TOOL_SCHEMA_HELP =
+  'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
+
 /**
  * The CLI contract for the v2 surface.
  *
@@ -20,13 +26,19 @@ export const CLI_CONTRACT: CliContract = {
   deleteTableRows: {
     command: 'tables rows batch-delete',
     describe: 'Delete rows matching a filter, or an explicit list of ids',
-    flags: { rowIds: { name: 'row', list: true }, filter: { json: true } },
+    flags: {
+      rowIds: { name: 'row', list: true },
+      filter: { json: true, describe: TABLE_FILTER_HELP },
+    },
     confirm: 'This deletes every matching row and cannot be undone.',
   },
   updateRowsByFilter: {
     command: 'tables rows batch-update',
     describe: 'Update every row matching a filter',
-    flags: { filter: { json: true }, data: { json: true } },
+    flags: {
+      filter: { json: true, describe: TABLE_FILTER_HELP },
+      data: { json: true },
+    },
     confirm: 'This updates every matching row and cannot be undone.',
   },
   // `DELETE /workflows/[id]/deploy` is an undeploy, not a delete.
@@ -38,7 +50,10 @@ export const CLI_CONTRACT: CliContract = {
   // ─── Destructive single-resource operations ───────────────────────────────
   deleteTable: { confirm: 'This deletes the table and all of its rows.' },
   deleteTableRow: { confirm: 'This deletes the row.' },
-  deleteTableColumn: { confirm: 'This deletes the column and its values in every row.' },
+  deleteTableColumn: {
+    confirm: 'This deletes the column and its values in every row.',
+    fields: [{ header: 'remaining columns', path: 'columns', format: 'count' }],
+  },
   deleteKnowledgeBase: { confirm: 'This deletes the knowledge base and every document in it.' },
   deleteKnowledgeDocument: { confirm: 'This deletes the document and its embeddings.' },
   deleteFile: { confirm: 'This archives the file.' },
@@ -56,6 +71,11 @@ export const CLI_CONTRACT: CliContract = {
     // Not just the grouping: the documented behaviour is that every column the
     // group fed goes with it, values included.
     confirm: 'This deletes the group, every column it fed, and the values in them.',
+    fields: [
+      { header: 'id' },
+      { header: 'deleted', format: 'bool' },
+      { header: 'remaining columns', path: 'columns', format: 'count' },
+    ],
   },
   deleteFolder: {
     // The route archives the folder *and cascades to its contents*, so this is
@@ -82,9 +102,36 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'execution', path: 'executionId' },
     ],
   },
+  getLog: {
+    describe: 'Show a log summary (execution data is available in JSON or YAML output)',
+    fields: [
+      { header: 'id' },
+      { header: 'execution', path: 'executionId' },
+      { header: 'workflow', path: 'workflow.name' },
+      { header: 'level' },
+      { header: 'trigger' },
+      { header: 'started', path: 'startedAt', format: 'timestamp' },
+      { header: 'ended', path: 'endedAt', format: 'timestamp' },
+      { header: 'duration', path: 'totalDurationMs', format: 'duration' },
+      { header: 'cost', path: 'cost.total', format: 'cost' },
+      { header: 'files', format: 'count' },
+    ],
+  },
   searchKnowledge: {
     // Accepts a string or an array on the wire; the CLI always sends the array.
-    flags: { knowledgeBaseIds: { name: 'kb', list: true }, tagFilters: { json: true } },
+    flags: {
+      knowledgeBaseIds: { name: 'kb', list: true, describe: 'Knowledge base ID (repeatable)' },
+      query: { describe: 'Text to search for' },
+      tagFilters: {
+        json: true,
+        describe: 'Tag filters as [{"tagName":"...","operator":"...","value":"..."}]',
+      },
+      searchMode: {
+        choices: ['vector', 'hybrid'],
+        describe: 'Search algorithm',
+      },
+    },
+    itemsPath: 'results',
     columns: [
       { header: 'score', path: 'similarity' },
       { header: 'document', path: 'documentName' },
@@ -104,11 +151,26 @@ export const CLI_CONTRACT: CliContract = {
   },
   queryRows: {
     command: 'tables rows query',
-    flags: { predicate: { name: 'filter', json: true }, sort: { json: true } },
+    flags: {
+      predicate: { name: 'filter', json: true, describe: TABLE_FILTER_HELP },
+      sort: { json: true },
+    },
     // A row's cells live under `data`; without this the table showed an id and
     // two timestamps per row and none of the content anyone ran the query for.
     expand: 'data',
   },
+  createTable: {
+    flags: {
+      name: { describe: TABLE_NAME_HELP },
+      schema: {
+        json: true,
+        describe: 'Table schema: {"columns":[{"name":"email","type":"string"}]}',
+      },
+    },
+  },
+  updateTable: { flags: { name: { describe: TABLE_NAME_HELP } } },
+  createCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
+  updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
 
   // ─── Output columns for list commands ─────────────────────────────────────
   listTables: {
@@ -140,6 +202,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
     ],
   },
+  listTableRows: { expand: 'data' },
   listKnowledgeBases: {
     columns: [
       { header: 'id' },
@@ -176,14 +239,14 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'id' },
       { header: 'name' },
       { header: 'description' },
-      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+      { header: 'built-in', path: 'readOnly', format: 'bool' },
     ],
   },
   listCustomTools: {
     columns: [
       { header: 'id' },
-      { header: 'name' },
-      { header: 'description' },
+      { header: 'name', path: 'title' },
+      { header: 'description', path: 'schema.function.description' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
   },
@@ -198,8 +261,8 @@ export const CLI_CONTRACT: CliContract = {
   listCredentials: {
     columns: [
       { header: 'id' },
-      { header: 'name' },
-      { header: 'provider' },
+      { header: 'name', path: 'displayName' },
+      { header: 'provider', path: 'providerId' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
   },
@@ -240,6 +303,9 @@ export const CLI_CONTRACT: CliContract = {
   updateFileContent: {
     command: 'files set-content',
     describe: 'Replace a file’s contents',
+    flags: {
+      encoding: { choices: ['utf-8', 'base64'], describe: 'Content encoding' },
+    },
   },
   getFileShare: {
     command: 'files share get',
@@ -255,9 +321,23 @@ export const CLI_CONTRACT: CliContract = {
   // path all put a verb where the deriver expects a sub-resource, so each became
   // a group holding a lone `create`.
   cancelTableRuns: { command: 'tables cancel-runs', describe: 'Stop every running column job' },
-  findTableRows: { command: 'tables rows find', describe: 'Find rows matching a predicate' },
+  findTableRows: {
+    command: 'tables rows find',
+    describe: 'Find rows matching a predicate',
+    flags: {
+      q: { describe: 'Value to find' },
+      predicate: { name: 'filter', json: true, describe: TABLE_FILTER_HELP },
+      sort: { json: true },
+    },
+    itemsPath: 'matches',
+    columns: [{ header: 'ordinal' }, { header: 'row', path: 'rowId' }, { header: 'column' }],
+  },
   restoreTable: { command: 'tables restore', describe: 'Restore a deleted table' },
-  runTableColumn: { command: 'tables columns run', describe: 'Run a column’s workflow' },
+  runTableColumn: {
+    command: 'tables columns run',
+    describe: 'Run a column’s workflow',
+    flags: { filter: { json: true, describe: TABLE_FILTER_HELP } },
+  },
   runRowEnrichment: {
     command: 'tables rows enrich',
     describe: 'Run one row’s enrichment group',

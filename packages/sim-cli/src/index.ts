@@ -4,8 +4,9 @@ import chalk from 'chalk'
 import { Command } from 'commander'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth.js'
 import { configureCommand } from './commands/configure.js'
-import { attachHandWritten } from './commands/hand-written.js'
-import { SimApiError } from './http/client.js'
+import { attachProtocolCommands } from './commands/protocol/index.js'
+import { formatApiErrorDetails, SimApiError } from './http/client.js'
+import { sanitize } from './output/render.js'
 import { buildGeneratedCommands } from './runtime/build.js'
 
 const program = new Command()
@@ -24,23 +25,11 @@ program.addCommand(whoamiCommand())
 program.addCommand(profilesCommand())
 program.addCommand(configureCommand())
 
-/**
- * Leaves owned by hand-written commands, which the generated runtime skips.
- *
- * Each is here because generation genuinely cannot produce it, not because it
- * has not been migrated: `files download` streams binary rather than JSON, and
- * `tables rows list` discovers its columns from user-defined row data at
- * runtime with a nested `data` object the generic renderer would flatten badly.
- */
-const HAND_WRITTEN = new Set(['files download', 'tables rows list'])
-
-for (const command of buildGeneratedCommands(HAND_WRITTEN)) {
+for (const command of buildGeneratedCommands()) {
   program.addCommand(command)
 }
 
-// Added after the generated groups so their leaves merge into the same group
-// object rather than creating a duplicate top-level command.
-attachHandWritten(program)
+attachProtocolCommands(program)
 
 program.addHelpText(
   'after',
@@ -54,7 +43,7 @@ Examples:
   $ sim workflows list
   $ sim logs list --level error --limit 20
   $ sim configure --set-output json           Output format is a profile setting
-  $ sim knowledge search "refund policy" --kb kb_123
+  $ sim knowledge search --query "refund policy" --kb kb_123
   $ sim workflows export wf_123 > wf.json        JSON flags read files with @
   $ sim workflows import --workflow @wf.json
   $ sim whoami --profile dev
@@ -73,6 +62,11 @@ async function main() {
     if (error instanceof SimApiError) {
       console.error(chalk.red(`Error: ${error.message}`))
       if (error.code) console.error(chalk.dim(`  code: ${error.code}`))
+      if (error.details !== undefined) {
+        for (const line of formatApiErrorDetails(error.details)) {
+          console.error(chalk.dim(sanitize(line)))
+        }
+      }
       process.exit(1)
     }
     throw error

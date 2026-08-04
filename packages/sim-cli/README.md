@@ -107,6 +107,11 @@ Settings → API keys.
 
 ## Commands
 
+Plural resource names are canonical, but every plural top-level resource group
+also accepts its singular form: for example, `sim table list`,
+`sim file download`, and `sim workflow get` are equivalent to their plural
+spellings.
+
 ```bash
 sim workflows list [--folder <id>] [--deployed] [--limit <n>]
 sim workflows get <id>
@@ -119,9 +124,10 @@ sim logs execution <executionId>
 sim tables list
 sim tables get <tableId>
 sim tables columns <tableId>
-sim tables rows <tableId> [--filter <json>] [--sort <field:dir>…] [--limit <n>]
-sim tables insert <tableId> --data <json>
-sim tables delete-rows <tableId> (--row <id>… | --filter <json>) --yes
+sim tables rows list <tableId> [--limit <n>]
+sim tables rows query <tableId> [--filter <json>] [--sort <json>] [--limit <n>]
+sim tables upsert <tableId> --data <json>
+sim tables rows batch-delete <tableId> (--row <id>… | --filter <json>) --yes
 
 sim files list
 sim files download <fileId> [-o <path>]
@@ -130,7 +136,7 @@ sim files delete <fileId>
 sim knowledge list
 sim knowledge get <id>
 sim knowledge documents <id> [--search <text>]
-sim knowledge search <query> --kb <id>…
+sim knowledge search --query <text> --kb <id>… [--search-mode vector|hybrid]
 ```
 
 ### Filtering table rows
@@ -140,7 +146,7 @@ sim knowledge search <query> --kb <id>…
 grammar is a tree; there's no honest flag encoding for it.
 
 ```bash
-sim tables rows tbl_123 \
+sim tables rows query tbl_123 \
   --filter '{"all":[{"field":"status","op":"eq","value":"open"},
                     {"field":"score","op":"gt","value":10}]}' \
   --sort score:desc --limit 50

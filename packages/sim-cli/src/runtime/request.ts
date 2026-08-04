@@ -169,8 +169,9 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
 
   if (field.kind === 'boolean') return raw === true || raw === 'true'
 
-  if (field.kind === 'enum' && field.values && !field.values.includes(String(raw))) {
-    throw new SimApiError(`--${flagName} must be one of: ${field.values.join(', ')}`, 0)
+  const choices = flag.choices ?? field.values
+  if (choices && !choices.includes(String(raw))) {
+    throw new SimApiError(`--${flagName} must be one of: ${choices.join(', ')}`, 0)
   }
 
   return raw

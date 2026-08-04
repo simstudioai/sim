@@ -91,6 +91,40 @@ function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max)}…`
 }
 
+/** Formats nested validation issues as readable, path-aware lines. */
+export function formatApiErrorDetails(details: unknown): string[] {
+  const issues = new Set<string>()
+
+  const visit = (value: unknown, parentPath: string[] = []): void => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, parentPath))
+      return
+    }
+    if (!value || typeof value !== 'object') return
+
+    const issue = value as Record<string, unknown>
+    const ownPath = Array.isArray(issue.path) ? issue.path.map(String) : []
+    const path = [...parentPath, ...ownPath]
+    const nested = Array.isArray(issue.errors) ? issue.errors : []
+
+    if (nested.length > 0) {
+      visit(nested, path)
+      return
+    }
+    if (typeof issue.message !== 'string' || issue.message === 'Invalid input') return
+
+    issues.add(`${path.length > 0 ? path.join('.') : 'request'}: ${issue.message}`)
+  }
+
+  visit(details)
+  if (issues.size === 0) return [`  details: ${truncate(JSON.stringify(details), 1000)}`]
+
+  const visible = [...issues].slice(0, 8)
+  const lines = ['  details:', ...visible.map((issue) => `    ${issue}`)]
+  if (issues.size > visible.length) lines.push(`    … ${issues.size - visible.length} more issues`)
+  return lines
+}
+
 export class SimClient {
   constructor(private readonly profile: ResolvedProfile) {}
 
@@ -154,13 +188,6 @@ export class SimClient {
       const error = toApiError(response.status, raw)
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.name}`
-      }
-      if (response.status === 404) {
-        // The v2 surface is behind a rollout flag that answers 404 when the
-        // caller is not in the cohort — deliberately indistinguishable from a
-        // missing resource, so the CLI cannot tell which happened. Offered as a
-        // possibility rather than a diagnosis; a plain bad id 404s identically.
-        error.message = `${error.message}\n  If every command returns this, the v2 API may not be enabled for your account yet.`
       }
       throw error
     }

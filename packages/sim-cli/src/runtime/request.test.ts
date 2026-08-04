@@ -144,6 +144,17 @@ describe('repeated flags encode per the field kind, not uniformly', () => {
   })
 })
 
+describe('contract-provided choices', () => {
+  it('validates an enum the generator could not recover', () => {
+    const field: FieldSpec = { kind: 'enum' }
+    const flag = { choices: ['vector', 'hybrid'] } as const
+    expect(coerce('hybrid', field, flag, 'search-mode')).toBe('hybrid')
+    expect(() => coerce('semantic', field, flag, 'search-mode')).toThrow(
+      '--search-mode must be one of: vector, hybrid'
+    )
+  })
+})
+
 describe('JSON flags that name a file', () => {
   const field: FieldSpec = { kind: 'object' }
 

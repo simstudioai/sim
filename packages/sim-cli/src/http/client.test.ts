@@ -1,7 +1,86 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands.js'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
-import { resolvePath, SimApiError } from './client.js'
+import { formatApiErrorDetails, resolvePath, SimApiError, SimClient } from './client.js'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+describe('API errors', () => {
+  it('keeps structured details and does not misdiagnose an ordinary 404', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'NOT_FOUND',
+              message: 'Workflow not found',
+              details: { id: 'missing' },
+            },
+          }),
+          { status: 404 }
+        )
+      )
+    )
+    const client = new SimClient({
+      name: 'default',
+      endpoint: 'https://sim.example',
+      apiKey: 'key',
+      workspaceId: 'ws_1',
+      output: 'json',
+      sources: {
+        endpoint: 'default',
+        apiKey: 'env',
+        workspaceId: 'env',
+        output: 'default',
+      },
+    })
+
+    const request = client.request('/api/v2/workflows/missing')
+    await expect(request).rejects.toMatchObject({
+      message: 'Workflow not found',
+      code: 'NOT_FOUND',
+      details: { id: 'missing' },
+    })
+    await expect(request).rejects.not.toThrow(/v2 API may not be enabled/)
+  })
+
+  it('turns nested validation details into concise path-aware lines', () => {
+    const lines = formatApiErrorDetails([
+      {
+        code: 'invalid_union',
+        path: ['predicate'],
+        message: 'Invalid input',
+        errors: [
+          [
+            {
+              code: 'invalid_union',
+              path: ['all', 0],
+              message: 'Invalid input',
+              errors: [
+                [
+                  {
+                    code: 'invalid_value',
+                    path: ['op'],
+                    message: 'Expected one of eq, ne',
+                  },
+                ],
+              ],
+            },
+          ],
+        ],
+      },
+    ])
+
+    expect(lines).toEqual(['  details:', '    predicate.all.0.op: Expected one of eq, ne'])
+  })
+
+  it('keeps non-validation details as JSON', () => {
+    expect(formatApiErrorDetails({ id: 'missing' })).toEqual(['  details: {"id":"missing"}'])
+  })
+})
 
 describe('resolvePath', () => {
   it('substitutes a path parameter', () => {

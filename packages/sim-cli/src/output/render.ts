@@ -219,8 +219,13 @@ function renderMachine(format: OutputFormat, raw: unknown): string | null {
  * rather than the raw values on purpose: it is a human-ish format for shell
  * plumbing, and a raw ISO timestamp or byte count is worse in that context.
  */
-export function printList<T>(format: OutputFormat, rows: T[], columns: Column<T>[]): void {
-  const machine = renderMachine(format, rows)
+export function printList<T>(
+  format: OutputFormat,
+  rows: T[],
+  columns: Column<T>[],
+  raw: unknown = rows
+): void {
+  const machine = renderMachine(format, raw)
   if (machine !== null) {
     console.log(machine)
     return

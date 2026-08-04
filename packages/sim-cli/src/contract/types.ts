@@ -46,6 +46,8 @@ export interface FlagSpec {
   json?: boolean
   /** Overrides the help text otherwise taken from the OpenAPI description. */
   describe?: string
+  /** Accepted values when the generated descriptor cannot recover an enum. */
+  choices?: readonly string[]
   /**
    * Never expose this field as a flag, and never send it.
    *
@@ -64,7 +66,7 @@ export interface ColumnSpec {
   /** Dot path into the row. Defaults to `header`. */
   path?: string
   /** Rendering hint; `auto` inspects the value. */
-  format?: 'auto' | 'timestamp' | 'bytes' | 'duration' | 'bool' | 'cost'
+  format?: 'auto' | 'timestamp' | 'bytes' | 'duration' | 'bool' | 'cost' | 'count'
 }
 
 export interface CommandSpec {
@@ -79,6 +81,10 @@ export interface CommandSpec {
   flags?: Record<string, FlagSpec>
   /** Columns for table output. Omit on non-list commands to print a record. */
   columns?: ColumnSpec[]
+  /** Fields shown for a single record in human formats. Machine output stays raw. */
+  fields?: ColumnSpec[]
+  /** Dot path to a nested result array rendered as the command's human list. */
+  itemsPath?: string
   /**
    * Require `--yes`. The message should say what is about to be destroyed —
    * the point is that the caller can tell whether they meant it.

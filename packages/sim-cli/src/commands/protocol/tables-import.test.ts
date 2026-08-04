@@ -1,0 +1,110 @@
+import { Command } from 'commander'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildGeneratedCommands } from '../../runtime/build.js'
+import { attachProtocolCommands } from './index.js'
+
+const { mockRequest, output } = vi.hoisted(() => ({
+  mockRequest: vi.fn(),
+  output: { format: 'json' },
+}))
+
+vi.mock('../../context.js', () => ({
+  clientFrom: () => ({
+    client: { request: mockRequest, requireWorkspace: () => 'ws_local' },
+    profile: {
+      workspaceId: 'ws_local',
+      output: output.format,
+      name: 'default',
+      apiKey: 'k',
+      endpoint: 'https://sim.example',
+    },
+  }),
+}))
+
+beforeEach(() => {
+  vi.restoreAllMocks()
+  mockRequest.mockReset()
+  output.format = 'json'
+})
+
+function program(): Command {
+  const root = new Command('sim').exitOverride()
+  for (const group of buildGeneratedCommands()) root.addCommand(group)
+  attachProtocolCommands(root)
+  const override = (command: Command) => {
+    command.exitOverride()
+    command.commands.forEach(override)
+  }
+  override(root)
+  return root
+}
+
+async function runImport(argv: string[]) {
+  await program().parseAsync(['node', 'sim', 'table', 'import', ...argv])
+}
+
+describe('tables import argument guards', () => {
+  it('refuses to guess the source', async () => {
+    await expect(runImport([])).rejects.toThrow(/exactly one of <path>/)
+    await expect(runImport(['f.csv', '--file-id', 'w_1'])).rejects.toThrow(/exactly one of <path>/)
+  })
+
+  it('rejects existing-table flags when creating one', async () => {
+    await expect(runImport(['f.csv', '--mode', 'replace'])).rejects.toThrow(/applies to --table-id/)
+    await expect(runImport(['f.csv', '--mapping', '{}'])).rejects.toThrow(/applies to --table-id/)
+    await expect(runImport(['f.csv', '--create-columns', '{}'])).rejects.toThrow(
+      /applies to --table-id/
+    )
+  })
+
+  it('rejects new-table flags when importing into an existing one', async () => {
+    await expect(runImport(['f.csv', '--table-id', 't', '--name', 'x'])).rejects.toThrow(
+      /--table-id already names the destination/
+    )
+    await expect(runImport(['f.csv', '--table-id', 't', '--folder-id', 'f'])).rejects.toThrow(
+      /--table-id already names the destination/
+    )
+  })
+
+  it('asks for a name when there is no file name to take one from', async () => {
+    await expect(runImport(['--file-id', 'w_1'])).rejects.toThrow(/--name <name>/)
+  })
+
+  it('checks target options before touching the filesystem', async () => {
+    await expect(runImport(['f.csv', '--mode', 'append'])).rejects.toThrow(/applies to --table-id/)
+  })
+
+  it('rejects an invalid import mode before making a request', async () => {
+    await expect(
+      runImport(['--file-id', 'w_1', '--name', 'Customers', '--mode', 'merge'])
+    ).rejects.toThrow(/allowed choices are append, replace/i)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+})
+
+describe('tables import output', () => {
+  it('prints a normalized result without transfer secrets', async () => {
+    mockRequest.mockResolvedValue({
+      data: {
+        id: 'import_1',
+        status: 'queued',
+        tableId: 'table_1',
+        rowsProcessed: 0,
+        error: null,
+        upload: null,
+      },
+    })
+    const logged: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
+
+    await runImport(['--file-id', 'file_1', '--name', 'Customers', '--no-wait'])
+
+    expect(JSON.parse(logged[0])).toEqual({
+      id: 'import_1',
+      status: 'queued',
+      tableId: 'table_1',
+      rowsProcessed: 0,
+    })
+    expect(logged[0]).not.toContain('uploadToken')
+  })
+})

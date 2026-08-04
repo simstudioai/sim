@@ -185,6 +185,7 @@ export function whoamiCommand(): Command {
 
 export function profilesCommand(): Command {
   return new Command('profiles')
+    .alias('profile')
     .description('List the profiles defined in the config and credentials files')
     .action((_options: unknown, command: Command) => {
       const profiles = listProfiles()
