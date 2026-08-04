@@ -693,7 +693,7 @@ export const Panel = memo(function Panel() {
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button className='size-[30px] rounded-[5px]'>
-                    <MoreHorizontal />
+                    <MoreHorizontal className='size-[14px]' />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='start' side='bottom' sideOffset={8}>
