@@ -1019,7 +1019,6 @@ export function Knowledge() {
             onChange={(value) => setConnectorFilter(value === 'all' ? [] : [value])}
             align='start'
             fullWidth
-            flush
           />
         </div>
         <div className='flex flex-col gap-2'>
@@ -1041,7 +1040,6 @@ export function Knowledge() {
             onChange={(value) => setContentFilter(value === 'all' ? [] : [value])}
             align='start'
             fullWidth
-            flush
           />
         </div>
         {memberOptions.length > 0 && (
@@ -1068,7 +1066,6 @@ export function Knowledge() {
               searchPlaceholder='Search members...'
               align='start'
               fullWidth
-              flush
             />
           </div>
         )}

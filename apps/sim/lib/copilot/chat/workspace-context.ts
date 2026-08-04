@@ -6,17 +6,11 @@ import {
   mcpServers,
   userTableDefinitions,
   workflow,
-  workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import type {
-  VfsSnapshotV1,
-  VfsSnapshotV1Job,
-  VfsSnapshotV1Workflow,
-} from '@/lib/copilot/generated/vfs-snapshot-v1'
+import type { VfsSnapshotV1, VfsSnapshotV1Workflow } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import {
@@ -82,15 +76,6 @@ export interface WorkspaceMdData {
   customBlocks?: Array<{ type: string; name: string; description?: string }>
   mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
   skills?: Array<{ id: string; name: string; description: string }>
-  jobs?: Array<{
-    id: string
-    title: string | null
-    prompt: string
-    cronExpression: string | null
-    status: string
-    lifecycle: string
-    sourceTaskName: string | null
-  }>
 }
 
 /**
@@ -297,22 +282,6 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
     )
   }
 
-  if (data.jobs && data.jobs.length > 0) {
-    const lines = [...data.jobs]
-      .sort((a, b) => stableCompare(a.title || a.id, b.title || b.id) || stableCompare(a.id, b.id))
-      .map((j) => {
-        const displayName = j.title || j.id
-        let line = `- **${displayName}** (${j.id}) — ${j.status}`
-        if (j.lifecycle !== 'persistent') line += ` [${j.lifecycle}]`
-        if (j.cronExpression) line += `, cron: ${j.cronExpression}`
-        if (j.sourceTaskName) line += `, task: ${j.sourceTaskName}`
-        const promptPreview = j.prompt.length > 80 ? truncate(j.prompt, 77) : j.prompt
-        line += `\n  ${promptPreview}`
-        return line
-      })
-    sections.push(`## Jobs (${data.jobs.length})\n${lines.join('\n')}`)
-  }
-
   return sections.join('\n\n')
 }
 
@@ -360,7 +329,6 @@ async function buildWorkspaceMdData(
       customTools,
       mcpServerRows,
       skillRows,
-      jobRows,
       customBlockSummaries,
     ] = await Promise.all([
       getUsersWithPermissions(workspaceId),
@@ -433,25 +401,6 @@ async function buildWorkspaceMdData(
         .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt))),
 
       listSkillsForUser({ workspaceId, userId, includeBuiltins: false, workspaceAccess }),
-
-      db
-        .select({
-          id: workflowSchedule.id,
-          jobTitle: workflowSchedule.jobTitle,
-          prompt: workflowSchedule.prompt,
-          cronExpression: workflowSchedule.cronExpression,
-          status: workflowSchedule.status,
-          lifecycle: workflowSchedule.lifecycle,
-          sourceTaskName: workflowSchedule.sourceTaskName,
-        })
-        .from(workflowSchedule)
-        .where(
-          and(
-            eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-            eq(workflowSchedule.sourceType, 'job'),
-            isNull(workflowSchedule.archivedAt)
-          )
-        ),
 
       listCustomBlockSummariesForWorkspace(workspaceId),
     ])
@@ -536,17 +485,6 @@ async function buildWorkspaceMdData(
       customBlocks: customBlockSummaries,
       mcpServers: mcpServerRows,
       skills: skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description })),
-      jobs: jobRows
-        .filter((j) => j.status !== 'completed')
-        .map((j) => ({
-          id: j.id,
-          title: j.jobTitle,
-          prompt: j.prompt || '',
-          cronExpression: j.cronExpression,
-          status: j.status,
-          lifecycle: j.lifecycle,
-          sourceTaskName: j.sourceTaskName,
-        })),
     }
   } catch (err) {
     logger.error('Failed to build workspace data', {
@@ -601,19 +539,6 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
     ...(wf.isDeployed ? { isDeployed: true } : {}),
     ...(wf.folderPath ? { folderPath: wf.folderPath } : {}),
   }))
-  const jobs: VfsSnapshotV1Job[] = (data.jobs ?? [])
-    .filter((j) => j.status !== 'completed')
-    .map((j) => ({
-      id: j.id,
-      ...(j.title ? { title: j.title } : {}),
-      // Match WORKSPACE.md's preview truncation — full prompts are large,
-      // volatile-ish, and readable on demand at jobs/{title}/meta.json.
-      ...(j.prompt ? { prompt: j.prompt.length > 80 ? truncate(j.prompt, 77) : j.prompt } : {}),
-      ...(j.cronExpression ? { cronExpression: j.cronExpression } : {}),
-      ...(j.status ? { status: j.status } : {}),
-      ...(j.lifecycle ? { lifecycle: j.lifecycle } : {}),
-      ...(j.sourceTaskName ? { sourceTaskName: j.sourceTaskName } : {}),
-    }))
   return {
     ...(data.workspace
       ? {
@@ -675,7 +600,6 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
       name: s.name,
       ...(s.description ? { description: s.description } : {}),
     })),
-    jobs,
   }
 }
 

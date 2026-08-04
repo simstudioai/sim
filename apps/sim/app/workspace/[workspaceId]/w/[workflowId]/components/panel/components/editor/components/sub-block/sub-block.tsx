@@ -1,14 +1,14 @@
 import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
-import { isEqual } from 'es-toolkit'
 import {
-  AlertTriangle,
   ArrowLeftRight,
   ArrowUp,
   Check,
   Clipboard,
-  ExternalLink,
-} from 'lucide-react'
+  SquareArrowUpRight,
+  TriangleAlert,
+} from '@sim/emcn/icons'
+import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import {
@@ -263,7 +263,7 @@ const renderLabel = (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <span className='inline-flex'>
-                  <AlertTriangle className='size-3 flex-shrink-0 cursor-pointer text-destructive' />
+                  <TriangleAlert className='size-3 flex-shrink-0 cursor-pointer text-destructive' />
                 </span>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
@@ -364,7 +364,7 @@ const renderLabel = (
                 onClick={externalLink?.onClick}
                 aria-label={externalLink?.tooltip}
               >
-                <ExternalLink className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
+                <SquareArrowUpRight className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>

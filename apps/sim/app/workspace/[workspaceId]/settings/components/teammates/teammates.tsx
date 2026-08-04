@@ -36,7 +36,7 @@ import {
   useWorkspacePermissionsQuery,
   useWorkspacesQuery,
 } from '@/hooks/queries/workspace'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useWorkspaceInvitePolicy } from '@/hooks/use-workspace-invite-policy'
 
 const ROLE_OPTIONS = [
   { value: 'read', label: 'Read' },
@@ -90,7 +90,7 @@ export function Teammates() {
 
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { isInvitationsDisabled: isInvitationsDisabledByConfig } = usePermissionConfig()
+  const { inviteDisabledReason, isInvitationsDisabled } = useWorkspaceInvitePolicy(workspaceId)
 
   const resendInvitation = useResendWorkspaceInvitation()
   const cancelInvitation = useCancelWorkspaceInvitation()
@@ -104,8 +104,6 @@ export function Teammates() {
   })
 
   const activeWorkspace = workspaces?.find((workspace) => workspace.id === workspaceId)
-  const inviteDisabledReason = activeWorkspace?.inviteDisabledReason ?? null
-  const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
 
   const upgradeHref = buildUpgradeHref(workspaceId, 'seats')
 

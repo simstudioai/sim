@@ -12,10 +12,10 @@ import {
   SecretInput,
   Wizard,
 } from '@sim/emcn'
+import { Loader } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { Loader2 } from 'lucide-react'
 import { SlackIcon } from '@/components/icons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -431,7 +431,7 @@ function StepDone({ pending, created, error, onRetry }: StepDoneProps) {
   if (pending) {
     return (
       <div className='flex flex-col items-center gap-3 py-10 text-center'>
-        <Loader2 className='size-6 animate-spin text-[var(--text-muted)]' />
+        <Loader className='size-6 animate-spin text-[var(--text-muted)]' />
         <p className='text-[var(--text-secondary)] text-sm'>Verifying your bot and connecting…</p>
       </div>
     )

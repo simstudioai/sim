@@ -6,7 +6,7 @@
  * Basic usage with folders:
  * ```tsx
  * import { Popover, PopoverAnchor, PopoverBackButton, PopoverContent, PopoverFolder, PopoverItem } from '../../index'
- * import { Workflow, Bot } from 'lucide-react'
+ * import { Workflow } from '@sim/emcn/icons'
  *
  * function MyMenu() {
  *   const [workflows, setWorkflows] = useState([])
@@ -52,8 +52,8 @@
 import * as React from 'react'
 import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { Check, ChevronLeft, ChevronRight, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 
 type PopoverSize = 'sm' | 'md'

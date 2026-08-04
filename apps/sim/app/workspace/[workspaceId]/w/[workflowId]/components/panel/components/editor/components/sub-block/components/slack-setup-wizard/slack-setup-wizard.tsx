@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { Checkbox, cn, Input, Label, SecretInput, Tooltip, Wizard } from '@sim/emcn'
-import { Check, ChevronRight, Clipboard, Info } from 'lucide-react'
+import { Check, ChevronRight, CircleInfo, Clipboard } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
@@ -541,7 +541,7 @@ function CapabilityRow({ blockId, capability, checked, disabled }: CapabilityRow
       </Label>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+          <CircleInfo className='size-[14px] cursor-default text-[var(--text-muted)]' />
         </Tooltip.Trigger>
         <Tooltip.Content side='top' align='start' className='max-w-xs'>
           <p>{capability.description}</p>

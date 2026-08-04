@@ -20,8 +20,8 @@ import {
   type Integration,
   resolveCredentialDisplay,
 } from '@/lib/integrations'
+import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
-import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
@@ -310,7 +310,7 @@ export function Integrations() {
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type='button' className={chipVariants({ variant: 'filled', flush: true })}>
+                <button type='button' className={chipVariants({ variant: 'filled' })}>
                   <span className='text-[var(--text-body)]'>
                     {selectedCategory === ALL_CATEGORY
                       ? selectedCategory

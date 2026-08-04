@@ -164,7 +164,6 @@ type ChipDropdownProps = ChipDropdownSingleProps | ChipDropdownMultiProps
  *   searchable
  *   searchPlaceholder='Search members...'
  *   fullWidth
- *   flush
  * />
  */
 const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
@@ -181,7 +180,6 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       variant = 'filled',
       active,
       fullWidth,
-      flush,
       'aria-label': ariaLabel,
       'aria-labelledby': ariaLabelledBy,
       id,
@@ -308,7 +306,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
             className={cn(
-              chipVariants({ variant, active, fullWidth, flush }),
+              chipVariants({ variant, active, fullWidth }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,
               className
             )}

@@ -9,10 +9,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useMutation } from '@tanstack/react-query'
 import imageCompression from 'browser-image-compression'
-import { X } from 'lucide-react'
 import Image from 'next/image'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -250,8 +250,8 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Help & support' size='md'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Help &amp; support</ChipModalHeader>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Contact support' size='md'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Contact support</ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
         <button type='submit' hidden disabled={helpMutation.isPending || isProcessing} />

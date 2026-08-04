@@ -152,7 +152,6 @@ export async function renderUsageLimitReachedEmail(params: {
 
 export async function renderScheduleDisabledEmail(params: {
   recipientName?: string
-  kind: 'workflow' | 'job'
   resourceName?: string
   reason: ScheduleDisableReason
   failedCount?: number

@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { ChipConfirmModal, Label, Switch, Tooltip, toast } from '@sim/emcn'
+import { CircleInfo, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
-import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
@@ -323,7 +323,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                         aria-label='About personal API keys'
                         className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
                       >
-                        <Info className='size-[12px]' strokeWidth={2} />
+                        <CircleInfo className='size-[12px]' />
                       </button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top' className='max-w-xs text-small'>

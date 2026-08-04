@@ -2,8 +2,8 @@
 
 import { memo } from 'react'
 import { Blimp } from '@sim/emcn'
+import { Database } from '@sim/emcn/icons'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
-import { Database } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import {
   AgentIcon,

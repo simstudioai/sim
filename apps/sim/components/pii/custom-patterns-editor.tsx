@@ -1,7 +1,7 @@
 'use client'
 
 import { Chip, ChipInput } from '@sim/emcn'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash } from '@sim/emcn/icons'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
@@ -71,7 +71,7 @@ export function CustomPatternsEditor({ patterns, onChange }: CustomPatternsEdito
                 onClick={() => removeRow(index)}
                 className='flex size-[30px] flex-shrink-0 items-center justify-center rounded-md text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-error)]'
               >
-                <Trash2 className='size-[14px]' />
+                <Trash className='size-[14px]' />
               </button>
             </div>
             {error && <span className='text-[var(--text-error)] text-small'>{error}</span>}

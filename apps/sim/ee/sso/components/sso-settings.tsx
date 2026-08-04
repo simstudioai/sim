@@ -14,9 +14,9 @@ import {
   Switch,
   toast,
 } from '@sim/emcn'
+import { ChevronDown, Eye, EyeOff } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, Eye, EyeOff } from 'lucide-react'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'

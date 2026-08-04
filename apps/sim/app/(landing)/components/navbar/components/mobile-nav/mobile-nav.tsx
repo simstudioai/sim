@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ChipLink, cn } from '@sim/emcn'
-import { Menu, X } from 'lucide-react'
+import { Menu, X } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { GithubOutlineIcon } from '@/components/icons'
 import { NAV_MENUS } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
@@ -161,7 +161,6 @@ export function MobileNav({ stars }: MobileNavProps) {
               variant='border'
               href='/login'
               fullWidth
-              flush
               prefetch={false}
               className='h-[40px] justify-center [&>span]:flex-none'
               onClick={() => setOpen(false)}
@@ -172,7 +171,6 @@ export function MobileNav({ stars }: MobileNavProps) {
               variant='primary'
               href={DEMO_HREF}
               fullWidth
-              flush
               className='h-[40px] justify-center [&>span]:flex-none'
               onClick={() => setOpen(false)}
             >

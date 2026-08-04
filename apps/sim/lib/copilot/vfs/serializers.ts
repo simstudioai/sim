@@ -1116,49 +1116,6 @@ export function serializeTriggerOverview(
   return lines.join('\n')
 }
 
-/**
- * Serialize job metadata for VFS jobs/{id}/meta.json
- */
-export function serializeJobMeta(job: {
-  id: string
-  title: string | null
-  prompt: string
-  cronExpression: string | null
-  timezone: string | null
-  status: string
-  lifecycle: string
-  successCondition: string | null
-  maxRuns: number | null
-  runCount: number
-  nextRunAt: Date | null
-  lastRanAt: Date | null
-  sourceTaskName: string | null
-  sourceChatId: string | null
-  createdAt: Date
-}): string {
-  return JSON.stringify(
-    {
-      id: job.id,
-      title: job.title || undefined,
-      prompt: job.prompt,
-      cronExpression: job.cronExpression || undefined,
-      timezone: job.timezone || 'UTC',
-      status: job.status,
-      lifecycle: job.lifecycle,
-      successCondition: job.successCondition || undefined,
-      maxRuns: job.maxRuns ?? undefined,
-      runCount: job.runCount,
-      nextRunAt: job.nextRunAt?.toISOString(),
-      lastRanAt: job.lastRanAt?.toISOString(),
-      sourceTaskName: job.sourceTaskName || undefined,
-      sourceChatId: job.sourceChatId || undefined,
-      createdAt: job.createdAt.toISOString(),
-    },
-    null,
-    2
-  )
-}
-
 export function serializeTaskSession(task: {
   id: string
   title: string

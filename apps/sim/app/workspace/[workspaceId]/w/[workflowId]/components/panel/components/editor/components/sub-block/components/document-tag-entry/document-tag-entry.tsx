@@ -12,8 +12,8 @@ import {
   Label,
   Trash,
 } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'

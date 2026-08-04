@@ -1,3 +1,5 @@
+'use client'
+
 import {
   type ComponentType,
   Fragment,
@@ -29,7 +31,7 @@ import {
   useFloatingTooltip,
   useIsOverflowing,
 } from '@sim/emcn'
-import { ArrowUpLeft } from 'lucide-react'
+import { ArrowUpLeft } from '@sim/emcn/icons'
 import { createPortal } from 'react-dom'
 import { HEADER_ACTION_CLUSTER, TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
 import { orderHeaderActions } from '@/components/settings/settings-header'
@@ -309,10 +311,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
    * rounded-[5px] / justify-center and break chip parity with the static/title
    * crumbs.
    */
-  const triggerClassName = cn(
-    chipVariants({ flush: true }),
-    'group min-w-0 max-w-full justify-start'
-  )
+  const triggerClassName = cn(chipVariants(), 'group min-w-0 max-w-full justify-start')
 
   if (dropdownItems && dropdownItems.length > 0) {
     return (
@@ -459,7 +458,7 @@ function BreadcrumbLocationPopover({
             onMouseEnter={openPopover}
             onMouseLeave={scheduleClose}
             className={cn(
-              chipVariants({ flush: true }),
+              chipVariants(),
               'max-w-none gap-1.5 px-2 transition-colors',
               open && 'relative z-[var(--z-popover)]',
               className
@@ -467,10 +466,7 @@ function BreadcrumbLocationPopover({
           >
             <span className='relative inline-grid size-[16px] shrink-0 place-items-center'>
               <Icon className='col-start-1 row-start-1 size-[16px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
-              <ArrowUpLeft
-                strokeWidth={1.55}
-                className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none'
-              />
+              <ArrowUpLeft className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none' />
             </span>
             {rootBreadcrumb?.label && (
               <span className='shrink-0 truncate text-[var(--text-body)] text-sm'>

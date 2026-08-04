@@ -12,11 +12,19 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@sim/emcn'
-import { Download } from '@sim/emcn/icons'
+import {
+  ArrowDown,
+  ArrowUp,
+  Database,
+  Download,
+  MoreHorizontal,
+  Palette,
+  Pause,
+  Trash,
+} from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import clsx from 'clsx'
-import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -1434,7 +1442,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Clear console'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Trash2 className='h-3.5 w-3.5' />
+                            <Trash className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>

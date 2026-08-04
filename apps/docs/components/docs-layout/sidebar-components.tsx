@@ -56,7 +56,7 @@ const ITEM_BASE =
 const ITEM_ACTIVE_MOBILE = 'bg-[var(--surface-active)] font-medium text-[var(--text-primary)]'
 
 const ITEM_DESKTOP =
-  'lg:mb-[0.0625rem] lg:block lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-[13px] lg:leading-tight'
+  'lg:mb-[0.0625rem] lg:block lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-small lg:leading-tight'
 const ITEM_TEXT = 'lg:text-[var(--text-body)]'
 const ITEM_HOVER = 'lg:hover:bg-[var(--surface-3)]'
 const ITEM_ACTIVE = 'lg:bg-[var(--surface-active)] lg:font-normal lg:text-[var(--text-body)]'
@@ -144,7 +144,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
                 'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
                 'text-[var(--text-muted)] hover:bg-[var(--surface-active)] hover:text-[var(--text-body)]',
                 active && ITEM_ACTIVE_MOBILE,
-                'lg:block lg:flex-1 lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-[13px] lg:leading-tight',
+                'lg:block lg:flex-1 lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-small lg:leading-tight',
                 FOLDER_TEXT,
                 !active && FOLDER_HOVER,
                 active && FOLDER_ACTIVE
@@ -171,7 +171,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
             className={cn(
               'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
               'text-[var(--text-muted)] hover:bg-[var(--surface-active)]',
-              'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-left lg:text-[13px] lg:leading-tight',
+              'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-left lg:text-small lg:leading-tight',
               FOLDER_TEXT,
               FOLDER_HOVER
             )}
@@ -214,7 +214,7 @@ export function SidebarSeparator({ item }: { item: Separator }) {
       <p
         className={cn(
           'font-medium text-[var(--text-muted)] text-xs',
-          'lg:font-semibold lg:text-[10px] lg:text-[var(--text-muted)] lg:uppercase lg:tracking-[0.06em]'
+          'lg:font-semibold lg:text-[var(--text-muted)] lg:text-micro lg:uppercase lg:tracking-[0.06em]'
         )}
       >
         {item.name}

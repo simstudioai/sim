@@ -29,9 +29,18 @@ const WORKFLOW_EXECUTION_CLAIM_PREFIX = 'workflow:'
 // can evaluate modules before instrumentation-node.ts finishes).
 const getAsyncRunsTracer = () => trace.getTracer('sim-copilot-async-runs', '1.0.0')
 
-// Wrap an async DB op in a client-kind span with canonical `db.*` attrs.
-// Cancellation is routed through `markSpanForError` so aborts record the
-// exception event but don't paint spans red.
+/**
+ * Wrap an async DB op in a client-kind span with canonical `db.*` attrs.
+ * Cancellation is routed through `markSpanForError` so aborts record the
+ * exception event but don't paint spans red.
+ *
+ * Every caller writes `return await withDbSpan(...)`. The `await` is
+ * load-bearing, not redundant: Next 16.3.0's Turbopack optimizer models a bare
+ * `return <asyncCall>()` tail call as returning the promise object, then
+ * propagates that always-truthy fact through the caller's `await`. It deleted
+ * the entire insert path from `upsertAsyncToolCall` in the shipped bundle
+ * because `if (existing) return existing` looked always-taken.
+ */
 async function withDbSpan<T>(
   name: string,
   op: string,
@@ -74,7 +83,7 @@ export interface CreateRunSegmentInput {
 }
 
 export async function createRunSegment(input: CreateRunSegmentInput) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsCreateRunSegment,
     'INSERT',
     'copilot_runs',
@@ -122,7 +131,7 @@ export async function updateRunStatus(
     requestContext?: Record<string, unknown>
   } = {}
 ) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsUpdateRunStatus,
     'UPDATE',
     'copilot_runs',
@@ -150,7 +159,7 @@ export async function updateRunStatus(
 }
 
 async function getLatestRunForExecution(executionId: string) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsGetLatestForExecution,
     'SELECT',
     'copilot_runs',
@@ -183,7 +192,7 @@ export async function getLatestRunForStream(streamId: string, userId?: string) {
 }
 
 export async function getRunSegment(runId: string) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsGetRunSegment,
     'SELECT',
     'copilot_runs',
@@ -213,7 +222,7 @@ async function createRunCheckpoint(input: {
   agentState: Record<string, unknown>
   providerRequest: Record<string, unknown>
 }) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsCreateRunCheckpoint,
     'INSERT',
     'copilot_run_checkpoints',
@@ -247,7 +256,7 @@ export async function upsertAsyncToolCall(input: {
   status?: CopilotAsyncToolStatus
   sealedContext?: AsyncCompletionData
 }) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsUpsertAsyncToolCall,
     'UPSERT',
     'copilot_async_tool_calls',
@@ -296,7 +305,7 @@ export async function upsertAsyncToolCall(input: {
 }
 
 export async function getAsyncToolCall(toolCallId: string) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsGetAsyncToolCall,
     'SELECT',
     'copilot_async_tool_calls',
@@ -324,7 +333,7 @@ async function markAsyncToolStatus(
   } = {},
   expectedStatuses?: CopilotAsyncToolStatus[]
 ) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
     'copilot_async_tool_calls',
@@ -382,7 +391,7 @@ export function getClaimedWorkflowExecutionId(claimedBy: string | null | undefin
 
 export async function claimWorkflowToolExecution(toolCallId: string, executionId: string) {
   const claimedBy = `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
     'copilot_async_tool_calls',
@@ -426,7 +435,7 @@ export async function claimWorkflowToolExecution(toolCallId: string, executionId
 
 export async function releaseWorkflowToolExecutionClaim(toolCallId: string, executionId: string) {
   const claimedBy = `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsReleaseClaim,
     'UPDATE',
     'copilot_async_tool_calls',
@@ -464,7 +473,7 @@ export async function releaseWorkflowToolExecutionClaim(toolCallId: string, exec
  * cannot click, type, submit, or navigate twice.
  */
 export async function claimPendingAsyncToolCall(toolCallId: string, claimedBy: string) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
     'copilot_async_tool_calls',
@@ -545,7 +554,7 @@ export async function replaceTerminalAsyncToolCallResult(input: {
   result: AsyncCompletionData | null
   error: string | null
 }) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
     'copilot_async_tool_calls',
@@ -588,7 +597,7 @@ export async function recordToolPermissionDecision(
   toolCallId: string,
   decision: CopilotToolPermissionDecision
 ) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
     'copilot_async_tool_calls',
@@ -619,7 +628,7 @@ export async function recordToolPermissionDecision(
 }
 
 async function listAsyncToolCallsForRun(runId: string) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsListForRun,
     'SELECT',
     'copilot_async_tool_calls',
@@ -635,7 +644,7 @@ async function listAsyncToolCallsForRun(runId: string) {
 
 export async function getAsyncToolCalls(toolCallIds: string[]) {
   if (toolCallIds.length === 0) return []
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsGetMany,
     'SELECT',
     'copilot_async_tool_calls',
@@ -649,7 +658,7 @@ export async function getAsyncToolCalls(toolCallIds: string[]) {
 }
 
 export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: string) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsClaimCompleted,
     'UPDATE',
     'copilot_async_tool_calls',
@@ -679,7 +688,7 @@ export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: 
 }
 
 async function releaseCompletedAsyncToolClaim(toolCallId: string, workerId: string) {
-  return withDbSpan(
+  return await withDbSpan(
     TraceSpan.CopilotAsyncRunsReleaseClaim,
     'UPDATE',
     'copilot_async_tool_calls',

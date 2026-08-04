@@ -274,7 +274,7 @@ export function FilesHeroLoop() {
           <div
             className={cn(
               ROW_GRID,
-              'h-10 flex-shrink-0 items-center shadow-[inset_0_-1px_0_var(--border)]'
+              'h-10 flex-shrink-0 items-center border-[var(--border)] border-b'
             )}
           >
             {COL_HEADERS.map((header) => (

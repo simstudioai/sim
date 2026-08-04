@@ -481,14 +481,13 @@ export function Billing({
             <ChipLink
               href={upgradeHref}
               variant='border-shadow'
-              flush
               onMouseEnter={prefetchUpgrade}
               onFocus={prefetchUpgrade}
             >
               {explorePlansLabel}
             </ChipLink>
           ) : (
-            <Chip variant='border-shadow' flush disabled>
+            <Chip variant='border-shadow' disabled>
               {explorePlansLabel}
             </Chip>
           ))}
@@ -580,7 +579,6 @@ export function Billing({
             <div className='flex items-center justify-between'>
               <span className='text-[var(--text-body)] text-small'>Payment method</span>
               <Chip
-                flush
                 disabled={!canManageBilling || openBillingPortal.isPending}
                 onClick={handleOpenBillingPortal}
               >
@@ -596,7 +594,6 @@ export function Billing({
                 {isCancelledAtPeriodEnd ? (
                   <Chip
                     variant='primary'
-                    flush
                     disabled={!canManageBilling}
                     onClick={handleRestoreSubscription}
                   >
@@ -605,7 +602,6 @@ export function Billing({
                 ) : (
                   <Chip
                     variant='destructive'
-                    flush
                     disabled={!canManageBilling}
                     onClick={handleCancelSubscription}
                   >

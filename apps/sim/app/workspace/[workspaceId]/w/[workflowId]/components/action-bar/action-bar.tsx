@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react'
-import { Button, cn, Duplicate, PlayOutline, Tooltip, Trash2, toast } from '@sim/emcn'
-import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Lock, LogOut, Unlock } from 'lucide-react'
+import { Button, cn, Duplicate, PlayOutline, Tooltip, Trash, toast } from '@sim/emcn'
+import { ArrowLeftRight, ArrowUpDown, Ban, Circle, Lock, LogOut, Unlock } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -210,7 +210,7 @@ export const ActionBar = memo(
                   disabled || isLocked || isParentLocked || (!isEnabled && isParentDisabled)
                 }
               >
-                {isEnabled ? <Circle className={ICON_SIZE} /> : <CircleOff className={ICON_SIZE} />}
+                {isEnabled ? <Circle className={ICON_SIZE} /> : <Ban className={ICON_SIZE} />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
@@ -345,7 +345,7 @@ export const ActionBar = memo(
               className={ACTION_BUTTON_STYLES}
               disabled={disabled || isLocked || isParentLocked}
             >
-              <Trash2 className={ICON_SIZE} />
+              <Trash className={ICON_SIZE} />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>

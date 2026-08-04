@@ -10,8 +10,8 @@ import {
   ModalTitle,
   ModalTrigger,
 } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'

@@ -73,7 +73,6 @@ export function SocialLoginButtons({
   const githubButton = (
     <Chip
       fullWidth
-      flush
       leftIcon={GithubIcon}
       className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
       disabled={!githubAvailable || isGithubLoading}
@@ -86,7 +85,6 @@ export function SocialLoginButtons({
   const googleButton = (
     <Chip
       fullWidth
-      flush
       leftIcon={GoogleIcon}
       className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
       disabled={!googleAvailable || isGoogleLoading}
@@ -99,7 +97,6 @@ export function SocialLoginButtons({
   const microsoftButton = (
     <Chip
       fullWidth
-      flush
       leftIcon={MicrosoftIcon}
       className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
       disabled={!microsoftAvailable || isMicrosoftLoading}

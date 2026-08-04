@@ -1,5 +1,5 @@
+import { Building } from '@sim/emcn/icons'
 import { filterUndefined } from '@sim/utils/object'
-import { Building2 } from 'lucide-react'
 import { normalizeDomain, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
@@ -15,7 +15,7 @@ export const companyInfoEnrichment: EnrichmentConfig = {
   id: 'company-info',
   name: 'Company Info',
   description: "Look up a company's size and description from its domain.",
-  icon: Building2,
+  icon: Building,
   inputs: [{ id: 'domain', name: 'Company domain', type: 'string', required: true }],
   outputs: [
     { id: 'employeeCount', name: 'employee count', type: 'string' },
