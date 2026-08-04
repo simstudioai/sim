@@ -263,19 +263,13 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Run one row’s enrichment group',
   },
 
-  // Transfers are a handshake: create, request part URLs, send the parts, then
-  // complete. Unlike `files upload` there is no single command driving this yet
-  // — the import body carries source/target/mapping choices a one-liner cannot
-  // express — so each step stays reachable under a name that says what it is.
-  createTableImport: { command: 'tables imports create' },
-  createTableImportPartUrls: {
-    command: 'tables imports parts',
-    describe: 'Sign upload URLs for a batch of parts',
-  },
-  completeTableImport: {
-    command: 'tables imports complete',
-    describe: 'Finish an import once every part is uploaded',
-  },
+  // The handshake behind `sim tables import`. Its halfway states hold storage
+  // and a half-sent import is not something to leave reachable, so the steps
+  // stay hidden — unlike `get` and `cancel`, which are useful on their own for
+  // an import already running.
+  createTableImport: { hidden: true },
+  createTableImportPartUrls: { hidden: true },
+  completeTableImport: { hidden: true },
   cancelTableImport: { command: 'tables imports cancel' },
   cancelTableExport: { command: 'tables exports cancel' },
   tableExportDownload: {

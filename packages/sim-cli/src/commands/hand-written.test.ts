@@ -1,8 +1,16 @@
 import { createWriteStream, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { streamToFile } from './hand-written.js'
+import { Command } from 'commander'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { attachHandWritten, streamToFile } from './hand-written.js'
+
+vi.mock('../context.js', () => ({
+  clientFrom: () => ({
+    client: { request: vi.fn(), requireWorkspace: () => 'ws_local' },
+    profile: { workspaceId: 'ws_local', output: 'json', name: 'default', apiKey: 'k' },
+  }),
+}))
 
 let dir: string
 
@@ -58,4 +66,49 @@ describe('streamToFile', () => {
       ).rejects.toThrow(/Could not write/)
     }
   )
+})
+
+describe('tables import argument guards', () => {
+  function importCommand(): Command {
+    const root = new Command('sim').exitOverride()
+    attachHandWritten(root)
+    const walk = (command: Command) => {
+      command.exitOverride()
+      command.commands.forEach(walk)
+    }
+    walk(root)
+    return root
+  }
+
+  async function run(argv: string[]) {
+    await importCommand().parseAsync(['node', 'sim', 'tables', 'import', ...argv])
+  }
+
+  it('refuses to guess the target', async () => {
+    // Defaulting to a new table would turn a forgotten `--to-table` into a
+    // silent second copy of the data.
+    await expect(run(['f.csv'])).rejects.toThrow(/exactly one of --new-table/)
+    await expect(run(['f.csv', '--new-table', 'a', '--to-table', 't'])).rejects.toThrow(
+      /exactly one of --new-table/
+    )
+  })
+
+  it('refuses to guess the source', async () => {
+    await expect(run(['--new-table', 'a'])).rejects.toThrow(/exactly one of <path>/)
+    await expect(run(['f.csv', '--new-table', 'a', '--file-id', 'w_1'])).rejects.toThrow(
+      /exactly one of <path>/
+    )
+  })
+
+  it('names the flag when mapping is paired with a new table', async () => {
+    // The server rejects this too, but as a message about the request body.
+    await expect(run(['f.csv', '--new-table', 'a', '--mapping', '{}'])).rejects.toThrow(
+      /--to-table only/
+    )
+  })
+
+  it('checks all of that before touching the filesystem', async () => {
+    // `f.csv` does not exist; a "cannot read" error would mean a guard ran late.
+    await expect(run(['f.csv'])).rejects.toThrow(/exactly one of/)
+  })
 })

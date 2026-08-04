@@ -8,6 +8,7 @@ import { clientFrom } from '../context.js'
 import type { QueryRowsResponse } from '../generated/v2-api.js'
 import { SimApiError, type SimClient } from '../http/client.js'
 import { type Column, printList, sanitize, text } from '../output/render.js'
+import { coerce } from '../runtime/request.js'
 
 /**
  * Commands the generated runtime cannot produce.
@@ -155,12 +156,27 @@ interface UploadPartUrl {
   headers: Record<string, string>
 }
 
-interface FileUpload {
-  id: string
-  size: number
+/**
+ * What a transfer needs to send its bytes, however it was started.
+ *
+ * File uploads and table imports are the same handshake against different
+ * paths — identical part-URL and complete bodies, the same `upload-token`
+ * header — so one implementation drives both. `basePath` is the transfer's own
+ * resource; `/parts` and `/complete` hang off it and DELETE aborts it.
+ */
+interface Transfer {
+  basePath: string
+  uploadToken: string
   partSize: number
   partCount: number
+  size: number
+}
+
+interface FileUpload {
+  id: string
   uploadToken: string
+  partSize: number
+  partCount: number
   file: { id: string } | null
 }
 
@@ -176,38 +192,38 @@ const PART_URL_BATCH = 100
  * slow connection reached them.
  *
  * Parts go out one at a time. Concurrency would be faster, but a failure
- * mid-flight has to abort the whole upload anyway, and a sequential loop makes
- * "which part failed" unambiguous.
+ * mid-flight has to abort the whole transfer anyway, and a sequential loop
+ * makes "which part failed" unambiguous.
  */
 async function uploadParts(
   client: SimClient,
   workspaceId: string,
-  upload: FileUpload,
+  transfer: Transfer,
   blob: Blob
 ): Promise<Array<{ partNumber: number; etag?: string }>> {
   const completed: Array<{ partNumber: number; etag?: string }> = []
 
-  for (let first = 1; first <= upload.partCount; first += PART_URL_BATCH) {
+  for (let first = 1; first <= transfer.partCount; first += PART_URL_BATCH) {
     const partNumbers = []
-    for (let n = first; n < first + PART_URL_BATCH && n <= upload.partCount; n++) {
+    for (let n = first; n < first + PART_URL_BATCH && n <= transfer.partCount; n++) {
       partNumbers.push(n)
     }
 
     const signed = await client.request<{ data: { parts: UploadPartUrl[] } }>(
-      `/api/v2/files/uploads/${encodeURIComponent(upload.id)}/parts`,
+      `${transfer.basePath}/parts`,
       {
         method: 'POST',
         query: { workspaceId },
-        headers: { 'upload-token': upload.uploadToken },
+        headers: { 'upload-token': transfer.uploadToken },
         body: { partNumbers },
       }
     )
 
     for (const part of signed.data.parts) {
-      const start = (part.partNumber - 1) * upload.partSize
+      const start = (part.partNumber - 1) * transfer.partSize
       // `Blob.slice` is a view over the file on disk, so only the part being
       // sent is ever read — the point of not buffering the upload.
-      const chunk = blob.slice(start, Math.min(start + upload.partSize, upload.size))
+      const chunk = blob.slice(start, Math.min(start + transfer.partSize, transfer.size))
 
       // boundary-raw-fetch: storage-signed URL on another origin, not the API
       const response = await fetch(part.url, {
@@ -232,6 +248,129 @@ async function uploadParts(
   return completed
 }
 
+/**
+ * Runs a started transfer to completion: send the parts, then complete it.
+ *
+ * Anything that fails in between aborts the transfer, because a half-finished
+ * one holds storage the server would otherwise keep until it expires. A failed
+ * abort is swallowed — the original failure is what the caller needs to see.
+ */
+async function finishTransfer<T>(
+  client: SimClient,
+  workspaceId: string,
+  transfer: Transfer,
+  path: string
+): Promise<T> {
+  try {
+    const blob = await openAsBlob(path)
+    const parts = await uploadParts(client, workspaceId, transfer, blob)
+
+    const completed = await client.request<{ data: T }>(`${transfer.basePath}/complete`, {
+      method: 'POST',
+      query: { workspaceId },
+      headers: { 'upload-token': transfer.uploadToken },
+      body: { parts },
+    })
+    return completed.data
+  } catch (error) {
+    await client
+      .request(transfer.basePath, {
+        method: 'DELETE',
+        query: { workspaceId },
+        headers: { 'upload-token': transfer.uploadToken },
+      })
+      .catch(() => undefined)
+    throw error
+  }
+}
+
+interface TableImport {
+  id: string
+  status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
+  tableId: string | null
+  rowsProcessed: number
+  error: string | null
+  upload: { uploadToken: string; partSize: number; partCount: number } | null
+}
+
+interface ImportOptions {
+  newTable?: string
+  toTable?: string
+  mode: string
+  folderId?: string
+  fileId?: string
+  mapping?: string
+  createColumns?: string
+  timezone?: string
+  /** commander sets this false for `--no-wait`. */
+  wait: boolean
+}
+
+/** How often to ask an in-progress import where it got to. */
+const IMPORT_POLL_MS = 1500
+
+/** Statuses the server will not move away from. */
+const IMPORT_SETTLED = new Set(['completed', 'failed', 'canceled', 'expired'])
+
+/**
+ * Parses a JSON flag through the same path the generated commands use, so
+ * `@file` and `@-` work here too rather than only on generated flags.
+ */
+function jsonFlag(raw: string, flagName: string): unknown {
+  return coerce(raw, { kind: 'object' }, { json: true }, flagName)
+}
+
+/**
+ * Polls an import until it settles.
+ *
+ * The transfer only queues the work: rows are parsed server-side afterwards, so
+ * a command that returned at `complete` would report success for an import that
+ * goes on to fail on a malformed row.
+ */
+async function watchImport(
+  client: SimClient,
+  workspaceId: string,
+  job: TableImport
+): Promise<TableImport> {
+  let current = job
+  let reported = -1
+
+  while (!IMPORT_SETTLED.has(current.status)) {
+    await new Promise((resolve) => setTimeout(resolve, IMPORT_POLL_MS))
+    const next = await client.request<{ data: TableImport }>(
+      `/api/v2/tables/imports/${encodeURIComponent(current.id)}`,
+      { query: { workspaceId } }
+    )
+    current = next.data
+
+    // Only on a terminal, and only when it moves: the line rewrites itself with
+    // a carriage return, which in a redirected log is just escape noise.
+    if (process.stderr.isTTY && current.rowsProcessed !== reported) {
+      reported = current.rowsProcessed
+      process.stderr.write(`\r${chalk.dim(`${current.status}… ${reported} rows`)}\u001b[K`)
+    }
+  }
+
+  if (process.stderr.isTTY && reported >= 0) process.stderr.write('\r\u001b[K')
+  return current
+}
+
+/** Size and name checks every local-file transfer needs before starting one. */
+async function localFile(path: string, override?: string): Promise<{ name: string; size: number }> {
+  let size: number
+  try {
+    const stats = await stat(path)
+    if (stats.isDirectory()) throw new SimApiError(`${path} is a directory`, 0)
+    size = stats.size
+  } catch (error) {
+    if (error instanceof SimApiError) throw error
+    throw new SimApiError(`Cannot read ${path}: ${(error as Error).message}`, 0)
+  }
+  // A zero-byte transfer has no parts to send; the server cannot accept one.
+  if (size === 0) throw new SimApiError(`${path} is empty`, 0)
+  return { name: override ?? basename(path), size }
+}
+
 export function attachHandWritten(program: Command): void {
   // ── files upload ── a presigned multipart handshake, not one request ──────
   group(program, 'files')
@@ -243,22 +382,7 @@ export function attachHandWritten(program: Command): void {
       async (path: string, options: { folderId?: string; name?: string }, command: Command) => {
         const { client } = clientFrom(command)
         const workspaceId = client.requireWorkspace()
-
-        let size: number
-        try {
-          const stats = await stat(path)
-          if (stats.isDirectory()) throw new SimApiError(`${path} is a directory`, 0)
-          size = stats.size
-        } catch (error) {
-          if (error instanceof SimApiError) throw error
-          throw new SimApiError(`Cannot read ${path}: ${(error as Error).message}`, 0)
-        }
-
-        // The server sizes its own parts, but it cannot reject an empty file any
-        // more cheaply than we can: a zero-byte upload has no parts to send.
-        if (size === 0) throw new SimApiError(`${path} is empty`, 0)
-
-        const name = options.name ?? basename(path)
+        const { name, size } = await localFile(path, options.name)
 
         const created = await client.request<{ data: FileUpload }>('/api/v2/files/uploads', {
           method: 'POST',
@@ -272,38 +396,128 @@ export function attachHandWritten(program: Command): void {
         })
         const upload = created.data
 
-        // Any failure past this point leaves an upload holding storage, so the
-        // rest runs under an abort that the server also uses to release it.
-        try {
-          const blob = await openAsBlob(path)
-          const parts = await uploadParts(client, workspaceId, upload, blob)
+        const completed = await finishTransfer<FileUpload>(
+          client,
+          workspaceId,
+          {
+            basePath: `/api/v2/files/uploads/${encodeURIComponent(upload.id)}`,
+            uploadToken: upload.uploadToken,
+            partSize: upload.partSize,
+            partCount: upload.partCount,
+            size,
+          },
+          path
+        )
 
-          const completed = await client.request<{ data: FileUpload }>(
-            `/api/v2/files/uploads/${encodeURIComponent(upload.id)}/complete`,
-            {
-              method: 'POST',
-              query: { workspaceId },
-              headers: { 'upload-token': upload.uploadToken },
-              body: { parts },
-            }
-          )
-          console.log(
-            chalk.green(`✓ Uploaded ${name} (${completed.data.file?.id ?? completed.data.id})`)
-          )
-        } catch (error) {
-          await client
-            .request(`/api/v2/files/uploads/${encodeURIComponent(upload.id)}`, {
-              method: 'DELETE',
-              query: { workspaceId },
-              headers: { 'upload-token': upload.uploadToken },
-            })
-            // The original failure is what the caller needs; a failed cleanup
-            // must not replace it with a message about the cleanup.
-            .catch(() => undefined)
-          throw error
-        }
+        console.log(chalk.green(`✓ Uploaded ${name} (${completed.file?.id ?? completed.id})`))
       }
     )
+
+  // ── tables import ── a transfer, then an async job to watch ──────────────
+  const tablesGroup = group(program, 'tables')
+  tablesGroup
+    .command('import [path]')
+    .description('Import a CSV into a new or existing table')
+    .option('--new-table <name>', 'Create a table with this name')
+    .option('--to-table <tableId>', 'Import into an existing table')
+    .option('--mode <append|replace>', 'How to write into an existing table', 'append')
+    .option('--folder-id <id>', 'Folder for a new table')
+    .option('--file-id <id>', 'Import a file already in the workspace instead of a local path')
+    .option('--mapping <json|@file>', 'Column mapping (existing table only)')
+    .option('--create-columns <json|@file>', 'Columns to create (existing table only)')
+    .option('--timezone <iana>', 'Timezone for date parsing, e.g. America/New_York')
+    .option('--no-wait', 'Return once the import is queued instead of watching it')
+    .action(async (path: string | undefined, options: ImportOptions, command: Command) => {
+      const { client } = clientFrom(command)
+      const workspaceId = client.requireWorkspace()
+
+      // Both target choices are stated, never inferred. Defaulting to a new
+      // table would turn a forgotten `--to-table` into a second copy of the
+      // data, which is not something to discover afterwards.
+      if (Boolean(options.newTable) === Boolean(options.toTable)) {
+        throw new SimApiError('Pass exactly one of --new-table <name> or --to-table <id>', 0)
+      }
+      if (Boolean(path) === Boolean(options.fileId)) {
+        throw new SimApiError('Pass exactly one of <path> or --file-id <id>', 0)
+      }
+      // The server rejects these against a new table; saying so here names the
+      // flag rather than returning a validation error about the request body.
+      if (options.newTable && (options.mapping || options.createColumns)) {
+        throw new SimApiError(
+          '--mapping and --create-columns apply to --to-table only: a new table takes its columns from the CSV',
+          0
+        )
+      }
+
+      const local = path ? await localFile(path, undefined) : null
+      const source = local
+        ? {
+            type: 'upload',
+            name: local.name,
+            contentType: contentTypeFor(local.name),
+            size: local.size,
+          }
+        : { type: 'workspace_file', fileId: options.fileId }
+
+      const target = options.toTable
+        ? { type: 'existing', tableId: options.toTable, mode: options.mode }
+        : {
+            type: 'new',
+            name: options.newTable,
+            ...(options.folderId ? { folderId: options.folderId } : {}),
+          }
+
+      const started = await client.request<{ data: TableImport }>('/api/v2/tables/imports', {
+        method: 'POST',
+        body: {
+          workspaceId,
+          source,
+          target,
+          ...(options.mapping ? { mapping: jsonFlag(options.mapping, 'mapping') } : {}),
+          ...(options.createColumns
+            ? { createColumns: jsonFlag(options.createColumns, 'create-columns') }
+            : {}),
+          ...(options.timezone ? { timezone: options.timezone } : {}),
+        },
+      })
+
+      let job = started.data
+
+      // A workspace_file source has nothing to upload — the bytes are already
+      // there, and the server starts the job without a transfer.
+      if (path && job.upload) {
+        job = await finishTransfer<TableImport>(
+          client,
+          workspaceId,
+          {
+            basePath: `/api/v2/tables/imports/${encodeURIComponent(job.id)}`,
+            uploadToken: job.upload.uploadToken,
+            partSize: job.upload.partSize,
+            partCount: job.upload.partCount,
+            size: local?.size ?? 0,
+          },
+          path
+        )
+      }
+
+      if (!options.wait) {
+        console.log(chalk.green(`✓ Import ${job.id} ${job.status}`))
+        return
+      }
+
+      const finished = await watchImport(client, workspaceId, job)
+      if (finished.status !== 'completed') {
+        throw new SimApiError(
+          `Import ${finished.status}${finished.error ? `: ${finished.error}` : ''}`,
+          0
+        )
+      }
+      console.log(
+        chalk.green(
+          `✓ Imported ${finished.rowsProcessed} rows${finished.tableId ? ` into ${finished.tableId}` : ''}`
+        )
+      )
+    })
 
   // ── files download ── the response is binary, not the JSON envelope ────────
   group(program, 'files')
