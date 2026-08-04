@@ -36,6 +36,7 @@ import { mondayHandler } from '@/lib/webhooks/providers/monday'
 import { notionHandler } from '@/lib/webhooks/providers/notion'
 import { outlookHandler } from '@/lib/webhooks/providers/outlook'
 import { pagerdutyHandler } from '@/lib/webhooks/providers/pagerduty'
+import { quickBooksHandler } from '@/lib/webhooks/providers/quickbooks'
 import { resendHandler } from '@/lib/webhooks/providers/resend'
 import { revenueCatHandler } from '@/lib/webhooks/providers/revenuecat'
 import { rootlyHandler } from '@/lib/webhooks/providers/rootly'
@@ -104,6 +105,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   notion: notionHandler,
   outlook: outlookHandler,
   pagerduty: pagerdutyHandler,
+  quickbooks: quickBooksHandler,
   rss: rssHandler,
   salesforce: salesforceHandler,
   sendblue: sendblueHandler,

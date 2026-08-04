@@ -26,6 +26,7 @@ import {
 } from '@/tools/quickbooks/sales_utils'
 import type { QuickBooksReportType, QuickBooksResponse } from '@/tools/quickbooks/types'
 import { parseQuickBooksAddress } from '@/tools/quickbooks/values'
+import { getTrigger } from '@/triggers'
 
 const MASTER_DATA_OPERATION = 'quickbooks_read_master_data'
 const SALES_READ_OPERATION = 'quickbooks_read_sales_transactions'
@@ -386,6 +387,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
   integrationType: IntegrationType.Commerce,
   bgColor: '#2CA01C',
   icon: QuickBooksIcon,
+  triggerAllowed: true,
   subBlocks: [
     {
       id: 'operation',
@@ -1965,7 +1967,26 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       },
       value: () => 'no',
     },
+    ...getTrigger('quickbooks_invoice_events').subBlocks,
+    ...getTrigger('quickbooks_customer_events').subBlocks,
+    ...getTrigger('quickbooks_payment_events').subBlocks,
+    ...getTrigger('quickbooks_vendor_events').subBlocks,
+    ...getTrigger('quickbooks_bill_events').subBlocks,
+    ...getTrigger('quickbooks_bill_payment_events').subBlocks,
+    ...getTrigger('quickbooks_purchase_order_events').subBlocks,
   ],
+  triggers: {
+    enabled: true,
+    available: [
+      'quickbooks_customer_events',
+      'quickbooks_invoice_events',
+      'quickbooks_payment_events',
+      'quickbooks_vendor_events',
+      'quickbooks_bill_events',
+      'quickbooks_bill_payment_events',
+      'quickbooks_purchase_order_events',
+    ],
+  },
   tools: {
     access: [
       'quickbooks_get_company_info',

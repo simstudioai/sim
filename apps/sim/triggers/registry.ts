@@ -370,6 +370,15 @@ import {
   pagerdutyWebhookTrigger,
 } from '@/triggers/pagerduty'
 import {
+  quickBooksBillEventsTrigger,
+  quickBooksBillPaymentEventsTrigger,
+  quickBooksCustomerEventsTrigger,
+  quickBooksInvoiceEventsTrigger,
+  quickBooksPaymentEventsTrigger,
+  quickBooksPurchaseOrderEventsTrigger,
+  quickBooksVendorEventsTrigger,
+} from '@/triggers/quickbooks'
+import {
   resendEmailBouncedTrigger,
   resendEmailClickedTrigger,
   resendEmailComplainedTrigger,
@@ -738,6 +747,13 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   pagerduty_incident_escalated: pagerdutyIncidentEscalatedTrigger,
   pagerduty_incident_reassigned: pagerdutyIncidentReassignedTrigger,
   pagerduty_webhook: pagerdutyWebhookTrigger,
+  quickbooks_bill_events: quickBooksBillEventsTrigger,
+  quickbooks_bill_payment_events: quickBooksBillPaymentEventsTrigger,
+  quickbooks_customer_events: quickBooksCustomerEventsTrigger,
+  quickbooks_invoice_events: quickBooksInvoiceEventsTrigger,
+  quickbooks_payment_events: quickBooksPaymentEventsTrigger,
+  quickbooks_purchase_order_events: quickBooksPurchaseOrderEventsTrigger,
+  quickbooks_vendor_events: quickBooksVendorEventsTrigger,
   resend_email_sent: resendEmailSentTrigger,
   resend_email_delivered: resendEmailDeliveredTrigger,
   resend_email_bounced: resendEmailBouncedTrigger,

@@ -2919,3 +2919,215 @@ Download a QuickBooks file attachment through its short-lived URL
 | `attachmentId` | string | Downloaded QuickBooks attachment ID |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### QuickBooks Bill Events
+
+Trigger when selected Bill events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Bill Payment Events
+
+Trigger when selected Bill Payment events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Customer Events
+
+Trigger when selected Customer events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Invoice Events
+
+Trigger when selected Invoice events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Payment Events
+
+Trigger when selected Payment events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Purchase Order Events
+
+Trigger when selected Purchase Order events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Vendor Events
+
+Trigger when selected Vendor events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
