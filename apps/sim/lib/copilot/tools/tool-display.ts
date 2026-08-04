@@ -883,6 +883,15 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         list: { verb: 'Viewing', resource: 'MCP servers' },
       })
     }
+    case 'manage_sandbox': {
+      const target = firstStringArg(args, 'name', 'sandboxName')
+      return namedOperationTitle(args, target, 'Sandbox action', {
+        add: { verb: 'Creating', resource: 'sandbox' },
+        edit: { verb: 'Updating', resource: 'sandbox' },
+        delete: { verb: 'Deleting', resource: 'sandbox' },
+        list: { verb: 'Viewing', resource: 'sandboxes' },
+      })
+    }
     case 'manage_skill': {
       const target = firstStringArg(args, 'name', 'skillName', 'title')
       return namedOperationTitle(args, target, 'Skill action', {

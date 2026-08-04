@@ -2211,7 +2211,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         code: {
           type: 'string',
           description:
-            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
+            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
         },
         inputs: {
           type: 'object',
@@ -3496,6 +3496,45 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  manage_sandbox: {
+    parameters: {
+      type: 'object',
+      properties: {
+        dependencies: {
+          type: 'array',
+          description:
+            'The COMPLETE package list, one package per entry — this REPLACES the existing list, it does not append. To add a package, call list first and resend the existing entries plus the new one. Optional for add (defaults to empty) and for edit.',
+          items: {
+            type: 'string',
+          },
+        },
+        language: {
+          type: 'string',
+          description:
+            "The sandbox's runtime. Required for add; on edit it re-validates the whole dependency list against the new language, so never switch language while leaving packages from the other ecosystem in place.",
+          enum: ['javascript', 'python'],
+        },
+        name: {
+          type: 'string',
+          description:
+            'Sandbox display name, unique within the workspace (max 64 characters). Required for add, optional for edit.',
+        },
+        operation: {
+          type: 'string',
+          description:
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
+          enum: ['add', 'edit', 'delete', 'list'],
+        },
+        sandboxId: {
+          type: 'string',
+          description:
+            "The sandbox's id, from the `list` operation. Do not guess or construct it. Required for edit and delete; omit for add and list.",
+        },
+      },
+      required: ['operation'],
+    },
+    resultSchema: undefined,
+  },
   manage_scheduled_task: {
     parameters: {
       type: 'object',
@@ -4185,7 +4224,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         code: {
           type: 'string',
           description:
-            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Request each needed secret with an explicit {{VAR_NAME}} reference.',
+            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
         },
         inputs: {
           type: 'object',
