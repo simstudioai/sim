@@ -21,6 +21,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
+import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import {
   buildWorkspaceContextMd,
   buildWorkspaceMd,
@@ -61,6 +62,7 @@ import {
   serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
+  serializeBlockSchemaWithoutSimSandboxes,
   serializeBuiltinTriggerSchema,
   serializeConnectorOverview,
   serializeConnectorSchema,
@@ -72,10 +74,12 @@ import {
   serializeEnvironmentVariables,
   serializeFileMeta,
   serializeIntegrationSchema,
+  serializeIntegrationSchemaWithoutSimSandboxes,
   serializeJobMeta,
   serializeKBMeta,
   serializeMcpServer,
   serializeRecentExecutions,
+  serializeSimSandbox,
   serializeSkill,
   serializeTableMeta,
   serializeTaskChat,
@@ -93,6 +97,7 @@ import {
 } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
+import { listWorkspaceSandboxes } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
@@ -145,6 +150,13 @@ const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
  * (see {@link isStaticFileHidden}).
  */
 let staticComponentFiles: Map<string, string> | null = null
+
+/**
+ * Entitlement-projected replacements for otherwise shared static schemas.
+ * Kept beside the process-global cache so per-workspace stamping stays a map
+ * lookup and never mutates the cached ungated universe.
+ */
+const staticComponentFilesWithoutSimSandboxes = new Map<string, string>()
 
 /**
  * Owning block for each `components/integrations/**` file, recorded at build
@@ -233,6 +245,12 @@ function getStaticComponentFiles(): Map<string, string> {
   for (const block of visibleBlocks) {
     const path = `components/blocks/${block.type}.json`
     files.set(path, serializeBlockSchema(block, { toolConfigs }))
+    if (block.type === 'function') {
+      staticComponentFilesWithoutSimSandboxes.set(
+        path,
+        serializeBlockSchemaWithoutSimSandboxes(block, { toolConfigs })
+      )
+    }
   }
   blocksFiltered = allBlocks.length - visibleBlocks.length
 
@@ -255,6 +273,12 @@ function getStaticComponentFiles(): Map<string, string> {
     const { config: tool, service, operation, blockType, preview } = exposedTool
     const path = `components/integrations/${service}/${operation}.json`
     files.set(path, serializeIntegrationSchema(tool))
+    if (tool.id === 'function_execute') {
+      staticComponentFilesWithoutSimSandboxes.set(
+        path,
+        serializeIntegrationSchemaWithoutSimSandboxes(tool)
+      )
+    }
     integrationPathOwners.set(path, { type: blockType, preview })
     integrationCount++
 
@@ -458,6 +482,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   tasks/{title}/session.md
  *   tasks/{title}/chat.json
  *   custom-tools/{name}.json
+ *   agent/sandboxes/{name}.json          (Max/Enterprise only)
  *   environment/credentials.json
  *   environment/api-keys.json
  *   environment/variables.json
@@ -683,6 +708,7 @@ export class WorkspaceVFS {
               customBlocksSummary,
               mcpServersSummary,
               skillsSummary,
+              simSandboxMaterialization,
               jobsSummary,
               wsRow,
               members,
@@ -696,6 +722,7 @@ export class WorkspaceVFS {
               timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
               timed('skills', this.materializeSkills(workspaceId)),
+              timed('sandboxes', this.materializeSimSandboxes(workspaceId)),
               timed('jobs', this.materializeJobs(workspaceId)),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
               timed('members', getUsersWithPermissions(workspaceId)),
@@ -718,6 +745,7 @@ export class WorkspaceVFS {
               customBlocks: customBlocksSummary,
               mcpServers: mcpServersSummary,
               skills: skillsSummary,
+              sandboxes: simSandboxMaterialization.sandboxes,
               jobs: jobsSummary,
             }
 
@@ -731,7 +759,10 @@ export class WorkspaceVFS {
             const blockVisibility = overlayVisibility()
             for (const [path, content] of getStaticComponentFiles()) {
               if (isStaticFileHidden(path, blockVisibility)) continue
-              this.files.set(path, content)
+              const projectedContent = simSandboxMaterialization.entitled
+                ? content
+                : (staticComponentFilesWithoutSimSandboxes.get(path) ?? content)
+              this.files.set(path, projectedContent)
             }
 
             span.setAttributes({
@@ -2004,6 +2035,46 @@ export class WorkspaceVFS {
         error: toError(err).message,
       })
       return []
+    }
+  }
+
+  /**
+   * Materialize entitlement-gated Sim sandboxes as discoverable agent
+   * resources. The plan predicate is evaluated here as well as in the chat
+   * entitlement list so direct VFS tool calls cannot reveal the surface to a
+   * non-entitled workspace.
+   */
+  private async materializeSimSandboxes(workspaceId: string): Promise<{
+    entitled: boolean
+    sandboxes: NonNullable<WorkspaceMdData['sandboxes']>
+  }> {
+    try {
+      const entitled = await hasWorkspaceSandboxAccess(workspaceId)
+      if (!entitled) return { entitled: false, sandboxes: [] }
+
+      const sandboxes = await listWorkspaceSandboxes(workspaceId)
+      for (const sandbox of sandboxes) {
+        const safeName = sanitizeName(sandbox.name)
+        this.files.set(`agent/sandboxes/${safeName}.json`, serializeSimSandbox(sandbox))
+      }
+
+      return {
+        entitled: true,
+        sandboxes: sandboxes.map((sandbox) => ({
+          id: sandbox.id,
+          name: sandbox.name,
+          language: sandbox.language,
+          dependencies: sandbox.dependencies,
+          buildStatus: sandbox.buildStatus,
+          errorMessage: sandbox.errorMessage,
+        })),
+      }
+    } catch (err) {
+      logger.warn('Failed to materialize Sim sandboxes', {
+        workspaceId,
+        error: toError(err).message,
+      })
+      return { entitled: false, sandboxes: [] }
     }
   }
 

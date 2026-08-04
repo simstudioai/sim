@@ -89,7 +89,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Workspace sandbox whose packages this code can import',
+      description: 'Sim sandbox whose packages this code can import',
     },
     secretScope: {
       type: 'string',

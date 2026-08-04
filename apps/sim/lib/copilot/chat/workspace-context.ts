@@ -12,9 +12,11 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { computeWorkspaceEntitlements, SANDBOXES_ENTITLEMENT } from '@/lib/copilot/entitlements'
 import type {
   VfsSnapshotV1,
   VfsSnapshotV1Job,
+  VfsSnapshotV1Sandbox,
   VfsSnapshotV1Workflow,
 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
@@ -23,6 +25,7 @@ import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
 } from '@/lib/credentials/environment'
+import { listWorkspaceSandboxes } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -82,6 +85,14 @@ export interface WorkspaceMdData {
   customBlocks?: Array<{ type: string; name: string; description?: string }>
   mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
   skills?: Array<{ id: string; name: string; description: string }>
+  sandboxes?: Array<{
+    id: string
+    name: string
+    language: 'javascript' | 'python'
+    dependencies: string[]
+    buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+    errorMessage: string | null
+  }>
   jobs?: Array<{
     id: string
     title: string | null
@@ -297,6 +308,18 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
     )
   }
 
+  if (data.sandboxes && data.sandboxes.length > 0) {
+    const lines = [...data.sandboxes].sort(byNameThenId).map((sandbox) => {
+      const language = sandbox.language === 'python' ? 'Python' : 'JavaScript'
+      const packages = sandbox.dependencies.length > 0 ? sandbox.dependencies.join(', ') : '(none)'
+      const path = `agent/sandboxes/${normalizeVfsSegment(sandbox.name)}.json`
+      return `- **${sandbox.name}** (${sandbox.id}) — ${language}; packages: ${packages}\n  VFS: \`${path}\``
+    })
+    sections.push(
+      `## Sim Sandboxes (${data.sandboxes.length})\nReusable dependency environments for Function blocks. Read the VFS file for current build status.\n${lines.join('\n')}`
+    )
+  }
+
   if (data.jobs && data.jobs.length > 0) {
     const lines = [...data.jobs]
       .sort((a, b) => stableCompare(a.title || a.id, b.title || b.id) || stableCompare(a.id, b.id))
@@ -348,6 +371,11 @@ async function buildWorkspaceMdData(
       return null
     }
 
+    const sandboxRowsPromise = computeWorkspaceEntitlements(workspaceId, userId).then(
+      (entitlements) =>
+        entitlements.includes(SANDBOXES_ENTITLEMENT) ? listWorkspaceSandboxes(workspaceId) : []
+    )
+
     const [
       members,
       workflows,
@@ -362,6 +390,7 @@ async function buildWorkspaceMdData(
       skillRows,
       jobRows,
       customBlockSummaries,
+      sandboxRows,
     ] = await Promise.all([
       getUsersWithPermissions(workspaceId),
 
@@ -454,6 +483,7 @@ async function buildWorkspaceMdData(
         ),
 
       listCustomBlockSummariesForWorkspace(workspaceId),
+      sandboxRowsPromise,
     ])
 
     const kbIds = kbs.map((kb) => kb.id)
@@ -536,6 +566,14 @@ async function buildWorkspaceMdData(
       customBlocks: customBlockSummaries,
       mcpServers: mcpServerRows,
       skills: skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description })),
+      sandboxes: sandboxRows.map((sandbox) => ({
+        id: sandbox.id,
+        name: sandbox.name,
+        language: sandbox.language,
+        dependencies: sandbox.dependencies,
+        buildStatus: sandbox.buildStatus,
+        errorMessage: sandbox.errorMessage,
+      })),
       jobs: jobRows
         .filter((j) => j.status !== 'completed')
         .map((j) => ({
@@ -614,6 +652,13 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
       ...(j.lifecycle ? { lifecycle: j.lifecycle } : {}),
       ...(j.sourceTaskName ? { sourceTaskName: j.sourceTaskName } : {}),
     }))
+  const sandboxes: VfsSnapshotV1Sandbox[] = (data.sandboxes ?? []).map((sandbox) => ({
+    id: sandbox.id,
+    name: sandbox.name,
+    path: `agent/sandboxes/${normalizeVfsSegment(sandbox.name)}.json`,
+    language: sandbox.language,
+    dependencies: sandbox.dependencies,
+  }))
   return {
     ...(data.workspace
       ? {
@@ -675,6 +720,7 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
       name: s.name,
       ...(s.description ? { description: s.description } : {}),
     })),
+    sandboxes,
     jobs,
   }
 }

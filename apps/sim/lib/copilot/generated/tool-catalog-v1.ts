@@ -3624,13 +3624,13 @@ export const ManageSandbox: ToolCatalogEntry = {
       language: {
         type: 'string',
         description:
-          "The sandbox's runtime. Required for add; on edit it re-validates the whole dependency list against the new language, so never switch language while leaving packages from the other ecosystem in place.",
+          "The Sim sandbox's runtime. Required for add; on edit it re-validates the whole dependency list against the new language, so never switch language while leaving packages from the other ecosystem in place.",
         enum: ['javascript', 'python'],
       },
       name: {
         type: 'string',
         description:
-          'Sandbox display name, unique within the workspace (max 64 characters). Required for add, optional for edit.',
+          'Sim sandbox display name, unique within the workspace (max 64 characters). Required for add, optional for edit.',
       },
       operation: {
         type: 'string',
@@ -3641,7 +3641,7 @@ export const ManageSandbox: ToolCatalogEntry = {
       sandboxId: {
         type: 'string',
         description:
-          "The sandbox's id, from the `list` operation. Do not guess or construct it. Required for edit and delete; omit for add and list.",
+          "The Sim sandbox's id, from the `list` operation. Do not guess or construct it. Required for edit and delete; omit for add and list.",
       },
     },
     required: ['operation'],

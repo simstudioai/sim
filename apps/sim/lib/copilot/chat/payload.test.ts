@@ -4,15 +4,23 @@
 import { workflowsUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateUserToolSchema, mockGetHighestPrioritySubscription, mockTrackChatUpload } =
-  vi.hoisted(() => ({
-    mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
-    mockGetHighestPrioritySubscription: vi.fn(),
-    mockTrackChatUpload: vi.fn(),
-  }))
+const {
+  mockCreateUserToolSchema,
+  mockGetHighestPrioritySubscription,
+  mockGetExposedIntegrationTools,
+  mockHasWorkspaceSandboxAccess,
+  mockTrackChatUpload,
+} = vi.hoisted(() => ({
+  mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
+  mockGetHighestPrioritySubscription: vi.fn(),
+  mockGetExposedIntegrationTools: vi.fn(),
+  mockHasWorkspaceSandboxAccess: vi.fn(),
+  mockTrackChatUpload: vi.fn(),
+}))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
+  hasWorkspaceSandboxAccess: mockHasWorkspaceSandboxAccess,
 }))
 
 vi.mock('@/lib/billing/plan-helpers', () => ({
@@ -66,40 +74,7 @@ vi.mock('@/lib/copilot/block-visibility', () => ({
 
 vi.mock('@/lib/copilot/integration-tools', () => ({
   filterExposedIntegrationTools: vi.fn((tools: unknown[]) => tools),
-  getExposedIntegrationTools: vi.fn(() => [
-    {
-      toolId: 'gmail_send',
-      config: {
-        id: 'gmail_send',
-        name: 'Gmail Send',
-        description: 'Send emails using Gmail',
-        outputs: { messageId: { type: 'string', description: 'Sent message ID' } },
-        oauth: { required: true, provider: 'google-email' },
-      },
-      service: 'gmail',
-      operation: 'send',
-    },
-    {
-      toolId: 'brandfetch_search',
-      config: {
-        id: 'brandfetch_search',
-        name: 'Brandfetch Search',
-        description: 'Search for brands by company name',
-      },
-      service: 'brandfetch',
-      operation: 'search',
-    },
-    {
-      toolId: 'run_workflow',
-      config: {
-        id: 'run_workflow',
-        name: 'Run Workflow',
-        description: 'Run a workflow from the client',
-      },
-      service: 'run',
-      operation: 'workflow',
-    },
-  ]),
+  getExposedIntegrationTools: mockGetExposedIntegrationTools,
 }))
 
 vi.mock('@/tools/params', () => ({
@@ -120,7 +95,98 @@ describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearIntegrationToolSchemaCacheForTests()
+    mockHasWorkspaceSandboxAccess.mockResolvedValue(false)
+    mockGetExposedIntegrationTools.mockReturnValue([
+      {
+        toolId: 'gmail_send',
+        config: {
+          id: 'gmail_send',
+          name: 'Gmail Send',
+          description: 'Send emails using Gmail',
+          outputs: { messageId: { type: 'string', description: 'Sent message ID' } },
+          oauth: { required: true, provider: 'google-email' },
+        },
+        service: 'gmail',
+        operation: 'send',
+      },
+      {
+        toolId: 'brandfetch_search',
+        config: {
+          id: 'brandfetch_search',
+          name: 'Brandfetch Search',
+          description: 'Search for brands by company name',
+        },
+        service: 'brandfetch',
+        operation: 'search',
+      },
+      {
+        toolId: 'run_workflow',
+        config: {
+          id: 'run_workflow',
+          name: 'Run Workflow',
+          description: 'Run a workflow from the client',
+        },
+        service: 'run',
+        operation: 'workflow',
+      },
+    ])
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
+  })
+
+  it('projects sandboxId out of function_execute for unentitled workspaces', async () => {
+    mockGetExposedIntegrationTools.mockReturnValue([
+      {
+        toolId: 'function_execute',
+        config: {
+          id: 'function_execute',
+          name: 'Function Execute',
+          description: 'Run code in a stateless sandbox',
+          params: {
+            code: { type: 'string', required: true, visibility: 'user-or-llm' },
+            sandboxId: { type: 'string', required: false, visibility: 'user-only' },
+          },
+        },
+        service: 'function',
+        operation: 'execute',
+      },
+    ])
+
+    await buildIntegrationToolSchemas('user-no-sandboxes', undefined, undefined, 'workspace-1')
+    expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
+      expect.objectContaining({ params: { code: expect.any(Object) } }),
+      expect.any(Object)
+    )
+
+    clearIntegrationToolSchemaCacheForTests()
+    vi.clearAllMocks()
+    mockHasWorkspaceSandboxAccess.mockResolvedValue(true)
+    mockGetExposedIntegrationTools.mockReturnValue([
+      {
+        toolId: 'function_execute',
+        config: {
+          id: 'function_execute',
+          name: 'Function Execute',
+          description: 'Run code in a stateless sandbox',
+          params: {
+            code: { type: 'string', required: true, visibility: 'user-or-llm' },
+            sandboxId: { type: 'string', required: false, visibility: 'user-only' },
+          },
+        },
+        service: 'function',
+        operation: 'execute',
+      },
+    ])
+
+    await buildIntegrationToolSchemas('user-with-sandboxes', undefined, undefined, 'workspace-1')
+    expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: {
+          code: expect.any(Object),
+          sandboxId: expect.any(Object),
+        },
+      }),
+      expect.any(Object)
+    )
   })
 
   it('appends the email footer prompt for free users', async () => {

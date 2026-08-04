@@ -8,10 +8,13 @@ import type { ToolConfig } from '@/tools/types'
 import {
   serializeApiKeyIntegrations,
   serializeBlockSchema,
+  serializeBlockSchemaWithoutSimSandboxes,
   serializeCredentials,
   serializeFileMeta,
   serializeIntegrationSchema,
+  serializeIntegrationSchemaWithoutSimSandboxes,
   serializeKBMeta,
+  serializeSimSandbox,
   serializeTableMeta,
   serializeWorkflowMeta,
 } from './serializers'
@@ -45,6 +48,33 @@ function hostedTool(id: string, conditional = false): ToolConfig {
 }
 
 describe('VFS metadata serializers', () => {
+  it('serializes Sim sandbox metadata without the raw installer log tail', () => {
+    const sandbox = JSON.parse(
+      serializeSimSandbox({
+        id: 'sb-1',
+        name: 'Data Science',
+        language: 'python',
+        dependencies: ['pandas==2.3.0'],
+        buildStatus: 'failed',
+        errorCode: 'install_failed',
+        errorMessage: 'A package could not be installed',
+        errorDetail: 'RAW INSTALLER LOG',
+        builtAt: null,
+        createdAt: '2026-08-03T00:00:00.000Z',
+        updatedAt: '2026-08-03T00:01:00.000Z',
+      })
+    )
+
+    expect(sandbox).toMatchObject({
+      id: 'sb-1',
+      language: 'python',
+      dependencies: ['pandas==2.3.0'],
+      buildStatus: 'failed',
+      errorCode: 'install_failed',
+    })
+    expect(sandbox).not.toHaveProperty('errorDetail')
+  })
+
   it('includes the authoritative file update timestamp', () => {
     const metadata = JSON.parse(
       serializeFileMeta({
@@ -254,6 +284,73 @@ describe('hosted-key VFS metadata', () => {
 
     expect(schema.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual(['prompt'])
     expect(schema.inputs).toEqual({ prompt: { type: 'string' } })
+  })
+
+  it('projects Sim sandbox capability out of an unentitled Function schema', () => {
+    const block = {
+      type: 'function',
+      name: 'Function',
+      description: 'Run custom logic',
+      category: 'blocks',
+      bgColor: '#000000',
+      icon: () => null,
+      bestPractices: `
+- Python runs in a remote sandbox.
+- To import third-party packages, create a Sim sandbox in Settings > Sandboxes.
+`,
+      subBlocks: [
+        { id: 'code', title: 'Code', type: 'code' },
+        { id: 'sandboxId', title: 'Sim sandbox', type: 'combobox' },
+      ],
+      tools: { access: ['function_execute'] },
+      inputs: {
+        code: { type: 'string' },
+        sandboxId: { type: 'string', description: 'Sim sandbox id' },
+      },
+      outputs: {},
+    } as unknown as BlockConfig
+
+    const entitled = JSON.parse(serializeBlockSchema(block))
+    const unentitled = JSON.parse(serializeBlockSchemaWithoutSimSandboxes(block))
+
+    expect(entitled.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toContain('sandboxId')
+    expect(entitled.inputs.sandboxId).toBeDefined()
+    expect(entitled.bestPractices).toContain('Settings > Sandboxes')
+
+    expect(unentitled.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual(['code'])
+    expect(unentitled.inputs).toEqual({ code: { type: 'string' } })
+    expect(unentitled.bestPractices).toContain('remote sandbox')
+    expect(unentitled.bestPractices).not.toContain('Settings > Sandboxes')
+    expect(JSON.stringify(unentitled)).not.toContain('sandboxId')
+    expect(JSON.stringify(unentitled)).not.toContain('Sim sandbox')
+  })
+
+  it('projects sandboxId out of unentitled function_execute discovery', () => {
+    const tool = {
+      id: 'function_execute',
+      name: 'Function Execute',
+      description: 'Run code in a stateless sandbox',
+      version: '1.0.0',
+      params: {
+        code: { type: 'string', required: true, visibility: 'user-or-llm' },
+        sandboxId: {
+          type: 'string',
+          required: false,
+          visibility: 'user-only',
+          description: 'Sim sandbox id',
+        },
+      },
+    } as unknown as ToolConfig
+
+    const entitled = JSON.parse(serializeIntegrationSchema(tool))
+    const unentitled = JSON.parse(serializeIntegrationSchemaWithoutSimSandboxes(tool))
+
+    expect(entitled.params.sandboxId).toBeDefined()
+    expect(unentitled.params).toEqual({
+      code: expect.objectContaining({ type: 'string', required: true }),
+    })
+    expect(JSON.stringify(unentitled)).not.toContain('sandboxId')
+    expect(JSON.stringify(unentitled)).not.toContain('Sim sandbox')
   })
 })
 

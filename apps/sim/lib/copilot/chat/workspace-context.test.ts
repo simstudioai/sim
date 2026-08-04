@@ -307,3 +307,49 @@ describe('custom blocks', () => {
     expect(without.customBlocks).toEqual([])
   })
 })
+
+describe('Sim sandboxes', () => {
+  const sandboxes = [
+    {
+      id: 'sb-1',
+      name: 'Data Science',
+      language: 'python' as const,
+      dependencies: ['numpy==2.2.0', 'pandas==2.3.0'],
+      buildStatus: 'ready' as const,
+      errorMessage: null,
+    },
+  ]
+
+  it('renders discoverable VFS paths and carries structural data in the typed snapshot', () => {
+    const data = baseData({ sandboxes })
+    const md = buildWorkspaceMd(data)
+
+    expect(md).toContain('## Sim Sandboxes (1)')
+    expect(md).toContain('agent/sandboxes/Data%20Science.json')
+    expect(md).toContain('numpy==2.2.0, pandas==2.3.0')
+    expect(buildVfsSnapshot(data).sandboxes).toEqual([
+      {
+        id: 'sb-1',
+        name: 'Data Science',
+        path: 'agent/sandboxes/Data%20Science.json',
+        language: 'python',
+        dependencies: ['numpy==2.2.0', 'pandas==2.3.0'],
+      },
+    ])
+  })
+
+  it('keeps volatile build status out of the cache-stable inventory and snapshot', () => {
+    const ready = baseData({ sandboxes })
+    const building = baseData({
+      sandboxes: [{ ...sandboxes[0], buildStatus: 'building', errorMessage: 'still building' }],
+    })
+
+    expect(buildWorkspaceMd(ready)).toBe(buildWorkspaceMd(building))
+    expect(buildVfsSnapshot(ready)).toEqual(buildVfsSnapshot(building))
+  })
+
+  it('omits the section and snapshot entries when no entitled data is supplied', () => {
+    expect(buildWorkspaceMd(baseData())).not.toContain('Sim Sandboxes')
+    expect(buildVfsSnapshot(baseData()).sandboxes).toEqual([])
+  })
+})

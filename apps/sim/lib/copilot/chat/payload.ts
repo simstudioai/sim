@@ -3,7 +3,10 @@ import { createLogger } from '@sim/logger'
 import { isPermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import {
+  getHighestPrioritySubscription,
+  hasWorkspaceSandboxAccess,
+} from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { getBlockVisibilityForCopilot, visibilitySignature } from '@/lib/copilot/block-visibility'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
@@ -108,11 +111,18 @@ function getIntegrationToolSchemaCacheKey(
   userId: string,
   workspaceId: string | undefined,
   schemaSurface: string,
-  visSignature: string
+  visSignature: string,
+  simSandboxesEntitled: boolean
 ): string {
   // The visibility signature keys the entry to the viewer's gated projection —
   // two users in one workspace with different preview reveals must not share.
-  return JSON.stringify([userId, workspaceId ?? null, schemaSurface, visSignature])
+  return JSON.stringify([
+    userId,
+    workspaceId ?? null,
+    schemaSurface,
+    visSignature,
+    simSandboxesEntitled,
+  ])
 }
 
 function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
@@ -148,12 +158,16 @@ export async function buildIntegrationToolSchemas(
   workspaceId?: string
 ): Promise<ToolSchema[]> {
   const schemaSurface = options.schemaSurface ?? 'copilot'
-  const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
+  const [vis, simSandboxesEntitled] = await Promise.all([
+    getBlockVisibilityForCopilot(userId, workspaceId),
+    workspaceId ? hasWorkspaceSandboxAccess(workspaceId) : Promise.resolve(false),
+  ])
   const cacheKey = getIntegrationToolSchemaCacheKey(
     userId,
     workspaceId,
     schemaSurface,
-    visibilitySignature(vis)
+    visibilitySignature(vis),
+    simSandboxesEntitled
   )
   const cached = integrationToolSchemaCache.get(cacheKey)
   if (cached) {
@@ -165,7 +179,8 @@ export async function buildIntegrationToolSchemas(
     messageId,
     { schemaSurface },
     workspaceId,
-    vis
+    vis,
+    simSandboxesEntitled
   ).catch((error) => {
     integrationToolSchemaCache.delete(cacheKey)
     throw error
@@ -183,7 +198,8 @@ async function buildIntegrationToolSchemasUncached(
   messageId: string | undefined,
   options: Required<BuildIntegrationToolSchemasOptions>,
   workspaceId?: string,
-  vis: BlockVisibilityState | null = null
+  vis: BlockVisibilityState | null = null,
+  simSandboxesEntitled = false
 ): Promise<ToolSchema[]> {
   const reqLogger = logger.withMetadata({ messageId })
   const integrationTools: ToolSchema[] = []
@@ -241,7 +257,16 @@ async function buildIntegrationToolSchemasUncached(
             continue
           }
         }
-        const userSchema = createUserToolSchema(toolConfig, {
+        const schemaToolConfig =
+          toolId === 'function_execute' && !simSandboxesEntitled
+            ? {
+                ...toolConfig,
+                params: Object.fromEntries(
+                  Object.entries(toolConfig.params).filter(([paramId]) => paramId !== 'sandboxId')
+                ),
+              }
+            : toolConfig
+        const userSchema = createUserToolSchema(schemaToolConfig, {
           surface: options.schemaSurface,
           // On hosted deployments the executor injects hosted keys server-side,
           // so the gateway schema must not force the model to supply one (the
@@ -253,15 +278,15 @@ async function buildIntegrationToolSchemasUncached(
           name: toolId,
           service,
           operation,
-          description: getCopilotToolDescription(toolConfig, {
+          description: getCopilotToolDescription(schemaToolConfig, {
             isHosted,
             fallbackName: toolId,
             appendEmailTagline: shouldAppendEmailTagline,
           }),
           input_schema: { ...userSchema },
-          ...(toolConfig.outputs && {
+          ...(schemaToolConfig.outputs && {
             outputs: Object.fromEntries(
-              Object.entries(toolConfig.outputs)
+              Object.entries(schemaToolConfig.outputs)
                 .filter(([, output]) => output != null)
                 .map(([key, output]) => [
                   key,
@@ -272,10 +297,10 @@ async function buildIntegrationToolSchemasUncached(
           defer_loading: true,
           executeLocally:
             catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
-          ...(toolConfig.oauth?.required && {
+          ...(schemaToolConfig.oauth?.required && {
             oauth: {
               required: true,
-              provider: toolConfig.oauth.provider,
+              provider: schemaToolConfig.oauth.provider,
             },
           }),
         })

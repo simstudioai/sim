@@ -1,4 +1,5 @@
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
+import type { Sandbox } from '@/lib/api/contracts/sandboxes'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
@@ -77,6 +78,41 @@ export function describeServiceAccountForOAuthProvider(
 export interface ComponentSerializationOptions {
   hosted?: boolean
   toolConfigs?: ReadonlyMap<string, ToolConfig>
+}
+
+/**
+ * Serialize a Function-block schema without the entitlement-gated Sim sandbox
+ * authoring surface. Generic remote execution remains documented, but the
+ * reusable workspace resource, its picker, and its input are absent.
+ */
+export function serializeBlockSchemaWithoutSimSandboxes(
+  block: BlockConfig,
+  options?: ComponentSerializationOptions
+): string {
+  const bestPractices = block.bestPractices
+    ?.split('\n')
+    .filter((line) => !line.includes('Settings > Sandboxes'))
+    .join('\n')
+  const { sandboxId: _sandboxId, ...inputs } = block.inputs
+
+  return serializeBlockSchema(
+    {
+      ...block,
+      bestPractices,
+      subBlocks: block.subBlocks.filter((subBlock) => subBlock.id !== 'sandboxId'),
+      inputs,
+    },
+    options
+  )
+}
+
+/** Remove the reusable Sim sandbox selector from function_execute discovery. */
+export function serializeIntegrationSchemaWithoutSimSandboxes(
+  tool: ToolConfig,
+  options?: Pick<ComponentSerializationOptions, 'hosted'>
+): string {
+  const { sandboxId: _sandboxId, ...params } = tool.params
+  return serializeIntegrationSchema({ ...tool, params }, options)
 }
 
 /**
@@ -948,6 +984,30 @@ export function serializeSkill(s: {
       description: s.description,
       content: s.content,
       createdAt: s.createdAt.toISOString(),
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * Serialize a Sim sandbox for VFS agent/sandboxes/{name}.json. The raw
+ * installer log tail is intentionally excluded; the classified error is
+ * enough for agent diagnosis and keeps workspace context compact.
+ */
+export function serializeSimSandbox(sandbox: Sandbox): string {
+  return JSON.stringify(
+    {
+      id: sandbox.id,
+      name: sandbox.name,
+      language: sandbox.language,
+      dependencies: sandbox.dependencies,
+      buildStatus: sandbox.buildStatus,
+      errorCode: sandbox.errorCode,
+      errorMessage: sandbox.errorMessage,
+      builtAt: sandbox.builtAt,
+      createdAt: sandbox.createdAt,
+      updatedAt: sandbox.updatedAt,
     },
     null,
     2

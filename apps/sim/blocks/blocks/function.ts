@@ -18,7 +18,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   - JavaScript code without external imports runs in a local VM for fastest execution.
   - JavaScript code with import/require statements runs in a remote sandbox.
   - Python code always runs in a remote sandbox.
-  - To import third-party packages, create a sandbox in Settings > Sandboxes and select it under the block's advanced options. Without one, only the standard library and built-in modules are available.
+  - To import third-party packages, create a Sim sandbox in Settings > Sandboxes and select it under the block's advanced options. Without one, only the standard library and built-in modules are available.
   - Can reference workflow variables using <blockName.output> syntax as usual within code. Avoid XML/HTML tags.
   `,
   docsLink: 'https://docs.sim.ai/workflows/blocks/function',
@@ -56,7 +56,7 @@ IMPORTANT FORMATTING RULES:
 1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes (e.g., use 'apiKey = {{SERVICE_API_KEY}}' not 'apiKey = "{{SERVICE_API_KEY}}"'). Our system replaces these placeholders before execution.
 2. Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes (e.g., use 'userId = <userId>;' not 'userId = "<userId>";'). This includes parameters defined in the block's schema and outputs from previous blocks.
 3. Function Body ONLY: Do NOT include the function signature (e.g., 'async function myFunction() {' or the surrounding '}').
-4. Imports: Standard Node.js built-in modules (e.g., 'crypto', 'fs') are always available. Third-party packages are available ONLY when the block has a sandbox selected — the sandbox's package list is appended below when one is. Never import a package that is not on that list.
+4. Imports: Standard Node.js built-in modules (e.g., 'crypto', 'fs') are always available. Third-party packages are available ONLY when the block has a Sim sandbox selected — the Sim sandbox's package list is appended below when one is. Never import a package that is not on that list.
 5. Output: Ensure the code returns a value if the function is expected to produce output. Use 'return'.
 6. Clarity: Write clean, readable code.
 7. No Explanations: Do NOT include markdown formatting, comments explaining the rules, or any text other than the raw JavaScript code for the function body.
@@ -97,7 +97,7 @@ try {
     },
     {
       id: 'sandboxId',
-      title: 'Sandbox',
+      title: 'Sim sandbox',
       type: 'combobox',
       mode: 'advanced',
       searchable: true,
@@ -110,7 +110,7 @@ try {
       showWhenEnvSet: 'NEXT_PUBLIC_SANDBOX_ENABLED,NEXT_PUBLIC_E2B_ENABLED',
       placeholder: 'Default image',
       description:
-        'Packages this block can import. Manage sandboxes in Settings > Sandboxes. Leaving this empty runs on the default image.',
+        'Packages this block can import. Manage Sim sandboxes in Settings > Sandboxes. Leaving this empty runs on the default image.',
       options: [],
       fetchOptions: (blockId) => fetchWorkspaceSandboxOptions(blockId),
       fetchOptionById: (blockId, optionId) => fetchWorkspaceSandboxOption(blockId, optionId),
@@ -154,7 +154,7 @@ try {
     code: { type: 'string', description: 'JavaScript or Python code to execute' },
     language: { type: 'string', description: 'Language (javascript or python)' },
     timeout: { type: 'number', description: 'Execution timeout' },
-    sandboxId: { type: 'string', description: 'Workspace sandbox providing importable packages' },
+    sandboxId: { type: 'string', description: 'Sim sandbox providing importable packages' },
     secretScope: { type: 'string', description: 'Secret access mode: all or selected' },
     mountedSecrets: {
       type: 'json',
