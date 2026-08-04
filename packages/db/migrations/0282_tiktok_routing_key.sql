@@ -59,4 +59,11 @@ END $$;
 -- migration-safe: remove the session-local scratch table after the backfill completes.
 DROP TABLE IF EXISTS "_tiktok_webhook_routing_backfill";
 --> statement-breakpoint
+-- The routing-key index replaces the old TikTok credential-expression lookup.
 COMMIT;
+--> statement-breakpoint
+SET lock_timeout = 0;
+--> statement-breakpoint
+DROP INDEX CONCURRENTLY IF EXISTS "webhook_tiktok_credential_id_idx";
+--> statement-breakpoint
+SET lock_timeout = '5s';

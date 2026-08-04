@@ -14,7 +14,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import { dispatchResolvedWebhookTarget, findWebhooksByRoutingKey } from '@/lib/webhooks/processor'
 import { verifyTikTokSignature } from '@/lib/webhooks/providers/tiktok'
-import { findLegacyTikTokWebhooks } from '@/lib/webhooks/tiktok-legacy-routing'
 
 const logger = createLogger('TikTokAppWebhookAPI')
 
@@ -94,9 +93,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const routedWebhooks = await findWebhooksByRoutingKey(envelope.user_openid, requestId, 'tiktok')
-    const legacyWebhooks = await findLegacyTikTokWebhooks(envelope.user_openid)
-    const webhooks = [...routedWebhooks, ...legacyWebhooks]
+    const webhooks = await findWebhooksByRoutingKey(envelope.user_openid, requestId, 'tiktok')
     let dispatched = 0
     let failed = 0
     for (const { webhook, workflow } of webhooks) {
