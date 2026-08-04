@@ -182,16 +182,21 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     }
     return <pre {...props} className={clsx('my-4 overflow-x-auto rounded-lg', props.className)} />
   },
+  // Inline code chip — matches the rich markdown editor's `.rich-markdown-prose code` exactly
+  // (--surface-5 fill, Martian Mono, 0.875em, 4px radius, 0.125rem/0.375rem padding, no border).
   code: (props: any) => {
     if (!props.className) {
       return (
         <code
           {...props}
           className={clsx(
-            'rounded bg-[var(--surface-hover)] px-1.5 py-0.5 font-mono font-normal text-[0.9em] text-[var(--text-primary)]',
+            'rounded-[4px] bg-[var(--surface-5)] px-[0.375rem] py-[0.125rem] font-normal text-[0.875em] text-[var(--text-primary)]',
             props.className
           )}
-          style={{ fontWeight: 400 }}
+          style={{
+            fontFamily: 'var(--font-martian-mono, ui-monospace, monospace)',
+            fontWeight: 400,
+          }}
         />
       )
     }

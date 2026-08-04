@@ -1,21 +1,26 @@
 'use client'
 
-import { Code } from '@sim/emcn'
+import { Code, chipFieldSurfaceClass, cn } from '@sim/emcn'
 
 interface CodeBlockProps {
   code: string
   language: 'javascript' | 'json' | 'python'
 }
 
+/**
+ * Blog code block. Renders through emcn's read-only `Code.Viewer` wearing the exact same
+ * `chipFieldSurfaceClass` surface the in-app code editor uses (the custom-tools `CodeEditor`),
+ * so a fenced block in a post matches the real editor: same Prism theme, gutter, and font, on
+ * the same theme-following surface (`--surface-5`/`--border-1`, rounded-lg) — no forced dark,
+ * all from existing design tokens.
+ */
 export function CodeBlock({ code, language }: CodeBlockProps) {
   return (
-    <div className='dark w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--code-bg)] text-sm'>
-      <Code.Viewer
-        code={code}
-        showGutter
-        language={language}
-        className='[&_pre]:!pb-0 m-0 rounded-none border-0 bg-transparent'
-      />
-    </div>
+    <Code.Viewer
+      code={code}
+      showGutter
+      language={language}
+      className={cn(chipFieldSurfaceClass, 'w-full overflow-hidden text-sm')}
+    />
   )
 }
