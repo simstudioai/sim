@@ -64,8 +64,34 @@ function normalizeModelLevel(value: string | undefined): string | undefined {
  */
 const MODEL_LEVEL_SENTINELS = new Set(['auto', 'none'])
 
+type ModelLevelField = 'reasoningEffort' | 'verbosity' | 'thinkingLevel'
+
 /**
- * Logs a level that is not one the model declares.
+ * Clears a level whose resolved model does not accept the field at all.
+ *
+ * Dropping is the safe default — a provider that has no such parameter rejects the whole
+ * request — but the discard is reported because the model can be bound to a variable or block
+ * reference and is therefore only known at execution time. Without this, a run whose reference
+ * resolved to a model outside Sim's catalogue would quietly fall back to that model's default
+ * while the caller believed the level applied.
+ */
+function dropUnsupportedLevel(
+  field: ModelLevelField,
+  model: string,
+  value: string | undefined
+): undefined {
+  if (value) {
+    logger.warn('Model does not support this level; dropping it from the request', {
+      field,
+      model,
+      value,
+    })
+  }
+  return undefined
+}
+
+/**
+ * Logs a level that the model accepts as a field but does not list as a value.
  *
  * Deliberately does not drop the value. Sim's per-model level lists exist to populate the
  * pickers and can lag a provider that has started accepting a new level, so rejecting on them
@@ -74,7 +100,7 @@ const MODEL_LEVEL_SENTINELS = new Set(['auto', 'none'])
  * levels needs, where silently substituting the model default would corrupt the results.
  */
 function warnOnUnrecognizedLevel(
-  field: 'reasoningEffort' | 'verbosity' | 'thinkingLevel',
+  field: ModelLevelField,
   model: string | undefined,
   value: string | undefined,
   declaredValues: string[] | null
@@ -103,15 +129,27 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   }
 
   if (model && !supportsReasoningEffort(model)) {
-    sanitizedRequest.reasoningEffort = undefined
+    sanitizedRequest.reasoningEffort = dropUnsupportedLevel(
+      'reasoningEffort',
+      model,
+      sanitizedRequest.reasoningEffort
+    )
   }
 
   if (model && !supportsVerbosity(model)) {
-    sanitizedRequest.verbosity = undefined
+    sanitizedRequest.verbosity = dropUnsupportedLevel(
+      'verbosity',
+      model,
+      sanitizedRequest.verbosity
+    )
   }
 
   if (model && !supportsThinking(model)) {
-    sanitizedRequest.thinkingLevel = undefined
+    sanitizedRequest.thinkingLevel = dropUnsupportedLevel(
+      'thinkingLevel',
+      model,
+      sanitizedRequest.thinkingLevel
+    )
   }
 
   if (model && !supportsPromptCaching(model)) {
