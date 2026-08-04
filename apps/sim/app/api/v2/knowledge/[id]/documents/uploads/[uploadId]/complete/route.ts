@@ -19,7 +19,7 @@ import {
   getOwnedKnowledgeDocumentUpload,
   knowledgeDocumentFileUrl,
   resolveKnowledgeDocumentUploadAccess,
-  resolveKnowledgeDocumentUploadBilling,
+  resolveKnowledgeDocumentUploadAttribution,
   toV2KnowledgeDocumentUpload,
 } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -71,12 +71,11 @@ export const POST = withRouteHandler(
       })
       if (access instanceof NextResponse) return access
 
-      const billingAttribution = await resolveKnowledgeDocumentUploadBilling({
+      const billingAttribution = await resolveKnowledgeDocumentUploadAttribution({
         workspaceId,
         userId,
         rateLimit,
       })
-      if (billingAttribution instanceof NextResponse) return billingAttribution
 
       const session = getOwnedKnowledgeDocumentUpload({
         knowledgeBaseId,

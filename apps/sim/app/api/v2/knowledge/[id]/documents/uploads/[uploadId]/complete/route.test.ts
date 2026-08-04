@@ -12,7 +12,7 @@ const {
   mockPerformUploadKnowledgeDocument,
   mockRecordKnowledgeBaseFileOwnership,
   mockResolveKnowledgeDocumentUploadAccess,
-  mockResolveKnowledgeDocumentUploadBilling,
+  mockResolveKnowledgeDocumentUploadAttribution,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockCompleteUploadSession: vi.fn(),
@@ -21,7 +21,7 @@ const {
   mockPerformUploadKnowledgeDocument: vi.fn(),
   mockRecordKnowledgeBaseFileOwnership: vi.fn(),
   mockResolveKnowledgeDocumentUploadAccess: vi.fn(),
-  mockResolveKnowledgeDocumentUploadBilling: vi.fn(),
+  mockResolveKnowledgeDocumentUploadAttribution: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({ checkRateLimit: mockCheckRateLimit }))
@@ -43,7 +43,7 @@ vi.mock('@/app/api/v2/knowledge/[id]/documents/uploads/utils', () => ({
   getOwnedKnowledgeDocumentUpload: vi.fn(() => SESSION),
   knowledgeDocumentFileUrl: vi.fn(() => FILE_URL),
   resolveKnowledgeDocumentUploadAccess: mockResolveKnowledgeDocumentUploadAccess,
-  resolveKnowledgeDocumentUploadBilling: mockResolveKnowledgeDocumentUploadBilling,
+  resolveKnowledgeDocumentUploadAttribution: mockResolveKnowledgeDocumentUploadAttribution,
   toV2KnowledgeDocumentUpload: (session: Record<string, unknown>, document: unknown) => ({
     ...session,
     name: session.fileName,
@@ -126,7 +126,7 @@ describe('POST knowledge-document multipart completion', () => {
     mockResolveKnowledgeDocumentUploadAccess.mockResolvedValue({
       kb: { id: 'kb-1', name: 'Docs' },
     })
-    mockResolveKnowledgeDocumentUploadBilling.mockResolvedValue({ actorUserId: 'payer-1' })
+    mockResolveKnowledgeDocumentUploadAttribution.mockResolvedValue({ actorUserId: 'payer-1' })
     mockRecordKnowledgeBaseFileOwnership.mockResolvedValue(undefined)
     mockDeleteFile.mockResolvedValue(undefined)
     mockDeleteFileMetadata.mockResolvedValue(true)
@@ -172,6 +172,20 @@ describe('POST knowledge-document multipart completion', () => {
     )
     expect(mockDeleteFile).not.toHaveBeenCalled()
     expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+  })
+
+  it('finalizes an already-admitted upload without re-running usage admission', async () => {
+    mockPerformUploadKnowledgeDocument.mockResolvedValue({
+      success: true,
+      document: DOCUMENT,
+      created: false,
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ data: { document: { id: 'upload-1' } } })
+    expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 
   it('removes the committed object and ownership binding when document creation fails', async () => {

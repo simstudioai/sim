@@ -37,18 +37,31 @@ export async function resolveKnowledgeDocumentUploadAccess(params: {
   return v2Error('FORBIDDEN', 'Access denied')
 }
 
+/**
+ * Resolves the payer for an upload without enforcing usage limits. Completion uses this
+ * because its bytes were already admitted when the session was created; re-running
+ * admission there would strand uploaded parts and fail idempotent completion retries.
+ */
+export async function resolveKnowledgeDocumentUploadAttribution(params: {
+  workspaceId: string
+  userId: string
+  rateLimit: RateLimitResult
+}): Promise<BillingAttributionSnapshot> {
+  return params.rateLimit.keyType === 'workspace'
+    ? resolveSystemBillingAttribution(params.workspaceId)
+    : resolveBillingAttribution({
+        actorUserId: params.userId,
+        workspaceId: params.workspaceId,
+      })
+}
+
+/** Admission check for a new upload session. Enforced only at session creation. */
 export async function resolveKnowledgeDocumentUploadBilling(params: {
   workspaceId: string
   userId: string
   rateLimit: RateLimitResult
 }): Promise<BillingAttributionSnapshot | NextResponse> {
-  const attribution =
-    params.rateLimit.keyType === 'workspace'
-      ? await resolveSystemBillingAttribution(params.workspaceId)
-      : await resolveBillingAttribution({
-          actorUserId: params.userId,
-          workspaceId: params.workspaceId,
-        })
+  const attribution = await resolveKnowledgeDocumentUploadAttribution(params)
   const usage = await checkAttributedUsageLimits(attribution)
   if (usage.isExceeded) {
     return v2Error(
