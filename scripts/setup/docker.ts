@@ -12,6 +12,16 @@ const INSTALL_HINTS = [
   `or OrbStack (lighter on macOS): ${theme.command('brew install orbstack')}`,
 ]
 
+/**
+ * Reaching this means the docker CLI exists but neither GUI app does, which is
+ * also what a colima or Rancher Desktop user looks like — telling them to
+ * install Docker Desktop would be advice for a problem they don't have.
+ */
+const NO_APP_HINTS = [
+  ...INSTALL_HINTS,
+  `or start your existing runtime its own way, e.g. ${theme.command('colima start')}`,
+]
+
 /** macOS GUI docker providers we know how to launch via `open -a`. */
 const ORBSTACK_APP = { name: 'OrbStack', bundle: 'OrbStack.app' } as const
 const DOCKER_DESKTOP_APP = { name: 'Docker', bundle: 'Docker.app' } as const
@@ -142,7 +152,7 @@ export async function ensureDocker(required: boolean): Promise<boolean> {
           `reinstall it: ${theme.command('brew install orbstack')}`,
           `or point the CLI elsewhere: unset DOCKER_HOST and DOCKER_CONTEXT, then ${theme.command('docker context use <name>')}`,
         ])
-      : launchFailed(required, 'No docker app is installed.', INSTALL_HINTS)
+      : launchFailed(required, 'Found the docker CLI, but no app to start.', NO_APP_HINTS)
   }
 
   const spin = p.spinner()
