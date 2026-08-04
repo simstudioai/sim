@@ -59,6 +59,7 @@ describe('QuickBooks webhook ingress job', () => {
       return { outcome: 'queued' }
     })
     await expect(executeQuickBooksWebhookIngress(payload)).resolves.toEqual({
+      failed: 0,
       ignored: 0,
       processed: 2,
       targetCount: 2,
@@ -91,6 +92,25 @@ describe('QuickBooks webhook ingress job', () => {
     await enqueueQuickBooksWebhookIngress(payload)
     const options = mockEnqueue.mock.calls[0][2] as { runner: () => Promise<void> }
     await options.runner()
+    expect(mockEnqueue).toHaveBeenNthCalledWith(
+      2,
+      'quickbooks-webhook-ingress',
+      expect.objectContaining({ eventIndex: 1, afterWebhookId: undefined }),
+      expect.objectContaining({ jobId: 'quickbooks-webhook-ingress:request-1:1:root' })
+    )
+  })
+
+  it('durably continues the batch before retrying a failed target page', async () => {
+    mockFindPage.mockResolvedValue({
+      hasMore: false,
+      nextCursor: null,
+      targets: [{ webhook: { id: 'w1' }, workflow: { id: 'wf1' } }],
+    })
+    mockDispatch.mockResolvedValue({ outcome: 'failed' })
+
+    await enqueueQuickBooksWebhookIngress(payload)
+    const options = mockEnqueue.mock.calls[0][2] as { runner: () => Promise<void> }
+    await expect(options.runner()).rejects.toThrow('Failed to dispatch 1 of 1 QuickBooks targets')
     expect(mockEnqueue).toHaveBeenNthCalledWith(
       2,
       'quickbooks-webhook-ingress',

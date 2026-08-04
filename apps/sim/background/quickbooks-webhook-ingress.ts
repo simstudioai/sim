@@ -21,6 +21,7 @@ export interface QuickBooksWebhookIngressPayload {
 }
 
 export interface QuickBooksWebhookIngressResult {
+  failed: number
   ignored: number
   nextCursor?: string
   processed: number
@@ -33,7 +34,7 @@ export async function executeQuickBooksWebhookIngress(
 ): Promise<QuickBooksWebhookIngressResult> {
   const eventIndex = payload.eventIndex ?? 0
   const event = payload.events[eventIndex]
-  if (!event) return { ignored: 0, processed: 0, targetCount: 0 }
+  if (!event) return { failed: 0, ignored: 0, processed: 0, targetCount: 0 }
 
   const request = new NextRequest('http://internal/api/webhooks/quickbooks', {
     method: 'POST',
@@ -65,10 +66,6 @@ export async function executeQuickBooksWebhookIngress(
     else failed += 1
   }
 
-  if (failed > 0) {
-    throw new Error(`Failed to dispatch ${failed} of ${page.targets.length} QuickBooks targets`)
-  }
-
   logger.info(`[${payload.requestId}] QuickBooks webhook page completed`, {
     eventId: event.id,
     eventIndex,
@@ -77,6 +74,7 @@ export async function executeQuickBooksWebhookIngress(
     targetCount: page.targets.length,
   })
   return {
+    failed,
     ignored,
     processed,
     targetCount: page.targets.length,
@@ -84,21 +82,33 @@ export async function executeQuickBooksWebhookIngress(
   }
 }
 
-async function runQuickBooksWebhookIngressJob(
-  payload: QuickBooksWebhookIngressPayload
+async function enqueueQuickBooksWebhookContinuation(
+  payload: QuickBooksWebhookIngressPayload,
+  result: QuickBooksWebhookIngressResult
 ): Promise<void> {
   const eventIndex = payload.eventIndex ?? 0
-  const result = await executeQuickBooksWebhookIngress(payload)
   if (result.nextCursor) {
     await enqueueQuickBooksWebhookIngress({ ...payload, afterWebhookId: result.nextCursor })
-    return
-  }
-  if (eventIndex + 1 < payload.events.length) {
+  } else if (eventIndex + 1 < payload.events.length) {
     await enqueueQuickBooksWebhookIngress({
       ...payload,
       eventIndex: eventIndex + 1,
       afterWebhookId: undefined,
     })
+  }
+}
+
+async function runQuickBooksWebhookIngressJob(
+  payload: QuickBooksWebhookIngressPayload
+): Promise<void> {
+  const result = await executeQuickBooksWebhookIngress(payload)
+  // The continuation has a deterministic job id, so retries cannot duplicate it. Enqueue it
+  // before retrying this page to avoid stranding later events in an already-acknowledged batch.
+  await enqueueQuickBooksWebhookContinuation(payload, result)
+  if (result.failed > 0) {
+    throw new Error(
+      `Failed to dispatch ${result.failed} of ${result.targetCount} QuickBooks targets`
+    )
   }
 }
 
