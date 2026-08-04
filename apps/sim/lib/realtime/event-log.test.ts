@@ -3,7 +3,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/env', () => ({ env: { REDIS_URL: undefined } }))
+const { mockEnv } = vi.hoisted(() => ({
+  mockEnv: {
+    REDIS_URL: undefined as string | undefined,
+    REDIS_TLS_SERVERNAME: undefined as string | undefined,
+  },
+}))
+
+vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
 vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => null }))
 
 import {
@@ -32,7 +39,11 @@ function serializerFor(streamId: string, value: string) {
 }
 
 describe('event-log (memory fallback)', () => {
-  beforeEach(() => resetEventLogMemoryForTesting())
+  beforeEach(() => {
+    mockEnv.REDIS_URL = undefined
+    mockEnv.REDIS_TLS_SERVERNAME = undefined
+    resetEventLogMemoryForTesting()
+  })
 
   it('assigns monotonically increasing event ids', async () => {
     const first = await appendEvent(config, 's1', serializerFor('s1', 'a'))
@@ -82,5 +93,23 @@ describe('event-log (memory fallback)', () => {
   it('reports pruned for a non-zero cursor against a never-seen stream', async () => {
     const result = await readEventsSince<TestEntry>(config, 'missing', 5)
     expect(result.status).toBe('pruned')
+  })
+
+  it('does not use memory when Redis is selected but its client is unavailable', async () => {
+    mockEnv.REDIS_URL = 'redis://localhost:6379'
+
+    await expect(appendEvent(config, 's1', serializerFor('s1', 'a'))).resolves.toBeNull()
+    await expect(readEventsSince<TestEntry>(config, 's1', 0)).resolves.toEqual({
+      status: 'unavailable',
+      error: 'Redis client unavailable',
+    })
+  })
+
+  it('fails fast instead of using memory for an invalid Redis configuration', async () => {
+    mockEnv.REDIS_URL = 'https://cache.example.com'
+
+    await expect(appendEvent(config, 's1', serializerFor('s1', 'a'))).rejects.toThrow(
+      /valid redis:\/\/ or rediss:\/\/ URL/
+    )
   })
 })

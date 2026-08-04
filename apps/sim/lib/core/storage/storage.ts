@@ -12,8 +12,8 @@ let cachedStorageMethod: StorageMethod | null = null
  * Determine the storage method once based on configuration.
  * This decision is made at first call and cached for the lifetime of the process.
  *
- * - If REDIS_URL is configured and client initializes → 'redis'
- * - If REDIS_URL is not configured → 'database'
+ * - If the cache capability selects Redis and the client initializes → 'redis'
+ * - If the cache capability selects the built-in provider → 'database'
  *
  * Transient failures do NOT change the storage method.
  * If Redis is configured but fails, operations will fail (not fallback to DB).

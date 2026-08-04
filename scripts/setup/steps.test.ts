@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'bun:test'
 import {
   EMAIL_CAPABILITY,
-  resolveFallbackCapability,
-  resolveSelectedCapability,
+  inspectCapability,
+  requireCapability,
   STORAGE_CAPABILITY,
 } from '../../apps/sim/lib/core/config/env-capabilities.ts'
 import {
+  detectStorageBackend,
   reconcileEmailSetupValues,
   reconcileStorageSetupValues,
   validateS3EndpointInput,
   validateServiceAccountJsonInput,
   validateSmtpPortInput,
 } from './steps.ts'
+import { getConfiguredMailProvider } from './twins.ts'
 
 function applyResult(
   initial: Record<string, string>,
@@ -23,6 +25,34 @@ function applyResult(
 }
 
 describe('setup provider reconciliation', () => {
+  it('defaults email setup to the first runtime-ready fallback', () => {
+    const vars = new Map([
+      ['SMTP_HOST', 'smtp.example.com'],
+      [
+        'GMAIL_CREDENTIALS_JSON',
+        JSON.stringify({ client_email: 'service@example.com', private_key: 'secret' }),
+      ],
+      ['GMAIL_SENDER', 'sender@example.com'],
+    ])
+
+    expect(getConfiguredMailProvider(vars)).toBe('gmail')
+    expect(getConfiguredMailProvider(new Map([['SMTP_HOST', 'smtp.example.com']]))).toBe('smtp')
+  })
+
+  it('uses canonical storage selection for setup defaults', () => {
+    expect(detectStorageBackend(new Map([['AWS_REGION', 'us-east-1']]))).toBe('local')
+    expect(
+      detectStorageBackend(
+        new Map([
+          ['STORAGE_PROVIDER', ' S3 '],
+          ['AWS_REGION', 'us-east-1'],
+          ['S3_BUCKET_NAME', 'files'],
+          ['S3_ENDPOINT', 'https://storage.example.com'],
+        ])
+      )
+    ).toBe('s3compat')
+  })
+
   it('removes stale email fallbacks when one provider is selected', () => {
     const result = reconcileEmailSetupValues({ RESEND_API_KEY: 'new-resend-key' })
     const reconciled = applyResult(
@@ -38,7 +68,7 @@ describe('setup provider reconciliation', () => {
     expect(result.remove).toEqual(
       expect.arrayContaining(['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'])
     )
-    expect(resolveFallbackCapability(EMAIL_CAPABILITY, reconciled).providerIds).toEqual(['resend'])
+    expect(inspectCapability(EMAIL_CAPABILITY, reconciled).providerIds).toEqual(['resend'])
   })
 
   it('clears stale SMTP auth for an unauthenticated relay', () => {
@@ -47,7 +77,7 @@ describe('setup provider reconciliation', () => {
 
     expect(reconciled).not.toHaveProperty('SMTP_USER')
     expect(reconciled).not.toHaveProperty('SMTP_PASS')
-    expect(resolveFallbackCapability(EMAIL_CAPABILITY, reconciled).providerIds).toEqual(['smtp'])
+    expect(inspectCapability(EMAIL_CAPABILITY, reconciled).providerIds).toEqual(['smtp'])
   })
 
   it('clears stale static S3 credentials when IAM is selected', () => {
@@ -69,7 +99,7 @@ describe('setup provider reconciliation', () => {
     expect(reconciled).not.toHaveProperty('AWS_ACCESS_KEY_ID')
     expect(reconciled).not.toHaveProperty('AWS_SECRET_ACCESS_KEY')
     expect(reconciled).not.toHaveProperty('S3_ENDPOINT')
-    expect(resolveSelectedCapability(STORAGE_CAPABILITY, reconciled).providerId).toBe('s3')
+    expect(requireCapability(STORAGE_CAPABILITY, reconciled).providerId).toBe('s3')
   })
 
   it('clears stale inline GCS credentials when ADC is selected', () => {
@@ -90,7 +120,7 @@ describe('setup provider reconciliation', () => {
 
     expect(reconciled).not.toHaveProperty('GCS_PROJECT_ID')
     expect(reconciled).not.toHaveProperty('GCS_CREDENTIALS_JSON')
-    expect(resolveSelectedCapability(STORAGE_CAPABILITY, reconciled).providerId).toBe('gcs')
+    expect(requireCapability(STORAGE_CAPABILITY, reconciled).providerId).toBe('gcs')
   })
 })
 

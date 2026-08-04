@@ -1,13 +1,18 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
+
+import {
+  hasEnvCapabilityValue,
+  inspectCapability,
+  SANDBOX_CAPABILITY,
+} from '@/lib/core/config/env-capabilities'
 import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
   type EnterpriseFeature,
   resolveEnterpriseEntitlement,
 } from './enterprise-entitlements'
 import { env, envBoolean, getEnv, isFalsy, isTruthy } from './env'
-import { selectSandboxProviderId } from './env-capabilities'
 
 /**
  * Is the application running in production mode
@@ -391,7 +396,7 @@ export const isForkingEnabled = enterpriseFeatureEnabled(
  * Availability below is derived from THIS provider's credentials, so a
  * Daytona-only deployment (E2B unset) still enables remote execution.
  */
-const sandboxProvider = selectSandboxProviderId(env)
+const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, env).providerId
 
 /**
  * Whether remote code/shell execution is available with the selected provider.
@@ -408,7 +413,11 @@ const sandboxProvider = selectSandboxProviderId(env)
  * `bun run setup --doctor` flags the mismatch.
  */
 export const isRemoteSandboxEnabled =
-  sandboxProvider === 'daytona' ? Boolean(env.DAYTONA_API_KEY) : isTruthy(env.E2B_ENABLED)
+  sandboxProvider === 'daytona'
+    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY')
+    : sandboxProvider === 'e2b'
+      ? isTruthy(env.E2B_ENABLED)
+      : false
 
 /**
  * Whether the document-generation sandbox is available with the selected
@@ -424,10 +433,13 @@ export const isRemoteSandboxEnabled =
  */
 export const isDocSandboxEnabled =
   sandboxProvider === 'daytona'
-    ? Boolean(env.DAYTONA_API_KEY) && Boolean(env.DAYTONA_DOC_SNAPSHOT_ID)
-    : isTruthy(env.E2B_ENABLED) &&
-      Boolean(env.E2B_API_KEY) &&
-      Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
+    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
+      hasEnvCapabilityValue(env, 'DAYTONA_DOC_SNAPSHOT_ID')
+    : sandboxProvider === 'e2b'
+      ? isTruthy(env.E2B_ENABLED) &&
+        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+        hasEnvCapabilityValue(env, 'MOTHERSHIP_E2B_DOC_TEMPLATE_ID')
+      : false
 
 /**
  * Whether Ollama is configured (OLLAMA_URL is set).

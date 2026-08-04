@@ -1,15 +1,16 @@
 import {
+  ASYNC_JOBS_CAPABILITY,
+  CACHE_CAPABILITY,
   CORE_CONFIGURATION_KEYS,
   EMAIL_CAPABILITY,
   EnvCapabilityConfigurationError,
+  hasEnvCapabilityValue,
+  inspectCapability,
   inspectOAuthClientCapability,
   OAUTH_CLIENT_CAPABILITIES,
-  resolveAsyncJobsProvider,
-  resolveCacheProvider,
-  resolveFallbackCapability,
-  resolveOcrProvider,
-  resolveSandboxProviderId,
-  resolveSelectedCapability,
+  OCR_CAPABILITY,
+  requireCapability,
+  SANDBOX_CAPABILITY,
   STORAGE_CAPABILITY,
 } from '../../apps/sim/lib/core/config/env-capabilities.ts'
 import { portOpen } from './detect.ts'
@@ -291,10 +292,26 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   const sim = ctx.primary
   if (!sim.exists) return findings
   const capabilityChecks = [
-    { command: 'bun run setup jobs', resolve: () => resolveAsyncJobsProvider(sim.vars) },
-    { command: 'bun run setup cache', resolve: () => resolveCacheProvider(sim.vars) },
-    { command: 'bun run setup sandbox', resolve: () => resolveSandboxProviderId(sim.vars) },
-    { command: 'bun run setup knowledge', resolve: () => resolveOcrProvider(sim.vars) },
+    {
+      command: ASYNC_JOBS_CAPABILITY.setupCommand,
+      resolve: () => requireCapability(ASYNC_JOBS_CAPABILITY, sim.vars),
+    },
+    {
+      command: CACHE_CAPABILITY.setupCommand,
+      resolve: () => requireCapability(CACHE_CAPABILITY, sim.vars),
+    },
+    {
+      command: SANDBOX_CAPABILITY.setupCommand,
+      resolve: () => {
+        const inspection = inspectCapability(SANDBOX_CAPABILITY, sim.vars)
+        if (inspection.error) throw inspection.error
+        return inspection
+      },
+    },
+    {
+      command: OCR_CAPABILITY.setupCommand,
+      resolve: () => requireCapability(OCR_CAPABILITY, sim.vars),
+    },
   ]
   for (const check of capabilityChecks) {
     try {
@@ -326,7 +343,7 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     }
   }
   try {
-    resolveSelectedCapability(STORAGE_CAPABILITY, sim.vars)
+    requireCapability(STORAGE_CAPABILITY, sim.vars)
   } catch (error) {
     if (!(error instanceof EnvCapabilityConfigurationError)) throw error
     findings.push({
@@ -358,11 +375,13 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   // under E2B_ENABLED or, when SANDBOX_PROVIDER=daytona, DAYTONA_API_KEY. Without
   // it the Function block hides its language dropdown and sandbox selector even
   // though the server would happily run Python.
-  const sandboxProvider = (sim.vars.get('SANDBOX_PROVIDER') || 'e2b').toLowerCase()
+  const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, sim.vars).providerId
   const remoteSandboxAvailable =
     sandboxProvider === 'daytona'
-      ? Boolean(sim.vars.get('DAYTONA_API_KEY'))
-      : isTruthy(sim.vars.get('E2B_ENABLED'))
+      ? hasEnvCapabilityValue(sim.vars, 'DAYTONA_API_KEY')
+      : sandboxProvider === 'e2b'
+        ? isTruthy(sim.vars.get('E2B_ENABLED'))
+        : false
   if (remoteSandboxAvailable && !isTruthy(sim.vars.get('NEXT_PUBLIC_SANDBOX_ENABLED'))) {
     findings.push({
       group: 'coherence',
@@ -390,15 +409,13 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
-  let emailConfigured = false
-  try {
-    emailConfigured = resolveFallbackCapability(EMAIL_CAPABILITY, sim.vars).configured
-  } catch (error) {
-    if (!(error instanceof EnvCapabilityConfigurationError)) throw error
+  const email = inspectCapability(EMAIL_CAPABILITY, sim.vars)
+  const emailConfigured = email.configured
+  if (email.error) {
     findings.push({
       group: 'coherence',
       status: 'fail',
-      message: error.message,
+      message: email.error.message,
       fix: EMAIL_CAPABILITY.setupCommand,
     })
   }
@@ -560,8 +577,10 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
 }
 
 async function checkRedis(sim: EnvFile): Promise<Finding[]> {
+  const inspection = inspectCapability(CACHE_CAPABILITY, sim.vars)
+  if (inspection.error || inspection.providerId !== 'redis') return []
   const redisUrl = sim.vars.get('REDIS_URL')
-  if (!redisUrl) return []
+  if (!redisUrl) throw new Error('Redis resolved as ready without REDIS_URL')
   const ping = await redisPing(redisUrl)
   return [
     ping.ok

@@ -20,10 +20,33 @@ export type EnvCapabilityValues =
   | ReadonlyMap<string, EnvCapabilityValue>
   | Readonly<Record<string, EnvCapabilityValue>>
 
+export type EnvValueValidation =
+  | {
+      kind: 'integer'
+      min?: number
+      max?: number
+      message: string
+    }
+  | {
+      kind: 'json-object'
+      requiredStringFields?: readonly string[]
+      message: string
+    }
+  | {
+      kind: 'pattern'
+      pattern: RegExp
+      message: string
+    }
+  | {
+      kind: 'url'
+      protocols?: readonly string[]
+      message: string
+    }
+
 export interface EnvFieldRequirement {
   type: 'field'
   key: string
-  format?: 'daytona-snapshot' | 'gmail-service-account' | 'http-url' | 'json' | 'port' | 'url'
+  validation?: EnvValueValidation
 }
 
 export interface AllOfRequirement {
@@ -38,14 +61,25 @@ export interface AnyOfRequirement {
 
 export type EnvRequirement = EnvFieldRequirement | AllOfRequirement | AnyOfRequirement
 
+export type EnvProviderActivation =
+  | { mode: 'any-present'; keys: readonly string[] }
+  | { mode: 'enabled'; key: string }
+
+export interface EnvProviderValidationIssue {
+  kind: 'missing' | 'invalid'
+  fields: readonly string[]
+  message: string
+}
+
 export interface EnvProviderDefinition<TId extends string = string> {
   id: TId
   label: string
-  activation: readonly string[]
+  activation: EnvProviderActivation
   requires: EnvRequirement
   pairedFields?: readonly (readonly [string, string])[]
   optionalFields?: readonly EnvFieldRequirement[]
   setupFields: readonly string[]
+  validate?: (values: EnvCapabilityValues) => readonly EnvProviderValidationIssue[]
 }
 
 export interface FallbackCapabilityDefinition<
@@ -55,9 +89,14 @@ export interface FallbackCapabilityDefinition<
   strategy: 'fallback'
   id: TId
   label: string
+  setupLabel: string
   setupCommand: string
   providers: readonly TProvider[]
 }
+
+export type EnvDefaultProviderDefinition =
+  | { id: string; kind: 'built-in'; label: string }
+  | { id: string; kind: 'provider' }
 
 export interface SelectedCapabilityDefinition<
   TId extends string = string,
@@ -66,17 +105,26 @@ export interface SelectedCapabilityDefinition<
   strategy: 'selected'
   id: TId
   label: string
+  setupLabel: string
   setupCommand: string
-  selectorKey: string
-  defaultProvider: string
+  selectorKey?: string
+  whenUnset: 'default' | 'first-ready'
+  defaultProvider: EnvDefaultProviderDefinition
   providers: readonly TProvider[]
 }
 
-export type ProviderId<TDefinition extends FallbackCapabilityDefinition> =
+export type CapabilityDefinition = FallbackCapabilityDefinition | SelectedCapabilityDefinition
+
+export type DeclaredProviderId<TDefinition extends CapabilityDefinition> =
   TDefinition['providers'][number]['id']
 
+export type ProviderId<TDefinition extends CapabilityDefinition> =
+  TDefinition extends SelectedCapabilityDefinition
+    ? DeclaredProviderId<TDefinition> | TDefinition['defaultProvider']['id']
+    : DeclaredProviderId<TDefinition>
+
 export type FallbackFactories<TDefinition extends FallbackCapabilityDefinition, TProvider> = {
-  [TId in ProviderId<TDefinition>]: () => TProvider | null
+  [TId in DeclaredProviderId<TDefinition>]: () => TProvider | null
 }
 
 export type ProviderConfigurationState = 'absent' | 'partial' | 'ready' | 'invalid'
@@ -84,21 +132,35 @@ export type ProviderConfigurationState = 'absent' | 'partial' | 'ready' | 'inval
 export interface ProviderInspection<TId extends string = string> {
   id: TId
   label: string
+  active: boolean
   state: ProviderConfigurationState
   missingFields: readonly string[]
   invalidFields: readonly string[]
+  invalidDetails: readonly string[]
 }
 
-export interface FallbackCapabilityResolution<TId extends string = string> {
+export interface FallbackCapabilityInspection<TId extends string = string> {
+  strategy: 'fallback'
   configured: boolean
   providerIds: readonly TId[]
   providers: readonly ProviderInspection<TId>[]
+  error: EnvCapabilityConfigurationError | null
 }
 
-export interface SelectedCapabilityResolution<TId extends string = string> {
-  providerId: TId | string
-  providers: readonly ProviderInspection<TId>[]
+export interface SelectedCapabilityInspection<
+  TProviderId extends string = string,
+  TDeclaredProviderId extends string = TProviderId,
+> {
+  strategy: 'selected'
+  providerId: TProviderId | null
+  providers: readonly ProviderInspection<TDeclaredProviderId>[]
+  error: EnvCapabilityConfigurationError | null
 }
+
+export type CapabilityInspection<TDefinition extends CapabilityDefinition> =
+  TDefinition extends SelectedCapabilityDefinition
+    ? SelectedCapabilityInspection<ProviderId<TDefinition>, DeclaredProviderId<TDefinition>>
+    : FallbackCapabilityInspection<DeclaredProviderId<TDefinition>>
 
 export class EnvCapabilityConfigurationError extends Error {
   constructor(
@@ -147,7 +209,7 @@ function unique(values: readonly string[]): string[] {
 
 export function envField(
   key: string,
-  options: Pick<EnvFieldRequirement, 'format'> = {}
+  options: Pick<EnvFieldRequirement, 'validation'> = {}
 ): EnvFieldRequirement {
   return { type: 'field', key, ...options }
 }
@@ -166,13 +228,23 @@ function requirementKeys(requirement: EnvRequirement): string[] {
     : requirement.requirements.flatMap(requirementKeys)
 }
 
-function capabilityKeys(
-  definition: FallbackCapabilityDefinition | SelectedCapabilityDefinition
-): string[] {
+function activationKeys(activation: EnvProviderActivation): readonly string[] {
+  return activation.mode === 'enabled' ? [activation.key] : activation.keys
+}
+
+function providerIsActive(provider: EnvProviderDefinition, values: EnvCapabilityValues): boolean {
+  return provider.activation.mode === 'enabled'
+    ? isTruthyValue(values, provider.activation.key)
+    : provider.activation.keys.some((key) => hasValue(values, key))
+}
+
+function capabilityKeys(definition: CapabilityDefinition): string[] {
   return [
-    ...(definition.strategy === 'selected' ? [definition.selectorKey] : []),
+    ...(definition.strategy === 'selected' && definition.selectorKey
+      ? [definition.selectorKey]
+      : []),
     ...definition.providers.flatMap((provider) => [
-      ...provider.activation,
+      ...activationKeys(provider.activation),
       ...requirementKeys(provider.requires),
       ...(provider.pairedFields ?? []).flat(),
       ...(provider.optionalFields ?? []).map((field) => field.key),
@@ -182,21 +254,86 @@ function capabilityKeys(
 }
 
 /** Returns every provider field owned by a capability's setup flow. */
-export function getCapabilitySetupFields(
-  definition: FallbackCapabilityDefinition | SelectedCapabilityDefinition
-): readonly string[] {
+export function getCapabilitySetupFields(definition: CapabilityDefinition): readonly string[] {
   return unique(definition.providers.flatMap((provider) => provider.setupFields))
 }
 
-export function defineFallbackCapability<const TDefinition extends FallbackCapabilityDefinition>(
-  definition: TDefinition
-): TDefinition {
-  return definition
+function assertRequirementDefinition(
+  capabilityId: string,
+  providerId: string,
+  requirement: EnvRequirement
+): void {
+  if (requirement.type === 'field') {
+    if (!requirement.key) {
+      throw new Error(`Capability ${capabilityId} provider ${providerId} has an empty field key`)
+    }
+    return
+  }
+  if (requirement.requirements.length === 0) {
+    throw new Error(
+      `Capability ${capabilityId} provider ${providerId} has an empty ${requirement.type}`
+    )
+  }
+  for (const child of requirement.requirements) {
+    assertRequirementDefinition(capabilityId, providerId, child)
+  }
 }
 
-export function defineSelectedCapability<const TDefinition extends SelectedCapabilityDefinition>(
+function assertCapabilityDefinition(definition: CapabilityDefinition): void {
+  if (definition.setupCommand !== `bun run setup ${definition.id}`) {
+    throw new Error(
+      `Capability ${definition.id} setup command must be "bun run setup ${definition.id}"`
+    )
+  }
+  if (definition.providers.length === 0) {
+    throw new Error(`Capability ${definition.id} must declare at least one provider`)
+  }
+
+  const providerIds = definition.providers.map((provider) => provider.id)
+  if (new Set(providerIds).size !== providerIds.length) {
+    throw new Error(`Capability ${definition.id} has duplicate provider ids`)
+  }
+
+  if (definition.strategy === 'selected') {
+    const defaultIsDeclared = providerIds.includes(definition.defaultProvider.id)
+    if (definition.defaultProvider.kind === 'provider' && !defaultIsDeclared) {
+      throw new Error(
+        `Capability ${definition.id} default provider ${definition.defaultProvider.id} is not declared`
+      )
+    }
+    if (definition.defaultProvider.kind === 'built-in' && defaultIsDeclared) {
+      throw new Error(
+        `Capability ${definition.id} built-in default ${definition.defaultProvider.id} also appears in providers`
+      )
+    }
+  }
+
+  for (const provider of definition.providers) {
+    if (provider.activation.mode === 'any-present' && provider.activation.keys.length === 0) {
+      throw new Error(`Capability ${definition.id} provider ${provider.id} has no activation keys`)
+    }
+    assertRequirementDefinition(definition.id, provider.id, provider.requires)
+
+    const setupFields = new Set(provider.setupFields)
+    const ownedFields = unique([
+      ...requirementKeys(provider.requires),
+      ...(provider.optionalFields ?? []).map((field) => field.key),
+      ...(provider.pairedFields ?? []).flat(),
+      ...(provider.activation.mode === 'enabled' ? [provider.activation.key] : []),
+    ])
+    const missingSetupFields = ownedFields.filter((field) => !setupFields.has(field))
+    if (missingSetupFields.length > 0) {
+      throw new Error(
+        `Capability ${definition.id} provider ${provider.id} omits owned setup fields: ${missingSetupFields.join(', ')}`
+      )
+    }
+  }
+}
+
+export function defineCapability<const TDefinition extends CapabilityDefinition>(
   definition: TDefinition
 ): TDefinition {
+  assertCapabilityDefinition(definition)
   return definition
 }
 
@@ -204,46 +341,43 @@ interface RequirementInspection {
   ready: boolean
   missingFields: readonly string[]
   invalidFields: readonly string[]
+  invalidDetails: readonly string[]
 }
 
-/** Applies the canonical field-format validation used by runtime capability resolution. */
-export function isValidEnvCapabilityFieldValue(
-  format: NonNullable<EnvFieldRequirement['format']>,
+function isValidEnvCapabilityFieldValue(
+  validation: EnvValueValidation,
   value: EnvCapabilityValue
 ): boolean {
   const serialized = String(value)
-  if (format === 'daytona-snapshot') {
-    const match = /^([^:\s]+):([^:\s]+)$/.exec(serialized)
-    if (!match) return false
-    return !['latest', 'lts', 'stable'].includes(match[2].toLowerCase())
+  if (validation.kind === 'integer') {
+    const number = Number(serialized)
+    return (
+      Number.isInteger(number) &&
+      (validation.min === undefined || number >= validation.min) &&
+      (validation.max === undefined || number <= validation.max)
+    )
   }
-  if (format === 'json' || format === 'gmail-service-account') {
+  if (validation.kind === 'json-object') {
     try {
       const parsed: unknown = JSON.parse(serialized)
-      if (format === 'gmail-service-account') {
-        return (
-          typeof parsed === 'object' &&
-          parsed !== null &&
-          'client_email' in parsed &&
-          typeof parsed.client_email === 'string' &&
-          parsed.client_email.length > 0 &&
-          'private_key' in parsed &&
-          typeof parsed.private_key === 'string' &&
-          parsed.private_key.length > 0
-        )
-      }
-      return true
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return false
+      return (validation.requiredStringFields ?? []).every(
+        (field) =>
+          field in parsed &&
+          typeof (parsed as Record<string, unknown>)[field] === 'string' &&
+          ((parsed as Record<string, unknown>)[field] as string).length > 0
+      )
     } catch {
       return false
     }
   }
-  if (format === 'port') {
-    const port = Number(serialized)
-    return Number.isInteger(port) && port >= 1 && port <= 65535
+  if (validation.kind === 'pattern') {
+    validation.pattern.lastIndex = 0
+    return validation.pattern.test(serialized)
   }
   try {
     const parsed = new URL(serialized)
-    return format !== 'http-url' || parsed.protocol === 'http:' || parsed.protocol === 'https:'
+    return !validation.protocols || validation.protocols.includes(parsed.protocol)
   } catch {
     return false
   }
@@ -254,17 +388,27 @@ function inspectField(
   values: EnvCapabilityValues
 ): RequirementInspection {
   if (!hasValue(values, requirement.key)) {
-    return { ready: false, missingFields: [requirement.key], invalidFields: [] }
+    return {
+      ready: false,
+      missingFields: [requirement.key],
+      invalidFields: [],
+      invalidDetails: [],
+    }
   }
 
   const value = readValue(values, requirement.key)
-  const valid = requirement.format
-    ? isValidEnvCapabilityFieldValue(requirement.format, value)
+  const valid = requirement.validation
+    ? isValidEnvCapabilityFieldValue(requirement.validation, value)
     : true
 
   return valid
-    ? { ready: true, missingFields: [], invalidFields: [] }
-    : { ready: false, missingFields: [], invalidFields: [requirement.key] }
+    ? { ready: true, missingFields: [], invalidFields: [], invalidDetails: [] }
+    : {
+        ready: false,
+        missingFields: [],
+        invalidFields: [requirement.key],
+        invalidDetails: [`${requirement.key} ${requirement.validation?.message ?? 'is invalid'}`],
+      }
 }
 
 function inspectRequirement(
@@ -274,20 +418,28 @@ function inspectRequirement(
   if (requirement.type === 'field') return inspectField(requirement, values)
 
   const inspections = requirement.requirements.map((child) => inspectRequirement(child, values))
-  if (requirement.type === 'anyOf' && inspections.some((inspection) => inspection.ready)) {
-    return { ready: true, missingFields: [], invalidFields: [] }
+  if (requirement.type === 'anyOf') {
+    const ready = inspections.find((inspection) => inspection.ready)
+    if (ready) return ready
+    return inspections.reduce((best, candidate) => {
+      const bestIssueCount = best.missingFields.length + best.invalidFields.length
+      const candidateIssueCount = candidate.missingFields.length + candidate.invalidFields.length
+      return candidateIssueCount < bestIssueCount ? candidate : best
+    })
   }
 
   return {
     ready: inspections.every((inspection) => inspection.ready),
     missingFields: unique(inspections.flatMap((inspection) => inspection.missingFields)),
     invalidFields: unique(inspections.flatMap((inspection) => inspection.invalidFields)),
+    invalidDetails: unique(inspections.flatMap((inspection) => inspection.invalidDetails)),
   }
 }
 
 function inspectProviderRequirements<const TProvider extends EnvProviderDefinition>(
   provider: TProvider,
-  values: EnvCapabilityValues
+  values: EnvCapabilityValues,
+  active = true
 ): ProviderInspection<TProvider['id']> {
   const inspection = inspectRequirement(provider.requires, values)
   const invalidOptionalFields = (provider.optionalFields ?? []).flatMap((field) => {
@@ -297,17 +449,66 @@ function inspectProviderRequirements<const TProvider extends EnvProviderDefiniti
   const invalidPairs = (provider.pairedFields ?? []).flatMap(([left, right]) =>
     hasValue(values, left) === hasValue(values, right) ? [] : [left, right]
   )
+  const customIssues = provider.validate?.(values) ?? []
+  const missingFields = unique([
+    ...inspection.missingFields,
+    ...customIssues
+      .filter((customIssue) => customIssue.kind === 'missing')
+      .flatMap((customIssue) => customIssue.fields),
+  ])
   const invalidFields = unique([
     ...inspection.invalidFields,
     ...invalidOptionalFields,
     ...invalidPairs,
+    ...customIssues
+      .filter((customIssue) => customIssue.kind === 'invalid')
+      .flatMap((customIssue) => customIssue.fields),
+  ])
+  const invalidDetails = unique([
+    ...inspection.invalidDetails,
+    ...(provider.optionalFields ?? []).flatMap((field) => {
+      if (!hasValue(values, field.key)) return []
+      return inspectField(field, values).invalidDetails
+    }),
+    ...(provider.pairedFields ?? []).flatMap(([left, right]) =>
+      hasValue(values, left) === hasValue(values, right)
+        ? []
+        : [`${left} and ${right} must be set together`]
+    ),
+    ...customIssues.map((customIssue) => customIssue.message),
   ])
   return {
     id: provider.id,
     label: provider.label,
-    state: invalidFields.length > 0 ? 'invalid' : inspection.ready ? 'ready' : 'partial',
-    missingFields: inspection.missingFields,
+    active,
+    state:
+      invalidFields.length > 0
+        ? 'invalid'
+        : missingFields.length > 0 || !inspection.ready
+          ? 'partial'
+          : 'ready',
+    missingFields,
     invalidFields,
+    invalidDetails,
+  }
+}
+
+function inspectRequiredProvider<const TProvider extends EnvProviderDefinition>(
+  provider: TProvider,
+  values: EnvCapabilityValues
+): ProviderInspection<TProvider['id']> {
+  const active = providerIsActive(provider, values)
+  const inspection = inspectProviderRequirements(provider, values, active)
+  if (active || provider.activation.mode !== 'enabled') return inspection
+
+  return {
+    ...inspection,
+    state: 'invalid',
+    invalidFields: unique([...inspection.invalidFields, provider.activation.key]),
+    invalidDetails: unique([
+      ...inspection.invalidDetails,
+      `${provider.activation.key} must be enabled`,
+    ]),
   }
 }
 
@@ -315,29 +516,35 @@ export function inspectProvider<const TProvider extends EnvProviderDefinition>(
   provider: TProvider,
   values: EnvCapabilityValues
 ): ProviderInspection<TProvider['id']> {
-  const active = provider.activation.some((key) => hasValue(values, key))
+  const active = providerIsActive(provider, values)
   return active
-    ? inspectProviderRequirements(provider, values)
+    ? inspectProviderRequirements(provider, values, true)
     : {
         id: provider.id,
         label: provider.label,
+        active: false,
         state: 'absent',
         missingFields: [],
         invalidFields: [],
+        invalidDetails: [],
       }
 }
 
 function providerProblems(inspection: ProviderInspection): string {
   return [
     inspection.missingFields.length > 0 ? `missing ${inspection.missingFields.join(', ')}` : null,
-    inspection.invalidFields.length > 0 ? `invalid ${inspection.invalidFields.join(', ')}` : null,
+    inspection.invalidDetails.length > 0
+      ? inspection.invalidDetails.join(', ')
+      : inspection.invalidFields.length > 0
+        ? `invalid ${inspection.invalidFields.join(', ')}`
+        : null,
   ]
     .filter(Boolean)
     .join('; ')
 }
 
 export function getCapabilityConfigurationError(
-  definition: FallbackCapabilityDefinition | SelectedCapabilityDefinition,
+  definition: CapabilityDefinition,
   inspections: readonly ProviderInspection[]
 ): EnvCapabilityConfigurationError | null {
   const broken = inspections.filter(
@@ -353,75 +560,264 @@ export function getCapabilityConfigurationError(
   )
 }
 
-export function resolveSelectedCapability<const TDefinition extends SelectedCapabilityDefinition>(
+function replaceProviderInspection<TId extends string>(
+  providers: readonly ProviderInspection<TId>[],
+  replacement: ProviderInspection<TId>
+): ProviderInspection<TId>[] {
+  return providers.map((provider) => (provider.id === replacement.id ? replacement : provider))
+}
+
+function inspectSelectedCapability<const TDefinition extends SelectedCapabilityDefinition>(
   definition: TDefinition,
   values: EnvCapabilityValues
-): SelectedCapabilityResolution<TDefinition['providers'][number]['id']> {
-  const rawSelector = readValue(values, definition.selectorKey)
-  const selector = hasValue(values, definition.selectorKey)
-    ? String(rawSelector).trim().toLowerCase()
-    : null
-  const providers = definition.providers.map((provider) =>
-    provider.id === selector
-      ? inspectProviderRequirements(provider, values)
-      : inspectProvider(provider, values)
-  )
+): SelectedCapabilityInspection<ProviderId<TDefinition>, DeclaredProviderId<TDefinition>> {
+  const rawSelector = definition.selectorKey ? readValue(values, definition.selectorKey) : undefined
+  const selector =
+    definition.selectorKey && hasValue(values, definition.selectorKey)
+      ? String(rawSelector).trim().toLowerCase()
+      : null
+  let providers = definition.providers.map((provider) => inspectProvider(provider, values))
   const known = new Set([
-    definition.defaultProvider,
+    definition.defaultProvider.id,
     ...definition.providers.map((provider) => provider.id),
   ])
 
   if (selector && !known.has(selector)) {
-    throw new EnvCapabilityConfigurationError(
+    const error = new EnvCapabilityConfigurationError(
       definition.id,
       `Unknown ${definition.selectorKey} "${rawSelector}". Expected one of: ${[...known].join(', ')}`
     )
+    return { strategy: 'selected', providerId: null, providers, error }
   }
-  if (selector && selector !== definition.defaultProvider) {
-    const selected = providers.find((provider) => provider.id === selector)
-    if (selected?.state !== 'ready') {
-      throw new EnvCapabilityConfigurationError(
-        definition.id,
-        `${definition.label} selects ${selector}, but that provider is not configured (${selected ? providerProblems(selected) : 'provider definition missing'}). Run ${definition.setupCommand}.`
-      )
+
+  if (selector) {
+    const selectedDefinition = definition.providers.find((provider) => provider.id === selector)
+    if (!selectedDefinition) {
+      return {
+        strategy: 'selected',
+        providerId: definition.defaultProvider.id as ProviderId<TDefinition>,
+        providers,
+        error: null,
+      }
     }
-    return { providerId: selector, providers }
+    const active = providerIsActive(selectedDefinition, values)
+    const selected =
+      !active && selectedDefinition.activation.mode === 'enabled'
+        ? inspectProvider(selectedDefinition, values)
+        : inspectProviderRequirements(selectedDefinition, values, active)
+    providers = replaceProviderInspection(providers, selected)
+    const error =
+      selected.state === 'ready' ||
+      (selected.state === 'absent' && selectedDefinition.activation.mode === 'enabled')
+        ? null
+        : new EnvCapabilityConfigurationError(
+            definition.id,
+            `${definition.label} selects ${selector}, but that provider is not configured (${providerProblems(selected)}). Run ${definition.setupCommand}.`
+          )
+    return {
+      strategy: 'selected',
+      providerId: selector as ProviderId<TDefinition>,
+      providers,
+      error,
+    }
   }
-  if (selector === definition.defaultProvider) {
-    return { providerId: definition.defaultProvider, providers }
+
+  if (definition.whenUnset === 'default') {
+    const defaultDefinition = definition.providers.find(
+      (provider) => provider.id === definition.defaultProvider.id
+    )
+    if (!defaultDefinition) {
+      return {
+        strategy: 'selected',
+        providerId: definition.defaultProvider.id as ProviderId<TDefinition>,
+        providers,
+        error: null,
+      }
+    }
+    const selected = providers.find((provider) => provider.id === definition.defaultProvider.id)
+    return {
+      strategy: 'selected',
+      providerId: definition.defaultProvider.id as ProviderId<TDefinition>,
+      providers,
+      error:
+        !selected || selected.state === 'ready' || selected.state === 'absent'
+          ? null
+          : new EnvCapabilityConfigurationError(
+              definition.id,
+              `${definition.label} selects ${definition.defaultProvider.id}, but that provider is not configured (${providerProblems(selected)}). Run ${definition.setupCommand}.`
+            ),
+    }
   }
 
-  const ready = providers.filter((provider) => provider.state === 'ready')
-  if (ready.length > 0) return { providerId: ready[0].id, providers }
+  const candidates = providers.filter((provider) => provider.id !== definition.defaultProvider.id)
+  for (const candidate of candidates) {
+    if (candidate.state === 'ready') {
+      return {
+        strategy: 'selected',
+        providerId: candidate.id as ProviderId<TDefinition>,
+        providers,
+        error: null,
+      }
+    }
+    if (
+      candidate.state === 'invalid' &&
+      candidate.missingFields.length === 0 &&
+      candidate.invalidFields.length > 0
+    ) {
+      return {
+        strategy: 'selected',
+        providerId: candidate.id as ProviderId<TDefinition>,
+        providers,
+        error: new EnvCapabilityConfigurationError(
+          definition.id,
+          `${candidate.label} is incorrectly configured (${providerProblems(candidate)}). Run ${definition.setupCommand}.`
+        ),
+      }
+    }
+  }
 
-  const error = getCapabilityConfigurationError(definition, providers)
-  if (error) throw error
+  const error = getCapabilityConfigurationError(definition, candidates)
+  const broken = candidates.find(
+    (provider) => provider.state === 'partial' || provider.state === 'invalid'
+  )
 
-  return { providerId: definition.defaultProvider, providers }
+  return {
+    strategy: 'selected',
+    providerId: (broken?.id ?? definition.defaultProvider.id) as ProviderId<TDefinition>,
+    providers,
+    error,
+  }
 }
 
-export function resolveFallbackCapability<const TDefinition extends FallbackCapabilityDefinition>(
+function inspectFallbackCapability<const TDefinition extends FallbackCapabilityDefinition>(
   definition: TDefinition,
   values: EnvCapabilityValues
-): FallbackCapabilityResolution<ProviderId<TDefinition>> {
+): FallbackCapabilityInspection<DeclaredProviderId<TDefinition>> {
   const providers = definition.providers.map((provider) => inspectProvider(provider, values))
   const providerIds = providers
     .filter((provider) => provider.state === 'ready')
-    .map((provider) => provider.id) as ProviderId<TDefinition>[]
+    .map((provider) => provider.id) as DeclaredProviderId<TDefinition>[]
+  const configurationError = getCapabilityConfigurationError(definition, providers)
 
-  if (providerIds.length === 0) {
-    const error = getCapabilityConfigurationError(definition, providers)
-    if (error) throw error
+  return {
+    strategy: 'fallback',
+    configured: providerIds.length > 0,
+    providerIds,
+    providers,
+    error: providerIds.length === 0 ? configurationError : null,
   }
+}
 
-  return { configured: providerIds.length > 0, providerIds, providers }
+export function inspectCapability<const TDefinition extends SelectedCapabilityDefinition>(
+  definition: TDefinition,
+  values: EnvCapabilityValues
+): SelectedCapabilityInspection<ProviderId<TDefinition>, DeclaredProviderId<TDefinition>>
+export function inspectCapability<const TDefinition extends FallbackCapabilityDefinition>(
+  definition: TDefinition,
+  values: EnvCapabilityValues
+): FallbackCapabilityInspection<DeclaredProviderId<TDefinition>>
+export function inspectCapability(
+  definition: CapabilityDefinition,
+  values: EnvCapabilityValues
+): SelectedCapabilityInspection | FallbackCapabilityInspection {
+  return definition.strategy === 'selected'
+    ? inspectSelectedCapability(definition, values)
+    : inspectFallbackCapability(definition, values)
+}
+
+export function requireCapability<const TDefinition extends SelectedCapabilityDefinition>(
+  definition: TDefinition,
+  values: EnvCapabilityValues
+): Omit<
+  SelectedCapabilityInspection<ProviderId<TDefinition>, DeclaredProviderId<TDefinition>>,
+  'error' | 'providerId'
+> & {
+  providerId: ProviderId<TDefinition>
+}
+export function requireCapability<const TDefinition extends FallbackCapabilityDefinition>(
+  definition: TDefinition,
+  values: EnvCapabilityValues
+): Omit<FallbackCapabilityInspection<DeclaredProviderId<TDefinition>>, 'error'>
+export function requireCapability(
+  definition: CapabilityDefinition,
+  values: EnvCapabilityValues
+):
+  | (Omit<SelectedCapabilityInspection, 'error' | 'providerId'> & { providerId: string })
+  | Omit<FallbackCapabilityInspection, 'error'> {
+  const inspection =
+    definition.strategy === 'selected'
+      ? inspectSelectedCapability(definition, values)
+      : inspectFallbackCapability(definition, values)
+  if (inspection.error) throw inspection.error
+  if (inspection.strategy === 'selected') {
+    const providerId = inspection.providerId
+    if (providerId === null) {
+      throw new EnvCapabilityConfigurationError(
+        definition.id,
+        `${definition.label} has no selected provider. Run ${definition.setupCommand}.`
+      )
+    }
+    const selected = inspection.providers.find((provider) => provider.id === providerId)
+    if (selected && selected.state !== 'ready') {
+      const selectedDefinition = definition.providers.find((provider) => provider.id === providerId)
+      const strictInspection =
+        selected.state === 'absent' && selectedDefinition
+          ? inspectRequiredProvider(selectedDefinition, values)
+          : selected
+      throw new EnvCapabilityConfigurationError(
+        definition.id,
+        `${definition.label} selects ${providerId}, but that provider is not configured (${providerProblems(strictInspection)}). Run ${definition.setupCommand}.`
+      )
+    }
+    return { strategy: 'selected', providerId, providers: inspection.providers }
+  }
+  if (!inspection.configured) {
+    throw new EnvCapabilityConfigurationError(
+      definition.id,
+      `${definition.label} is not configured. Run ${definition.setupCommand}.`
+    )
+  }
+  const { error: _, ...resolution } = inspection
+  return resolution
+}
+
+function findFieldRequirement(
+  requirement: EnvRequirement,
+  key: string
+): EnvFieldRequirement | null {
+  if (requirement.type === 'field') return requirement.key === key ? requirement : null
+  for (const child of requirement.requirements) {
+    const field = findFieldRequirement(child, key)
+    if (field) return field
+  }
+  return null
+}
+
+/** Validates a setup prompt with the same field rule used by runtime resolution. */
+export function validateCapabilityFieldInput(
+  definition: CapabilityDefinition,
+  key: string,
+  value: string
+): string | undefined {
+  if (!value) return 'required'
+  for (const provider of definition.providers) {
+    const field =
+      findFieldRequirement(provider.requires, key) ??
+      provider.optionalFields?.find((candidate) => candidate.key === key)
+    if (!field) continue
+    if (!field.validation || isValidEnvCapabilityFieldValue(field.validation, value)) {
+      return undefined
+    }
+    return field.validation.message
+  }
+  throw new Error(`${definition.label} has no validation definition for ${key}`)
 }
 
 export interface WireFallbackOptions<TDefinition extends FallbackCapabilityDefinition, TProvider> {
   definition: TDefinition
   values: EnvCapabilityValues
   factories: FallbackFactories<TDefinition, TProvider>
-  onFailure?: (providerId: ProviderId<TDefinition>, error: unknown) => void
+  onFailure?: (providerId: DeclaredProviderId<TDefinition>, error: unknown) => void
 }
 
 export function wireFallback<const TDefinition extends FallbackCapabilityDefinition, TProvider>({
@@ -430,7 +826,8 @@ export function wireFallback<const TDefinition extends FallbackCapabilityDefinit
   factories,
   onFailure,
 }: WireFallbackOptions<TDefinition, TProvider>) {
-  const resolution = resolveFallbackCapability(definition, values)
+  const resolution = inspectCapability(definition, values)
+  if (resolution.error) throw resolution.error
   const providers = resolution.providerIds.map((providerId) => {
     const provider = factories[providerId]()
     if (!provider) {
@@ -447,7 +844,10 @@ export function wireFallback<const TDefinition extends FallbackCapabilityDefinit
     providerIds: resolution.providerIds,
     providers: providers.map(({ provider }) => provider),
     async execute<TResult>(
-      operation: (provider: TProvider, providerId: ProviderId<TDefinition>) => Promise<TResult>
+      operation: (
+        provider: TProvider,
+        providerId: DeclaredProviderId<TDefinition>
+      ) => Promise<TResult>
     ): Promise<TResult> {
       if (resolution.providerIds.length === 0) {
         throw new EnvCapabilityConfigurationError(
@@ -474,46 +874,69 @@ export function wireFallback<const TDefinition extends FallbackCapabilityDefinit
   }
 }
 
-export const EMAIL_CAPABILITY = defineFallbackCapability({
+export const EMAIL_CAPABILITY = defineCapability({
   strategy: 'fallback',
   id: 'email',
   label: 'Email',
+  setupLabel: 'Email delivery',
   setupCommand: 'bun run setup email',
   providers: [
     {
       id: 'resend',
       label: 'Resend',
-      activation: ['RESEND_API_KEY'],
+      activation: { mode: 'any-present', keys: ['RESEND_API_KEY'] },
       requires: envField('RESEND_API_KEY'),
       setupFields: ['RESEND_API_KEY'],
     },
     {
       id: 'ses',
       label: 'Amazon SES',
-      activation: ['AWS_SES_REGION'],
+      activation: { mode: 'any-present', keys: ['AWS_SES_REGION'] },
       requires: envField('AWS_SES_REGION'),
       setupFields: ['AWS_SES_REGION'],
     },
     {
       id: 'smtp',
       label: 'SMTP',
-      activation: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'],
-      requires: allOf(envField('SMTP_HOST'), envField('SMTP_PORT', { format: 'port' })),
+      activation: {
+        mode: 'any-present',
+        keys: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'],
+      },
+      requires: allOf(
+        envField('SMTP_HOST'),
+        envField('SMTP_PORT', {
+          validation: {
+            kind: 'integer',
+            min: 1,
+            max: 65535,
+            message: 'must be a valid port between 1 and 65535',
+          },
+        })
+      ),
       setupFields: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'],
     },
     {
       id: 'azure',
       label: 'Azure Communication Services',
-      activation: ['AZURE_ACS_CONNECTION_STRING'],
+      activation: { mode: 'any-present', keys: ['AZURE_ACS_CONNECTION_STRING'] },
       requires: envField('AZURE_ACS_CONNECTION_STRING'),
       setupFields: ['AZURE_ACS_CONNECTION_STRING'],
     },
     {
       id: 'gmail',
       label: 'Gmail',
-      activation: ['GMAIL_CREDENTIALS_JSON', 'GMAIL_SENDER'],
+      activation: {
+        mode: 'any-present',
+        keys: ['GMAIL_CREDENTIALS_JSON', 'GMAIL_SENDER'],
+      },
       requires: allOf(
-        envField('GMAIL_CREDENTIALS_JSON', { format: 'gmail-service-account' }),
+        envField('GMAIL_CREDENTIALS_JSON', {
+          validation: {
+            kind: 'json-object',
+            requiredStringFields: ['client_email', 'private_key'],
+            message: 'must be service account JSON with client_email and private_key',
+          },
+        }),
         envField('GMAIL_SENDER')
       ),
       setupFields: ['GMAIL_CREDENTIALS_JSON', 'GMAIL_SENDER'],
@@ -521,23 +944,28 @@ export const EMAIL_CAPABILITY = defineFallbackCapability({
   ],
 } as const)
 
-export const STORAGE_CAPABILITY = defineSelectedCapability({
+export const STORAGE_CAPABILITY = defineCapability({
   strategy: 'selected',
   id: 'storage',
   label: 'File storage',
+  setupLabel: 'File storage',
   setupCommand: 'bun run setup storage',
   selectorKey: 'STORAGE_PROVIDER',
-  defaultProvider: 'local',
+  whenUnset: 'first-ready',
+  defaultProvider: { id: 'local', kind: 'built-in', label: 'Local disk' },
   providers: [
     {
       id: 'azure',
       label: 'Azure Blob Storage',
-      activation: [
-        'AZURE_CONNECTION_STRING',
-        'AZURE_ACCOUNT_NAME',
-        'AZURE_ACCOUNT_KEY',
-        'AZURE_STORAGE_CONTAINER_NAME',
-      ],
+      activation: {
+        mode: 'any-present',
+        keys: [
+          'AZURE_CONNECTION_STRING',
+          'AZURE_ACCOUNT_NAME',
+          'AZURE_ACCOUNT_KEY',
+          'AZURE_STORAGE_CONTAINER_NAME',
+        ],
+      },
       requires: allOf(
         envField('AZURE_STORAGE_CONTAINER_NAME'),
         anyOf(
@@ -555,20 +983,31 @@ export const STORAGE_CAPABILITY = defineSelectedCapability({
     {
       id: 's3',
       label: 'S3',
-      activation: [
-        'S3_BUCKET_NAME',
-        'S3_KB_BUCKET_NAME',
-        'S3_EXECUTION_FILES_BUCKET_NAME',
-        'S3_CHAT_BUCKET_NAME',
-        'S3_COPILOT_BUCKET_NAME',
-        'S3_PROFILE_PICTURES_BUCKET_NAME',
-        'S3_OG_IMAGES_BUCKET_NAME',
-        'S3_WORKSPACE_LOGOS_BUCKET_NAME',
-        'S3_ENDPOINT',
-      ],
+      activation: {
+        mode: 'any-present',
+        keys: [
+          'S3_BUCKET_NAME',
+          'S3_KB_BUCKET_NAME',
+          'S3_EXECUTION_FILES_BUCKET_NAME',
+          'S3_CHAT_BUCKET_NAME',
+          'S3_COPILOT_BUCKET_NAME',
+          'S3_PROFILE_PICTURES_BUCKET_NAME',
+          'S3_OG_IMAGES_BUCKET_NAME',
+          'S3_WORKSPACE_LOGOS_BUCKET_NAME',
+          'S3_ENDPOINT',
+        ],
+      },
       requires: allOf(envField('AWS_REGION'), envField('S3_BUCKET_NAME')),
       pairedFields: [['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']],
-      optionalFields: [envField('S3_ENDPOINT', { format: 'http-url' })],
+      optionalFields: [
+        envField('S3_ENDPOINT', {
+          validation: {
+            kind: 'url',
+            protocols: ['http:', 'https:'],
+            message: 'must be a valid http:// or https:// URL',
+          },
+        }),
+      ],
       setupFields: [
         'AWS_REGION',
         'AWS_ACCESS_KEY_ID',
@@ -581,180 +1020,170 @@ export const STORAGE_CAPABILITY = defineSelectedCapability({
     {
       id: 'gcs',
       label: 'Google Cloud Storage',
-      activation: ['GCS_BUCKET_NAME'],
+      activation: { mode: 'any-present', keys: ['GCS_BUCKET_NAME'] },
       requires: envField('GCS_BUCKET_NAME'),
-      optionalFields: [envField('GCS_CREDENTIALS_JSON', { format: 'gmail-service-account' })],
+      optionalFields: [
+        envField('GCS_CREDENTIALS_JSON', {
+          validation: {
+            kind: 'json-object',
+            requiredStringFields: ['client_email', 'private_key'],
+            message: 'must be service account JSON with client_email and private_key',
+          },
+        }),
+      ],
       setupFields: ['GCS_BUCKET_NAME', 'GCS_PROJECT_ID', 'GCS_CREDENTIALS_JSON'],
     },
   ],
 } as const)
 
-export type SandboxProviderCapabilityId = 'e2b' | 'daytona'
+export const SANDBOX_CAPABILITY = defineCapability({
+  strategy: 'selected',
+  id: 'sandbox',
+  label: 'Remote sandbox',
+  setupLabel: 'Remote sandboxes',
+  setupCommand: 'bun run setup sandbox',
+  selectorKey: 'SANDBOX_PROVIDER',
+  whenUnset: 'default',
+  defaultProvider: { id: 'e2b', kind: 'provider' },
+  providers: [
+    {
+      id: 'e2b',
+      label: 'E2B',
+      activation: { mode: 'enabled', key: 'E2B_ENABLED' },
+      requires: envField('E2B_API_KEY'),
+      setupFields: ['E2B_ENABLED', 'E2B_API_KEY'],
+    },
+    {
+      id: 'daytona',
+      label: 'Daytona',
+      activation: {
+        mode: 'any-present',
+        keys: ['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'],
+      },
+      requires: allOf(
+        envField('DAYTONA_API_KEY'),
+        envField('DAYTONA_SHELL_SNAPSHOT_ID', {
+          validation: {
+            kind: 'pattern',
+            pattern: /^(?!.*:(?:latest|lts|stable)$)[^:\s]+:[^:\s]+$/i,
+            message: 'must use an explicit, non-floating name:tag',
+          },
+        })
+      ),
+      setupFields: ['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'],
+    },
+  ],
+} as const)
 
-/** Selects the legacy sandbox provider without requiring credentials until it is used. */
-export function selectSandboxProviderId(values: EnvCapabilityValues): SandboxProviderCapabilityId {
-  const configured = hasValue(values, 'SANDBOX_PROVIDER')
-    ? String(readValue(values, 'SANDBOX_PROVIDER')).toLowerCase()
-    : 'e2b'
-  if (configured !== 'e2b' && configured !== 'daytona') {
-    throw new EnvCapabilityConfigurationError(
-      'sandbox',
-      `Unknown SANDBOX_PROVIDER "${readValue(values, 'SANDBOX_PROVIDER')}" (expected e2b or daytona)`
-    )
-  }
-  return configured
-}
+export const ASYNC_JOBS_CAPABILITY = defineCapability({
+  strategy: 'selected',
+  id: 'jobs',
+  label: 'Async jobs',
+  setupLabel: 'Async jobs',
+  setupCommand: 'bun run setup jobs',
+  whenUnset: 'first-ready',
+  defaultProvider: { id: 'database', kind: 'built-in', label: 'Database queue' },
+  providers: [
+    {
+      id: 'trigger-dev',
+      label: 'Trigger.dev',
+      activation: { mode: 'enabled', key: 'TRIGGER_DEV_ENABLED' },
+      requires: allOf(envField('TRIGGER_PROJECT_ID'), envField('TRIGGER_SECRET_KEY')),
+      setupFields: ['TRIGGER_DEV_ENABLED', 'TRIGGER_PROJECT_ID', 'TRIGGER_SECRET_KEY'],
+    },
+  ],
+} as const)
 
-export function resolveSandboxProviderId(values: EnvCapabilityValues): SandboxProviderCapabilityId {
-  const configured = selectSandboxProviderId(values)
-  if (configured === 'daytona') {
-    const missing = ['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'].filter(
-      (key) => !hasValue(values, key)
-    )
-    if (missing.length > 0) {
-      const verb = missing.length === 1 ? 'is' : 'are'
-      throw new EnvCapabilityConfigurationError(
-        'sandbox',
-        `SANDBOX_PROVIDER selects Daytona but ${missing.join(', ')} ${verb} missing. Run bun run setup sandbox.`
-      )
-    }
-    const snapshot = readValue(values, 'DAYTONA_SHELL_SNAPSHOT_ID')
-    if (!isValidEnvCapabilityFieldValue('daytona-snapshot', snapshot)) {
-      throw new EnvCapabilityConfigurationError(
-        'sandbox',
-        'DAYTONA_SHELL_SNAPSHOT_ID must use an explicit, non-floating name:tag. Run bun run setup sandbox.'
-      )
-    }
-    return configured
-  }
-  if (
-    configured === 'e2b' &&
-    isTruthyValue(values, 'E2B_ENABLED') &&
-    !hasValue(values, 'E2B_API_KEY')
-  ) {
-    throw new EnvCapabilityConfigurationError(
-      'sandbox',
-      'E2B_ENABLED is on but E2B_API_KEY is missing. Run bun run setup sandbox.'
-    )
-  }
-  return configured
-}
-
-export function resolveAsyncJobsProvider(values: EnvCapabilityValues): 'database' | 'trigger-dev' {
-  if (!isTruthyValue(values, 'TRIGGER_DEV_ENABLED')) return 'database'
-  const missing = ['TRIGGER_SECRET_KEY', 'TRIGGER_PROJECT_ID'].filter(
-    (key) => !hasValue(values, key)
-  )
-  if (missing.length > 0) {
-    throw new EnvCapabilityConfigurationError(
-      'jobs',
-      `TRIGGER_DEV_ENABLED is on but ${missing.join(', ')} is missing. Run bun run setup jobs.`
-    )
-  }
-  return 'trigger-dev'
-}
-
-export function resolveCacheProvider(values: EnvCapabilityValues): 'database' | 'redis' {
-  if (!hasValue(values, 'REDIS_URL')) return 'database'
-  const redisUrl = String(readValue(values, 'REDIS_URL'))
-  let parsed: URL
+/** Validates the one provider dependency that cannot be expressed as a field-shape rule. */
+function validateRedisProvider(values: EnvCapabilityValues): readonly EnvProviderValidationIssue[] {
+  if (!hasValue(values, 'REDIS_URL')) return []
+  let redisUrl: URL
   try {
-    parsed = new URL(redisUrl)
+    redisUrl = new URL(String(readValue(values, 'REDIS_URL')))
   } catch {
-    throw new EnvCapabilityConfigurationError('cache', 'REDIS_URL must be a valid URL')
-  }
-  if (parsed.protocol !== 'redis:' && parsed.protocol !== 'rediss:') {
-    throw new EnvCapabilityConfigurationError(
-      'cache',
-      'REDIS_URL must use the redis:// or rediss:// protocol'
-    )
+    return []
   }
   if (
-    parsed.protocol === 'rediss:' &&
-    /^\d+\.\d+\.\d+\.\d+$/.test(parsed.hostname) &&
+    redisUrl.protocol === 'rediss:' &&
+    /^\d+\.\d+\.\d+\.\d+$/.test(redisUrl.hostname) &&
     !hasValue(values, 'REDIS_TLS_SERVERNAME')
   ) {
-    throw new EnvCapabilityConfigurationError(
-      'cache',
-      'REDIS_TLS_SERVERNAME is required when REDIS_URL uses rediss:// with an IP address'
-    )
+    return [
+      {
+        kind: 'missing',
+        fields: ['REDIS_TLS_SERVERNAME'],
+        message: 'REDIS_TLS_SERVERNAME is required for rediss:// IP addresses',
+      },
+    ]
   }
-  return 'redis'
+  return []
 }
 
-export function resolveOcrProvider(
-  values: EnvCapabilityValues
-): 'azure-mistral' | 'mistral' | 'local' {
-  const selected = hasValue(values, 'OCR_PROVIDER')
-    ? String(readValue(values, 'OCR_PROVIDER')).toLowerCase()
-    : null
-  if (selected && selected !== 'local' && selected !== 'mistral' && selected !== 'azure-mistral') {
-    throw new EnvCapabilityConfigurationError(
-      'knowledge',
-      `Unknown OCR_PROVIDER "${readValue(values, 'OCR_PROVIDER')}" (expected local, mistral, or azure-mistral)`
-    )
-  }
-  if (selected === 'local') return 'local'
-  if (selected === 'mistral') {
-    if (!hasValue(values, 'MISTRAL_API_KEY')) {
-      throw new EnvCapabilityConfigurationError(
-        'knowledge',
-        'OCR_PROVIDER selects Mistral but MISTRAL_API_KEY is missing. Run bun run setup knowledge.'
-      )
-    }
-    return 'mistral'
-  }
+export const CACHE_CAPABILITY = defineCapability({
+  strategy: 'selected',
+  id: 'cache',
+  label: 'Cache',
+  setupLabel: 'Redis cache',
+  setupCommand: 'bun run setup cache',
+  whenUnset: 'first-ready',
+  defaultProvider: { id: 'database', kind: 'built-in', label: 'Postgres' },
+  providers: [
+    {
+      id: 'redis',
+      label: 'Redis',
+      activation: { mode: 'any-present', keys: ['REDIS_URL'] },
+      requires: envField('REDIS_URL', {
+        validation: {
+          kind: 'url',
+          protocols: ['redis:', 'rediss:'],
+          message: 'must be a valid redis:// or rediss:// URL',
+        },
+      }),
+      setupFields: ['REDIS_URL', 'REDIS_TLS_SERVERNAME'],
+      validate: validateRedisProvider,
+    },
+  ],
+} as const)
 
-  const azureFields = ['OCR_AZURE_API_KEY', 'OCR_AZURE_ENDPOINT', 'OCR_AZURE_MODEL_NAME'] as const
-  const present = azureFields.filter((key) => hasValue(values, key))
-  const invalidAzureEndpoint =
-    hasValue(values, 'OCR_AZURE_ENDPOINT') &&
-    !isValidEnvCapabilityFieldValue('http-url', readValue(values, 'OCR_AZURE_ENDPOINT'))
-
-  if (selected === 'azure-mistral') {
-    if (invalidAzureEndpoint) {
-      throw new EnvCapabilityConfigurationError(
-        'knowledge',
-        'OCR_AZURE_ENDPOINT must be a valid HTTP(S) URL. Run bun run setup knowledge.'
-      )
-    }
-    if (present.length !== azureFields.length) {
-      const missing = azureFields.filter((key) => !hasValue(values, key))
-      throw new EnvCapabilityConfigurationError(
-        'knowledge',
-        `OCR_PROVIDER selects Azure Mistral but ${missing.join(', ')} is missing. Run bun run setup knowledge.`
-      )
-    }
-    return 'azure-mistral'
-  }
-
-  if (present.length === azureFields.length) {
-    if (invalidAzureEndpoint) {
-      throw new EnvCapabilityConfigurationError(
-        'knowledge',
-        'OCR_AZURE_ENDPOINT must be a valid HTTP(S) URL. Run bun run setup knowledge.'
-      )
-    }
-    return 'azure-mistral'
-  }
-
-  if (hasValue(values, 'MISTRAL_API_KEY')) return 'mistral'
-
-  if (invalidAzureEndpoint) {
-    throw new EnvCapabilityConfigurationError(
-      'knowledge',
-      'OCR_AZURE_ENDPOINT must be a valid HTTP(S) URL. Run bun run setup knowledge.'
-    )
-  }
-  if (present.length > 0 && present.length < azureFields.length) {
-    const missing = azureFields.filter((key) => !hasValue(values, key))
-    throw new EnvCapabilityConfigurationError(
-      'knowledge',
-      `Azure Mistral OCR is partially configured — missing ${missing.join(', ')}. Run bun run setup knowledge.`
-    )
-  }
-  return 'local'
-}
+export const OCR_CAPABILITY = defineCapability({
+  strategy: 'selected',
+  id: 'knowledge',
+  label: 'PDF OCR',
+  setupLabel: 'Knowledge and OCR',
+  setupCommand: 'bun run setup knowledge',
+  selectorKey: 'OCR_PROVIDER',
+  whenUnset: 'first-ready',
+  defaultProvider: { id: 'local', kind: 'built-in', label: 'Local parser' },
+  providers: [
+    {
+      id: 'azure-mistral',
+      label: 'Azure Mistral OCR',
+      activation: {
+        mode: 'any-present',
+        keys: ['OCR_AZURE_API_KEY', 'OCR_AZURE_ENDPOINT', 'OCR_AZURE_MODEL_NAME'],
+      },
+      requires: allOf(
+        envField('OCR_AZURE_API_KEY'),
+        envField('OCR_AZURE_ENDPOINT', {
+          validation: {
+            kind: 'url',
+            protocols: ['http:', 'https:'],
+            message: 'must be a valid HTTP(S) URL',
+          },
+        }),
+        envField('OCR_AZURE_MODEL_NAME')
+      ),
+      setupFields: ['OCR_AZURE_API_KEY', 'OCR_AZURE_ENDPOINT', 'OCR_AZURE_MODEL_NAME'],
+    },
+    {
+      id: 'mistral',
+      label: 'Mistral OCR',
+      activation: { mode: 'any-present', keys: ['MISTRAL_API_KEY'] },
+      requires: envField('MISTRAL_API_KEY'),
+      setupFields: ['MISTRAL_API_KEY'],
+    },
+  ],
+} as const)
 
 export const OAUTH_CLIENT_CAPABILITIES = {
   google: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
@@ -791,18 +1220,27 @@ export const OAUTH_CLIENT_CAPABILITIES = {
   'zoho-desk': ['ZOHO_CLIENT_ID', 'ZOHO_CLIENT_SECRET'],
 } as const
 
-export const SETUP_FEATURES = [
-  { id: 'email', label: 'Email delivery' },
-  { id: 'storage', label: 'File storage' },
-  { id: 'sandbox', label: 'Remote sandboxes' },
-  { id: 'jobs', label: 'Async jobs' },
-  { id: 'cache', label: 'Redis cache' },
-  { id: 'knowledge', label: 'Knowledge and OCR' },
-  { id: 'llm', label: 'LLM API keys' },
-  { id: 'integration', label: 'OAuth integration' },
+/** Single registry consumed by runtime status, setup discovery, and env-source detection. */
+export const ENV_CAPABILITIES = [
+  EMAIL_CAPABILITY,
+  STORAGE_CAPABILITY,
+  SANDBOX_CAPABILITY,
+  ASYNC_JOBS_CAPABILITY,
+  CACHE_CAPABILITY,
+  OCR_CAPABILITY,
 ] as const
 
-export type SetupFeatureId = (typeof SETUP_FEATURES)[number]['id']
+type CapabilitySetupFeatureId = (typeof ENV_CAPABILITIES)[number]['id']
+export type SetupFeatureId = CapabilitySetupFeatureId | 'llm' | 'integration'
+
+export const SETUP_FEATURES: readonly { id: SetupFeatureId; label: string }[] = [
+  ...ENV_CAPABILITIES.map((capability) => ({
+    id: capability.id,
+    label: capability.setupLabel,
+  })),
+  { id: 'llm', label: 'LLM API keys' },
+  { id: 'integration', label: 'OAuth integration' },
+]
 
 export const LLM_KEY_POOLS = {
   openai: {
@@ -837,26 +1275,10 @@ export const LLM_KEY_POOLS = {
 export const DEPLOYMENT_CONFIGURATION_KEYS: readonly string[] = [
   ...new Set([
     ...CORE_CONFIGURATION_KEYS,
-    ...capabilityKeys(EMAIL_CAPABILITY),
-    ...capabilityKeys(STORAGE_CAPABILITY),
+    ...ENV_CAPABILITIES.flatMap(capabilityKeys),
     'EMAIL_VERIFICATION_ENABLED',
-    'SANDBOX_PROVIDER',
-    'DAYTONA_API_KEY',
-    'DAYTONA_SHELL_SNAPSHOT_ID',
-    'E2B_ENABLED',
-    'E2B_API_KEY',
     'NEXT_PUBLIC_E2B_ENABLED',
     'NEXT_PUBLIC_SANDBOX_ENABLED',
-    'TRIGGER_DEV_ENABLED',
-    'TRIGGER_PROJECT_ID',
-    'TRIGGER_SECRET_KEY',
-    'REDIS_URL',
-    'REDIS_TLS_SERVERNAME',
-    'OCR_PROVIDER',
-    'MISTRAL_API_KEY',
-    'OCR_AZURE_API_KEY',
-    'OCR_AZURE_ENDPOINT',
-    'OCR_AZURE_MODEL_NAME',
     ...Object.values(LLM_KEY_POOLS).flatMap((pool) => [
       ...pool.keys,
       ...('fallbackKey' in pool ? [pool.fallbackKey] : []),

@@ -1,8 +1,10 @@
 import {
   EMAIL_CAPABILITY,
   getCapabilitySetupFields,
-  isValidEnvCapabilityFieldValue,
+  hasEnvCapabilityValue,
+  inspectCapability,
   STORAGE_CAPABILITY,
+  validateCapabilityFieldInput,
 } from '../../apps/sim/lib/core/config/env-capabilities.ts'
 import { browserKeyFlow } from './cli-auth.ts'
 import type { Detection } from './detect.ts'
@@ -187,7 +189,7 @@ export function reconcileStorageSetupValues(
   values: Record<string, string>
 ): EnvironmentSetupResult {
   const providerId = values.STORAGE_PROVIDER
-  if (providerId === STORAGE_CAPABILITY.defaultProvider) return { values, remove: [] }
+  if (providerId === STORAGE_CAPABILITY.defaultProvider.id) return { values, remove: [] }
   const provider = STORAGE_CAPABILITY.providers.find((candidate) => candidate.id === providerId)
   if (!provider) {
     throw new Error(`Unknown storage provider "${providerId}" in setup result`)
@@ -196,37 +198,27 @@ export function reconcileStorageSetupValues(
 }
 
 export function validateSmtpPortInput(value: string): string | undefined {
-  if (!value) return 'required'
-  return isValidEnvCapabilityFieldValue('port', value)
-    ? undefined
-    : 'must be an integer between 1 and 65535'
+  return validateCapabilityFieldInput(EMAIL_CAPABILITY, 'SMTP_PORT', value)
 }
 
 export function validateS3EndpointInput(value: string): string | undefined {
-  if (!value) return 'required'
-  return isValidEnvCapabilityFieldValue('http-url', value)
-    ? undefined
-    : 'must be a valid http:// or https:// URL'
+  return validateCapabilityFieldInput(STORAGE_CAPABILITY, 'S3_ENDPOINT', value)
 }
 
 export function validateServiceAccountJsonInput(value: string): string | undefined {
-  if (!value) return 'required'
-  return isValidEnvCapabilityFieldValue('gmail-service-account', value)
-    ? undefined
-    : 'must be valid JSON containing client_email and private_key'
+  return validateCapabilityFieldInput(EMAIL_CAPABILITY, 'GMAIL_CREDENTIALS_JSON', value)
 }
 
-function detectStorageBackend(vars: Map<string, string>): StorageBackend {
-  const selected = vars.get('STORAGE_PROVIDER')
-  if (selected === 'local' || selected === 's3' || selected === 'azure' || selected === 'gcs') {
-    if (selected === 's3' && vars.get('S3_ENDPOINT')) return 's3compat'
-    return selected
-  }
-  if (vars.get('AZURE_CONNECTION_STRING') || vars.get('AZURE_ACCOUNT_NAME')) return 'azure'
-  if (vars.get('S3_ENDPOINT')) return 's3compat'
-  if (vars.get('S3_BUCKET_NAME') || vars.get('AWS_REGION')) return 's3'
-  if (vars.get('GCS_BUCKET_NAME')) return 'gcs'
-  return 'local'
+function validateGcsServiceAccountJsonInput(value: string): string | undefined {
+  return validateCapabilityFieldInput(STORAGE_CAPABILITY, 'GCS_CREDENTIALS_JSON', value)
+}
+
+export function detectStorageBackend(vars: Map<string, string>): StorageBackend {
+  const providerId = inspectCapability(STORAGE_CAPABILITY, vars).providerId
+  if (providerId === 's3' && hasEnvCapabilityValue(vars, 'S3_ENDPOINT')) return 's3compat'
+  return providerId === 'azure' || providerId === 's3' || providerId === 'gcs'
+    ? providerId
+    : 'local'
 }
 
 async function required(message: string, initialValue?: string): Promise<string> {
@@ -369,7 +361,7 @@ export async function promptStorage(
     if (credentialMode === 'json') {
       values.GCS_CREDENTIALS_JSON = await p.password({
         message: 'GCS_CREDENTIALS_JSON',
-        validate: validateServiceAccountJsonInput,
+        validate: validateGcsServiceAccountJsonInput,
       })
     } else {
       p.log.info(theme.muted('Using Application Default Credentials.'))

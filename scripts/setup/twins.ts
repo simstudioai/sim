@@ -1,6 +1,6 @@
 import {
   EMAIL_CAPABILITY,
-  inspectProvider,
+  inspectCapability,
 } from '../../apps/sim/lib/core/config/env-capabilities.ts'
 
 /**
@@ -57,10 +57,11 @@ export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; h
 ]
 
 export function getConfiguredMailProvider(vars: Map<string, string>): string {
+  const inspection = inspectCapability(EMAIL_CAPABILITY, vars)
   return (
-    EMAIL_CAPABILITY.providers.find(
-      (provider) => inspectProvider(provider, vars).state !== 'absent'
-    )?.id ?? 'console'
+    inspection.providerIds[0] ??
+    inspection.providers.find((provider) => provider.active)?.id ??
+    'console'
   )
 }
 

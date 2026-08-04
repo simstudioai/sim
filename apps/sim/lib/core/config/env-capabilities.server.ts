@@ -5,35 +5,35 @@
  */
 import { env } from '@/lib/core/config/env'
 import {
+  ASYNC_JOBS_CAPABILITY,
+  CACHE_CAPABILITY,
   type ConfiguredOAuthClient,
   type FallbackCapabilityDefinition,
   inspectOAuthClientCapability,
   type OAuthClientCapabilityField,
   type OAuthClientCapabilityId,
+  requireCapability,
   requireOAuthClientCapability,
-  resolveAsyncJobsProvider,
-  resolveCacheProvider,
-  resolveSandboxProviderId,
-  resolveSelectedCapability,
+  SANDBOX_CAPABILITY,
   STORAGE_CAPABILITY,
   type WireFallbackOptions,
   wireFallback,
 } from '@/lib/core/config/env-capabilities'
 
 export function getConfiguredStorageProviderId() {
-  return resolveSelectedCapability(STORAGE_CAPABILITY, env).providerId
+  return requireCapability(STORAGE_CAPABILITY, env).providerId
 }
 
 export function getConfiguredSandboxProviderId() {
-  return resolveSandboxProviderId(env)
+  return requireCapability(SANDBOX_CAPABILITY, env).providerId
 }
 
 export function getConfiguredAsyncJobsProvider() {
-  return resolveAsyncJobsProvider(env)
+  return requireCapability(ASYNC_JOBS_CAPABILITY, env).providerId
 }
 
 export function getConfiguredCacheProvider() {
-  return resolveCacheProvider(env)
+  return requireCapability(CACHE_CAPABILITY, env).providerId
 }
 
 export function inspectConfiguredOAuthClient(serviceId: string) {

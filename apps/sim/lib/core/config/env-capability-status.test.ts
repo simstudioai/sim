@@ -21,6 +21,23 @@ describe('env capability status', () => {
     expect(status.oauthClients.absentCount).toBe(Object.keys(OAUTH_CLIENT_CAPABILITIES).length)
   })
 
+  it('reports an explicitly selected but disabled E2B provider as the default', () => {
+    const status = buildEnvCapabilityStatus({
+      SANDBOX_PROVIDER: 'e2b',
+      E2B_ENABLED: 'false',
+      NEXT_PUBLIC_E2B_ENABLED: 'false',
+      NEXT_PUBLIC_SANDBOX_ENABLED: 'false',
+    })
+
+    expect(status.features.sandbox).toEqual({
+      id: 'sandbox',
+      label: 'Remote sandboxes',
+      setupCommand: 'bun run setup sandbox',
+      state: 'default',
+      providerId: 'disabled',
+    })
+  })
+
   it('preserves declared email fallback order', () => {
     const status = buildEnvCapabilityStatus({
       SMTP_HOST: 'localhost',

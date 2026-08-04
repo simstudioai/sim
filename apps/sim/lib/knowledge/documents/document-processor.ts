@@ -15,7 +15,7 @@ import {
 } from '@/lib/chunkers'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { env, envNumber } from '@/lib/core/config/env'
-import { resolveOcrProvider } from '@/lib/core/config/env-capabilities'
+import { OCR_CAPABILITY, requireCapability } from '@/lib/core/config/env-capabilities'
 import { parseBuffer } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
@@ -291,13 +291,13 @@ async function parseDocument(
   const mistralApiKey = await getMistralApiKey(workspaceId)
 
   if (isPDF) {
-    const ocrProvider = resolveOcrProvider({
+    const ocrProvider = requireCapability(OCR_CAPABILITY, {
       OCR_PROVIDER: env.OCR_PROVIDER,
       OCR_AZURE_API_KEY: env.OCR_AZURE_API_KEY,
       OCR_AZURE_ENDPOINT: env.OCR_AZURE_ENDPOINT,
       OCR_AZURE_MODEL_NAME: env.OCR_AZURE_MODEL_NAME,
       MISTRAL_API_KEY: mistralApiKey,
-    })
+    }).providerId
 
     if (ocrProvider === 'azure-mistral') {
       logger.info(`Using Azure Mistral OCR: ${filename}`)

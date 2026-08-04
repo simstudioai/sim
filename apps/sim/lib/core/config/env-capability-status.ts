@@ -5,26 +5,23 @@
  * @packageDocumentation
  */
 import {
+  ASYNC_JOBS_CAPABILITY,
+  CACHE_CAPABILITY,
   EMAIL_CAPABILITY,
-  EnvCapabilityConfigurationError,
+  type EnvCapabilityConfigurationError,
   type EnvCapabilityValues,
   getCapabilityConfigurationError,
   hasEnvCapabilityValue,
+  inspectCapability,
   inspectOAuthClientCapability,
-  inspectProvider,
   isTruthyEnvCapabilityValue,
-  isValidEnvCapabilityFieldValue,
   LLM_KEY_POOLS,
   OAUTH_CLIENT_CAPABILITIES,
   type OAuthClientCapabilityId,
+  OCR_CAPABILITY,
   type ProviderConfigurationState,
   type ProviderInspection,
-  resolveAsyncJobsProvider,
-  resolveCacheProvider,
-  resolveFallbackCapability,
-  resolveOcrProvider,
-  resolveSandboxProviderId,
-  resolveSelectedCapability,
+  SANDBOX_CAPABILITY,
   SETUP_FEATURES,
   type SetupFeatureId,
   STORAGE_CAPABILITY,
@@ -48,7 +45,7 @@ interface FeatureStatusBase<TId extends SetupStatusFeatureId> {
 
 type EmailProviderId = (typeof EMAIL_CAPABILITY.providers)[number]['id']
 type StorageProviderId =
-  | (typeof STORAGE_CAPABILITY)['defaultProvider']
+  | (typeof STORAGE_CAPABILITY)['defaultProvider']['id']
   | (typeof STORAGE_CAPABILITY.providers)[number]['id']
 type LlmKeyPoolId = keyof typeof LLM_KEY_POOLS
 
@@ -61,7 +58,7 @@ export interface EmailCapabilityStatus extends FeatureStatusBase<'email'> {
 export interface StorageCapabilityStatus extends FeatureStatusBase<'storage'> {
   strategy: 'selected'
   providerId: StorageProviderId | null
-  defaultProviderId: (typeof STORAGE_CAPABILITY)['defaultProvider']
+  defaultProviderId: (typeof STORAGE_CAPABILITY)['defaultProvider']['id']
   providers: readonly ProviderInspection<(typeof STORAGE_CAPABILITY.providers)[number]['id']>[]
 }
 
@@ -130,24 +127,6 @@ export interface EnvCapabilityStatusSnapshot {
   oauthClients: OAuthClientStatuses
 }
 
-interface CapturedResolution<T> {
-  value?: T
-  error?: EnvCapabilityConfigurationError
-}
-
-function captureConfigurationError<T>(
-  capabilityId: string,
-  resolve: () => T
-): CapturedResolution<T> {
-  try {
-    return { value: resolve() }
-  } catch (error) {
-    if (!(error instanceof EnvCapabilityConfigurationError)) throw error
-    if (error.capabilityId !== capabilityId) throw error
-    return { error }
-  }
-}
-
 function featureMetadata<TId extends SetupStatusFeatureId>(id: TId) {
   const definition = SETUP_FEATURES.find((feature) => feature.id === id)
   if (!definition) throw new Error(`Missing setup feature definition for ${id}`)
@@ -182,68 +161,57 @@ function brokenProviderState(
 }
 
 function inspectEmail(values: EnvCapabilityValues): EmailCapabilityStatus {
-  const providers = EMAIL_CAPABILITY.providers.map((provider) => inspectProvider(provider, values))
-  const resolution = captureConfigurationError('email', () =>
-    resolveFallbackCapability(EMAIL_CAPABILITY, values)
-  )
-  const providerIds = providers
-    .filter((provider) => provider.state === 'ready')
-    .map((provider) => provider.id)
-  const brokenState = brokenProviderState(providers)
-  const state = providerIds.length > 0 ? 'configured' : (brokenState ?? 'missing')
+  const inspection = inspectCapability(EMAIL_CAPABILITY, values)
+  const brokenState = brokenProviderState(inspection.providers)
+  const state = inspection.configured ? 'configured' : (brokenState ?? 'missing')
   const configurationError =
-    resolution.error ?? getCapabilityConfigurationError(EMAIL_CAPABILITY, providers)
+    inspection.error ?? getCapabilityConfigurationError(EMAIL_CAPABILITY, inspection.providers)
 
   return {
     ...featureMetadata('email'),
     strategy: 'fallback',
     state,
-    providerIds,
-    providers,
+    providerIds: inspection.providerIds,
+    providers: inspection.providers,
     ...(configurationError ? { issue: issue(brokenState ?? 'invalid', configurationError) } : {}),
   }
 }
 
 function inspectStorage(values: EnvCapabilityValues): StorageCapabilityStatus {
-  const providers = STORAGE_CAPABILITY.providers.map((provider) =>
-    inspectProvider(provider, values)
-  )
-  const resolution = captureConfigurationError('storage', () =>
-    resolveSelectedCapability(STORAGE_CAPABILITY, values)
-  )
+  const inspection = inspectCapability(STORAGE_CAPABILITY, values)
 
-  if (resolution.value) {
-    const providerId = resolution.value.providerId as StorageProviderId
+  if (!inspection.error && inspection.providerId) {
+    const providerId = inspection.providerId as StorageProviderId
     return {
       ...featureMetadata('storage'),
       strategy: 'selected',
-      state: providerId === STORAGE_CAPABILITY.defaultProvider ? 'default' : 'configured',
+      state: providerId === STORAGE_CAPABILITY.defaultProvider.id ? 'default' : 'configured',
       providerId,
-      defaultProviderId: STORAGE_CAPABILITY.defaultProvider,
-      providers,
+      defaultProviderId: STORAGE_CAPABILITY.defaultProvider.id,
+      providers: inspection.providers,
     }
   }
 
   const selectedId = readConfiguredString(values, STORAGE_CAPABILITY.selectorKey)
-  const selected = providers.find((provider) => provider.id === selectedId)
+  const selected = inspection.providers.find((provider) => provider.id === selectedId)
   const state =
-    selected?.state === 'absent'
+    selected && !selected.active
       ? 'missing'
       : selected?.state === 'partial'
         ? 'partial'
         : selected?.state === 'invalid'
           ? 'invalid'
-          : (brokenProviderState(providers) ?? 'invalid')
-  const error = resolution.error
+          : (brokenProviderState(inspection.providers) ?? 'invalid')
+  const error = inspection.error
   if (!error) throw new Error('Storage resolution failed without a configuration error')
   const providerId: StorageProviderId | null =
-    selectedId === STORAGE_CAPABILITY.defaultProvider
-      ? STORAGE_CAPABILITY.defaultProvider
+    selectedId === STORAGE_CAPABILITY.defaultProvider.id
+      ? STORAGE_CAPABILITY.defaultProvider.id
       : (selected?.id ?? null)
   const safeMessage =
     selectedId && !providerId
       ? `Unknown ${STORAGE_CAPABILITY.selectorKey}. Expected one of: ${[
-          STORAGE_CAPABILITY.defaultProvider,
+          STORAGE_CAPABILITY.defaultProvider.id,
           ...STORAGE_CAPABILITY.providers.map((provider) => provider.id),
         ].join(', ')}`
       : error.message
@@ -253,21 +221,23 @@ function inspectStorage(values: EnvCapabilityValues): StorageCapabilityStatus {
     strategy: 'selected',
     state,
     providerId,
-    defaultProviderId: STORAGE_CAPABILITY.defaultProvider,
-    providers,
+    defaultProviderId: STORAGE_CAPABILITY.defaultProvider.id,
+    providers: inspection.providers,
     issue: issue(state, error, safeMessage),
   }
 }
 
 function inspectSandbox(values: EnvCapabilityValues): SandboxCapabilityStatus {
-  const resolution = captureConfigurationError('sandbox', () => resolveSandboxProviderId(values))
-  const requestedProvider = readConfiguredString(values, 'SANDBOX_PROVIDER') ?? 'e2b'
+  const inspection = inspectCapability(SANDBOX_CAPABILITY, values)
+  const requestedProvider =
+    readConfiguredString(values, SANDBOX_CAPABILITY.selectorKey) ??
+    SANDBOX_CAPABILITY.defaultProvider.id
+  const providerId =
+    inspection.providerId === 'e2b' && !isTruthyEnvCapabilityValue(values, 'E2B_ENABLED')
+      ? 'disabled'
+      : inspection.providerId
 
-  if (resolution.value) {
-    const providerId =
-      resolution.value === 'e2b' && !isTruthyEnvCapabilityValue(values, 'E2B_ENABLED')
-        ? 'disabled'
-        : resolution.value
+  if (!inspection.error) {
     const coherenceProblems: string[] = []
     if (
       isTruthyEnvCapabilityValue(values, 'E2B_ENABLED') !==
@@ -275,7 +245,7 @@ function inspectSandbox(values: EnvCapabilityValues): SandboxCapabilityStatus {
     ) {
       coherenceProblems.push('E2B_ENABLED and NEXT_PUBLIC_E2B_ENABLED disagree')
     }
-    const remoteAvailable = providerId !== 'disabled'
+    const remoteAvailable = providerId !== null && providerId !== 'disabled'
     if (remoteAvailable !== isTruthyEnvCapabilityValue(values, 'NEXT_PUBLIC_SANDBOX_ENABLED')) {
       coherenceProblems.push('remote sandbox availability and NEXT_PUBLIC_SANDBOX_ENABLED disagree')
     }
@@ -297,16 +267,11 @@ function inspectSandbox(values: EnvCapabilityValues): SandboxCapabilityStatus {
     }
   }
 
-  const error = resolution.error
-  if (!error) throw new Error('Sandbox resolution failed without a configuration error')
   const knownProvider = requestedProvider === 'e2b' || requestedProvider === 'daytona'
-  const daytonaSnapshot =
-    requestedProvider === 'daytona'
-      ? readConfiguredString(values, 'DAYTONA_SHELL_SNAPSHOT_ID')
-      : null
-  const invalidDaytonaSnapshot =
-    daytonaSnapshot !== null && !isValidEnvCapabilityFieldValue('daytona-snapshot', daytonaSnapshot)
-  const state = !knownProvider || invalidDaytonaSnapshot ? 'invalid' : 'missing'
+  const selectedProvider = inspection.providers.find(
+    (provider) => provider.id === requestedProvider
+  )
+  const state = !knownProvider || selectedProvider?.state === 'invalid' ? 'invalid' : 'missing'
 
   return {
     ...featureMetadata('sandbox'),
@@ -314,24 +279,27 @@ function inspectSandbox(values: EnvCapabilityValues): SandboxCapabilityStatus {
     providerId: knownProvider ? requestedProvider : null,
     issue: issue(
       state,
-      error,
-      knownProvider ? error.message : 'Unknown SANDBOX_PROVIDER. Expected one of: e2b, daytona'
+      inspection.error,
+      knownProvider
+        ? inspection.error.message
+        : 'Unknown SANDBOX_PROVIDER. Expected one of: e2b, daytona'
     ),
   }
 }
 
 function inspectJobs(values: EnvCapabilityValues): JobsCapabilityStatus {
-  const resolution = captureConfigurationError('jobs', () => resolveAsyncJobsProvider(values))
-  if (resolution.value) {
+  const inspection = inspectCapability(ASYNC_JOBS_CAPABILITY, values)
+  if (!inspection.error && inspection.providerId) {
     return {
       ...featureMetadata('jobs'),
-      state: resolution.value === 'database' ? 'default' : 'configured',
-      providerId: resolution.value,
+      state: inspection.providerId === 'database' ? 'default' : 'configured',
+      providerId: inspection.providerId,
     }
   }
 
-  const error = resolution.error
-  if (!error) throw new Error('Async jobs resolution failed without a configuration error')
+  if (!inspection.error) {
+    throw new Error('Async jobs inspection failed without a configuration error')
+  }
   const configuredFieldCount = ['TRIGGER_SECRET_KEY', 'TRIGGER_PROJECT_ID'].filter((key) =>
     hasEnvCapabilityValue(values, key)
   ).length
@@ -340,71 +308,60 @@ function inspectJobs(values: EnvCapabilityValues): JobsCapabilityStatus {
     ...featureMetadata('jobs'),
     state,
     providerId: 'trigger-dev',
-    issue: issue(state, error),
+    issue: issue(state, inspection.error),
   }
 }
 
 function inspectCache(values: EnvCapabilityValues): CacheCapabilityStatus {
-  const resolution = captureConfigurationError('cache', () => resolveCacheProvider(values))
-  if (resolution.value) {
+  const inspection = inspectCapability(CACHE_CAPABILITY, values)
+  if (!inspection.error && inspection.providerId) {
     return {
       ...featureMetadata('cache'),
-      state: resolution.value === 'database' ? 'default' : 'configured',
-      providerId: resolution.value,
+      state: inspection.providerId === 'database' ? 'default' : 'configured',
+      providerId: inspection.providerId,
     }
   }
 
-  const error = resolution.error
-  if (!error) throw new Error('Cache resolution failed without a configuration error')
-  let state: CapabilityStatusIssue['state'] = 'invalid'
-  const redisUrl = readConfiguredString(values, 'REDIS_URL')
-  if (redisUrl) {
-    try {
-      const parsed = new URL(redisUrl)
-      if (
-        parsed.protocol === 'rediss:' &&
-        /^\d+\.\d+\.\d+\.\d+$/.test(parsed.hostname) &&
-        !hasEnvCapabilityValue(values, 'REDIS_TLS_SERVERNAME')
-      ) {
-        state = 'partial'
-      }
-    } catch {
-      state = 'invalid'
-    }
+  if (!inspection.error) {
+    throw new Error('Cache inspection failed without a configuration error')
   }
+  const redis = inspection.providers.find((provider) => provider.id === 'redis')
+  const state: CapabilityStatusIssue['state'] = redis?.state === 'invalid' ? 'invalid' : 'partial'
   return {
     ...featureMetadata('cache'),
     state,
     providerId: 'redis',
-    issue: issue(state, error),
+    issue: issue(state, inspection.error),
   }
 }
 
 function inspectKnowledge(values: EnvCapabilityValues): KnowledgeCapabilityStatus {
-  const resolution = captureConfigurationError('knowledge', () => resolveOcrProvider(values))
-  if (resolution.value) {
+  const inspection = inspectCapability(OCR_CAPABILITY, values)
+  if (!inspection.error && inspection.providerId) {
     return {
       ...featureMetadata('knowledge'),
-      state: resolution.value === 'local' ? 'default' : 'configured',
-      providerId: resolution.value,
+      state: inspection.providerId === 'local' ? 'default' : 'configured',
+      providerId: inspection.providerId,
     }
   }
 
-  const error = resolution.error
-  if (!error) throw new Error('OCR resolution failed without a configuration error')
-  const selected = readConfiguredString(values, 'OCR_PROVIDER')
+  if (!inspection.error) {
+    throw new Error('OCR inspection failed without a configuration error')
+  }
+  const selected = readConfiguredString(values, OCR_CAPABILITY.selectorKey)
   const azureFields = ['OCR_AZURE_API_KEY', 'OCR_AZURE_ENDPOINT', 'OCR_AZURE_MODEL_NAME'] as const
   const azureFieldCount = azureFields.filter((key) => hasEnvCapabilityValue(values, key)).length
-  const azureEndpoint = readConfiguredString(values, 'OCR_AZURE_ENDPOINT')
-  const invalidAzureEndpoint =
-    azureEndpoint !== null && !isValidEnvCapabilityFieldValue('http-url', azureEndpoint)
   const knownProvider =
     selected === null ||
     selected === 'local' ||
     selected === 'mistral' ||
     selected === 'azure-mistral'
+  const resolvedProvider = inspection.providerId
+  const selectedInspection = inspection.providers.find(
+    (provider) => provider.id === resolvedProvider
+  )
   const state =
-    !knownProvider || invalidAzureEndpoint
+    !knownProvider || selectedInspection?.state === 'invalid'
       ? 'invalid'
       : selected === 'mistral' || selected === 'azure-mistral'
         ? azureFieldCount === 0 && selected === 'azure-mistral'
@@ -420,14 +377,14 @@ function inspectKnowledge(values: EnvCapabilityValues): KnowledgeCapabilityStatu
     providerId:
       selected === 'local' || selected === 'mistral' || selected === 'azure-mistral'
         ? selected
-        : selected === null && azureFieldCount > 0
-          ? 'azure-mistral'
+        : selected === null
+          ? resolvedProvider
           : null,
     issue: issue(
       state,
-      error,
+      inspection.error,
       knownProvider
-        ? error.message
+        ? inspection.error.message
         : 'Unknown OCR_PROVIDER. Expected one of: local, mistral, azure-mistral'
     ),
   }

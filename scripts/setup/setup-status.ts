@@ -1,10 +1,12 @@
 import {
   type EnvCapabilityValues,
   hasEnvCapabilityValue,
+  SETUP_FEATURES,
 } from '../../apps/sim/lib/core/config/env-capabilities.ts'
 import {
   buildEnvCapabilityStatus,
   type EnvCapabilityFeatureStatuses,
+  type SetupStatusFeatureId,
 } from '../../apps/sim/lib/core/config/env-capability-status.ts'
 import {
   type IntegrationAvailability,
@@ -35,7 +37,9 @@ export interface SetupStatusReport {
 
 const SECRET_KEYS = new Set(['BETTER_AUTH_SECRET', 'ENCRYPTION_KEY', 'INTERNAL_API_SECRET'])
 const URL_KEYS = new Set(['DATABASE_URL', 'BETTER_AUTH_URL', 'NEXT_PUBLIC_APP_URL'])
-const FEATURE_ORDER = ['email', 'storage', 'sandbox', 'jobs', 'cache', 'knowledge', 'llm'] as const
+const FEATURE_ORDER: readonly SetupStatusFeatureId[] = SETUP_FEATURES.flatMap((feature) =>
+  feature.id === 'integration' ? [] : [feature.id]
+)
 
 function readString(values: EnvCapabilityValues, key: string): string | undefined {
   const value =

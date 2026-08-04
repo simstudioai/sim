@@ -1,11 +1,17 @@
 import {
+  ASYNC_JOBS_CAPABILITY,
+  CACHE_CAPABILITY,
   getOAuthClientCapabilityFields,
-  isValidEnvCapabilityFieldValue,
+  inspectCapability,
+  isTruthyEnvCapabilityValue,
   LLM_KEY_POOLS,
   OAUTH_CLIENT_CAPABILITIES,
+  OCR_CAPABILITY,
   resolveOAuthClientCapabilityId,
+  SANDBOX_CAPABILITY,
   SETUP_FEATURES,
   type SetupFeatureId,
+  validateCapabilityFieldInput,
 } from '../../apps/sim/lib/core/config/env-capabilities.ts'
 import { type ConfigurationSource, discoverConfigurationSources } from './configuration-sources.ts'
 import { type EnvTarget, reconcileEnvValues } from './env-files.ts'
@@ -26,10 +32,7 @@ async function promptSecret(message: string): Promise<string> {
 }
 
 export function validateDaytonaSnapshotInput(value: string): string | undefined {
-  if (!value) return 'required'
-  return isValidEnvCapabilityFieldValue('daytona-snapshot', value)
-    ? undefined
-    : 'must use an explicit, non-floating name:tag'
+  return validateCapabilityFieldInput(SANDBOX_CAPABILITY, 'DAYTONA_SHELL_SNAPSHOT_ID', value)
 }
 
 type SandboxSetupSelection =
@@ -104,6 +107,7 @@ async function setupIntegration(
 }
 
 async function setupSandbox(vars: Map<string, string>): Promise<SandboxSetupResult> {
+  const selectedProvider = inspectCapability(SANDBOX_CAPABILITY, vars).providerId
   const provider = await p.select<'daytona' | 'disabled' | 'e2b'>({
     message: 'Remote sandbox provider?',
     options: [
@@ -112,9 +116,9 @@ async function setupSandbox(vars: Map<string, string>): Promise<SandboxSetupResu
       { value: 'daytona', label: 'Daytona', hint: 'remote Daytona sandboxes' },
     ],
     initialValue:
-      vars.get('SANDBOX_PROVIDER') === 'daytona'
+      selectedProvider === 'daytona'
         ? 'daytona'
-        : vars.get('E2B_ENABLED') === 'true'
+        : selectedProvider === 'e2b' && isTruthyEnvCapabilityValue(vars, 'E2B_ENABLED')
           ? 'e2b'
           : 'disabled',
   })
@@ -136,13 +140,14 @@ async function setupSandbox(vars: Map<string, string>): Promise<SandboxSetupResu
 }
 
 async function setupJobs(vars: Map<string, string>): Promise<Record<string, string>> {
+  const selectedProvider = inspectCapability(ASYNC_JOBS_CAPABILITY, vars).providerId
   const provider = await p.select({
     message: 'Async job provider?',
     options: [
       { value: 'database', label: 'Database queue', hint: 'built-in default' },
       { value: 'trigger', label: 'Trigger.dev', hint: 'external background jobs' },
     ],
-    initialValue: vars.get('TRIGGER_DEV_ENABLED') === 'true' ? 'trigger' : 'database',
+    initialValue: selectedProvider === 'trigger-dev' ? 'trigger' : 'database',
   })
   if (provider === 'database') return { TRIGGER_DEV_ENABLED: 'false' }
   return {
@@ -156,13 +161,14 @@ async function setupCache(vars: Map<string, string>): Promise<{
   remove: readonly string[]
   values: Record<string, string>
 }> {
+  const selectedProvider = inspectCapability(CACHE_CAPABILITY, vars).providerId
   const provider = await p.select({
     message: 'Cache and realtime coordination?',
     options: [
       { value: 'database', label: 'Postgres', hint: 'built-in default' },
       { value: 'redis', label: 'Redis', hint: 'recommended for multiple replicas' },
     ],
-    initialValue: vars.get('REDIS_URL') ? 'redis' : 'database',
+    initialValue: selectedProvider === 'redis' ? 'redis' : 'database',
   })
   if (provider === 'database') {
     return { remove: ['REDIS_URL', 'REDIS_TLS_SERVERNAME'], values: {} }
@@ -170,21 +176,16 @@ async function setupCache(vars: Map<string, string>): Promise<{
   const redisUrl = await p.text({
     message: 'REDIS_URL',
     initialValue: vars.get('REDIS_URL') ?? 'redis://localhost:6379',
-    validate(value) {
-      if (!value) return 'required'
-      try {
-        const url = new URL(value)
-        return url.protocol === 'redis:' || url.protocol === 'rediss:'
-          ? undefined
-          : 'must use redis:// or rediss://'
-      } catch {
-        return 'must be a valid URL'
-      }
-    },
+    validate: (value) => validateCapabilityFieldInput(CACHE_CAPABILITY, 'REDIS_URL', value),
   })
-  const parsed = new URL(redisUrl)
+  const valuesWithoutServerName = new Map(vars)
+  valuesWithoutServerName.set('REDIS_URL', redisUrl)
+  valuesWithoutServerName.delete('REDIS_TLS_SERVERNAME')
+  const redisInspection = inspectCapability(CACHE_CAPABILITY, valuesWithoutServerName)
   const needsServerName =
-    parsed.protocol === 'rediss:' && /^\d+\.\d+\.\d+\.\d+$/.test(parsed.hostname)
+    redisInspection.providers
+      .find((candidate) => candidate.id === 'redis')
+      ?.missingFields.includes('REDIS_TLS_SERVERNAME') ?? false
   return {
     remove: needsServerName ? [] : ['REDIS_TLS_SERVERNAME'],
     values: {
@@ -205,6 +206,7 @@ async function setupKnowledge(vars: Map<string, string>): Promise<{
   remove: readonly string[]
   values: Record<string, string>
 }> {
+  const selectedProvider = inspectCapability(OCR_CAPABILITY, vars).providerId
   const provider = await p.select({
     message: 'PDF OCR provider?',
     options: [
@@ -213,17 +215,11 @@ async function setupKnowledge(vars: Map<string, string>): Promise<{
       { value: 'azure', label: 'Azure Mistral OCR', hint: 'Azure model deployment' },
     ],
     initialValue:
-      vars.get('OCR_PROVIDER') === 'azure-mistral'
+      selectedProvider === 'azure-mistral'
         ? 'azure'
-        : vars.get('OCR_PROVIDER') === 'mistral'
+        : selectedProvider === 'mistral'
           ? 'mistral'
-          : vars.get('OCR_PROVIDER') === 'local'
-            ? 'local'
-            : vars.get('OCR_AZURE_ENDPOINT')
-              ? 'azure'
-              : vars.get('MISTRAL_API_KEY')
-                ? 'mistral'
-                : 'local',
+          : 'local',
   })
   if (provider === 'local') {
     return {
@@ -244,7 +240,12 @@ async function setupKnowledge(vars: Map<string, string>): Promise<{
     remove: [],
     values: {
       OCR_PROVIDER: 'azure-mistral',
-      OCR_AZURE_ENDPOINT: await required('OCR_AZURE_ENDPOINT', vars.get('OCR_AZURE_ENDPOINT')),
+      OCR_AZURE_ENDPOINT: await p.text({
+        message: 'OCR_AZURE_ENDPOINT',
+        initialValue: vars.get('OCR_AZURE_ENDPOINT'),
+        validate: (value) =>
+          validateCapabilityFieldInput(OCR_CAPABILITY, 'OCR_AZURE_ENDPOINT', value),
+      }),
       OCR_AZURE_MODEL_NAME: await required(
         'OCR_AZURE_MODEL_NAME',
         vars.get('OCR_AZURE_MODEL_NAME')
