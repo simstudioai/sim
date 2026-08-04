@@ -26,6 +26,7 @@ import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { SIDEBAR_WIDTH } from '@/stores/constants'
 
 interface StandaloneSettingsShellBaseProps {
   children: ReactNode
@@ -142,7 +143,8 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
       */}
       <div className='flex h-screen w-full overflow-hidden bg-[var(--surface-1)]'>
         <aside
-          className='flex h-full w-[248px] flex-shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3'
+          style={{ width: SIDEBAR_WIDTH.DEFAULT }}
+          className='flex h-full flex-shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3'
           aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
         >
           {sidebar}

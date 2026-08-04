@@ -38,6 +38,7 @@ import {
 } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { SIDEBAR_WIDTH } from '@/stores/constants'
 
 const logger = createLogger('WorkspaceHeader')
 
@@ -510,7 +511,7 @@ function WorkspaceHeaderImpl({
             sideOffset={isCollapsed ? 16 : 8}
             className='flex max-h-none flex-col overflow-hidden'
             style={{
-              width: '248px',
+              width: `${SIDEBAR_WIDTH.DEFAULT}px`,
               maxWidth: 'calc(100vw - 24px)',
             }}
             onCloseAutoFocus={(e) => e.preventDefault()}
