@@ -4,12 +4,9 @@
  * @packageDocumentation
  */
 import {
-  type CapabilityDefinition,
   EnvCapabilityConfigurationError,
   type EnvCapabilityValue,
   type EnvCapabilityValues,
-  getCapabilityFields,
-  getProviderFields,
   hasEnvCapabilityValue,
   inspectCapability,
   isTruthyEnvCapabilityValue,
@@ -94,37 +91,34 @@ function promptKeys(prompts: readonly SetupPrompt[] = []): string[] {
   })
 }
 
-function providerRuntimeFields(
-  definition: CapabilityDefinition,
-  providerId: string
-): readonly string[] {
-  const provider = definition.providers.find((candidate) => candidate.id === providerId)
-  if (!provider) throw new Error(`Capability ${definition.id} has no provider ${providerId}`)
-  return getProviderFields(provider)
-}
-
 function providerSetupFields(
   setup: CapabilitySetupDefinition,
   providerId: string
 ): readonly string[] {
+  const provider = setup.definition.providers.find((candidate) => candidate.id === providerId)
+  if (!provider) throw new Error(`Capability ${setup.definition.id} has no provider ${providerId}`)
   const providerSetup = setup.providers[providerId]
   if (!providerSetup) throw new Error(`Setup ${setup.definition.id} has no provider ${providerId}`)
   return [
-    ...providerRuntimeFields(setup.definition, providerId),
+    ...(provider.activation.mode === 'enabled' ? [provider.activation.key] : []),
     ...Object.keys(providerSetup.env ?? {}),
     ...promptKeys(providerSetup.prompts),
   ]
 }
 
-/** Returns every environment field owned by a setup flow, including CLI-only flags. */
+/** Returns fields the setup flow writes or prompts for, including inferred selectors and flags. */
 export function getCapabilitySetupFields(setup: CapabilitySetupDefinition): readonly string[] {
   return [
     ...new Set([
-      ...getCapabilityFields(setup.definition),
-      ...Object.values(setup.providers).flatMap((provider) => [
-        ...Object.keys(provider.env ?? {}),
-        ...promptKeys(provider.prompts),
-      ]),
+      ...(setup.definition.strategy === 'selected' && setup.definition.selectorKey
+        ? [setup.definition.selectorKey]
+        : []),
+      ...setup.definition.providers.flatMap((provider) =>
+        provider.activation.mode === 'enabled' ? [provider.activation.key] : []
+      ),
+      ...Object.entries(setup.providers).flatMap(([providerId]) =>
+        providerSetupFields(setup, providerId)
+      ),
       ...Object.values(setup.actions).flatMap((action) => Object.keys(action.env ?? {})),
     ]),
   ]
