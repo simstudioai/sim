@@ -362,7 +362,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
          */}
         <ChevronDown
           className={cn(
-            'h-[6px] w-[8px] flex-shrink-0 text-[var(--text-icon)] opacity-0 transition-[opacity,transform] duration-150',
+            'size-[14px] flex-shrink-0 text-[var(--text-icon)] opacity-0 transition-[opacity,transform] duration-150',
             'group-hover/suggested:opacity-100 group-focus-visible/toggle:opacity-100',
             !expanded && '-rotate-90'
           )}

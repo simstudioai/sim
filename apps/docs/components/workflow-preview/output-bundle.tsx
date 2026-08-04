@@ -71,7 +71,7 @@ function TreeNode({ node, depth = 0 }: { node: OutputNode; depth?: number }) {
         </span>
         <TypeBadge type={type} />
         <ChevronDown
-          className='h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)]'
+          className='size-[14px] flex-shrink-0 text-[var(--text-muted)]'
           style={expanded ? undefined : { transform: 'rotate(-90deg)' }}
         />
       </div>

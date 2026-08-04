@@ -93,7 +93,7 @@ export function SidebarSection({
              */}
             <ChevronDown
               className={cn(
-                'h-[6px] w-[8px] flex-shrink-0 text-[var(--text-icon)] opacity-0',
+                'size-[14px] flex-shrink-0 text-[var(--text-icon)] opacity-0',
                 CHEVRON_TRANSITION_CLASS,
                 'group-hover/section:opacity-100 group-focus-visible/toggle:opacity-100',
                 !expanded && '-rotate-90'

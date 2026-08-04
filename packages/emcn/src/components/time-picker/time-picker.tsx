@@ -240,7 +240,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
               </span>
               <ChevronDown
                 className={cn(
-                  'ml-2 h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
+                  'ml-2 size-[14px] flex-shrink-0 opacity-50 transition-transform',
                   open && 'rotate-180'
                 )}
               />
