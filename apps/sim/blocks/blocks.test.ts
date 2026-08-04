@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import {
   getAllBlocks,
@@ -840,6 +841,33 @@ describe.concurrent('Blocks Module', () => {
       expect(agentBlock?.hideFromToolbar).not.toBe(true)
       expect(modelSubBlock?.type).toBe('combobox')
       expect(modelSubBlock?.commandSearchable).toBe(true)
+    })
+
+    it('should let the agent reasoning and verbosity fields take a typed reference', () => {
+      const agentBlock = getBlock('agent')
+
+      for (const id of ['reasoningEffort', 'verbosity']) {
+        const subBlock = agentBlock?.subBlocks.find((sb) => sb.id === id)
+        // A combobox is editable, so a `<block.output>` / `{{ENV_VAR}}` reference can be
+        // typed into it; the option list still offers every level the model accepts.
+        expect(subBlock?.type).toBe('combobox')
+        expect(typeof subBlock?.condition).toBe('function')
+      }
+    })
+
+    it('should keep the agent reasoning and verbosity fields visible when the model is a reference', () => {
+      const agentBlock = getBlock('agent')
+
+      for (const id of ['reasoningEffort', 'verbosity']) {
+        const subBlock = agentBlock?.subBlocks.find((sb) => sb.id === id)
+        const condition = subBlock?.condition
+        if (typeof condition !== 'function') throw new Error(`${id} condition is not a function`)
+
+        expect(evaluateSubBlockCondition(condition, { model: '<start.model>' })).toBe(true)
+        expect(evaluateSubBlockCondition(condition, { model: '{{MODEL_ID}}' })).toBe(true)
+        expect(evaluateSubBlockCondition(condition, { model: 'gpt-5.1' })).toBe(true)
+        expect(evaluateSubBlockCondition(condition, { model: 'claude-sonnet-5' })).toBe(false)
+      }
     })
 
     it('should hide generator API keys on hosted only for Fal.ai providers', () => {

@@ -39,9 +39,25 @@ const logger = createLogger('Providers')
  */
 export const MAX_TOOL_ITERATIONS = 20
 
+/**
+ * Normalizes a model-tuning level that may have arrived from a variable or block reference
+ * rather than a picker. Every level a model declares is lower-case, so trimming and
+ * lower-casing lets a reference resolve to `"High"` or `" high "` and still apply. A level
+ * that resolves to nothing becomes `undefined` so the field reads as untouched instead of
+ * sending an empty string the provider rejects.
+ */
+function normalizeModelLevel(value: string | undefined): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  return normalized || undefined
+}
+
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   const sanitizedRequest = { ...request }
   const model = sanitizedRequest.model
+
+  sanitizedRequest.reasoningEffort = normalizeModelLevel(sanitizedRequest.reasoningEffort)
+  sanitizedRequest.verbosity = normalizeModelLevel(sanitizedRequest.verbosity)
 
   if (model && !supportsTemperature(model)) {
     sanitizedRequest.temperature = undefined

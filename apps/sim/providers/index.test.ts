@@ -412,3 +412,70 @@ describe('executeProviderRequest — streaming cost policy', () => {
     })
   })
 })
+
+/**
+ * `reasoningEffort` and `verbosity` can be bound to a variable or block reference in the
+ * agent block, so by the time they reach the provider they hold whatever that reference
+ * resolved to rather than a value picked from a list.
+ */
+describe('executeProviderRequest — model level normalization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-rotating', isBYOK: false })
+    mockExecuteRequest.mockResolvedValue({
+      content: 'hi',
+      model: 'gpt-5',
+      tokens: { input: 1, output: 1, total: 2 },
+    } as ProviderResponse)
+  })
+
+  const sentRequest = () => mockExecuteRequest.mock.calls[0][0] as Record<string, unknown>
+
+  it('trims and lower-cases levels a reference resolved to', async () => {
+    await executeProviderRequest('openai', {
+      model: 'gpt-5',
+      workspaceId: 'ws-1',
+      reasoningEffort: ' High ',
+      verbosity: 'LOW',
+    })
+
+    expect(sentRequest().reasoningEffort).toBe('high')
+    expect(sentRequest().verbosity).toBe('low')
+  })
+
+  it('treats a level that resolved to nothing as unset rather than an empty string', async () => {
+    await executeProviderRequest('openai', {
+      model: 'gpt-5',
+      workspaceId: 'ws-1',
+      reasoningEffort: '',
+      verbosity: '   ',
+    })
+
+    expect(sentRequest().reasoningEffort).toBeUndefined()
+    expect(sentRequest().verbosity).toBeUndefined()
+  })
+
+  it('leaves an already-valid level untouched', async () => {
+    await executeProviderRequest('openai', {
+      model: 'gpt-5',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'medium',
+      verbosity: 'high',
+    })
+
+    expect(sentRequest().reasoningEffort).toBe('medium')
+    expect(sentRequest().verbosity).toBe('high')
+  })
+
+  it('still drops levels the resolved model does not support', async () => {
+    await executeProviderRequest('anthropic', {
+      model: 'claude-opus-4-6',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'high',
+      verbosity: 'high',
+    })
+
+    expect(sentRequest().reasoningEffort).toBeUndefined()
+    expect(sentRequest().verbosity).toBeUndefined()
+  })
+})
