@@ -27,7 +27,8 @@ vi.mock('@/tools', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' && toolCall !== null && 'function' in toolCall,
   prepareToolExecution: vi.fn(() => ({
     toolParams: { url: 'https://example.com' },
     executionParams: { url: 'https://example.com' },

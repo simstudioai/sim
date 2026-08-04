@@ -47,7 +47,8 @@ vi.mock('@/providers/trace-enrichment', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' && toolCall !== null && 'function' in toolCall,
   calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
   prepareToolExecution: vi.fn((_tool, args) => ({ toolParams: args, executionParams: args })),
   prepareToolsWithUsageControl: mockPrepareToolsWithUsageControl,

@@ -582,13 +582,13 @@ function buildDeepResearchResponse(
  * Creates a ReadableStream from a deep research streaming interaction.
  *
  * Deep research streaming returns InteractionSSEEvent chunks including:
- * - interaction.start: initial interaction with ID
- * - content.delta: incremental text and thought_summary updates
- * - content.start / content.stop: output boundaries
- * - interaction.complete: final event (outputs is undefined in streaming; must reconstruct)
+ * - interaction.created: initial interaction with ID
+ * - step.delta: incremental text updates
+ * - step.start / step.stop: step boundaries
+ * - interaction.completed: final event (steps is undefined in streaming; must reconstruct)
  * - error: error events
  *
- * We stream text deltas to the client and track usage from the interaction.complete event.
+ * We stream text deltas to the client and track usage from the interaction.completed event.
  */
 function createDeepResearchStream(
   stream: AsyncIterable<Interactions.InteractionSSEEvent>,
@@ -719,16 +719,16 @@ export async function executeDeepResearchRequest(
     // Streaming mode: create a streaming interaction and return a StreamingExecution
     if (request.stream) {
       /**
-       * `stream` is annotated inline rather than via
-       * `Interactions.CreateAgentInteractionParamsStreaming`: as of @google/genai 2.13.0 that
-       * namespace alias resolves to `CreateAgentInteraction`, whose `stream` is a plain
-       * `boolean`. Annotating with it loses the literal that discriminates `interactions.create`'s
-       * overloads, so the call falls through to the union-returning signature.
+       * `satisfies`, not an annotation: as of @google/genai 2.13.0 the namespace alias resolves
+       * to `CreateAgentInteraction`, whose `stream` is a plain `boolean`, so annotating erases
+       * the literal that discriminates `interactions.create`'s overloads and the call falls
+       * through to the union-returning signature. `satisfies` keeps the literal while still
+       * rejecting a misspelled or unknown field.
        */
       const streamParams = {
         ...baseParams,
         stream: true as const,
-      }
+      } satisfies Interactions.CreateAgentInteractionParamsStreaming
 
       const streamResponse = await ai.interactions.create(
         streamParams,
@@ -808,11 +808,11 @@ export async function executeDeepResearchRequest(
     }
 
     // Non-streaming mode: create and poll
-    /** Inline literal for the same overload-discrimination reason as `streamParams` above. */
+    /** `satisfies` for the same overload-discrimination reason as `streamParams` above. */
     const createParams = {
       ...baseParams,
       stream: false as const,
-    }
+    } satisfies Interactions.CreateAgentInteractionParamsNonStreaming
 
     const interaction = await ai.interactions.create(
       createParams,
@@ -837,6 +837,15 @@ export async function executeDeepResearchRequest(
 
       if (result.status === 'cancelled') {
         throw new Error(`Deep research interaction was cancelled: ${interactionId}`)
+      }
+
+      /**
+       * Interactions v2 added terminal statuses beyond failed/cancelled. Without this they are
+       * polled until the hour-long ceiling and then reported as a Sim timeout, hiding a cause
+       * the caller can act on — `budget_exceeded` most of all.
+       */
+      if (result.status === 'budget_exceeded' || result.status === 'incomplete') {
+        throw new Error(`Deep research interaction ended as "${result.status}": ${interactionId}`)
       }
 
       logger.info('Deep research in progress, polling...', {

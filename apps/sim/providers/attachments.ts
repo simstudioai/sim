@@ -205,22 +205,12 @@ export function supportsFileAttachments(providerId: ProviderId | string): boolea
 
 /**
  * Real maximum attachment size for a provider — its native ceiling when it has a large-file
- * path, else the inline base64 threshold. Used for UI limits and validation, never as the
- * base64 hydration cap (which stays at {@link INLINE_ATTACHMENT_THRESHOLD_BYTES}).
+ * path, else the inline base64 threshold. Used for UI limits and validation. It is not the
+ * base64 hydration cap: that is chosen per request, because it depends on whether an upload
+ * path is actually reachable — see the agent handler's `inlineMaxBytes`.
  */
 export function getProviderAttachmentMaxBytes(providerId: ProviderId | string): number {
   return getProviderFileAttachment(providerId).maxBytes
-}
-
-/**
- * Combined attachment ceiling for one request, or `null` when the provider documents none.
- * Separate from {@link getProviderAttachmentMaxBytes}: a provider can accept a 50MB file yet
- * still reject three 20MB files in the same call.
- */
-export function getProviderRequestAttachmentMaxBytes(
-  providerId: ProviderId | string
-): number | null {
-  return getProviderFileAttachment(providerId).perRequestMaxBytes ?? null
 }
 
 export function inferAttachmentMimeType(file: UserFile): string {

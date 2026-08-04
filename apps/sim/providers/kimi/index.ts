@@ -274,11 +274,9 @@ export const kimiProvider: ProviderConfig = {
         },
       ]
 
-      if (
-        typeof originalToolChoice === 'object' &&
+      const toolCallsResponse =
         currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
-      ) {
-        const toolCallsResponse = currentResponse.choices[0].message.tool_calls
+      if (typeof originalToolChoice === 'object' && toolCallsResponse?.length) {
         const result = trackForcedToolUsage(
           toolCallsResponse,
           originalToolChoice,
@@ -465,11 +463,9 @@ export const kimiProvider: ProviderConfig = {
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
 
-          if (
-            typeof nextPayload.tool_choice === 'object' &&
+          const toolCallsResponse =
             currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
-          ) {
-            const toolCallsResponse = currentResponse.choices[0].message.tool_calls
+          if (typeof nextPayload.tool_choice === 'object' && toolCallsResponse?.length) {
             const result = trackForcedToolUsage(
               toolCallsResponse,
               nextPayload.tool_choice,

@@ -10,8 +10,9 @@ import type { UserFile } from '@/executor/types'
 import {
   getProviderAttachmentMaxBytes,
   getProviderFileStrategy,
-  getProviderRequestAttachmentMaxBytes,
+  INLINE_ATTACHMENT_THRESHOLD_BYTES,
   inferAttachmentMimeType,
+  LARGE_FILE_PATH_THRESHOLD_BYTES,
   shouldUseLargeFilePath,
 } from '@/providers/attachments'
 import type { Message, ProviderId, ProviderRequest } from '@/providers/types'
@@ -31,6 +32,21 @@ function* iterateRequestFiles(messages: Message[] | undefined): Generator<UserFi
       yield file
     }
   }
+}
+
+/**
+ * The size past which base64 hydration should stop, because an upload will take over.
+ *
+ * This must track {@link shouldUseLargeFilePath}'s crossover exactly. Stopping earlier than the
+ * strategy actually switches leaves a band with neither base64 nor a handle, which fails the
+ * request outright — and `remote-url` deliberately switches later than `files-api`, so only
+ * `files-api` may use the lower threshold. A deployment without cloud storage cannot reach any
+ * upload path at all, so there base64 has to run all the way to the inline ceiling.
+ */
+export function getInlineHydrationMaxBytes(providerId: ProviderId | string): number {
+  const usesUpload =
+    getProviderFileStrategy(providerId) === 'files-api' && StorageService.hasCloudStorage()
+  return usesUpload ? LARGE_FILE_PATH_THRESHOLD_BYTES : INLINE_ATTACHMENT_THRESHOLD_BYTES
 }
 
 /**
@@ -62,8 +78,6 @@ export async function attachLargeFileRemoteUrls(
     file.providerFileUri = undefined
     file.remoteUrl = undefined
   }
-
-  assertRequestAttachmentBudget(request, providerId)
 
   if (getProviderFileStrategy(providerId) === 'inline') return
 
@@ -104,36 +118,6 @@ export async function attachLargeFileRemoteUrls(
       file.key,
       context,
       PRESIGNED_URL_EXPIRY_SECONDS
-    )
-  }
-}
-
-/**
- * Rejects a request whose attachments together exceed the provider's combined ceiling. Per-file
- * validation cannot catch this: three 20MB files each clear OpenAI's 50MB per-file limit but
- * blow its 50MB per-request limit, and the provider answers with an opaque API error late in
- * the run — after Sim has already paid to upload every one of them.
- */
-function assertRequestAttachmentBudget(
-  request: ProviderRequest,
-  providerId: ProviderId | string
-): void {
-  const perRequestMaxBytes = getProviderRequestAttachmentMaxBytes(providerId)
-  if (perRequestMaxBytes === null) return
-
-  let totalBytes = 0
-  let fileCount = 0
-  for (const file of iterateRequestFiles(request.messages)) {
-    if (!Number.isFinite(file.size)) continue
-    totalBytes += file.size
-    fileCount++
-  }
-
-  if (totalBytes > perRequestMaxBytes) {
-    const totalMB = (totalBytes / (1024 * 1024)).toFixed(2)
-    const maxMB = (perRequestMaxBytes / (1024 * 1024)).toFixed(0)
-    throw new Error(
-      `The ${fileCount} attachments in this request total ${totalMB}MB, which exceeds the ${maxMB}MB combined attachment limit for provider "${providerId}". Remove or shrink some files.`
     )
   }
 }

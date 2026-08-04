@@ -37,7 +37,8 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' && toolCall !== null && 'function' in toolCall,
   getProviderFromModel: mockGetProviderFromModel,
 }))
 

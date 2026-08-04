@@ -72,7 +72,8 @@ vi.mock('@/providers/ollama-cloud/utils', () => ({
   },
 }))
 vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' && toolCall !== null && 'function' in toolCall,
   calculateCost: () => ({ input: 0, output: 0, total: 0, pricing: null }),
   generateSchemaInstructions: () => 'SCHEMA_INSTRUCTIONS',
   prepareToolExecution: (_tool: unknown, args: Record<string, unknown>) => ({

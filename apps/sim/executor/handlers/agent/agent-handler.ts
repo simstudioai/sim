@@ -52,13 +52,11 @@ import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
+import { shouldUseLargeFilePath, supportsFileAttachments } from '@/providers/attachments'
 import {
-  INLINE_ATTACHMENT_THRESHOLD_BYTES,
-  LARGE_FILE_PATH_THRESHOLD_BYTES,
-  shouldUseLargeFilePath,
-  supportsFileAttachments,
-} from '@/providers/attachments'
-import { canUseProviderLargeFilePath } from '@/providers/file-attachments.server'
+  canUseProviderLargeFilePath,
+  getInlineHydrationMaxBytes,
+} from '@/providers/file-attachments.server'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -948,14 +946,7 @@ export class AgentBlockHandler implements BlockHandler {
     const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
     const nextMessages = [...messages]
 
-    /**
-     * Stop hydrating base64 early only where an upload can actually take over. Where it cannot —
-     * an inline-only provider, or any deployment without cloud storage — base64 stays the only
-     * delivery path, so it has to be hydrated all the way to the inline ceiling.
-     */
-    const inlineMaxBytes = canUseProviderLargeFilePath(providerId)
-      ? LARGE_FILE_PATH_THRESHOLD_BYTES
-      : INLINE_ATTACHMENT_THRESHOLD_BYTES
+    const inlineMaxBytes = getInlineHydrationMaxBytes(providerId)
 
     for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
       const message = messages[messageIndex]

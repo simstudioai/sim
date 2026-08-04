@@ -16,7 +16,9 @@ interface ChatCompletionLike {
   choices: Array<{
     message?: {
       content?: string | null
-      tool_calls?: Array<ChatCompletionToolCallLike> | null
+      /** Loose on purpose — the raw SDK response is passed here; only the separate
+       * `toolCallsInResponse` argument is required to be narrowed. */
+      tool_calls?: Array<{ id: string; function?: { name: string; arguments: string } }> | null
       reasoning_content?: string | null
       reasoning?: string | null
       reasoning_details?: OpenRouterReasoningDetail[] | null
@@ -34,14 +36,16 @@ interface ChatCompletionLike {
   } | null
 }
 
+/**
+ * `function` stays required on purpose. The SDK's `ChatCompletionMessageToolCall` union gained a
+ * `custom` variant with no `function` in v5, and callers narrow that away with
+ * `isFunctionToolCall` before enriching. Making this optional to accept the raw union would let
+ * the custom shape satisfy this interface structurally, and every enrich call site would then
+ * type-check whether or not it narrowed — silently turning the guard into unenforced convention.
+ */
 interface ChatCompletionToolCallLike {
   id: string
-  /**
-   * Absent on the `custom` tool-call variant the SDK's `ChatCompletionMessageToolCall` union
-   * gained in v5. Sim only ever declares function tools, so a custom call should never arrive —
-   * but the response type permits one, and a trace enricher must not throw on it.
-   */
-  function?: { name: string; arguments: string }
+  function: { name: string; arguments: string }
 }
 
 /**
@@ -115,7 +119,7 @@ export function enrichLastModelSegment(
  * Parses a tool call's `function.arguments` JSON string into an object, or
  * returns the raw string if it is not valid JSON.
  */
-function parseToolCallArguments(rawArguments = ''): Record<string, unknown> | string {
+function parseToolCallArguments(rawArguments: string): Record<string, unknown> | string {
   try {
     const parsed = JSON.parse(rawArguments)
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -185,8 +189,8 @@ export function enrichLastModelSegmentFromChatCompletions(
 
   const toolCalls: IterationToolCall[] = (toolCallsInResponse ?? []).map((tc) => ({
     id: tc.id,
-    name: tc.function?.name ?? '',
-    arguments: parseToolCallArguments(tc.function?.arguments),
+    name: tc.function.name,
+    arguments: parseToolCallArguments(tc.function.arguments),
   }))
 
   const usage = response.usage

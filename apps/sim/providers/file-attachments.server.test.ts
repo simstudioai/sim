@@ -117,8 +117,9 @@ describe('OpenAI large-file attachment lifecycle', () => {
     ])
   })
 
-  it('leaves files at or below the inline cap on the base64 path', async () => {
-    const request = makeRequest(5 * 1024 * 1024)
+  /** Just under the crossover, so this fails if the threshold is ever raised back above it. */
+  it('leaves files below the upload crossover on the base64 path', async () => {
+    const request = makeRequest(6 * 1024 * 1024)
 
     await attachLargeFileRemoteUrls(request, 'openai')
     await uploadLargeFilesToProvider(request, 'openai')
@@ -143,16 +144,5 @@ describe('OpenAI large-file attachment lifecycle', () => {
     const file = request.messages?.[0].files?.[0]
     expect(file?.remoteUrl).toBeUndefined()
     expect(file?.providerFileId).toBeUndefined()
-  })
-
-  it('rejects a request whose attachments together exceed the combined ceiling', async () => {
-    const request = makeRequest(30 * 1024 * 1024)
-    const [first] = request.messages?.[0].files ?? []
-    request.messages?.[0].files?.push({ ...first, id: 'file-2', key: `${first.key}-2` })
-
-    await expect(attachLargeFileRemoteUrls(request, 'openai')).rejects.toThrow(
-      /total 60.00MB, which exceeds the 48MB combined attachment limit/
-    )
-    expect(fetch).not.toHaveBeenCalled()
   })
 })

@@ -269,8 +269,10 @@ export const litellmProvider: ProviderConfig = {
         toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
       ) => {
         const toolCallsResponse =
-          response.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
-        if (typeof toolChoice === 'object' && toolCallsResponse?.length) {
+          typeof toolChoice === 'object'
+            ? response.choices?.[0]?.message?.tool_calls?.filter(isFunctionToolCall)
+            : undefined
+        if (toolCallsResponse?.length) {
           const result = trackForcedToolUsage(
             toolCallsResponse,
             toolChoice,

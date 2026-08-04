@@ -30,7 +30,8 @@ import { executeTool } from '@/tools'
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
 
 vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' && toolCall !== null && 'function' in toolCall,
   getProviderFromModel: vi.fn().mockReturnValue('mock-provider'),
   transformBlockTool: vi.fn(),
   getBaseModelProviders: vi.fn().mockReturnValue({ openai: {}, anthropic: {} }),

@@ -44,7 +44,8 @@ vi.mock('@/lib/tokenization/estimators', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' && toolCall !== null && 'function' in toolCall,
   calculateCost: vi.fn().mockReturnValue({
     input: 0.00001042,
     output: 0,

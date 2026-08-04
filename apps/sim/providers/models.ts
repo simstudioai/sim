@@ -134,12 +134,6 @@ export type ProviderFileAttachmentStrategy = 'inline' | 'files-api' | 'remote-ur
 export interface ProviderFileAttachment {
   /** Maximum size of a single attachment the provider accepts, in bytes. */
   maxBytes: number
-  /**
-   * Combined ceiling across every attachment in one request, when the provider documents one
-   * separately from {@link maxBytes} (OpenAI, for example, caps a request at 50 MB total no
-   * matter how the files divide it). Omitted when the provider documents no combined limit.
-   */
-  perRequestMaxBytes?: number
   strategy: ProviderFileAttachmentStrategy
 }
 
@@ -171,15 +165,6 @@ export function getProviderFileAttachment(providerId: string): ProviderFileAttac
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   fireworks: {
     id: 'fireworks',
-    /**
-     * "Total base64-encoded images must be less than 10MB" — a budget on the encoded bytes, so
-     * the raw-byte equivalent this check sums is three quarters of it.
-     */
-    fileAttachment: {
-      maxBytes: INLINE_ATTACHMENT_MAX_BYTES,
-      perRequestMaxBytes: 7_500_000,
-      strategy: 'inline',
-    },
     name: 'Fireworks',
     description: 'Fast inference for open-source models via Fireworks AI',
     defaultModel: '',
@@ -329,8 +314,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   openai: {
     id: 'openai',
-    /** "each file must be under 50 MB. The combined limit across all files in the request is 50 MB." */
-    fileAttachment: { maxBytes: 50_000_000, perRequestMaxBytes: 50_000_000, strategy: 'files-api' },
+    /** "each file must be under 50 MB" — decimal MB; OpenAI writes no MiB anywhere on that page. */
+    fileAttachment: { maxBytes: 50_000_000, strategy: 'files-api' },
     name: 'OpenAI',
     description: "OpenAI's models",
     defaultModel: 'gpt-4.1',
@@ -2447,13 +2432,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   groq: {
     id: 'groq',
-    /**
-     * Left at the pre-existing ceiling: Groq's published "20MB" governs a request carrying an
-     * image URL, and on this path the request body holds only the URL, so it cannot bind on the
-     * files this guards. Groq documents no ceiling on the image it fetches, so both tightening
-     * the per-file cap and summing raw bytes against the request cap would reject uploads that
-     * work today on no documented basis.
-     */
     fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Groq',
     description: "Groq's LLM models with high-performance inference",
@@ -3511,17 +3489,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   bedrock: {
     id: 'bedrock',
-    /**
-     * Converse caps an image at 3.75 MB and a document at 4.5 MB. A single `maxBytes` cannot
-     * express both, so it carries the higher (document) bound: clamping to 3.75 MB would reject
-     * 3.75-4.5 MB documents that Converse accepts today, whereas at 4.5 MB every size that works
-     * now still works and only the genuinely-too-large are rejected early. Oversized images in
-     * that band still surface as a Bedrock API error, exactly as they do without this entry.
-     *
-     * There is no large-file path: the only non-inline Converse source is `s3Location`, which
-     * takes an `s3://` URI read with the caller's IAM role, not a presigned HTTPS URL.
-     */
-    fileAttachment: { maxBytes: 4_500_000, strategy: 'inline' },
     name: 'AWS Bedrock',
     description: 'AWS Bedrock foundation models',
     defaultModel: 'bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0',

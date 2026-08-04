@@ -13,7 +13,8 @@ import type { ProviderRequest } from '@/providers/types'
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
 
 vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: { function?: unknown }) => toolCall?.function != null,
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' && toolCall !== null && 'function' in toolCall,
   calculateCost: () => ({ input: 0, output: 0, total: 0 }),
   sumToolCosts: () => 0,
   enforceStrictSchema: (schema: unknown) => schema,
