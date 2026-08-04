@@ -139,7 +139,7 @@ export function createXAIUsageTotals(model: string): XAIUsageTotals {
   const emptyTurn = priceXAIUsage(model, undefined)
   return {
     tokens: { input: 0, output: 0, total: 0 },
-    cost: { ...emptyTurn.cost, total: 0 },
+    cost: { ...emptyTurn.cost, input: 0, output: 0, total: 0 },
     providerCostTicks: 0,
     fallbackCost: 0,
   }
@@ -157,8 +157,8 @@ export function addXAIUsage(accumulator: XAIUsageTotals, turn: XAITurnUsage): vo
   const reasoning = (accumulator.tokens.reasoning ?? 0) + (turn.tokens.reasoning ?? 0)
   if (reasoning > 0) accumulator.tokens.reasoning = reasoning
 
-  accumulator.cost.input = roundUsd(accumulator.cost.input + turn.cost.input, 8)
-  accumulator.cost.output = roundUsd(accumulator.cost.output + turn.cost.output, 8)
+  accumulator.cost.input = roundUsd(accumulator.cost.input + turn.cost.input)
+  accumulator.cost.output = roundUsd(accumulator.cost.output + turn.cost.output)
   accumulator.cost.pricing = turn.cost.pricing
 
   if (turn.providerCostTicks !== undefined) {

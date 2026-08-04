@@ -76,5 +76,9 @@ export function createFireworksUsageTotals(
   model: string,
   serviceTier: 'default' | 'priority' = 'default'
 ): FireworksUsageTotals {
-  return priceFireworksUsage(model, undefined, serviceTier)
+  const empty = priceFireworksUsage(model, undefined, serviceTier)
+  return {
+    tokens: { input: 0, output: 0, total: 0 },
+    cost: { ...empty.cost, input: 0, output: 0, total: 0 },
+  }
 }

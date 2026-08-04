@@ -6,7 +6,11 @@ import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
-import { addFireworksUsage, priceFireworksUsage } from '@/providers/fireworks/usage'
+import {
+  addFireworksUsage,
+  createFireworksUsageTotals,
+  priceFireworksUsage,
+} from '@/providers/fireworks/usage'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
@@ -211,7 +215,7 @@ export const fireworksProvider: ProviderConfig = {
 
       let content = currentResponse.choices[0]?.message?.content || ''
       let currentTurnUsage = priceFireworksUsage(request.model, currentResponse.usage, serviceTier)
-      const usageTotals = priceFireworksUsage(request.model, undefined, serviceTier)
+      const usageTotals = createFireworksUsageTotals(request.model, serviceTier)
       addFireworksUsage(usageTotals, currentTurnUsage)
       const { tokens, cost: modelCost } = usageTotals
       const toolCalls: FunctionCallResponse[] = []

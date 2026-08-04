@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.unmock('@/blocks/registry')
+
 import {
   getEffectiveBlockOutputPaths,
   getEffectiveBlockOutputs,
