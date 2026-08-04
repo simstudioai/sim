@@ -31,7 +31,7 @@
     "fumadocs-openapi": "10.8.1",
     "fumadocs-ui": "16.8.5",
     "lucide-react": "^0.511.0",
-    "next": "16.2.12",
+    "next": "16.3.0",
     "next-themes": "^0.4.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -50,7 +50,6 @@
     "@types/node": "24.2.1",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.0.4",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "postcss": "^8.5.3",
     "tailwindcss": "^4.0.12",
     "typescript": "^7.0.2"
