@@ -16,7 +16,6 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
-import { truncate } from '@sim/utils/string'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import {
   BROWSER_SESSION_RESOURCE_ID,
@@ -267,15 +266,6 @@ export function useAvailableResources(
       {
         type: 'task' as const,
         items: (tasks ?? []).map((t) => ({ id: t.id, name: t.name })),
-      },
-      {
-        type: 'scheduledtask' as const,
-        items: (schedules ?? [])
-          .filter((s) => s.sourceType === 'job')
-          .map((s) => ({
-            id: s.id,
-            name: s.jobTitle || truncate(s.prompt ?? '', 40) || 'Scheduled Task',
-          })),
       },
       {
         type: 'log' as const,

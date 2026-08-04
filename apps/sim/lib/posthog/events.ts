@@ -667,14 +667,6 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
-  scheduled_task_created: {
-    workspace_id: string
-  }
-
-  scheduled_task_deleted: {
-    workspace_id: string
-  }
-
   workspace_logo_uploaded: {
     workspace_id: string
     file_name: string

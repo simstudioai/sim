@@ -94,7 +94,6 @@ const ResourceAttachmentSchema = z.object({
     'filefolder',
     'task',
     'log',
-    'scheduledtask',
     'generic',
     'browser',
     // Filtered out client-side rather than sent, but accepted here so a stray
@@ -128,7 +127,6 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   filefolder: 'File Folder',
   task: 'Task',
   log: 'Log',
-  scheduledtask: 'Scheduled Task',
   generic: 'Resource',
   browser: 'Browser',
   terminal: 'Terminal',
@@ -197,7 +195,6 @@ const ChatContextSchema = z
       'file_selection',
       'folder',
       'filefolder',
-      'scheduledtask',
       'integration',
       'skill',
       'mcp',

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import {
-  Calendar,
   Database,
   Folder as FolderIcon,
   Globe,
@@ -102,10 +101,6 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   filefolder: {
     label: 'File folder',
     renderIcon: ({ className }) => <FolderIcon className={className} />,
-  },
-  scheduledtask: {
-    label: 'Scheduled task',
-    renderIcon: ({ className }) => <Calendar className={className} />,
   },
   past_chat: {
     label: 'Past chat',
