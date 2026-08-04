@@ -833,11 +833,6 @@ export const jobExecutionLogs = pgTable(
   })
 )
 
-/** Extracts the canonical credential ID persisted in webhook provider configuration. */
-export function webhookCredentialIdExpression(column: AnyPgColumn): SQL<string> {
-  return sql<string>`((${column})::jsonb ->> 'credentialId')`
-}
-
 export const webhook = pgTable(
   'webhook',
   {

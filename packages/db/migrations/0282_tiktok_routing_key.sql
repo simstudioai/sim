@@ -17,6 +17,9 @@ INNER JOIN "credential"
 	ON "credential"."id" = (("webhook"."provider_config")::jsonb ->> 'credentialId')
 	AND "credential"."type" = 'oauth'
 	AND "credential"."provider_id" = 'tiktok'
+INNER JOIN "workflow"
+	ON "workflow"."id" = "webhook"."workflow_id"
+	AND "workflow"."workspace_id" = "credential"."workspace_id"
 INNER JOIN "account"
 	ON "account"."id" = "credential"."account_id"
 	AND "account"."provider_id" = 'tiktok'
