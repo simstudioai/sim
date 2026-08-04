@@ -19,6 +19,8 @@ import {
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
+  isKnownModelId,
+  isKnownModelLevelValue,
 } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
 import {
@@ -67,13 +69,26 @@ const MODEL_LEVEL_SENTINELS = new Set(['auto', 'none'])
 type ModelLevelField = 'reasoningEffort' | 'verbosity' | 'thinkingLevel'
 
 /**
+ * Renders a level for a log line.
+ *
+ * These fields accept variable and environment references, so an unrecognized value is not
+ * necessarily a mistyped level — it is whatever the reference resolved to, which may be secret
+ * content. Only a level the catalogue declares somewhere is safe to echo; anything else is
+ * reported by length alone, which is enough to tell a stray level from a resolved blob.
+ */
+function describeLevel(value: string): string {
+  const isSafe = MODEL_LEVEL_SENTINELS.has(value) || isKnownModelLevelValue(value)
+  return isSafe ? value : `[redacted ${value.length} chars]`
+}
+
+/**
  * Clears a level whose resolved model does not accept the field at all.
  *
  * Dropping is the safe default — a provider that has no such parameter rejects the whole
  * request — but the discard is reported because the model can be bound to a variable or block
  * reference and is therefore only known at execution time. Without this, a run whose reference
- * resolved to a model outside Sim's catalogue would quietly fall back to that model's default
- * while the caller believed the level applied.
+ * resolved to a model that does not take the field would quietly fall back to that model's
+ * default while the caller believed the level applied.
  */
 function dropUnsupportedLevel(
   field: ModelLevelField,
@@ -84,7 +99,7 @@ function dropUnsupportedLevel(
     logger.warn('Model does not support this level; dropping it from the request', {
       field,
       model,
-      value,
+      value: describeLevel(value),
     })
   }
   return undefined
@@ -111,7 +126,7 @@ function warnOnUnrecognizedLevel(
   logger.warn('Model level is not one this model declares; forwarding to the provider', {
     field,
     model,
-    value,
+    value: describeLevel(value),
     declaredValues,
   })
 }
@@ -128,7 +143,16 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
     sanitizedRequest.temperature = undefined
   }
 
-  if (model && !supportsReasoningEffort(model)) {
+  /**
+   * A model absent from the catalogue is unknown, not known-incapable. Since the model can be
+   * bound to a reference, that is exactly how a newly released model arrives before Sim has
+   * catalogued it — so its levels are forwarded and the provider decides, rather than being
+   * discarded on the strength of a list that has not caught up. Models the catalogue does
+   * know, and every dynamic-provider id, keep the protective drop.
+   */
+  const isCatalogued = Boolean(model) && isKnownModelId(model)
+
+  if (model && isCatalogued && !supportsReasoningEffort(model)) {
     sanitizedRequest.reasoningEffort = dropUnsupportedLevel(
       'reasoningEffort',
       model,
@@ -136,7 +160,7 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
     )
   }
 
-  if (model && !supportsVerbosity(model)) {
+  if (model && isCatalogued && !supportsVerbosity(model)) {
     sanitizedRequest.verbosity = dropUnsupportedLevel(
       'verbosity',
       model,
@@ -144,7 +168,7 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
     )
   }
 
-  if (model && !supportsThinking(model)) {
+  if (model && isCatalogued && !supportsThinking(model)) {
     sanitizedRequest.thinkingLevel = dropUnsupportedLevel(
       'thinkingLevel',
       model,

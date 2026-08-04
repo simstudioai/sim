@@ -604,4 +604,63 @@ describe('executeProviderRequest — model level normalization', () => {
 
     expect(mockLoggerWarn).not.toHaveBeenCalled()
   })
+
+  /**
+   * These fields take environment and block references, so a mistyped reference resolves the
+   * secret into the level. The diagnostics must never echo it.
+   */
+  it('redacts a level that is not a catalogue level before logging it', async () => {
+    const secret = 'sk-proj-abcdef0123456789'
+
+    await executeProviderRequest('openai', {
+      model: 'gpt-5',
+      workspaceId: 'ws-1',
+      reasoningEffort: secret,
+    })
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ value: `[redacted ${secret.length} chars]` })
+    )
+    const loggedText = JSON.stringify(mockLoggerWarn.mock.calls)
+    expect(loggedText).not.toContain(secret)
+  })
+
+  it('keeps the auto sentinel readable in a drop diagnostic', async () => {
+    await executeProviderRequest('anthropic', {
+      model: 'claude-opus-4-6',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'auto',
+    })
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'Model does not support this level; dropping it from the request',
+      expect.objectContaining({ value: 'auto' })
+    )
+  })
+
+  /**
+   * A model the catalogue has never seen is unknown, not known-incapable — which is exactly
+   * how a newly released model arrives through a reference before Sim catalogues it. The
+   * provider decides, rather than the level being discarded on a stale list.
+   */
+  it('forwards levels for a model absent from the catalogue', async () => {
+    await executeProviderRequest('openai', {
+      model: 'gpt-6-unreleased',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'high',
+    })
+
+    expect(sentRequest().reasoningEffort).toBe('high')
+  })
+
+  it('still drops levels for a dynamic-provider model that does not take them', async () => {
+    await executeProviderRequest('ollama', {
+      model: 'ollama/llama3',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'high',
+    })
+
+    expect(sentRequest().reasoningEffort).toBeUndefined()
+  })
 })

@@ -4553,6 +4553,33 @@ export function getThinkingLevelsForModel(modelId: string): string[] | null {
   return capability?.levels ?? null
 }
 
+const ALL_MODEL_LEVEL_VALUES = new Set<string>()
+for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+  for (const model of provider.models) {
+    for (const value of model.capabilities.reasoningEffort?.values ?? []) {
+      ALL_MODEL_LEVEL_VALUES.add(value)
+    }
+    for (const value of model.capabilities.verbosity?.values ?? []) {
+      ALL_MODEL_LEVEL_VALUES.add(value)
+    }
+    for (const level of model.capabilities.thinking?.levels ?? []) {
+      ALL_MODEL_LEVEL_VALUES.add(level)
+    }
+  }
+}
+
+/**
+ * Whether a string is a tuning level some model in the catalogue declares, regardless of which.
+ *
+ * Callers that need to put a caller-supplied level into a log or an error gate on this first.
+ * These fields accept variable and environment references, so an unrecognized value is not
+ * necessarily a mistyped level — it can be whatever that reference resolved to, up to and
+ * including secret content that must never be echoed.
+ */
+export function isKnownModelLevelValue(value: string): boolean {
+  return ALL_MODEL_LEVEL_VALUES.has(value)
+}
+
 /**
  * Per-provider defaults for thinking stream visibility, used when a model does
  * not declare `capabilities.thinking.streamed` explicitly. Gemini and OpenAI
