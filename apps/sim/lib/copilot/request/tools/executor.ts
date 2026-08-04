@@ -408,6 +408,7 @@ export async function executeToolAndReport(
     {
       toolName: toolCall.name,
       toolCallId: toolCall.id,
+      agentName: toolCall.agentId ?? 'main',
       runId: context.runId,
       chatId: execContext.chatId,
       argsBytes: argsPayload?.length,

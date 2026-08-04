@@ -2,20 +2,24 @@ import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { recordSimToolMetric, setAttribute } = vi.hoisted(() => ({
-  recordSimToolMetric: vi.fn(),
-  setAttribute: vi.fn(),
-}))
+const { recordSimToolMetric, setAttribute, withCopilotToolSpan } = vi.hoisted(() => {
+  const setAttribute = vi.fn()
+  return {
+    recordSimToolMetric: vi.fn(),
+    setAttribute,
+    withCopilotToolSpan: vi.fn(
+      (_input: unknown, fn: (span: { setAttribute: typeof setAttribute }) => Promise<unknown>) =>
+        fn({ setAttribute })
+    ),
+  }
+})
 
 vi.mock('@/lib/copilot/request/metrics', () => ({
   recordSimToolMetric,
 }))
 
 vi.mock('@/lib/copilot/request/otel', () => ({
-  withCopilotToolSpan: (
-    _input: unknown,
-    fn: (span: { setAttribute: typeof setAttribute }) => Promise<unknown>
-  ) => fn({ setAttribute }),
+  withCopilotToolSpan,
 }))
 
 import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/copilot/constants'
@@ -110,6 +114,10 @@ describe('executeToolAndReport metrics', () => {
       MothershipStreamV1ToolOutcome.success,
       expect.any(Number)
     )
+    expect(withCopilotToolSpan).toHaveBeenCalledWith(
+      expect.objectContaining({ agentName: 'workflow' }),
+      expect.any(Function)
+    )
   })
 
   it.each([
@@ -137,6 +145,10 @@ describe('executeToolAndReport metrics', () => {
         expectedAgentId,
         MothershipStreamV1ToolOutcome.error,
         expect.any(Number)
+      )
+      expect(withCopilotToolSpan).toHaveBeenCalledWith(
+        expect.objectContaining({ agentName: expectedAgentId }),
+        expect.any(Function)
       )
     }
   )

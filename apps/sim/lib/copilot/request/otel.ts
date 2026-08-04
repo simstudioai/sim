@@ -284,6 +284,7 @@ export async function withCopilotToolSpan<T>(
   input: {
     toolName: string
     toolCallId: string
+    agentName: string
     runId?: string
     chatId?: string
     argsBytes?: number
@@ -299,6 +300,7 @@ export async function withCopilotToolSpan<T>(
         [TraceAttr.ToolName]: input.toolName,
         [TraceAttr.ToolCallId]: input.toolCallId,
         [TraceAttr.ToolExecutor]: 'sim',
+        [TraceAttr.GenAiAgentName]: input.agentName,
         ...(input.runId ? { [TraceAttr.RunId]: input.runId } : {}),
         ...(input.chatId ? { [TraceAttr.ChatId]: input.chatId } : {}),
         ...(typeof input.argsBytes === 'number'
