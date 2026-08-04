@@ -316,16 +316,18 @@ export function AgentPeerDemo() {
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     const el = cardRef.current
-    if (reduce || !el) return
+    // Reduced motion, no element, or an environment without IntersectionObserver (older browsers,
+    // some test runners): leave the finished document in place as the fallback and never clear it.
+    if (reduce || !el || typeof IntersectionObserver === 'undefined') return
 
     let raf = 0
     let played = false
-    // Hold at empty until the reader reaches it, so they watch it type rather than arriving to a
-    // finished doc that quietly retypes.
-    setHumanN(0)
-    setAgentN(0)
 
     const play = () => {
+      // Clear to empty only now that the demo is actually on screen, so it's never left blank if the
+      // observer never fires (the element never reaches the visibility threshold).
+      setHumanN(0)
+      setAgentN(0)
       const start = performance.now()
       // A character lands every ~30–60ms but frames fire every ~16ms, so most frames reveal nothing
       // new. Track the last emitted counts and only setState on an actual change, so React renders
