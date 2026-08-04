@@ -22,6 +22,14 @@ import {
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CompleteUploadBodySchema,
+  v2PartUrlsBodySchema,
+  v2PartUrlsDataSchema,
+  v2UploadStatusSchema,
+  v2UploadTokenHeadersSchema,
+} from '@/lib/api/contracts/v2/uploads'
+import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
  * v2 knowledge contracts.
@@ -151,6 +159,67 @@ export type V2KnowledgeSearchData = z.output<typeof v2KnowledgeSearchDataSchema>
 export const v2UploadKnowledgeDocumentQuerySchema = z.object({ workspaceId: workspaceIdSchema })
 export type V2UploadKnowledgeDocumentQuery = z.output<typeof v2UploadKnowledgeDocumentQuerySchema>
 
+export const v2KnowledgeDocumentUploadParamsSchema = knowledgeBaseParamsSchema.extend({
+  uploadId: z.string().min(1, 'uploadId is required'),
+})
+export type V2KnowledgeDocumentUploadParams = z.output<typeof v2KnowledgeDocumentUploadParamsSchema>
+
+const knowledgeDocumentUploadTagSchema = z
+  .string()
+  .max(1000, 'Knowledge document tag values cannot exceed 1000 characters')
+  .optional()
+
+export const v2KnowledgeDocumentUploadMetadataSchema = z
+  .object({
+    tag1: knowledgeDocumentUploadTagSchema,
+    tag2: knowledgeDocumentUploadTagSchema,
+    tag3: knowledgeDocumentUploadTagSchema,
+    tag4: knowledgeDocumentUploadTagSchema,
+    tag5: knowledgeDocumentUploadTagSchema,
+    tag6: knowledgeDocumentUploadTagSchema,
+    tag7: knowledgeDocumentUploadTagSchema,
+    processingOptions: z
+      .object({
+        recipe: z.string().max(255, 'recipe cannot exceed 255 characters').optional(),
+        lang: z.string().max(35, 'lang cannot exceed 35 characters').optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+export type V2KnowledgeDocumentUploadMetadata = z.output<
+  typeof v2KnowledgeDocumentUploadMetadataSchema
+>
+
+export const v2CreateKnowledgeDocumentUploadBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
+    contentType: z.string().trim().min(1, 'contentType is required').max(255),
+    size: z.number().int().min(1).max(MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE),
+    ...v2KnowledgeDocumentUploadMetadataSchema.shape,
+  })
+  .strict()
+export type V2CreateKnowledgeDocumentUploadBody = z.input<
+  typeof v2CreateKnowledgeDocumentUploadBodySchema
+>
+
+export const v2KnowledgeDocumentUploadSchema = z.object({
+  id: z.string(),
+  knowledgeBaseId: z.string(),
+  status: v2UploadStatusSchema,
+  name: z.string(),
+  contentType: z.string(),
+  size: z.number().int().positive(),
+  partSize: z.number().int().positive(),
+  partCount: z.number().int().positive(),
+  uploadToken: z.string().min(1),
+  expiresAt: z.string().datetime(),
+  error: z.string().nullable(),
+  document: v2KnowledgeDocumentSummarySchema.nullable(),
+})
+export type V2KnowledgeDocumentUpload = z.output<typeof v2KnowledgeDocumentUploadSchema>
+
 export const v2KnowledgeBaseSortFields = ['name', 'createdAt', 'updatedAt'] as const
 
 export type V2KnowledgeBaseSortBy = (typeof v2KnowledgeBaseSortFields)[number]
@@ -269,6 +338,43 @@ export const v2UploadKnowledgeDocumentContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDocumentSummaryDataSchema),
   },
+})
+
+export const v2CreateKnowledgeDocumentUploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/[id]/documents/uploads',
+  params: knowledgeBaseParamsSchema,
+  body: v2CreateKnowledgeDocumentUploadBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeDocumentUploadSchema) },
+})
+
+export const v2AbortKnowledgeDocumentUploadContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]',
+  params: v2KnowledgeDocumentUploadParamsSchema,
+  query: v2UploadKnowledgeDocumentQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeDocumentUploadSchema) },
+})
+
+export const v2CreateKnowledgeDocumentUploadPartUrlsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts',
+  params: v2KnowledgeDocumentUploadParamsSchema,
+  query: v2UploadKnowledgeDocumentQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  body: v2PartUrlsBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2PartUrlsDataSchema) },
+})
+
+export const v2CompleteKnowledgeDocumentUploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete',
+  params: v2KnowledgeDocumentUploadParamsSchema,
+  query: v2UploadKnowledgeDocumentQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  body: v2CompleteUploadBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeDocumentUploadSchema) },
 })
 
 export const v2GetKnowledgeDocumentContract = defineRouteContract({

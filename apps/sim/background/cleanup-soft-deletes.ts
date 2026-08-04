@@ -702,14 +702,13 @@ const CLEANUP_TARGETS = [
 ] as const
 
 /**
- * Sweep abandoned knowledge-base ownership bindings. The presigned upload flow
- * writes a `workspace_files` binding when it hands out an upload URL, before the
- * object is stored and before any document is created. If the upload is never
- * completed, that binding is orphaned — no `document.storageKey` ever references
- * its key. Such bindings are inert (read access requires a live document, and
- * the move re-point only follows referenced keys), but they accumulate, so we
- * drop the best-effort object and soft-delete the binding once they are older
- * than the grace window.
+ * Sweep abandoned knowledge-base ownership bindings. Presigned and multipart upload flows
+ * write a `workspace_files` binding before the object is stored and before any document is
+ * created. If the upload is never completed, that binding is orphaned — no
+ * `document.storageKey` ever references its key. Such bindings are inert (read access requires
+ * a live document, and the move re-point only follows referenced keys), but they accumulate,
+ * so we drop the best-effort object and soft-delete the binding once they are older than the
+ * grace window.
  */
 async function cleanupOrphanedKnowledgeBaseBindings(
   workspaceIds: string[],

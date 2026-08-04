@@ -134,6 +134,7 @@ export function getOwnedTableImportUpload(params: {
     uploadId: params.importId,
     workspaceId: params.workspaceId,
     userId: params.userId,
+    purpose: 'table_import',
     uploadToken: params.uploadToken,
   })
   tableImportBodyFromUpload(upload)

@@ -65,6 +65,7 @@ describe('POST /api/v2/files/uploads', () => {
       id: 'upload-1',
       workspaceId: WORKSPACE_ID,
       userId: 'user-1',
+      knowledgeBaseId: null,
       purpose: 'workspace_file',
       storageContext: 'workspace',
       storageKey: `${WORKSPACE_ID}/file.csv`,

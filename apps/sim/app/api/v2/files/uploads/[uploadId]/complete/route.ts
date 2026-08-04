@@ -48,6 +48,7 @@ export const POST = withRouteHandler(
         uploadId,
         workspaceId,
         userId,
+        purpose: 'workspace_file',
         uploadToken: parsed.data.headers['upload-token'],
       })
       const metadata = session.metadata as { folderId?: string | null }
