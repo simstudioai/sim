@@ -1022,17 +1022,37 @@ export function createExecutionEventWriter(
     }
   }
 
+  /**
+   * Compact an event for the buffer, degrading if pressure offloading fails.
+   *
+   * Offloading under pressure is an optimization: it keeps a heavy run from
+   * exhausting its budget. When durable storage rejects the write, losing the
+   * event from replay entirely is a worse outcome than carrying it inline, so
+   * fall back to the shared cap — exactly what the run would have done before
+   * pressure engaged.
+   */
+  const compactForBuffer = async (event: ExecutionEvent) => {
+    const valueThresholdBytes = getValueThresholdBytes()
+    const options = { ...context, executionId, requireDurablePayloads: true }
+    if (valueThresholdBytes === undefined) return compactEventForBuffer(event, options)
+    try {
+      return await compactEventForBuffer(event, { ...options, valueThresholdBytes })
+    } catch (error) {
+      logger.warn('Pressure offload failed; buffering the event inline instead', {
+        executionId,
+        eventType: event.type,
+        error: toError(error).message,
+      })
+      return compactEventForBuffer(event, options)
+    }
+  }
+
   const writeCore = async (event: ExecutionEvent): Promise<ExecutionEventEntry> => {
     if (nextEventId === 0 || nextEventId > maxReservedId) {
       await reserveIds(1)
     }
     const eventId = nextEventId++
-    const compactEvent = await compactEventForBuffer(event, {
-      ...context,
-      executionId,
-      requireDurablePayloads: true,
-      valueThresholdBytes: getValueThresholdBytes(),
-    })
+    const compactEvent = await compactForBuffer(event)
     const entry: ExecutionEventEntry = { eventId, executionId, event: compactEvent }
     bufferedBytes += getJsonSize(entry) ?? 0
     pending.push(entry)
@@ -1075,12 +1095,7 @@ export function createExecutionEventWriter(
         await reserveIds(1)
       }
       const eventId = nextEventId++
-      const compactEvent = await compactEventForBuffer(event, {
-        ...context,
-        executionId,
-        requireDurablePayloads: true,
-        valueThresholdBytes: getValueThresholdBytes(),
-      })
+      const compactEvent = await compactForBuffer(event)
       const entry: ExecutionEventEntry = { eventId, executionId, event: compactEvent }
       bufferedBytes += getJsonSize(entry) ?? 0
       pending.push(entry)

@@ -785,6 +785,26 @@ describe('execution event buffer', () => {
     expect(persistedEntries.length).toBeGreaterThan(0)
   })
 
+  /**
+   * Offloading under pressure is an optimization. If the value cannot be
+   * persisted durably, the event must still reach the replay buffer inline —
+   * dropping it would leave a reconnecting client permanently missing it.
+   */
+  it('buffers the event inline when a pressure offload cannot be persisted', async () => {
+    mockRedis.incrby.mockResolvedValue(100000)
+    const payload = 'x'.repeat(2 * 1024 * 1024)
+
+    // No workspace/workflow ids, so durable persistence of an offloaded value
+    // fails the way a storage outage would.
+    const writer = createExecutionEventWriter('exec-1')
+    for (let i = 0; i < 20; i++) {
+      await writer.write(makeEvent(payload)).catch(() => {})
+    }
+    await writer.flush().catch(() => {})
+
+    expect(persistedEntries).toHaveLength(20)
+  })
+
   it('preserves requested UserFile base64 when buffering terminal events', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     const base64 = Buffer.from('hello').toString('base64')
