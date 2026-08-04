@@ -22,10 +22,9 @@ import {
   type ProviderConfigurationState,
   type ProviderInspection,
   SANDBOX_CAPABILITY,
-  SETUP_FEATURES,
-  type SetupFeatureId,
   STORAGE_CAPABILITY,
-} from '@/lib/core/config/env-capabilities'
+} from '../../apps/sim/lib/core/config/env-capabilities.ts'
+import { SETUP_FEATURES, type SetupFeatureId } from './capability-config.ts'
 
 export type SetupStatusFeatureId = Exclude<SetupFeatureId, 'integration'>
 export type CapabilityStatusState = 'default' | 'configured' | 'missing' | 'partial' | 'invalid'

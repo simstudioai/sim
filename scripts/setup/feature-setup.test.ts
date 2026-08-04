@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'bun:test'
-import type { ConfigurationSource } from './configuration-sources.ts'
 import {
-  reconcileLlmSetup,
-  reconcileSandboxSetup,
-  resolveFeatureSetupDestination,
-  validateDaytonaSnapshotInput,
-} from './feature-setup.ts'
+  SANDBOX_CAPABILITY,
+  validateCapabilityFieldInput,
+} from '../../apps/sim/lib/core/config/env-capabilities.ts'
+import { SANDBOX_SETUP } from './capability-config.ts'
+import { buildCapabilitySetupTransition } from './capability-setup.ts'
+import type { ConfigurationSource } from './configuration-sources.ts'
+import { reconcileLlmSetup, resolveFeatureSetupDestination } from './feature-setup.ts'
 
 function source(
   kind: ConfigurationSource['kind'],
@@ -57,21 +58,25 @@ describe('resolveFeatureSetupDestination', () => {
   })
 })
 
-describe('validateDaytonaSnapshotInput', () => {
+describe('sandbox capability setup', () => {
   it('requires an explicit non-floating snapshot tag', () => {
-    expect(validateDaytonaSnapshotInput('mothership-shell:v1')).toBeUndefined()
-    expect(validateDaytonaSnapshotInput('mothership-shell')).toContain('name:tag')
-    expect(validateDaytonaSnapshotInput('mothership-shell:latest')).toContain('name:tag')
+    const validate = (value: string) =>
+      validateCapabilityFieldInput(SANDBOX_CAPABILITY, 'DAYTONA_SHELL_SNAPSHOT_ID', value)
+    expect(validate('mothership-shell:v1')).toBeUndefined()
+    expect(validate('mothership-shell')).toContain('name:tag')
+    expect(validate('mothership-shell:latest')).toContain('name:tag')
   })
-})
 
-describe('reconcileSandboxSetup', () => {
   it('writes Daytona API and shell snapshot configuration and disables E2B', () => {
-    const result = reconcileSandboxSetup({
-      provider: 'daytona',
-      apiKey: 'daytona-key',
-      shellSnapshotId: 'mothership-shell:v1',
-    })
+    const result = buildCapabilitySetupTransition(
+      SANDBOX_SETUP,
+      'daytona',
+      {
+        DAYTONA_API_KEY: 'daytona-key',
+        DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1',
+      },
+      {}
+    )
 
     expect(result.remove).toContain('E2B_API_KEY')
     expect(result.values).toMatchObject({
@@ -84,10 +89,10 @@ describe('reconcileSandboxSetup', () => {
   })
 
   it('removes stale Daytona configuration for E2B and disabled modes', () => {
-    expect(reconcileSandboxSetup({ provider: 'e2b', apiKey: 'e2b-key' }).remove).toEqual(
-      expect.arrayContaining(['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'])
-    )
-    expect(reconcileSandboxSetup({ provider: 'disabled' }).remove).toEqual(
+    expect(
+      buildCapabilitySetupTransition(SANDBOX_SETUP, 'e2b', { E2B_API_KEY: 'e2b-key' }, {}).remove
+    ).toEqual(expect.arrayContaining(['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID']))
+    expect(buildCapabilitySetupTransition(SANDBOX_SETUP, 'disabled', {}, {}).remove).toEqual(
       expect.arrayContaining(['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'])
     )
   })

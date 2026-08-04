@@ -1,7 +1,6 @@
 /**
- * Canonical deployment-capability definitions shared by the Sim runtime and setup CLI.
- * Keep this module dependency-free so scripts can import the same provider requirements
- * the application enforces without creating a second configuration catalog.
+ * Canonical runtime deployment-capability definitions. Keep this module dependency-free so
+ * setup and diagnostics can consume the provider rules the application actually enforces.
  *
  * @packageDocumentation
  */
@@ -78,7 +77,6 @@ export interface EnvProviderDefinition<TId extends string = string> {
   requires: EnvRequirement
   pairedFields?: readonly (readonly [string, string])[]
   optionalFields?: readonly EnvFieldRequirement[]
-  setupFields: readonly string[]
   validate?: (values: EnvCapabilityValues) => readonly EnvProviderValidationIssue[]
 }
 
@@ -89,8 +87,6 @@ export interface FallbackCapabilityDefinition<
   strategy: 'fallback'
   id: TId
   label: string
-  setupLabel: string
-  setupCommand: string
   providers: readonly TProvider[]
 }
 
@@ -105,8 +101,6 @@ export interface SelectedCapabilityDefinition<
   strategy: 'selected'
   id: TId
   label: string
-  setupLabel: string
-  setupCommand: string
   selectorKey?: string
   whenUnset: 'default' | 'first-ready'
   defaultProvider: EnvDefaultProviderDefinition
@@ -232,6 +226,20 @@ function activationKeys(activation: EnvProviderActivation): readonly string[] {
   return activation.mode === 'enabled' ? [activation.key] : activation.keys
 }
 
+function providerKeys(provider: EnvProviderDefinition): string[] {
+  return [
+    ...activationKeys(provider.activation),
+    ...requirementKeys(provider.requires),
+    ...(provider.pairedFields ?? []).flat(),
+    ...(provider.optionalFields ?? []).map((field) => field.key),
+  ]
+}
+
+/** Returns every environment field that can affect one provider at runtime. */
+export function getProviderFields(provider: EnvProviderDefinition): readonly string[] {
+  return unique(providerKeys(provider))
+}
+
 function providerIsActive(provider: EnvProviderDefinition, values: EnvCapabilityValues): boolean {
   return provider.activation.mode === 'enabled'
     ? isTruthyValue(values, provider.activation.key)
@@ -243,19 +251,13 @@ function capabilityKeys(definition: CapabilityDefinition): string[] {
     ...(definition.strategy === 'selected' && definition.selectorKey
       ? [definition.selectorKey]
       : []),
-    ...definition.providers.flatMap((provider) => [
-      ...activationKeys(provider.activation),
-      ...requirementKeys(provider.requires),
-      ...(provider.pairedFields ?? []).flat(),
-      ...(provider.optionalFields ?? []).map((field) => field.key),
-      ...provider.setupFields,
-    ]),
+    ...definition.providers.flatMap(providerKeys),
   ]
 }
 
-/** Returns every provider field owned by a capability's setup flow. */
-export function getCapabilitySetupFields(definition: CapabilityDefinition): readonly string[] {
-  return unique(definition.providers.flatMap((provider) => provider.setupFields))
+/** Returns every environment field that can affect a capability at runtime. */
+export function getCapabilityFields(definition: CapabilityDefinition): readonly string[] {
+  return unique(capabilityKeys(definition))
 }
 
 function assertRequirementDefinition(
@@ -280,11 +282,6 @@ function assertRequirementDefinition(
 }
 
 function assertCapabilityDefinition(definition: CapabilityDefinition): void {
-  if (definition.setupCommand !== `bun run setup ${definition.id}`) {
-    throw new Error(
-      `Capability ${definition.id} setup command must be "bun run setup ${definition.id}"`
-    )
-  }
   if (definition.providers.length === 0) {
     throw new Error(`Capability ${definition.id} must declare at least one provider`)
   }
@@ -313,20 +310,6 @@ function assertCapabilityDefinition(definition: CapabilityDefinition): void {
       throw new Error(`Capability ${definition.id} provider ${provider.id} has no activation keys`)
     }
     assertRequirementDefinition(definition.id, provider.id, provider.requires)
-
-    const setupFields = new Set(provider.setupFields)
-    const ownedFields = unique([
-      ...requirementKeys(provider.requires),
-      ...(provider.optionalFields ?? []).map((field) => field.key),
-      ...(provider.pairedFields ?? []).flat(),
-      ...(provider.activation.mode === 'enabled' ? [provider.activation.key] : []),
-    ])
-    const missingSetupFields = ownedFields.filter((field) => !setupFields.has(field))
-    if (missingSetupFields.length > 0) {
-      throw new Error(
-        `Capability ${definition.id} provider ${provider.id} omits owned setup fields: ${missingSetupFields.join(', ')}`
-      )
-    }
   }
 }
 
@@ -335,6 +318,11 @@ export function defineCapability<const TDefinition extends CapabilityDefinition>
 ): TDefinition {
   assertCapabilityDefinition(definition)
   return definition
+}
+
+/** Returns the canonical command for configuring a runtime capability. */
+export function getCapabilitySetupCommand(definition: CapabilityDefinition): string {
+  return `bun run setup ${definition.id}`
 }
 
 interface RequirementInspection {
@@ -556,7 +544,7 @@ export function getCapabilityConfigurationError(
 
   return new EnvCapabilityConfigurationError(
     definition.id,
-    `${definition.label} is partially or incorrectly configured (${details.join(' | ')}). Run ${definition.setupCommand}.`
+    `${definition.label} is partially or incorrectly configured (${details.join(' | ')}). Run ${getCapabilitySetupCommand(definition)}.`
   )
 }
 
@@ -612,7 +600,7 @@ function inspectSelectedCapability<const TDefinition extends SelectedCapabilityD
         ? null
         : new EnvCapabilityConfigurationError(
             definition.id,
-            `${definition.label} selects ${selector}, but that provider is not configured (${providerProblems(selected)}). Run ${definition.setupCommand}.`
+            `${definition.label} selects ${selector}, but that provider is not configured (${providerProblems(selected)}). Run ${getCapabilitySetupCommand(definition)}.`
           )
     return {
       strategy: 'selected',
@@ -644,7 +632,7 @@ function inspectSelectedCapability<const TDefinition extends SelectedCapabilityD
           ? null
           : new EnvCapabilityConfigurationError(
               definition.id,
-              `${definition.label} selects ${definition.defaultProvider.id}, but that provider is not configured (${providerProblems(selected)}). Run ${definition.setupCommand}.`
+              `${definition.label} selects ${definition.defaultProvider.id}, but that provider is not configured (${providerProblems(selected)}). Run ${getCapabilitySetupCommand(definition)}.`
             ),
     }
   }
@@ -670,7 +658,7 @@ function inspectSelectedCapability<const TDefinition extends SelectedCapabilityD
         providers,
         error: new EnvCapabilityConfigurationError(
           definition.id,
-          `${candidate.label} is incorrectly configured (${providerProblems(candidate)}). Run ${definition.setupCommand}.`
+          `${candidate.label} is incorrectly configured (${providerProblems(candidate)}). Run ${getCapabilitySetupCommand(definition)}.`
         ),
       }
     }
@@ -719,6 +707,10 @@ export function inspectCapability<const TDefinition extends FallbackCapabilityDe
 export function inspectCapability(
   definition: CapabilityDefinition,
   values: EnvCapabilityValues
+): SelectedCapabilityInspection | FallbackCapabilityInspection
+export function inspectCapability(
+  definition: CapabilityDefinition,
+  values: EnvCapabilityValues
 ): SelectedCapabilityInspection | FallbackCapabilityInspection {
   return definition.strategy === 'selected'
     ? inspectSelectedCapability(definition, values)
@@ -742,7 +734,9 @@ export function requireCapability(
   definition: CapabilityDefinition,
   values: EnvCapabilityValues
 ):
-  | (Omit<SelectedCapabilityInspection, 'error' | 'providerId'> & { providerId: string })
+  | (Omit<SelectedCapabilityInspection, 'error' | 'providerId'> & {
+      providerId: string
+    })
   | Omit<FallbackCapabilityInspection, 'error'> {
   const inspection =
     definition.strategy === 'selected'
@@ -754,7 +748,7 @@ export function requireCapability(
     if (providerId === null) {
       throw new EnvCapabilityConfigurationError(
         definition.id,
-        `${definition.label} has no selected provider. Run ${definition.setupCommand}.`
+        `${definition.label} has no selected provider. Run ${getCapabilitySetupCommand(definition)}.`
       )
     }
     const selected = inspection.providers.find((provider) => provider.id === providerId)
@@ -766,15 +760,19 @@ export function requireCapability(
           : selected
       throw new EnvCapabilityConfigurationError(
         definition.id,
-        `${definition.label} selects ${providerId}, but that provider is not configured (${providerProblems(strictInspection)}). Run ${definition.setupCommand}.`
+        `${definition.label} selects ${providerId}, but that provider is not configured (${providerProblems(strictInspection)}). Run ${getCapabilitySetupCommand(definition)}.`
       )
     }
-    return { strategy: 'selected', providerId, providers: inspection.providers }
+    return {
+      strategy: 'selected',
+      providerId,
+      providers: inspection.providers,
+    }
   }
   if (!inspection.configured) {
     throw new EnvCapabilityConfigurationError(
       definition.id,
-      `${definition.label} is not configured. Run ${definition.setupCommand}.`
+      `${definition.label} is not configured. Run ${getCapabilitySetupCommand(definition)}.`
     )
   }
   const { error: _, ...resolution } = inspection
@@ -793,7 +791,7 @@ function findFieldRequirement(
   return null
 }
 
-/** Validates a setup prompt with the same field rule used by runtime resolution. */
+/** Validates a candidate environment value with the runtime field rule. */
 export function validateCapabilityFieldInput(
   definition: CapabilityDefinition,
   key: string,
@@ -852,7 +850,7 @@ export function wireFallback<const TDefinition extends FallbackCapabilityDefinit
       if (resolution.providerIds.length === 0) {
         throw new EnvCapabilityConfigurationError(
           definition.id,
-          `${definition.label} is not configured. Run ${definition.setupCommand}.`
+          `${definition.label} is not configured. Run ${getCapabilitySetupCommand(definition)}.`
         )
       }
 
@@ -878,22 +876,18 @@ export const EMAIL_CAPABILITY = defineCapability({
   strategy: 'fallback',
   id: 'email',
   label: 'Email',
-  setupLabel: 'Email delivery',
-  setupCommand: 'bun run setup email',
   providers: [
     {
       id: 'resend',
       label: 'Resend',
       activation: { mode: 'any-present', keys: ['RESEND_API_KEY'] },
       requires: envField('RESEND_API_KEY'),
-      setupFields: ['RESEND_API_KEY'],
     },
     {
       id: 'ses',
       label: 'Amazon SES',
       activation: { mode: 'any-present', keys: ['AWS_SES_REGION'] },
       requires: envField('AWS_SES_REGION'),
-      setupFields: ['AWS_SES_REGION'],
     },
     {
       id: 'smtp',
@@ -913,14 +907,16 @@ export const EMAIL_CAPABILITY = defineCapability({
           },
         })
       ),
-      setupFields: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'],
+      optionalFields: [envField('SMTP_USER'), envField('SMTP_PASS')],
     },
     {
       id: 'azure',
       label: 'Azure Communication Services',
-      activation: { mode: 'any-present', keys: ['AZURE_ACS_CONNECTION_STRING'] },
+      activation: {
+        mode: 'any-present',
+        keys: ['AZURE_ACS_CONNECTION_STRING'],
+      },
       requires: envField('AZURE_ACS_CONNECTION_STRING'),
-      setupFields: ['AZURE_ACS_CONNECTION_STRING'],
     },
     {
       id: 'gmail',
@@ -939,7 +935,6 @@ export const EMAIL_CAPABILITY = defineCapability({
         }),
         envField('GMAIL_SENDER')
       ),
-      setupFields: ['GMAIL_CREDENTIALS_JSON', 'GMAIL_SENDER'],
     },
   ],
 } as const)
@@ -948,8 +943,6 @@ export const STORAGE_CAPABILITY = defineCapability({
   strategy: 'selected',
   id: 'storage',
   label: 'File storage',
-  setupLabel: 'File storage',
-  setupCommand: 'bun run setup storage',
   selectorKey: 'STORAGE_PROVIDER',
   whenUnset: 'first-ready',
   defaultProvider: { id: 'local', kind: 'built-in', label: 'Local disk' },
@@ -973,12 +966,6 @@ export const STORAGE_CAPABILITY = defineCapability({
           allOf(envField('AZURE_ACCOUNT_NAME'), envField('AZURE_ACCOUNT_KEY'))
         )
       ),
-      setupFields: [
-        'AZURE_CONNECTION_STRING',
-        'AZURE_ACCOUNT_NAME',
-        'AZURE_ACCOUNT_KEY',
-        'AZURE_STORAGE_CONTAINER_NAME',
-      ],
     },
     {
       id: 's3',
@@ -1007,14 +994,7 @@ export const STORAGE_CAPABILITY = defineCapability({
             message: 'must be a valid http:// or https:// URL',
           },
         }),
-      ],
-      setupFields: [
-        'AWS_REGION',
-        'AWS_ACCESS_KEY_ID',
-        'AWS_SECRET_ACCESS_KEY',
-        'S3_BUCKET_NAME',
-        'S3_ENDPOINT',
-        'S3_FORCE_PATH_STYLE',
+        envField('S3_FORCE_PATH_STYLE'),
       ],
     },
     {
@@ -1030,8 +1010,8 @@ export const STORAGE_CAPABILITY = defineCapability({
             message: 'must be service account JSON with client_email and private_key',
           },
         }),
+        envField('GCS_PROJECT_ID'),
       ],
-      setupFields: ['GCS_BUCKET_NAME', 'GCS_PROJECT_ID', 'GCS_CREDENTIALS_JSON'],
     },
   ],
 } as const)
@@ -1040,8 +1020,6 @@ export const SANDBOX_CAPABILITY = defineCapability({
   strategy: 'selected',
   id: 'sandbox',
   label: 'Remote sandbox',
-  setupLabel: 'Remote sandboxes',
-  setupCommand: 'bun run setup sandbox',
   selectorKey: 'SANDBOX_PROVIDER',
   whenUnset: 'default',
   defaultProvider: { id: 'e2b', kind: 'provider' },
@@ -1051,7 +1029,10 @@ export const SANDBOX_CAPABILITY = defineCapability({
       label: 'E2B',
       activation: { mode: 'enabled', key: 'E2B_ENABLED' },
       requires: envField('E2B_API_KEY'),
-      setupFields: ['E2B_ENABLED', 'E2B_API_KEY'],
+      optionalFields: [
+        envField('NEXT_PUBLIC_E2B_ENABLED'),
+        envField('NEXT_PUBLIC_SANDBOX_ENABLED'),
+      ],
     },
     {
       id: 'daytona',
@@ -1070,7 +1051,10 @@ export const SANDBOX_CAPABILITY = defineCapability({
           },
         })
       ),
-      setupFields: ['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'],
+      optionalFields: [
+        envField('NEXT_PUBLIC_E2B_ENABLED'),
+        envField('NEXT_PUBLIC_SANDBOX_ENABLED'),
+      ],
     },
   ],
 } as const)
@@ -1079,17 +1063,18 @@ export const ASYNC_JOBS_CAPABILITY = defineCapability({
   strategy: 'selected',
   id: 'jobs',
   label: 'Async jobs',
-  setupLabel: 'Async jobs',
-  setupCommand: 'bun run setup jobs',
   whenUnset: 'first-ready',
-  defaultProvider: { id: 'database', kind: 'built-in', label: 'Database queue' },
+  defaultProvider: {
+    id: 'database',
+    kind: 'built-in',
+    label: 'Database queue',
+  },
   providers: [
     {
       id: 'trigger-dev',
       label: 'Trigger.dev',
       activation: { mode: 'enabled', key: 'TRIGGER_DEV_ENABLED' },
       requires: allOf(envField('TRIGGER_PROJECT_ID'), envField('TRIGGER_SECRET_KEY')),
-      setupFields: ['TRIGGER_DEV_ENABLED', 'TRIGGER_PROJECT_ID', 'TRIGGER_SECRET_KEY'],
     },
   ],
 } as const)
@@ -1123,8 +1108,6 @@ export const CACHE_CAPABILITY = defineCapability({
   strategy: 'selected',
   id: 'cache',
   label: 'Cache',
-  setupLabel: 'Redis cache',
-  setupCommand: 'bun run setup cache',
   whenUnset: 'first-ready',
   defaultProvider: { id: 'database', kind: 'built-in', label: 'Postgres' },
   providers: [
@@ -1139,7 +1122,7 @@ export const CACHE_CAPABILITY = defineCapability({
           message: 'must be a valid redis:// or rediss:// URL',
         },
       }),
-      setupFields: ['REDIS_URL', 'REDIS_TLS_SERVERNAME'],
+      optionalFields: [envField('REDIS_TLS_SERVERNAME')],
       validate: validateRedisProvider,
     },
   ],
@@ -1149,8 +1132,6 @@ export const OCR_CAPABILITY = defineCapability({
   strategy: 'selected',
   id: 'knowledge',
   label: 'PDF OCR',
-  setupLabel: 'Knowledge and OCR',
-  setupCommand: 'bun run setup knowledge',
   selectorKey: 'OCR_PROVIDER',
   whenUnset: 'first-ready',
   defaultProvider: { id: 'local', kind: 'built-in', label: 'Local parser' },
@@ -1173,14 +1154,12 @@ export const OCR_CAPABILITY = defineCapability({
         }),
         envField('OCR_AZURE_MODEL_NAME')
       ),
-      setupFields: ['OCR_AZURE_API_KEY', 'OCR_AZURE_ENDPOINT', 'OCR_AZURE_MODEL_NAME'],
     },
     {
       id: 'mistral',
       label: 'Mistral OCR',
       activation: { mode: 'any-present', keys: ['MISTRAL_API_KEY'] },
       requires: envField('MISTRAL_API_KEY'),
-      setupFields: ['MISTRAL_API_KEY'],
     },
   ],
 } as const)
@@ -1220,7 +1199,7 @@ export const OAUTH_CLIENT_CAPABILITIES = {
   'zoho-desk': ['ZOHO_CLIENT_ID', 'ZOHO_CLIENT_SECRET'],
 } as const
 
-/** Single registry consumed by runtime status, setup discovery, and env-source detection. */
+/** Single registry consumed by runtime status and environment-source detection. */
 export const ENV_CAPABILITIES = [
   EMAIL_CAPABILITY,
   STORAGE_CAPABILITY,
@@ -1229,18 +1208,6 @@ export const ENV_CAPABILITIES = [
   CACHE_CAPABILITY,
   OCR_CAPABILITY,
 ] as const
-
-type CapabilitySetupFeatureId = (typeof ENV_CAPABILITIES)[number]['id']
-export type SetupFeatureId = CapabilitySetupFeatureId | 'llm' | 'integration'
-
-export const SETUP_FEATURES: readonly { id: SetupFeatureId; label: string }[] = [
-  ...ENV_CAPABILITIES.map((capability) => ({
-    id: capability.id,
-    label: capability.setupLabel,
-  })),
-  { id: 'llm', label: 'LLM API keys' },
-  { id: 'integration', label: 'OAuth integration' },
-]
 
 export const LLM_KEY_POOLS = {
   openai: {

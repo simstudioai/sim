@@ -1,11 +1,3 @@
-import {
-  EMAIL_CAPABILITY,
-  getCapabilitySetupFields,
-  hasEnvCapabilityValue,
-  inspectCapability,
-  STORAGE_CAPABILITY,
-  validateCapabilityFieldInput,
-} from '../../apps/sim/lib/core/config/env-capabilities.ts'
 import { browserKeyFlow } from './cli-auth.ts'
 import type { Detection } from './detect.ts'
 import {
@@ -19,12 +11,7 @@ import {
 } from './env-files.ts'
 import * as p from './prompter.ts'
 import { link, theme } from './theme.ts'
-import {
-  FLAG_TWINS,
-  getConfiguredMailProvider,
-  LOGIN_PROVIDERS,
-  SELF_HOST_UNLOCKS,
-} from './twins.ts'
+import { FLAG_TWINS, LOGIN_PROVIDERS, SELF_HOST_UNLOCKS } from './twins.ts'
 
 /** Where the Chat key is minted when SIM_CLI_AUTH_ORIGIN is unset. */
 const DEFAULT_CLI_AUTH_ORIGIN = 'https://www.sim.ai'
@@ -162,214 +149,6 @@ export async function promptLlmKeys(
   return values
 }
 
-type StorageBackend = 'local' | 's3' | 's3compat' | 'azure' | 'gcs'
-
-export interface EnvironmentSetupResult {
-  values: Record<string, string>
-  remove: readonly string[]
-}
-
-function reconcileSetupFields(
-  fields: readonly string[],
-  values: Record<string, string>
-): EnvironmentSetupResult {
-  return {
-    values,
-    remove: fields.filter((key) => !Object.hasOwn(values, key)),
-  }
-}
-
-/** Reconciles the single provider selected by the email setup prompt. */
-export function reconcileEmailSetupValues(values: Record<string, string>): EnvironmentSetupResult {
-  return reconcileSetupFields(getCapabilitySetupFields(EMAIL_CAPABILITY), values)
-}
-
-/** Reconciles storage credentials and selectors owned by the storage setup prompt. */
-export function reconcileStorageSetupValues(
-  values: Record<string, string>
-): EnvironmentSetupResult {
-  const providerId = values.STORAGE_PROVIDER
-  if (providerId === STORAGE_CAPABILITY.defaultProvider.id) return { values, remove: [] }
-  const provider = STORAGE_CAPABILITY.providers.find((candidate) => candidate.id === providerId)
-  if (!provider) {
-    throw new Error(`Unknown storage provider "${providerId}" in setup result`)
-  }
-  return reconcileSetupFields(provider.setupFields, values)
-}
-
-export function validateSmtpPortInput(value: string): string | undefined {
-  return validateCapabilityFieldInput(EMAIL_CAPABILITY, 'SMTP_PORT', value)
-}
-
-export function validateS3EndpointInput(value: string): string | undefined {
-  return validateCapabilityFieldInput(STORAGE_CAPABILITY, 'S3_ENDPOINT', value)
-}
-
-export function validateServiceAccountJsonInput(value: string): string | undefined {
-  return validateCapabilityFieldInput(EMAIL_CAPABILITY, 'GMAIL_CREDENTIALS_JSON', value)
-}
-
-function validateGcsServiceAccountJsonInput(value: string): string | undefined {
-  return validateCapabilityFieldInput(STORAGE_CAPABILITY, 'GCS_CREDENTIALS_JSON', value)
-}
-
-export function detectStorageBackend(vars: Map<string, string>): StorageBackend {
-  const providerId = inspectCapability(STORAGE_CAPABILITY, vars).providerId
-  if (providerId === 's3' && hasEnvCapabilityValue(vars, 'S3_ENDPOINT')) return 's3compat'
-  return providerId === 'azure' || providerId === 's3' || providerId === 'gcs'
-    ? providerId
-    : 'local'
-}
-
-async function required(message: string, initialValue?: string): Promise<string> {
-  return p.text({ message, initialValue, validate: (v) => (v ? undefined : 'required') })
-}
-
-/**
- * Custom-flow storage step. Local disk is the default; a cloud backend is
- * strongly recommended for containerized deployments (uploads are ephemeral
- * there). Returns the env vars for the chosen backend.
- */
-export async function promptStorage(
-  vars: Map<string, string>,
-  containerized: boolean
-): Promise<EnvironmentSetupResult> {
-  const current = detectStorageBackend(vars)
-  const backend = await p.select<StorageBackend>({
-    message: 'File storage?',
-    options: [
-      {
-        value: 'local',
-        label: 'Local disk',
-        hint: containerized
-          ? 'files live in the container — LOST on restart; fine only for evaluation'
-          : 'fine for local dev (external-fetch flows like Instagram publish need cloud storage)',
-      },
-      { value: 's3', label: 'AWS S3', hint: 'region + bucket; keys optional with IAM/IRSA' },
-      {
-        value: 's3compat',
-        label: 'S3-compatible (R2, MinIO, B2)',
-        hint: 'custom endpoint — fully self-hostable with MinIO',
-      },
-      { value: 'azure', label: 'Azure Blob', hint: 'connection string or account name + key' },
-      {
-        value: 'gcs',
-        label: 'Google Cloud Storage',
-        hint: 'bucket; credentials via ADC by default',
-      },
-    ],
-    initialValue: current,
-  })
-  if (backend === 'local') {
-    return reconcileStorageSetupValues({ STORAGE_PROVIDER: 'local' })
-  }
-
-  const values: Record<string, string> = {
-    STORAGE_PROVIDER: backend === 's3compat' ? 's3' : backend,
-  }
-  if (backend === 's3' || backend === 's3compat') {
-    if (backend === 's3compat') {
-      values.S3_ENDPOINT = await p.text({
-        message: 'S3_ENDPOINT (e.g. https://<account>.r2.cloudflarestorage.com)',
-        initialValue: vars.get('S3_ENDPOINT'),
-        validate: validateS3EndpointInput,
-      })
-      const pathStyle = await p.confirm({
-        message: 'Force path-style addressing? (required for MinIO/Ceph, not for R2)',
-        initialValue: vars.get('S3_FORCE_PATH_STYLE') === 'true',
-      })
-      values.S3_FORCE_PATH_STYLE = pathStyle ? 'true' : 'false'
-    } else {
-      values.S3_FORCE_PATH_STYLE = 'false'
-    }
-    values.AWS_REGION = await required(
-      'AWS_REGION',
-      vars.get('AWS_REGION') ?? (backend === 's3compat' ? 'auto' : undefined)
-    )
-    values.S3_BUCKET_NAME = await required('S3_BUCKET_NAME', vars.get('S3_BUCKET_NAME'))
-    const credentialMode = await p.select<'chain' | 'static'>({
-      message: 'AWS credentials?',
-      options: [
-        {
-          value: 'chain',
-          label: 'Default credential chain',
-          hint: 'IAM role, IRSA, profile, or other SDK source',
-        },
-        {
-          value: 'static',
-          label: 'Access key and secret',
-          hint: 'stored in AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY',
-        },
-      ],
-      initialValue:
-        vars.get('AWS_ACCESS_KEY_ID') || vars.get('AWS_SECRET_ACCESS_KEY') ? 'static' : 'chain',
-    })
-    if (credentialMode === 'static') {
-      values.AWS_ACCESS_KEY_ID = await p.password({
-        message: 'AWS_ACCESS_KEY_ID',
-        validate: (value) => (value ? undefined : 'required'),
-      })
-      values.AWS_SECRET_ACCESS_KEY = await p.password({
-        message: 'AWS_SECRET_ACCESS_KEY',
-        validate: (value) => (value ? undefined : 'required'),
-      })
-    }
-  } else if (backend === 'azure') {
-    const connectionString = await p.password({
-      message: 'AZURE_CONNECTION_STRING (empty = use account name + key)',
-    })
-    if (connectionString) {
-      values.AZURE_CONNECTION_STRING = connectionString
-    } else {
-      values.AZURE_ACCOUNT_NAME = await required(
-        'AZURE_ACCOUNT_NAME',
-        vars.get('AZURE_ACCOUNT_NAME')
-      )
-      values.AZURE_ACCOUNT_KEY = await p.password({
-        message: 'AZURE_ACCOUNT_KEY',
-        validate: (v) => (v ? undefined : 'required'),
-      })
-    }
-    values.AZURE_STORAGE_CONTAINER_NAME = await required(
-      'AZURE_STORAGE_CONTAINER_NAME',
-      vars.get('AZURE_STORAGE_CONTAINER_NAME') ?? 'sim-files'
-    )
-  } else {
-    values.GCS_BUCKET_NAME = await required('GCS_BUCKET_NAME', vars.get('GCS_BUCKET_NAME'))
-    const projectId = await p.text({
-      message: 'GCS_PROJECT_ID (optional; inferred from credentials or ADC when empty)',
-      initialValue: vars.get('GCS_PROJECT_ID'),
-      defaultValue: '',
-    })
-    if (projectId) values.GCS_PROJECT_ID = projectId
-    const credentialMode = await p.select<'adc' | 'json'>({
-      message: 'Google Cloud credentials?',
-      options: [
-        {
-          value: 'adc',
-          label: 'Application Default Credentials',
-          hint: 'Workload Identity or GOOGLE_APPLICATION_CREDENTIALS',
-        },
-        {
-          value: 'json',
-          label: 'Inline service account JSON',
-          hint: 'stored in GCS_CREDENTIALS_JSON',
-        },
-      ],
-      initialValue: vars.get('GCS_CREDENTIALS_JSON') ? 'json' : 'adc',
-    })
-    if (credentialMode === 'json') {
-      values.GCS_CREDENTIALS_JSON = await p.password({
-        message: 'GCS_CREDENTIALS_JSON',
-        validate: validateGcsServiceAccountJsonInput,
-      })
-    } else {
-      p.log.info(theme.muted('Using Application Default Credentials.'))
-    }
-  }
-  return reconcileStorageSetupValues(values)
-}
-
 const PROVIDER_CONSOLES: Record<string, string> = {
   google: 'https://console.cloud.google.com/apis/credentials',
   github: 'https://github.com/settings/developers',
@@ -387,7 +166,7 @@ export async function promptSignInProviders(
     options: LOGIN_PROVIDERS.map((prov) => ({
       value: prov.id,
       label: prov.label,
-      hint: configured.includes(prov.id) ? 'already configured' : undefined,
+      hint: configured.includes(prov.id) ? 'Currently used' : undefined,
     })),
     initialValues: configured,
   })
@@ -399,96 +178,22 @@ export async function promptSignInProviders(
       `${provider.label}: create an OAuth app at ${link(PROVIDER_CONSOLES[id], PROVIDER_CONSOLES[id])}\n   Redirect URI: ${theme.command(`${appUrl}/api/auth/callback/${id}`)}`
     )
     values[provider.idKey] = await p.text({
-      message: provider.idKey,
+      message: `${provider.idKey}${vars.has(provider.idKey) ? ' (Currently used)' : ''}`,
       initialValue: vars.get(provider.idKey),
       validate: (v) => (v ? undefined : 'required'),
     })
-    values[provider.secretKey] = await p.password({
-      message: provider.secretKey,
-      validate: (v) => (v ? undefined : 'required'),
+    const existingSecret = vars.get(provider.secretKey)
+    const secret = await p.password({
+      message: existingSecret
+        ? `${provider.secretKey} (Currently used); leave empty to keep it`
+        : provider.secretKey,
+      validate: (value) => (value || existingSecret ? undefined : 'required'),
     })
+    const resolvedSecret = secret || existingSecret
+    if (!resolvedSecret) throw new Error(`${provider.secretKey} was not provided`)
+    values[provider.secretKey] = resolvedSecret
   }
   return values
-}
-
-/** Email step: console logging is the default; MailHog is the one-tap local option. */
-export async function promptEmail(vars: Map<string, string>): Promise<EnvironmentSetupResult> {
-  const choice = await p.select({
-    message: 'Email sending?',
-    options: [
-      {
-        value: 'console',
-        label: 'None',
-        hint: 'emails are logged to the console — fine for local',
-      },
-      { value: 'mailhog', label: 'MailHog (local)', hint: 'wires SMTP to localhost:1025' },
-      { value: 'resend', label: 'Resend', hint: 'paste an API key' },
-      { value: 'ses', label: 'Amazon SES', hint: 'uses the AWS SDK credential chain' },
-      { value: 'smtp', label: 'SMTP', hint: 'any SMTP relay' },
-      { value: 'azure', label: 'Azure Communication Services', hint: 'connection string' },
-      { value: 'gmail', label: 'Gmail API', hint: 'Workspace service account delegation' },
-    ],
-    initialValue: getConfiguredMailProvider(vars),
-  })
-  if (choice === 'console') return reconcileEmailSetupValues({})
-  if (choice === 'mailhog') {
-    return reconcileEmailSetupValues({ SMTP_HOST: 'localhost', SMTP_PORT: '1025' })
-  }
-  if (choice === 'resend') {
-    return reconcileEmailSetupValues({
-      RESEND_API_KEY: await p.password({
-        message: 'RESEND_API_KEY',
-        validate: (v) => (v ? undefined : 'required'),
-      }),
-    })
-  }
-  if (choice === 'ses') {
-    return reconcileEmailSetupValues({
-      AWS_SES_REGION: await required('AWS_SES_REGION', vars.get('AWS_SES_REGION') ?? 'us-east-1'),
-    })
-  }
-  if (choice === 'azure') {
-    return reconcileEmailSetupValues({
-      AZURE_ACS_CONNECTION_STRING: await p.password({
-        message: 'AZURE_ACS_CONNECTION_STRING',
-        validate: (value) => (value ? undefined : 'required'),
-      }),
-    })
-  }
-  if (choice === 'gmail') {
-    return reconcileEmailSetupValues({
-      GMAIL_CREDENTIALS_JSON: await p.password({
-        message: 'GMAIL_CREDENTIALS_JSON',
-        validate: validateServiceAccountJsonInput,
-      }),
-      GMAIL_SENDER: await required('GMAIL_SENDER', vars.get('GMAIL_SENDER')),
-    })
-  }
-  const values: Record<string, string> = {
-    SMTP_HOST: await p.text({
-      message: 'SMTP_HOST',
-      initialValue: vars.get('SMTP_HOST'),
-      validate: (v) => (v ? undefined : 'required'),
-    }),
-    SMTP_PORT: await p.text({
-      message: 'SMTP_PORT',
-      initialValue: vars.get('SMTP_PORT') ?? '587',
-      validate: validateSmtpPortInput,
-    }),
-  }
-  const user = await p.text({
-    message: 'SMTP_USER (empty for unauthenticated relays)',
-    initialValue: vars.get('SMTP_USER'),
-    defaultValue: '',
-  })
-  if (user) {
-    values.SMTP_USER = user
-    values.SMTP_PASS = await p.password({
-      message: 'SMTP_PASS',
-      validate: (value) => (value ? undefined : 'required when SMTP_USER is set'),
-    })
-  }
-  return reconcileEmailSetupValues(values)
 }
 
 export interface SecurityStepResult {

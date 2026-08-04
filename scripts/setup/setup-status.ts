@@ -1,17 +1,17 @@
 import {
   type EnvCapabilityValues,
   hasEnvCapabilityValue,
-  SETUP_FEATURES,
 } from '../../apps/sim/lib/core/config/env-capabilities.ts'
-import {
-  buildEnvCapabilityStatus,
-  type EnvCapabilityFeatureStatuses,
-  type SetupStatusFeatureId,
-} from '../../apps/sim/lib/core/config/env-capability-status.ts'
 import {
   type IntegrationAvailability,
   resolveIntegrationAvailability,
 } from '../../apps/sim/lib/integrations/availability.ts'
+import { SETUP_FEATURES } from './capability-config.ts'
+import {
+  buildEnvCapabilityStatus,
+  type EnvCapabilityFeatureStatuses,
+  type SetupStatusFeatureId,
+} from './capability-status.ts'
 import { REQUIRED_APP_KEYS } from './checks.ts'
 import { type ConfigurationSource, discoverConfigurationSources } from './configuration-sources.ts'
 import { isPlaceholder, isUsableSecret } from './env-files.ts'

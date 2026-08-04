@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { truncate } from '@sim/utils/string'
+import { EMAIL_SETUP, JOBS_SETUP, STORAGE_SETUP } from '../capability-config.ts'
+import { promptCapabilitySetup, stageCapabilitySetupTransition } from '../capability-setup.ts'
 import { resolveDatabase } from '../db.ts'
 import type { Detection } from '../detect.ts'
 import { ROOT, readEnvFile, reconcileEnvValues, writeEnvValues } from '../env-files.ts'
@@ -13,11 +15,9 @@ import {
   collectSecrets,
   mothershipOverride,
   promptCopilotKey,
-  promptEmail,
   promptLlmKeys,
   promptSecurity,
   promptSignInProviders,
-  promptStorage,
   promptUnlocks,
 } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
@@ -68,27 +68,6 @@ async function promptRedis(detection: Detection, existing?: string): Promise<str
   })
   if (!wants) return null
   return resolveRedis(detection, existing)
-}
-
-async function promptTrigger(): Promise<Record<string, string> | null> {
-  const wants = await p.confirm({
-    message: 'Enable Trigger.dev for background jobs? (off = jobs run via the DB queue)',
-    initialValue: false,
-  })
-  if (!wants) return null
-  const secretKey = await p.password({
-    message: 'TRIGGER_SECRET_KEY',
-    validate: (v) => (v ? undefined : 'required'),
-  })
-  const projectId = await p.text({
-    message: 'TRIGGER_PROJECT_ID',
-    validate: (v) => (v ? undefined : 'required'),
-  })
-  return {
-    TRIGGER_DEV_ENABLED: 'true',
-    TRIGGER_SECRET_KEY: secretKey,
-    TRIGGER_PROJECT_ID: projectId,
-  }
 }
 
 export async function runDevMode(
@@ -142,15 +121,15 @@ export async function runDevMode(
   }
 
   if (!quick) {
-    const trigger = await promptTrigger()
-    if (trigger) Object.assign(values, trigger)
-    const storage = await promptStorage(simAfter.vars, false)
-    Object.assign(values, storage.values)
-    for (const key of storage.remove) remove.add(key)
-    Object.assign(values, await promptSignInProviders(simAfter.vars, APP_URL))
-    const email = await promptEmail(simAfter.vars)
-    Object.assign(values, email.values)
-    for (const key of email.remove) remove.add(key)
+    const stagedVars = new Map(simAfter.vars)
+    for (const [key, value] of Object.entries(values)) stagedVars.set(key, value)
+    for (const setup of [JOBS_SETUP, STORAGE_SETUP, EMAIL_SETUP] as const) {
+      const transition = await promptCapabilitySetup(setup, stagedVars, {
+        containerized: false,
+      })
+      stageCapabilitySetupTransition(stagedVars, values, remove, transition)
+    }
+    Object.assign(values, await promptSignInProviders(stagedVars, APP_URL))
     const security = await promptSecurity(simAfter.vars)
     Object.assign(values, security.sim)
     if (Object.keys(security.mirrorToRealtime).length > 0) {

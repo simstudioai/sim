@@ -13,6 +13,7 @@ import {
   SANDBOX_CAPABILITY,
   STORAGE_CAPABILITY,
 } from '../../apps/sim/lib/core/config/env-capabilities.ts'
+import { getSetupCommand } from './capability-config.ts'
 import { portOpen } from './detect.ts'
 import {
   type EnvFile,
@@ -121,7 +122,11 @@ function checkFiles(ctx: CheckContext): Finding[] {
   for (const target of layoutTargets(ctx.layout)) {
     const file = ctx.env[target]
     if (file.exists) {
-      findings.push({ group: 'files', status: 'pass', message: `${rel(file)} exists` })
+      findings.push({
+        group: 'files',
+        status: 'pass',
+        message: `${rel(file)} exists`,
+      })
       continue
     }
     const canSeed = target !== 'sim' && ctx.env.sim.exists
@@ -242,7 +247,13 @@ function checkConsistency(ctx: CheckContext): Finding[] {
   // file has nothing to disagree with.
   if (ctx.layout !== 'split') {
     return ctx.layout === 'root'
-      ? [{ group: 'consistency', status: 'skip', message: 'single .env — nothing to mirror' }]
+      ? [
+          {
+            group: 'consistency',
+            status: 'skip',
+            message: 'single .env — nothing to mirror',
+          },
+        ]
       : []
   }
   const findings: Finding[] = []
@@ -293,15 +304,15 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   if (!sim.exists) return findings
   const capabilityChecks = [
     {
-      command: ASYNC_JOBS_CAPABILITY.setupCommand,
+      command: getSetupCommand(ASYNC_JOBS_CAPABILITY.id),
       resolve: () => requireCapability(ASYNC_JOBS_CAPABILITY, sim.vars),
     },
     {
-      command: CACHE_CAPABILITY.setupCommand,
+      command: getSetupCommand(CACHE_CAPABILITY.id),
       resolve: () => requireCapability(CACHE_CAPABILITY, sim.vars),
     },
     {
-      command: SANDBOX_CAPABILITY.setupCommand,
+      command: getSetupCommand(SANDBOX_CAPABILITY.id),
       resolve: () => {
         const inspection = inspectCapability(SANDBOX_CAPABILITY, sim.vars)
         if (inspection.error) throw inspection.error
@@ -309,7 +320,7 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       },
     },
     {
-      command: OCR_CAPABILITY.setupCommand,
+      command: getSetupCommand(OCR_CAPABILITY.id),
       resolve: () => requireCapability(OCR_CAPABILITY, sim.vars),
     },
   ]
@@ -350,7 +361,7 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       group: 'coherence',
       status: 'fail',
       message: error.message,
-      fix: STORAGE_CAPABILITY.setupCommand,
+      fix: getSetupCommand(STORAGE_CAPABILITY.id),
     })
   }
   for (const { server, client } of FLAG_TWINS) {
@@ -416,7 +427,7 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       group: 'coherence',
       status: 'fail',
       message: email.error.message,
-      fix: EMAIL_CAPABILITY.setupCommand,
+      fix: getSetupCommand(EMAIL_CAPABILITY.id),
     })
   }
   if (isTruthy(sim.vars.get('EMAIL_VERIFICATION_ENABLED')) && !emailConfigured) {
@@ -425,7 +436,7 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       status: 'fail',
       message:
         'EMAIL_VERIFICATION_ENABLED is on but no mail provider is configured — the app must bypass verification to avoid locking out new users',
-      fix: `${EMAIL_CAPABILITY.setupCommand}, or turn verification off`,
+      fix: `${getSetupCommand(EMAIL_CAPABILITY.id)}, or turn verification off`,
     })
   }
 
@@ -441,7 +452,11 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   }
 
   const featureRules: Array<{ flag: string; needs: string[]; label: string }> = [
-    { flag: 'BILLING_ENABLED', needs: ['STRIPE_SECRET_KEY'], label: 'billing' },
+    {
+      flag: 'BILLING_ENABLED',
+      needs: ['STRIPE_SECRET_KEY'],
+      label: 'billing',
+    },
     { flag: 'SSO_ENABLED', needs: ['SSO_ISSUER'], label: 'SSO' },
   ]
   for (const rule of featureRules) {
@@ -508,7 +523,11 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   }
 
   if (findings.length === 0) {
-    findings.push({ group: 'coherence', status: 'pass', message: 'no conflicting settings' })
+    findings.push({
+      group: 'coherence',
+      status: 'pass',
+      message: 'no conflicting settings',
+    })
   }
   return findings
 }
@@ -533,7 +552,11 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
         fix: 'start Postgres (bun run setup can manage a pgvector container) or fix DATABASE_URL',
       })
     } else {
-      findings.push({ group: 'live', status: 'pass', message: 'database reachable' })
+      findings.push({
+        group: 'live',
+        status: 'pass',
+        message: 'database reachable',
+      })
       if (!probe.pgvectorAvailable) {
         findings.push({
           group: 'live',
@@ -542,7 +565,10 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
           fix: 'use the pgvector/pgvector:pg17 image or install the extension',
         })
       }
-      const { applied, journal } = probe.migrations ?? { applied: null, journal: 0 }
+      const { applied, journal } = probe.migrations ?? {
+        applied: null,
+        journal: 0,
+      }
       if (applied === null) {
         findings.push({
           group: 'live',
@@ -596,10 +622,22 @@ async function checkRedis(sim: EnvFile): Promise<Finding[]> {
 
 async function checkService(label: string, port: number, url: string): Promise<Finding[]> {
   if (!(await portOpen(port))) {
-    return [{ group: 'live', status: 'skip', message: `${label}: not running on :${port}` }]
+    return [
+      {
+        group: 'live',
+        status: 'skip',
+        message: `${label}: not running on :${port}`,
+      },
+    ]
   }
   if (await httpHealth(url)) {
-    return [{ group: 'live', status: 'pass', message: `${label} healthy on :${port}` }]
+    return [
+      {
+        group: 'live',
+        status: 'pass',
+        message: `${label} healthy on :${port}`,
+      },
+    ]
   }
   return [
     {

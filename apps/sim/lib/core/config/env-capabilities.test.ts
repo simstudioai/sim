@@ -5,7 +5,6 @@ import {
   DEPLOYMENT_CONFIGURATION_KEYS,
   defineCapability,
   EMAIL_CAPABILITY,
-  ENV_CAPABILITIES,
   EnvCapabilityConfigurationError,
   envField,
   inspectCapability,
@@ -16,7 +15,6 @@ import {
   requireOAuthClientCapability,
   resolveOAuthClientCapabilityId,
   SANDBOX_CAPABILITY,
-  SETUP_FEATURES,
   STORAGE_CAPABILITY,
   validateCapabilityFieldInput,
   wireFallback,
@@ -80,20 +78,17 @@ function storageValues({
 }
 
 describe('env capabilities', () => {
-  it('fails fast when a capability definition can drift from setup', () => {
+  it('fails fast on invalid runtime capability definitions', () => {
     const provider = {
       id: 'remote',
       label: 'Remote',
       activation: { mode: 'any-present', keys: ['REMOTE_KEY'] } as const,
       requires: envField('REMOTE_KEY'),
-      setupFields: ['REMOTE_KEY'],
     }
     const base = {
       strategy: 'selected',
       id: 'sample',
       label: 'Sample',
-      setupLabel: 'Sample',
-      setupCommand: 'bun run setup sample',
       whenUnset: 'default',
     } as const
 
@@ -111,22 +106,6 @@ describe('env capabilities', () => {
         providers: [provider],
       })
     ).toThrow(/default provider missing is not declared/)
-    expect(() =>
-      defineCapability({
-        ...base,
-        defaultProvider: { id: 'local', kind: 'built-in', label: 'Local' },
-        providers: [{ ...provider, setupFields: [] }],
-      })
-    ).toThrow(/omits owned setup fields: REMOTE_KEY/)
-  })
-
-  it('derives setup discovery from the canonical capability registry', () => {
-    expect(SETUP_FEATURES.slice(0, ENV_CAPABILITIES.length)).toEqual(
-      ENV_CAPABILITIES.map((capability) => ({
-        id: capability.id,
-        label: capability.setupLabel,
-      }))
-    )
   })
 
   describe('fallback capabilities', () => {

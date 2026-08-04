@@ -1,85 +1,22 @@
 import {
-  ASYNC_JOBS_CAPABILITY,
-  CACHE_CAPABILITY,
-  getOAuthClientCapabilityFields,
-  inspectCapability,
-  isTruthyEnvCapabilityValue,
   LLM_KEY_POOLS,
   OAUTH_CLIENT_CAPABILITIES,
-  OCR_CAPABILITY,
   resolveOAuthClientCapabilityId,
-  SANDBOX_CAPABILITY,
+} from '../../apps/sim/lib/core/config/env-capabilities.ts'
+import {
+  getCapabilitySetup,
+  getOAuthClientSetupFields,
   SETUP_FEATURES,
   type SetupFeatureId,
-  validateCapabilityFieldInput,
-} from '../../apps/sim/lib/core/config/env-capabilities.ts'
+} from './capability-config.ts'
+import { promptCapabilitySetup } from './capability-setup.ts'
 import { type ConfigurationSource, discoverConfigurationSources } from './configuration-sources.ts'
 import { type EnvTarget, reconcileEnvValues } from './env-files.ts'
 import * as p from './prompter.ts'
-import { promptEmail, promptStorage } from './steps.ts'
 import { theme } from './theme.ts'
 
 function isSetupFeatureId(value: string): value is SetupFeatureId {
   return SETUP_FEATURES.some((feature) => feature.id === value)
-}
-
-function required(message: string, initialValue?: string): Promise<string> {
-  return p.text({ message, initialValue, validate: (value) => (value ? undefined : 'required') })
-}
-
-async function promptSecret(message: string): Promise<string> {
-  return p.password({ message, validate: (value) => (value ? undefined : 'required') })
-}
-
-export function validateDaytonaSnapshotInput(value: string): string | undefined {
-  return validateCapabilityFieldInput(SANDBOX_CAPABILITY, 'DAYTONA_SHELL_SNAPSHOT_ID', value)
-}
-
-type SandboxSetupSelection =
-  | { provider: 'disabled' }
-  | { provider: 'e2b'; apiKey: string }
-  | { provider: 'daytona'; apiKey: string; shellSnapshotId: string }
-
-export interface SandboxSetupResult {
-  remove: readonly string[]
-  values: Record<string, string>
-}
-
-/** Builds the complete server/browser sandbox transition for one selected provider. */
-export function reconcileSandboxSetup(selection: SandboxSetupSelection): SandboxSetupResult {
-  if (selection.provider === 'disabled') {
-    return {
-      remove: ['SANDBOX_PROVIDER', 'E2B_API_KEY', 'DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'],
-      values: {
-        E2B_ENABLED: 'false',
-        NEXT_PUBLIC_E2B_ENABLED: 'false',
-        NEXT_PUBLIC_SANDBOX_ENABLED: 'false',
-      },
-    }
-  }
-  if (selection.provider === 'daytona') {
-    return {
-      remove: ['E2B_API_KEY'],
-      values: {
-        SANDBOX_PROVIDER: 'daytona',
-        DAYTONA_API_KEY: selection.apiKey,
-        DAYTONA_SHELL_SNAPSHOT_ID: selection.shellSnapshotId,
-        E2B_ENABLED: 'false',
-        NEXT_PUBLIC_E2B_ENABLED: 'false',
-        NEXT_PUBLIC_SANDBOX_ENABLED: 'true',
-      },
-    }
-  }
-  return {
-    remove: ['DAYTONA_API_KEY', 'DAYTONA_SHELL_SNAPSHOT_ID'],
-    values: {
-      SANDBOX_PROVIDER: 'e2b',
-      E2B_ENABLED: 'true',
-      E2B_API_KEY: selection.apiKey,
-      NEXT_PUBLIC_E2B_ENABLED: 'true',
-      NEXT_PUBLIC_SANDBOX_ENABLED: 'true',
-    },
-  }
 }
 
 async function setupIntegration(
@@ -90,169 +27,34 @@ async function setupIntegration(
     throw new Error('Missing integration id. Example: bun run setup integration slack')
   }
   const providerId = resolveOAuthClientCapabilityId(requestedId)
-  const fields = getOAuthClientCapabilityFields(requestedId)
-  if (!providerId || !fields) {
+  if (!providerId) {
     throw new Error(
       `Unknown OAuth integration "${requestedId}". Expected one of: ${Object.keys(OAUTH_CLIENT_CAPABILITIES).join(', ')}`
     )
   }
+  const fields = getOAuthClientSetupFields(providerId)
 
   const values: Record<string, string> = {}
-  for (const key of fields) {
-    const secret = key.includes('SECRET') || key.endsWith('_API_KEY')
-    values[key] = secret ? await promptSecret(key) : await required(key, vars.get(key))
+  for (const field of fields) {
+    const existing = vars.get(field.key)
+    if (field.input === 'secret') {
+      const value = await p.password({
+        message: existing ? `${field.key} (Currently used); leave empty to keep it` : field.key,
+        validate: (candidate) => (candidate || existing ? undefined : 'required'),
+      })
+      const resolved = value || existing
+      if (!resolved) throw new Error(`${field.key} was not provided`)
+      values[field.key] = resolved
+    } else {
+      values[field.key] = await p.text({
+        message: `${field.key}${existing ? ' (Currently used)' : ''}`,
+        initialValue: existing,
+        validate: (candidate) => (candidate ? undefined : 'required'),
+      })
+    }
   }
   p.log.info(`Configured the ${providerId} OAuth client.`)
   return values
-}
-
-async function setupSandbox(vars: Map<string, string>): Promise<SandboxSetupResult> {
-  const selectedProvider = inspectCapability(SANDBOX_CAPABILITY, vars).providerId
-  const provider = await p.select<'daytona' | 'disabled' | 'e2b'>({
-    message: 'Remote sandbox provider?',
-    options: [
-      { value: 'disabled', label: 'Disabled', hint: 'local JavaScript execution only' },
-      { value: 'e2b', label: 'E2B', hint: 'remote code interpreter sandboxes' },
-      { value: 'daytona', label: 'Daytona', hint: 'remote Daytona sandboxes' },
-    ],
-    initialValue:
-      selectedProvider === 'daytona'
-        ? 'daytona'
-        : selectedProvider === 'e2b' && isTruthyEnvCapabilityValue(vars, 'E2B_ENABLED')
-          ? 'e2b'
-          : 'disabled',
-  })
-  if (provider === 'disabled') {
-    return reconcileSandboxSetup({ provider })
-  }
-  if (provider === 'daytona') {
-    return reconcileSandboxSetup({
-      provider,
-      apiKey: await promptSecret('DAYTONA_API_KEY'),
-      shellSnapshotId: await p.text({
-        message: 'DAYTONA_SHELL_SNAPSHOT_ID',
-        initialValue: vars.get('DAYTONA_SHELL_SNAPSHOT_ID'),
-        validate: validateDaytonaSnapshotInput,
-      }),
-    })
-  }
-  return reconcileSandboxSetup({ provider, apiKey: await promptSecret('E2B_API_KEY') })
-}
-
-async function setupJobs(vars: Map<string, string>): Promise<Record<string, string>> {
-  const selectedProvider = inspectCapability(ASYNC_JOBS_CAPABILITY, vars).providerId
-  const provider = await p.select({
-    message: 'Async job provider?',
-    options: [
-      { value: 'database', label: 'Database queue', hint: 'built-in default' },
-      { value: 'trigger', label: 'Trigger.dev', hint: 'external background jobs' },
-    ],
-    initialValue: selectedProvider === 'trigger-dev' ? 'trigger' : 'database',
-  })
-  if (provider === 'database') return { TRIGGER_DEV_ENABLED: 'false' }
-  return {
-    TRIGGER_DEV_ENABLED: 'true',
-    TRIGGER_PROJECT_ID: await required('TRIGGER_PROJECT_ID', vars.get('TRIGGER_PROJECT_ID')),
-    TRIGGER_SECRET_KEY: await promptSecret('TRIGGER_SECRET_KEY'),
-  }
-}
-
-async function setupCache(vars: Map<string, string>): Promise<{
-  remove: readonly string[]
-  values: Record<string, string>
-}> {
-  const selectedProvider = inspectCapability(CACHE_CAPABILITY, vars).providerId
-  const provider = await p.select({
-    message: 'Cache and realtime coordination?',
-    options: [
-      { value: 'database', label: 'Postgres', hint: 'built-in default' },
-      { value: 'redis', label: 'Redis', hint: 'recommended for multiple replicas' },
-    ],
-    initialValue: selectedProvider === 'redis' ? 'redis' : 'database',
-  })
-  if (provider === 'database') {
-    return { remove: ['REDIS_URL', 'REDIS_TLS_SERVERNAME'], values: {} }
-  }
-  const redisUrl = await p.text({
-    message: 'REDIS_URL',
-    initialValue: vars.get('REDIS_URL') ?? 'redis://localhost:6379',
-    validate: (value) => validateCapabilityFieldInput(CACHE_CAPABILITY, 'REDIS_URL', value),
-  })
-  const valuesWithoutServerName = new Map(vars)
-  valuesWithoutServerName.set('REDIS_URL', redisUrl)
-  valuesWithoutServerName.delete('REDIS_TLS_SERVERNAME')
-  const redisInspection = inspectCapability(CACHE_CAPABILITY, valuesWithoutServerName)
-  const needsServerName =
-    redisInspection.providers
-      .find((candidate) => candidate.id === 'redis')
-      ?.missingFields.includes('REDIS_TLS_SERVERNAME') ?? false
-  return {
-    remove: needsServerName ? [] : ['REDIS_TLS_SERVERNAME'],
-    values: {
-      REDIS_URL: redisUrl,
-      ...(needsServerName
-        ? {
-            REDIS_TLS_SERVERNAME: await required(
-              'REDIS_TLS_SERVERNAME',
-              vars.get('REDIS_TLS_SERVERNAME')
-            ),
-          }
-        : {}),
-    },
-  }
-}
-
-async function setupKnowledge(vars: Map<string, string>): Promise<{
-  remove: readonly string[]
-  values: Record<string, string>
-}> {
-  const selectedProvider = inspectCapability(OCR_CAPABILITY, vars).providerId
-  const provider = await p.select({
-    message: 'PDF OCR provider?',
-    options: [
-      { value: 'local', label: 'Local parser', hint: 'built-in default' },
-      { value: 'mistral', label: 'Mistral OCR', hint: 'Mistral API key' },
-      { value: 'azure', label: 'Azure Mistral OCR', hint: 'Azure model deployment' },
-    ],
-    initialValue:
-      selectedProvider === 'azure-mistral'
-        ? 'azure'
-        : selectedProvider === 'mistral'
-          ? 'mistral'
-          : 'local',
-  })
-  if (provider === 'local') {
-    return {
-      remove: ['OCR_AZURE_API_KEY', 'OCR_AZURE_ENDPOINT', 'OCR_AZURE_MODEL_NAME'],
-      values: { OCR_PROVIDER: 'local' },
-    }
-  }
-  if (provider === 'mistral') {
-    return {
-      remove: ['OCR_AZURE_API_KEY', 'OCR_AZURE_ENDPOINT', 'OCR_AZURE_MODEL_NAME'],
-      values: {
-        OCR_PROVIDER: 'mistral',
-        MISTRAL_API_KEY: await promptSecret('MISTRAL_API_KEY'),
-      },
-    }
-  }
-  return {
-    remove: [],
-    values: {
-      OCR_PROVIDER: 'azure-mistral',
-      OCR_AZURE_ENDPOINT: await p.text({
-        message: 'OCR_AZURE_ENDPOINT',
-        initialValue: vars.get('OCR_AZURE_ENDPOINT'),
-        validate: (value) =>
-          validateCapabilityFieldInput(OCR_CAPABILITY, 'OCR_AZURE_ENDPOINT', value),
-      }),
-      OCR_AZURE_MODEL_NAME: await required(
-        'OCR_AZURE_MODEL_NAME',
-        vars.get('OCR_AZURE_MODEL_NAME')
-      ),
-      OCR_AZURE_API_KEY: await promptSecret('OCR_AZURE_API_KEY'),
-    },
-  }
 }
 
 type LlmKeyPoolId = keyof typeof LLM_KEY_POOLS
@@ -275,20 +77,38 @@ export function reconcileLlmSetup(
   }
 }
 
-async function setupLlm(): Promise<LlmSetupResult> {
+async function setupLlm(vars: Map<string, string>): Promise<LlmSetupResult> {
+  const currentProvider = Object.entries(LLM_KEY_POOLS).find(([, pool]) =>
+    [...pool.keys, ...('fallbackKey' in pool ? [pool.fallbackKey] : [])].some((key) =>
+      vars.has(key)
+    )
+  )?.[0] as LlmKeyPoolId | undefined
   const provider = await p.select<LlmKeyPoolId>({
     message: 'LLM key pool?',
-    options: Object.keys(LLM_KEY_POOLS).map((id) => ({ value: id, label: id })),
+    options: Object.keys(LLM_KEY_POOLS).map((id) => ({
+      value: id as LlmKeyPoolId,
+      label: id,
+      hint: id === currentProvider ? 'Currently used' : undefined,
+    })),
+    initialValue: currentProvider,
   })
-  const keys = LLM_KEY_POOLS[provider].keys
+  const pool = LLM_KEY_POOLS[provider]
+  const keys = pool.keys
   const values: Record<string, string> = {}
   for (const [index, key] of keys.entries()) {
+    const legacyKey = index === 0 && 'fallbackKey' in pool ? pool.fallbackKey : undefined
+    const existingKey = vars.has(key) ? key : legacyKey
+    const existing = existingKey ? vars.get(existingKey) : undefined
     const value = await p.password({
-      message: `${key}${index === 0 ? '' : ' (empty to finish)'}`,
-      validate: index === 0 ? (candidate) => (candidate ? undefined : 'required') : undefined,
+      message: existing
+        ? `${key} (${existingKey} is currently used); leave empty to keep it`
+        : `${key}${index === 0 ? '' : ' (empty to finish)'}`,
+      validate:
+        index === 0 ? (candidate) => (candidate || existing ? undefined : 'required') : undefined,
     })
-    if (!value) break
-    values[key] = value
+    const resolved = value || existing
+    if (!resolved) break
+    values[key] = resolved
   }
   return reconcileLlmSetup(provider, values)
 }
@@ -353,37 +173,24 @@ export async function runFeatureSetup(feature: string, args: readonly string[]):
   const destination = resolveFeatureSetupDestination(discoverConfigurationSources())
   const { target, vars } = destination
   let values: Record<string, string>
-  let remove: readonly string[] = []
+  let remove: readonly string[]
+  const capabilitySetup = getCapabilitySetup(feature)
 
-  if (feature === 'email') {
-    const result = await promptEmail(vars)
+  if (capabilitySetup) {
+    const result = await promptCapabilitySetup(capabilitySetup, vars, {
+      containerized: destination.containerized,
+    })
     values = result.values
     remove = result.remove
-  } else if (feature === 'storage') {
-    const result = await promptStorage(vars, destination.containerized)
-    values = result.values
-    remove = result.remove
-  } else if (feature === 'sandbox') {
-    const result = await setupSandbox(vars)
-    values = result.values
-    remove = result.remove
-  } else if (feature === 'jobs') values = await setupJobs(vars)
-  else if (feature === 'integration') values = await setupIntegration(args[0], vars)
-  else if (feature === 'llm') {
-    const result = await setupLlm()
-    values = result.values
-    remove = result.remove
-  } else if (feature === 'cache') {
-    const result = await setupCache(vars)
-    values = result.values
-    remove = result.remove
-  } else if (feature === 'knowledge') {
-    const result = await setupKnowledge(vars)
+  } else if (feature === 'integration') {
+    values = await setupIntegration(args[0], vars)
+    remove = []
+  } else if (feature === 'llm') {
+    const result = await setupLlm(vars)
     values = result.values
     remove = result.remove
   } else {
-    const unhandledFeature: never = feature
-    throw new Error(`Setup feature ${unhandledFeature} has no handler`)
+    throw new Error(`Setup feature ${feature} has no handler`)
   }
 
   reconcileEnvValues(target, remove, values)

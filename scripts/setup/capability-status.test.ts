@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { OAUTH_CLIENT_CAPABILITIES } from '@/lib/core/config/env-capabilities'
-import { buildEnvCapabilityStatus } from '@/lib/core/config/env-capability-status'
+import { describe, expect, it } from 'bun:test'
+import { OAUTH_CLIENT_CAPABILITIES } from '../../apps/sim/lib/core/config/env-capabilities.ts'
+import { buildEnvCapabilityStatus } from './capability-status.ts'
 
 describe('env capability status', () => {
   it('reports built-in defaults without treating them as configured services', () => {
