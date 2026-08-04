@@ -145,8 +145,8 @@ export function AskAIPanel({ locale, open, onClose }: AskAIPanelProps) {
                       className={cn(
                         'space-y-3 text-[var(--text-primary)] text-base leading-relaxed',
                         '[&_a]:text-[var(--text-primary)] [&_a]:underline [&_a]:decoration-dashed [&_a]:underline-offset-4',
-                        '[&_strong]:font-[600]',
-                        '[&_h1]:font-[600] [&_h2]:font-[600] [&_h3]:font-[600] [&_h4]:font-[600]',
+                        '[&_strong]:font-semibold',
+                        '[&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_h4]:font-semibold',
                         '[&_li]:my-1 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-5',
                         '[&_code]:font-mono [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-[var(--surface-5)] [&_pre]:p-3 [&_pre]:text-small'
                       )}

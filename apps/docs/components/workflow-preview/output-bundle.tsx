@@ -76,7 +76,7 @@ function TreeNode({ node, depth = 0 }: { node: OutputNode; depth?: number }) {
         />
       </div>
       {expanded && (node.children || node.value !== undefined) && (
-        <div className='mt-0.5 ml-[5px] flex min-w-0 flex-col gap-0.5 border-[var(--divider)] border-l pl-[10px]'>
+        <div className='mt-0.5 ml-[5px] flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-[10px]'>
           {node.children
             ? node.children.map((child) => (
                 <TreeNode key={child.key} node={child} depth={depth + 1} />

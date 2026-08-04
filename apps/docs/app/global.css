@@ -65,9 +65,9 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-5: #f3f3f3;
   --surface-6: #e5e5e5;
   --surface-active: #ececec;
-  --border: #dedede;
-  --border-1: #e0e0e0;
-  --divider: #ededed;
+  --border: #d8d8d8;
+  /** Legacy neutral-border aliases. New work should use --border. */
+  --border-1: var(--border);
   --text-primary: #1a1a1a;
   --text-secondary: #525252;
   --text-tertiary: #5c5c5c;
@@ -84,7 +84,7 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-inverted: #1b1b1b;
   --surface-inverted-hover: #363636;
   --border-inverted: #363636;
-  --border-muted: #e4e4e4;
+  --border-muted: var(--border);
   --badge-success-bg: #bbf7d0;
   --badge-success-text: #15803d;
   --badge-blue-bg: #bfdbfe;
@@ -116,9 +116,9 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-5: #363636;
   --surface-6: #454545;
   --surface-active: #2c2c2c;
-  --border: #333333;
-  --border-1: #3d3d3d;
-  --divider: #393939;
+  --border: #444444;
+  /** Legacy neutral-border aliases. New work should use --border. */
+  --border-1: var(--border);
   --text-primary: #e6e6e6;
   --text-secondary: #cccccc;
   --text-tertiary: #b3b3b3;
@@ -135,7 +135,7 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-inverted: #242424;
   --surface-inverted-hover: #363636;
   --border-inverted: #3d3d3d;
-  --border-muted: #424242;
+  --border-muted: var(--border);
   --badge-success-bg: rgba(34, 197, 94, 0.2);
   --badge-success-text: #86efac;
   --badge-blue-bg: rgba(59, 130, 246, 0.2);
