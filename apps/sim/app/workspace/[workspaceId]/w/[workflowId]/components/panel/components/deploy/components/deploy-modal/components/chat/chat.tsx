@@ -5,6 +5,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   ChipConfirmModal,
+  ChipEmailsInput,
   ChipInput,
   cn,
   Input,
@@ -12,19 +13,16 @@ import {
   Loader,
   Skeleton,
   Switch,
-  TagInput,
-  type TagItem,
   Textarea,
   Tooltip,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { normalizeEmail } from '@sim/utils/string'
 import { AlertTriangle, Check } from 'lucide-react'
 import { GeneratedPasswordInput } from '@/components/ui'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {
   type AuthType,
@@ -339,7 +337,7 @@ export function ChatDeploy({
         id='chat-deploy-form'
         ref={formRef}
         onSubmit={handleSubmit}
-        className='-mx-1 space-y-4 overflow-y-auto px-1'
+        className='-mx-1 space-y-4 px-1'
       >
         {errors.general && (
           <div className='flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--text-error)_20%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-3 py-2 text-[var(--text-error)] text-small'>
@@ -388,6 +386,7 @@ export function ChatDeploy({
               onOutputSelect={(values) => updateField('selectedOutputBlocks', values)}
               placeholder='Select which block outputs to use'
               disabled={chatSubmitting}
+              size='md'
               className='w-full'
             />
             {errors.outputBlocks && (
@@ -693,12 +692,7 @@ function AuthSelector({
   hasExistingPassword = false,
   error,
 }: AuthSelectorProps) {
-  const [emailError, setEmailError] = useState('')
-  const [invalidEmailItems, setInvalidEmailItems] = useState<TagItem[]>([])
   const revealPasswordMutation = useRevealChatPassword()
-
-  const emailsRef = useRef(emails)
-  const invalidEmailItemsRef = useRef(invalidEmailItems)
 
   /**
    * Editing or regenerating the password clears a failed reveal. The mutation
@@ -708,60 +702,6 @@ function AuthSelector({
   const handlePasswordChange = (value: string) => {
     if (revealPasswordMutation.isError) revealPasswordMutation.reset()
     onPasswordChange(value)
-  }
-
-  useEffect(() => {
-    emailsRef.current = emails
-  }, [emails])
-
-  const addEmail = (email: string): boolean => {
-    if (!email.trim()) return false
-
-    const normalized = normalizeEmail(email)
-    const isDomainPattern = normalized.startsWith('@')
-    const validation = quickValidateEmail(normalized)
-    const isValid = validation.isValid || isDomainPattern
-
-    if (
-      emailsRef.current.includes(normalized) ||
-      invalidEmailItemsRef.current.some((item) => item.value === normalized)
-    ) {
-      return false
-    }
-
-    if (isValid) {
-      setEmailError('')
-      emailsRef.current = [...emailsRef.current, normalized]
-      onEmailsChange(emailsRef.current)
-    } else {
-      invalidEmailItemsRef.current = [
-        ...invalidEmailItemsRef.current,
-        { value: normalized, isValid, error: validation.reason ?? 'Invalid email format' },
-      ]
-      setInvalidEmailItems(invalidEmailItemsRef.current)
-    }
-
-    return isValid
-  }
-
-  const emailItems = [
-    ...emails.map((email) => ({ value: email, isValid: true })),
-    ...invalidEmailItems,
-  ]
-
-  const handleRemoveEmailItem = (_value: string, index: number) => {
-    const itemToRemove = emailItems[index]
-    if (!itemToRemove) return
-
-    if (itemToRemove.isValid) {
-      emailsRef.current = emailsRef.current.filter((e) => e !== itemToRemove.value)
-      onEmailsChange(emailsRef.current)
-    } else {
-      invalidEmailItemsRef.current = invalidEmailItemsRef.current.filter(
-        (item) => item.value !== itemToRemove.value
-      )
-      setInvalidEmailItems(invalidEmailItemsRef.current)
-    }
   }
 
   const { config: permissionConfig } = usePermissionConfig()
@@ -835,22 +775,15 @@ function AuthSelector({
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             {authType === 'email' ? 'Allowed emails' : 'Allowed SSO emails'}
           </Label>
-          <TagInput
-            items={emailItems}
-            onAdd={(value) => addEmail(value)}
-            onRemove={handleRemoveEmailItem}
-            placeholder='Enter emails or domains (@example.com)'
-            placeholderWithTags='Add email'
+          <ChipEmailsInput
+            value={emails}
+            onChange={onEmailsChange}
+            validate={validateAllowlistEntry}
+            allowDomains
+            placeholder='Enter emails or domains'
+            placeholderWithTags='Add email or domain'
             disabled={disabled}
           />
-          {emailError && (
-            <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{emailError}</p>
-          )}
-          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-            {authType === 'email'
-              ? 'Add specific emails or entire domains (@example.com)'
-              : 'Add emails or domains that can access via SSO'}
-          </p>
         </div>
       )}
 

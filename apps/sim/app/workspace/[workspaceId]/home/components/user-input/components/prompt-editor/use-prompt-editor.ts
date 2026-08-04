@@ -25,6 +25,8 @@ import {
   useMentionTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import {
+  escapeRegex,
+  filterContextsPresentInMessage,
   prepareContextForInsert,
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
@@ -309,6 +311,16 @@ export function usePromptEditor({
    */
   const getPlainValue = useCallback(() => restoreSkillTriggerText(valueRef.current), [])
 
+  /** Contexts whose tokens still exist in the latest synchronous editor value. */
+  const getActiveContexts = useCallback(
+    () =>
+      filterContextsPresentInMessage(
+        contextManagementRef.current.selectedContexts,
+        valueRef.current
+      ),
+    []
+  )
+
   const focusAtEnd = useCallback(() => {
     requestAnimationFrame(() => {
       const textarea = textareaRef.current
@@ -318,6 +330,56 @@ export function usePromptEditor({
       textarea.setSelectionRange(end, end)
     })
   }, [textareaRef])
+
+  /**
+   * Appends a first-class context chip supplied by another resource surface.
+   * Labels are the prompt editor's token identity, so collisions receive a
+   * stable numeric suffix instead of silently dropping one of the contexts.
+   */
+  const insertContext = useCallback(
+    (context: ChatContext) => {
+      const currentValue = valueRef.current
+      const selectedContexts = contextManagementRef.current.selectedContexts
+      const normalizedContext =
+        context.kind === 'browser_tab' && context.selection
+          ? { ...context, label: 'Browser' }
+          : context
+      const baseLabel = normalizedContext.label
+      let label = baseLabel
+      let suffix = 1
+
+      const labelIsUsed = (candidate: string): boolean => {
+        if (selectedContexts.some((selected) => selected.label === candidate)) return true
+        return new RegExp(`(^|\\s)@${escapeRegex(candidate)}(?![A-Za-z0-9_])`).test(currentValue)
+      }
+
+      while (labelIsUsed(label)) {
+        label = `${baseLabel} (${suffix})`
+        suffix += 1
+      }
+
+      const resolvedContext =
+        label === normalizedContext.label ? normalizedContext : { ...normalizedContext, label }
+      const needsSpaceBefore = currentValue.length > 0 && !/\s$/.test(currentValue)
+      const insertText = `${needsSpaceBefore ? ' ' : ''}@${label} `
+      const nextValue = `${currentValue}${insertText}`
+
+      atInsertPosRef.current = null
+      mentionRangeRef.current = null
+      setMentionQuery(null)
+      dismissedMentionStartRef.current = null
+      plusMenuRef.current?.close()
+      slashRangeRef.current = null
+      setSlashQuery(null)
+      dismissedSlashStartRef.current = null
+      skillsMenuRef.current?.close()
+      valueRef.current = nextValue
+      setValueState(nextValue)
+      addContextNotified(resolvedContext)
+      focusAtEnd()
+    },
+    [addContextNotified, focusAtEnd]
+  )
 
   /**
    * Resets the editor to its pristine state: empties the text, drops all
@@ -1110,8 +1172,10 @@ export function usePromptEditor({
     setValue,
     getValue,
     getPlainValue,
+    getActiveContexts,
     clear,
     focusAtEnd,
+    insertContext,
     insertResources,
     /** Inserts contexts as `@label` chips at the caret (highlight-to-chat). */
     insertContextChips,

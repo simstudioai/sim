@@ -26,6 +26,7 @@ import {
   MAX_FILE_SELECTION_TEXT_LENGTH,
   MAX_TABLE_SELECTION_COLUMNS,
   MAX_TABLE_SELECTION_ROWS,
+  safeBrowserSelectionUrl,
 } from '@/lib/copilot/chat/selection-context'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceSnapshot } from '@/lib/copilot/chat/workspace-context'
@@ -51,7 +52,10 @@ import {
 } from '@/lib/copilot/request/session'
 import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request/types'
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
-import { isEphemeralResource } from '@/lib/copilot/resources/types'
+import {
+  canonicalizeDesktopSessionResources,
+  isEphemeralResource,
+} from '@/lib/copilot/resources/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
@@ -66,6 +70,10 @@ export const maxDuration = 3600
 
 const logger = createLogger('UnifiedChatAPI')
 const DEFAULT_MODEL = 'claude-opus-4-8'
+const CHAT_SELECTION_TEXT_MAX_LENGTH = 100_000
+const CHAT_SELECTION_SOURCE_URL_MAX_LENGTH = 8_192
+const CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH = 512
+const TERMINAL_SELECTION_LINE_MAX = 10_000_000
 
 const FileAttachmentSchema = z.object({
   id: z.string(),
@@ -128,8 +136,8 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
 
 /**
  * Synthetic client-side panels are context-only: never persisted to the chat.
- * Browser tab metadata is persistable even though its live page is client-held.
- * Shares the client's rule so the two layers cannot drift.
+ * Browser tab attachments are normalized to the singleton Browser panel before
+ * persistence; their page title and URL remain request context only.
  */
 function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSchema>): boolean {
   return !isEphemeralResource({
@@ -139,53 +147,102 @@ function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSche
   })
 }
 
-const ChatContextSchema = z.object({
-  kind: z.enum([
-    'past_chat',
-    'workflow',
-    'current_workflow',
-    'blocks',
-    'logs',
-    'workflow_block',
-    'knowledge',
-    'docs',
-    'table',
-    'table_selection',
-    'file',
-    'file_selection',
-    'folder',
-    'filefolder',
-    'scheduledtask',
-    'integration',
-    'skill',
-    'mcp',
-    'browser_tab',
-    'terminal_tab',
-  ]),
-  label: z.string(),
-  chatId: z.string().optional(),
-  workflowId: z.string().optional(),
-  knowledgeId: z.string().optional(),
-  blockId: z.string().optional(),
-  blockIds: z.array(z.string()).optional(),
-  executionId: z.string().optional(),
-  tableId: z.string().optional(),
-  fileId: z.string().optional(),
-  folderId: z.string().optional(),
-  fileFolderId: z.string().optional(),
-  skillId: z.string().optional(),
-  serverId: z.string().optional(),
-  scheduleId: z.string().optional(),
-  tabId: z.string().optional(),
-  terminalId: z.string().optional(),
-  text: z.string().max(MAX_FILE_SELECTION_TEXT_LENGTH).optional(),
-  fileName: z.string().optional(),
-  startLine: z.number().int().positive().optional(),
-  endLine: z.number().int().positive().optional(),
-  tableName: z.string().optional(),
-  rowIds: z.array(z.string()).max(MAX_TABLE_SELECTION_ROWS).optional(),
-  columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
-})
+/** Non-strings pass through for the schema to reject; strings are sanitized. */
+function sanitizeBrowserSelectionUrl(value: unknown): unknown {
+  return typeof value === 'string' ? safeBrowserSelectionUrl(value) : value
+}
+
+const BrowserTextSelectionSchema = z
+  .object({
+    text: z.string().min(1).max(CHAT_SELECTION_TEXT_MAX_LENGTH),
+    url: z.preprocess(
+      sanitizeBrowserSelectionUrl,
+      z.string().max(CHAT_SELECTION_SOURCE_URL_MAX_LENGTH).optional()
+    ),
+    title: z.string().max(CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH).optional(),
+  })
+  .strict()
+  .transform(({ text, title, url }) => ({
+    text,
+    ...(url ? { url } : {}),
+    ...(title ? { title } : {}),
+  }))
+
+const TerminalTextSelectionSchema = z
+  .object({
+    text: z.string().min(1).max(CHAT_SELECTION_TEXT_MAX_LENGTH),
+    startLine: z.number().int().positive().max(TERMINAL_SELECTION_LINE_MAX),
+    endLine: z.number().int().positive().max(TERMINAL_SELECTION_LINE_MAX),
+  })
+  .strict()
+  .refine(({ startLine, endLine }) => endLine >= startLine, {
+    message: 'endLine must be greater than or equal to startLine',
+    path: ['endLine'],
+  })
+
+const ChatContextSchema = z
+  .object({
+    kind: z.enum([
+      'past_chat',
+      'workflow',
+      'current_workflow',
+      'blocks',
+      'logs',
+      'workflow_block',
+      'knowledge',
+      'docs',
+      'table',
+      'table_selection',
+      'file',
+      'file_selection',
+      'folder',
+      'filefolder',
+      'scheduledtask',
+      'integration',
+      'skill',
+      'mcp',
+      'browser_tab',
+      'terminal_tab',
+    ]),
+    label: z.string(),
+    chatId: z.string().optional(),
+    workflowId: z.string().optional(),
+    knowledgeId: z.string().optional(),
+    blockId: z.string().optional(),
+    blockIds: z.array(z.string()).optional(),
+    executionId: z.string().optional(),
+    tableId: z.string().optional(),
+    fileId: z.string().optional(),
+    folderId: z.string().optional(),
+    fileFolderId: z.string().optional(),
+    skillId: z.string().optional(),
+    serverId: z.string().optional(),
+    scheduleId: z.string().optional(),
+    tabId: z.string().optional(),
+    terminalId: z.string().optional(),
+    text: z.string().max(MAX_FILE_SELECTION_TEXT_LENGTH).optional(),
+    fileName: z.string().optional(),
+    startLine: z.number().int().positive().optional(),
+    endLine: z.number().int().positive().optional(),
+    tableName: z.string().optional(),
+    rowIds: z.array(z.string()).max(MAX_TABLE_SELECTION_ROWS).optional(),
+    columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
+    selection: z.union([BrowserTextSelectionSchema, TerminalTextSelectionSchema]).optional(),
+  })
+  .superRefine(({ kind, selection }, refinementContext) => {
+    if (!selection) return
+    const isTerminalSelection = 'startLine' in selection
+    const selectionMatchesKind =
+      (kind === 'browser_tab' && !isTerminalSelection) ||
+      (kind === 'terminal_tab' && isTerminalSelection)
+    if (!selectionMatchesKind) {
+      refinementContext.addIssue({
+        code: 'custom',
+        message: 'selection must match its browser_tab or terminal_tab context kind',
+        path: ['selection'],
+      })
+    }
+  })
 
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
@@ -220,7 +277,6 @@ const ChatMessageSchema = z.object({
             active: z.boolean().optional(),
           })
         )
-        .max(8)
         .optional(),
       browserSessions: z
         .array(
@@ -237,7 +293,6 @@ const ChatMessageSchema = z.object({
         .optional(),
     })
     .optional(),
-  browserCapable: z.boolean().optional(),
 })
 
 type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
@@ -280,7 +335,7 @@ type UnifiedChatBranch =
         workspaceContext?: string
         vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
-        browserCapable?: boolean
+        browser?: boolean
         terminalCapable?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
@@ -316,7 +371,7 @@ type UnifiedChatBranch =
         workspaceContext?: string
         vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
-        browserCapable?: boolean
+        browser?: boolean
         terminalCapable?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
@@ -793,7 +848,7 @@ async function resolveBranch(params: {
             userTimezone: payloadParams.userTimezone,
             userMetadata: payloadParams.userMetadata,
             desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
-            browserCapable: payloadParams.browserCapable,
+            browser: payloadParams.browser,
             terminalCapable: payloadParams.terminalCapable,
             terminals: payloadParams.terminals,
             browserSessions: payloadParams.browserSessions,
@@ -855,7 +910,7 @@ async function resolveBranch(params: {
           userTimezone: payloadParams.userTimezone,
           userMetadata: payloadParams.userMetadata,
           desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
-          browserCapable: payloadParams.browserCapable,
+          browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
           terminals: payloadParams.terminals,
           browserSessions: payloadParams.browserSessions,
@@ -1005,16 +1060,15 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       }
 
       if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
-        const persistable = body.resourceAttachments.filter(isPersistableAttachment)
+        const persistable = canonicalizeDesktopSessionResources(
+          body.resourceAttachments.filter(isPersistableAttachment).map((resource) => ({
+            type: resource.type,
+            id: resource.id,
+            title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
+          }))
+        )
         if (persistable.length > 0) {
-          await persistChatResources(
-            actualChatId,
-            persistable.map((r) => ({
-              type: r.type,
-              id: r.id,
-              title: r.title ?? GENERIC_RESOURCE_TITLE[r.type],
-            }))
-          )
+          await persistChatResources(actualChatId, persistable)
         }
       }
 
@@ -1191,8 +1245,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 workspaceContext,
                 vfs,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
-                browserCapable:
-                  body.desktopCapabilities?.browser === true || body.browserCapable === true,
+                browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
@@ -1212,8 +1265,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 workspaceContext,
                 vfs,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
-                browserCapable:
-                  body.desktopCapabilities?.browser === true || body.browserCapable === true,
+                browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,

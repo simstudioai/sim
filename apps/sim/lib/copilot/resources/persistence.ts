@@ -3,7 +3,11 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
-import { GENERIC_RESOURCE_TITLES, type MothershipResource } from './types'
+import {
+  canonicalizeDesktopSessionResources,
+  GENERIC_RESOURCE_TITLES,
+  type MothershipResource,
+} from './types'
 
 export {
   extractDeletedResourcesFromToolResult,
@@ -40,14 +44,16 @@ export async function persistChatResources(
 
     if (!chat) return
 
-    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+    const existing = canonicalizeDesktopSessionResources(
+      Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+    )
     const map = new Map<string, ChatResource>()
 
     for (const r of existing) {
       map.set(`${r.type}:${r.id}`, r)
     }
 
-    for (const r of toMerge) {
+    for (const r of canonicalizeDesktopSessionResources(toMerge)) {
       const key = `${r.type}:${r.id}`
       const prev = map.get(key)
       if (
@@ -87,8 +93,12 @@ export async function removeChatResources(chatId: string, toRemove: ChatResource
 
     if (!chat) return
 
-    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
-    const removeKeys = new Set(toRemove.map((r) => `${r.type}:${r.id}`))
+    const existing = canonicalizeDesktopSessionResources(
+      Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+    )
+    const removeKeys = new Set(
+      canonicalizeDesktopSessionResources(toRemove).map((r) => `${r.type}:${r.id}`)
+    )
     const filtered = existing.filter((r) => !removeKeys.has(`${r.type}:${r.id}`))
 
     if (filtered.length === existing.length) return

@@ -44,6 +44,30 @@ export function truncateSelectionText(text: string): string {
 }
 
 /**
+ * Keeps only public web URLs in browser-selection source metadata: http/https
+ * with no embedded credentials. The URL is advisory context, so anything else
+ * is dropped (undefined) rather than rejecting the selection. Shared by the
+ * chat request schema and the server-side context formatter — the latter is
+ * also reached via /api/mothership/execute, which bypasses the schema, so the
+ * predicate must hold in both places.
+ */
+export function safeBrowserSelectionUrl(value: string): string | undefined {
+  try {
+    const parsed = new URL(value)
+    if (
+      (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
+      parsed.username ||
+      parsed.password
+    ) {
+      return undefined
+    }
+    return parsed.href
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Builds the IDE-style chip label for a file selection, e.g. `notes.md:12-40` or
  * `notes.md:12`. Without a line range — the rich-markdown editor, whose document
  * model has no source lines — it falls back to `notes.md (selection)`.

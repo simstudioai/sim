@@ -1,0 +1,134 @@
+suite: redis — bundled by default, operator-supplied URL always wins
+release:
+  name: t
+  namespace: sim
+set:
+  app.env.BETTER_AUTH_SECRET: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  app.env.ENCRYPTION_KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  app.env.INTERNAL_API_SECRET: x
+  app.env.CRON_SECRET: x
+  postgresql.auth.password: xxxxxxxx
+tests:
+  - it: deploys Redis by default so a chart install matches the Compose stack
+    template: deployment-redis.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: t-sim-redis
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: redis:7-alpine
+
+  - it: exposes Redis on a ClusterIP Service
+    template: deployment-redis.yaml
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].port
+          value: 6379
+
+  - it: renders nothing when redis.enabled=false
+    template: deployment-redis.yaml
+    set:
+      redis.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: ships the bundled REDIS_URL as a ConfigMap
+    template: configmap-redis.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: data.REDIS_URL
+          value: "redis://t-sim-redis:6379"
+
+  # Kubernetes lets the LAST envFrom source win, so the Redis ConfigMap must be
+  # listed before the app Secret. Reversing these would shadow an operator's
+  # REDIS_URL with the bundled one.
+  - it: lists the Redis ConfigMap before the app Secret on the app
+    template: deployment-app.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].configMapRef.name
+          value: t-sim-redis
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[1].secretRef.name
+          value: t-sim-app-secrets
+
+  - it: lists the Redis ConfigMap before the app Secret on realtime
+    template: deployment-realtime.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].configMapRef.name
+          value: t-sim-redis
+
+  # No inline env entry — that would beat every envFrom source and defeat the
+  # override the ordering above provides.
+  - it: never sets REDIS_URL as an inline container env
+    template: deployment-app.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            value: "redis://t-sim-redis:6379"
+
+  - it: still bundles Redis in existingSecret mode
+    template: configmap-redis.yaml
+    set:
+      app.secrets.existingSecret.enabled: true
+      app.secrets.existingSecret.name: my-app-secrets
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: still bundles Redis under External Secrets
+    template: configmap-redis.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: my-store
+      externalSecrets.remoteRefs.app.BETTER_AUTH_SECRET: sim/app/better-auth-secret
+      externalSecrets.remoteRefs.app.ENCRYPTION_KEY: sim/app/encryption-key
+      externalSecrets.remoteRefs.app.INTERNAL_API_SECRET: sim/app/internal-api-secret
+      externalSecrets.remoteRefs.app.CRON_SECRET: sim/app/cron-secret
+      externalSecrets.remoteRefs.postgresql.password: sim/postgresql/password
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: deploys nothing when app.env.REDIS_URL points elsewhere
+    template: configmap-redis.yaml
+    set:
+      app.env.REDIS_URL: "rediss://:pw@managed.example.com:6380"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: deploys nothing when redis.enabled=false
+    template: configmap-redis.yaml
+    set:
+      redis.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not preset free-tier plan caps, which are opt-in on a self-host
+    template: deployment-app.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXECUTION_TIMEOUT_FREE
+            value: "300"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FREE_TABLES_LIMIT
+            value: "3"

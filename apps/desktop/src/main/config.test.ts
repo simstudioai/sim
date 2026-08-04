@@ -189,18 +189,18 @@ describe('createConfigStore', () => {
     // Reference equality can never hold for an array value, so this guard used
     // to be dead for exactly the settings written most often — every browser
     // navigation fell through to a synchronous whole-file write.
-    store.set('browserPinnedTabUrls', ['https://a.example/'])
+    store.set('browserKnownSites', [{ hostname: 'a.example', lastVisitedAt: '2026-01-01' }])
     store.flush()
     const afterFirst = readFileSync(filePath, 'utf8')
 
-    store.set('browserPinnedTabUrls', ['https://a.example/'])
+    store.set('browserKnownSites', [{ hostname: 'a.example', lastVisitedAt: '2026-01-01' }])
     store.flush()
     expect(readFileSync(filePath, 'utf8')).toBe(afterFirst)
 
-    store.set('browserPinnedTabUrls', ['https://b.example/'])
+    store.set('browserKnownSites', [{ hostname: 'b.example', lastVisitedAt: '2026-01-02' }])
     store.flush()
-    expect(JSON.parse(readFileSync(filePath, 'utf8')).browserPinnedTabUrls).toEqual([
-      'https://b.example/',
+    expect(JSON.parse(readFileSync(filePath, 'utf8')).browserKnownSites).toEqual([
+      { hostname: 'b.example', lastVisitedAt: '2026-01-02' },
     ])
   })
 

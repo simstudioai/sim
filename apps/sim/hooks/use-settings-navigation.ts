@@ -13,6 +13,9 @@ const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
 interface SettingsNavigationOptions {
   section?: SettingsSection
   mcpServerId?: string
+  browserView?: 'passwords'
+  browserImport?: boolean
+  browserClear?: boolean
 }
 
 interface UseSettingsNavigationReturn {
@@ -46,6 +49,9 @@ export function resolveSettingsHref({
 
   const searchParams = new URLSearchParams()
   if (options?.mcpServerId) searchParams.set('mcpServerId', options.mcpServerId)
+  if (options?.browserView) searchParams.set('browserView', options.browserView)
+  if (options?.browserImport) searchParams.set('browserImport', '1')
+  if (options?.browserClear) searchParams.set('browserClear', '1')
   const query = searchParams.toString()
   const pathname = `/workspace/${workspaceId}/settings/${section}`
   return query ? `${pathname}?${query}` : pathname

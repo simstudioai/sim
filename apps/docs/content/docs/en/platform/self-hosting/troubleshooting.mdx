@@ -43,12 +43,20 @@ docker compose logs simstudio
 
 ## Migration Errors
 
+Migrations run in their own `migrations` service and image — the app image does not contain the migration tooling.
+
 ```bash
 # View migration logs
-docker compose logs migrations
+docker compose -f docker-compose.prod.yml logs migrations
 
-# Run manually
-docker compose exec simstudio bun run db:migrate
+# Re-run them
+docker compose -f docker-compose.prod.yml up --force-recreate migrations
+```
+
+On Kubernetes, migrations are an init container on the app pod:
+
+```bash
+kubectl logs -n simstudio deploy/sim-app -c migrations --tail=200
 ```
 
 ## pgvector Not Found
@@ -62,13 +70,36 @@ image: pgvector/pgvector:pg17  # NOT postgres:17
 
 If you see SSL certificate errors when calling external APIs:
 
-```bash
-# Update CA certificates in container
-docker compose exec simstudio apt-get update && apt-get install -y ca-certificates
+The image already ships current CA certificates and runs as a non-root user, so installing packages inside it is not the fix. This almost always means the endpoint presents a certificate signed by a private CA — a corporate TLS-inspecting proxy, or an internal service.
 
-# Or set in environment (not recommended for production)
-NODE_TLS_REJECT_UNAUTHORIZED=0
+Mount your CA bundle and point Node at it:
+
+```yaml
+# docker-compose.prod.yml
+services:
+  simstudio:
+    volumes:
+      - /etc/ssl/certs/corporate-ca.crt:/certs/corporate-ca.crt:ro
+    environment:
+      - NODE_EXTRA_CA_CERTS=/certs/corporate-ca.crt
 ```
+
+```yaml
+# Helm — mount a ConfigMap holding the CA
+app:
+  env:
+    NODE_EXTRA_CA_CERTS: /certs/corporate-ca.crt
+  extraVolumes:
+    - name: corporate-ca
+      configMap:
+        name: corporate-ca
+  extraVolumeMounts:
+    - name: corporate-ca
+      mountPath: /certs
+      readOnly: true
+```
+
+`NODE_TLS_REJECT_UNAUTHORIZED=0` disables certificate verification entirely and should never be used outside a throwaway test.
 
 ## Blank Page After Login
 
@@ -79,13 +110,12 @@ NODE_TLS_REJECT_UNAUTHORIZED=0
 
 ## Windows-Specific Issues
 
-**Turbopack errors on Windows:**
-```bash
-# Use WSL2 for better compatibility
-wsl --install
+These apply to running Sim **from source** for development, not to the Docker or Kubernetes deployments, which are unaffected by the host OS.
 
-# Or disable Turbopack in package.json
-# Change "next dev --turbopack" to "next dev"
+**Turbopack errors on Windows:** use WSL2.
+
+```bash
+wsl --install
 ```
 
 **Line ending issues:**
@@ -103,6 +133,106 @@ docker compose logs -f
 # Specific service
 docker compose logs -f simstudio
 ```
+
+## Scheduled Workflows Never Run
+
+The most common self-hosting surprise.
+
+**Docker Compose** — check the `cron` service is running and read its logs:
+
+```bash
+docker compose -f docker-compose.prod.yml logs --tail=50 cron
+```
+
+A `401` there means the app and the scheduler disagree on `CRON_SECRET`.
+
+**Kubernetes** — check the CronJobs are present and firing:
+
+```bash
+kubectl get cronjobs -n simstudio
+kubectl get jobs -n simstudio --sort-by=.metadata.creationTimestamp | tail
+```
+
+A stale `LAST SCHEDULE` or failing jobs usually means `CRON_SECRET` is missing or does not match between the cron pods and the app. Call the endpoint by hand to see the status code:
+
+```bash
+kubectl exec -n simstudio deploy/sim-app -- sh -c \
+  'curl -s -o /dev/null -w "%{http_code}\n" \
+   -H "Authorization: Bearer $CRON_SECRET" \
+   http://localhost:3000/api/schedules/execute'
+```
+
+Wrap it in `sh -c` with single quotes so `$CRON_SECRET` expands **inside the pod** — otherwise your local shell substitutes an empty value and you get a misleading `401`.
+
+`401` means the secret does not match. `202` means the endpoint accepted the run; it does not tell you whether a schedule was actually due, so confirm in the Logs view.
+
+## Gmail / Drive / Outlook Triggers Never Fire
+
+These are **polling** triggers, driven by the per-minute `/api/webhooks/poll/*` jobs. Check the scheduler is running them — `docker compose logs cron`, or `kubectl get cronjobs -n simstudio` for a recent `LAST SCHEDULE`.
+
+Microsoft Teams chat triggers are the different case: they use a Microsoft Graph subscription capped at about three days, renewed by the twice-daily `renew-subscriptions` job. If Teams triggers work for a couple of days and then stop, that job is not running. See [Background Jobs](/platform/self-hosting/background-jobs).
+
+## Collaboration Breaks With Multiple Replicas
+
+Two users editing the same workflow stop seeing each other, or live status never updates — with no error anywhere.
+
+This is Redis. Pub/sub and the Socket.IO adapter have no cross-pod fallback:
+
+```bash
+kubectl exec -n simstudio deploy/sim-app -- printenv REDIS_URL
+kubectl exec -n simstudio deploy/sim-realtime -- printenv REDIS_URL
+```
+
+Both pods must have `REDIS_URL`. On Helm they share one Secret, so setting it under `app.env` covers both. See [Redis](/platform/self-hosting/redis).
+
+## App Crashes at Startup With a REDIS_TLS_SERVERNAME Error
+
+`REDIS_URL` uses `rediss://` pointed at a bare IP address. TLS certificates cannot be verified against an IP, so set `REDIS_TLS_SERVERNAME` to the DNS name the certificate was issued for — or use a DNS hostname in the URL instead.
+
+## File Uploads Fail With a CORS Error
+
+The bucket's CORS policy does not allow your Sim origin. Uploads go directly from the browser to object storage via presigned `PUT`, so server-side configuration being correct is not enough.
+
+If small uploads succeed but files over 50 MB fail at the last step, `ETag` is missing from the CORS exposed headers — multipart uploads read it from the browser. See [Object Storage](/platform/self-hosting/object-storage).
+
+## Agent Output Arrives All at Once
+
+Your reverse proxy is buffering the response stream. Set `proxy_buffering off` (Nginx) or `flush_interval -1` (Caddy). See [Networking](/platform/self-hosting/networking).
+
+## Websockets Disconnect Every 30 Seconds
+
+The load balancer's backend timeout is closing them. On GKE, attach a `BackendConfig` with `timeoutSec: 3600` to the realtime Service; on AWS, raise the ALB `idle_timeout`. Clients reconnect, so this degrades rather than breaks. See [Networking](/platform/self-hosting/networking).
+
+## Knowledge Base Upload Fails
+
+Embeddings need a hosted provider — set `OPENAI_API_KEY`, configure Azure OpenAI, or set `KB_EMBEDDING_MODEL=gemini-embedding-001` with a Gemini key. There is no local embedding backend, so Ollama or vLLM does not substitute. If a key is set, verify pgvector is installed on the database.
+
+## Credentials Unreadable After a Restore
+
+Integrations show as connected but fail, or provider keys error on decrypt. `ENCRYPTION_KEY` does not match the value in use when the backup was taken. There is no recovery — the original key must be restored.
+
+## Kubernetes: App Pods Never Become Ready
+
+Check the migrations init container first — a failed migration deliberately blocks the rollout:
+
+```bash
+kubectl logs -n simstudio deploy/sim-app -c migrations --tail=200
+kubectl describe pod -n simstudio <pod>
+```
+
+Common causes: `DATABASE_URL` unreachable, the database user lacking rights to create the `vector` extension, or an OOMKill from insufficient memory. See [Upgrades](/platform/self-hosting/upgrades) for migration-failure recovery.
+
+## Kubernetes: ImagePullBackOff
+
+Either the tag does not exist in the registry (`helm get values sim` and check), or you are pulling from a private registry without `global.imagePullSecrets`. When mirroring into a private registry, set `global.useRegistryForAllImages: true` — otherwise third-party images still point at Docker Hub.
+
+## Kubernetes: Postgres Pod Pending
+
+```bash
+kubectl describe pvc -n simstudio
+```
+
+Almost always no default StorageClass, no PV provisioner installed, or a StorageClass that does not support `ReadWriteOnce`. Set `global.storageClass` to pick a specific one.
 
 ## Getting Help
 
