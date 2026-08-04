@@ -1978,8 +1978,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
   triggers: {
     enabled: true,
     available: [
-      'quickbooks_customer_events',
       'quickbooks_invoice_events',
+      'quickbooks_customer_events',
       'quickbooks_payment_events',
       'quickbooks_vendor_events',
       'quickbooks_bill_events',

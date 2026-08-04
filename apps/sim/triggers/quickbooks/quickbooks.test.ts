@@ -10,7 +10,10 @@ describe('QuickBooks triggers', () => {
   it('keeps trigger definitions, dropdown options, and block access in parity', () => {
     const ids = QUICKBOOKS_TRIGGER_DEFINITIONS.map(({ id }) => id)
     expect(quickBooksTriggerOptions.map(({ id }) => id)).toEqual(ids)
-    expect(QuickBooksBlock.triggers?.available).toEqual(ids)
+    expect(QuickBooksBlock.triggers?.available).toEqual([
+      'quickbooks_invoice_events',
+      ...ids.filter((id) => id !== 'quickbooks_invoice_events'),
+    ])
     for (const id of ids) expect(getTrigger(id).id).toBe(id)
   })
 
