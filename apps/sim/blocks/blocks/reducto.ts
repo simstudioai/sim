@@ -31,7 +31,7 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
     defaultTitle: 'Reducto',
     sentences: {
       default: [
-        { text: 'Parses text from', field: DOCUMENT_FIELD, core: true },
+        { text: 'Parse text from', field: DOCUMENT_FIELD, core: true },
         { text: ', pages', field: 'pages' },
         { text: ', with tables as', field: 'tableOutputFormat' },
       ],
@@ -192,7 +192,7 @@ export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
     defaultTitle: 'Reducto',
     sentences: {
       default: [
-        { text: 'Parses text from', field: DOCUMENT_V2_FIELD, core: true },
+        { text: 'Parse text from', field: DOCUMENT_V2_FIELD, core: true },
         { text: ', pages', field: 'pages' },
         { text: ', with tables as', field: 'tableOutputFormat' },
       ],

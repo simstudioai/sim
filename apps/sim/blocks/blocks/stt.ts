@@ -25,7 +25,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
     defaultTitle: 'Speech-to-Text',
     sentences: {
       default: [
-        { text: 'Transcribes', field: AUDIO_FIELD, core: true },
+        { text: 'Transcribe', field: AUDIO_FIELD, core: true },
         { text: 'with', field: 'provider' },
       ],
     },
@@ -383,7 +383,7 @@ export const SttV2Block: BlockConfig<SttBlockResponse> = {
     defaultTitle: 'Speech-to-Text',
     sentences: {
       default: [
-        { text: 'Transcribes', field: AUDIO_V2_FIELD, core: true },
+        { text: 'Transcribe', field: AUDIO_V2_FIELD, core: true },
         { text: 'with', field: 'provider' },
       ],
     },

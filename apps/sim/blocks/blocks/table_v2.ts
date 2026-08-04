@@ -213,48 +213,62 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
   icon: TableIcon,
   canvasPresentation: {
     defaultTitle: 'Table',
+    /*
+     * The trigger reuses the block's table pair, so both members are named or
+     * the sentence drops for an advanced-mode user. The watched columns only
+     * exist for row updates, so that clause stays optional and disappears with
+     * them.
+     */
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'eventType', core: true },
+        { text: 'in', field: TABLE_FIELD, core: true },
+        { text: ', watching', field: 'watchColumns' },
+      ],
+    },
     sentences: {
       byOperation: {
         query_rows: [
-          { text: 'Queries rows from', field: TABLE_FIELD, core: true },
+          { text: 'Query rows from', field: TABLE_FIELD, core: true },
           { text: ', where', field: FILTER_FIELD },
           { text: ', sorted by', field: SORT_FIELD },
         ],
         insert_row: [
-          { text: 'Inserts a row into', field: TABLE_FIELD, core: true },
+          { text: 'Insert a row into', field: TABLE_FIELD, core: true },
           { text: ', with', field: 'data' },
         ],
         upsert_row: [
-          { text: 'Upserts a row into', field: TABLE_FIELD, core: true },
+          { text: 'Upsert a row into', field: TABLE_FIELD, core: true },
           { text: ', keyed on', field: ['conflictColumnSelector', 'manualConflictColumn'] },
         ],
         batch_insert_rows: [
-          { text: 'Inserts', field: 'rows', core: true },
+          { text: 'Insert', field: 'rows', core: true },
           { text: 'into', field: TABLE_FIELD, core: true },
         ],
         update_rows_by_filter: [
-          { text: 'Updates rows in', field: TABLE_FIELD, core: true },
+          { text: 'Update rows in', field: TABLE_FIELD, core: true },
           { text: ', where', field: FILTER_FIELD },
           { text: ', setting', field: 'data' },
         ],
         delete_rows_by_filter: [
-          { text: 'Deletes rows from', field: TABLE_FIELD, core: true },
+          { text: 'Delete rows from', field: TABLE_FIELD, core: true },
           { text: ', where', field: FILTER_FIELD },
         ],
         update_row: [
-          { text: 'Updates row', field: 'rowId', core: true },
+          { text: 'Update row', field: 'rowId', core: true },
           { text: 'in', field: TABLE_FIELD, core: true },
           { text: ', setting', field: 'data' },
         ],
         delete_row: [
-          { text: 'Deletes row', field: 'rowId', core: true },
+          { text: 'Delete row', field: 'rowId', core: true },
           { text: 'from', field: TABLE_FIELD, core: true },
         ],
         get_row: [
-          { text: 'Fetches row', field: 'rowId', core: true },
+          { text: 'Fetch row', field: 'rowId', core: true },
           { text: 'from', field: TABLE_FIELD, core: true },
         ],
-        get_schema: [{ text: 'Reads the schema of', field: TABLE_FIELD, core: true }],
+        get_schema: [{ text: 'Read the schema of', field: TABLE_FIELD, core: true }],
       },
     },
   },

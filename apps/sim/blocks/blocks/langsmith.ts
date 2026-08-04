@@ -20,22 +20,22 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
     sentences: {
       byOperation: {
         langsmith_create_run: [
-          { text: 'Creates run', field: 'name', core: true },
+          { text: 'Create run', field: 'name', core: true },
           { text: 'of type', field: 'run_type' },
           { text: 'in session', field: 'session_name' },
         ],
         langsmith_create_runs_batch: [
-          { text: 'Ingests', field: 'post', after: 'as new runs', core: true },
+          { text: 'Ingest', field: 'post', after: 'as new runs', core: true },
           { text: ', and', field: 'patch', after: 'as run updates' },
         ],
         langsmith_update_run: [
-          { text: 'Updates run', field: 'runId', core: true },
+          { text: 'Update run', field: 'runId', core: true },
           { text: ', setting status to', field: 'status' },
           { text: ', with outputs', field: 'outputs' },
         ],
-        langsmith_get_run: [{ text: 'Fetches run', field: 'runId', core: true }],
+        langsmith_get_run: [{ text: 'Fetch run', field: 'runId', core: true }],
         langsmith_create_feedback: [
-          { text: 'Adds', field: 'key', after: 'feedback', core: true },
+          { text: 'Add', field: 'key', after: 'feedback', core: true },
           { text: 'to run', field: 'runId', core: true },
           { text: ', scored', field: 'score' },
         ],

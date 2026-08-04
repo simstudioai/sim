@@ -20,41 +20,41 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
     defaultTitle: 'Datadog',
     sentences: {
       byOperation: {
-        datadog_submit_metrics: ['Submits custom metric points'],
+        datadog_submit_metrics: ['Submit custom metric points'],
         datadog_query_timeseries: [
-          { text: 'Queries metric timeseries', field: 'query', core: true },
+          { text: 'Query metric timeseries', field: 'query', core: true },
           { text: ', since', field: 'from' },
         ],
         datadog_create_event: [
-          { text: 'Posts', field: 'title', after: 'to the event stream', core: true },
+          { text: 'Post', field: 'title', after: 'to the event stream', core: true },
           { text: ', tagged', field: 'tags' },
         ],
         datadog_create_monitor: [
-          { text: 'Creates monitor', field: 'name', core: true },
+          { text: 'Create monitor', field: 'name', core: true },
           { text: ', alerting on', field: 'monitorQuery' },
         ],
-        datadog_get_monitor: [{ text: 'Reads monitor', field: 'monitorId', core: true }],
+        datadog_get_monitor: [{ text: 'Read monitor', field: 'monitorId', core: true }],
         datadog_list_monitors: [
-          'Lists monitors',
+          'List monitors',
           { text: ', named like', field: 'listMonitorName' },
           { text: ', tagged', field: 'listMonitorTags' },
         ],
         datadog_mute_monitor: [
-          { text: 'Mutes monitor', field: 'muteMonitorId', core: true },
+          { text: 'Mute monitor', field: 'muteMonitorId', core: true },
           { text: ', for scope', field: 'scope' },
           { text: ', until', field: 'end' },
         ],
         datadog_query_logs: [
-          { text: 'Searches logs matching', field: 'logQuery', core: true },
+          { text: 'Search logs matching', field: 'logQuery', core: true },
           { text: ', since', field: 'logFrom' },
         ],
-        datadog_send_logs: ['Sends log entries for indexing'],
+        datadog_send_logs: ['Send log entries for indexing'],
         datadog_create_downtime: [
-          { text: 'Schedules downtime for', field: 'downtimeScope', core: true },
+          { text: 'Schedule downtime for', field: 'downtimeScope', core: true },
           { text: ', until', field: 'downtimeEnd' },
         ],
-        datadog_list_downtimes: ['Lists scheduled downtimes'],
-        datadog_cancel_downtime: [{ text: 'Cancels downtime', field: 'downtimeId', core: true }],
+        datadog_list_downtimes: ['List scheduled downtimes'],
+        datadog_cancel_downtime: [{ text: 'Cancel downtime', field: 'downtimeId', core: true }],
       },
     },
   },

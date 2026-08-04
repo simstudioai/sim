@@ -20,7 +20,7 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
     defaultTitle: 'Airweave',
     sentences: {
       default: [
-        { text: 'Searches', field: 'collectionId', core: true },
+        { text: 'Search', field: 'collectionId', core: true },
         { text: 'for', field: 'query' },
       ],
     },

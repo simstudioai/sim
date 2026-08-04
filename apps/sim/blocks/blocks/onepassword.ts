@@ -17,39 +17,39 @@ export const OnePasswordBlock: BlockConfig = {
     defaultTitle: '1Password',
     sentences: {
       byOperation: {
-        list_vaults: ['Lists vaults', { text: ', matching', field: 'filter' }],
-        get_vault: [{ text: 'Reads vault', field: 'vaultId', core: true }],
+        list_vaults: ['List vaults', { text: ', matching', field: 'filter' }],
+        get_vault: [{ text: 'Read vault', field: 'vaultId', core: true }],
         list_items: [
-          { text: 'Lists items in vault', field: 'vaultId', core: true },
+          { text: 'List items in vault', field: 'vaultId', core: true },
           { text: ', matching', field: 'filter' },
         ],
         get_item: [
-          { text: 'Reads item', field: 'itemId', core: true },
+          { text: 'Read item', field: 'itemId', core: true },
           { text: 'from vault', field: 'vaultId' },
         ],
         get_item_file: [
-          { text: 'Downloads file', field: 'fileId', core: true },
+          { text: 'Download file', field: 'fileId', core: true },
           { text: 'from item', field: 'itemId' },
         ],
         create_item: [
-          { text: 'Creates', field: 'category', after: 'item', core: true },
+          { text: 'Create', field: 'category', after: 'item', core: true },
           { text: 'titled', field: 'title' },
           { text: 'in vault', field: 'vaultId', core: true },
         ],
         replace_item: [
-          { text: 'Replaces item', field: 'itemId', core: true },
+          { text: 'Replace item', field: 'itemId', core: true },
           { text: 'in vault', field: 'vaultId' },
         ],
         update_item: [
-          { text: 'Patches item', field: 'itemId', core: true },
+          { text: 'Patch item', field: 'itemId', core: true },
           { text: 'in vault', field: 'vaultId' },
         ],
         delete_item: [
-          { text: 'Deletes item', field: 'itemId', core: true },
+          { text: 'Delete item', field: 'itemId', core: true },
           { text: 'from vault', field: 'vaultId' },
         ],
         resolve_secret: [
-          { text: 'Resolves secret reference', field: 'secretReference', core: true },
+          { text: 'Resolve secret reference', field: 'secretReference', core: true },
         ],
       },
     },

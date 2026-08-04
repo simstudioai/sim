@@ -20,34 +20,34 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
     sentences: {
       byOperation: {
         cursor_launch_agent: [
-          { text: 'Launches an agent on', field: 'repository', core: true },
+          { text: 'Launch an agent on', field: 'repository', core: true },
           { text: 'to', field: 'promptText' },
         ],
         cursor_add_followup: [
-          { text: 'Sends follow-up', field: 'followupPromptText', core: true },
+          { text: 'Send follow-up', field: 'followupPromptText', core: true },
           { text: 'to agent', field: 'agentId', core: true },
         ],
-        cursor_get_agent: [{ text: 'Checks the status of agent', field: 'agentId', core: true }],
+        cursor_get_agent: [{ text: 'Check the status of agent', field: 'agentId', core: true }],
         cursor_get_conversation: [
-          { text: 'Reads the conversation history of agent', field: 'agentId', core: true },
+          { text: 'Read the conversation history of agent', field: 'agentId', core: true },
         ],
         cursor_list_agents: [
-          'Lists agents',
+          'List agents',
           { text: ', for pull request', field: 'prUrl' },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
-        cursor_stop_agent: [{ text: 'Stops agent', field: 'agentId', core: true }],
-        cursor_delete_agent: [{ text: 'Permanently deletes agent', field: 'agentId', core: true }],
+        cursor_stop_agent: [{ text: 'Stop agent', field: 'agentId', core: true }],
+        cursor_delete_agent: [{ text: 'Permanently delete agent', field: 'agentId', core: true }],
         cursor_list_artifacts: [
-          { text: 'Lists artifacts produced by agent', field: 'agentId', core: true },
+          { text: 'List artifacts produced by agent', field: 'agentId', core: true },
         ],
         cursor_download_artifact: [
-          { text: 'Downloads artifact', field: 'path', core: true },
+          { text: 'Download artifact', field: 'path', core: true },
           { text: 'from agent', field: 'agentId', core: true },
         ],
-        cursor_list_models: ['Lists models available for launching agents'],
-        cursor_list_repositories: ['Lists accessible GitHub repositories'],
-        cursor_get_api_key_info: ['Reads details of the API key in use'],
+        cursor_list_models: ['List models available for launching agents'],
+        cursor_list_repositories: ['List accessible GitHub repositories'],
+        cursor_get_api_key_info: ['Read details of the API key in use'],
       },
     },
   },

@@ -14,6 +14,9 @@ import { getTrigger } from '@/triggers'
  */
 const UPLOAD_FOLDER_FIELD = ['uploadFolderSelector', 'uploadManualFolderId'] as const
 
+/** The folder the poller watches — the trigger's own canonical pair. */
+const TRIGGER_FOLDER_FIELD = ['folderId', 'manualFolderId'] as const
+
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   type: 'google_drive',
   name: 'Google Drive',
@@ -28,63 +31,71 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   icon: GoogleDriveIcon,
   canvasPresentation: {
     defaultTitle: 'Google Drive',
+    triggerSentences: {
+      default: [
+        'Run on a file change',
+        { text: 'in', field: TRIGGER_FOLDER_FIELD, core: true },
+        { text: ', for', field: 'mimeTypeFilter' },
+        { text: ', limited to', field: 'eventTypeFilter' },
+      ],
+    },
     sentences: {
       byOperation: {
         list: [
-          'Lists files',
+          'List files',
           { text: 'in', field: ['listFolderSelector', 'listManualFolderId'] },
           { text: ', matching', field: 'query' },
         ],
         search: [
-          { text: 'Searches files matching', field: 'searchQuery', core: true },
+          { text: 'Search files matching', field: 'searchQuery', core: true },
           { text: ', up to', field: 'searchPageSize', after: 'results' },
         ],
         get_file: [
           {
-            text: 'Reads metadata for',
+            text: 'Read metadata for',
             field: ['getFileSelector', 'getManualFileId'],
             core: true,
           },
         ],
         get_content: [
           {
-            text: 'Reads the contents of',
+            text: 'Read the contents of',
             field: ['getContentFileSelector', 'getContentManualFileId'],
             core: true,
           },
         ],
         create_folder: [
-          { text: 'Creates folder', field: 'fileName', core: true },
+          { text: 'Create folder', field: 'fileName', core: true },
           { text: 'in', field: ['createFolderParentSelector', 'createFolderManualParentId'] },
         ],
         create_file: [
-          { text: 'Creates file', field: 'fileName', core: true },
+          { text: 'Create file', field: 'fileName', core: true },
           { text: 'in', field: UPLOAD_FOLDER_FIELD },
         ],
         upload: [
-          { text: 'Uploads', field: ['fileUpload', 'file'], core: true },
+          { text: 'Upload', field: ['fileUpload', 'file'], core: true },
           { text: 'to', field: UPLOAD_FOLDER_FIELD },
           { text: ', named', field: 'fileName' },
         ],
         download: [
           {
-            text: 'Downloads',
+            text: 'Download',
             field: ['downloadFileSelector', 'downloadManualFileId'],
             core: true,
           },
         ],
         copy: [
-          { text: 'Copies', field: ['copyFileSelector', 'copyManualFileId'], core: true },
+          { text: 'Copy', field: ['copyFileSelector', 'copyManualFileId'], core: true },
           { text: 'to', field: ['copyDestFolderSelector', 'copyManualDestFolderId'] },
           { text: ', named', field: 'newName' },
         ],
         move: [
-          { text: 'Moves', field: ['moveFileSelector', 'moveManualFileId'], core: true },
+          { text: 'Move', field: ['moveFileSelector', 'moveManualFileId'], core: true },
           { text: 'to', field: ['moveDestFolderSelector', 'moveManualDestFolderId'] },
         ],
         update: [
           {
-            text: 'Updates metadata on',
+            text: 'Update metadata on',
             field: ['updateFileSelector', 'updateManualFileId'],
             core: true,
           },
@@ -92,7 +103,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         ],
         trash: [
           {
-            text: 'Moves',
+            text: 'Move',
             field: ['trashFileSelector', 'trashManualFileId'],
             after: 'to trash',
             core: true,
@@ -100,7 +111,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         ],
         untrash: [
           {
-            text: 'Restores',
+            text: 'Restore',
             field: ['untrashFileSelector', 'untrashManualFileId'],
             after: 'from trash',
             core: true,
@@ -108,41 +119,41 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         ],
         delete: [
           {
-            text: 'Permanently deletes',
+            text: 'Permanently delete',
             field: ['deleteFileSelector', 'deleteManualFileId'],
             core: true,
           },
         ],
         share: [
-          { text: 'Shares', field: ['shareFileSelector', 'shareManualFileId'], core: true },
+          { text: 'Share', field: ['shareFileSelector', 'shareManualFileId'], core: true },
           { text: 'with', field: ['email', 'domain'] },
           { text: ', as', field: 'role' },
         ],
         unshare: [
-          { text: 'Revokes permission', field: 'permissionId', core: true },
+          { text: 'Revoke permission', field: 'permissionId', core: true },
           { text: 'on', field: ['unshareFileSelector', 'unshareManualFileId'], core: true },
         ],
         list_permissions: [
           {
-            text: 'Lists who has access to',
+            text: 'List who has access to',
             field: ['listPermissionsFileSelector', 'listPermissionsManualFileId'],
             core: true,
           },
         ],
         export: [
-          { text: 'Exports', field: ['exportFileSelector', 'exportManualFileId'], core: true },
+          { text: 'Export', field: ['exportFileSelector', 'exportManualFileId'], core: true },
           { text: 'as', field: 'exportMimeType' },
         ],
         list_revisions: [
           {
-            text: 'Lists revisions of',
+            text: 'List revisions of',
             field: ['listRevisionsFileSelector', 'listRevisionsManualFileId'],
             core: true,
           },
           { text: ', up to', field: 'revisionsPageSize', after: 'results' },
         ],
         get_revision: [
-          { text: 'Reads revision', field: 'revisionId', core: true },
+          { text: 'Read revision', field: 'revisionId', core: true },
           {
             text: 'of',
             field: ['getRevisionFileSelector', 'getRevisionManualFileId'],
@@ -151,14 +162,14 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         ],
         list_comments: [
           {
-            text: 'Lists comments on',
+            text: 'List comments on',
             field: ['listCommentsFileSelector', 'listCommentsManualFileId'],
             core: true,
           },
           { text: ', up to', field: 'commentsPageSize', after: 'results' },
         ],
         create_comment: [
-          { text: 'Adds comment', field: 'content', core: true },
+          { text: 'Add comment', field: 'content', core: true },
           {
             text: 'to',
             field: ['createCommentFileSelector', 'createCommentManualFileId'],
@@ -166,14 +177,14 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
           },
         ],
         delete_comment: [
-          { text: 'Deletes comment', field: 'commentId', core: true },
+          { text: 'Delete comment', field: 'commentId', core: true },
           {
             text: 'from',
             field: ['deleteCommentFileSelector', 'deleteCommentManualFileId'],
             core: true,
           },
         ],
-        get_about: ['Reads account and storage details'],
+        get_about: ['Read account and storage details'],
       },
     },
   },

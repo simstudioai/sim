@@ -30,17 +30,17 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
     sentences: {
       byOperation: {
         sftp_upload: [
-          { text: 'Uploads', field: ['uploadFiles', 'files'], core: true },
+          { text: 'Upload', field: ['uploadFiles', 'files'], core: true },
           { text: 'to', field: 'remotePath', core: true },
         ],
         sftp_create: [
-          { text: 'Creates file', field: 'fileName', core: true },
+          { text: 'Create file', field: 'fileName', core: true },
           { text: 'in', field: 'remotePath' },
         ],
-        sftp_download: [{ text: 'Downloads', field: 'remotePath', core: true }],
-        sftp_list: [{ text: 'Lists the contents of', field: 'remotePath', core: true }],
-        sftp_delete: [{ text: 'Deletes', field: 'remotePath', core: true }],
-        sftp_mkdir: [{ text: 'Creates directory', field: 'remotePath', core: true }],
+        sftp_download: [{ text: 'Download', field: 'remotePath', core: true }],
+        sftp_list: [{ text: 'List the contents of', field: 'remotePath', core: true }],
+        sftp_delete: [{ text: 'Delete', field: 'remotePath', core: true }],
+        sftp_mkdir: [{ text: 'Create directory', field: 'remotePath', core: true }],
       },
     },
   },

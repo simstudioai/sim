@@ -25,50 +25,50 @@ const PARENT_FIELD = ['parentSelector', 'parentId'] as const
  */
 const NOTION_SENTENCES = {
   byOperation: {
-    notion_read: [{ text: 'Reads content from', field: PAGE_FIELD, core: true }],
-    notion_read_database: [{ text: 'Reads schema of', field: DATABASE_FIELD, core: true }],
+    notion_read: [{ text: 'Read content from', field: PAGE_FIELD, core: true }],
+    notion_read_database: [{ text: 'Read schema of', field: DATABASE_FIELD, core: true }],
     notion_create_page: [
-      { text: 'Creates page', field: 'title', core: true },
+      { text: 'Create page', field: 'title', core: true },
       { text: 'under', field: PARENT_FIELD, core: true },
       { text: ', with', field: 'content' },
     ],
     notion_update_page: [
-      { text: 'Updates properties of', field: PAGE_FIELD, core: true },
+      { text: 'Update properties of', field: PAGE_FIELD, core: true },
       { text: ', setting', field: 'properties' },
     ],
     notion_create_database: [
-      { text: 'Creates database', field: 'title', core: true },
+      { text: 'Create database', field: 'title', core: true },
       { text: 'under', field: PARENT_FIELD, core: true },
       { text: ', with properties', field: 'properties' },
     ],
     notion_add_database_row: [
-      { text: 'Adds a row to', field: DATABASE_FIELD, core: true },
+      { text: 'Add a row to', field: DATABASE_FIELD, core: true },
       { text: ', setting', field: 'properties' },
     ],
     notion_write: [
-      { text: 'Appends', field: 'content', core: true },
+      { text: 'Append', field: 'content', core: true },
       { text: 'to', field: PAGE_FIELD, core: true },
     ],
     notion_append_blocks: [
-      { text: 'Appends blocks to', field: 'blockId', core: true },
+      { text: 'Append blocks to', field: 'blockId', core: true },
       { text: ', after block', field: 'after' },
     ],
-    notion_retrieve_block: [{ text: 'Retrieves block', field: 'blockId', core: true }],
+    notion_retrieve_block: [{ text: 'Retrieve block', field: 'blockId', core: true }],
     notion_retrieve_block_children: [
-      { text: 'Lists child blocks of', field: 'blockId', core: true },
+      { text: 'List child blocks of', field: 'blockId', core: true },
       { text: ', up to', field: 'pageSize', after: 'results' },
     ],
     notion_update_block: [
-      { text: 'Updates block', field: 'blockId', core: true },
+      { text: 'Update block', field: 'blockId', core: true },
       { text: ', setting', field: 'block' },
     ],
-    notion_delete_block: [{ text: 'Deletes block', field: 'blockId', core: true }],
+    notion_delete_block: [{ text: 'Delete block', field: 'blockId', core: true }],
     notion_create_comment: [
-      { text: 'Posts comment', field: 'commentContent', core: true },
+      { text: 'Post comment', field: 'commentContent', core: true },
       { text: 'on page', field: 'commentParentId' },
     ],
     notion_list_comments: [
-      { text: 'Lists comments on', field: 'blockId', core: true },
+      { text: 'List comments on', field: 'blockId', core: true },
       { text: ', up to', field: 'pageSize', after: 'results' },
     ],
     /**
@@ -77,12 +77,12 @@ const NOTION_SENTENCES = {
      * blank the card for the default configuration. Literal copy carries it.
      */
     notion_list_users: [
-      'Lists workspace users',
+      'List workspace users',
       { text: ', up to', field: 'pageSize', after: 'at a time' },
     ],
-    notion_retrieve_user: [{ text: 'Retrieves user', field: 'userId', core: true }],
+    notion_retrieve_user: [{ text: 'Retrieve user', field: 'userId', core: true }],
     notion_query_database: [
-      { text: 'Queries rows from', field: DATABASE_FIELD, core: true },
+      { text: 'Query rows from', field: DATABASE_FIELD, core: true },
       { text: ', where', field: 'filter' },
       { text: ', sorted by', field: 'sorts' },
     ],
@@ -93,7 +93,7 @@ const NOTION_SENTENCES = {
      * the filter's own default option reads "All".
      */
     notion_search: [
-      { text: 'Searches workspace for', field: 'query', core: true },
+      { text: 'Search workspace for', field: 'query', core: true },
       { text: ', returning', field: 'filterType' },
     ],
   },

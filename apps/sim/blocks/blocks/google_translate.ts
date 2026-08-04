@@ -154,11 +154,11 @@ export const GoogleTranslateBlock: BlockConfig = {
     sentences: {
       byOperation: {
         text: [
-          { text: 'Translates', field: 'text', core: true },
+          { text: 'Translate', field: 'text', core: true },
           { text: 'from', field: 'source' },
           { text: 'into', field: 'target' },
         ],
-        detect: [{ text: 'Detects the language of', field: 'text', core: true }],
+        detect: [{ text: 'Detect the language of', field: 'text', core: true }],
       },
     },
   },

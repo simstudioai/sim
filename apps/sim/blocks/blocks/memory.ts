@@ -18,12 +18,12 @@ export const MemoryBlock: BlockConfig = {
     sentences: {
       byOperation: {
         add: [
-          { text: 'Adds a message from', field: 'role', core: true },
+          { text: 'Add a message from', field: 'role', core: true },
           { text: 'to conversation', field: 'id', core: true },
         ],
-        getAll: ['Reads every stored memory'],
-        get: [{ text: 'Reads the memories in conversation', field: 'id', core: true }],
-        delete: [{ text: 'Deletes the memories in conversation', field: 'id', core: true }],
+        getAll: ['Read every stored memory'],
+        get: [{ text: 'Read the memories in conversation', field: 'id', core: true }],
+        delete: [{ text: 'Delete the memories in conversation', field: 'id', core: true }],
       },
     },
   },

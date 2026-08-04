@@ -27,6 +27,13 @@ const DESTINATION_FIELD = ['channel', 'manualChannel', 'dmUserId', 'manualDmUser
 /** Message body, whichever `messageFormat` the user picked. */
 const MESSAGE_BODY_FIELD = ['text', 'blocks'] as const
 
+/**
+ * The channel filter on the `slack_oauth` trigger (slack_v2 only). Both members
+ * of the canonical pair, so the trigger sentence keeps working for a user who
+ * pasted channel IDs into the advanced field instead of picking them.
+ */
+const SLACK_TRIGGER_CHANNEL_FIELD = ['channelFilter', 'manualChannelFilter'] as const
+
 export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
   name: 'Slack',
@@ -43,15 +50,24 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   triggerAllowed: true,
   canvasPresentation: {
     defaultTitle: 'Slack',
+    /*
+     * The legacy webhook trigger fires on whatever the user's own Slack app
+     * subscribes to, and everything it configures — Request URL, signing secret,
+     * bot token, setup wizard — is plumbing. So the sentence names the events
+     * rather than echoing the header with the trigger's registry name.
+     */
+    triggerSentences: {
+      default: ['Run on a message, mention, or reaction'],
+    },
     sentences: {
       byOperation: {
         send: [
-          { text: 'Posts', field: MESSAGE_BODY_FIELD, core: true },
+          { text: 'Post', field: MESSAGE_BODY_FIELD, core: true },
           { text: 'to', field: DESTINATION_FIELD, core: true },
           { text: ', in thread', field: 'threadTs' },
         ],
         ephemeral: [
-          { text: 'Posts', field: MESSAGE_BODY_FIELD, core: true },
+          { text: 'Post', field: MESSAGE_BODY_FIELD, core: true },
           {
             text: 'visible only to',
             field: ['ephemeralUser', 'manualEphemeralUser'],
@@ -60,22 +76,22 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           { text: 'in', field: CHANNEL_FIELD },
         ],
         schedule_message: [
-          { text: 'Schedules', field: MESSAGE_BODY_FIELD, core: true },
+          { text: 'Schedule', field: MESSAGE_BODY_FIELD, core: true },
           { text: 'to', field: DESTINATION_FIELD, core: true },
           { text: 'at', field: 'scheduleAt' },
         ],
         update: [
-          { text: 'Updates message', field: 'updateTimestamp', core: true },
+          { text: 'Update message', field: 'updateTimestamp', core: true },
           { text: 'in', field: CHANNEL_FIELD },
           { text: ', with', field: ['updateText', 'blocks'] },
         ],
         delete: [
-          { text: 'Deletes message', field: 'deleteTimestamp', core: true },
+          { text: 'Delete message', field: 'deleteTimestamp', core: true },
           { text: 'from', field: CHANNEL_FIELD },
         ],
         read: [
           {
-            text: 'Reads the latest',
+            text: 'Read the latest',
             field: 'limit',
             after: 'messages',
             core: true,
@@ -84,26 +100,26 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           { text: ', since', field: 'oldest' },
         ],
         get_message: [
-          { text: 'Fetches message', field: 'getMessageTimestamp', core: true },
+          { text: 'Fetch message', field: 'getMessageTimestamp', core: true },
           { text: 'from', field: CHANNEL_FIELD },
         ],
         get_permalink: [
-          { text: 'Gets a permalink to message', field: 'getMessageTimestamp', core: true },
+          { text: 'Get a permalink to message', field: 'getMessageTimestamp', core: true },
           { text: 'in', field: CHANNEL_FIELD },
         ],
         get_thread: [
-          { text: 'Fetches thread', field: 'getThreadTimestamp', core: true },
+          { text: 'Fetch thread', field: 'getThreadTimestamp', core: true },
           { text: 'in', field: CHANNEL_FIELD },
           { text: ', up to', field: 'threadLimit', after: 'messages' },
         ],
         get_thread_replies: [
-          { text: 'Fetches every message in thread', field: 'getThreadTimestamp', core: true },
+          { text: 'Fetch every message in thread', field: 'getThreadTimestamp', core: true },
           { text: 'from', field: CHANNEL_FIELD },
           { text: ', since', field: 'historyOldest' },
         ],
         get_channel_history: [
           {
-            text: 'Fetches full message history from',
+            text: 'Fetch full message history from',
             field: CHANNEL_FIELD,
             core: true,
           },
@@ -111,34 +127,34 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           { text: ', until', field: 'historyLatest' },
         ],
         react: [
-          { text: 'Adds reaction', field: 'emojiName', core: true },
+          { text: 'Add reaction', field: 'emojiName', core: true },
           { text: 'to message', field: 'reactionTimestamp', core: true },
           { text: 'in', field: CHANNEL_FIELD },
         ],
         unreact: [
-          { text: 'Removes reaction', field: 'emojiName', core: true },
+          { text: 'Remove reaction', field: 'emojiName', core: true },
           { text: 'from message', field: 'reactionTimestamp', core: true },
           { text: 'in', field: CHANNEL_FIELD },
         ],
         set_status: [
           {
-            text: 'Sets assistant status to',
+            text: 'Set assistant status to',
             field: 'status',
             core: true,
           },
           { text: 'on thread', field: 'getThreadTimestamp', core: true },
         ],
         set_title: [
-          { text: 'Sets assistant title to', field: 'assistantTitle', core: true },
+          { text: 'Set assistant title to', field: 'assistantTitle', core: true },
           { text: 'on thread', field: 'getThreadTimestamp' },
         ],
         set_suggested_prompts: [
-          { text: 'Sets suggested prompts on thread', field: 'getThreadTimestamp', core: true },
+          { text: 'Set suggested prompts on thread', field: 'getThreadTimestamp', core: true },
           { text: ', with heading', field: 'promptsTitle' },
         ],
         list_channels: [
           {
-            text: 'Lists up to',
+            text: 'List up to',
             field: 'channelLimit',
             after: 'channels',
             core: true,
@@ -146,7 +162,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         ],
         list_members: [
           {
-            text: 'Lists up to',
+            text: 'List up to',
             field: 'memberLimit',
             after: 'members of',
             core: true,
@@ -155,16 +171,16 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         ],
         list_users: [
           {
-            text: 'Lists up to',
+            text: 'List up to',
             field: 'userLimit',
             after: 'workspace users',
             core: true,
           },
         ],
-        get_user: [{ text: 'Reads the profile of', field: ['userId', 'manualUserId'], core: true }],
+        get_user: [{ text: 'Read the profile of', field: ['userId', 'manualUserId'], core: true }],
         get_user_presence: [
           {
-            text: 'Checks whether',
+            text: 'Check whether',
             field: ['presenceUserId', 'manualPresenceUserId'],
             after: 'is active',
             core: true,
@@ -172,58 +188,58 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         ],
         get_channel_info: [
           {
-            text: 'Reads details of',
+            text: 'Read details of',
             field: CHANNEL_FIELD,
             core: true,
           },
         ],
         download: [
-          { text: 'Downloads file', field: 'fileId', core: true },
+          { text: 'Download file', field: 'fileId', core: true },
           { text: ', saved as', field: 'downloadFileName' },
         ],
         canvas: [
-          { text: 'Creates canvas', field: 'title', core: true },
+          { text: 'Create canvas', field: 'title', core: true },
           { text: 'in', field: CHANNEL_FIELD },
         ],
         create_channel_canvas: [
           {
-            text: 'Creates a channel canvas in',
+            text: 'Create a channel canvas in',
             field: CHANNEL_FIELD,
             core: true,
           },
           { text: ', titled', field: 'channelCanvasTitle' },
         ],
         edit_canvas: [
-          { text: 'Edits canvas', field: 'editCanvasId', core: true },
+          { text: 'Edit canvas', field: 'editCanvasId', core: true },
           { text: 'at section', field: 'sectionId' },
           { text: ', with', field: 'canvasContent' },
         ],
-        get_canvas: [{ text: 'Reads metadata for canvas', field: 'getCanvasId', core: true }],
+        get_canvas: [{ text: 'Read metadata for canvas', field: 'getCanvasId', core: true }],
         list_canvases: [
-          'Lists canvases',
+          'List canvases',
           { text: ', up to', field: 'canvasListCount', after: 'at a time' },
           { text: ', created by', field: 'canvasListUser' },
         ],
         lookup_canvas_sections: [
-          { text: 'Finds sections in canvas', field: 'lookupCanvasId', core: true },
+          { text: 'Find sections in canvas', field: 'lookupCanvasId', core: true },
           { text: 'matching', field: 'sectionCriteria' },
         ],
-        delete_canvas: [{ text: 'Deletes canvas', field: 'deleteCanvasId', core: true }],
-        create_conversation: [{ text: 'Creates channel', field: 'conversationName', core: true }],
+        delete_canvas: [{ text: 'Delete canvas', field: 'deleteCanvasId', core: true }],
+        create_conversation: [{ text: 'Create channel', field: 'conversationName', core: true }],
         invite_to_conversation: [
-          { text: 'Invites', field: 'inviteUsers', core: true },
+          { text: 'Invite', field: 'inviteUsers', core: true },
           { text: 'to', field: CHANNEL_FIELD, core: true },
         ],
         archive_conversation: [
           {
-            text: 'Archives',
+            text: 'Archive',
             field: CHANNEL_FIELD,
             core: true,
           },
         ],
         rename_conversation: [
           {
-            text: 'Renames',
+            text: 'Rename',
             field: CHANNEL_FIELD,
             core: true,
           },
@@ -231,7 +247,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         ],
         set_conversation_topic: [
           {
-            text: 'Sets the topic of',
+            text: 'Set the topic of',
             field: CHANNEL_FIELD,
             core: true,
           },
@@ -239,27 +255,27 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         ],
         set_conversation_purpose: [
           {
-            text: 'Sets the purpose of',
+            text: 'Set the purpose of',
             field: CHANNEL_FIELD,
             core: true,
           },
           { text: 'to', field: 'conversationPurpose' },
         ],
         open_view: [
-          { text: 'Opens a modal for trigger', field: 'viewTriggerId', core: true },
+          { text: 'Open a modal for trigger', field: 'viewTriggerId', core: true },
           { text: ', with', field: 'viewPayload' },
         ],
         push_view: [
-          { text: 'Pushes another modal for trigger', field: 'viewTriggerId', core: true },
+          { text: 'Push another modal for trigger', field: 'viewTriggerId', core: true },
           { text: ', with', field: 'viewPayload' },
         ],
         update_view: [
-          { text: 'Updates modal', field: ['viewId', 'viewExternalId'], core: true },
+          { text: 'Update modal', field: ['viewId', 'viewExternalId'], core: true },
           { text: ', with', field: 'viewPayload' },
         ],
         publish_view: [
           {
-            text: 'Publishes the Home tab for',
+            text: 'Publish the Home tab for',
             field: ['publishUserId', 'manualPublishUserId'],
             core: true,
           },
@@ -267,13 +283,13 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         ],
         list_scheduled_messages: [
           {
-            text: 'Lists scheduled messages in',
+            text: 'List scheduled messages in',
             field: CHANNEL_FIELD,
             core: true,
           },
         ],
         delete_scheduled_message: [
-          { text: 'Deletes scheduled message', field: 'scheduledMessageId', core: true },
+          { text: 'Delete scheduled message', field: 'scheduledMessageId', core: true },
           { text: 'in', field: CHANNEL_FIELD },
         ],
       },
@@ -2949,6 +2965,28 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
   // self-host). At GA: drop this flag, add SlackV2BlockMeta + docs, and set
   // hideFromToolbar on v1.
   preview: true,
+  canvasPresentation: {
+    ...SlackBlock.canvasPresentation,
+    defaultTitle: 'Slack',
+    /*
+     * Unlike v1, this trigger picks one event and scopes it, so the card names
+     * both. Each filter clause is gated on the events that expose it —
+     * `channelFilter` for channel-bound events, `emoji` for reactions,
+     * `nameContains` for channel creation — so at most one or two can ever show
+     * at once. `source` is left out on purpose: it is a multi-select dropdown,
+     * whose chip renders the stored ids (`im, group`) rather than the option
+     * labels, and it restates the channel scope the clause above already names.
+     */
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'eventType', core: true },
+        { text: 'in', field: SLACK_TRIGGER_CHANNEL_FIELD },
+        { text: 'with emoji', field: 'emoji' },
+        { text: 'whose name contains', field: 'nameContains' },
+      ],
+    },
+  },
   subBlocks: [
     ...SlackBlock.subBlocks.flatMap((sb) => {
       // Drop the legacy paste-secret trigger config (v1 hosts slack_webhook)

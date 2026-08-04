@@ -28,40 +28,40 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
     sentences: {
       byOperation: {
         leadmagic_find_email: [
-          { text: 'Finds the work email of', field: 'fe_full_name', core: true },
+          { text: 'Find the work email of', field: 'fe_full_name', core: true },
           { text: 'at', field: FIND_EMAIL_COMPANY_FIELD },
         ],
         leadmagic_validate_email: [
-          { text: 'Checks deliverability of', field: 've_email', core: true },
+          { text: 'Check deliverability of', field: 've_email', core: true },
         ],
         leadmagic_find_mobile: [
           {
-            text: 'Finds the mobile number of',
+            text: 'Find the mobile number of',
             field: ['fm_profile_url', 'fm_work_email'],
             core: true,
           },
         ],
         leadmagic_profile_search: [
-          { text: 'Enriches LinkedIn profile', field: 'ps_profile_url', core: true },
+          { text: 'Enrich LinkedIn profile', field: 'ps_profile_url', core: true },
         ],
         leadmagic_profile_to_email: [
-          { text: 'Extracts a work email from profile', field: 'pte_profile_url', core: true },
+          { text: 'Extract a work email from profile', field: 'pte_profile_url', core: true },
         ],
         leadmagic_email_to_profile: [
           {
-            text: 'Finds the LinkedIn profile behind',
+            text: 'Find the LinkedIn profile behind',
             field: ['etp_work_email', 'etp_personal_email'],
             core: true,
           },
         ],
         leadmagic_company_search: [
-          { text: 'Enriches company', field: COMPANY_SEARCH_FIELD, core: true },
+          { text: 'Enrich company', field: COMPANY_SEARCH_FIELD, core: true },
         ],
         leadmagic_role_finder: [
-          { text: 'Finds who holds', field: 'rf_job_title', core: true },
+          { text: 'Find who holds', field: 'rf_job_title', core: true },
           { text: 'at', field: ROLE_COMPANY_FIELD },
         ],
-        leadmagic_get_credits: ['Reads remaining credit balance'],
+        leadmagic_get_credits: ['Read remaining credit balance'],
       },
     },
   },

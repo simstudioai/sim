@@ -18,7 +18,7 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
     defaultTitle: 'Serper',
     sentences: {
       default: [
-        { text: 'Searches Google for', field: 'query', core: true },
+        { text: 'Search Google for', field: 'query', core: true },
         { text: ', from', field: 'gl' },
         { text: ', returning up to', field: 'num', after: 'results' },
       ],

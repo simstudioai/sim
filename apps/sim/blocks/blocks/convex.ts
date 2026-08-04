@@ -25,29 +25,29 @@ export const ConvexBlock: BlockConfig<ConvexResponse> = {
     sentences: {
       byOperation: {
         query: [
-          { text: 'Runs query', field: 'functionPath', core: true },
+          { text: 'Run query', field: 'functionPath', core: true },
           { text: ', with', field: 'args' },
         ],
         mutation: [
-          { text: 'Runs mutation', field: 'functionPath', core: true },
+          { text: 'Run mutation', field: 'functionPath', core: true },
           { text: ', with', field: 'args' },
         ],
         action: [
-          { text: 'Runs action', field: 'functionPath', core: true },
+          { text: 'Run action', field: 'functionPath', core: true },
           { text: ', with', field: 'args' },
         ],
         run_function: [
-          { text: 'Runs function', field: 'functionPath', core: true },
+          { text: 'Run function', field: 'functionPath', core: true },
           { text: ', with', field: 'args' },
         ],
-        list_tables: ['Lists every table and its schema'],
+        list_tables: ['List every table and its schema'],
         list_documents: [
-          'Lists documents',
+          'List documents',
           { text: 'from', field: 'tableName' },
           { text: ', continuing from', field: PAGE_RESUME_FIELD },
         ],
         document_deltas: [
-          { text: 'Reads documents changed since', field: 'cursor', core: true },
+          { text: 'Read documents changed since', field: 'cursor', core: true },
           { text: ', in', field: 'tableName' },
         ],
       },

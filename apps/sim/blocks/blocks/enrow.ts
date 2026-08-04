@@ -19,10 +19,10 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
     sentences: {
       byOperation: {
         enrow_find_email: [
-          { text: 'Finds email address for', field: 'fullname', core: true },
+          { text: 'Find email address for', field: 'fullname', core: true },
           { text: 'at', field: ['company_domain', 'company_name'] },
         ],
-        enrow_verify_email: [{ text: 'Verifies deliverability of', field: 've_email', core: true }],
+        enrow_verify_email: [{ text: 'Verify deliverability of', field: 've_email', core: true }],
       },
     },
   },

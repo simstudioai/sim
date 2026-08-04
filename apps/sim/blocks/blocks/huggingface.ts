@@ -19,7 +19,7 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
     defaultTitle: 'Hugging Face',
     sentences: {
       default: [
-        { text: 'Prompts', field: 'model', core: true },
+        { text: 'Prompt', field: 'model', core: true },
         { text: 'with', field: 'content' },
         { text: ', via', field: 'provider' },
       ],

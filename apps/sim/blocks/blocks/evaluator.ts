@@ -161,7 +161,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
     defaultTitle: 'Evaluator',
     sentences: {
       default: [
-        { text: 'Scores', field: 'content', core: true },
+        { text: 'Score', field: 'content', core: true },
         { text: 'against', field: 'metrics' },
       ],
     },

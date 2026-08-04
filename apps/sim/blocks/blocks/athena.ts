@@ -46,47 +46,47 @@ export const AthenaBlock: BlockConfig<
     sentences: {
       byOperation: {
         start_query: [
-          { text: 'Runs', field: 'queryString', core: true },
+          { text: 'Run', field: 'queryString', core: true },
           { text: 'on database', field: 'database' },
         ],
         get_query_execution: [
-          { text: 'Reads the status of query', field: 'queryExecutionId', core: true },
+          { text: 'Read the status of query', field: 'queryExecutionId', core: true },
         ],
         get_query_results: [
-          { text: 'Fetches the results of query', field: 'queryExecutionId', core: true },
+          { text: 'Fetch the results of query', field: 'queryExecutionId', core: true },
           { text: ', up to', field: 'maxResults', after: 'rows' },
         ],
-        stop_query: [{ text: 'Stops query', field: 'queryExecutionId', core: true }],
+        stop_query: [{ text: 'Stop query', field: 'queryExecutionId', core: true }],
         list_query_executions: [
-          'Lists recent query executions',
+          'List recent query executions',
           { text: ', in workgroup', field: 'workGroup' },
           { text: ', up to', field: 'maxResults' },
         ],
         batch_get_query_execution: [
           {
-            text: 'Reads the status of every query in',
+            text: 'Read the status of every query in',
             field: 'queryExecutionIds',
             core: true,
           },
         ],
         create_named_query: [
-          { text: 'Saves named query', field: 'queryName', core: true },
+          { text: 'Save named query', field: 'queryName', core: true },
           { text: 'on database', field: 'database' },
         ],
-        get_named_query: [{ text: 'Reads named query', field: 'namedQueryId', core: true }],
+        get_named_query: [{ text: 'Read named query', field: 'namedQueryId', core: true }],
         list_named_queries: [
-          'Lists saved named queries',
+          'List saved named queries',
           { text: ', in workgroup', field: 'workGroup' },
           { text: ', up to', field: 'maxResults' },
         ],
-        delete_named_query: [{ text: 'Deletes named query', field: 'namedQueryId', core: true }],
+        delete_named_query: [{ text: 'Delete named query', field: 'namedQueryId', core: true }],
         list_databases: [
-          'Lists databases',
+          'List databases',
           { text: ', in catalog', field: 'catalogName' },
           { text: ', up to', field: 'maxResults' },
         ],
         list_table_metadata: [
-          'Lists tables and their columns',
+          'List tables and their columns',
           { text: ', in database', field: 'databaseName' },
           { text: ', matching', field: 'expression' },
         ],

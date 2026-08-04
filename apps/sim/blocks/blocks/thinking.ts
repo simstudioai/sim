@@ -14,7 +14,7 @@ export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
   icon: BrainIcon,
   canvasPresentation: {
     defaultTitle: 'Thinking',
-    sentences: { default: ['Outlines a step-by-step thought process'] },
+    sentences: { default: ['Outline a step-by-step thought process'] },
   },
   hideFromToolbar: true,
 

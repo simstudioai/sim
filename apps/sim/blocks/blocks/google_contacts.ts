@@ -22,22 +22,22 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
     sentences: {
       byOperation: {
         create: [
-          { text: 'Creates contact', field: 'givenName', core: true },
+          { text: 'Create contact', field: 'givenName', core: true },
           { text: 'at', field: 'organization' },
           { text: ', with email', field: 'email' },
         ],
-        get: [{ text: 'Fetches contact', field: 'resourceName', core: true }],
-        list: ['Lists contacts', { text: ', up to', field: 'pageSize', after: 'per page' }],
+        get: [{ text: 'Fetch contact', field: 'resourceName', core: true }],
+        list: ['List contacts', { text: ', up to', field: 'pageSize', after: 'per page' }],
         search: [
-          { text: 'Searches contacts for', field: 'query', core: true },
+          { text: 'Search contacts for', field: 'query', core: true },
           { text: ', up to', field: 'pageSize', after: 'results' },
         ],
         update: [
-          { text: 'Updates contact', field: 'resourceName', core: true },
+          { text: 'Update contact', field: 'resourceName', core: true },
           { text: ', renaming to', field: 'givenName' },
           { text: ', with email', field: 'email' },
         ],
-        delete: [{ text: 'Deletes contact', field: 'resourceName', core: true }],
+        delete: [{ text: 'Delete contact', field: 'resourceName', core: true }],
       },
     },
   },

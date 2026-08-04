@@ -63,35 +63,35 @@ export const DowndetectorBlock: BlockConfig<DowndetectorResponse> = {
     sentences: {
       byOperation: {
         downdetector_search_companies: [
-          'Searches monitored companies',
+          'Search monitored companies',
           { text: ', named', field: 'name' },
           { text: ', in category', field: 'categoryId' },
           { text: ', in country', field: 'country' },
         ],
         downdetector_get_company: [
-          { text: 'Reads details for company', field: 'companyId', core: true },
+          { text: 'Read details for company', field: 'companyId', core: true },
         ],
         downdetector_get_company_status: [
-          { text: 'Checks outage status of company', field: 'companyId', core: true },
+          { text: 'Check outage status of company', field: 'companyId', core: true },
           { text: ', at threshold', field: 'threshold' },
         ],
         downdetector_get_company_baseline: [
           {
-            text: 'Reads expected report baseline for company',
+            text: 'Read expected report baseline for company',
             field: 'companyId',
             core: true,
           },
         ],
         downdetector_get_company_last_15: [
           {
-            text: 'Counts reports over the last 15 minutes for company',
+            text: 'Count reports over the last 15 minutes for company',
             field: 'companyId',
             core: true,
           },
         ],
         downdetector_get_company_indicators: [
           {
-            text: 'Lists reported problem indicators for company',
+            text: 'List reported problem indicators for company',
             field: 'companyId',
             core: true,
           },
@@ -100,38 +100,38 @@ export const DowndetectorBlock: BlockConfig<DowndetectorResponse> = {
           { text: ', ending', field: 'enddate' },
         ],
         downdetector_get_reports: [
-          { text: 'Counts reports over time for', field: 'slugs', core: true },
+          { text: 'Count reports over time for', field: 'slugs', core: true },
           { text: ', bucketed by', field: 'interval' },
           { text: ', since', field: 'startdate' },
         ],
         downdetector_get_company_incidents: [
-          { text: 'Lists incidents for company', field: 'companyId', core: true },
+          { text: 'List incidents for company', field: 'companyId', core: true },
           'in a date range',
           { text: ', starting', field: 'startdate' },
           { text: ', ending', field: 'enddate' },
         ],
         downdetector_get_company_attribution: [
-          { text: 'Reads outage attribution for company', field: 'companyId', core: true },
+          { text: 'Read outage attribution for company', field: 'companyId', core: true },
         ],
         downdetector_get_company_events: [
-          { text: 'Lists published outage events for company', field: 'companyId', core: true },
+          { text: 'List published outage events for company', field: 'companyId', core: true },
           'in a date range',
           { text: ', starting', field: 'startdate' },
           { text: ', ending', field: 'enddate' },
         ],
         downdetector_get_site_companies: [
-          { text: 'Lists companies monitored on site', field: 'siteId', core: true },
+          { text: 'List companies monitored on site', field: 'siteId', core: true },
         ],
         downdetector_get_provider: [
-          { text: 'Reads network provider', field: 'providerId', core: true },
+          { text: 'Read network provider', field: 'providerId', core: true },
         ],
         downdetector_list_incidents: [
-          'Lists incidents across every company in a date range',
+          'List incidents across every company in a date range',
           { text: ', starting', field: 'startdate' },
           { text: ', ending', field: 'enddate' },
         ],
-        downdetector_list_categories: ['Lists all service categories'],
-        downdetector_list_sites: ['Lists all regional status sites'],
+        downdetector_list_categories: ['List all service categories'],
+        downdetector_list_sites: ['List all regional status sites'],
       },
     },
   },

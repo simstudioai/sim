@@ -22,10 +22,10 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
     sentences: {
       byOperation: {
         share_post: [
-          { text: 'Posts', field: 'text', after: 'to your feed', core: true },
+          { text: 'Post', field: 'text', after: 'to your feed', core: true },
           { text: ', visible to', field: 'visibility' },
         ],
-        get_profile: ['Reads your profile'],
+        get_profile: ['Read your profile'],
       },
     },
   },

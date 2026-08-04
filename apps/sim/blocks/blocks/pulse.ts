@@ -31,7 +31,7 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
     defaultTitle: 'Pulse',
     sentences: {
       default: [
-        { text: 'Extracts text from', field: DOCUMENT_FIELD, core: true },
+        { text: 'Extract text from', field: DOCUMENT_FIELD, core: true },
         { text: ', pages', field: 'pages' },
         { text: ', chunked by', field: 'chunking' },
       ],
@@ -187,7 +187,7 @@ export const PulseV2Block: BlockConfig<PulseParserOutput> = {
     defaultTitle: 'Pulse',
     sentences: {
       default: [
-        { text: 'Extracts text from', field: DOCUMENT_V2_FIELD, core: true },
+        { text: 'Extract text from', field: DOCUMENT_V2_FIELD, core: true },
         { text: ', pages', field: 'pages' },
         { text: ', chunked by', field: 'chunking' },
       ],

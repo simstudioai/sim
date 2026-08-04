@@ -19,15 +19,15 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     sentences: {
       byOperation: {
         search: [
-          { text: 'Searches the web for', field: 'objective', core: true },
+          { text: 'Search the web for', field: 'objective', core: true },
           { text: ', limited to', field: 'search_include_domains' },
         ],
         extract: [
-          { text: 'Extracts', field: 'extract_objective', core: true },
+          { text: 'Extract', field: 'extract_objective', core: true },
           { text: 'from', field: 'urls', core: true },
         ],
         deep_research: [
-          { text: 'Runs deep research on', field: 'research_input', core: true },
+          { text: 'Run deep research on', field: 'research_input', core: true },
           { text: ', with the', field: 'processor', after: 'processor' },
         ],
       },

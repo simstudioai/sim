@@ -32,82 +32,82 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
     defaultTitle: 'Google Slides',
     sentences: {
       byOperation: {
-        read: [{ text: 'Reads all slides from', field: PRESENTATION_FIELD, core: true }],
+        read: [{ text: 'Read all slides from', field: PRESENTATION_FIELD, core: true }],
         write: [
-          { text: 'Writes', field: 'content', core: true },
+          { text: 'Write', field: 'content', core: true },
           { text: 'to slide', field: 'slideIndex' },
           { text: 'in', field: PRESENTATION_FIELD, core: true },
         ],
         create: [
-          { text: 'Creates presentation', field: 'title', core: true },
+          { text: 'Create presentation', field: 'title', core: true },
           { text: 'in folder', field: NEW_PRESENTATION_FOLDER_FIELD },
         ],
         copy_presentation: [
-          { text: 'Copies', field: SOURCE_PRESENTATION_FIELD, core: true },
+          { text: 'Copy', field: SOURCE_PRESENTATION_FIELD, core: true },
           { text: 'to a new file named', field: 'copyTitle' },
           { text: 'in folder', field: COPY_FOLDER_FIELD },
         ],
         export_presentation: [
-          { text: 'Exports', field: PRESENTATION_FIELD, core: true },
+          { text: 'Export', field: PRESENTATION_FIELD, core: true },
           { text: 'as', field: 'exportFormat' },
         ],
         batch_update: [
-          { text: 'Runs a raw batch update on', field: PRESENTATION_FIELD, core: true },
+          { text: 'Run a raw batch update on', field: PRESENTATION_FIELD, core: true },
         ],
         replace_all_text: [
-          { text: 'Replaces every', field: 'findText', core: true },
+          { text: 'Replace every', field: 'findText', core: true },
           { text: 'with', field: 'replaceText' },
           { text: 'in', field: PRESENTATION_FIELD },
         ],
         replace_all_shapes_with_image: [
-          { text: 'Replaces shapes matching', field: 'replaceShapesFindText', core: true },
+          { text: 'Replace shapes matching', field: 'replaceShapesFindText', core: true },
           { text: 'with the image at', field: 'replaceShapesImageUrl', core: true },
         ],
         replace_image: [
-          { text: 'Swaps image', field: 'replaceImageObjectId', core: true },
+          { text: 'Swap image', field: 'replaceImageObjectId', core: true },
           { text: 'for the image at', field: 'replaceImageUrl' },
         ],
         update_image_properties: [
-          { text: 'Restyles image', field: 'imagePropsObjectId', core: true },
+          { text: 'Restyle image', field: 'imagePropsObjectId', core: true },
           { text: ', setting outline to', field: 'imageOutlineColor' },
         ],
         add_slide: [
-          { text: 'Adds a slide to', field: PRESENTATION_FIELD, core: true },
+          { text: 'Add a slide to', field: PRESENTATION_FIELD, core: true },
           { text: ', using layout', field: 'layout' },
           { text: ', at position', field: 'insertionIndex' },
         ],
         add_image: [
-          { text: 'Adds an image to slide', field: 'pageObjectId', core: true },
+          { text: 'Add an image to slide', field: 'pageObjectId', core: true },
           { text: 'in', field: PRESENTATION_FIELD },
         ],
         get_thumbnail: [
-          { text: 'Renders a thumbnail of slide', field: 'thumbnailPageId', core: true },
+          { text: 'Render a thumbnail of slide', field: 'thumbnailPageId', core: true },
           { text: 'at', field: 'thumbnailSize' },
         ],
         get_page: [
-          { text: 'Reads slide', field: 'getPageObjectId', core: true },
+          { text: 'Read slide', field: 'getPageObjectId', core: true },
           { text: 'in', field: PRESENTATION_FIELD },
         ],
         delete_object: [
-          { text: 'Deletes object', field: 'deleteObjectId', core: true },
+          { text: 'Delete object', field: 'deleteObjectId', core: true },
           { text: 'from', field: PRESENTATION_FIELD },
         ],
         duplicate_object: [
-          { text: 'Duplicates object', field: 'duplicateObjectId', core: true },
+          { text: 'Duplicate object', field: 'duplicateObjectId', core: true },
           { text: 'in', field: PRESENTATION_FIELD },
         ],
         reorder_slides: [
-          { text: 'Moves slides', field: 'reorderSlideIds', core: true },
+          { text: 'Move slides', field: 'reorderSlideIds', core: true },
           { text: 'to position', field: 'reorderInsertionIndex' },
         ],
         create_table: [
-          { text: 'Creates a table on slide', field: 'tablePageObjectId', core: true },
+          { text: 'Create a table on slide', field: 'tablePageObjectId', core: true },
           { text: 'with', field: 'tableRows', after: 'rows' },
           { text: 'and', field: 'tableColumns', after: 'columns' },
         ],
         create_shape: [
           {
-            text: 'Creates shape',
+            text: 'Create shape',
             field: 'shapeType',
             after: 'on slide',
             core: true,
@@ -116,7 +116,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
         ],
         create_line: [
           {
-            text: 'Creates',
+            text: 'Create',
             field: 'lineCategory',
             after: 'line on slide',
             core: true,
@@ -124,67 +124,67 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
           { field: 'linePageObjectId', core: true },
         ],
         insert_text: [
-          { text: 'Inserts', field: 'insertTextContent', core: true },
+          { text: 'Insert', field: 'insertTextContent', core: true },
           { text: 'into', field: 'insertTextObjectId', core: true },
         ],
         delete_text: [
-          { text: 'Deletes text from', field: 'textObjectId', core: true },
+          { text: 'Delete text from', field: 'textObjectId', core: true },
           { text: ', covering', field: 'textRangeType' },
         ],
         update_text_style: [
-          { text: 'Styles text in', field: 'textObjectId', core: true },
+          { text: 'Style text in', field: 'textObjectId', core: true },
           { text: ', setting font to', field: 'textFontFamily' },
           { text: ', at size', field: 'textFontSize' },
         ],
         update_paragraph_style: [
-          { text: 'Styles paragraphs in', field: 'textObjectId', core: true },
+          { text: 'Style paragraphs in', field: 'textObjectId', core: true },
           { text: ', aligned', field: 'paragraphAlignment' },
         ],
         create_paragraph_bullets: [
-          { text: 'Adds bullets to paragraphs in', field: 'textObjectId', core: true },
+          { text: 'Add bullets to paragraphs in', field: 'textObjectId', core: true },
         ],
         delete_paragraph_bullets: [
-          { text: 'Removes bullets from paragraphs in', field: 'textObjectId', core: true },
+          { text: 'Remove bullets from paragraphs in', field: 'textObjectId', core: true },
         ],
         update_shape_properties: [
-          { text: 'Restyles shape', field: 'shapePropsObjectId', core: true },
+          { text: 'Restyle shape', field: 'shapePropsObjectId', core: true },
           { text: ', setting fill to', field: 'shapeFillColor' },
         ],
         update_page_properties: [
-          { text: 'Sets the background of slide', field: 'pagePropsObjectId', core: true },
+          { text: 'Set the background of slide', field: 'pagePropsObjectId', core: true },
           { text: 'to', field: 'pageBackgroundColor' },
         ],
         update_slide_properties: [
-          { text: 'Updates properties of slide', field: 'slidePropsObjectId', core: true },
+          { text: 'Update properties of slide', field: 'slidePropsObjectId', core: true },
         ],
         update_page_element_alt_text: [
-          { text: 'Sets alt text on element', field: 'altTextObjectId', core: true },
+          { text: 'Set alt text on element', field: 'altTextObjectId', core: true },
           { text: 'to', field: ['altTextTitle', 'altTextDescription'] },
         ],
         update_page_element_transform: [
-          { text: 'Moves or resizes element', field: 'transformObjectId', core: true },
+          { text: 'Move or resize element', field: 'transformObjectId', core: true },
         ],
         update_page_elements_z_order: [
-          { text: 'Sets layering of elements', field: 'zOrderObjectIds', core: true },
+          { text: 'Set layering of elements', field: 'zOrderObjectIds', core: true },
           { text: 'to', field: 'zOrderOperation' },
         ],
         group_objects: [
-          { text: 'Groups elements', field: 'groupChildrenObjectIds', core: true },
+          { text: 'Group elements', field: 'groupChildrenObjectIds', core: true },
           { text: 'into group', field: 'groupObjectIdInput' },
         ],
-        ungroup_objects: [{ text: 'Ungroups', field: 'ungroupObjectIds', core: true }],
+        ungroup_objects: [{ text: 'Ungroup', field: 'ungroupObjectIds', core: true }],
         update_line_properties: [
-          { text: 'Restyles line', field: 'linePropsObjectId', core: true },
+          { text: 'Restyle line', field: 'linePropsObjectId', core: true },
           { text: ', setting color to', field: 'lineColor' },
         ],
         update_line_category: [
-          { text: 'Sets the category of line', field: 'lineCategoryObjectId', core: true },
+          { text: 'Set the category of line', field: 'lineCategoryObjectId', core: true },
           { text: 'to', field: 'newLineCategory' },
         ],
-        reroute_line: [{ text: 'Reroutes line', field: 'rerouteLineObjectId', core: true }],
+        reroute_line: [{ text: 'Reroute line', field: 'rerouteLineObjectId', core: true }],
         insert_table_rows: [
           {
-            text: 'Inserts',
+            text: 'Insert',
             field: 'tableInsertNumber',
             after: 'rows into table',
             core: true,
@@ -193,7 +193,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
         ],
         insert_table_columns: [
           {
-            text: 'Inserts',
+            text: 'Insert',
             field: 'tableInsertNumber',
             after: 'columns into table',
             core: true,
@@ -201,56 +201,56 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
           { field: 'tableTargetObjectId', core: true },
         ],
         delete_table_row: [
-          { text: 'Deletes row', field: 'tableCellRowIndex', core: true },
+          { text: 'Delete row', field: 'tableCellRowIndex', core: true },
           { text: 'from table', field: 'tableTargetObjectId', core: true },
         ],
         delete_table_column: [
-          { text: 'Deletes column', field: 'tableCellColumnIndex', core: true },
+          { text: 'Delete column', field: 'tableCellColumnIndex', core: true },
           { text: 'from table', field: 'tableTargetObjectId', core: true },
         ],
         merge_table_cells: [
-          { text: 'Merges cells in table', field: 'tableRangeObjectId', core: true },
+          { text: 'Merge cells in table', field: 'tableRangeObjectId', core: true },
           { text: ', spanning', field: 'tableRangeRowSpan', after: 'rows' },
         ],
         unmerge_table_cells: [
-          { text: 'Unmerges cells in table', field: 'tableRangeObjectId', core: true },
+          { text: 'Unmerge cells in table', field: 'tableRangeObjectId', core: true },
         ],
         update_table_cell_properties: [
-          { text: 'Restyles cells in table', field: 'tableRangeObjectId', core: true },
+          { text: 'Restyle cells in table', field: 'tableRangeObjectId', core: true },
           { text: ', setting background to', field: 'tableCellBackgroundColor' },
         ],
         update_table_border_properties: [
-          { text: 'Restyles borders in table', field: 'tableRangeObjectId', core: true },
+          { text: 'Restyle borders in table', field: 'tableRangeObjectId', core: true },
           { text: ', on edges', field: 'tableBorderPosition' },
         ],
         update_table_column_properties: [
-          { text: 'Resizes columns', field: 'tableColumnIndices', core: true },
+          { text: 'Resize columns', field: 'tableColumnIndices', core: true },
           { text: 'in table', field: 'tableColumnPropsObjectId', core: true },
           { text: 'to', field: 'tableColumnWidth', after: 'points' },
         ],
         update_table_row_properties: [
-          { text: 'Resizes rows', field: 'tableRowIndices', core: true },
+          { text: 'Resize rows', field: 'tableRowIndices', core: true },
           { text: 'in table', field: 'tableRowPropsObjectId', core: true },
           { text: 'to at least', field: 'tableMinRowHeight', after: 'points' },
         ],
         create_sheets_chart: [
-          { text: 'Embeds Sheets chart', field: 'chartId', core: true },
+          { text: 'Embed Sheets chart', field: 'chartId', core: true },
           { text: 'on slide', field: 'chartPageObjectId' },
         ],
         refresh_sheets_chart: [
-          { text: 'Refreshes embedded chart', field: 'refreshChartObjectId', core: true },
+          { text: 'Refresh embedded chart', field: 'refreshChartObjectId', core: true },
         ],
         replace_all_shapes_with_sheets_chart: [
-          { text: 'Replaces shapes matching', field: 'replaceShapesChartFindText', core: true },
+          { text: 'Replace shapes matching', field: 'replaceShapesChartFindText', core: true },
           { text: 'with Sheets chart', field: 'chartId', core: true },
         ],
         create_video: [
-          { text: 'Embeds a video from', field: 'videoSource', core: true },
+          { text: 'Embed a video from', field: 'videoSource', core: true },
           { text: 'on slide', field: 'videoPageObjectId', core: true },
         ],
         update_video_properties: [
           {
-            text: 'Updates playback options for video',
+            text: 'Update playback options for video',
             field: 'videoPropsObjectId',
             core: true,
           },

@@ -30,7 +30,7 @@ export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
     defaultTitle: 'Extend',
     sentences: {
       default: [
-        { text: 'Parses', field: EXTEND_DOCUMENT_FIELD, core: true },
+        { text: 'Parse', field: EXTEND_DOCUMENT_FIELD, core: true },
         { text: 'into', field: 'outputFormat' },
       ],
     },
@@ -188,7 +188,7 @@ export const ExtendV2Block: BlockConfig<ExtendParserOutput> = {
     defaultTitle: 'Extend',
     sentences: {
       default: [
-        { text: 'Parses', field: EXTEND_V2_FILE_FIELD, core: true },
+        { text: 'Parse', field: EXTEND_V2_FILE_FIELD, core: true },
         { text: 'into', field: 'outputFormat' },
       ],
     },

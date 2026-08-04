@@ -36,51 +36,51 @@ export const RB2BBlock: BlockConfig<Rb2bResponse> = {
     defaultTitle: 'RB2B',
     sentences: {
       byOperation: {
-        credit_check: ['Checks remaining API credits'],
+        credit_check: ['Check remaining API credits'],
         ip_to_hem: [
-          { text: 'Resolves', field: 'ip_address', after: 'to hashed emails', core: true },
+          { text: 'Resolve', field: 'ip_address', after: 'to hashed emails', core: true },
         ],
         ip_to_maid: [
           {
-            text: 'Resolves',
+            text: 'Resolve',
             field: 'ip_address',
             after: 'to mobile advertising IDs',
             core: true,
           },
         ],
-        ip_to_company: [{ text: 'Identifies the company behind', field: 'ip_address', core: true }],
+        ip_to_company: [{ text: 'Identify the company behind', field: 'ip_address', core: true }],
         hem_to_business_profile: [
-          { text: 'Reads the business profile for', field: 'email', core: true },
+          { text: 'Read the business profile for', field: 'email', core: true },
         ],
         hem_to_best_linkedin: [
-          { text: 'Finds the most active LinkedIn URL for', field: 'email', core: true },
+          { text: 'Find the most active LinkedIn URL for', field: 'email', core: true },
         ],
-        hem_to_linkedin: [{ text: 'Finds the LinkedIn slug for', field: 'email', core: true }],
-        hem_to_maid: [{ text: 'Finds mobile advertising IDs for', field: 'email', core: true }],
+        hem_to_linkedin: [{ text: 'Find the LinkedIn slug for', field: 'email', core: true }],
+        hem_to_maid: [{ text: 'Find mobile advertising IDs for', field: 'email', core: true }],
         email_to_activity: [
-          { text: 'Reads the last active date for', field: 'emailAddress', core: true },
+          { text: 'Read the last active date for', field: 'emailAddress', core: true },
         ],
         linkedin_to_business_profile: [
-          { text: 'Reads the business profile behind', field: 'linkedin_slug', core: true },
+          { text: 'Read the business profile behind', field: 'linkedin_slug', core: true },
         ],
         linkedin_to_best_personal_email: [
           {
-            text: 'Finds the most recently active personal email for',
+            text: 'Find the most recently active personal email for',
             field: 'linkedin_slug',
             core: true,
           },
         ],
         linkedin_to_personal_email: [
-          { text: 'Finds personal emails for', field: 'linkedin_slug', core: true },
+          { text: 'Find personal emails for', field: 'linkedin_slug', core: true },
         ],
         linkedin_to_hashed_emails: [
-          { text: 'Finds hashed emails for', field: 'linkedin_slug', core: true },
+          { text: 'Find hashed emails for', field: 'linkedin_slug', core: true },
         ],
         linkedin_to_mobile_phone: [
-          { text: 'Finds the mobile phone number for', field: 'linkedin_slug', core: true },
+          { text: 'Find the mobile phone number for', field: 'linkedin_slug', core: true },
         ],
         linkedin_slug_search: [
-          { text: 'Finds the LinkedIn profile for', field: 'first_name', core: true },
+          { text: 'Find the LinkedIn profile for', field: 'first_name', core: true },
           { text: 'at', field: 'company_domain' },
         ],
       },

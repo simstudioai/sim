@@ -19,9 +19,9 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
     sentences: {
       byOperation: {
         zerobounce_verify_email: [
-          { text: 'Validates deliverability of', field: 've_email', core: true },
+          { text: 'Validate deliverability of', field: 've_email', core: true },
         ],
-        zerobounce_get_credits: ['Reads remaining validation credits'],
+        zerobounce_get_credits: ['Read remaining validation credits'],
       },
     },
   },

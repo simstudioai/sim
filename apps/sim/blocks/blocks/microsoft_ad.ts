@@ -20,42 +20,42 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
     sentences: {
       byOperation: {
         list_users: [
-          'Lists users',
+          'List users',
           { text: ', matching', field: 'search' },
           { text: ', where', field: 'filter' },
         ],
-        get_user: [{ text: 'Fetches user', field: 'userId', core: true }],
+        get_user: [{ text: 'Fetch user', field: 'userId', core: true }],
         create_user: [
-          { text: 'Creates user', field: 'displayName', core: true },
+          { text: 'Create user', field: 'displayName', core: true },
           { text: ', signing in as', field: 'userPrincipalName' },
         ],
         update_user: [
-          { text: 'Updates user', field: 'userId', core: true },
+          { text: 'Update user', field: 'userId', core: true },
           { text: ', renaming them to', field: 'displayName' },
         ],
-        delete_user: [{ text: 'Deletes user', field: 'userId', core: true }],
+        delete_user: [{ text: 'Delete user', field: 'userId', core: true }],
         list_groups: [
-          'Lists groups',
+          'List groups',
           { text: ', matching', field: 'search' },
           { text: ', where', field: 'filter' },
         ],
-        get_group: [{ text: 'Fetches group', field: 'groupId', core: true }],
+        get_group: [{ text: 'Fetch group', field: 'groupId', core: true }],
         create_group: [
-          { text: 'Creates group', field: 'groupDisplayName', core: true },
+          { text: 'Create group', field: 'groupDisplayName', core: true },
           { text: ', as a', field: 'groupTypes' },
         ],
         update_group: [
-          { text: 'Updates group', field: 'groupId', core: true },
+          { text: 'Update group', field: 'groupId', core: true },
           { text: ', renaming it to', field: 'groupDisplayName' },
         ],
-        delete_group: [{ text: 'Deletes group', field: 'groupId', core: true }],
-        list_group_members: [{ text: 'Lists members of group', field: 'groupId', core: true }],
+        delete_group: [{ text: 'Delete group', field: 'groupId', core: true }],
+        list_group_members: [{ text: 'List members of group', field: 'groupId', core: true }],
         add_group_member: [
-          { text: 'Adds member', field: 'memberId', core: true },
+          { text: 'Add member', field: 'memberId', core: true },
           { text: 'to group', field: 'groupId', core: true },
         ],
         remove_group_member: [
-          { text: 'Removes member', field: 'memberId', core: true },
+          { text: 'Remove member', field: 'memberId', core: true },
           { text: 'from group', field: 'groupId', core: true },
         ],
       },

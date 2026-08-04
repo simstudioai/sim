@@ -132,84 +132,84 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
     defaultTitle: 'Instagram',
     sentences: {
       byOperation: {
-        instagram_get_profile: ['Fetches the connected account profile'],
+        instagram_get_profile: ['Fetch the connected account profile'],
         instagram_list_media: [
-          'Lists recent media',
+          'List recent media',
           { text: ', up to', field: 'limit', after: 'items' },
         ],
-        instagram_get_media: [{ text: 'Fetches media', field: 'mediaId', core: true }],
+        instagram_get_media: [{ text: 'Fetch media', field: 'mediaId', core: true }],
         instagram_download_media: [
-          { text: 'Downloads media', field: 'mediaId', core: true },
+          { text: 'Download media', field: 'mediaId', core: true },
           { text: ', saving as', field: 'filename' },
         ],
         instagram_list_stories: [
-          'Lists active stories',
+          'List active stories',
           { text: ', up to', field: 'limit', after: 'items' },
         ],
         instagram_publish_image: [
-          { text: 'Publishes image', field: IMAGE_FIELD, core: true },
+          { text: 'Publish image', field: IMAGE_FIELD, core: true },
           { text: ', captioned', field: 'caption' },
         ],
         instagram_publish_video: [
-          { text: 'Publishes feed video', field: VIDEO_FIELD, core: true },
+          { text: 'Publish feed video', field: VIDEO_FIELD, core: true },
           { text: ', captioned', field: 'caption' },
         ],
         instagram_publish_reel: [
-          { text: 'Publishes reel', field: VIDEO_FIELD, core: true },
+          { text: 'Publish reel', field: VIDEO_FIELD, core: true },
           { text: ', captioned', field: 'caption' },
         ],
         instagram_publish_story: [
-          { text: 'Publishes a story from', field: STORY_MEDIA_FIELD, core: true },
+          { text: 'Publish a story from', field: STORY_MEDIA_FIELD, core: true },
         ],
         instagram_publish_carousel: [
-          { text: 'Publishes a carousel of', field: CAROUSEL_MEDIA_FIELD, core: true },
+          { text: 'Publish a carousel of', field: CAROUSEL_MEDIA_FIELD, core: true },
           { text: ', captioned', field: 'caption' },
         ],
         instagram_get_container_status: [
-          { text: 'Checks publishing status of container', field: 'containerId', core: true },
+          { text: 'Check publishing status of container', field: 'containerId', core: true },
         ],
-        instagram_get_publishing_limit: ['Checks the content publishing rate limit'],
+        instagram_get_publishing_limit: ['Check the content publishing rate limit'],
         instagram_list_comments: [
-          { text: 'Lists comments on media', field: 'mediaId', core: true },
+          { text: 'List comments on media', field: 'mediaId', core: true },
           { text: ', up to', field: 'limit', after: 'items' },
         ],
         instagram_reply_to_comment: [
-          { text: 'Replies publicly to comment', field: 'commentId', core: true },
+          { text: 'Reply publicly to comment', field: 'commentId', core: true },
           { text: ', with', field: 'message' },
         ],
         instagram_hide_comment: [
-          { text: 'Sets comment', field: 'commentId', core: true },
+          { text: 'Set comment', field: 'commentId', core: true },
           { text: 'to', field: 'hide' },
         ],
-        instagram_delete_comment: [{ text: 'Deletes comment', field: 'commentId', core: true }],
+        instagram_delete_comment: [{ text: 'Delete comment', field: 'commentId', core: true }],
         instagram_set_comments_enabled: [
-          { text: 'Sets comments on media', field: 'mediaId', core: true },
+          { text: 'Set comments on media', field: 'mediaId', core: true },
           { text: 'to', field: 'commentEnabled' },
         ],
         instagram_private_reply: [
-          { text: 'Sends a private reply to comment', field: 'commentId', core: true },
+          { text: 'Send a private reply to comment', field: 'commentId', core: true },
           { text: ', with', field: 'message' },
         ],
         instagram_list_conversations: [
-          'Lists DM conversations',
+          'List DM conversations',
           { text: ', up to', field: 'limit', after: 'items' },
         ],
         instagram_get_conversation_messages: [
-          { text: 'Lists messages in conversation', field: 'conversationId', core: true },
+          { text: 'List messages in conversation', field: 'conversationId', core: true },
           { text: ', up to', field: 'limit', after: 'items' },
         ],
-        instagram_get_message: [{ text: 'Fetches DM', field: 'messageId', core: true }],
+        instagram_get_message: [{ text: 'Fetch DM', field: 'messageId', core: true }],
         instagram_send_text_message: [
-          { text: 'Sends', field: 'message', core: true },
+          { text: 'Send', field: 'message', core: true },
           { text: 'to', field: 'recipientId', core: true },
         ],
         instagram_get_account_insights: [
-          'Reports account insights',
+          'Report account insights',
           { text: ', measuring', field: 'metrics' },
           { text: ', since', field: 'since' },
         ],
         instagram_get_media_insights: [
-          { text: 'Reports insights for media', field: 'mediaId', core: true },
+          { text: 'Report insights for media', field: 'mediaId', core: true },
           { text: ', measuring', field: 'metrics' },
         ],
       },

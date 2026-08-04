@@ -19,11 +19,11 @@ export const GoogleBooksBlock: BlockConfig = {
     sentences: {
       byOperation: {
         volume_search: [
-          { text: 'Searches books matching', field: 'query', core: true },
+          { text: 'Search books matching', field: 'query', core: true },
           { text: ', restricted to', field: 'filter' },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
-        volume_details: [{ text: 'Fetches details for volume', field: 'volumeId', core: true }],
+        volume_details: [{ text: 'Fetch details for volume', field: 'volumeId', core: true }],
       },
     },
   },

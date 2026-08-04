@@ -17,17 +17,30 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
   icon: LemlistIcon,
   canvasPresentation: {
     defaultTitle: 'Lemlist',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in campaign', field: 'campaignId' },
+      ],
+      byTrigger: {
+        lemlist_webhook: [
+          'Run on any campaign activity',
+          { text: 'in campaign', field: 'campaignId' },
+        ],
+      },
+    },
     sentences: {
       byOperation: {
         get_activities: [
-          'Lists campaign activities',
+          'List campaign activities',
           { text: 'of type', field: 'type' },
           { text: ', in campaign', field: 'campaignId' },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
-        get_lead: [{ text: 'Fetches lead', field: ['email', 'leadIdLookup'], core: true }],
+        get_lead: [{ text: 'Fetch lead', field: ['email', 'leadIdLookup'], core: true }],
         send_email: [
-          { text: 'Sends', field: 'subject', core: true },
+          { text: 'Send', field: 'subject', core: true },
           { text: 'to lead', field: 'leadId' },
           { text: ', from', field: 'sendUserEmail' },
         ],

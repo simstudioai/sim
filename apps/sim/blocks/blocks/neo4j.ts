@@ -19,17 +19,13 @@ export const Neo4jBlock: BlockConfig<Neo4jResponse | Neo4jIntrospectResponse> = 
     defaultTitle: 'Neo4j',
     sentences: {
       byOperation: {
-        query: [{ text: 'Reads nodes and relationships with', field: 'cypherQuery', core: true }],
-        create: [
-          { text: 'Creates nodes and relationships with', field: 'cypherQuery', core: true },
-        ],
-        merge: [{ text: 'Finds or creates nodes with', field: 'cypherQuery', core: true }],
-        update: [{ text: 'Sets properties with', field: 'cypherQuery', core: true }],
-        delete: [
-          { text: 'Deletes nodes and relationships with', field: 'cypherQuery', core: true },
-        ],
-        execute: [{ text: 'Runs Cypher', field: 'cypherQuery', core: true }],
-        introspect: ['Reads the graph schema', { text: 'of database', field: 'database' }],
+        query: [{ text: 'Read nodes and relationships with', field: 'cypherQuery', core: true }],
+        create: [{ text: 'Create nodes and relationships with', field: 'cypherQuery', core: true }],
+        merge: [{ text: 'Find or create nodes with', field: 'cypherQuery', core: true }],
+        update: [{ text: 'Set properties with', field: 'cypherQuery', core: true }],
+        delete: [{ text: 'Delete nodes and relationships with', field: 'cypherQuery', core: true }],
+        execute: [{ text: 'Run Cypher', field: 'cypherQuery', core: true }],
+        introspect: ['Read the graph schema', { text: 'of database', field: 'database' }],
       },
     },
   },

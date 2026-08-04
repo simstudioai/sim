@@ -41,70 +41,70 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     sentences: {
       byOperation: {
         create_page: [
-          { text: 'Creates page', field: 'pageName', core: true },
+          { text: 'Create page', field: 'pageName', core: true },
           { text: 'in', field: SITE_FIELD, core: true },
         ],
         read_page: [
-          { text: 'Reads page', field: PAGE_REF_FIELD, core: true },
+          { text: 'Read page', field: PAGE_REF_FIELD, core: true },
           { text: 'from', field: SITE_FIELD, core: true },
         ],
         update_page: [
-          'Updates a page',
+          'Update a page',
           { text: 'with ID', field: 'pageId' },
           { text: 'in', field: SITE_FIELD, core: true },
           { text: ', setting title to', field: 'pageTitle' },
         ],
         publish_page: [
-          'Publishes a page',
+          'Publish a page',
           { text: 'with ID', field: 'pageId' },
           { text: 'in', field: SITE_FIELD, core: true },
         ],
         delete_page: [
-          'Deletes a page',
+          'Delete a page',
           { text: 'with ID', field: 'pageId' },
           { text: 'from', field: SITE_FIELD, core: true },
         ],
-        list_sites: ['Lists sites', { text: ', in group', field: 'groupId' }],
+        list_sites: ['List sites', { text: ', in group', field: 'groupId' }],
         create_list: [
-          { text: 'Creates list', field: 'listDisplayName', core: true },
+          { text: 'Create list', field: 'listDisplayName', core: true },
           { text: 'in', field: SITE_FIELD, core: true },
         ],
         read_list: [
-          { text: 'Reads metadata for list', field: LIST_FIELD, core: true },
+          { text: 'Read metadata for list', field: LIST_FIELD, core: true },
           { text: 'in', field: SITE_FIELD },
         ],
         update_list: [
-          { text: 'Updates item', field: 'listItemId', core: true },
+          { text: 'Update item', field: 'listItemId', core: true },
           { text: 'in list', field: LIST_FIELD, core: true },
           { text: ', setting', field: 'listItemFields' },
         ],
         add_list_items: [
-          { text: 'Adds an item to list', field: LIST_FIELD, core: true },
+          { text: 'Add an item to list', field: LIST_FIELD, core: true },
           { text: ', with', field: 'listItemFields' },
         ],
         get_list_item: [
-          { text: 'Reads item', field: 'listItemId', core: true },
+          { text: 'Read item', field: 'listItemId', core: true },
           { text: 'from list', field: LIST_FIELD, core: true },
         ],
         delete_list_item: [
-          { text: 'Deletes item', field: 'listItemId', core: true },
+          { text: 'Delete item', field: 'listItemId', core: true },
           { text: 'from list', field: LIST_FIELD, core: true },
         ],
         upload_file: [
-          { text: 'Uploads', field: FILES_FIELD, core: true },
+          { text: 'Upload', field: FILES_FIELD, core: true },
           { text: 'to', field: SITE_FIELD, core: true },
           { text: ', under', field: 'folderPath' },
         ],
         download_file: [
-          { text: 'Downloads file', field: 'driveItemId', core: true },
+          { text: 'Download file', field: 'driveItemId', core: true },
           { text: 'from library', field: 'driveId' },
         ],
         get_drive_item: [
-          { text: 'Reads metadata for file', field: 'driveItemId', core: true },
+          { text: 'Read metadata for file', field: 'driveItemId', core: true },
           { text: 'in library', field: 'driveId' },
         ],
         delete_file: [
-          { text: 'Deletes file', field: 'driveItemId', core: true },
+          { text: 'Delete file', field: 'driveItemId', core: true },
           { text: 'from library', field: 'driveId' },
         ],
       },
@@ -919,70 +919,70 @@ export const SharepointV2Block: BlockConfig<SharepointResponse> = {
     sentences: {
       byOperation: {
         sharepoint_create_page: [
-          { text: 'Creates page', field: 'pageName', core: true },
+          { text: 'Create page', field: 'pageName', core: true },
           { text: 'in', field: SITE_FIELD, core: true },
         ],
         sharepoint_read_page: [
-          { text: 'Reads page', field: PAGE_REF_FIELD, core: true },
+          { text: 'Read page', field: PAGE_REF_FIELD, core: true },
           { text: 'from', field: SITE_FIELD, core: true },
         ],
         sharepoint_update_page: [
-          'Updates a page',
+          'Update a page',
           { text: 'with ID', field: 'pageId' },
           { text: 'in', field: SITE_FIELD, core: true },
           { text: ', setting title to', field: 'pageTitle' },
         ],
         sharepoint_publish_page: [
-          'Publishes a page',
+          'Publish a page',
           { text: 'with ID', field: 'pageId' },
           { text: 'in', field: SITE_FIELD, core: true },
         ],
         sharepoint_delete_page: [
-          'Deletes a page',
+          'Delete a page',
           { text: 'with ID', field: 'pageId' },
           { text: 'from', field: SITE_FIELD, core: true },
         ],
-        sharepoint_list_sites: ['Lists sites', { text: ', in group', field: 'groupId' }],
+        sharepoint_list_sites: ['List sites', { text: ', in group', field: 'groupId' }],
         sharepoint_create_list: [
-          { text: 'Creates list', field: 'listDisplayName', core: true },
+          { text: 'Create list', field: 'listDisplayName', core: true },
           { text: 'in', field: SITE_FIELD, core: true },
         ],
         sharepoint_get_list: [
-          { text: 'Reads metadata for list', field: V2_LIST_FIELD, core: true },
+          { text: 'Read metadata for list', field: V2_LIST_FIELD, core: true },
           { text: 'in', field: SITE_FIELD },
         ],
         sharepoint_update_list: [
-          { text: 'Updates item', field: 'itemId', core: true },
+          { text: 'Update item', field: 'itemId', core: true },
           { text: 'in list', field: V2_LIST_FIELD, core: true },
           { text: ', setting', field: 'listItemFields' },
         ],
         sharepoint_add_list_items: [
-          { text: 'Adds an item to list', field: V2_LIST_FIELD, core: true },
+          { text: 'Add an item to list', field: V2_LIST_FIELD, core: true },
           { text: ', with', field: 'listItemFields' },
         ],
         sharepoint_get_list_item: [
-          { text: 'Reads item', field: 'itemId', core: true },
+          { text: 'Read item', field: 'itemId', core: true },
           { text: 'from list', field: V2_LIST_FIELD, core: true },
         ],
         sharepoint_delete_list_item: [
-          { text: 'Deletes item', field: 'itemId', core: true },
+          { text: 'Delete item', field: 'itemId', core: true },
           { text: 'from list', field: V2_LIST_FIELD, core: true },
         ],
         sharepoint_upload_file: [
-          { text: 'Uploads', field: V2_FILES_FIELD, core: true },
+          { text: 'Upload', field: V2_FILES_FIELD, core: true },
           { text: 'to', field: SITE_FIELD, core: true },
           { text: ', under', field: 'folderPath' },
         ],
         sharepoint_download_file: [
-          { text: 'Downloads file', field: 'driveItemId', core: true },
+          { text: 'Download file', field: 'driveItemId', core: true },
           { text: 'from library', field: 'driveId' },
         ],
         sharepoint_get_drive_item: [
-          { text: 'Reads metadata for file', field: 'driveItemId', core: true },
+          { text: 'Read metadata for file', field: 'driveItemId', core: true },
           { text: 'in library', field: 'driveId' },
         ],
         sharepoint_delete_file: [
-          { text: 'Deletes file', field: 'driveItemId', core: true },
+          { text: 'Delete file', field: 'driveItemId', core: true },
           { text: 'from library', field: 'driveId' },
         ],
       },

@@ -33,7 +33,7 @@ export const ScheduleBlock: BlockConfig = {
      */
     triggerSentences: {
       default: [
-        'Runs',
+        'Run',
         { text: 'every', field: 'minutesInterval', after: 'minutes', core: true },
         { text: 'hourly, at minute', field: 'hourlyMinute', core: true },
         { text: 'daily at', field: 'dailyTime', core: true },

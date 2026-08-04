@@ -19,7 +19,7 @@ export const VariablesBlock: BlockConfig = {
   canvasPresentation: {
     defaultTitle: 'Variables',
     sentences: {
-      default: [{ text: 'Sets', field: 'variables', core: true }],
+      default: [{ text: 'Set', field: 'variables', core: true }],
     },
   },
   category: 'blocks',

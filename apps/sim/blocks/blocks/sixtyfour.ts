@@ -22,20 +22,20 @@ export const SixtyfourBlock: BlockConfig = {
     sentences: {
       byOperation: {
         find_phone: [
-          { text: 'Finds phone numbers for', field: PHONE_LOOKUP_FIELD, core: true },
+          { text: 'Find phone numbers for', field: PHONE_LOOKUP_FIELD, core: true },
           { text: 'at', field: EMPLOYER_FIELD },
         ],
         find_email: [
-          { text: 'Finds email addresses for', field: EMAIL_LOOKUP_FIELD, core: true },
+          { text: 'Find email addresses for', field: EMAIL_LOOKUP_FIELD, core: true },
           { text: 'at', field: EMPLOYER_FIELD },
           { text: ', titled', field: 'title' },
         ],
         enrich_lead: [
-          { text: 'Researches lead', field: 'leadInfo', core: true },
+          { text: 'Research lead', field: 'leadInfo', core: true },
           { text: ', collecting', field: 'leadStruct' },
         ],
         enrich_company: [
-          { text: 'Researches company', field: 'targetCompany', core: true },
+          { text: 'Research company', field: 'targetCompany', core: true },
           { text: ', collecting', field: 'companyStruct' },
         ],
       },

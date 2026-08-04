@@ -145,31 +145,31 @@ export const ManagedAgentBlock: BlockConfig = {
     sentences: {
       byOperation: {
         run_session: [
-          { text: 'Runs', field: 'agent', core: true },
+          { text: 'Run', field: 'agent', core: true },
           { text: 'on', field: 'userMessage' },
         ],
         create_session: [
           {
-            text: 'Creates a session for',
+            text: 'Create a session for',
             field: 'agent',
             core: true,
           },
           { text: 'in', field: 'environment' },
         ],
         send_message: [
-          { text: 'Sends', field: 'userMessage', core: true },
+          { text: 'Send', field: 'userMessage', core: true },
           { text: 'to session', field: 'sessionId', core: true },
         ],
         get_session: [
           {
-            text: 'Reads the status of session',
+            text: 'Read the status of session',
             field: 'sessionId',
             core: true,
           },
         ],
         list_events: [
           {
-            text: 'Reads the event history of session',
+            text: 'Read the event history of session',
             field: 'sessionId',
             core: true,
           },
@@ -177,7 +177,7 @@ export const ManagedAgentBlock: BlockConfig = {
         ],
         update_session: [
           {
-            text: 'Updates session',
+            text: 'Update session',
             field: 'sessionId',
             core: true,
           },
@@ -185,33 +185,33 @@ export const ManagedAgentBlock: BlockConfig = {
         ],
         interrupt_session: [
           {
-            text: 'Stops the run in session',
+            text: 'Stop the run in session',
             field: 'sessionId',
             core: true,
           },
         ],
         respond_tool_confirmation: [
           {
-            text: 'Sets pending tool calls in session',
+            text: 'Set pending tool calls in session',
             field: 'sessionId',
             core: true,
           },
           { text: 'to', field: 'decision' },
         ],
         respond_custom_tool: [
-          { text: 'Returns', field: 'result', core: true },
+          { text: 'Return', field: 'result', core: true },
           { text: 'to tool call', field: 'customToolUseId', core: true },
         ],
         archive_session: [
           {
-            text: 'Archives session',
+            text: 'Archive session',
             field: 'sessionId',
             core: true,
           },
         ],
         delete_session: [
           {
-            text: 'Permanently deletes session',
+            text: 'Permanently delete session',
             field: 'sessionId',
             core: true,
           },

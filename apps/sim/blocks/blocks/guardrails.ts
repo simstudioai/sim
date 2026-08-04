@@ -45,7 +45,7 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
     sentences: {
       default: [
         {
-          text: 'Validates content using',
+          text: 'Validate content using',
           field: 'validationType',
           core: true,
         },

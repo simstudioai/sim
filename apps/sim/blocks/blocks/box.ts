@@ -24,50 +24,50 @@ export const BoxBlock: BlockConfig = {
     sentences: {
       byOperation: {
         upload_file: [
-          { text: 'Uploads', field: UPLOAD_FILE_FIELD, core: true },
+          { text: 'Upload', field: UPLOAD_FILE_FIELD, core: true },
           { text: 'to folder', field: 'parentFolderId' },
         ],
-        download_file: [{ text: 'Downloads file', field: 'fileId', core: true }],
-        get_file_info: [{ text: 'Reads details of file', field: 'fileId', core: true }],
+        download_file: [{ text: 'Download file', field: 'fileId', core: true }],
+        get_file_info: [{ text: 'Read details of file', field: 'fileId', core: true }],
         list_folder_items: [
-          { text: 'Lists items in folder', field: 'folderId', core: true },
+          { text: 'List items in folder', field: 'folderId', core: true },
           { text: ', up to', field: 'limit', after: 'per page' },
         ],
         create_folder: [
-          { text: 'Creates folder', field: 'folderName', core: true },
+          { text: 'Create folder', field: 'folderName', core: true },
           { text: 'in parent folder', field: 'parentFolderId' },
         ],
-        delete_file: [{ text: 'Deletes file', field: 'fileId', core: true }],
-        delete_folder: [{ text: 'Deletes folder', field: 'folderId', core: true }],
+        delete_file: [{ text: 'Delete file', field: 'fileId', core: true }],
+        delete_folder: [{ text: 'Delete folder', field: 'folderId', core: true }],
         copy_file: [
-          { text: 'Copies file', field: 'fileId', core: true },
+          { text: 'Copy file', field: 'fileId', core: true },
           { text: 'to folder', field: 'parentFolderId' },
           { text: ', as', field: 'copyName' },
         ],
         search: [
-          { text: 'Searches files and folders for', field: 'query', core: true },
+          { text: 'Search files and folders for', field: 'query', core: true },
           { text: ', under folder', field: 'ancestorFolderId' },
         ],
         update_file: [
-          { text: 'Updates file', field: 'fileId', core: true },
+          { text: 'Update file', field: 'fileId', core: true },
           { text: ', renaming to', field: 'newName' },
           { text: ', moving to folder', field: 'moveToFolderId' },
         ],
         sign_create_request: [
-          { text: 'Sends files', field: 'sourceFileIds', core: true },
+          { text: 'Send files', field: 'sourceFileIds', core: true },
           { text: 'for signature to', field: 'signerEmail', core: true },
         ],
         sign_get_request: [
-          { text: 'Reads status of sign request', field: 'signRequestId', core: true },
+          { text: 'Read status of sign request', field: 'signRequestId', core: true },
         ],
         sign_list_requests: [
-          'Lists sign requests',
+          'List sign requests',
           { text: ', up to', field: 'limit', after: 'per page' },
         ],
-        sign_cancel_request: [{ text: 'Cancels sign request', field: 'signRequestId', core: true }],
+        sign_cancel_request: [{ text: 'Cancel sign request', field: 'signRequestId', core: true }],
         sign_resend_request: [
           {
-            text: 'Resends sign request',
+            text: 'Resend sign request',
             field: 'signRequestId',
             core: true,
             after: 'to pending signers',

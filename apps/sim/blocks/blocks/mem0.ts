@@ -17,16 +17,16 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
     sentences: {
       byOperation: {
         add: [
-          { text: 'Adds', field: 'messages', after: 'to memory', core: true },
+          { text: 'Add', field: 'messages', after: 'to memory', core: true },
           { text: 'for user', field: 'userId', core: true },
         ],
         search: [
-          { text: 'Searches memories for', field: 'query', core: true },
+          { text: 'Search memories for', field: 'query', core: true },
           { text: ', scoped to user', field: 'userId' },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         get: [
-          { text: 'Fetches memory', field: 'memoryId', core: true },
+          { text: 'Fetch memory', field: 'memoryId', core: true },
           { text: 'for user', field: 'userId', core: true },
           { text: ', since', field: 'startDate' },
         ],

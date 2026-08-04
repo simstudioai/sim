@@ -18,7 +18,7 @@ A block's card can replace its label/value rows with one line of prose:
 
 ```
 Slack                                    ← header (already names the block)
-Posts ⟨Ship it 🚀⟩ to ⟨#eng⟩             ← the sentence; ⟨…⟩ are live value chips
+Post ⟨Ship it 🚀⟩ to ⟨#eng⟩              ← the sentence; ⟨…⟩ are live value chips
 ```
 
 Declare it under `canvasPresentation.sentences` — `default` for a block with no
@@ -37,8 +37,8 @@ Every clause is optional by default and renders only once its field is filled.
 value when set and the field's **noun** when not.
 
 ```
-Posts ⟨Ship it 🚀⟩ to ⟨#eng⟩       ← configured
-Posts ⟨a message⟩                  ← untouched, from `core` alone
+Post ⟨Ship it 🚀⟩ to ⟨#eng⟩        ← configured
+Post ⟨a message⟩                   ← untouched, from `core` alone
 ```
 
 The noun is derived from the subblock's `title` (`resolveFieldNoun`), so it costs
@@ -74,10 +74,10 @@ pagination controls. Those want literal copy, not an anchor:
 
 ```ts
 // ✗ `limit` is mode:'advanced' — a fresh card renders nothing at all
-list_customers: [{ text: 'Lists customers, up to', field: 'limit', core: true }]
+list_customers: [{ text: 'List customers, up to', field: 'limit', core: true }]
 
 // ✓ the literal always renders; the detail appears once it is filled
-list_customers: ['Lists customers', { text: ', up to', field: 'limit' }]
+list_customers: ['List customers', { text: ', up to', field: 'limit' }]
 ```
 
 A canonical basic/advanced **pair** is fine to anchor on — one member is always
@@ -93,10 +93,10 @@ literal copy that is true both ways:
 
 ```ts
 // ✗ claims one contact; untouched, this returns every contact
-get_contacts: [{ text: 'Reads contact', field: 'contactId', core: true }]
+get_contacts: [{ text: 'Read contact', field: 'contactId', core: true }]
 
 // ✓ true empty and true filled
-get_contacts: ['Reads contacts', { text: 'matching', field: 'contactId' }]
+get_contacts: ['Read contacts', { text: 'matching', field: 'contactId' }]
 ```
 
 #### Give the operation dropdown a default
@@ -121,15 +121,16 @@ triggerSentences?: {
 **Most blocks declare nothing.** Trigger mode usually exposes a webhook URL and a
 signing secret — plumbing, not meaning — and the thing worth reading is *which*
 event was picked. That is already curated as the trigger's `name` in
-`apps/sim/triggers/`, so the card derives `Runs on Pull Request Opened` with no
+`apps/sim/triggers/`, so the card derives `Run on Pull Request Opened` with no
 authoring at all. Declare `triggerSentences` only when the configuration is
 itself the meaning, as Schedule's frequency is.
 
-The voice shifts with the mode. An action sentence says what the block does; a
-trigger sentence says what starts the run — `Runs when an email arrives in
-⟨INBOX⟩`, never `Reads an email`. It is a separate slot rather than another
-`byOperation` key because trigger mode swaps the subblock set wholesale, and the
-operation dropdown still holds its action-mode default.
+What the sentence *says* shifts with the mode, though the voice does not. An
+action sentence names what the block does; a trigger sentence names what starts
+the run — `Run on an email arriving in ⟨INBOX⟩`, never `Read an email`. It is a
+separate slot rather than another `byOperation` key because trigger mode swaps
+the subblock set wholesale, and the operation dropdown still holds its
+action-mode default.
 
 Sim's own entry points (`start_trigger`, `manual_trigger`, `chat_trigger`,
 `api_trigger`, `input_trigger`, `starter`) are exempt: they *are* the start of
@@ -137,20 +138,22 @@ the run and their header already says so, so a sentence would only repeat it.
 
 ### Voice
 
-- **Third person present, block as the implicit subject.** `Posts a message to ⟨#eng⟩`.
-  Never `Send a message` (imperative), never `Sends a Slack message` — the header
-  already says Slack, so naming it again wastes the line.
+- **Imperative, the card naming its own action.** `Post a message to ⟨#eng⟩`. Never
+  `Posts a message` (third person), never `Post a Slack message` — the header
+  already says Slack, so naming it again wastes the line. The heading above the
+  sentence is the operation title (`Send Email`), and the two share a voice.
+  `check:canvas-sentences` enforces this on action *and* trigger cards.
 - **The sentence carries the verb.** It replaces the chips row, which is what
-  shows the operation today. `Lists channels`, not `Channels`.
+  shows the operation today. `List channels`, not `Channels`.
 - **Lead with the verb, put the value last** where possible — the chip is the part
   a user scans for.
 - **One clause per fact, most important first.** The card is 250px wide and
   wraps at ~2 lines; later clauses are the ones that fall off.
 - **At most three value chips**, and two reads best — every chip adds width and
   pushes the card taller. An operation with no field worth showing is just a
-  literal: `['Lists all channels']` is a complete, valid sentence.
-- Sentence case, no trailing period, no articles you can drop (`Reads schema of`
-  beats `Reads the schema of the table`).
+  literal: `['List all channels']` is a complete, valid sentence.
+- Sentence case, no trailing period, no articles you can drop (`Read schema of`
+  beats `Read the schema of the table`).
 
 ### Structure
 
@@ -160,7 +163,7 @@ the run and their header already says so, so a sentence would only repeat it.
 - **Use literal copy when every field is an optional filter.** A list/search
   operation whose filters are all optional has nothing worth a placeholder. Lead
   with a literal and let every clause be optional:
-  `['Lists issues', { text: ', assigned to', field: 'assignee' }]`.
+  `['List issues', { text: ', assigned to', field: 'assignee' }]`.
 - **Each optional clause owns its leading connective.** Write
   `{ text: ', where', field: 'filter' }`, never
   `{ ..., after: ', where' }, { field: 'filter' }` — a dropped clause takes its own
@@ -169,8 +172,8 @@ the run and their header already says so, so a sentence would only repeat it.
   `text` so they can drop with the value.
 - **A chip is a noun, never the verb.** A chip renders a dropdown's *label*, so
   when those labels are themselves verbs (`Archive` / `Unarchive`) you cannot
-  build the sentence around one — `Applies ⟨Archive⟩ to thread ⟨id⟩` is the
-  result. State the change instead: `Sets thread ⟨id⟩ to ⟨Archive⟩`.
+  build the sentence around one — `Apply ⟨Archive⟩ to thread ⟨id⟩` is the
+  result. State the change instead: `Set thread ⟨id⟩ to ⟨Archive⟩`.
 
 ### The four mistakes that break cards silently
 
@@ -190,33 +193,33 @@ the run and their header already says so, so a sentence would only repeat it.
    `byOperation` entries it lists.
 3. **Two operations that render the same prose.** On a block with dozens of
    similar read endpoints it is easy to paste a clause and never adjust it, so
-   `get_thread` and `get_thread_replies` both say `Reads thread ⟨id⟩` and the
+   `get_thread` and `get_thread_replies` both say `Read thread ⟨id⟩` and the
    card cannot tell the user which one runs. Name what each actually returns.
 
    The check runs on **both** readings, so two operations may not collide once
    their optional clauses are empty either — which is how an untouched card
-   reads. `Adds tag ⟨id⟩ to contact ⟨x⟩` and `… to conversation ⟨y⟩` both bare
-   to `Adds tag ⟨id⟩`; marking the target clause `core` is what tells them apart.
+   reads. `Add tag ⟨id⟩ to contact ⟨x⟩` and `… to conversation ⟨y⟩` both bare
+   to `Add tag ⟨id⟩`; marking the target clause `core` is what tells them apart.
 4. **An optional clause carrying the action's target or scope.** This one the
    validator cannot catch — 895 clauses fleet-wide fit the shape and only ~45
    are defects, so the discriminator is semantic. Ask what the sentence means
-   with that clause gone. `Removes user ⟨id⟩` reads as deleting the user, not
-   removing them from a group; `Deletes records from ⟨index⟩` reads as clearing
+   with that clause gone. `Remove user ⟨id⟩` reads as deleting the user, not
+   removing them from a group; `Delete records from ⟨index⟩` reads as clearing
    the whole index. If the truncated reading names a broader or different
-   action, mark that clause `core` so it holds its place. `Deletes thread ⟨id⟩`
+   action, mark that clause `core` so it holds its place. `Delete thread ⟨id⟩`
    losing an optional `, in ⟨channel⟩` is fine — it still means the same thing.
 
 ### Two rules the validator enforces on your copy
 
 - **No article in front of a chip.** For a `core` chip the noun already supplies
-  one, so `Creates a ⟨campaignType⟩` reads `Creates a a campaign type` — drop the
+  one, so `Create a ⟨campaignType⟩` reads `Create a a campaign type` — drop the
   article and let the noun carry it. For an optional chip the article has to agree
   with a dropdown *label* whose initial sound you cannot know
-  (`Creates a ⟨A/B Split⟩ campaign`), so move the value out from behind it:
-  `Creates a campaign of type ⟨type⟩`.
+  (`Create a ⟨A/B Split⟩ campaign`), so move the value out from behind it:
+  `Create a campaign of type ⟨type⟩`.
 - **Both halves of a correlative, or neither.** A clause opening `from …` or
   `between …` needs the clause carrying `to …`/`and …` to survive an empty card,
-  or `Routes from ⟨an origin⟩` describes a different journey. Mark both halves
+  or `Route from ⟨an origin⟩` describes a different journey. Mark both halves
   `core`.
 
 ### Versioned blocks
@@ -243,29 +246,29 @@ canvasPresentation: {
   sentences: {
     byOperation: {
       query_rows: [
-        { text: 'Queries rows from', field: ['tableSelector', 'manualTableId'], core: true },
+        { text: 'Query rows from', field: ['tableSelector', 'manualTableId'], core: true },
         { text: ', where', field: ['filterBuilder', 'filter'] },
         { text: ', up to', field: 'limit', after: 'rows' },
       ],
       get_schema: [
-        { text: 'Reads the schema of', field: ['tableSelector', 'manualTableId'], core: true },
+        { text: 'Read the schema of', field: ['tableSelector', 'manualTableId'], core: true },
       ],
     },
   },
 }
 ```
 
-Renders as `Queries rows from ⟨orders⟩, where ⟨status = open⟩, up to ⟨100⟩ rows`,
-shortens to `Queries rows from ⟨orders⟩` when only the table is set, and reads
-`Queries rows from ⟨a table⟩` on an untouched card.
+Renders as `Query rows from ⟨orders⟩, where ⟨status = open⟩, up to ⟨100⟩ rows`,
+shortens to `Query rows from ⟨orders⟩` when only the table is set, and reads
+`Query rows from ⟨a table⟩` on an untouched card.
 
 ### Other things that bite
 
 - **`defaultTitle` is required** by the `canvasPresentation` type, so declaring
   sentences also decides the card's header for auto-named instances. Use the
-  block's name minus any "(Legacy)" suffix. Do not add `defaultName`,
-  `typeLabel`, or `operationSubBlockId` as part of a sentence change — those
-  alter title resolution for workflows that already exist.
+  block's name minus any "(Legacy)" suffix. Do not add `typeLabel` or
+  `operationSubBlockId` as part of a sentence change — those alter title
+  resolution for workflows that already exist.
 - **Trigger mode has no sentence.** A dual-mode block's card keeps its rows when
   used as a trigger, so write only for the action side.
 

@@ -36,19 +36,19 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
     sentences: {
       byOperation: {
         read: [
-          { text: 'Reads', field: 'range', core: true },
+          { text: 'Read', field: 'range', core: true },
           { text: 'from', field: SPREADSHEET_FIELD, core: true },
         ],
         write: [
-          { text: 'Writes data to', field: 'range', after: 'in', core: true },
+          { text: 'Write data to', field: 'range', after: 'in', core: true },
           { field: SPREADSHEET_FIELD, core: true },
         ],
         update: [
-          { text: 'Updates', field: 'range', core: true },
+          { text: 'Update', field: 'range', core: true },
           { text: 'in', field: SPREADSHEET_FIELD, core: true },
         ],
         append: [
-          { text: 'Appends rows to', field: 'range', after: 'in', core: true },
+          { text: 'Append rows to', field: 'range', after: 'in', core: true },
           { field: SPREADSHEET_FIELD, core: true },
         ],
       },
@@ -344,56 +344,61 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
   icon: GoogleSheetsIcon,
   canvasPresentation: {
     defaultTitle: 'Google Sheets',
+    triggerSentences: {
+      default: [
+        'Run on a new row',
+        { text: 'in', field: SHEET_FIELD, core: true },
+        { text: 'of', field: SPREADSHEET_FIELD, core: true },
+      ],
+    },
     sentences: {
       byOperation: {
         read: [
-          { text: 'Reads', field: 'cellRange', core: true },
+          { text: 'Read', field: 'cellRange', core: true },
           { text: 'from', field: SHEET_FIELD },
           { text: 'in', field: SPREADSHEET_FIELD, core: true },
         ],
         write: [
-          { text: 'Writes data to', field: 'cellRange', core: true },
+          { text: 'Write data to', field: 'cellRange', core: true },
           { text: 'on', field: SHEET_FIELD },
           { text: 'in', field: SPREADSHEET_FIELD, core: true },
         ],
         update: [
-          { text: 'Updates', field: 'cellRange', core: true },
+          { text: 'Update', field: 'cellRange', core: true },
           { text: 'on', field: SHEET_FIELD },
           { text: 'in', field: SPREADSHEET_FIELD, core: true },
         ],
         append: [
-          { text: 'Appends rows to', field: SHEET_FIELD, core: true },
+          { text: 'Append rows to', field: SHEET_FIELD, core: true },
           { text: 'in', field: SPREADSHEET_FIELD, core: true },
         ],
         clear: [
-          { text: 'Clears', field: 'cellRange', core: true },
+          { text: 'Clear', field: 'cellRange', core: true },
           { text: 'on', field: SHEET_FIELD },
           { text: 'in', field: SPREADSHEET_FIELD, core: true },
         ],
-        get_info: [{ text: 'Reads metadata for', field: SPREADSHEET_FIELD, core: true }],
+        get_info: [{ text: 'Read metadata for', field: SPREADSHEET_FIELD, core: true }],
         create: [
-          { text: 'Creates spreadsheet', field: 'title', core: true },
+          { text: 'Create spreadsheet', field: 'title', core: true },
           { text: 'with tabs', field: 'sheetTitles' },
         ],
-        batch_get: [{ text: 'Reads multiple ranges from', field: SPREADSHEET_FIELD, core: true }],
-        batch_update: [
-          { text: 'Updates multiple ranges in', field: SPREADSHEET_FIELD, core: true },
-        ],
-        batch_clear: [{ text: 'Clears multiple ranges in', field: SPREADSHEET_FIELD, core: true }],
+        batch_get: [{ text: 'Read multiple ranges from', field: SPREADSHEET_FIELD, core: true }],
+        batch_update: [{ text: 'Update multiple ranges in', field: SPREADSHEET_FIELD, core: true }],
+        batch_clear: [{ text: 'Clear multiple ranges in', field: SPREADSHEET_FIELD, core: true }],
         copy_sheet: [
-          { text: 'Copies sheet', field: 'sheetId', core: true },
+          { text: 'Copy sheet', field: 'sheetId', core: true },
           { text: 'from', field: SPREADSHEET_FIELD, core: true },
           { text: 'to', field: 'destinationSpreadsheetId', core: true },
         ],
         delete_rows: [
-          { text: 'Deletes rows from sheet', field: 'deleteSheetId', core: true },
+          { text: 'Delete rows from sheet', field: 'deleteSheetId', core: true },
           { text: 'in', field: SPREADSHEET_FIELD, core: true },
         ],
         delete_sheet: [
-          { text: 'Deletes sheet', field: 'deleteSheetId', core: true },
+          { text: 'Delete sheet', field: 'deleteSheetId', core: true },
           { text: 'from', field: SPREADSHEET_FIELD, core: true },
         ],
-        delete_spreadsheet: [{ text: 'Permanently deletes', field: SPREADSHEET_FIELD, core: true }],
+        delete_spreadsheet: [{ text: 'Permanently delete', field: SPREADSHEET_FIELD, core: true }],
       },
     },
   },

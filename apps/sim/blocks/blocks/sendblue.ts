@@ -40,23 +40,23 @@ export const SendblueBlock: BlockConfig = {
     sentences: {
       byOperation: {
         sendblue_send_message: [
-          { text: 'Sends', field: 'content', core: true },
+          { text: 'Send', field: 'content', core: true },
           { text: 'to', field: 'number', core: true },
           { text: ', with', field: 'send_style', after: 'effect' },
         ],
         sendblue_send_group_message: [
-          { text: 'Sends', field: 'content', core: true },
+          { text: 'Send', field: 'content', core: true },
           { text: 'to the group', field: GROUP_RECIPIENT_FIELD, core: true },
         ],
         sendblue_evaluate_service: [
-          { text: 'Checks whether', field: 'number', after: 'supports iMessage', core: true },
+          { text: 'Check whether', field: 'number', after: 'supports iMessage', core: true },
         ],
         sendblue_send_typing_indicator: [
-          { text: 'Sets the typing indicator for', field: 'number', core: true },
+          { text: 'Set the typing indicator for', field: 'number', core: true },
           { text: 'to', field: 'typing_state' },
         ],
         sendblue_get_message: [
-          { text: 'Fetches the status of message', field: 'message_id', core: true },
+          { text: 'Fetch the status of message', field: 'message_id', core: true },
         ],
       },
     },

@@ -18,15 +18,15 @@ export const DSPyBlock: BlockConfig = {
     sentences: {
       byOperation: {
         predict: [
-          { text: 'Predicts from', field: 'input', core: true },
+          { text: 'Predict from', field: 'input', core: true },
           { text: ', at', field: 'endpoint' },
         ],
         chain_of_thought: [
-          { text: 'Reasons step by step through', field: 'question', core: true },
+          { text: 'Reason step by step through', field: 'question', core: true },
           { text: ', at', field: 'endpoint' },
         ],
         react: [
-          { text: 'Runs a ReAct agent on', field: 'task', core: true },
+          { text: 'Run a ReAct agent on', field: 'task', core: true },
           { text: ', for up to', field: 'maxIterations', after: 'iterations' },
           { text: ', at', field: 'endpoint' },
         ],

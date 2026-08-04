@@ -92,20 +92,20 @@ export const LogfireBlock: BlockConfig<LogfireResponse> = {
     sentences: {
       byOperation: {
         logfire_search_records: [
-          { text: 'Searches records for', field: SEARCH_FILTER_FIELD, core: true },
+          { text: 'Search records for', field: SEARCH_FILTER_FIELD, core: true },
           { text: ', at level', field: 'minLevel', after: 'or above' },
           { text: ', in', field: 'environment' },
         ],
         logfire_query: [
-          { text: 'Runs SQL query', field: 'sql', core: true },
+          { text: 'Run SQL query', field: 'sql', core: true },
           { text: ', in', field: 'environment' },
           { text: ', up to', field: 'limit', after: 'rows' },
         ],
         logfire_get_trace: [
-          { text: 'Fetches every span in trace', field: 'traceId', core: true },
+          { text: 'Fetch every span in trace', field: 'traceId', core: true },
           { text: ', up to', field: 'limit', after: 'spans' },
         ],
-        logfire_get_token_info: ['Reads the organization and project the token targets'],
+        logfire_get_token_info: ['Read the organization and project the token targets'],
       },
     },
   },

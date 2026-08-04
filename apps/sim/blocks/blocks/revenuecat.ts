@@ -19,42 +19,49 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
   icon: RevenueCatIcon,
   canvasPresentation: {
     defaultTitle: 'RevenueCat',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in project', field: 'projectId' },
+      ],
+    },
     sentences: {
       byOperation: {
-        get_customer: [{ text: 'Reads customer', field: 'appUserId', core: true }],
-        delete_customer: [{ text: 'Deletes customer', field: 'appUserId', core: true }],
+        get_customer: [{ text: 'Read customer', field: 'appUserId', core: true }],
+        delete_customer: [{ text: 'Delete customer', field: 'appUserId', core: true }],
         create_purchase: [
-          { text: 'Records a purchase of', field: 'productId', core: true },
+          { text: 'Record a purchase of', field: 'productId', core: true },
           { text: 'for customer', field: 'appUserId', core: true },
           { text: ', priced', field: 'price' },
         ],
         grant_entitlement: [
-          { text: 'Grants entitlement', field: 'entitlementIdentifier', core: true },
+          { text: 'Grant entitlement', field: 'entitlementIdentifier', core: true },
           { text: 'to customer', field: 'appUserId' },
           { text: ', lasting', field: 'duration' },
         ],
         revoke_entitlement: [
-          { text: 'Revokes entitlement', field: 'entitlementIdentifier', core: true },
+          { text: 'Revoke entitlement', field: 'entitlementIdentifier', core: true },
           { text: 'from customer', field: 'appUserId' },
         ],
         list_offerings: [
-          { text: 'Lists offerings available to', field: 'appUserId', core: true },
+          { text: 'List offerings available to', field: 'appUserId', core: true },
           { text: ', on', field: 'platform' },
         ],
         update_subscriber_attributes: [
-          { text: 'Updates attributes on customer', field: 'appUserId', core: true },
+          { text: 'Update attributes on customer', field: 'appUserId', core: true },
         ],
         defer_google_subscription: [
-          { text: 'Defers Google Play subscription', field: 'productId', core: true },
+          { text: 'Defer Google Play subscription', field: 'productId', core: true },
           { text: 'for customer', field: 'appUserId' },
           { text: ', by', field: 'extendByDays', after: 'days' },
         ],
         refund_google_subscription: [
-          { text: 'Refunds store transaction', field: 'productId', core: true },
+          { text: 'Refund store transaction', field: 'productId', core: true },
           { text: 'for customer', field: 'appUserId' },
         ],
         revoke_google_subscription: [
-          { text: 'Revokes Google Play subscription', field: 'productId', core: true },
+          { text: 'Revoke Google Play subscription', field: 'productId', core: true },
           { text: 'from customer', field: 'appUserId' },
         ],
       },

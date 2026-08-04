@@ -26,69 +26,69 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
     sentences: {
       byOperation: {
         launch_run: [
-          { text: 'Launches job', field: 'jobName', core: true },
+          { text: 'Launch job', field: 'jobName', core: true },
           { text: 'in repository', field: 'repositoryName' },
           { text: ', with config', field: 'runConfigJson' },
         ],
-        get_run: [{ text: 'Fetches the status of run', field: 'runId', core: true }],
+        get_run: [{ text: 'Fetch the status of run', field: 'runId', core: true }],
         get_run_logs: [
-          { text: 'Fetches event logs for run', field: 'runId', core: true },
+          { text: 'Fetch event logs for run', field: 'runId', core: true },
           { text: ', up to', field: 'logsLimit', after: 'events' },
         ],
         list_runs: [
-          'Lists runs',
+          'List runs',
           { text: ', for job', field: 'listRunsJobName' },
           { text: ', with status', field: 'statuses' },
           { text: ', up to', field: 'limit', after: 'runs' },
         ],
-        list_jobs: ['Lists every job across repositories'],
+        list_jobs: ['List every job across repositories'],
         reexecute_run: [
-          { text: 'Reexecutes run', field: 'runId', core: true },
+          { text: 'Reexecute run', field: 'runId', core: true },
           { text: ', using', field: 'strategy', after: 'strategy' },
         ],
-        terminate_run: [{ text: 'Terminates in-progress run', field: 'runId', core: true }],
-        delete_run: [{ text: 'Deletes the record for run', field: 'runId', core: true }],
+        terminate_run: [{ text: 'Terminate in-progress run', field: 'runId', core: true }],
+        delete_run: [{ text: 'Delete the record for run', field: 'runId', core: true }],
         list_schedules: [
-          { text: 'Lists schedules in repository', field: 'repositoryName', core: true },
+          { text: 'List schedules in repository', field: 'repositoryName', core: true },
           { text: ', with status', field: 'scheduleStatus' },
         ],
         start_schedule: [
-          { text: 'Enables schedule', field: 'scheduleName', core: true },
+          { text: 'Enable schedule', field: 'scheduleName', core: true },
           { text: 'in repository', field: 'repositoryName' },
         ],
         stop_schedule: [
-          { text: 'Disables the schedule with state', field: 'instigationStateId', core: true },
+          { text: 'Disable the schedule with state', field: 'instigationStateId', core: true },
         ],
         list_sensors: [
-          { text: 'Lists sensors in repository', field: 'repositoryName', core: true },
+          { text: 'List sensors in repository', field: 'repositoryName', core: true },
           { text: ', with status', field: 'sensorStatus' },
         ],
         start_sensor: [
-          { text: 'Enables sensor', field: 'sensorName', core: true },
+          { text: 'Enable sensor', field: 'sensorName', core: true },
           { text: 'in repository', field: 'repositoryName' },
         ],
         stop_sensor: [
-          { text: 'Disables the sensor with state', field: 'instigationStateId', core: true },
+          { text: 'Disable the sensor with state', field: 'instigationStateId', core: true },
         ],
         list_assets: [
-          'Lists tracked assets',
+          'List tracked assets',
           { text: ', under key prefix', field: 'assetPrefix' },
           { text: ', up to', field: 'assetsLimit', after: 'assets' },
         ],
         get_asset: [
           {
-            text: 'Fetches the latest materialization of asset',
+            text: 'Fetch the latest materialization of asset',
             field: 'assetKey',
             core: true,
           },
         ],
         materialize_assets: [
-          { text: 'Materializes assets', field: 'assetSelection', core: true },
+          { text: 'Materialize assets', field: 'assetSelection', core: true },
           { text: 'through job', field: 'assetJobName' },
         ],
         report_asset_materialization: [
           {
-            text: 'Reports an external',
+            text: 'Report an external',
             field: 'reportEventType',
             after: 'event for asset',
             core: true,
@@ -98,7 +98,7 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
         ],
         wipe_asset: [
           {
-            text: 'Erases all materialization history for asset',
+            text: 'Erase all materialization history for asset',
             field: 'assetKey',
             core: true,
           },

@@ -13,7 +13,7 @@ export const WorkflowBlock: BlockConfig = {
     defaultTitle: 'Workflow',
     sentences: {
       default: [
-        { text: 'Runs', field: ['workflowId', 'manualWorkflowId'], core: true },
+        { text: 'Run', field: ['workflowId', 'manualWorkflowId'], core: true },
         { text: ', passing', field: 'input' },
       ],
     },

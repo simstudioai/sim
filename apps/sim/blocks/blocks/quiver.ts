@@ -24,15 +24,15 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
     sentences: {
       byOperation: {
         text_to_svg: [
-          { text: 'Generates an SVG from', field: 'prompt', core: true },
+          { text: 'Generate an SVG from', field: 'prompt', core: true },
           { text: ', styled by', field: 'instructions' },
           { text: ', referencing', field: REFERENCE_IMAGES_FIELD },
         ],
         image_to_svg: [
-          { text: 'Converts', field: IMAGE_FIELD, after: 'to an SVG', core: true },
+          { text: 'Convert', field: IMAGE_FIELD, after: 'to an SVG', core: true },
           { text: ', sized to', field: 'targetSize', after: 'px' },
         ],
-        list_models: ['Lists available models'],
+        list_models: ['List available models'],
       },
     },
   },

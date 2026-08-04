@@ -21,52 +21,52 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
     sentences: {
       byOperation: {
         findymail_find_email_from_name: [
-          { text: 'Finds the email for', field: 'fn_name', core: true },
+          { text: 'Find the email for', field: 'fn_name', core: true },
           { text: 'at', field: 'fn_domain' },
         ],
         findymail_find_email_from_linkedin: [
           {
-            text: 'Finds the email for LinkedIn profile',
+            text: 'Find the email for LinkedIn profile',
             field: 'fefl_linkedin_url',
             core: true,
           },
         ],
         findymail_find_emails_by_domain: [
-          { text: 'Finds verified contacts at', field: 'fed_domain', core: true },
+          { text: 'Find verified contacts at', field: 'fed_domain', core: true },
           { text: ', matching roles', field: 'roles' },
         ],
         findymail_verify_email: [
-          { text: 'Verifies deliverability of', field: 've_email', core: true },
+          { text: 'Verify deliverability of', field: 've_email', core: true },
         ],
         findymail_reverse_email_lookup: [
-          { text: 'Looks up the business profile behind', field: 'rel_email', core: true },
+          { text: 'Look up the business profile behind', field: 'rel_email', core: true },
         ],
         findymail_get_company: [
           {
-            text: 'Reads company details for',
+            text: 'Read company details for',
             field: COMPANY_LOOKUP_FIELD,
             core: true,
           },
         ],
         findymail_find_employees: [
-          { text: 'Finds employees at', field: 'website', core: true },
+          { text: 'Find employees at', field: 'website', core: true },
           { text: ', with titles', field: 'job_titles' },
         ],
         findymail_find_phone: [
           {
-            text: 'Finds the phone number for LinkedIn profile',
+            text: 'Find the phone number for LinkedIn profile',
             field: 'fp_linkedin_url',
             core: true,
           },
         ],
         findymail_search_technologies: [
-          { text: 'Searches the technology catalog for', field: 'q', core: true },
+          { text: 'Search the technology catalog for', field: 'q', core: true },
         ],
         findymail_lookup_technologies: [
-          { text: 'Reads the technology stack of', field: 'lt_domain', core: true },
+          { text: 'Read the technology stack of', field: 'lt_domain', core: true },
           { text: ', filtered to', field: 'technologies' },
         ],
-        findymail_get_credits: ['Reads remaining finder and verifier credits'],
+        findymail_get_credits: ['Read remaining finder and verifier credits'],
       },
     },
   },

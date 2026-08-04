@@ -21,7 +21,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
     defaultTitle: 'Text-to-Speech',
     sentences: {
       default: [
-        { text: 'Speaks', field: 'text', core: true },
+        { text: 'Speak', field: 'text', core: true },
         { text: 'in the', field: VOICE_FIELD, after: 'voice' },
       ],
     },

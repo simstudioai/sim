@@ -32,7 +32,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       default: [
         /* The upload/URL switch has no default, so neither member is on a fresh
            card; the literal carries the sentence until one is chosen. */
-        'Extracts text',
+        'Extract text',
         { text: 'from', field: ['fileUpload', 'filePath'] },
         { text: ', as', field: 'resultType' },
         { text: ', pages', field: 'pages' },
@@ -318,7 +318,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
       default: [
         /* The upload/URL switch has no default, so neither member is on a fresh
            card; the literal carries the sentence until one is chosen. */
-        'Extracts text',
+        'Extract text',
         { text: 'from', field: ['fileUpload', 'fileReference'] },
         { text: ', as', field: 'resultType' },
         { text: ', pages', field: 'pages' },

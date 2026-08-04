@@ -18,7 +18,7 @@ export const WorkflowInputBlock: BlockConfig = {
     defaultTitle: 'Workflow',
     sentences: {
       default: [
-        { text: 'Runs', field: ['workflowId', 'manualWorkflowId'], core: true },
+        { text: 'Run', field: ['workflowId', 'manualWorkflowId'], core: true },
         { text: ', with inputs', field: 'inputMapping' },
       ],
     },

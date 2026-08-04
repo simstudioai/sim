@@ -285,7 +285,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         return false
       }
       if (
-        canvasPresentation?.usesDefaultTitle &&
+        canvasPresentation?.titleShowsOperation &&
         subBlock.id === canvasPresentation.operationSubBlockId
       ) {
         return false
@@ -586,7 +586,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                   key={subBlock.id}
                   title={
                     subBlock.id === canvasPresentation.operationSubBlockId &&
-                    !canvasPresentation.usesDefaultTitle
+                    !canvasPresentation.titleShowsOperation
                       ? (canvasPresentation.operationRowTitle ?? subBlock.title ?? subBlock.id)
                       : (subBlock.title ?? subBlock.id)
                   }

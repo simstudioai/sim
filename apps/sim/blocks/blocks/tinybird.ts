@@ -20,25 +20,25 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
     sentences: {
       byOperation: {
         tinybird_events: [
-          { text: 'Streams events into Data Source', field: 'datasource', core: true },
+          { text: 'Stream events into Data Source', field: 'datasource', core: true },
         ],
-        tinybird_query: [{ text: 'Runs SQL', field: 'query', core: true }],
+        tinybird_query: [{ text: 'Run SQL', field: 'query', core: true }],
         tinybird_query_pipe: [
-          { text: 'Calls Pipe endpoint', field: 'pipe', core: true },
+          { text: 'Call Pipe endpoint', field: 'pipe', core: true },
           { text: ', with', field: 'parameters' },
         ],
         tinybird_append_datasource: [
-          { text: 'Appends', field: 'source_url', core: true },
+          { text: 'Append', field: 'source_url', core: true },
           { text: 'to Data Source', field: 'datasource', core: true },
         ],
         tinybird_truncate_datasource: [
-          { text: 'Deletes every row from Data Source', field: 'datasource', core: true },
+          { text: 'Delete every row from Data Source', field: 'datasource', core: true },
         ],
         tinybird_delete_datasource_rows: [
-          { text: 'Deletes rows from Data Source', field: 'datasource', core: true },
+          { text: 'Delete rows from Data Source', field: 'datasource', core: true },
           { text: ', where', field: 'delete_condition' },
         ],
-        tinybird_get_job: [{ text: 'Checks the status of job', field: 'job_id', core: true }],
+        tinybird_get_job: [{ text: 'Check the status of job', field: 'job_id', core: true }],
       },
     },
   },

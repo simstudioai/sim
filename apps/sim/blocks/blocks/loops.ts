@@ -24,50 +24,50 @@ export const LoopsBlock: BlockConfig<LoopsResponse> = {
     sentences: {
       byOperation: {
         create_contact: [
-          { text: 'Creates a contact for', field: 'email', core: true },
+          { text: 'Create a contact for', field: 'email', core: true },
           { text: ', in group', field: 'userGroup' },
         ],
         update_contact: [
-          { text: 'Updates contact', field: CONTACT_FIELD, core: true },
+          { text: 'Update contact', field: CONTACT_FIELD, core: true },
           { text: ', moving them to group', field: 'userGroup' },
         ],
-        find_contact: [{ text: 'Finds contact', field: CONTACT_FIELD, core: true }],
-        delete_contact: [{ text: 'Deletes contact', field: CONTACT_FIELD, core: true }],
+        find_contact: [{ text: 'Find contact', field: CONTACT_FIELD, core: true }],
+        delete_contact: [{ text: 'Delete contact', field: CONTACT_FIELD, core: true }],
         send_transactional_email: [
           {
-            text: 'Sends template',
+            text: 'Send template',
             field: 'transactionalId',
             core: true,
           },
           { text: 'to', field: 'email', core: true },
         ],
         send_event: [
-          { text: 'Sends event', field: 'eventName', core: true },
+          { text: 'Send event', field: 'eventName', core: true },
           { text: 'for contact', field: CONTACT_FIELD },
         ],
-        list_mailing_lists: ['Lists all mailing lists'],
+        list_mailing_lists: ['List all mailing lists'],
         list_transactional_emails: [
-          'Lists published transactional templates',
+          'List published transactional templates',
           { text: ', up to', field: 'perPage', after: 'per page' },
         ],
         create_contact_property: [
-          { text: 'Creates contact property', field: 'propertyName', core: true },
+          { text: 'Create contact property', field: 'propertyName', core: true },
           { text: ', typed as', field: 'propertyType' },
         ],
-        list_contact_properties: ['Lists contact properties'],
+        list_contact_properties: ['List contact properties'],
         check_contact_suppression: [
-          { text: 'Checks whether', field: CONTACT_FIELD, core: true, after: 'is suppressed' },
+          { text: 'Check whether', field: CONTACT_FIELD, core: true, after: 'is suppressed' },
         ],
         remove_contact_suppression: [
           {
-            text: 'Removes',
+            text: 'Remove',
             field: CONTACT_FIELD,
             core: true,
             after: 'from the suppression list',
           },
         ],
         get_transactional_email: [
-          { text: 'Reads transactional template', field: 'transactionalId', core: true },
+          { text: 'Read transactional template', field: 'transactionalId', core: true },
         ],
       },
     },

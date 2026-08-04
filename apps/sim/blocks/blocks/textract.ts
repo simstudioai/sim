@@ -32,7 +32,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
     sentences: {
       default: [
         {
-          text: 'Extracts text, tables, and forms from',
+          text: 'Extract text, tables, and forms from',
           field: LEGACY_DOCUMENT_FIELD,
           core: true,
         },
@@ -265,21 +265,21 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
       byOperation: {
         analyze_document: [
           {
-            text: 'Extracts text, tables, and forms from',
+            text: 'Extract text, tables, and forms from',
             field: DOCUMENT_FIELD,
             core: true,
           },
         ],
         analyze_expense: [
           {
-            text: 'Extracts invoice and receipt fields from',
+            text: 'Extract invoice and receipt fields from',
             field: DOCUMENT_FIELD,
             core: true,
           },
         ],
         analyze_id: [
           {
-            text: 'Extracts identity document fields from',
+            text: 'Extract identity document fields from',
             field: UPLOADED_DOCUMENT_FIELD,
             core: true,
           },

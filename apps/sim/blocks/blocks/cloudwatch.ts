@@ -58,64 +58,62 @@ export const CloudWatchBlock: BlockConfig<
     sentences: {
       byOperation: {
         query_logs: [
-          { text: 'Runs an Insights query against', field: LOG_GROUPS_FIELD, core: true },
+          { text: 'Run an Insights query against', field: LOG_GROUPS_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         filter_log_events: [
-          { text: 'Searches log group', field: LOG_GROUP_FIELD, core: true },
+          { text: 'Search log group', field: LOG_GROUP_FIELD, core: true },
           { text: 'for pattern', field: 'filterPattern' },
           { text: ', in streams under', field: 'filterLogStreamPrefix' },
         ],
         describe_log_groups: [
-          'Lists log groups',
+          'List log groups',
           { text: 'starting with', field: 'prefix' },
           { text: ', up to', field: 'limit', after: 'groups' },
         ],
         get_log_events: [
-          { text: 'Reads events from log stream', field: LOG_STREAM_FIELD, core: true },
+          { text: 'Read events from log stream', field: LOG_STREAM_FIELD, core: true },
           { text: 'in', field: LOG_GROUP_FIELD },
           { text: ', up to', field: 'limit', after: 'events' },
         ],
         describe_log_streams: [
-          { text: 'Lists log streams in', field: LOG_GROUP_FIELD, core: true },
+          { text: 'List log streams in', field: LOG_GROUP_FIELD, core: true },
           { text: ', starting with', field: 'streamPrefix' },
         ],
         put_log_group_retention: [
-          { text: 'Keeps logs in', field: LOG_GROUP_FIELD, core: true },
+          { text: 'Keep logs in', field: LOG_GROUP_FIELD, core: true },
           { text: 'for', field: 'retentionInDays' },
         ],
         list_metrics: [
-          'Lists metrics',
+          'List metrics',
           { text: 'in namespace', field: 'metricNamespace' },
           { text: ', named', field: 'metricName' },
         ],
         get_metric_statistics: [
-          { text: 'Reads statistics for metric', field: 'metricName', core: true },
+          { text: 'Read statistics for metric', field: 'metricName', core: true },
           { text: 'in', field: 'metricNamespace' },
           { text: ', computing', field: 'metricStatistics' },
         ],
         put_metric_data: [
-          { text: 'Publishes', field: 'metricValue', core: true },
+          { text: 'Publish', field: 'metricValue', core: true },
           { text: 'to metric', field: 'metricName', core: true },
           { text: 'in', field: 'metricNamespace' },
         ],
         describe_alarms: [
-          'Lists alarms',
+          'List alarms',
           { text: 'starting with', field: 'alarmNamePrefix' },
           { text: ', in state', field: 'stateValue' },
         ],
         describe_alarm_history: [
-          'Reads alarm history',
+          'Read alarm history',
           { text: 'for', field: 'historyAlarmName' },
           { text: ', of type', field: 'historyItemType' },
         ],
         mute_alarm: [
-          { text: 'Mutes', field: 'alarmNames', core: true },
+          { text: 'Mute', field: 'alarmNames', core: true },
           { text: 'under rule', field: 'muteRuleName' },
         ],
-        unmute_alarm: [
-          { text: 'Unmutes the alarms under rule', field: 'muteRuleName', core: true },
-        ],
+        unmute_alarm: [{ text: 'Unmute the alarms under rule', field: 'muteRuleName', core: true }],
       },
     },
   },

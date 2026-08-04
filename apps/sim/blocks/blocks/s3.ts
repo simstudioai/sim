@@ -49,49 +49,49 @@ export const S3Block: BlockConfig<S3Response> = {
     defaultTitle: 'S3',
     sentences: {
       byOperation: {
-        get_object: [{ text: 'Downloads the object at', field: 's3Uri', core: true }],
+        get_object: [{ text: 'Download the object at', field: 's3Uri', core: true }],
         put_object: [
-          { text: 'Uploads', field: UPLOAD_SOURCE_FIELD, core: true },
+          { text: 'Upload', field: UPLOAD_SOURCE_FIELD, core: true },
           { text: 'to', field: 'bucketName', core: true },
           { text: 'as', field: 'objectKey' },
         ],
         list_objects: [
-          { text: 'Lists objects in', field: 'bucketName', core: true },
+          { text: 'List objects in', field: 'bucketName', core: true },
           { text: ', under', field: 'prefix' },
           { text: ', up to', field: 'maxKeys' },
         ],
         delete_object: [
-          { text: 'Deletes object', field: 'objectKey', core: true },
+          { text: 'Delete object', field: 'objectKey', core: true },
           { text: 'from', field: 'bucketName' },
         ],
         delete_objects: [
-          { text: 'Deletes objects', field: 'objectKeys', core: true },
+          { text: 'Delete objects', field: 'objectKeys', core: true },
           { text: 'from', field: 'bucketName' },
         ],
         copy_object: [
-          { text: 'Copies', field: 'sourceKey', core: true },
+          { text: 'Copy', field: 'sourceKey', core: true },
           { text: 'to', field: 'destinationBucket' },
           { text: 'as', field: 'destinationKey' },
         ],
         head_object: [
-          { text: 'Reads metadata of', field: 'objectKey', core: true },
+          { text: 'Read metadata of', field: 'objectKey', core: true },
           { text: 'in', field: 'bucketName' },
         ],
         presigned_url: [
-          { text: 'Generates a presigned URL for', field: 'objectKey', core: true },
+          { text: 'Generate a presigned URL for', field: 'objectKey', core: true },
           { text: 'in', field: 'bucketName' },
           { text: ', valid for', field: 'expiresIn', after: 'seconds' },
         ],
         list_buckets: [
-          'Lists buckets',
+          'List buckets',
           { text: ', starting with', field: 'bucketPrefix' },
           { text: ', up to', field: 'maxBuckets' },
         ],
         create_bucket: [
-          { text: 'Creates bucket', field: 'bucketName', core: true },
+          { text: 'Create bucket', field: 'bucketName', core: true },
           { text: 'in', field: 'region' },
         ],
-        delete_bucket: [{ text: 'Deletes bucket', field: 'bucketName', core: true }],
+        delete_bucket: [{ text: 'Delete bucket', field: 'bucketName', core: true }],
       },
     },
   },

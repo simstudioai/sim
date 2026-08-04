@@ -21,7 +21,7 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
     defaultTitle: 'API',
     sentences: {
       default: [
-        { text: 'Sends', field: 'method', after: 'request to', core: true },
+        { text: 'Send', field: 'method', after: 'request to', core: true },
         { field: 'url', core: true },
         { text: ', with body', field: 'body' },
       ],

@@ -19,9 +19,9 @@ export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
     sentences: {
       byOperation: {
         millionverifier_verify_email: [
-          { text: 'Verifies deliverability of', field: 've_email', core: true },
+          { text: 'Verify deliverability of', field: 've_email', core: true },
         ],
-        millionverifier_get_credits: ['Reads remaining verification credits'],
+        millionverifier_get_credits: ['Read remaining verification credits'],
       },
     },
   },

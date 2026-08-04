@@ -19,17 +19,17 @@ export const LatexBlock: BlockConfig<LatexResponse> = {
     sentences: {
       byOperation: {
         latex_compile: [
-          'Compiles a PDF',
+          'Compile a PDF',
           { text: 'with', field: 'compiler' },
           { text: ', named', field: 'fileName' },
         ],
         latex_search_packages: [
-          { text: 'Searches TeX Live packages for', field: 'packageQuery', core: true },
+          { text: 'Search TeX Live packages for', field: 'packageQuery', core: true },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
-        latex_get_package: [{ text: 'Reads details of package', field: 'packageName', core: true }],
+        latex_get_package: [{ text: 'Read details of package', field: 'packageName', core: true }],
         latex_list_fonts: [
-          'Lists available fonts',
+          'List available fonts',
           { text: 'matching', field: 'fontQuery' },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],

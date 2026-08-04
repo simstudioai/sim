@@ -22,19 +22,19 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
     defaultTitle: 'Wealthbox',
     sentences: {
       byOperation: {
-        read_note: [{ text: 'Reads note', field: 'noteId', core: true }],
+        read_note: [{ text: 'Read note', field: 'noteId', core: true }],
         write_note: [
-          { text: 'Writes note', field: 'content', core: true },
+          { text: 'Write note', field: 'content', core: true },
           { text: 'on contact', field: CONTACT_FIELD },
         ],
-        read_contact: [{ text: 'Reads contact', field: CONTACT_FIELD, core: true }],
+        read_contact: [{ text: 'Read contact', field: CONTACT_FIELD, core: true }],
         write_contact: [
-          { text: 'Creates contact', field: 'firstName', core: true },
+          { text: 'Create contact', field: 'firstName', core: true },
           { text: ', with email', field: 'emailAddress' },
         ],
-        read_task: [{ text: 'Reads task', field: 'taskId', core: true }],
+        read_task: [{ text: 'Read task', field: 'taskId', core: true }],
         write_task: [
-          { text: 'Writes task', field: 'title', core: true },
+          { text: 'Write task', field: 'title', core: true },
           { text: 'for contact', field: CONTACT_FIELD },
         ],
       },

@@ -18,14 +18,14 @@ export const GranolaBlock: BlockConfig = {
     sentences: {
       byOperation: {
         list_notes: [
-          'Lists meeting notes',
+          'List meeting notes',
           { text: 'in folder', field: 'folderId' },
           { text: ', created after', field: 'createdAfter' },
           { text: ', before', field: 'createdBefore' },
         ],
-        get_note: [{ text: 'Reads meeting note', field: 'noteId', core: true }],
+        get_note: [{ text: 'Read meeting note', field: 'noteId', core: true }],
         list_folders: [
-          'Lists note folders',
+          'List note folders',
           { text: ', up to', field: 'pageSize', after: 'per page' },
         ],
       },

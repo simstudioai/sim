@@ -34,44 +34,44 @@ export const GoogleBigQueryBlock: BlockConfig = {
     sentences: {
       byOperation: {
         query: [
-          { text: 'Runs query', field: 'query', core: true },
+          { text: 'Run query', field: 'query', core: true },
           { text: ', returning up to', field: 'maxResults', after: 'rows' },
         ],
         get_query_results: [
-          { text: 'Fetches results for job', field: 'jobId', core: true },
+          { text: 'Fetch results for job', field: 'jobId', core: true },
           { text: ', up to', field: 'maxResults', after: 'rows' },
         ],
         list_datasets: [
-          { text: 'Lists datasets in', field: 'projectId', core: true },
+          { text: 'List datasets in', field: 'projectId', core: true },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
         create_dataset: [
-          { text: 'Creates dataset', field: 'newDatasetId', core: true },
+          { text: 'Create dataset', field: 'newDatasetId', core: true },
           { text: 'in', field: 'datasetLocation' },
         ],
-        delete_dataset: [{ text: 'Deletes dataset', field: DATASET_FIELD, core: true }],
+        delete_dataset: [{ text: 'Delete dataset', field: DATASET_FIELD, core: true }],
         list_tables: [
-          { text: 'Lists tables in', field: DATASET_FIELD, core: true },
+          { text: 'List tables in', field: DATASET_FIELD, core: true },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
         get_table: [
-          { text: 'Reads the schema of', field: TABLE_FIELD, core: true },
+          { text: 'Read the schema of', field: TABLE_FIELD, core: true },
           { text: 'in', field: DATASET_FIELD },
         ],
         create_table: [
-          { text: 'Creates table', field: 'newTableId', core: true },
+          { text: 'Create table', field: 'newTableId', core: true },
           { text: 'in', field: DATASET_FIELD },
         ],
         delete_table: [
-          { text: 'Deletes table', field: TABLE_FIELD, core: true },
+          { text: 'Delete table', field: TABLE_FIELD, core: true },
           { text: 'from', field: DATASET_FIELD },
         ],
         list_table_data: [
-          { text: 'Previews rows from', field: TABLE_FIELD, core: true },
+          { text: 'Preview rows from', field: TABLE_FIELD, core: true },
           { text: ', up to', field: 'maxResults', after: 'rows' },
         ],
         insert_rows: [
-          { text: 'Inserts', field: 'rows', core: true },
+          { text: 'Insert', field: 'rows', core: true },
           { text: 'into', field: TABLE_FIELD, core: true },
         ],
       },

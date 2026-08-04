@@ -33,17 +33,17 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
     sentences: {
       byOperation: {
         prospect_search: [
-          'Searches prospects',
+          'Search prospects',
           { text: 'matching', field: PROSPECT_FILTER_FIELD },
           { text: 'at', field: PROSPECT_EMPLOYER_FIELD },
           { text: ', sampling', field: 'size', after: 'profiles' },
         ],
-        company_enrichment: [{ text: 'Enriches company', field: COMPANY_FIELD, core: true }],
+        company_enrichment: [{ text: 'Enrich company', field: COMPANY_FIELD, core: true }],
         individual_reveal: [
-          { text: 'Reveals contact details for', field: CONTACT_FIELD, core: true },
+          { text: 'Reveal contact details for', field: CONTACT_FIELD, core: true },
           { text: 'at', field: EMPLOYER_FIELD },
         ],
-        get_credits: ['Reads remaining account credits'],
+        get_credits: ['Read remaining account credits'],
       },
     },
   },

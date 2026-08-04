@@ -21,53 +21,53 @@ export const PagerDutyBlock: BlockConfig = {
     sentences: {
       byOperation: {
         list_incidents: [
-          'Lists incidents',
+          'List incidents',
           { text: ', with status', field: 'statuses' },
           { text: ', on service', field: 'listServiceIds' },
           { text: ', since', field: 'listSince' },
         ],
-        get_incident: [{ text: 'Reads incident', field: 'getIncidentId', core: true }],
+        get_incident: [{ text: 'Read incident', field: 'getIncidentId', core: true }],
         create_incident: [
-          { text: 'Opens incident', field: 'title', core: true },
+          { text: 'Open incident', field: 'title', core: true },
           { text: 'on service', field: 'createServiceId' },
           { text: ', assigned to', field: 'assigneeId' },
         ],
         update_incident: [
-          { text: 'Updates incident', field: 'updateIncidentId', core: true },
+          { text: 'Update incident', field: 'updateIncidentId', core: true },
           { text: 'to', field: 'updateStatus' },
           { text: ', at urgency', field: 'updateUrgency' },
         ],
         snooze_incident: [
-          { text: 'Snoozes incident', field: 'snoozeIncidentId', core: true },
+          { text: 'Snooze incident', field: 'snoozeIncidentId', core: true },
           { text: 'for', field: 'snoozeDuration', after: 'seconds' },
         ],
         merge_incidents: [
-          { text: 'Merges', field: 'mergeSourceIncidentIds', core: true },
+          { text: 'Merge', field: 'mergeSourceIncidentIds', core: true },
           { text: 'into incident', field: 'mergeTargetIncidentId', core: true },
         ],
         add_note: [
-          { text: 'Adds note', field: 'noteContent', core: true },
+          { text: 'Add note', field: 'noteContent', core: true },
           { text: 'to incident', field: 'noteIncidentId', core: true },
         ],
         list_incident_alerts: [
-          { text: 'Lists alerts on incident', field: 'alertsIncidentId', core: true },
+          { text: 'List alerts on incident', field: 'alertsIncidentId', core: true },
           { text: ', with status', field: 'alertsStatuses' },
         ],
-        list_services: ['Lists services', { text: ', matching', field: 'serviceQuery' }],
-        get_service: [{ text: 'Reads service', field: 'getServiceId', core: true }],
+        list_services: ['List services', { text: ', matching', field: 'serviceQuery' }],
+        get_service: [{ text: 'Read service', field: 'getServiceId', core: true }],
         list_oncalls: [
-          'Lists who is on call',
+          'List who is on call',
           { text: ', on schedule', field: 'oncallScheduleIds' },
           { text: ', under policy', field: 'oncallEscalationPolicyIds' },
         ],
         list_escalation_policies: [
-          'Lists escalation policies',
+          'List escalation policies',
           { text: ', matching', field: 'escalationPolicyQuery' },
         ],
-        list_schedules: ['Lists on-call schedules', { text: ', matching', field: 'scheduleQuery' }],
-        list_users: ['Lists users', { text: ', matching', field: 'userQuery' }],
+        list_schedules: ['List on-call schedules', { text: ', matching', field: 'scheduleQuery' }],
+        list_users: ['List users', { text: ', matching', field: 'userQuery' }],
         send_event: [
-          { text: 'Sends', field: 'eventAction', after: 'event', core: true },
+          { text: 'Send', field: 'eventAction', after: 'event', core: true },
           { text: 'for', field: 'eventSummary' },
         ],
       },

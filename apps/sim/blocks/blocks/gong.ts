@@ -18,47 +18,56 @@ export const GongBlock: BlockConfig<GongResponse> = {
   icon: GongIcon,
   canvasPresentation: {
     defaultTitle: 'Gong',
+    /*
+     * The only trigger field is an optional JWT public key, which is plumbing.
+     * What the card is missing is where the event comes from: every delivery is
+     * fired by an automation rule, and the rule's own filters decide which
+     * calls reach it.
+     */
+    triggerSentences: {
+      default: ['Run on', { field: 'selectedTriggerId', core: true }, 'from an automation rule'],
+    },
     sentences: {
       byOperation: {
         list_calls: [
-          'Lists calls',
+          'List calls',
           { text: ', from', field: 'fromDateTime' },
           { text: ', through', field: 'toDateTime' },
           { text: ', in workspace', field: 'workspaceId' },
         ],
         create_call: [
-          { text: 'Uploads call', field: 'title', core: true },
+          { text: 'Upload call', field: 'title', core: true },
           { text: ', hosted by', field: 'primaryUser' },
         ],
-        get_call: [{ text: 'Fetches call', field: 'callId', core: true }],
+        get_call: [{ text: 'Fetch call', field: 'callId', core: true }],
         get_call_transcript: [
-          'Fetches call transcripts',
+          'Fetch call transcripts',
           { text: ', for calls', field: 'callIds' },
           { text: ', from', field: 'transcriptFromDateTime' },
           { text: ', through', field: 'transcriptToDateTime' },
         ],
         get_extensive_calls: [
-          'Fetches enriched call details',
+          'Fetch enriched call details',
           { text: ', for calls', field: 'callIds' },
           { text: ', hosted by', field: 'primaryUserIds' },
         ],
-        list_users: ['Lists all users'],
-        get_user: [{ text: 'Fetches user', field: 'userId', core: true }],
+        list_users: ['List all users'],
+        get_user: [{ text: 'Fetch user', field: 'userId', core: true }],
         aggregate_activity: [
-          'Fetches aggregated activity stats',
+          'Fetch aggregated activity stats',
           { text: ', from', field: 'statsFromDate' },
           { text: ', through', field: 'statsToDate' },
           { text: ', for users', field: 'userIds' },
         ],
         day_by_day_activity: [
-          'Fetches day-by-day activity',
+          'Fetch day-by-day activity',
           { text: ', from', field: 'statsFromDate' },
           { text: ', through', field: 'statsToDate' },
           { text: ', for users', field: 'userIds' },
         ],
         aggregate_by_period: [
           {
-            text: 'Fetches activity aggregated by',
+            text: 'Fetch activity aggregated by',
             field: 'aggregationPeriod',
             core: true,
           },
@@ -66,76 +75,76 @@ export const GongBlock: BlockConfig<GongResponse> = {
           { text: ', through', field: 'statsToDate' },
         ],
         interaction_stats: [
-          'Fetches interaction stats',
+          'Fetch interaction stats',
           { text: ', from', field: 'statsFromDate' },
           { text: ', through', field: 'statsToDate' },
           { text: ', for users', field: 'userIds' },
         ],
         answered_scorecards: [
-          'Fetches answered scorecards',
+          'Fetch answered scorecards',
           { text: ', for scorecards', field: 'scorecardIds' },
           { text: ', about users', field: 'reviewedUserIds' },
         ],
         list_library_folders: [
-          'Lists library folders',
+          'List library folders',
           { text: ', in workspace', field: 'workspaceId' },
         ],
         get_folder_content: [
-          { text: 'Lists calls in library folder', field: 'folderId', core: true },
+          { text: 'List calls in library folder', field: 'folderId', core: true },
         ],
-        list_scorecards: ['Lists all scorecards'],
+        list_scorecards: ['List all scorecards'],
         list_trackers: [
-          'Lists keyword and smart trackers',
+          'List keyword and smart trackers',
           { text: ', in workspace', field: 'workspaceId' },
         ],
-        list_workspaces: ['Lists all workspaces'],
+        list_workspaces: ['List all workspaces'],
         list_flows: [
-          'Lists Engage flows',
+          'List Engage flows',
           { text: ', owned by', field: 'flowOwnerEmail' },
           { text: ', in workspace', field: 'workspaceId' },
         ],
         assign_flow_prospects: [
-          { text: 'Assigns', field: 'crmProspectsIds', core: true },
+          { text: 'Assign', field: 'crmProspectsIds', core: true },
           { text: 'to flow', field: 'flowId', core: true },
           { text: ', owned by', field: 'flowInstanceOwnerEmail' },
         ],
         unassign_flow_prospects: [
-          { text: 'Removes prospect', field: 'crmProspectId', core: true },
+          { text: 'Remove prospect', field: 'crmProspectId', core: true },
           { text: 'from flow', field: 'unassignFlowId', core: true },
         ],
         get_prospect_flows: [
-          { text: 'Lists flows assigned to', field: 'crmProspectsIds', core: true },
+          { text: 'List flows assigned to', field: 'crmProspectsIds', core: true },
         ],
         get_coaching: [
-          { text: 'Fetches coaching metrics for manager', field: 'managerId', core: true },
+          { text: 'Fetch coaching metrics for manager', field: 'managerId', core: true },
           { text: ', from', field: 'coachingFromDate' },
           { text: ', through', field: 'coachingToDate' },
         ],
         ask_anything: [
-          { text: 'Asks', field: 'question', core: true },
+          { text: 'Ask', field: 'question', core: true },
           { text: 'about', field: 'crmEntityId' },
         ],
         get_brief: [
-          { text: 'Generates brief', field: 'briefName', core: true },
+          { text: 'Generate brief', field: 'briefName', core: true },
           { text: 'for', field: 'crmEntityId' },
         ],
         get_logs: [
-          { text: 'Fetches', field: 'logType', after: 'entries', core: true },
+          { text: 'Fetch', field: 'logType', after: 'entries', core: true },
           { text: ', from', field: 'logsFromDateTime' },
           { text: ', through', field: 'logsToDateTime' },
         ],
         lookup_email: [
-          { text: 'Finds every reference to email', field: 'emailAddress', core: true },
+          { text: 'Find every reference to email', field: 'emailAddress', core: true },
         ],
         lookup_phone: [
-          { text: 'Finds every reference to phone number', field: 'phoneNumber', core: true },
+          { text: 'Find every reference to phone number', field: 'phoneNumber', core: true },
         ],
         purge_email_address: [
-          { text: 'Erases all data referencing email', field: 'emailAddress', core: true },
+          { text: 'Erase all data referencing email', field: 'emailAddress', core: true },
         ],
         purge_phone_number: [
           {
-            text: 'Erases all data referencing phone number',
+            text: 'Erase all data referencing phone number',
             field: 'phoneNumber',
             core: true,
           },

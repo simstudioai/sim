@@ -17,7 +17,7 @@ export const OpenAIBlock: BlockConfig = {
     defaultTitle: 'Embeddings',
     sentences: {
       default: [
-        { text: 'Embeds', field: 'input', core: true },
+        { text: 'Embed', field: 'input', core: true },
         { text: 'with', field: 'model' },
       ],
     },

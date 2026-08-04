@@ -41,7 +41,7 @@ describe('field references', () => {
   /* Each fixture opens on literal copy so the sentence is guaranteed to render
      and only the rule under test can fail. */
   it('rejects a field id the block does not declare', () => {
-    const config = createConfig({ default: ['Runs', { text: 'with', field: 'nope' }] }, [
+    const config = createConfig({ default: ['Run', { text: 'with', field: 'nope' }] }, [
       { id: 'code' },
     ])
 
@@ -51,7 +51,7 @@ describe('field references', () => {
   })
 
   it('accepts a field the block declares', () => {
-    const config = createConfig({ default: [{ text: 'Runs', field: 'code', core: true }] }, [
+    const config = createConfig({ default: [{ text: 'Run', field: 'code', core: true }] }, [
       { id: 'code' },
     ])
 
@@ -59,9 +59,7 @@ describe('field references', () => {
   })
 
   it('rejects an empty field list', () => {
-    const config = createConfig({ default: ['Runs', { text: 'with', field: [] }] }, [
-      { id: 'code' },
-    ])
+    const config = createConfig({ default: ['Run', { text: 'with', field: [] }] }, [{ id: 'code' }])
 
     expect(messages(config)).toEqual([expect.stringContaining('empty `field`')])
   })
@@ -102,7 +100,7 @@ describe('canonical-pair completeness', () => {
 
   it('rejects a clause naming only the basic member', () => {
     const config = createConfig(
-      { default: [{ text: 'Queries', field: 'tableSelector', core: true }] },
+      { default: [{ text: 'Query', field: 'tableSelector', core: true }] },
       pairSubBlocks
     )
 
@@ -115,7 +113,7 @@ describe('canonical-pair completeness', () => {
     /* Non-core plus literal copy, so only the canonical-pair rule can fire —
        the advanced member is also, correctly, not on a basic-mode card. */
     const config = createConfig(
-      { default: ['Queries rows', { text: 'from', field: 'manualTableId' }] },
+      { default: ['Query rows', { text: 'from', field: 'manualTableId' }] },
       pairSubBlocks
     )
 
@@ -126,7 +124,7 @@ describe('canonical-pair completeness', () => {
 
   it('rejects a core clause naming only the advanced member, which a basic card hides', () => {
     const config = createConfig(
-      { default: [{ text: 'Queries', field: 'manualTableId', core: true }] },
+      { default: [{ text: 'Query', field: 'manualTableId', core: true }] },
       pairSubBlocks
     )
 
@@ -140,7 +138,7 @@ describe('canonical-pair completeness', () => {
   it('accepts a clause naming both members', () => {
     const config = createConfig(
       {
-        default: [{ text: 'Queries', field: ['tableSelector', 'manualTableId'], core: true }],
+        default: [{ text: 'Query', field: ['tableSelector', 'manualTableId'], core: true }],
       },
       pairSubBlocks
     )
@@ -154,7 +152,7 @@ describe('dead clauses', () => {
     const config = createConfig(
       {
         byOperation: {
-          send: ['Sends', { text: 'to', field: 'query' }],
+          send: ['Send', { text: 'to', field: 'query' }],
         },
       },
       [
@@ -170,7 +168,7 @@ describe('dead clauses', () => {
 
   it('honours a negated condition', () => {
     const config = createConfig(
-      { byOperation: { send: [{ text: 'Sends to', field: 'to', core: true }] } },
+      { byOperation: { send: [{ text: 'Send to', field: 'to', core: true }] } },
       [
         operationDropdown('send', 'search'),
         { id: 'to', condition: { field: 'operation', value: 'search', not: true } },
@@ -183,7 +181,7 @@ describe('dead clauses', () => {
   it('accepts when one of several same-id definitions matches', () => {
     /* table declares `filter` once per operation family; the card shows whichever matches. */
     const config = createConfig(
-      { byOperation: { bulk: [{ text: 'Updates, where', field: 'filter', core: true }] } },
+      { byOperation: { bulk: [{ text: 'Update, where', field: 'filter', core: true }] } },
       [
         operationDropdown('query', 'bulk'),
         { id: 'filter', condition: { field: 'operation', value: 'query' } },
@@ -203,7 +201,7 @@ describe('dead clauses', () => {
     const config = createConfig(
       {
         byOperation: {
-          list: ['Lists rows', { text: 'in', field: 'tableId' }],
+          list: ['List rows', { text: 'in', field: 'tableId' }],
         },
       },
       [
@@ -225,7 +223,7 @@ describe('dead clauses', () => {
     const config = createConfig(
       {
         byOperation: {
-          send: ['Sends', { text: 'to', field: 'to' }],
+          send: ['Send', { text: 'to', field: 'to' }],
         },
       },
       [
@@ -245,7 +243,7 @@ describe('dead clauses', () => {
     const config = createConfig(
       {
         byOperation: {
-          send: ['Sends', { text: 'to', field: 'to' }],
+          send: ['Send', { text: 'to', field: 'to' }],
         },
       },
       [
@@ -268,8 +266,8 @@ describe('operations must be distinguishable', () => {
     const config = createConfig(
       {
         byOperation: {
-          get_thread: [{ text: 'Reads thread', field: 'threadId', core: true }],
-          get_thread_replies: [{ text: 'Reads thread', field: 'threadId', core: true }],
+          get_thread: [{ text: 'Read thread', field: 'threadId', core: true }],
+          get_thread_replies: [{ text: 'Read thread', field: 'threadId', core: true }],
         },
       },
       [operationDropdown('get_thread', 'get_thread_replies'), { id: 'threadId' }]
@@ -284,9 +282,9 @@ describe('operations must be distinguishable', () => {
     const config = createConfig(
       {
         byOperation: {
-          get_thread: [{ text: 'Reads thread', field: 'threadId', core: true }],
+          get_thread: [{ text: 'Read thread', field: 'threadId', core: true }],
           get_thread_replies: [
-            { text: 'Reads every reply in thread', field: 'threadId', core: true },
+            { text: 'Read every reply in thread', field: 'threadId', core: true },
           ],
         },
       },
@@ -306,11 +304,11 @@ describe('operations must be distinguishable', () => {
       {
         byOperation: {
           tag_contact: [
-            { text: 'Adds tag', field: 'tagId', core: true },
+            { text: 'Add tag', field: 'tagId', core: true },
             { text: 'to contact', field: 'contactId' },
           ],
           tag_conversation: [
-            { text: 'Adds tag', field: 'tagId', core: true },
+            { text: 'Add tag', field: 'tagId', core: true },
             { text: 'to conversation', field: 'conversationId' },
           ],
         },
@@ -333,11 +331,11 @@ describe('operations must be distinguishable', () => {
       {
         byOperation: {
           tag_contact: [
-            { text: 'Adds tag', field: 'tagId', core: true },
+            { text: 'Add tag', field: 'tagId', core: true },
             { text: 'to contact', field: 'contactId', core: true },
           ],
           tag_conversation: [
-            { text: 'Adds tag', field: 'tagId', core: true },
+            { text: 'Add tag', field: 'tagId', core: true },
             { text: 'to conversation', field: 'conversationId', core: true },
           ],
         },
@@ -357,8 +355,8 @@ describe('operations must be distinguishable', () => {
     const config = createConfig(
       {
         byOperation: {
-          get_thread: [{ text: 'Reads thread', field: 'threadId', core: true }],
-          get_thread_replies: [{ text: 'Reads thread', field: 'threadId', core: true }],
+          get_thread: [{ text: 'Read thread', field: 'threadId', core: true }],
+          get_thread_replies: [{ text: 'Read thread', field: 'threadId', core: true }],
         },
       },
       [operationDropdown('get_thread', 'get_thread_replies'), { id: 'threadId' }]
@@ -385,10 +383,10 @@ describe('article agreement with a dropdown chip', () => {
 
   it('rejects an article in front of a core chip, which supplies its own', () => {
     /* A core chip stands the field's noun in for the missing value, and a noun
-       carries its own article — so the card would read "Creates a a campaign
+       carries its own article — so the card would read "Create a a campaign
        type". This applies whatever the labels are; nothing to enumerate. */
     const config = createConfig(
-      { default: [{ text: 'Creates a', field: 'campaignType', after: 'campaign', core: true }] },
+      { default: [{ text: 'Create a', field: 'campaignType', after: 'campaign', core: true }] },
       [campaignTypes]
     )
 
@@ -399,7 +397,7 @@ describe('article agreement with a dropdown chip', () => {
 
   it('accepts a core chip with no article in front of it', () => {
     const config = createConfig(
-      { default: [{ text: 'Creates', field: 'campaignType', after: 'campaign', core: true }] },
+      { default: [{ text: 'Create', field: 'campaignType', after: 'campaign', core: true }] },
       [campaignTypes]
     )
 
@@ -410,7 +408,7 @@ describe('article agreement with a dropdown chip', () => {
     /* An optional chip only ever renders a real label, so the article can be
        checked against the label set instead. */
     const config = createConfig(
-      { default: ['Creates', { text: 'a', field: 'campaignType', after: 'campaign' }] },
+      { default: ['Create', { text: 'a', field: 'campaignType', after: 'campaign' }] },
       [campaignTypes]
     )
 
@@ -421,7 +419,7 @@ describe('article agreement with a dropdown chip', () => {
 
   it('accepts the value moved out from behind the article', () => {
     const config = createConfig(
-      { default: ['Creates a campaign', { text: 'of type', field: 'campaignType' }] },
+      { default: ['Create a campaign', { text: 'of type', field: 'campaignType' }] },
       [campaignTypes]
     )
 
@@ -431,7 +429,7 @@ describe('article agreement with a dropdown chip', () => {
   it('honours labels whose spelling and pronunciation disagree', () => {
     /* "a user", "a one-time budget" — vowel letters, consonant sounds. */
     const config = createConfig(
-      { default: ['Creates', { text: 'a', field: 'kind', after: 'record' }] },
+      { default: ['Create', { text: 'a', field: 'kind', after: 'record' }] },
       [
         {
           id: 'kind',
@@ -449,7 +447,7 @@ describe('article agreement with a dropdown chip', () => {
 
   it('reads an initialism letter by letter', () => {
     const config = createConfig(
-      { default: ['Sends', { text: 'a', field: 'channel', after: 'message' }] },
+      { default: ['Send', { text: 'a', field: 'channel', after: 'message' }] },
       [{ id: 'channel', type: 'dropdown', options: [{ id: 'sms', label: 'SMS' }] }]
     )
 
@@ -459,7 +457,7 @@ describe('article agreement with a dropdown chip', () => {
   it('does not treat an all-caps word as an initialism', () => {
     /* `MERGE` and `HEAD` are HTTP verbs read as words — "a MERGE request". */
     const config = createConfig(
-      { default: ['Sends', { text: 'a', field: 'method', after: 'request' }] },
+      { default: ['Send', { text: 'a', field: 'method', after: 'request' }] },
       [
         {
           id: 'method',
@@ -477,7 +475,7 @@ describe('article agreement with a dropdown chip', () => {
 
   it('stays silent when the chip is not an enumerable dropdown', () => {
     const config = createConfig(
-      { default: ['Creates', { text: 'a', field: 'name', after: 'record' }] },
+      { default: ['Create', { text: 'a', field: 'name', after: 'record' }] },
       [{ id: 'name' }]
     )
 
@@ -489,14 +487,14 @@ describe('correlative constructions', () => {
   /*
    * The opener sits in the clause's own `text`, in front of its own chip, so
    * nothing trails and `DANGLING_CONNECTIVES` cannot see it. What breaks is the
-   * relation: "Routes from ⟨origin⟩" is well-formed and describes a different
+   * relation: "Route from ⟨origin⟩" is well-formed and describes a different
    * journey than the one the block runs.
    */
   it('rejects a droppable second operand after "from"', () => {
     const config = createConfig(
       {
         default: [
-          { text: 'Routes from', field: 'origin', core: true },
+          { text: 'Route from', field: 'origin', core: true },
           { text: 'to', field: 'destination' },
         ],
       },
@@ -512,7 +510,7 @@ describe('correlative constructions', () => {
     const config = createConfig(
       {
         default: [
-          { text: 'Compares builds between', field: 'fromBuild', core: true },
+          { text: 'Compare builds between', field: 'fromBuild', core: true },
           { text: 'and', field: 'toBuild' },
         ],
       },
@@ -526,7 +524,7 @@ describe('correlative constructions', () => {
     const config = createConfig(
       {
         default: [
-          { text: 'Routes from', field: 'origin', core: true },
+          { text: 'Route from', field: 'origin', core: true },
           { text: 'to', field: 'destination', core: true },
         ],
       },
@@ -537,11 +535,11 @@ describe('correlative constructions', () => {
   })
 
   it('ignores "from" with no matching closer', () => {
-    /* "Lists rows from ⟨table⟩" is a complete thought, not half a relation. */
+    /* "List rows from ⟨table⟩" is a complete thought, not half a relation. */
     const config = createConfig(
       {
         default: [
-          { text: 'Lists rows from', field: 'table', core: true },
+          { text: 'List rows from', field: 'table', core: true },
           { text: ', limited to', field: 'limit' },
         ],
       },
@@ -560,7 +558,7 @@ describe('core clauses', () => {
     const config = createConfig(
       {
         default: [
-          { text: 'Sends', field: 'to', core: true },
+          { text: 'Send', field: 'to', core: true },
           { text: 'about', field: 'subject', core: true },
         ],
       },
@@ -574,7 +572,7 @@ describe('core clauses', () => {
     /* `core` promises the clause always renders; there is no replacement copy in
        this DSL, so a clause gated away simply drops and the promise was false. */
     const config = createConfig(
-      { byOperation: { send: ['Sends', { text: 'to', field: 'query', core: true }] } },
+      { byOperation: { send: ['Send', { text: 'to', field: 'query', core: true }] } },
       [
         operationDropdown('send', 'search'),
         { id: 'query', condition: { field: 'operation', value: 'search' } },
@@ -595,7 +593,7 @@ describe('every sentence keeps a clause', () => {
    * cannot — and the one that does not.
    */
   it('rejects a sentence whose only clause can vanish', () => {
-    const config = createConfig({ default: [{ text: 'Sends to', field: 'to' }] }, [{ id: 'to' }])
+    const config = createConfig({ default: [{ text: 'Send to', field: 'to' }] }, [{ id: 'to' }])
 
     expect(messages(config)).toEqual([
       expect.stringContaining('nothing in this sentence is guaranteed to render'),
@@ -606,7 +604,7 @@ describe('every sentence keeps a clause', () => {
     /* `mode` is not the operation and not an enumerable partition, so nothing
        here proves the field is on the card. */
     const config = createConfig(
-      { byOperation: { send: [{ text: 'Sends to', field: 'to', core: true }] } },
+      { byOperation: { send: [{ text: 'Send to', field: 'to', core: true }] } },
       [operationDropdown('send'), { id: 'to', condition: () => ({ field: 'mode', value: 'a' }) }]
     )
 
@@ -627,7 +625,7 @@ describe('every sentence keeps a clause', () => {
      * this stays undecidable here rather than being guessed.
      */
     const config = createConfig(
-      { byOperation: { read: [{ text: 'Reads from', field: 'channel', core: true }] } },
+      { byOperation: { read: [{ text: 'Read from', field: 'channel', core: true }] } },
       [
         operationDropdown('send', 'read'),
         {
@@ -650,7 +648,7 @@ describe('every sentence keeps a clause', () => {
   it('accepts fields whose conditions exhaustively partition one dropdown', () => {
     /* `file` names both members of an upload/url pair, so exactly one shows. */
     const config = createConfig(
-      { default: [{ text: 'Reads', field: ['upload', 'url'], core: true }] },
+      { default: [{ text: 'Read', field: ['upload', 'url'], core: true }] },
       [
         { id: 'inputMethod', type: 'dropdown', options: [{ id: 'upload' }, { id: 'url' }] },
         { id: 'upload', condition: { field: 'inputMethod', value: 'upload' } },
@@ -662,7 +660,7 @@ describe('every sentence keeps a clause', () => {
   })
 
   it('rejects a partition that leaves an option uncovered', () => {
-    const config = createConfig({ default: [{ text: 'Reads', field: ['upload'], core: true }] }, [
+    const config = createConfig({ default: [{ text: 'Read', field: ['upload'], core: true }] }, [
       { id: 'inputMethod', type: 'dropdown', options: [{ id: 'upload' }, { id: 'url' }] },
       { id: 'upload', condition: { field: 'inputMethod', value: 'upload' } },
     ])
@@ -676,11 +674,11 @@ describe('every sentence keeps a clause', () => {
 
 describe('connective hygiene', () => {
   it('rejects an `after` connective in front of an optional clause', () => {
-    /* Renders "Queries ⟨orders⟩, where" when the filter is unset. */
+    /* Renders "Query ⟨orders⟩, where" when the filter is unset. */
     const config = createConfig(
       {
         default: [
-          { text: 'Queries', field: 'table', after: ', where', core: true },
+          { text: 'Query', field: 'table', after: ', where', core: true },
           { field: 'filter' },
         ],
       },
@@ -696,7 +694,7 @@ describe('connective hygiene', () => {
     const config = createConfig(
       {
         default: [
-          { text: 'Queries', field: 'table', core: true },
+          { text: 'Query', field: 'table', core: true },
           { text: ', where', field: 'filter' },
         ],
       },
@@ -712,7 +710,7 @@ describe('connective hygiene', () => {
     const config = createConfig(
       {
         default: [
-          { text: 'Sends', field: 'method', after: 'request to', core: true },
+          { text: 'Send', field: 'method', after: 'request to', core: true },
           { field: 'url' },
         ],
       },
@@ -726,7 +724,7 @@ describe('connective hygiene', () => {
 
   it('rejects a trailing connective with nothing after it', () => {
     const config = createConfig(
-      { default: [{ text: 'Queries', field: 'table', after: 'where', core: true }] },
+      { default: [{ text: 'Query', field: 'table', after: 'where', core: true }] },
       [{ id: 'table' }]
     )
 
@@ -739,7 +737,7 @@ describe('connective hygiene', () => {
     const config = createConfig(
       {
         default: [
-          { text: 'Sends', field: 'method', after: 'request to', core: true },
+          { text: 'Send', field: 'method', after: 'request to', core: true },
           { field: 'url', core: true },
         ],
       },
@@ -783,7 +781,7 @@ describe('coverage', () => {
   })
 
   it('treats a default sentence as covering every operation', () => {
-    const config = createConfig({ default: [{ text: 'Acts on', field: 'to', core: true }] }, [
+    const config = createConfig({ default: [{ text: 'Act on', field: 'to', core: true }] }, [
       operationDropdown('send', 'search'),
       { id: 'to' },
     ])

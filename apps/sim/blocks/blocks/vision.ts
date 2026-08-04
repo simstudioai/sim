@@ -41,7 +41,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
     defaultTitle: 'Vision',
     sentences: {
       default: [
-        { text: 'Analyzes', field: IMAGE_FIELD, core: true },
+        { text: 'Analyze', field: IMAGE_FIELD, core: true },
         { text: ', asking', field: 'prompt' },
       ],
     },
@@ -126,7 +126,7 @@ export const VisionV2Block: BlockConfig<VisionResponse> = {
     defaultTitle: 'Vision',
     sentences: {
       default: [
-        { text: 'Analyzes', field: IMAGE_V2_FIELD, core: true },
+        { text: 'Analyze', field: IMAGE_V2_FIELD, core: true },
         { text: ', asking', field: 'prompt' },
       ],
     },

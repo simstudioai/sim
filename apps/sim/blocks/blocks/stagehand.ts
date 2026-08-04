@@ -21,11 +21,11 @@ export const StagehandBlock: BlockConfig<StagehandResponse> = {
     sentences: {
       byOperation: {
         extract: [
-          { text: 'Extracts data from', field: 'url', core: true },
+          { text: 'Extract data from', field: 'url', core: true },
           { text: ', following', field: 'instruction' },
         ],
         agent: [
-          { text: 'Runs an agent on', field: 'startUrl', core: true },
+          { text: 'Run an agent on', field: 'startUrl', core: true },
           { text: 'to', field: 'task' },
         ],
       },

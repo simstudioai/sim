@@ -71,7 +71,7 @@ export function getOperationSubBlockId(config: CanvasSentenceConfig): string | n
 }
 
 /** Picks the sentence declared for an operation, or the block's single default. */
-export function getCanvasSentence(
+function getCanvasSentence(
   config: CanvasSentenceConfig,
   operationValue: unknown
 ): CanvasSentence | null {

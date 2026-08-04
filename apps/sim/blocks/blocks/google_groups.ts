@@ -21,57 +21,57 @@ export const GoogleGroupsBlock: BlockConfig = {
     sentences: {
       byOperation: {
         list_groups: [
-          'Lists groups',
+          'List groups',
           { text: 'in', field: 'domain' },
           { text: ', matching', field: 'query' },
         ],
-        get_group: [{ text: 'Reads group', field: 'groupKey', core: true }],
+        get_group: [{ text: 'Read group', field: 'groupKey', core: true }],
         create_group: [
-          { text: 'Creates group', field: 'name', core: true },
+          { text: 'Create group', field: 'name', core: true },
           { text: 'at', field: 'email' },
         ],
         update_group: [
-          { text: 'Updates group', field: 'groupKey', core: true },
+          { text: 'Update group', field: 'groupKey', core: true },
           { text: ', renaming it to', field: 'newName' },
         ],
-        delete_group: [{ text: 'Deletes group', field: 'groupKey', core: true }],
+        delete_group: [{ text: 'Delete group', field: 'groupKey', core: true }],
         list_members: [
-          { text: 'Lists members of', field: 'groupKey', core: true },
+          { text: 'List members of', field: 'groupKey', core: true },
           { text: ', with role', field: 'roles' },
         ],
         get_member: [
-          { text: 'Reads member', field: 'memberKey', core: true },
+          { text: 'Read member', field: 'memberKey', core: true },
           { text: 'of', field: 'groupKey' },
         ],
         add_member: [
-          { text: 'Adds', field: 'memberEmail', core: true },
+          { text: 'Add', field: 'memberEmail', core: true },
           { text: 'to', field: 'groupKey', core: true },
           { text: 'as', field: 'role' },
         ],
         update_member: [
-          { text: 'Sets role of', field: 'memberKey', core: true },
+          { text: 'Set role of', field: 'memberKey', core: true },
           { text: 'in', field: 'groupKey', core: true },
           { text: 'to', field: 'role' },
         ],
         remove_member: [
-          { text: 'Removes', field: 'memberKey', core: true },
+          { text: 'Remove', field: 'memberKey', core: true },
           { text: 'from', field: 'groupKey', core: true },
         ],
         has_member: [
-          { text: 'Checks whether', field: 'memberKey', core: true },
+          { text: 'Check whether', field: 'memberKey', core: true },
           { text: 'belongs to', field: 'groupKey', core: true },
         ],
-        list_aliases: [{ text: 'Lists aliases of', field: 'groupKey', core: true }],
+        list_aliases: [{ text: 'List aliases of', field: 'groupKey', core: true }],
         add_alias: [
-          { text: 'Adds alias', field: 'alias', core: true },
+          { text: 'Add alias', field: 'alias', core: true },
           { text: 'to', field: 'groupKey', core: true },
         ],
         remove_alias: [
-          { text: 'Removes alias', field: 'alias', core: true },
+          { text: 'Remove alias', field: 'alias', core: true },
           { text: 'from', field: 'groupKey', core: true },
         ],
-        get_settings: [{ text: 'Reads settings of', field: 'groupEmail', core: true }],
-        update_settings: [{ text: 'Updates settings of', field: 'groupEmail', core: true }],
+        get_settings: [{ text: 'Read settings of', field: 'groupEmail', core: true }],
+        update_settings: [{ text: 'Update settings of', field: 'groupEmail', core: true }],
       },
     },
   },

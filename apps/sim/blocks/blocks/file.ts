@@ -102,7 +102,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
       /* `inputMethod` has no default, so neither member of the pair is on a
          freshly-dropped card — the literal is what the card says until the user
          picks how to supply the file. */
-      default: ['Parses a file', { text: 'from', field: UPLOAD_OR_URL_FIELD }],
+      default: ['Parse a file', { text: 'from', field: UPLOAD_OR_URL_FIELD }],
     },
   },
   subBlocks: [
@@ -219,7 +219,7 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
       /* `inputMethod` has no default, so neither member of the pair is on a
          freshly-dropped card — the literal is what the card says until the user
          picks how to supply the file. */
-      default: ['Parses a file', { text: 'from', field: UPLOAD_OR_URL_FIELD }],
+      default: ['Parse a file', { text: 'from', field: UPLOAD_OR_URL_FIELD }],
     },
   },
   subBlocks: [
@@ -320,14 +320,14 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     defaultTitle: 'File',
     sentences: {
       byOperation: {
-        file_parser_v3: [{ text: 'Parses', field: V3_PARSE_FILE_FIELD, core: true }],
-        file_get: [{ text: 'Gets', field: V3_GET_FILE_FIELD, core: true }],
+        file_parser_v3: [{ text: 'Parse', field: V3_PARSE_FILE_FIELD, core: true }],
+        file_get: [{ text: 'Get', field: V3_GET_FILE_FIELD, core: true }],
         file_write: [
-          { text: 'Creates', field: 'fileName', core: true },
+          { text: 'Create', field: 'fileName', core: true },
           { text: 'containing', field: 'content' },
         ],
         file_append: [
-          { text: 'Appends', field: 'appendContent', core: true },
+          { text: 'Append', field: 'appendContent', core: true },
           { text: 'to', field: APPEND_FILE_FIELD, core: true },
         ],
       },
@@ -632,14 +632,14 @@ export const FileV4Block: BlockConfig<FileParserV3Output> = {
     defaultTitle: 'File',
     sentences: {
       byOperation: {
-        file_read: [{ text: 'Gets', field: READ_FILE_FIELD, core: true }],
-        file_fetch: [{ text: 'Fetches and parses', field: 'fileUrl', core: true }],
+        file_read: [{ text: 'Get', field: READ_FILE_FIELD, core: true }],
+        file_fetch: [{ text: 'Fetch and parse', field: 'fileUrl', core: true }],
         file_write: [
-          { text: 'Creates', field: 'fileName', core: true },
+          { text: 'Create', field: 'fileName', core: true },
           { text: 'containing', field: 'content' },
         ],
         file_append: [
-          { text: 'Appends', field: 'appendContent', core: true },
+          { text: 'Append', field: 'appendContent', core: true },
           { text: 'to', field: APPEND_FILE_FIELD, core: true },
         ],
       },
@@ -915,26 +915,26 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     defaultTitle: 'File',
     sentences: {
       byOperation: {
-        file_read: [{ text: 'Gets', field: READ_FILE_FIELD, core: true }],
+        file_read: [{ text: 'Get', field: READ_FILE_FIELD, core: true }],
         file_get_content: [
-          { text: 'Extracts text from', field: GET_CONTENT_FILE_FIELD, core: true },
+          { text: 'Extract text from', field: GET_CONTENT_FILE_FIELD, core: true },
         ],
-        file_fetch: [{ text: 'Fetches and parses', field: 'fileUrl', core: true }],
+        file_fetch: [{ text: 'Fetch and parse', field: 'fileUrl', core: true }],
         file_write: [
-          { text: 'Creates', field: 'fileName', core: true },
+          { text: 'Create', field: 'fileName', core: true },
           { text: 'containing', field: 'content' },
         ],
         file_append: [
-          { text: 'Appends', field: 'appendContent', core: true },
+          { text: 'Append', field: 'appendContent', core: true },
           { text: 'to', field: APPEND_FILE_FIELD, core: true },
         ],
         file_compress: [
-          { text: 'Compresses', field: COMPRESS_FILE_FIELD, core: true },
+          { text: 'Compress', field: COMPRESS_FILE_FIELD, core: true },
           { text: 'into', field: 'archiveName' },
         ],
-        file_decompress: [{ text: 'Unzips', field: DECOMPRESS_FILE_FIELD, core: true }],
+        file_decompress: [{ text: 'Unzip', field: DECOMPRESS_FILE_FIELD, core: true }],
         file_manage_sharing: [
-          { text: 'Sets sharing on', field: SHARE_FILE_FIELD, core: true },
+          { text: 'Set sharing on', field: SHARE_FILE_FIELD, core: true },
           { text: 'to', field: 'shareVisibility' },
         ],
       },

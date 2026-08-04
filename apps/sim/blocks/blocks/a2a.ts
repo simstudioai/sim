@@ -23,19 +23,19 @@ export const A2ABlock: BlockConfig = {
     sentences: {
       byOperation: {
         a2a_send_message: [
-          { text: 'Sends', field: 'message', core: true },
+          { text: 'Send', field: 'message', core: true },
           { text: 'to the agent at', field: 'agentUrl', core: true },
           { text: ', attaching', field: FILES_FIELD },
         ],
         a2a_get_task: [
-          { text: 'Reads the state of task', field: 'taskId', core: true },
+          { text: 'Read the state of task', field: 'taskId', core: true },
           { text: 'on the agent at', field: 'agentUrl' },
         ],
         a2a_cancel_task: [
-          { text: 'Cancels task', field: 'taskId', core: true },
+          { text: 'Cancel task', field: 'taskId', core: true },
           { text: 'on the agent at', field: 'agentUrl' },
         ],
-        a2a_get_agent_card: [{ text: 'Reads the agent card at', field: 'agentUrl', core: true }],
+        a2a_get_agent_card: [{ text: 'Read the agent card at', field: 'agentUrl', core: true }],
       },
     },
   },

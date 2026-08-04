@@ -20,26 +20,26 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
     sentences: {
       byOperation: {
         list_secrets: [
-          { text: 'Lists secrets in project', field: 'projectId', core: true },
+          { text: 'List secrets in project', field: 'projectId', core: true },
           { text: ', environment', field: 'environment' },
           { text: ', under', field: 'secretPath' },
         ],
         get_secret: [
-          { text: 'Reads secret', field: 'secretName', core: true },
+          { text: 'Read secret', field: 'secretName', core: true },
           { text: 'from environment', field: 'environment' },
           { text: ', at version', field: 'secretVersion' },
         ],
         create_secret: [
-          { text: 'Creates secret', field: 'secretName', core: true },
+          { text: 'Create secret', field: 'secretName', core: true },
           { text: 'in environment', field: 'environment' },
         ],
         update_secret: [
-          { text: 'Updates secret', field: 'secretName', core: true },
+          { text: 'Update secret', field: 'secretName', core: true },
           { text: 'in environment', field: 'environment' },
           { text: ', renaming it to', field: 'newSecretName' },
         ],
         delete_secret: [
-          { text: 'Deletes secret', field: 'secretName', core: true },
+          { text: 'Delete secret', field: 'secretName', core: true },
           { text: 'from environment', field: 'environment' },
         ],
       },

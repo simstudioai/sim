@@ -16,28 +16,28 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
     sentences: {
       byOperation: {
         create_thread: [
-          { text: 'Creates thread', field: 'threadId', core: true },
+          { text: 'Create thread', field: 'threadId', core: true },
           { text: 'for user', field: 'userId' },
         ],
-        add_messages: [{ text: 'Adds messages to thread', field: 'threadId', core: true }],
-        get_context: [{ text: 'Fetches user context from thread', field: 'threadId', core: true }],
+        add_messages: [{ text: 'Add messages to thread', field: 'threadId', core: true }],
+        get_context: [{ text: 'Fetch user context from thread', field: 'threadId', core: true }],
         get_messages: [
           {
-            text: 'Reads the latest',
+            text: 'Read the latest',
             field: 'limit',
             after: 'messages',
             core: true,
           },
           { text: 'from thread', field: 'threadId', core: true },
         ],
-        get_threads: [{ text: 'Lists up to', field: 'limit', after: 'threads', core: true }],
-        delete_thread: [{ text: 'Deletes thread', field: 'threadId', core: true }],
+        get_threads: [{ text: 'List up to', field: 'limit', after: 'threads', core: true }],
+        delete_thread: [{ text: 'Delete thread', field: 'threadId', core: true }],
         add_user: [
-          { text: 'Creates user', field: 'userId', core: true },
+          { text: 'Create user', field: 'userId', core: true },
           { text: 'with email', field: 'email' },
         ],
-        get_user: [{ text: 'Fetches user', field: 'userId', core: true }],
-        get_user_threads: [{ text: 'Lists threads for user', field: 'userId', core: true }],
+        get_user: [{ text: 'Fetch user', field: 'userId', core: true }],
+        get_user_threads: [{ text: 'List threads for user', field: 'userId', core: true }],
       },
     },
   },

@@ -35,15 +35,15 @@ export const NewRelicBlock: BlockConfig<NewRelicResponse> = {
     sentences: {
       byOperation: {
         new_relic_nrql_query: [
-          { text: 'Runs NRQL query', field: 'nrql', core: true },
+          { text: 'Run NRQL query', field: 'nrql', core: true },
           { text: 'on account', field: 'accountId' },
         ],
         new_relic_search_entities: [
-          { text: 'Searches entities matching', field: 'query', core: true },
+          { text: 'Search entities matching', field: 'query', core: true },
         ],
-        new_relic_get_entity: [{ text: 'Fetches entity', field: 'guid', core: true }],
+        new_relic_get_entity: [{ text: 'Fetch entity', field: 'guid', core: true }],
         new_relic_create_deployment_event: [
-          { text: 'Records deployment', field: 'version', core: true },
+          { text: 'Record deployment', field: 'version', core: true },
           { text: 'on entity', field: 'entityGuid' },
         ],
       },

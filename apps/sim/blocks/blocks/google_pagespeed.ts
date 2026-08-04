@@ -18,7 +18,7 @@ export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> =
     defaultTitle: 'Google PageSpeed',
     sentences: {
       default: [
-        { text: 'Analyzes', field: 'url', core: true },
+        { text: 'Analyze', field: 'url', core: true },
         { text: 'on', field: 'strategy' },
         { text: ', scoring', field: 'category' },
       ],

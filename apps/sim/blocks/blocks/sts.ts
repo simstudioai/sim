@@ -20,24 +20,24 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
     sentences: {
       byOperation: {
         assume_role: [
-          { text: 'Assumes role', field: 'roleArn', core: true },
+          { text: 'Assume role', field: 'roleArn', core: true },
           { text: 'as session', field: 'roleSessionName' },
         ],
         assume_role_with_web_identity: [
-          { text: 'Assumes role', field: 'roleArn', after: 'via web identity', core: true },
+          { text: 'Assume role', field: 'roleArn', after: 'via web identity', core: true },
           { text: ', as session', field: 'roleSessionName' },
         ],
         assume_role_with_saml: [
-          { text: 'Assumes role', field: 'roleArn', after: 'via SAML', core: true },
+          { text: 'Assume role', field: 'roleArn', after: 'via SAML', core: true },
         ],
-        get_caller_identity: ['Reads the IAM identity of the calling credentials'],
+        get_caller_identity: ['Read the IAM identity of the calling credentials'],
         get_session_token: [
-          'Issues temporary session credentials',
+          'Issue temporary session credentials',
           { text: 'for', field: 'durationSeconds', after: 'seconds' },
           { text: ', verified by MFA device', field: 'serialNumber' },
         ],
         get_access_key_info: [
-          { text: 'Reads the account for access key', field: 'targetAccessKeyId', core: true },
+          { text: 'Read the account for access key', field: 'targetAccessKeyId', core: true },
         ],
       },
     },

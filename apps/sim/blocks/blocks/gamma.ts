@@ -19,19 +19,19 @@ export const GammaBlock: BlockConfig<GammaResponse> = {
     sentences: {
       byOperation: {
         generate: [
-          { text: 'Generates', field: 'format', core: true },
+          { text: 'Generate', field: 'format', core: true },
           { text: 'from', field: 'inputText', core: true },
           { text: ', across', field: 'numCards', after: 'cards' },
         ],
         generate_from_template: [
-          { text: 'Adapts template', field: 'gammaId', core: true },
+          { text: 'Adapt template', field: 'gammaId', core: true },
           { text: 'using', field: 'prompt' },
         ],
         check_status: [
-          { text: 'Checks the status of generation', field: 'generationId', core: true },
+          { text: 'Check the status of generation', field: 'generationId', core: true },
         ],
-        list_themes: ['Lists available themes'],
-        list_folders: ['Lists available folders'],
+        list_themes: ['List available themes'],
+        list_folders: ['List available folders'],
       },
     },
   },

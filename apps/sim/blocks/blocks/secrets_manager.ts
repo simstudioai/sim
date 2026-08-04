@@ -19,33 +19,33 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
     sentences: {
       byOperation: {
         get_secret: [
-          { text: 'Reads the value of secret', field: 'secretId', core: true },
+          { text: 'Read the value of secret', field: 'secretId', core: true },
           { text: ', at stage', field: 'versionStage' },
         ],
-        list_secrets: ['Lists secrets', { text: ', up to', field: 'maxResults' }],
+        list_secrets: ['List secrets', { text: ', up to', field: 'maxResults' }],
         create_secret: [
-          { text: 'Creates secret', field: 'name', core: true },
+          { text: 'Create secret', field: 'name', core: true },
           { text: ', described as', field: 'description' },
         ],
-        update_secret: [{ text: 'Overwrites the value of secret', field: 'secretId', core: true }],
+        update_secret: [{ text: 'Overwrite the value of secret', field: 'secretId', core: true }],
         delete_secret: [
-          { text: 'Deletes secret', field: 'secretId', core: true },
+          { text: 'Delete secret', field: 'secretId', core: true },
           { text: ', after', field: 'recoveryWindowInDays', after: 'days' },
         ],
-        describe_secret: [{ text: 'Reads metadata of secret', field: 'secretId', core: true }],
+        describe_secret: [{ text: 'Read metadata of secret', field: 'secretId', core: true }],
         tag_resource: [
-          { text: 'Tags secret', field: 'secretId', core: true },
+          { text: 'Tag secret', field: 'secretId', core: true },
           { text: ', with', field: 'tags' },
         ],
         untag_resource: [
-          { text: 'Removes tags', field: 'tagKeys', core: true },
+          { text: 'Remove tags', field: 'tagKeys', core: true },
           { text: 'from secret', field: 'secretId', core: true },
         ],
         restore_secret: [
-          { text: 'Cancels the scheduled deletion of secret', field: 'secretId', core: true },
+          { text: 'Cancel the scheduled deletion of secret', field: 'secretId', core: true },
         ],
         rotate_secret: [
-          { text: 'Rotates secret', field: 'secretId', core: true },
+          { text: 'Rotate secret', field: 'secretId', core: true },
           { text: ', every', field: 'automaticallyAfterDays', after: 'days' },
           { text: ', using Lambda', field: 'rotationLambdaARN' },
         ],

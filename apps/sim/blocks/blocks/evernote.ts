@@ -18,36 +18,36 @@ export const EvernoteBlock: BlockConfig = {
     sentences: {
       byOperation: {
         create_note: [
-          { text: 'Creates note', field: 'title', core: true },
+          { text: 'Create note', field: 'title', core: true },
           { text: 'in notebook', field: 'notebookGuid' },
           { text: ', tagged', field: 'tagNames' },
         ],
-        get_note: [{ text: 'Reads note', field: 'noteGuid', core: true }],
+        get_note: [{ text: 'Read note', field: 'noteGuid', core: true }],
         update_note: [
-          { text: 'Updates note', field: 'noteGuid', core: true },
+          { text: 'Update note', field: 'noteGuid', core: true },
           { text: ', renaming to', field: 'updateTitle' },
           { text: ', tagged', field: 'tagNames' },
         ],
-        delete_note: [{ text: 'Moves note', field: 'noteGuid', core: true, after: 'to the trash' }],
+        delete_note: [{ text: 'Move note', field: 'noteGuid', core: true, after: 'to the trash' }],
         copy_note: [
-          { text: 'Copies note', field: 'noteGuid', core: true },
+          { text: 'Copy note', field: 'noteGuid', core: true },
           { text: 'into notebook', field: 'toNotebookGuid' },
         ],
         search_notes: [
-          { text: 'Searches notes for', field: 'query', core: true },
+          { text: 'Search notes for', field: 'query', core: true },
           { text: ', within notebook', field: 'notebookGuid' },
         ],
-        get_notebook: [{ text: 'Reads notebook', field: 'notebookGuid', core: true }],
+        get_notebook: [{ text: 'Read notebook', field: 'notebookGuid', core: true }],
         create_notebook: [
-          { text: 'Creates notebook', field: 'notebookName', core: true },
+          { text: 'Create notebook', field: 'notebookName', core: true },
           { text: 'in stack', field: 'stack' },
         ],
-        list_notebooks: ['Lists all notebooks'],
+        list_notebooks: ['List all notebooks'],
         create_tag: [
-          { text: 'Creates tag', field: 'tagName', core: true },
+          { text: 'Create tag', field: 'tagName', core: true },
           { text: 'under parent tag', field: 'parentGuid' },
         ],
-        list_tags: ['Lists all tags'],
+        list_tags: ['List all tags'],
       },
     },
   },

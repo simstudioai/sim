@@ -20,7 +20,7 @@ export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
     defaultTitle: 'SMTP',
     sentences: {
       default: [
-        { text: 'Sends', field: 'subject', core: true },
+        { text: 'Send', field: 'subject', core: true },
         { text: 'to', field: 'to', core: true },
       ],
     },

@@ -44,32 +44,32 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
     sentences: {
       byOperation: {
         tts: [
-          { text: 'Speaks', field: 'text', core: true },
+          { text: 'Speak', field: 'text', core: true },
           { text: 'with voice', field: 'voiceId' },
         ],
         sound_effects: [
-          { text: 'Generates a sound effect from', field: 'text', core: true },
+          { text: 'Generate a sound effect from', field: 'text', core: true },
           { text: ', lasting', field: 'durationSeconds', after: 'seconds' },
         ],
         speech_to_speech: [
-          { text: 'Converts', field: AUDIO_FILE_FIELD, core: true },
+          { text: 'Convert', field: AUDIO_FILE_FIELD, core: true },
           { text: 'to voice', field: 'voiceId', core: true },
         ],
-        audio_isolation: [{ text: 'Isolates speech in', field: AUDIO_FILE_FIELD, core: true }],
+        audio_isolation: [{ text: 'Isolate speech in', field: AUDIO_FILE_FIELD, core: true }],
         list_voices: [
-          'Lists voices',
+          'List voices',
           { text: ', matching', field: 'search' },
           { text: ', in category', field: 'category' },
         ],
-        get_voice: [{ text: 'Reads metadata for voice', field: 'voiceId', core: true }],
-        get_voice_settings: [{ text: 'Reads the settings of voice', field: 'voiceId', core: true }],
+        get_voice: [{ text: 'Read metadata for voice', field: 'voiceId', core: true }],
+        get_voice_settings: [{ text: 'Read the settings of voice', field: 'voiceId', core: true }],
         edit_voice_settings: [
-          { text: 'Updates settings for voice', field: 'voiceId', core: true },
+          { text: 'Update settings for voice', field: 'voiceId', core: true },
           { text: ', stability', field: 'editStability' },
           { text: ', similarity', field: 'editSimilarityBoost' },
         ],
-        list_models: ['Lists available models'],
-        get_user: ['Reads account and subscription details'],
+        list_models: ['List available models'],
+        get_user: ['Read account and subscription details'],
       },
     },
   },

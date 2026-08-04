@@ -33,43 +33,49 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   icon: WhatsAppIcon,
   canvasPresentation: {
     defaultTitle: 'WhatsApp',
+    /* Everything the trigger configures is plumbing — callback URL, verify
+       token, app secret — so the sentence names the two things the `messages`
+       subscription actually delivers: inbound messages and outbound statuses. */
+    triggerSentences: {
+      default: ['Run on an incoming message or a status update'],
+    },
     sentences: {
       byOperation: {
         send_message: [
-          { text: 'Sends', field: 'message', core: true },
+          { text: 'Send', field: 'message', core: true },
           { text: 'to', field: 'phoneNumber', core: true },
         ],
         send_template: [
-          { text: 'Sends template', field: 'templateName', core: true },
+          { text: 'Send template', field: 'templateName', core: true },
           { text: 'to', field: 'phoneNumber', core: true },
         ],
         send_media: [
-          { text: 'Sends', field: 'mediaType', core: true },
+          { text: 'Send', field: 'mediaType', core: true },
           { text: 'to', field: 'phoneNumber', core: true },
           { text: ', captioned', field: 'caption' },
         ],
         send_interactive: [
           {
-            text: 'Sends a message with',
+            text: 'Send a message with',
             field: 'interactiveType',
             core: true,
           },
           { text: 'to', field: 'phoneNumber', core: true },
         ],
         send_reaction: [
-          { text: 'Reacts with', field: 'emoji', core: true },
+          { text: 'React with', field: 'emoji', core: true },
           { text: 'to message', field: 'messageId', core: true },
         ],
-        mark_read: [{ text: 'Marks message', field: 'messageId', core: true, after: 'as read' }],
+        mark_read: [{ text: 'Mark message', field: 'messageId', core: true, after: 'as read' }],
         upload_media: [
           {
-            text: 'Uploads',
+            text: 'Upload',
             field: UPLOAD_FILE_FIELD,
             core: true,
-            after: 'and returns a media ID',
+            after: 'and return a media ID',
           },
         ],
-        get_media: [{ text: 'Downloads media', field: 'downloadMediaId', core: true }],
+        get_media: [{ text: 'Download media', field: 'downloadMediaId', core: true }],
       },
     },
   },

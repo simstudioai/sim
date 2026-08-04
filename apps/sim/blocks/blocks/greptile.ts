@@ -24,12 +24,12 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     sentences: {
       byOperation: {
         greptile_query: [
-          { text: 'Queries', field: 'repositories', after: 'for', core: true },
+          { text: 'Query', field: 'repositories', after: 'for', core: true },
           { field: 'query', core: true },
         ],
-        greptile_index_repo: [{ text: 'Indexes', field: 'repository', core: true }, ON_BRANCH],
+        greptile_index_repo: [{ text: 'Index', field: 'repository', core: true }, ON_BRANCH],
         greptile_status: [
-          { text: 'Checks indexing status of', field: 'repository', core: true },
+          { text: 'Check indexing status of', field: 'repository', core: true },
           ON_BRANCH,
         ],
       },

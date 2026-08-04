@@ -29,29 +29,29 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
     sentences: {
       byOperation: {
         create: [
-          { text: 'Creates task', field: 'title', core: true },
+          { text: 'Create task', field: 'title', core: true },
           { text: 'in', field: TASK_LIST_FIELD },
           { text: ', due', field: 'due' },
         ],
         list: [
-          'Lists tasks',
+          'List tasks',
           { text: 'in', field: TASK_LIST_FIELD },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
         get: [
-          { text: 'Fetches task', field: 'taskId', core: true },
+          { text: 'Fetch task', field: 'taskId', core: true },
           { text: 'from', field: TASK_LIST_FIELD },
         ],
         update: [
-          { text: 'Updates task', field: 'taskId', core: true },
+          { text: 'Update task', field: 'taskId', core: true },
           { text: 'in', field: TASK_LIST_FIELD },
           { text: ', setting status to', field: 'status' },
         ],
         delete: [
-          { text: 'Deletes task', field: 'taskId', core: true },
+          { text: 'Delete task', field: 'taskId', core: true },
           { text: 'from', field: TASK_LIST_FIELD },
         ],
-        list_task_lists: ['Lists all task lists'],
+        list_task_lists: ['List all task lists'],
       },
     },
   },

@@ -89,69 +89,67 @@ export const ContextDevBlock: BlockConfig<ContextDevScrapeMarkdownResponse> = {
     defaultTitle: 'Context.dev',
     sentences: {
       byOperation: {
-        scrape_markdown: [
-          { text: 'Scrapes', field: 'url', after: 'to clean markdown', core: true },
-        ],
-        scrape_html: [{ text: 'Scrapes the raw HTML of', field: 'url', core: true }],
-        scrape_images: [{ text: 'Lists every image asset on', field: 'url', core: true }],
-        screenshot: [{ text: 'Captures a screenshot of', field: 'url', core: true }],
+        scrape_markdown: [{ text: 'Scrape', field: 'url', after: 'to clean markdown', core: true }],
+        scrape_html: [{ text: 'Scrape the raw HTML of', field: 'url', core: true }],
+        scrape_images: [{ text: 'List every image asset on', field: 'url', core: true }],
+        screenshot: [{ text: 'Capture a screenshot of', field: 'url', core: true }],
         crawl: [
-          { text: 'Crawls every page under', field: 'url', core: true },
+          { text: 'Crawl every page under', field: 'url', core: true },
           { text: ', up to', field: 'maxPages', after: 'pages' },
           { text: ', matching', field: 'urlRegex' },
         ],
         map: [
-          { text: 'Maps every page URL on', field: 'domain', core: true },
+          { text: 'Map every page URL on', field: 'domain', core: true },
           { text: ', up to', field: 'maxLinks', after: 'links' },
         ],
         search: [
-          { text: 'Searches the web for', field: 'query', core: true },
+          { text: 'Search the web for', field: 'query', core: true },
           { text: ', returning', field: 'numResults', after: 'results' },
           { text: ', from', field: 'freshness' },
         ],
         extract: [
-          { text: 'Extracts structured data from', field: 'url', core: true },
+          { text: 'Extract structured data from', field: 'url', core: true },
           { text: ', across up to', field: 'extractMaxPages', after: 'pages' },
         ],
-        extract_product: [{ text: 'Extracts product details from', field: 'url', core: true }],
+        extract_product: [{ text: 'Extract product details from', field: 'url', core: true }],
         extract_products: [
-          { text: 'Extracts the product catalog of', field: 'domain', core: true },
+          { text: 'Extract the product catalog of', field: 'domain', core: true },
           { text: ', up to', field: 'maxProducts', after: 'products' },
         ],
-        scrape_fonts: [{ text: 'Extracts the fonts used by', field: 'domain', core: true }],
+        scrape_fonts: [{ text: 'Extract the fonts used by', field: 'domain', core: true }],
         scrape_styleguide: [
           {
-            text: 'Extracts the colors, typography, and components of',
+            text: 'Extract the colors, typography, and components of',
             field: 'domain',
             core: true,
           },
         ],
         classify_naics: [
           {
-            text: 'Classifies',
+            text: 'Classify',
             field: 'input',
             after: 'into NAICS industry codes',
             core: true,
           },
         ],
         classify_sic: [
-          { text: 'Classifies', field: 'input', after: 'into SIC industry codes', core: true },
+          { text: 'Classify', field: 'input', after: 'into SIC industry codes', core: true },
         ],
-        get_brand: [{ text: 'Fetches brand assets for domain', field: 'domain', core: true }],
+        get_brand: [{ text: 'Fetch brand assets for domain', field: 'domain', core: true }],
         get_brand_by_name: [
-          { text: 'Fetches brand assets for company', field: 'name', core: true },
+          { text: 'Fetch brand assets for company', field: 'name', core: true },
           { text: ', in', field: 'countryGl' },
         ],
         get_brand_by_email: [
-          { text: 'Fetches brand assets from work email', field: 'email', core: true },
+          { text: 'Fetch brand assets from work email', field: 'email', core: true },
         ],
         get_brand_by_ticker: [
-          { text: 'Fetches brand assets for ticker', field: 'ticker', core: true },
+          { text: 'Fetch brand assets for ticker', field: 'ticker', core: true },
           { text: ', on', field: 'tickerExchange' },
         ],
         identify_transaction: [
           {
-            text: 'Identifies the brand behind transaction',
+            text: 'Identify the brand behind transaction',
             field: 'transactionInfo',
             core: true,
           },

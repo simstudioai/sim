@@ -16,7 +16,7 @@ export const WebhookRequestBlock: BlockConfig<RequestResponse> = {
     defaultTitle: 'Webhook',
     sentences: {
       default: [
-        { text: 'Posts', field: 'body', core: true },
+        { text: 'Post', field: 'body', core: true },
         { text: 'to', field: 'url', core: true },
       ],
     },

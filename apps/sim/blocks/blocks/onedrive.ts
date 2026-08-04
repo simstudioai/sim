@@ -48,50 +48,50 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     sentences: {
       byOperation: {
         create_folder: [
-          { text: 'Creates folder', field: 'folderName', core: true },
+          { text: 'Create folder', field: 'folderName', core: true },
           { text: 'in', field: CREATE_FOLDER_PARENT_FIELD },
         ],
         create_file: [
-          { text: 'Creates file', field: 'fileName', core: true },
+          { text: 'Create file', field: 'fileName', core: true },
           { text: 'in', field: UPLOAD_FOLDER_FIELD },
         ],
         upload: [
-          { text: 'Uploads', field: UPLOAD_FILE_FIELD, core: true },
+          { text: 'Upload', field: UPLOAD_FILE_FIELD, core: true },
           { text: 'to', field: UPLOAD_FOLDER_FIELD },
         ],
         download: [
-          { text: 'Downloads', field: DOWNLOAD_FILE_FIELD, core: true },
+          { text: 'Download', field: DOWNLOAD_FILE_FIELD, core: true },
           { text: ', saved as', field: 'downloadFileName' },
         ],
         list: [
-          'Lists files and folders',
+          'List files and folders',
           { text: 'in', field: LIST_FOLDER_FIELD },
           { text: ', matching', field: 'query' },
         ],
-        search: ['Searches every folder', { text: 'for', field: 'query' }],
+        search: ['Search every folder', { text: 'for', field: 'query' }],
         get_item: [
           {
-            text: 'Reads metadata for',
+            text: 'Read metadata for',
             field: GET_ITEM_FIELD,
             core: true,
           },
         ],
-        get_drive_info: ['Reads drive details and storage quota'],
+        get_drive_info: ['Read drive details and storage quota'],
         move: [
-          { text: 'Moves', field: MOVE_FILE_FIELD, core: true },
+          { text: 'Move', field: MOVE_FILE_FIELD, core: true },
           { text: 'into', field: MOVE_DESTINATION_FIELD },
           { text: ', renamed to', field: 'newName' },
         ],
         copy: [
-          { text: 'Copies', field: COPY_FILE_FIELD, core: true },
+          { text: 'Copy', field: COPY_FILE_FIELD, core: true },
           { text: 'into', field: COPY_DESTINATION_FIELD },
           { text: ', named', field: 'destinationFileName' },
         ],
         create_share_link: [
-          { text: 'Shares', field: SHARE_FILE_FIELD, core: true },
+          { text: 'Share', field: SHARE_FILE_FIELD, core: true },
           { text: 'with a link set to', field: 'linkType' },
         ],
-        delete: [{ text: 'Deletes', field: DELETE_FILE_FIELD, core: true }],
+        delete: [{ text: 'Delete', field: DELETE_FILE_FIELD, core: true }],
       },
     },
   },

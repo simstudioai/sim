@@ -24,27 +24,32 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   icon: FirefliesIcon,
   canvasPresentation: {
     defaultTitle: 'Fireflies',
+    /* Only a webhook URL and a signing secret are configurable, so the sentence
+       is pure copy — naming the event the trigger actually fires on. */
+    triggerSentences: {
+      default: ['Run on a completed meeting transcript'],
+    },
     sentences: {
       byOperation: {
         fireflies_list_transcripts: [
-          'Lists meeting transcripts',
+          'List meeting transcripts',
           { text: ', matching', field: 'keyword' },
           { text: ', hosted by', field: 'hostEmail' },
           { text: ', since', field: 'fromDate' },
         ],
         fireflies_get_transcript: [
           {
-            text: 'Fetches transcript',
+            text: 'Fetch transcript',
             field: 'transcriptId',
             after: 'with summary and action items',
             core: true,
           },
         ],
-        fireflies_get_user: [{ text: 'Fetches user', field: 'userId', core: true }],
-        fireflies_list_users: ['Lists everyone on the team'],
+        fireflies_get_user: [{ text: 'Fetch user', field: 'userId', core: true }],
+        fireflies_list_users: ['List everyone on the team'],
         fireflies_upload_audio: [
           {
-            text: 'Uploads',
+            text: 'Upload',
             field: AUDIO_FILE_FIELD,
             after: 'for transcription',
             core: true,
@@ -52,23 +57,23 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
           { text: ', titled', field: 'title' },
         ],
         fireflies_delete_transcript: [
-          { text: 'Deletes transcript', field: 'transcriptId', core: true },
+          { text: 'Delete transcript', field: 'transcriptId', core: true },
         ],
         fireflies_add_to_live_meeting: [
-          { text: 'Adds the notetaker bot to', field: 'meetingLink', core: true },
+          { text: 'Add the notetaker bot to', field: 'meetingLink', core: true },
           { text: ', for', field: 'duration', after: 'minutes' },
         ],
         fireflies_create_bite: [
-          'Creates a soundbite',
+          'Create a soundbite',
           { text: 'from transcript', field: 'transcriptId', core: true },
           { text: ', named', field: 'biteName' },
         ],
         fireflies_list_bites: [
-          'Lists soundbites',
+          'List soundbites',
           { text: ', from transcript', field: 'transcriptId' },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
-        fireflies_list_contacts: ['Lists contacts met in past meetings'],
+        fireflies_list_contacts: ['List contacts met in past meetings'],
       },
     },
   },

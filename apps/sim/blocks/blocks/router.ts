@@ -164,7 +164,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     defaultTitle: 'Router',
     sentences: {
       default: [
-        { text: 'Routes based on', field: 'prompt', core: true },
+        { text: 'Route based on', field: 'prompt', core: true },
         { text: ', using', field: 'model' },
       ],
     },

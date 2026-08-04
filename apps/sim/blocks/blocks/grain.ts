@@ -37,27 +37,41 @@ export const GrainBlock: BlockConfig = {
   bgColor: '#F6FAF9',
   canvasPresentation: {
     defaultTitle: 'Grain',
+    /*
+     * Every trigger here subscribes through a view, and the view's own type is
+     * what decides whether recordings, highlights or stories fire — so it is
+     * the scope worth naming next to the event. One declaration covers all of
+     * them: each trigger's `viewId` is gated on the picker, so the clause
+     * resolves to whichever one is selected.
+     */
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in view', field: 'viewId' },
+      ],
+    },
     sentences: {
       byOperation: {
         grain_list_recordings: [
-          'Lists meeting recordings',
+          'List meeting recordings',
           { text: ', titled like', field: 'titleSearch' },
           { text: ', after', field: 'afterDatetime' },
           { text: ', before', field: 'beforeDatetime' },
         ],
-        grain_get_recording: [{ text: 'Reads recording', field: 'recordingId', core: true }],
+        grain_get_recording: [{ text: 'Read recording', field: 'recordingId', core: true }],
         grain_get_transcript: [
-          { text: 'Reads the transcript of recording', field: 'recordingId', core: true },
+          { text: 'Read the transcript of recording', field: 'recordingId', core: true },
         ],
-        grain_list_views: ['Lists views'],
-        grain_list_teams: ['Lists teams'],
-        grain_list_meeting_types: ['Lists meeting types'],
+        grain_list_views: ['List views'],
+        grain_list_teams: ['List teams'],
+        grain_list_meeting_types: ['List meeting types'],
         grain_create_hook: [
-          { text: 'Creates a webhook posting to', field: 'hookUrl', core: true },
+          { text: 'Create a webhook posting to', field: 'hookUrl', core: true },
           { text: ', for view', field: 'viewId' },
         ],
-        grain_list_hooks: ['Lists webhooks'],
-        grain_delete_hook: [{ text: 'Deletes webhook', field: 'hookId', core: true }],
+        grain_list_hooks: ['List webhooks'],
+        grain_delete_hook: [{ text: 'Delete webhook', field: 'hookId', core: true }],
       },
     },
   },
@@ -320,6 +334,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
     {
       id: 'selectedTriggerId',
       title: 'Trigger Type',
+      canvasNoun: 'an event',
       type: 'dropdown',
       mode: 'trigger',
       options: grainTriggerOptions,
@@ -536,27 +551,27 @@ export const GrainV2Block: BlockConfig = {
     sentences: {
       byOperation: {
         grain_list_recordings: [
-          'Lists meeting recordings',
+          'List meeting recordings',
           { text: ', titled like', field: 'titleSearch' },
           { text: ', after', field: 'afterDatetime' },
           { text: ', before', field: 'beforeDatetime' },
         ],
-        grain_get_recording: [{ text: 'Reads recording', field: 'recordingId', core: true }],
+        grain_get_recording: [{ text: 'Read recording', field: 'recordingId', core: true }],
         grain_get_transcript: [
-          { text: 'Reads the transcript of recording', field: 'recordingId', core: true },
+          { text: 'Read the transcript of recording', field: 'recordingId', core: true },
         ],
-        grain_list_teams: ['Lists teams'],
-        grain_list_meeting_types: ['Lists meeting types'],
+        grain_list_teams: ['List teams'],
+        grain_list_meeting_types: ['List meeting types'],
         grain_create_hook_v2: [
-          { text: 'Creates a webhook posting to', field: 'hookUrl', core: true },
+          { text: 'Create a webhook posting to', field: 'hookUrl', core: true },
           { text: ', on event', field: 'hookType' },
         ],
         grain_list_hooks_v2: [
-          'Lists webhooks',
+          'List webhooks',
           { text: ', for event', field: 'hookTypeFilter' },
           { text: ', in state', field: 'hookState' },
         ],
-        grain_delete_hook_v2: [{ text: 'Deletes webhook', field: 'hookId', core: true }],
+        grain_delete_hook_v2: [{ text: 'Delete webhook', field: 'hookId', core: true }],
       },
     },
   },

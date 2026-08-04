@@ -19,25 +19,25 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
     sentences: {
       byOperation: {
         send_message: [
-          { text: 'Sends', field: 'subject', core: true },
+          { text: 'Send', field: 'subject', core: true },
           { text: 'to', field: 'to', core: true },
         ],
-        get_message: [{ text: 'Fetches stored message', field: 'messageKey', core: true }],
+        get_message: [{ text: 'Fetch stored message', field: 'messageKey', core: true }],
         list_messages: [
-          { text: 'Lists message events for', field: 'domain', core: true },
+          { text: 'List message events for', field: 'domain', core: true },
           { text: ', of type', field: 'event' },
         ],
         create_mailing_list: [
-          { text: 'Creates mailing list', field: 'address', core: true },
+          { text: 'Create mailing list', field: 'address', core: true },
           { text: ', named', field: 'name' },
         ],
-        get_mailing_list: [{ text: 'Fetches mailing list', field: 'address', core: true }],
+        get_mailing_list: [{ text: 'Fetch mailing list', field: 'address', core: true }],
         add_list_member: [
-          { text: 'Adds', field: 'memberAddress', core: true },
+          { text: 'Add', field: 'memberAddress', core: true },
           { text: 'to mailing list', field: 'address' },
         ],
-        list_domains: ['Lists all domains'],
-        get_domain: [{ text: 'Fetches domain', field: 'domain', core: true }],
+        list_domains: ['List all domains'],
+        get_domain: [{ text: 'Fetch domain', field: 'domain', core: true }],
       },
     },
   },

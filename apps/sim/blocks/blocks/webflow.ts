@@ -26,27 +26,36 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
   icon: WebflowIcon,
   canvasPresentation: {
     defaultTitle: 'Webflow',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in', field: 'triggerSiteId', core: true },
+        { text: ', from collection', field: 'triggerCollectionId' },
+        { text: ', from form', field: 'formName' },
+      ],
+    },
     sentences: {
       byOperation: {
         list: [
-          { text: 'Lists items in', field: COLLECTION_FIELD, core: true },
+          { text: 'List items in', field: COLLECTION_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'items' },
         ],
         get: [
-          { text: 'Fetches item', field: ITEM_FIELD, core: true },
+          { text: 'Fetch item', field: ITEM_FIELD, core: true },
           { text: 'from', field: COLLECTION_FIELD },
         ],
         create: [
-          { text: 'Creates an item in', field: COLLECTION_FIELD, core: true },
+          { text: 'Create an item in', field: COLLECTION_FIELD, core: true },
           { text: ', with', field: 'fieldData' },
         ],
         update: [
-          { text: 'Updates item', field: ITEM_FIELD, core: true },
+          { text: 'Update item', field: ITEM_FIELD, core: true },
           { text: 'in', field: COLLECTION_FIELD },
           { text: ', setting', field: 'fieldData' },
         ],
         delete: [
-          { text: 'Deletes item', field: ITEM_FIELD, core: true },
+          { text: 'Delete item', field: ITEM_FIELD, core: true },
           { text: 'from', field: COLLECTION_FIELD },
         ],
       },

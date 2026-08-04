@@ -50,39 +50,39 @@ export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
     sentences: {
       byOperation: {
         list_leads: [
-          'Lists leads',
+          'List leads',
           { text: ', matching', field: 'search' },
           { text: ', with campaign status', field: 'campaignStatus' },
         ],
-        get_lead: [{ text: 'Fetches lead', field: 'leadId', core: true }],
+        get_lead: [{ text: 'Fetch lead', field: 'leadId', core: true }],
         create_lead: [
-          { text: 'Creates a lead for', field: 'email', core: true },
+          { text: 'Create a lead for', field: 'email', core: true },
           { text: ', at', field: 'company' },
         ],
-        update_lead: [{ text: 'Updates lead', field: 'leadId', core: true }],
-        list_campaigns: ['Lists all campaigns'],
-        create_campaign: [{ text: 'Creates campaign', field: 'campaignName', core: true }],
+        update_lead: [{ text: 'Update lead', field: 'leadId', core: true }],
+        list_campaigns: ['List all campaigns'],
+        create_campaign: [{ text: 'Create campaign', field: 'campaignName', core: true }],
         update_campaign: [
-          { text: 'Updates settings for campaign', field: 'campaignId', core: true },
+          { text: 'Update settings for campaign', field: 'campaignId', core: true },
           { text: ', capping sends at', field: 'maxEmailsPerDay', after: 'per day' },
         ],
         update_campaign_status: [
-          { text: 'Sets campaign', field: 'campaignId', core: true },
+          { text: 'Set campaign', field: 'campaignId', core: true },
           { text: 'to', field: 'action' },
         ],
         attach_leads_to_campaign: [
-          { text: 'Adds leads', field: 'leadIds', core: true },
+          { text: 'Add leads', field: 'leadIds', core: true },
           { text: 'to campaign', field: 'campaignId', core: true },
         ],
         list_replies: [
-          'Lists replies',
+          'List replies',
           { text: ', on campaign', field: 'campaignId' },
           { text: ', marked', field: 'replyStatus' },
         ],
-        list_tags: ['Lists all tags'],
-        create_tag: [{ text: 'Creates tag', field: 'tagName', core: true }],
+        list_tags: ['List all tags'],
+        create_tag: [{ text: 'Create tag', field: 'tagName', core: true }],
         attach_tags_to_leads: [
-          { text: 'Attaches tags', field: 'tagIds', core: true },
+          { text: 'Attach tags', field: 'tagIds', core: true },
           { text: 'to leads', field: 'leadIds', core: true },
         ],
       },

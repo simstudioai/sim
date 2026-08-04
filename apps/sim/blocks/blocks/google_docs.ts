@@ -25,73 +25,73 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
     defaultTitle: 'Google Docs',
     sentences: {
       byOperation: {
-        read: [{ text: 'Reads content from', field: DOCUMENT_FIELD, core: true }],
+        read: [{ text: 'Read content from', field: DOCUMENT_FIELD, core: true }],
         write: [
-          { text: 'Appends', field: 'content', core: true },
+          { text: 'Append', field: 'content', core: true },
           { text: 'to', field: DOCUMENT_FIELD, core: true },
         ],
         create: [
-          { text: 'Creates document', field: 'title', core: true },
+          { text: 'Create document', field: 'title', core: true },
           { text: 'in folder', field: FOLDER_FIELD },
           { text: ', containing', field: 'content' },
         ],
         insert_text: [
-          { text: 'Inserts', field: 'text', core: true },
+          { text: 'Insert', field: 'text', core: true },
           { text: 'into', field: DOCUMENT_FIELD, core: true },
           { text: ', at index', field: 'index' },
         ],
         replace_text: [
-          { text: 'Replaces', field: 'searchText', core: true },
+          { text: 'Replace', field: 'searchText', core: true },
           { text: 'with', field: 'replaceText' },
           { text: 'throughout', field: DOCUMENT_FIELD, core: true },
         ],
         insert_table: [
-          { text: 'Inserts a table into', field: DOCUMENT_FIELD, core: true },
+          { text: 'Insert a table into', field: DOCUMENT_FIELD, core: true },
           { text: ', with', field: 'rows', after: 'rows' },
           { text: 'by', field: 'columns', after: 'columns' },
         ],
         insert_image: [
-          { text: 'Inserts image', field: 'imageUrl', core: true },
+          { text: 'Insert image', field: 'imageUrl', core: true },
           { text: 'into', field: DOCUMENT_FIELD, core: true },
           { text: ', at index', field: 'index' },
         ],
         insert_page_break: [
-          { text: 'Inserts a page break into', field: DOCUMENT_FIELD, core: true },
+          { text: 'Insert a page break into', field: DOCUMENT_FIELD, core: true },
           { text: ', at index', field: 'index' },
         ],
         update_text_style: [
-          { text: 'Restyles text in', field: DOCUMENT_FIELD, core: true },
+          { text: 'Restyle text in', field: DOCUMENT_FIELD, core: true },
           { text: ', from index', field: 'startIndex' },
           { text: 'to', field: 'endIndex' },
         ],
         update_paragraph_style: [
-          { text: 'Sets paragraphs in', field: DOCUMENT_FIELD, core: true },
+          { text: 'Set paragraphs in', field: DOCUMENT_FIELD, core: true },
           { text: 'to', field: 'namedStyleType' },
           { text: ', aligned', field: 'alignment' },
         ],
         create_paragraph_bullets: [
-          { text: 'Adds list formatting in', field: DOCUMENT_FIELD, core: true },
+          { text: 'Add list formatting in', field: DOCUMENT_FIELD, core: true },
           { text: ', using', field: 'bulletPreset' },
           { text: ', from index', field: 'startIndex' },
         ],
         delete_paragraph_bullets: [
-          { text: 'Removes list formatting in', field: DOCUMENT_FIELD, core: true },
+          { text: 'Remove list formatting in', field: DOCUMENT_FIELD, core: true },
           { text: ', from index', field: 'startIndex' },
           { text: 'to', field: 'endIndex' },
         ],
         delete_content_range: [
-          { text: 'Deletes content in', field: DOCUMENT_FIELD, core: true },
+          { text: 'Delete content in', field: DOCUMENT_FIELD, core: true },
           { text: ', from index', field: 'startIndex' },
           { text: 'to', field: 'endIndex' },
         ],
         create_named_range: [
-          { text: 'Creates named range', field: 'name', core: true },
+          { text: 'Create named range', field: 'name', core: true },
           { text: 'in', field: DOCUMENT_FIELD, core: true },
           { text: ', from index', field: 'startIndex' },
         ],
         delete_named_range: [
           {
-            text: 'Deletes named range',
+            text: 'Delete named range',
             field: NAMED_RANGE_FIELD,
             core: true,
           },

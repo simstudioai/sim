@@ -25,15 +25,15 @@ export const LogsBlock: BlockConfig = {
     sentences: {
       byOperation: {
         query: [
-          'Queries execution logs',
+          'Query execution logs',
           { text: 'for', field: 'workflowIds' },
           { text: ', at level', field: 'level' },
           { text: ', up to', field: 'limit', after: 'entries' },
         ],
-        get_log: [{ text: 'Fetches log entry', field: 'logId', core: true }],
+        get_log: [{ text: 'Fetch log entry', field: 'logId', core: true }],
         get_execution: [
           {
-            text: 'Reads per-block state for execution',
+            text: 'Read per-block state for execution',
             field: 'executionIdLookup',
             core: true,
           },
@@ -332,12 +332,12 @@ export const LogsV2Block: BlockConfig = {
     sentences: {
       byOperation: {
         query: [
-          'Queries workflow runs',
+          'Query workflow runs',
           { text: 'for', field: WORKFLOW_FIELD },
           { text: ', with status', field: 'level' },
           { text: ', over', field: 'timeRange' },
         ],
-        get_run_details: [{ text: 'Reads the trace for run', field: 'runId', core: true }],
+        get_run_details: [{ text: 'Read the trace for run', field: 'runId', core: true }],
       },
     },
   },

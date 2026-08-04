@@ -37,51 +37,51 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     defaultTitle: 'Confluence',
     sentences: {
       byOperation: {
-        read: [{ text: 'Reads page', field: PAGE_FIELD, core: true }],
+        read: [{ text: 'Read page', field: PAGE_FIELD, core: true }],
         create: [
-          { text: 'Creates page', field: 'title', core: true },
+          { text: 'Create page', field: 'title', core: true },
           { text: 'in space', field: 'spaceId' },
         ],
         update: [
-          { text: 'Updates page', field: PAGE_FIELD, core: true },
+          { text: 'Update page', field: PAGE_FIELD, core: true },
           { text: ', setting title to', field: 'title' },
         ],
-        delete: [{ text: 'Deletes page', field: PAGE_FIELD, core: true }],
+        delete: [{ text: 'Delete page', field: PAGE_FIELD, core: true }],
         search: [
-          { text: 'Searches content for', field: 'query', core: true },
+          { text: 'Search content for', field: 'query', core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         create_comment: [
-          { text: 'Comments', field: 'comment', core: true },
+          { text: 'Comment', field: 'comment', core: true },
           { text: 'on page', field: PAGE_FIELD, core: true },
         ],
         list_comments: [
-          { text: 'Lists comments on page', field: PAGE_FIELD, core: true },
+          { text: 'List comments on page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         update_comment: [
-          { text: 'Rewrites comment', field: 'commentId', core: true },
+          { text: 'Rewrite comment', field: 'commentId', core: true },
           { text: 'as', field: 'comment' },
         ],
         delete_comment: [
-          { text: 'Deletes comment', field: 'commentId', core: true },
+          { text: 'Delete comment', field: 'commentId', core: true },
           { text: 'from page', field: PAGE_FIELD },
         ],
         upload_attachment: [
-          { text: 'Attaches', field: 'attachmentFile', core: true },
+          { text: 'Attach', field: 'attachmentFile', core: true },
           { text: 'to page', field: PAGE_FIELD, core: true },
         ],
         list_attachments: [
-          { text: 'Lists attachments on page', field: PAGE_FIELD, core: true },
+          { text: 'List attachments on page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         delete_attachment: [
-          { text: 'Deletes attachment', field: 'attachmentId', core: true },
+          { text: 'Delete attachment', field: 'attachmentId', core: true },
           { text: 'from page', field: PAGE_FIELD },
         ],
-        list_labels: [{ text: 'Lists labels on page', field: PAGE_FIELD, core: true }],
-        get_space: [{ text: 'Reads space', field: 'spaceId', core: true }],
-        list_spaces: ['Lists spaces', { text: ', up to', field: 'limit', after: 'results' }],
+        list_labels: [{ text: 'List labels on page', field: PAGE_FIELD, core: true }],
+        get_space: [{ text: 'Read space', field: 'spaceId', core: true }],
+        list_spaces: ['List spaces', { text: ', up to', field: 'limit', after: 'results' }],
       },
     },
   },
@@ -431,160 +431,168 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
   hideFromToolbar: false,
   canvasPresentation: {
     defaultTitle: 'Confluence',
+    /*
+     * The domain, email and API token exist only so attachment content can be
+     * downloaded — none of them narrows what fires. The webhook is registered
+     * on the site rather than on a space, so the site is the scope to name.
+     */
+    triggerSentences: {
+      default: ['Run on', { field: 'selectedTriggerId', core: true }, 'anywhere in the site'],
+    },
     sentences: {
       byOperation: {
-        read: [{ text: 'Reads page', field: PAGE_FIELD, core: true }],
+        read: [{ text: 'Read page', field: PAGE_FIELD, core: true }],
         create: [
-          { text: 'Creates page', field: 'title', core: true },
+          { text: 'Create page', field: 'title', core: true },
           { text: 'in', field: SPACE_FIELD },
         ],
         update: [
-          { text: 'Updates page', field: PAGE_FIELD, core: true },
+          { text: 'Update page', field: PAGE_FIELD, core: true },
           { text: ', setting title to', field: 'title' },
         ],
-        delete: [{ text: 'Deletes page', field: PAGE_FIELD, core: true }],
+        delete: [{ text: 'Delete page', field: PAGE_FIELD, core: true }],
         list_pages_in_space: [
-          { text: 'Lists pages in', field: SPACE_FIELD, core: true },
+          { text: 'List pages in', field: SPACE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         get_page_children: [
-          { text: 'Lists child pages of', field: PAGE_FIELD, core: true },
+          { text: 'List child pages of', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
-        get_page_ancestors: [{ text: 'Lists ancestors of page', field: PAGE_FIELD, core: true }],
+        get_page_ancestors: [{ text: 'List ancestors of page', field: PAGE_FIELD, core: true }],
         list_page_versions: [
-          { text: 'Lists versions of page', field: PAGE_FIELD, core: true },
+          { text: 'List versions of page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         get_page_version: [
-          { text: 'Reads version', field: 'versionNumber', core: true },
+          { text: 'Read version', field: 'versionNumber', core: true },
           { text: 'of page', field: PAGE_FIELD, core: true },
         ],
         list_page_properties: [
-          { text: 'Lists properties of page', field: PAGE_FIELD, core: true },
+          { text: 'List properties of page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         create_page_property: [
-          { text: 'Adds property', field: 'propertyKey', core: true },
+          { text: 'Add property', field: 'propertyKey', core: true },
           { text: 'to page', field: PAGE_FIELD, core: true },
         ],
         delete_page_property: [
-          { text: 'Deletes property', field: 'propertyId', core: true },
+          { text: 'Delete property', field: 'propertyId', core: true },
           { text: 'from page', field: PAGE_FIELD, core: true },
         ],
         search: [
-          { text: 'Searches content for', field: 'query', core: true },
+          { text: 'Search content for', field: 'query', core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         search_in_space: [
-          { text: 'Searches', field: SPACE_FIELD, core: true },
+          { text: 'Search', field: SPACE_FIELD, core: true },
           { text: 'for', field: 'query' },
         ],
-        list_blogposts: ['Lists blog posts', { text: ', up to', field: 'limit', after: 'results' }],
-        get_blogpost: [{ text: 'Reads blog post', field: 'blogPostId', core: true }],
+        list_blogposts: ['List blog posts', { text: ', up to', field: 'limit', after: 'results' }],
+        get_blogpost: [{ text: 'Read blog post', field: 'blogPostId', core: true }],
         create_blogpost: [
-          { text: 'Creates blog post', field: 'title', core: true },
+          { text: 'Create blog post', field: 'title', core: true },
           { text: 'in', field: SPACE_FIELD },
         ],
         update_blogpost: [
-          { text: 'Updates blog post', field: 'blogPostId', core: true },
+          { text: 'Update blog post', field: 'blogPostId', core: true },
           { text: ', setting title to', field: 'title' },
         ],
-        delete_blogpost: [{ text: 'Deletes blog post', field: 'blogPostId', core: true }],
+        delete_blogpost: [{ text: 'Delete blog post', field: 'blogPostId', core: true }],
         list_blogposts_in_space: [
-          { text: 'Lists blog posts in', field: SPACE_FIELD, core: true },
+          { text: 'List blog posts in', field: SPACE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         create_comment: [
-          { text: 'Comments', field: 'comment', core: true },
+          { text: 'Comment', field: 'comment', core: true },
           { text: 'on page', field: PAGE_FIELD, core: true },
         ],
         list_comments: [
-          { text: 'Lists comments on page', field: PAGE_FIELD, core: true },
+          { text: 'List comments on page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         update_comment: [
-          { text: 'Rewrites comment', field: 'commentId', core: true },
+          { text: 'Rewrite comment', field: 'commentId', core: true },
           { text: 'as', field: 'comment' },
         ],
         delete_comment: [
-          { text: 'Deletes comment', field: 'commentId', core: true },
+          { text: 'Delete comment', field: 'commentId', core: true },
           { text: 'from page', field: PAGE_FIELD },
         ],
         upload_attachment: [
-          { text: 'Attaches', field: ATTACHMENT_FILE_FIELD, core: true },
+          { text: 'Attach', field: ATTACHMENT_FILE_FIELD, core: true },
           { text: 'to page', field: PAGE_FIELD, core: true },
         ],
         list_attachments: [
-          { text: 'Lists attachments on page', field: PAGE_FIELD, core: true },
+          { text: 'List attachments on page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         delete_attachment: [
-          { text: 'Deletes attachment', field: 'attachmentId', core: true },
+          { text: 'Delete attachment', field: 'attachmentId', core: true },
           { text: 'from page', field: PAGE_FIELD },
         ],
         list_labels: [
-          { text: 'Lists labels on page', field: PAGE_FIELD, core: true },
+          { text: 'List labels on page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         add_label: [
-          { text: 'Adds label', field: 'labelName', core: true },
+          { text: 'Add label', field: 'labelName', core: true },
           { text: 'to page', field: PAGE_FIELD },
         ],
         delete_label: [
-          { text: 'Removes label', field: 'labelName', core: true },
+          { text: 'Remove label', field: 'labelName', core: true },
           { text: 'from page', field: PAGE_FIELD },
         ],
         get_pages_by_label: [
-          { text: 'Lists pages with label', field: 'labelId', core: true },
+          { text: 'List pages with label', field: 'labelId', core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         list_space_labels: [
-          { text: 'Lists labels used in', field: SPACE_FIELD, core: true },
+          { text: 'List labels used in', field: SPACE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
-        get_space: [{ text: 'Reads space', field: SPACE_FIELD, core: true }],
+        get_space: [{ text: 'Read space', field: SPACE_FIELD, core: true }],
         create_space: [
-          { text: 'Creates space', field: 'spaceName', core: true },
+          { text: 'Create space', field: 'spaceName', core: true },
           { text: 'with key', field: 'spaceKey' },
         ],
         update_space: [
-          { text: 'Updates space', field: SPACE_FIELD, core: true },
+          { text: 'Update space', field: SPACE_FIELD, core: true },
           { text: ', renaming it', field: 'title' },
         ],
-        delete_space: [{ text: 'Deletes space', field: SPACE_FIELD, core: true }],
-        list_spaces: ['Lists spaces', { text: ', up to', field: 'limit', after: 'results' }],
+        delete_space: [{ text: 'Delete space', field: SPACE_FIELD, core: true }],
+        list_spaces: ['List spaces', { text: ', up to', field: 'limit', after: 'results' }],
         list_space_properties: [
-          { text: 'Lists properties of space', field: SPACE_FIELD, core: true },
+          { text: 'List properties of space', field: SPACE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         create_space_property: [
-          { text: 'Adds property', field: 'spacePropertyKey', core: true },
+          { text: 'Add property', field: 'spacePropertyKey', core: true },
           { text: 'to space', field: SPACE_FIELD, core: true },
         ],
         delete_space_property: [
-          { text: 'Deletes property', field: 'spacePropertyId', core: true },
+          { text: 'Delete property', field: 'spacePropertyId', core: true },
           { text: 'from space', field: SPACE_FIELD, core: true },
         ],
         list_space_permissions: [
-          { text: 'Lists permissions on', field: SPACE_FIELD, core: true },
+          { text: 'List permissions on', field: SPACE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         get_page_descendants: [
-          { text: 'Lists every descendant of page', field: PAGE_FIELD, core: true },
+          { text: 'List every descendant of page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         list_tasks: [
-          'Lists inline tasks',
+          'List inline tasks',
           { text: ', assigned to', field: 'taskAssignedTo' },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
-        get_task: [{ text: 'Reads task', field: 'taskId', core: true }],
+        get_task: [{ text: 'Read task', field: 'taskId', core: true }],
         update_task: [
-          { text: 'Updates the status of task', field: 'taskId', core: true },
+          { text: 'Update the status of task', field: 'taskId', core: true },
           { text: 'to', field: 'taskStatus' },
         ],
-        get_user: [{ text: 'Reads the profile of user', field: 'accountId', core: true }],
+        get_user: [{ text: 'Read the profile of user', field: 'accountId', core: true }],
       },
     },
   },

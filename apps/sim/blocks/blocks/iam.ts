@@ -20,78 +20,78 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     sentences: {
       byOperation: {
         list_users: [
-          'Lists users',
+          'List users',
           { text: ', under path', field: 'pathPrefix' },
           { text: ', up to', field: 'maxItems' },
         ],
-        get_user: [{ text: 'Fetches user', field: 'userName', core: true }],
+        get_user: [{ text: 'Fetch user', field: 'userName', core: true }],
         create_user: [
-          { text: 'Creates user', field: 'userName', core: true },
+          { text: 'Create user', field: 'userName', core: true },
           { text: ', under path', field: 'path' },
         ],
-        delete_user: [{ text: 'Deletes user', field: 'userName', core: true }],
+        delete_user: [{ text: 'Delete user', field: 'userName', core: true }],
         list_roles: [
-          'Lists roles',
+          'List roles',
           { text: ', under path', field: 'pathPrefix' },
           { text: ', up to', field: 'maxItems' },
         ],
-        get_role: [{ text: 'Fetches role', field: 'roleName', core: true }],
+        get_role: [{ text: 'Fetch role', field: 'roleName', core: true }],
         create_role: [
-          { text: 'Creates role', field: 'roleName', core: true },
+          { text: 'Create role', field: 'roleName', core: true },
           { text: ', with trust policy', field: 'assumeRolePolicyDocument' },
         ],
-        delete_role: [{ text: 'Deletes role', field: 'roleName', core: true }],
+        delete_role: [{ text: 'Delete role', field: 'roleName', core: true }],
         attach_user_policy: [
-          { text: 'Attaches policy', field: 'policyArn', core: true },
+          { text: 'Attach policy', field: 'policyArn', core: true },
           { text: 'to user', field: 'userName', core: true },
         ],
         detach_user_policy: [
-          { text: 'Detaches policy', field: 'policyArn', core: true },
+          { text: 'Detach policy', field: 'policyArn', core: true },
           { text: 'from user', field: 'userName', core: true },
         ],
         attach_role_policy: [
-          { text: 'Attaches policy', field: 'policyArn', core: true },
+          { text: 'Attach policy', field: 'policyArn', core: true },
           { text: 'to role', field: 'roleName', core: true },
         ],
         detach_role_policy: [
-          { text: 'Detaches policy', field: 'policyArn', core: true },
+          { text: 'Detach policy', field: 'policyArn', core: true },
           { text: 'from role', field: 'roleName', core: true },
         ],
         list_policies: [
-          'Lists managed policies',
+          'List managed policies',
           { text: ', under path', field: 'pathPrefix' },
           { text: ', up to', field: 'maxItems' },
         ],
         create_access_key: [
-          { text: 'Creates an access key for user', field: 'userName', core: true },
+          { text: 'Create an access key for user', field: 'userName', core: true },
         ],
         delete_access_key: [
-          { text: 'Deletes access key', field: 'accessKeyIdToDelete', core: true },
+          { text: 'Delete access key', field: 'accessKeyIdToDelete', core: true },
           { text: 'from user', field: 'userName' },
         ],
         list_groups: [
-          'Lists groups',
+          'List groups',
           { text: ', under path', field: 'pathPrefix' },
           { text: ', up to', field: 'maxItems' },
         ],
         add_user_to_group: [
-          { text: 'Adds user', field: 'userName', core: true },
+          { text: 'Add user', field: 'userName', core: true },
           { text: 'to group', field: 'groupName', core: true },
         ],
         remove_user_from_group: [
-          { text: 'Removes user', field: 'userName', core: true },
+          { text: 'Remove user', field: 'userName', core: true },
           { text: 'from group', field: 'groupName', core: true },
         ],
         list_attached_role_policies: [
-          { text: 'Lists policies attached to role', field: 'roleName', core: true },
+          { text: 'List policies attached to role', field: 'roleName', core: true },
           { text: ', under path', field: 'pathPrefix' },
         ],
         list_attached_user_policies: [
-          { text: 'Lists policies attached to user', field: 'userName', core: true },
+          { text: 'List policies attached to user', field: 'userName', core: true },
           { text: ', under path', field: 'pathPrefix' },
         ],
         simulate_principal_policy: [
-          { text: 'Simulates', field: 'actionNames', core: true },
+          { text: 'Simulate', field: 'actionNames', core: true },
           { text: 'for', field: 'policySourceArn', core: true },
           { text: 'on', field: 'resourceArns' },
         ],

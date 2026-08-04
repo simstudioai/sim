@@ -16,7 +16,10 @@ import type { BlockConfig, CanvasSentence } from '@/blocks/types'
  * configuration is itself the meaning (a schedule's interval, a mailbox's label).
  */
 
-type TriggerSentenceConfig = Pick<BlockConfig, 'canvasPresentation' | 'triggers'>
+/** The dropdown a multi-trigger block uses to pick which event it listens for. */
+const TRIGGER_PICKER_ID = 'selectedTriggerId'
+
+type TriggerSentenceConfig = Pick<BlockConfig, 'canvasPresentation' | 'triggers' | 'subBlocks'>
 
 /**
  * The trigger a card is configured for.
@@ -62,9 +65,20 @@ export function resolveTriggerSentence(
     if (declared.default) return declared.default
   }
 
+  /*
+   * Where the block offers a choice of event, that choice is a field like any
+   * other — so it renders as a live chip and the card reads like an action card:
+   * `Run on ⟨Pull Request Opened⟩`. The picker is seeded with the block's
+   * default trigger, so the chip shows a real label from the moment it is
+   * dropped, and it follows the user when they switch events.
+   */
+  if (config.subBlocks?.some((subBlock) => subBlock.id === TRIGGER_PICKER_ID)) {
+    return ['Run on', { field: TRIGGER_PICKER_ID, core: true }]
+  }
+
   if (!triggerName) return null
 
-  /* Literal copy, not a chip: the event is the card's subject, not a value the
-     user typed into a field, and the registry name is already curated prose. */
-  return [`Runs on ${triggerName}`]
+  /* A block with exactly one trigger has no picker and nothing to chip, so its
+     event is literal copy — the registry name is already curated prose. */
+  return [`Run on ${triggerName}`]
 }

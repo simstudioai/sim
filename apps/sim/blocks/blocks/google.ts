@@ -18,7 +18,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
     defaultTitle: 'Google Search',
     sentences: {
       default: [
-        { text: 'Searches the web for', field: 'query', core: true },
+        { text: 'Search the web for', field: 'query', core: true },
         { text: ', returning', field: 'searchType', after: 'results' },
         { text: ', limited to', field: 'fileType', after: 'files' },
       ],

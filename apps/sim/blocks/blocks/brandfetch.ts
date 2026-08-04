@@ -19,8 +19,8 @@ export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | Brandfetc
     defaultTitle: 'Brandfetch',
     sentences: {
       byOperation: {
-        get_brand: [{ text: 'Fetches brand assets for', field: 'identifier', core: true }],
-        search: [{ text: 'Searches brands named', field: 'name', core: true }],
+        get_brand: [{ text: 'Fetch brand assets for', field: 'identifier', core: true }],
+        search: [{ text: 'Search brands named', field: 'name', core: true }],
       },
     },
   },

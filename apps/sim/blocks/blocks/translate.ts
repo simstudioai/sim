@@ -24,7 +24,7 @@ export const TranslateBlock: BlockConfig = {
     defaultTitle: 'Translate',
     sentences: {
       default: [
-        { text: 'Translates', field: 'context', core: true },
+        { text: 'Translate', field: 'context', core: true },
         { text: 'into', field: 'targetLanguage', core: true },
       ],
     },

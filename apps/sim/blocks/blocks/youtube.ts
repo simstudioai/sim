@@ -20,33 +20,33 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
     sentences: {
       byOperation: {
         youtube_search: [
-          { text: 'Searches videos for', field: 'query', core: true },
+          { text: 'Search videos for', field: 'query', core: true },
           { text: ', on channel', field: 'channelId' },
           { text: ', published after', field: 'publishedAfter' },
         ],
         youtube_trending: [
-          'Lists trending videos',
+          'List trending videos',
           { text: 'in region', field: 'regionCode' },
           { text: ', category', field: 'videoCategoryId' },
         ],
-        youtube_video_details: [{ text: 'Reads details of video', field: 'videoId', core: true }],
+        youtube_video_details: [{ text: 'Read details of video', field: 'videoId', core: true }],
         youtube_video_categories: [
-          'Lists video categories',
+          'List video categories',
           { text: 'available in region', field: 'regionCode' },
         ],
         youtube_channel_info: [
-          { text: 'Reads profile of channel', field: ['channelId', 'username'], core: true },
+          { text: 'Read profile of channel', field: ['channelId', 'username'], core: true },
         ],
         youtube_channel_videos: [
-          { text: 'Lists videos from channel', field: 'channelId', core: true },
+          { text: 'List videos from channel', field: 'channelId', core: true },
         ],
         youtube_channel_playlists: [
-          { text: 'Lists playlists on channel', field: 'channelId', core: true },
+          { text: 'List playlists on channel', field: 'channelId', core: true },
         ],
         youtube_playlist_items: [
-          { text: 'Lists videos in playlist', field: 'playlistId', core: true },
+          { text: 'List videos in playlist', field: 'playlistId', core: true },
         ],
-        youtube_comments: [{ text: 'Lists comments on video', field: 'videoId', core: true }],
+        youtube_comments: [{ text: 'List comments on video', field: 'videoId', core: true }],
       },
     },
   },

@@ -52,57 +52,55 @@ export const CloudFormationBlock: BlockConfig<
     defaultTitle: 'CloudFormation',
     sentences: {
       byOperation: {
-        describe_stacks: [{ text: 'Describes stack', field: 'stackName', core: true }],
-        create_stack: [{ text: 'Creates stack', field: 'stackName', core: true }],
-        update_stack: [{ text: 'Updates stack', field: 'stackName', core: true }],
+        describe_stacks: [{ text: 'Describe stack', field: 'stackName', core: true }],
+        create_stack: [{ text: 'Create stack', field: 'stackName', core: true }],
+        update_stack: [{ text: 'Update stack', field: 'stackName', core: true }],
         delete_stack: [
-          { text: 'Deletes stack', field: 'stackName', core: true },
+          { text: 'Delete stack', field: 'stackName', core: true },
           { text: ', retaining', field: 'retainResources' },
         ],
         cancel_update_stack: [
-          { text: 'Cancels the update in progress on stack', field: 'stackName', core: true },
+          { text: 'Cancel the update in progress on stack', field: 'stackName', core: true },
         ],
         create_change_set: [
-          { text: 'Creates change set', field: 'changeSetName', core: true },
+          { text: 'Create change set', field: 'changeSetName', core: true },
           { text: 'for stack', field: 'stackName' },
         ],
         describe_change_set: [
-          { text: 'Reads change set', field: 'changeSetName', core: true },
+          { text: 'Read change set', field: 'changeSetName', core: true },
           { text: 'on stack', field: 'stackName' },
         ],
         execute_change_set: [
-          { text: 'Applies change set', field: 'changeSetName', core: true },
+          { text: 'Apply change set', field: 'changeSetName', core: true },
           { text: 'to stack', field: 'stackName' },
         ],
-        list_stack_resources: [
-          { text: 'Lists resources in stack', field: 'stackName', core: true },
-        ],
+        list_stack_resources: [{ text: 'List resources in stack', field: 'stackName', core: true }],
         describe_stack_events: [
-          { text: 'Reads event history of stack', field: 'stackName', core: true },
+          { text: 'Read event history of stack', field: 'stackName', core: true },
           { text: ', up to', field: 'limit', after: 'events' },
         ],
         detect_stack_drift: [
-          { text: 'Starts drift detection on stack', field: 'stackName', core: true },
+          { text: 'Start drift detection on stack', field: 'stackName', core: true },
         ],
         describe_stack_drift_detection_status: [
           {
-            text: 'Checks status of drift detection',
+            text: 'Check status of drift detection',
             field: 'stackDriftDetectionId',
             core: true,
           },
         ],
         get_template: [
-          { text: 'Fetches the template of stack', field: 'stackName', core: true },
+          { text: 'Fetch the template of stack', field: 'stackName', core: true },
           { text: ', at stage', field: 'templateStage' },
         ],
         get_template_summary: [
           {
-            text: 'Summarizes the template of stack',
+            text: 'Summarize the template of stack',
             field: 'stackName',
             core: true,
           },
         ],
-        validate_template: ['Validates a template'],
+        validate_template: ['Validate a template'],
       },
     },
   },

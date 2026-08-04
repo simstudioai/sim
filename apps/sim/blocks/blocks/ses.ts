@@ -20,60 +20,58 @@ export const SESBlock: BlockConfig<ToolResponse> = {
     sentences: {
       byOperation: {
         send_email: [
-          { text: 'Sends', field: 'subject', core: true },
+          { text: 'Send', field: 'subject', core: true },
           { text: 'to', field: 'toAddresses', core: true },
           { text: ', copying', field: 'ccAddresses' },
         ],
         send_templated_email: [
-          { text: 'Sends template', field: 'templateName', core: true },
+          { text: 'Send template', field: 'templateName', core: true },
           { text: 'to', field: 'toAddresses' },
           { text: ', filled with', field: 'templateData' },
         ],
         send_bulk_email: [
-          { text: 'Bulk-sends template', field: 'templateName', core: true },
+          { text: 'Bulk-send template', field: 'templateName', core: true },
           { text: 'to', field: 'destinations' },
         ],
         list_identities: [
-          'Lists verified sender identities',
+          'List verified sender identities',
           { text: ', up to', field: 'pageSize', after: 'per page' },
         ],
-        get_account: ['Reads account sending quota and status'],
+        get_account: ['Read account sending quota and status'],
         create_template: [
-          { text: 'Creates email template', field: 'templateName', core: true },
+          { text: 'Create email template', field: 'templateName', core: true },
           { text: ', with subject', field: 'subjectPart' },
         ],
-        get_template: [
-          { text: 'Reads the content of template', field: 'templateName', core: true },
-        ],
+        get_template: [{ text: 'Read the content of template', field: 'templateName', core: true }],
         list_templates: [
-          'Lists email templates',
+          'List email templates',
           { text: ', up to', field: 'pageSize', after: 'per page' },
         ],
-        delete_template: [{ text: 'Deletes email template', field: 'templateName', core: true }],
+        delete_template: [{ text: 'Delete email template', field: 'templateName', core: true }],
         update_template: [
-          { text: 'Updates email template', field: 'templateName', core: true },
+          { text: 'Update email template', field: 'templateName', core: true },
           { text: ', setting subject to', field: 'subjectPart' },
         ],
         send_custom_verification_email: [
-          { text: 'Sends a verification email to', field: 'emailAddress', core: true },
+          { text: 'Send a verification email to', field: 'emailAddress', core: true },
           { text: ', using template', field: 'templateName' },
         ],
         create_email_identity: [
-          { text: 'Starts verification of identity', field: 'emailIdentity', core: true },
+          { text: 'Start verification of identity', field: 'emailIdentity', core: true },
         ],
         get_email_identity: [
           {
-            text: 'Reads the verification status of identity',
+            text: 'Read the verification status of identity',
             field: 'emailIdentity',
             core: true,
           },
         ],
         delete_email_identity: [
-          { text: 'Deletes verified identity', field: 'emailIdentity', core: true },
+          { text: 'Delete verified identity', field: 'emailIdentity', core: true },
         ],
         put_suppressed_destination: [
           {
-            text: 'Adds',
+            text: 'Add',
             field: 'emailAddress',
             after: 'to the suppression list',
             core: true,
@@ -81,16 +79,16 @@ export const SESBlock: BlockConfig<ToolResponse> = {
           { text: ', as a', field: 'reason' },
         ],
         get_suppressed_destination: [
-          { text: 'Reads the suppression record for', field: 'emailAddress', core: true },
+          { text: 'Read the suppression record for', field: 'emailAddress', core: true },
         ],
         list_suppressed_destinations: [
-          'Lists suppressed addresses',
+          'List suppressed addresses',
           { text: ', with reason', field: 'reasons' },
           { text: ', suppressed since', field: 'startDate' },
         ],
         delete_suppressed_destination: [
           {
-            text: 'Removes',
+            text: 'Remove',
             field: 'emailAddress',
             after: 'from the suppression list',
             core: true,
@@ -98,7 +96,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
         ],
         create_configuration_set: [
           {
-            text: 'Creates configuration set',
+            text: 'Create configuration set',
             field: 'newConfigurationSetName',
             core: true,
           },

@@ -20,55 +20,55 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     sentences: {
       byOperation: {
         elasticsearch_search: [
-          { text: 'Searches', field: 'index', core: true },
+          { text: 'Search', field: 'index', core: true },
           { text: ', matching', field: 'query' },
         ],
         elasticsearch_index_document: [
-          { text: 'Indexes document', field: 'documentId', core: true },
+          { text: 'Index document', field: 'documentId', core: true },
           { text: 'into', field: 'index', core: true },
         ],
         elasticsearch_get_document: [
-          { text: 'Fetches document', field: 'documentId', core: true },
+          { text: 'Fetch document', field: 'documentId', core: true },
           { text: 'from', field: 'index', core: true },
         ],
         elasticsearch_update_document: [
           {
-            text: 'Merges changes into document',
+            text: 'Merge changes into document',
             field: 'documentId',
             core: true,
           },
           { text: 'in', field: 'index', core: true },
         ],
         elasticsearch_delete_document: [
-          { text: 'Deletes document', field: 'documentId', core: true },
+          { text: 'Delete document', field: 'documentId', core: true },
           { text: 'from', field: 'index', core: true },
         ],
-        elasticsearch_bulk: [{ text: 'Runs bulk operations on', field: 'index', core: true }],
+        elasticsearch_bulk: [{ text: 'Run bulk operations on', field: 'index', core: true }],
         elasticsearch_count: [
-          { text: 'Counts documents in', field: 'index', core: true },
+          { text: 'Count documents in', field: 'index', core: true },
           { text: ', matching', field: 'query' },
         ],
         elasticsearch_create_index: [
-          { text: 'Creates index', field: 'index', core: true },
+          { text: 'Create index', field: 'index', core: true },
           { text: ', with mappings', field: 'mappings' },
         ],
         elasticsearch_delete_index: [
           {
-            text: 'Deletes index',
+            text: 'Delete index',
             field: 'index',
             core: true,
             after: 'and every document in it',
           },
         ],
         elasticsearch_get_index: [
-          { text: 'Reads settings and mappings of', field: 'index', core: true },
+          { text: 'Read settings and mappings of', field: 'index', core: true },
         ],
-        elasticsearch_list_indices: ['Lists every index in the cluster'],
+        elasticsearch_list_indices: ['List every index in the cluster'],
         elasticsearch_cluster_health: [
-          'Reads cluster health',
+          'Read cluster health',
           { text: ', waiting for status', field: 'waitForStatus' },
         ],
-        elasticsearch_cluster_stats: ['Reads cluster statistics'],
+        elasticsearch_cluster_stats: ['Read cluster statistics'],
       },
     },
   },

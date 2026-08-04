@@ -5,7 +5,7 @@
  * describe.
  *
  * Structural validation is already covered by `check-canvas-sentences.ts`. What
- * it cannot judge is whether a sentence is *true* — whether "Fetches every span
+ * it cannot judge is whether a sentence is *true* — whether "Fetch every span
  * in trace ⟨traceId⟩" is what the operation actually does, whether two
  * operations read identically, whether the copy is grammatical. That needs a
  * reader, and 4,583 sentences are only reviewable if the reader is handed the

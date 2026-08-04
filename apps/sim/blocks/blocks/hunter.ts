@@ -26,24 +26,24 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
     sentences: {
       byOperation: {
         hunter_domain_search: [
-          { text: 'Finds email addresses at', field: 'domain', core: true },
+          { text: 'Find email addresses at', field: 'domain', core: true },
           { text: ', in', field: 'department' },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         hunter_email_finder: [
-          { text: 'Finds the email address for', field: 'first_name', core: true },
+          { text: 'Find the email address for', field: 'first_name', core: true },
           { field: 'last_name' },
           { text: 'at', field: DOMAIN_OR_COMPANY_FIELD },
         ],
-        hunter_email_verifier: [{ text: 'Verifies deliverability of', field: 'email', core: true }],
+        hunter_email_verifier: [{ text: 'Verify deliverability of', field: 'email', core: true }],
         hunter_discover: [
-          { text: 'Discovers companies matching', field: 'query', core: true },
+          { text: 'Discover companies matching', field: 'query', core: true },
           { text: ', with', field: 'headcount', after: 'employees' },
           { text: ', using', field: 'technology' },
         ],
-        hunter_companies_find: [{ text: 'Enriches company data for', field: 'domain', core: true }],
+        hunter_companies_find: [{ text: 'Enrich company data for', field: 'domain', core: true }],
         hunter_email_count: [
-          { text: 'Counts email addresses at', field: DOMAIN_OR_COMPANY_FIELD, core: true },
+          { text: 'Count email addresses at', field: DOMAIN_OR_COMPANY_FIELD, core: true },
         ],
       },
     },

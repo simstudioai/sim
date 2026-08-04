@@ -36,70 +36,70 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     sentences: {
       byOperation: {
         spotify_search: [
-          { text: 'Searches', field: 'type', core: true },
+          { text: 'Search', field: 'type', core: true },
           { text: 'for', field: 'query', core: true },
         ],
-        spotify_get_track: [{ text: 'Fetches track', field: 'trackId', core: true }],
-        spotify_get_tracks: [{ text: 'Fetches tracks', field: 'trackIds', core: true }],
-        spotify_get_album: [{ text: 'Fetches album', field: 'albumId', core: true }],
-        spotify_get_albums: [{ text: 'Fetches albums', field: 'albumIds', core: true }],
+        spotify_get_track: [{ text: 'Fetch track', field: 'trackId', core: true }],
+        spotify_get_tracks: [{ text: 'Fetch tracks', field: 'trackIds', core: true }],
+        spotify_get_album: [{ text: 'Fetch album', field: 'albumId', core: true }],
+        spotify_get_albums: [{ text: 'Fetch albums', field: 'albumIds', core: true }],
         spotify_get_album_tracks: [
-          { text: 'Lists tracks on album', field: 'albumId', core: true },
+          { text: 'List tracks on album', field: 'albumId', core: true },
           { text: ', up to', field: 'limit' },
         ],
-        spotify_get_saved_albums: ['Lists saved albums', { text: ', up to', field: 'limit' }],
+        spotify_get_saved_albums: ['List saved albums', { text: ', up to', field: 'limit' }],
         spotify_save_albums: [
-          { text: 'Saves albums', field: 'albumIds', core: true, after: 'to the library' },
+          { text: 'Save albums', field: 'albumIds', core: true, after: 'to the library' },
         ],
         spotify_remove_saved_albums: [
-          { text: 'Removes albums', field: 'albumIds', core: true, after: 'from the library' },
+          { text: 'Remove albums', field: 'albumIds', core: true, after: 'from the library' },
         ],
         spotify_check_saved_albums: [
-          { text: 'Checks whether albums', field: 'albumIds', core: true, after: 'are saved' },
+          { text: 'Check whether albums', field: 'albumIds', core: true, after: 'are saved' },
         ],
-        spotify_get_artist: [{ text: 'Fetches artist', field: 'artistId', core: true }],
-        spotify_get_artists: [{ text: 'Fetches artists', field: 'artistIds', core: true }],
+        spotify_get_artist: [{ text: 'Fetch artist', field: 'artistId', core: true }],
+        spotify_get_artists: [{ text: 'Fetch artists', field: 'artistIds', core: true }],
         spotify_get_artist_albums: [
-          { text: 'Lists albums by artist', field: 'artistId', core: true },
+          { text: 'List albums by artist', field: 'artistId', core: true },
           { text: ', up to', field: 'limit' },
         ],
         spotify_get_artist_top_tracks: [
-          { text: 'Lists top tracks for artist', field: 'artistId', core: true },
+          { text: 'List top tracks for artist', field: 'artistId', core: true },
         ],
-        spotify_follow_artists: [{ text: 'Follows artists', field: 'artistIds', core: true }],
-        spotify_unfollow_artists: [{ text: 'Unfollows artists', field: 'artistIds', core: true }],
+        spotify_follow_artists: [{ text: 'Follow artists', field: 'artistIds', core: true }],
+        spotify_unfollow_artists: [{ text: 'Unfollow artists', field: 'artistIds', core: true }],
         spotify_get_followed_artists: [
-          'Lists followed artists',
+          'List followed artists',
           { text: ', up to', field: 'limit' },
         ],
         spotify_check_following: [
-          { text: 'Checks whether', field: 'ids', core: true, after: 'are followed' },
+          { text: 'Check whether', field: 'ids', core: true, after: 'are followed' },
         ],
-        spotify_get_show: [{ text: 'Fetches show', field: 'showId', core: true }],
-        spotify_get_shows: [{ text: 'Fetches shows', field: 'showIds', core: true }],
+        spotify_get_show: [{ text: 'Fetch show', field: 'showId', core: true }],
+        spotify_get_shows: [{ text: 'Fetch shows', field: 'showIds', core: true }],
         spotify_get_show_episodes: [
-          { text: 'Lists episodes of show', field: 'showId', core: true },
+          { text: 'List episodes of show', field: 'showId', core: true },
           { text: ', up to', field: 'limit' },
         ],
-        spotify_get_saved_shows: ['Lists saved shows', { text: ', up to', field: 'limit' }],
+        spotify_get_saved_shows: ['List saved shows', { text: ', up to', field: 'limit' }],
         spotify_save_shows: [
-          { text: 'Saves shows', field: 'showIds', core: true, after: 'to the library' },
+          { text: 'Save shows', field: 'showIds', core: true, after: 'to the library' },
         ],
         spotify_remove_saved_shows: [
-          { text: 'Removes shows', field: 'showIds', core: true, after: 'from the library' },
+          { text: 'Remove shows', field: 'showIds', core: true, after: 'from the library' },
         ],
         spotify_check_saved_shows: [
-          { text: 'Checks whether shows', field: 'showIds', core: true, after: 'are saved' },
+          { text: 'Check whether shows', field: 'showIds', core: true, after: 'are saved' },
         ],
-        spotify_get_episode: [{ text: 'Fetches episode', field: 'episodeId', core: true }],
-        spotify_get_episodes: [{ text: 'Fetches episodes', field: 'episodeIds', core: true }],
-        spotify_get_saved_episodes: ['Lists saved episodes', { text: ', up to', field: 'limit' }],
+        spotify_get_episode: [{ text: 'Fetch episode', field: 'episodeId', core: true }],
+        spotify_get_episodes: [{ text: 'Fetch episodes', field: 'episodeIds', core: true }],
+        spotify_get_saved_episodes: ['List saved episodes', { text: ', up to', field: 'limit' }],
         spotify_save_episodes: [
-          { text: 'Saves episodes', field: 'episodeIds', core: true, after: 'to the library' },
+          { text: 'Save episodes', field: 'episodeIds', core: true, after: 'to the library' },
         ],
         spotify_remove_saved_episodes: [
           {
-            text: 'Removes episodes',
+            text: 'Remove episodes',
             field: 'episodeIds',
             core: true,
             after: 'from the library',
@@ -107,25 +107,25 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         ],
         spotify_check_saved_episodes: [
           {
-            text: 'Checks whether episodes',
+            text: 'Check whether episodes',
             field: 'episodeIds',
             core: true,
             after: 'are saved',
           },
         ],
-        spotify_get_audiobook: [{ text: 'Fetches audiobook', field: 'audiobookId', core: true }],
-        spotify_get_audiobooks: [{ text: 'Fetches audiobooks', field: 'audiobookIds', core: true }],
+        spotify_get_audiobook: [{ text: 'Fetch audiobook', field: 'audiobookId', core: true }],
+        spotify_get_audiobooks: [{ text: 'Fetch audiobooks', field: 'audiobookIds', core: true }],
         spotify_get_audiobook_chapters: [
-          { text: 'Lists chapters of audiobook', field: 'audiobookId', core: true },
+          { text: 'List chapters of audiobook', field: 'audiobookId', core: true },
           { text: ', up to', field: 'limit' },
         ],
         spotify_get_saved_audiobooks: [
-          'Lists saved audiobooks',
+          'List saved audiobooks',
           { text: ', up to', field: 'limit' },
         ],
         spotify_save_audiobooks: [
           {
-            text: 'Saves audiobooks',
+            text: 'Save audiobooks',
             field: 'audiobookIds',
             core: true,
             after: 'to the library',
@@ -133,7 +133,7 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         ],
         spotify_remove_saved_audiobooks: [
           {
-            text: 'Removes audiobooks',
+            text: 'Remove audiobooks',
             field: 'audiobookIds',
             core: true,
             after: 'from the library',
@@ -141,121 +141,119 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         ],
         spotify_check_saved_audiobooks: [
           {
-            text: 'Checks whether audiobooks',
+            text: 'Check whether audiobooks',
             field: 'audiobookIds',
             core: true,
             after: 'are saved',
           },
         ],
-        spotify_get_playlist: [{ text: 'Fetches playlist', field: 'playlistId', core: true }],
+        spotify_get_playlist: [{ text: 'Fetch playlist', field: 'playlistId', core: true }],
         spotify_get_playlist_tracks: [
-          { text: 'Lists tracks in playlist', field: 'playlistId', core: true },
+          { text: 'List tracks in playlist', field: 'playlistId', core: true },
           { text: ', up to', field: 'limit' },
         ],
         spotify_get_playlist_cover: [
-          { text: 'Fetches the cover image of playlist', field: 'playlistId', core: true },
+          { text: 'Fetch the cover image of playlist', field: 'playlistId', core: true },
         ],
         spotify_get_user_playlists: [
-          "Lists the current user's playlists",
+          "List the current user's playlists",
           { text: ', up to', field: 'limit' },
         ],
         spotify_create_playlist: [
-          { text: 'Creates playlist', field: 'name', core: true },
+          { text: 'Create playlist', field: 'name', core: true },
           { text: ', described as', field: 'description' },
         ],
         spotify_update_playlist: [
-          { text: 'Updates playlist', field: 'playlistId', core: true },
+          { text: 'Update playlist', field: 'playlistId', core: true },
           { text: ', renaming to', field: 'newName' },
         ],
         spotify_add_playlist_cover: [
-          { text: 'Sets', field: COVER_IMAGE_FIELD, core: true },
+          { text: 'Set', field: COVER_IMAGE_FIELD, core: true },
           { text: 'as the cover of playlist', field: 'playlistId', core: true },
         ],
         spotify_add_tracks_to_playlist: [
-          { text: 'Adds', field: 'uris', core: true },
+          { text: 'Add', field: 'uris', core: true },
           { text: 'to playlist', field: 'playlistId', core: true },
         ],
         spotify_remove_tracks_from_playlist: [
-          { text: 'Removes', field: 'uris', core: true },
+          { text: 'Remove', field: 'uris', core: true },
           { text: 'from playlist', field: 'playlistId', core: true },
         ],
         spotify_reorder_playlist_items: [
-          { text: 'Reorders playlist', field: 'playlistId', core: true },
+          { text: 'Reorder playlist', field: 'playlistId', core: true },
           { text: ', moving item', field: 'range_start' },
           { text: 'to position', field: 'insert_before' },
         ],
         spotify_replace_playlist_items: [
-          { text: 'Replaces the tracks in playlist', field: 'playlistId', core: true },
+          { text: 'Replace the tracks in playlist', field: 'playlistId', core: true },
           { text: ', with', field: 'uris' },
         ],
-        spotify_follow_playlist: [{ text: 'Follows playlist', field: 'playlistId', core: true }],
-        spotify_unfollow_playlist: [
-          { text: 'Unfollows playlist', field: 'playlistId', core: true },
-        ],
+        spotify_follow_playlist: [{ text: 'Follow playlist', field: 'playlistId', core: true }],
+        spotify_unfollow_playlist: [{ text: 'Unfollow playlist', field: 'playlistId', core: true }],
         spotify_check_playlist_followers: [
-          { text: 'Checks whether', field: 'userIds', core: true },
+          { text: 'Check whether', field: 'userIds', core: true },
           { text: 'follow playlist', field: 'playlistId', core: true },
         ],
-        spotify_get_current_user: ['Reads the current user profile'],
+        spotify_get_current_user: ['Read the current user profile'],
         spotify_get_user_profile: [
-          { text: 'Reads the profile of user', field: 'userId', core: true },
+          { text: 'Read the profile of user', field: 'userId', core: true },
         ],
         spotify_get_top_tracks: [
-          'Lists top tracks',
+          'List top tracks',
           { text: 'over', field: 'time_range' },
           { text: ', up to', field: 'limit' },
         ],
         spotify_get_top_artists: [
-          'Lists top artists',
+          'List top artists',
           { text: 'over', field: 'time_range' },
           { text: ', up to', field: 'limit' },
         ],
-        spotify_get_saved_tracks: ['Lists saved tracks', { text: ', up to', field: 'limit' }],
+        spotify_get_saved_tracks: ['List saved tracks', { text: ', up to', field: 'limit' }],
         spotify_save_tracks: [
-          { text: 'Saves tracks', field: 'trackIds', core: true, after: 'to the library' },
+          { text: 'Save tracks', field: 'trackIds', core: true, after: 'to the library' },
         ],
         spotify_remove_saved_tracks: [
-          { text: 'Removes tracks', field: 'trackIds', core: true, after: 'from the library' },
+          { text: 'Remove tracks', field: 'trackIds', core: true, after: 'from the library' },
         ],
         spotify_check_saved_tracks: [
-          { text: 'Checks whether tracks', field: 'trackIds', core: true, after: 'are saved' },
+          { text: 'Check whether tracks', field: 'trackIds', core: true, after: 'are saved' },
         ],
         spotify_get_recently_played: [
-          'Lists recently played tracks',
+          'List recently played tracks',
           { text: ', up to', field: 'limit' },
         ],
         spotify_get_new_releases: [
-          'Lists new album releases',
+          'List new album releases',
           { text: 'in', field: 'country' },
           { text: ', up to', field: 'limit' },
         ],
         spotify_get_categories: [
-          'Lists browse categories',
+          'List browse categories',
           { text: 'in', field: 'country' },
           { text: ', up to', field: 'limit' },
         ],
-        spotify_get_markets: ['Lists available markets'],
-        spotify_get_playback_state: ['Reads the current playback state'],
-        spotify_get_currently_playing: ['Reads the currently playing track'],
-        spotify_get_devices: ['Lists available playback devices'],
-        spotify_get_queue: ['Reads the playback queue'],
+        spotify_get_markets: ['List available markets'],
+        spotify_get_playback_state: ['Read the current playback state'],
+        spotify_get_currently_playing: ['Read the currently playing track'],
+        spotify_get_devices: ['List available playback devices'],
+        spotify_get_queue: ['Read the playback queue'],
         spotify_play: [
           {
-            text: 'Starts playback of',
+            text: 'Start playback of',
             field: PLAYBACK_TARGET_FIELD,
             core: true,
           },
           { text: 'on device', field: 'device_id' },
         ],
-        spotify_pause: ['Pauses playback', { text: 'on device', field: 'device_id' }],
-        spotify_skip_next: ['Skips to the next track', { text: 'on device', field: 'device_id' }],
+        spotify_pause: ['Pause playback', { text: 'on device', field: 'device_id' }],
+        spotify_skip_next: ['Skip to the next track', { text: 'on device', field: 'device_id' }],
         spotify_skip_previous: [
-          'Skips to the previous track',
+          'Skip to the previous track',
           { text: 'on device', field: 'device_id' },
         ],
         spotify_seek: [
           {
-            text: 'Seeks to',
+            text: 'Seek to',
             field: 'position_ms',
             after: 'ms',
             core: true,
@@ -263,12 +261,12 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
           { text: 'on device', field: 'device_id' },
         ],
         spotify_add_to_queue: [
-          { text: 'Queues track', field: 'uri', core: true },
+          { text: 'Queue track', field: 'uri', core: true },
           { text: 'on device', field: 'device_id' },
         ],
         spotify_set_volume: [
           {
-            text: 'Sets volume to',
+            text: 'Set volume to',
             field: 'volume_percent',
             after: 'percent',
             core: true,
@@ -276,15 +274,15 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
           { text: 'on device', field: 'device_id' },
         ],
         spotify_set_repeat: [
-          { text: 'Sets repeat to', field: 'state', core: true },
+          { text: 'Set repeat to', field: 'state', core: true },
           { text: 'on device', field: 'device_id' },
         ],
         spotify_set_shuffle: [
-          { text: 'Sets shuffle to', field: 'shuffle_state', core: true },
+          { text: 'Set shuffle to', field: 'shuffle_state', core: true },
           { text: 'on device', field: 'device_id' },
         ],
         spotify_transfer_playback: [
-          { text: 'Transfers playback to device', field: 'target_device_id', core: true },
+          { text: 'Transfer playback to device', field: 'target_device_id', core: true },
         ],
       },
     },

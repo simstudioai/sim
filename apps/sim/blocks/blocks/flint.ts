@@ -30,14 +30,14 @@ export const FlintBlock: BlockConfig = {
     sentences: {
       byOperation: {
         flint_create_task: [
-          { text: 'Runs agent task', field: 'prompt', core: true },
+          { text: 'Run agent task', field: 'prompt', core: true },
           { text: 'on site', field: 'siteId' },
         ],
         flint_generate_pages: [
-          { text: 'Generates pages from template', field: 'templatePageSlug', core: true },
+          { text: 'Generate pages from template', field: 'templatePageSlug', core: true },
           { text: 'on site', field: 'siteId' },
         ],
-        flint_get_task: [{ text: 'Checks status of task', field: 'taskId', core: true }],
+        flint_get_task: [{ text: 'Check status of task', field: 'taskId', core: true }],
       },
     },
   },

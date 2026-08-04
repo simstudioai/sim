@@ -17,7 +17,7 @@ export const DuckDuckGoBlock: BlockConfig<DuckDuckGoResponse> = {
   canvasPresentation: {
     defaultTitle: 'DuckDuckGo',
     sentences: {
-      default: [{ text: 'Searches the web for', field: 'query', core: true }],
+      default: [{ text: 'Search the web for', field: 'query', core: true }],
     },
   },
   subBlocks: [

@@ -26,21 +26,21 @@ export const DeploymentsBlock: BlockConfig = {
     sentences: {
       byOperation: {
         deployments_deploy: [
-          { text: 'Deploys', field: WORKFLOW_FIELD, after: 'live', core: true },
+          { text: 'Deploy', field: WORKFLOW_FIELD, after: 'live', core: true },
           { text: ', as version', field: 'versionName' },
         ],
         deployments_undeploy: [
-          { text: 'Takes', field: WORKFLOW_FIELD, after: 'offline', core: true },
+          { text: 'Take', field: WORKFLOW_FIELD, after: 'offline', core: true },
         ],
         deployments_promote: [
-          { text: 'Promotes version', field: 'version', core: true },
+          { text: 'Promote version', field: 'version', core: true },
           { text: 'of', field: WORKFLOW_FIELD, after: 'to live', core: true },
         ],
         deployments_list_versions: [
-          { text: 'Lists every deployment version of', field: WORKFLOW_FIELD, core: true },
+          { text: 'List every deployment version of', field: WORKFLOW_FIELD, core: true },
         ],
         deployments_get_version: [
-          { text: 'Reads version', field: 'version', core: true },
+          { text: 'Read version', field: 'version', core: true },
           { text: 'of', field: WORKFLOW_FIELD, after: 'with its deployed state', core: true },
         ],
       },

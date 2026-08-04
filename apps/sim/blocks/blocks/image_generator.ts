@@ -70,7 +70,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
     defaultTitle: 'Image Generator',
     sentences: {
       default: [
-        { text: 'Generates an image from', field: 'prompt', core: true },
+        { text: 'Generate an image from', field: 'prompt', core: true },
         { text: 'with', field: 'model' },
       ],
     },
@@ -335,7 +335,7 @@ export const ImageGeneratorV2Block: BlockConfig<ImageGenerationResponse> = {
     defaultTitle: 'Image Generator',
     sentences: {
       default: [
-        { text: 'Generates an image from', field: 'prompt', core: true },
+        { text: 'Generate an image from', field: 'prompt', core: true },
         { text: 'with', field: 'model' },
       ],
     },

@@ -27,7 +27,7 @@ export const DropcontactBlock: BlockConfig<DropcontactResponse> = {
       byOperation: {
         dropcontact_enrich_contact: [
           {
-            text: 'Enriches contact',
+            text: 'Enrich contact',
             field: CONTACT_IDENTITY_FIELD,
             core: true,
           },

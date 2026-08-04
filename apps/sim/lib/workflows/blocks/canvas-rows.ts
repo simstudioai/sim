@@ -66,7 +66,7 @@ export function showsCanvasErrorRow(
 }
 
 interface CanvasChipSplitOptions {
-  usesDefaultTitle: boolean
+  titleShowsOperation: boolean
   operationSubBlockId?: string
 }
 
@@ -77,10 +77,10 @@ interface CanvasChipSplitOptions {
  */
 export function splitCanvasChipBlocks(
   visibleSubBlocks: SubBlockConfig[],
-  { usesDefaultTitle, operationSubBlockId }: CanvasChipSplitOptions
+  { titleShowsOperation, operationSubBlockId }: CanvasChipSplitOptions
 ): { chipBlocks: SubBlockConfig[]; rowSubBlocks: SubBlockConfig[] } {
   const chipBlocks = visibleSubBlocks
-    .filter((block) => usesDefaultTitle || block.id !== operationSubBlockId)
+    .filter((block) => titleShowsOperation || block.id !== operationSubBlockId)
     .filter((block) => chipPriority(block) !== null)
     .sort((a, b) => (chipPriority(a) ?? 0) - (chipPriority(b) ?? 0))
     .slice(0, MAX_CHIPS)

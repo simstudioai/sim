@@ -21,55 +21,55 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
     sentences: {
       byOperation: {
         ssh_execute_command: [
-          { text: 'Runs', field: 'command', core: true },
+          { text: 'Run', field: 'command', core: true },
           { text: 'on', field: 'host' },
           { text: ', from', field: 'workingDirectory' },
         ],
         ssh_execute_script: [
-          { text: 'Runs a script on', field: 'host', core: true },
+          { text: 'Run a script on', field: 'host', core: true },
           { text: ', from', field: 'scriptWorkingDirectory' },
         ],
         ssh_check_command_exists: [
-          { text: 'Checks whether', field: 'commandName', after: 'is installed', core: true },
+          { text: 'Check whether', field: 'commandName', after: 'is installed', core: true },
           { text: 'on', field: 'host' },
         ],
         ssh_upload_file: [
-          { text: 'Uploads', field: 'fileName', core: true },
+          { text: 'Upload', field: 'fileName', core: true },
           { text: 'to', field: 'remotePath', core: true },
           { text: 'on', field: 'host' },
         ],
         ssh_download_file: [
-          { text: 'Downloads', field: 'downloadRemotePath', core: true },
+          { text: 'Download', field: 'downloadRemotePath', core: true },
           { text: 'from', field: 'host' },
         ],
         ssh_list_directory: [
-          { text: 'Lists files in', field: 'listPath', core: true },
+          { text: 'List files in', field: 'listPath', core: true },
           { text: 'on', field: 'host' },
         ],
         ssh_check_file_exists: [
-          { text: 'Checks whether', field: 'checkPath', after: 'exists', core: true },
+          { text: 'Check whether', field: 'checkPath', after: 'exists', core: true },
           { text: 'on', field: 'host' },
         ],
         ssh_create_directory: [
-          { text: 'Creates directory', field: 'createPath', core: true },
+          { text: 'Create directory', field: 'createPath', core: true },
           { text: 'on', field: 'host' },
         ],
         ssh_delete_file: [
-          { text: 'Deletes', field: 'deletePath', core: true },
+          { text: 'Delete', field: 'deletePath', core: true },
           { text: 'from', field: 'host' },
         ],
         ssh_move_rename: [
-          { text: 'Moves', field: 'sourcePath', core: true },
+          { text: 'Move', field: 'sourcePath', core: true },
           { text: 'to', field: 'destinationPath' },
           { text: 'on', field: 'host' },
         ],
-        ssh_get_system_info: [{ text: 'Reads system info from', field: 'host', core: true }],
+        ssh_get_system_info: [{ text: 'Read system info from', field: 'host', core: true }],
         ssh_read_file_content: [
-          { text: 'Reads', field: 'readPath', core: true },
+          { text: 'Read', field: 'readPath', core: true },
           { text: 'from', field: 'host' },
         ],
         ssh_write_file_content: [
-          { text: 'Writes content to', field: 'writePath', core: true },
+          { text: 'Write content to', field: 'writePath', core: true },
           { text: 'on', field: 'host' },
         ],
       },

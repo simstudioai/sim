@@ -25,81 +25,81 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
     sentences: {
       byOperation: {
         list_records: [
-          { text: 'Lists records from', field: 'entitySetName', core: true },
+          { text: 'List records from', field: 'entitySetName', core: true },
           { text: ', where', field: 'filter' },
           { text: ', up to', field: 'top', after: 'records' },
         ],
         get_record: [
-          { text: 'Fetches record', field: 'recordId', core: true },
+          { text: 'Fetch record', field: 'recordId', core: true },
           { text: 'from', field: 'entitySetName' },
         ],
         create_record: [
-          { text: 'Creates a record in', field: 'entitySetName', core: true },
+          { text: 'Create a record in', field: 'entitySetName', core: true },
           { text: ', with', field: 'data' },
         ],
         update_record: [
-          { text: 'Updates record', field: 'recordId', core: true },
+          { text: 'Update record', field: 'recordId', core: true },
           { text: 'in', field: 'entitySetName' },
           { text: ', setting', field: 'data' },
         ],
         upsert_record: [
-          { text: 'Creates or updates record', field: 'recordId', core: true },
+          { text: 'Create or update record', field: 'recordId', core: true },
           { text: 'in', field: 'entitySetName' },
           { text: ', with', field: 'data' },
         ],
         delete_record: [
-          { text: 'Deletes record', field: 'recordId', core: true },
+          { text: 'Delete record', field: 'recordId', core: true },
           { text: 'from', field: 'entitySetName' },
         ],
         create_multiple: [
-          { text: 'Creates', field: 'records', core: true },
+          { text: 'Create', field: 'records', core: true },
           { text: 'in', field: 'entitySetName', core: true },
         ],
         update_multiple: [
-          { text: 'Updates', field: 'records', core: true },
+          { text: 'Update', field: 'records', core: true },
           { text: 'in', field: 'entitySetName', core: true },
         ],
         fetchxml_query: [
-          { text: 'Runs a FetchXML query against', field: 'entitySetName', core: true },
+          { text: 'Run a FetchXML query against', field: 'entitySetName', core: true },
         ],
         search: [
-          { text: 'Searches for', field: 'searchTerm', core: true },
+          { text: 'Search for', field: 'searchTerm', core: true },
           { text: 'across', field: 'searchEntities' },
           { text: ', up to', field: 'top', after: 'results' },
         ],
         execute_action: [
-          { text: 'Executes action', field: 'actionName', core: true },
+          { text: 'Execute action', field: 'actionName', core: true },
           { text: 'on record', field: 'recordId' },
           { text: 'in', field: 'entitySetName' },
         ],
         execute_function: [
-          { text: 'Calls function', field: 'functionName', core: true },
+          { text: 'Call function', field: 'functionName', core: true },
           { text: 'on record', field: 'recordId' },
           { text: 'in', field: 'entitySetName' },
         ],
         upload_file: [
-          { text: 'Uploads', field: FILE_FIELD, core: true },
+          { text: 'Upload', field: FILE_FIELD, core: true },
           { text: 'to column', field: 'fileColumn', core: true },
           { text: 'on record', field: 'recordId' },
         ],
         download_file: [
-          { text: 'Downloads the file in column', field: 'fileColumn', core: true },
+          { text: 'Download the file in column', field: 'fileColumn', core: true },
           { text: 'from record', field: 'recordId' },
         ],
         associate: [
-          { text: 'Links record', field: 'recordId', core: true },
+          { text: 'Link record', field: 'recordId', core: true },
           { text: 'to', field: 'targetRecordId' },
           { text: 'through', field: 'navigationProperty' },
         ],
         disassociate: [
-          { text: 'Unlinks record', field: 'recordId', core: true },
+          { text: 'Unlink record', field: 'recordId', core: true },
           { text: 'from', field: 'targetRecordId' },
           { text: 'through', field: 'navigationProperty' },
         ],
         get_entity_metadata: [
-          { text: 'Reads the definition of table', field: 'entityLogicalName', core: true },
+          { text: 'Read the definition of table', field: 'entityLogicalName', core: true },
         ],
-        whoami: ['Reads the signed-in user, business unit, and organization'],
+        whoami: ['Read the signed-in user, business unit, and organization'],
       },
     },
   },

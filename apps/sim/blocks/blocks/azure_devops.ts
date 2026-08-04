@@ -27,65 +27,65 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
     defaultTitle: 'Azure DevOps',
     sentences: {
       byOperation: {
-        azure_devops_list_pipelines: [{ text: 'Lists pipelines in', field: 'project', core: true }],
+        azure_devops_list_pipelines: [{ text: 'List pipelines in', field: 'project', core: true }],
         azure_devops_get_pipeline: [
-          { text: 'Reads pipeline', field: 'pipelineId', core: true },
+          { text: 'Read pipeline', field: 'pipelineId', core: true },
           { text: 'in', field: 'project' },
         ],
         azure_devops_list_pipeline_runs: [
-          { text: 'Lists runs of pipeline', field: 'pipelineId', core: true },
+          { text: 'List runs of pipeline', field: 'pipelineId', core: true },
           { text: 'in', field: 'project' },
         ],
         azure_devops_get_pipeline_run: [
-          { text: 'Reads run', field: 'runId', core: true },
+          { text: 'Read run', field: 'runId', core: true },
           { text: 'of pipeline', field: 'pipelineId' },
         ],
         azure_devops_list_builds: [
-          { text: 'Lists builds in', field: 'project', core: true },
+          { text: 'List builds in', field: 'project', core: true },
           { text: ', with result', field: 'resultFilter' },
           { text: ', up to', field: 'top', after: 'results' },
         ],
         azure_devops_list_build_logs: [
-          { text: 'Lists logs for build', field: 'buildId', core: true },
+          { text: 'List logs for build', field: 'buildId', core: true },
           { text: 'in', field: 'project' },
         ],
         azure_devops_get_build_log: [
-          { text: 'Reads log', field: 'logId', core: true },
+          { text: 'Read log', field: 'logId', core: true },
           { text: 'from build', field: 'buildId' },
         ],
         azure_devops_get_build_timeline: [
-          { text: 'Reads execution timeline of build', field: 'buildId', core: true },
+          { text: 'Read execution timeline of build', field: 'buildId', core: true },
         ],
         azure_devops_get_work_items_between_builds: [
-          { text: 'Lists work items from build', field: 'fromBuildId', core: true },
+          { text: 'List work items from build', field: 'fromBuildId', core: true },
           { text: 'to build', field: 'toBuildId' },
         ],
         azure_devops_query_work_items: [
-          { text: 'Finds work items matching', field: 'wiqlQuery', core: true },
+          { text: 'Find work items matching', field: 'wiqlQuery', core: true },
         ],
         azure_devops_get_work_item: [
-          { text: 'Reads work item', field: 'workItemId', core: true },
+          { text: 'Read work item', field: 'workItemId', core: true },
           { text: 'in', field: 'project' },
         ],
         azure_devops_get_work_items_batch: [
-          { text: 'Reads details for work items', field: 'workItemIds', core: true },
+          { text: 'Read details for work items', field: 'workItemIds', core: true },
         ],
         azure_devops_create_work_item: [
-          { text: 'Creates', field: 'workItemType', core: true },
+          { text: 'Create', field: 'workItemType', core: true },
           { text: 'titled', field: 'title', core: true },
           { text: ', assigned to', field: 'assignedTo' },
         ],
         azure_devops_update_work_item: [
-          { text: 'Updates work item', field: 'workItemId', core: true },
+          { text: 'Update work item', field: 'workItemId', core: true },
           { text: ', setting state to', field: 'state' },
           { text: ', assigning it to', field: 'assignedTo' },
         ],
         azure_devops_add_comment: [
-          { text: 'Comments', field: 'commentText', core: true },
+          { text: 'Comment', field: 'commentText', core: true },
           { text: 'on work item', field: 'workItemId', core: true },
         ],
         azure_devops_get_comments: [
-          { text: 'Lists comments on work item', field: 'workItemId', core: true },
+          { text: 'List comments on work item', field: 'workItemId', core: true },
         ],
       },
     },

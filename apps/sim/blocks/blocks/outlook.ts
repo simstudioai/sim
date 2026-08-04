@@ -31,21 +31,29 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
   icon: OutlookIcon,
   canvasPresentation: {
     defaultTitle: 'Outlook',
+    /*
+     * "filtered by" rather than "in": the folder list is read through
+     * `folderFilterBehavior`, which can invert it to EXCLUDE, so a preposition
+     * asserting membership would make the card state the opposite of what runs.
+     */
+    triggerSentences: {
+      default: ['Run on email', { text: 'filtered by', field: 'folderIds', core: true }],
+    },
     sentences: {
       byOperation: {
         send_outlook: [
-          { text: 'Sends', field: 'subject', core: true },
+          { text: 'Send', field: 'subject', core: true },
           { text: 'to', field: 'to', core: true },
           { text: ', copying', field: 'cc' },
         ],
         draft_outlook: [
-          { text: 'Drafts', field: 'subject', core: true },
+          { text: 'Draft', field: 'subject', core: true },
           { text: 'to', field: 'to', core: true },
           { text: ', copying', field: 'cc' },
         ],
         read_outlook: [
           {
-            text: 'Reads the latest',
+            text: 'Read the latest',
             field: 'maxResults',
             after: 'emails',
             core: true,
@@ -53,75 +61,73 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           { text: 'from', field: READ_FOLDER_FIELD },
         ],
         search_outlook: [
-          { text: 'Searches email for', field: 'searchQuery', core: true },
+          { text: 'Search email for', field: 'searchQuery', core: true },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
         reply_outlook: [
-          { text: 'Replies to the sender of message', field: 'actionMessageId', core: true },
+          { text: 'Reply to the sender of message', field: 'actionMessageId', core: true },
           { text: ', with', field: 'comment' },
         ],
         reply_all_outlook: [
-          { text: 'Replies to everyone on message', field: 'actionMessageId', core: true },
+          { text: 'Reply to everyone on message', field: 'actionMessageId', core: true },
           { text: ', with', field: 'comment' },
         ],
         forward_outlook: [
-          { text: 'Forwards message', field: 'messageId', core: true },
+          { text: 'Forward message', field: 'messageId', core: true },
           { text: 'to', field: 'to' },
         ],
         move_outlook: [
-          { text: 'Moves message', field: 'moveMessageId', core: true },
+          { text: 'Move message', field: 'moveMessageId', core: true },
           { text: 'to', field: MOVE_DESTINATION_FIELD },
         ],
         copy_outlook: [
-          { text: 'Copies message', field: 'copyMessageId', core: true },
+          { text: 'Copy message', field: 'copyMessageId', core: true },
           { text: 'to', field: COPY_DESTINATION_FIELD },
         ],
         mark_read_outlook: [
-          { text: 'Marks message', field: 'actionMessageId', after: 'as read', core: true },
+          { text: 'Mark message', field: 'actionMessageId', after: 'as read', core: true },
         ],
         mark_unread_outlook: [
-          { text: 'Marks message', field: 'actionMessageId', after: 'as unread', core: true },
+          { text: 'Mark message', field: 'actionMessageId', after: 'as unread', core: true },
         ],
         update_message_outlook: [
-          { text: 'Tags message', field: 'actionMessageId', core: true },
+          { text: 'Tag message', field: 'actionMessageId', core: true },
           { text: 'with', field: 'categories' },
           { text: ', flag set to', field: 'flagStatus' },
         ],
-        delete_outlook: [{ text: 'Deletes message', field: 'actionMessageId', core: true }],
+        delete_outlook: [{ text: 'Delete message', field: 'actionMessageId', core: true }],
         list_folders_outlook: [
-          'Lists mail folders',
+          'List mail folders',
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
-        create_folder_outlook: [{ text: 'Creates mail folder', field: 'folderName', core: true }],
+        create_folder_outlook: [{ text: 'Create mail folder', field: 'folderName', core: true }],
         list_attachments_outlook: [
-          { text: 'Lists attachments on message', field: 'actionMessageId', core: true },
+          { text: 'List attachments on message', field: 'actionMessageId', core: true },
         ],
         get_attachment_outlook: [
-          { text: 'Downloads attachment', field: 'attachmentId', core: true },
+          { text: 'Download attachment', field: 'attachmentId', core: true },
           { text: 'from message', field: 'actionMessageId' },
         ],
         list_events_calendar: [
-          'Lists calendar events',
+          'List calendar events',
           { text: 'in', field: CALENDAR_FIELD },
           { text: ', from', field: 'calWindowStart' },
           { text: 'until', field: 'calWindowEnd' },
         ],
-        get_event_calendar: [{ text: 'Reads calendar event', field: 'calEventId', core: true }],
+        get_event_calendar: [{ text: 'Read calendar event', field: 'calEventId', core: true }],
         create_event_calendar: [
-          { text: 'Creates event', field: 'calSubject', core: true },
+          { text: 'Create event', field: 'calSubject', core: true },
           { text: 'in', field: CALENDAR_FIELD },
           { text: ', starting', field: 'calStartDateTime' },
         ],
         update_event_calendar: [
-          { text: 'Updates calendar event', field: 'calEventId', core: true },
+          { text: 'Update calendar event', field: 'calEventId', core: true },
           { text: ', renaming it to', field: 'calSubject' },
           { text: ', starting', field: 'calStartDateTime' },
         ],
-        delete_event_calendar: [
-          { text: 'Deletes calendar event', field: 'calEventId', core: true },
-        ],
+        delete_event_calendar: [{ text: 'Delete calendar event', field: 'calEventId', core: true }],
         respond_calendar: [
-          { text: 'Sets the invite response for event', field: 'calEventId', core: true },
+          { text: 'Set the invite response for event', field: 'calEventId', core: true },
           { text: 'to', field: 'calResponseType' },
         ],
       },

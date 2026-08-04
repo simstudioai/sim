@@ -70,28 +70,36 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   canvasPresentation: {
     typeLabel: 'Gmail',
     defaultTitle: 'Send Email',
-    defaultName: 'Gmail',
+    triggerSentences: {
+      byTrigger: {
+        gmail_poller: [
+          'Run on email',
+          { text: 'to', field: 'labelIds', core: true },
+          { text: 'matching', field: 'searchQuery' },
+        ],
+      },
+    },
     operationSubBlockId: 'operation',
     operationRowTitle: 'Action',
     sentences: {
       byOperation: {
         send_gmail: [
-          { text: 'Sends', field: 'subject', core: true },
+          { text: 'Send', field: 'subject', core: true },
           { text: 'to', field: 'to', core: true },
           { text: ', attaching', field: ATTACHMENTS_FIELD },
         ],
         draft_gmail: [
-          { text: 'Drafts', field: 'subject', core: true },
+          { text: 'Draft', field: 'subject', core: true },
           { text: 'to', field: 'to', core: true },
           { text: ', attaching', field: ATTACHMENTS_FIELD },
         ],
         edit_draft_gmail: [
-          { text: 'Updates draft', field: 'draftId', core: true },
+          { text: 'Update draft', field: 'draftId', core: true },
           { text: ', addressed to', field: 'to' },
         ],
         read_gmail: [
           {
-            text: 'Reads up to',
+            text: 'Read up to',
             field: 'maxResults',
             after: 'messages',
             core: true,
@@ -99,31 +107,31 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
           { text: 'in', field: FOLDER_FIELD, core: true },
         ],
         search_gmail: [
-          { text: 'Searches messages matching', field: 'query', core: true },
+          { text: 'Search messages matching', field: 'query', core: true },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
         move_gmail: [
-          { text: 'Moves message', field: 'moveMessageId', core: true },
+          { text: 'Move message', field: 'moveMessageId', core: true },
           { text: 'from', field: SOURCE_LABEL_FIELD },
           { text: 'to', field: DESTINATION_LABEL_FIELD, core: true },
         ],
         mark_read_gmail: [
-          { text: 'Marks message', field: 'actionMessageId', core: true, after: 'as read' },
+          { text: 'Mark message', field: 'actionMessageId', core: true, after: 'as read' },
         ],
         mark_unread_gmail: [
-          { text: 'Marks message', field: 'actionMessageId', core: true, after: 'as unread' },
+          { text: 'Mark message', field: 'actionMessageId', core: true, after: 'as unread' },
         ],
-        archive_gmail: [{ text: 'Archives message', field: 'actionMessageId', core: true }],
-        unarchive_gmail: [{ text: 'Unarchives message', field: 'actionMessageId', core: true }],
+        archive_gmail: [{ text: 'Archive message', field: 'actionMessageId', core: true }],
+        unarchive_gmail: [{ text: 'Unarchive message', field: 'actionMessageId', core: true }],
         delete_gmail: [
-          { text: 'Moves message', field: 'actionMessageId', core: true, after: 'to trash' },
+          { text: 'Move message', field: 'actionMessageId', core: true, after: 'to trash' },
         ],
         add_label_gmail: [
-          { text: 'Adds label', field: MANAGE_LABEL_FIELD, core: true },
+          { text: 'Add label', field: MANAGE_LABEL_FIELD, core: true },
           { text: 'to message', field: 'labelActionMessageId' },
         ],
         remove_label_gmail: [
-          { text: 'Removes label', field: MANAGE_LABEL_FIELD, core: true },
+          { text: 'Remove label', field: MANAGE_LABEL_FIELD, core: true },
           { text: 'from message', field: 'labelActionMessageId' },
         ],
       },

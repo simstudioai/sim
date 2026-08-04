@@ -88,7 +88,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
     defaultTitle: 'Video Generator',
     sentences: {
       default: [
-        { text: 'Generates a video from', field: 'prompt', core: true },
+        { text: 'Generate a video from', field: 'prompt', core: true },
         { text: ', using', field: 'model' },
       ],
     },

@@ -22,37 +22,37 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse | DynamoDBIntrospectRes
     sentences: {
       byOperation: {
         get: [
-          { text: 'Gets item', field: 'getKey', core: true },
+          { text: 'Get item', field: 'getKey', core: true },
           { text: 'from', field: 'tableName', core: true },
         ],
         put: [
-          { text: 'Puts', field: 'item', core: true },
+          { text: 'Put', field: 'item', core: true },
           { text: 'into', field: 'tableName', core: true },
           { text: ', if', field: 'putConditionExpression' },
         ],
         query: [
-          { text: 'Queries items from', field: 'tableName', core: true },
+          { text: 'Query items from', field: 'tableName', core: true },
           { text: ', keyed on', field: 'keyConditionExpression' },
           { text: ', over index', field: 'indexName' },
         ],
         scan: [
-          { text: 'Scans every item in', field: 'tableName', core: true },
+          { text: 'Scan every item in', field: 'tableName', core: true },
           { text: ', where', field: 'scanFilterExpression' },
           { text: ', up to', field: 'scanLimit', after: 'items' },
         ],
         update: [
-          { text: 'Updates item', field: 'updateKey', core: true },
+          { text: 'Update item', field: 'updateKey', core: true },
           { text: 'in', field: 'tableName', core: true },
           { text: ', setting', field: 'updateExpression' },
         ],
         delete: [
-          { text: 'Deletes item', field: 'deleteKey', core: true },
+          { text: 'Delete item', field: 'deleteKey', core: true },
           { text: 'from', field: 'tableName', core: true },
           { text: ', if', field: 'deleteConditionExpression' },
         ],
         introspect: [
           {
-            text: 'Reads the schema of',
+            text: 'Read the schema of',
             field: 'introspectTableName',
             core: true,
           },

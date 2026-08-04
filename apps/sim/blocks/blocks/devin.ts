@@ -33,35 +33,35 @@ export const DevinBlock: BlockConfig = {
     sentences: {
       byOperation: {
         create_session: [
-          { text: 'Starts a session for', field: 'prompt', core: true },
+          { text: 'Start a session for', field: 'prompt', core: true },
           { text: ', using playbook', field: 'playbookId' },
         ],
         get_session: [
-          { text: 'Reads status and output of session', field: 'sessionId', core: true },
+          { text: 'Read status and output of session', field: 'sessionId', core: true },
         ],
-        list_sessions: ['Lists sessions', { text: ', up to', field: 'limit', after: 'results' }],
+        list_sessions: ['List sessions', { text: ', up to', field: 'limit', after: 'results' }],
         send_message: [
-          { text: 'Sends', field: 'message', core: true },
+          { text: 'Send', field: 'message', core: true },
           { text: 'to session', field: 'sessionId' },
         ],
         list_session_messages: [
-          { text: 'Lists messages in session', field: 'sessionId', core: true },
+          { text: 'List messages in session', field: 'sessionId', core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         list_session_attachments: [
-          { text: 'Lists files attached to session', field: 'sessionId', core: true },
+          { text: 'List files attached to session', field: 'sessionId', core: true },
         ],
-        get_session_tags: [{ text: 'Reads tags on session', field: 'sessionId', core: true }],
+        get_session_tags: [{ text: 'Read tags on session', field: 'sessionId', core: true }],
         append_session_tags: [
-          { text: 'Adds', field: 'tags', core: true },
+          { text: 'Add', field: 'tags', core: true },
           { text: 'to session', field: 'sessionId', core: true },
         ],
         replace_session_tags: [
-          { text: 'Replaces all tags with', field: 'tags', core: true },
+          { text: 'Replace all tags with', field: 'tags', core: true },
           { text: 'on session', field: 'sessionId', core: true },
         ],
-        archive_session: [{ text: 'Archives session', field: 'sessionId', core: true }],
-        terminate_session: [{ text: 'Terminates session', field: 'sessionId', core: true }],
+        archive_session: [{ text: 'Archive session', field: 'sessionId', core: true }],
+        terminate_session: [{ text: 'Terminate session', field: 'sessionId', core: true }],
       },
     },
   },

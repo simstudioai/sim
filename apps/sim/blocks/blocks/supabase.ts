@@ -27,111 +27,111 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
     sentences: {
       byOperation: {
         query: [
-          { text: 'Queries rows from', field: 'table', core: true },
+          { text: 'Query rows from', field: 'table', core: true },
           { text: ', where', field: 'filter' },
           { text: ', up to', field: 'limit', after: 'rows' },
         ],
         get_row: [
-          { text: 'Fetches one row from', field: 'table', core: true },
+          { text: 'Fetch one row from', field: 'table', core: true },
           { text: ', where', field: 'filter' },
         ],
         insert: [
-          { text: 'Inserts a row into', field: 'table', core: true },
+          { text: 'Insert a row into', field: 'table', core: true },
           { text: ', with', field: 'data' },
         ],
         update: [
-          { text: 'Updates rows in', field: 'table', core: true },
+          { text: 'Update rows in', field: 'table', core: true },
           { text: ', where', field: 'filter' },
           { text: ', setting', field: 'data' },
         ],
         delete: [
-          { text: 'Deletes rows from', field: 'table', core: true },
+          { text: 'Delete rows from', field: 'table', core: true },
           { text: ', where', field: 'filter' },
         ],
         upsert: [
-          { text: 'Upserts a row into', field: 'table', core: true },
+          { text: 'Upsert a row into', field: 'table', core: true },
           { text: ', keyed on', field: 'onConflict' },
         ],
         count: [
-          { text: 'Counts rows in', field: 'table', core: true },
+          { text: 'Count rows in', field: 'table', core: true },
           { text: ', where', field: 'filter' },
         ],
         text_search: [
-          { text: 'Full-text searches', field: 'table', core: true },
+          { text: 'Full-text search', field: 'table', core: true },
           { text: 'for', field: 'query' },
           { text: ', in column', field: 'column' },
         ],
         vector_search: [
-          { text: 'Finds similar rows via', field: 'functionName', core: true },
+          { text: 'Find similar rows via', field: 'functionName', core: true },
           { text: ', above similarity', field: 'matchThreshold' },
           { text: ', up to', field: 'matchCount', after: 'matches' },
         ],
         rpc: [
-          { text: 'Calls Postgres function', field: 'functionName', core: true },
+          { text: 'Call Postgres function', field: 'functionName', core: true },
           { text: ', with', field: 'params' },
         ],
         invoke_function: [
-          { text: 'Invokes edge function', field: 'functionName', core: true },
+          { text: 'Invoke edge function', field: 'functionName', core: true },
           { text: 'via', field: 'method' },
         ],
         introspect: [
           {
-            text: 'Introspects schema',
+            text: 'Introspect schema',
             field: 'schema',
             core: true,
           },
         ],
         storage_upload: [
-          { text: 'Uploads', field: FILE_DATA_FIELD, core: true },
+          { text: 'Upload', field: FILE_DATA_FIELD, core: true },
           { text: 'to', field: 'bucket', core: true },
           { text: ', in folder', field: 'path' },
         ],
         storage_download: [
-          { text: 'Downloads', field: 'path', core: true },
+          { text: 'Download', field: 'path', core: true },
           { text: 'from', field: 'bucket' },
         ],
         storage_list: [
-          { text: 'Lists files in', field: 'bucket', core: true },
+          { text: 'List files in', field: 'bucket', core: true },
           { text: ', under', field: 'path' },
           { text: ', matching', field: 'search' },
         ],
         storage_delete: [
-          { text: 'Deletes', field: 'paths', core: true },
+          { text: 'Delete', field: 'paths', core: true },
           { text: 'from', field: 'bucket' },
         ],
         storage_move: [
-          { text: 'Moves', field: 'fromPath', core: true },
+          { text: 'Move', field: 'fromPath', core: true },
           { text: 'to', field: 'toPath' },
         ],
         storage_copy: [
-          { text: 'Copies', field: 'fromPath', core: true },
+          { text: 'Copy', field: 'fromPath', core: true },
           { text: 'to', field: 'toPath' },
         ],
         storage_get_public_url: [
-          { text: 'Gets the public URL for', field: 'path', core: true },
+          { text: 'Get the public URL for', field: 'path', core: true },
           { text: 'in', field: 'bucket' },
         ],
         storage_create_signed_url: [
-          { text: 'Creates a signed URL for', field: 'path', core: true },
+          { text: 'Create a signed URL for', field: 'path', core: true },
           { text: ', valid for', field: 'expiresIn', after: 'seconds' },
         ],
         storage_create_signed_upload_url: [
-          { text: 'Creates a signed upload URL for', field: 'path', core: true },
+          { text: 'Create a signed upload URL for', field: 'path', core: true },
           { text: 'in', field: 'bucket' },
         ],
         storage_create_bucket: [
-          { text: 'Creates bucket', field: 'bucket', core: true },
+          { text: 'Create bucket', field: 'bucket', core: true },
           { text: ', capped at', field: 'fileSizeLimit', after: 'bytes per file' },
         ],
         storage_update_bucket: [
-          { text: 'Updates the settings of bucket', field: 'bucket', core: true },
+          { text: 'Update the settings of bucket', field: 'bucket', core: true },
           { text: ', capping files at', field: 'fileSizeLimit', after: 'bytes' },
         ],
         storage_empty_bucket: [
-          { text: 'Deletes every file in bucket', field: 'bucket', core: true },
+          { text: 'Delete every file in bucket', field: 'bucket', core: true },
         ],
-        storage_list_buckets: ['Lists all storage buckets'],
-        storage_delete_bucket: [{ text: 'Deletes bucket', field: 'bucket', core: true }],
+        storage_list_buckets: ['List all storage buckets'],
+        storage_delete_bucket: [{ text: 'Delete bucket', field: 'bucket', core: true }],
       },
     },
   },

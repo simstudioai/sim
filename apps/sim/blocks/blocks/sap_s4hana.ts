@@ -18,7 +18,7 @@ const BUSINESS_PARTNER_NAME_FIELD = ['organizationBPName1', 'lastName', 'firstNa
  */
 function listSentence(noun: string): CanvasSentence {
   return [
-    `Lists ${noun}`,
+    `List ${noun}`,
     { text: ', where', field: 'filter' },
     { text: ', up to', field: 'top', after: 'records' },
   ]
@@ -26,13 +26,13 @@ function listSentence(noun: string): CanvasSentence {
 
 /** Card sentence for a single-key OData entity read. */
 function readSentence(noun: string, keyField: string): CanvasSentence {
-  return [{ text: `Reads ${noun}`, field: keyField, core: true }]
+  return [{ text: `Read ${noun}`, field: keyField, core: true }]
 }
 
 /** Card sentence for an OData MERGE, which always writes the same JSON body. */
 function updateSentence(noun: string, keyField: string): CanvasSentence {
   return [
-    { text: `Updates ${noun}`, field: keyField, core: true },
+    { text: `Update ${noun}`, field: keyField, core: true },
     { text: ', setting', field: 'updateBody' },
   ]
 }
@@ -56,7 +56,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
         sap_s4hana_list_business_partners: listSentence('business partners'),
         sap_s4hana_get_business_partner: readSentence('business partner', 'businessPartner'),
         sap_s4hana_create_business_partner: [
-          'Creates a business partner',
+          'Create a business partner',
           { text: 'named', field: BUSINESS_PARTNER_NAME_FIELD },
         ],
         sap_s4hana_update_business_partner: updateSentence('business partner', 'businessPartner'),
@@ -70,7 +70,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
         sap_s4hana_get_sales_order: readSentence('sales order', 'salesOrder'),
         sap_s4hana_create_sales_order: [
           {
-            text: 'Creates',
+            text: 'Create',
             field: 'salesOrderType',
             after: 'sales order',
             core: true,
@@ -79,7 +79,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
         ],
         sap_s4hana_update_sales_order: updateSentence('sales order', 'salesOrder'),
         sap_s4hana_delete_sales_order: [
-          { text: 'Deletes sales order', field: 'salesOrder', core: true },
+          { text: 'Delete sales order', field: 'salesOrder', core: true },
         ],
         sap_s4hana_list_outbound_deliveries: listSentence('outbound deliveries'),
         sap_s4hana_get_outbound_delivery: readSentence('outbound delivery', 'deliveryDocument'),
@@ -93,7 +93,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
         sap_s4hana_list_material_stock: listSentence('material stock'),
         sap_s4hana_list_material_documents: listSentence('material documents'),
         sap_s4hana_get_material_document: [
-          { text: 'Reads material document', field: 'materialDocument', core: true },
+          { text: 'Read material document', field: 'materialDocument', core: true },
           { text: 'from year', field: 'materialDocumentYear' },
         ],
         sap_s4hana_list_purchase_requisitions: listSentence('purchase requisitions'),
@@ -103,7 +103,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
         ),
         sap_s4hana_create_purchase_requisition: [
           {
-            text: 'Creates',
+            text: 'Create',
             field: 'purchaseRequisitionType',
             after: 'purchase requisition',
             core: true,
@@ -117,7 +117,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
         sap_s4hana_get_purchase_order: readSentence('purchase order', 'purchaseOrder'),
         sap_s4hana_create_purchase_order: [
           {
-            text: 'Creates',
+            text: 'Create',
             field: 'purchaseOrderType',
             after: 'purchase order',
             core: true,
@@ -127,12 +127,12 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
         sap_s4hana_update_purchase_order: updateSentence('purchase order', 'purchaseOrder'),
         sap_s4hana_list_supplier_invoices: listSentence('supplier invoices'),
         sap_s4hana_get_supplier_invoice: [
-          { text: 'Reads supplier invoice', field: 'supplierInvoice', core: true },
+          { text: 'Read supplier invoice', field: 'supplierInvoice', core: true },
           { text: 'from fiscal year', field: 'fiscalYear' },
         ],
         sap_s4hana_odata_query: [
           {
-            text: 'Sends',
+            text: 'Send',
             field: 'odataMethod',
             after: 'request to',
             core: true,

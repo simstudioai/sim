@@ -179,7 +179,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
     defaultTitle: 'Pi Coding Agent',
     sentences: {
       default: [
-        { text: 'Runs', field: 'task', core: true },
+        { text: 'Run', field: 'task', core: true },
         { text: 'on', field: ['repo', 'repoPath'] },
         { text: ', in', field: 'mode', after: 'mode' },
       ],

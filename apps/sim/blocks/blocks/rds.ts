@@ -21,28 +21,28 @@ export const RDSBlock: BlockConfig<RdsResponse | RdsIntrospectResponse> = {
     sentences: {
       byOperation: {
         query: [
-          { text: 'Runs SELECT query', field: 'query', core: true },
+          { text: 'Run SELECT query', field: 'query', core: true },
           { text: 'on', field: 'database' },
         ],
         insert: [
-          { text: 'Inserts', field: 'data', core: true },
+          { text: 'Insert', field: 'data', core: true },
           { text: 'into', field: 'table', core: true },
         ],
         update: [
-          { text: 'Updates rows in', field: 'table', core: true },
+          { text: 'Update rows in', field: 'table', core: true },
           { text: ', where', field: 'conditions' },
           { text: ', setting', field: 'data' },
         ],
         delete: [
-          { text: 'Deletes rows from', field: 'table', core: true },
+          { text: 'Delete rows from', field: 'table', core: true },
           { text: ', where', field: 'conditions' },
         ],
         execute: [
-          { text: 'Executes raw SQL', field: 'query', core: true },
+          { text: 'Execute raw SQL', field: 'query', core: true },
           { text: 'on', field: 'database' },
         ],
         introspect: [
-          { text: 'Reads the schema of', field: 'database', core: true },
+          { text: 'Read the schema of', field: 'database', core: true },
           { text: ', under', field: 'schema' },
         ],
       },

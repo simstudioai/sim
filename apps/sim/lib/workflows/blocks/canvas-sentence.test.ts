@@ -67,7 +67,7 @@ const none = () => null
 describe('resolveCanvasSentence', () => {
   it('keeps a core clause on an untouched card, standing the field noun in for the value', () => {
     /* The whole point of `core`: a fresh card reads as a sentence, not as nothing. */
-    const config = createConfig({ default: [{ text: 'Posts', field: 'message', core: true }] }, [
+    const config = createConfig({ default: [{ text: 'Post', field: 'message', core: true }] }, [
       { id: 'message', type: 'short-input', title: 'Message' },
     ])
 
@@ -81,7 +81,7 @@ describe('resolveCanvasSentence', () => {
         ),
         ['message']
       )
-    ).toBe('Posts ⟨message⟩')
+    ).toBe('Post ⟨message⟩')
     expect(
       renderAsCard(
         resolveCanvasSentence(
@@ -92,13 +92,13 @@ describe('resolveCanvasSentence', () => {
         ),
         []
       )
-    ).toBe('Posts ⟨a message⟩')
+    ).toBe('Post ⟨a message⟩')
   })
 
   it('drops a core clause whose field this operation never shows', () => {
     /* Visibility, not just emptiness — a clause gated to another operation has
        no slot to hold on this card. */
-    const config = createConfig({ default: [{ text: 'Posts', field: 'message', core: true }] }, [
+    const config = createConfig({ default: [{ text: 'Post', field: 'message', core: true }] }, [
       { id: 'message', type: 'short-input', title: 'Message' },
     ])
 
@@ -112,7 +112,7 @@ describe('resolveCanvasSentence', () => {
     const config = createConfig(
       {
         default: [
-          { text: 'Queries rows from', field: ['tableSelector', 'manualTableId'], core: true },
+          { text: 'Query rows from', field: ['tableSelector', 'manualTableId'], core: true },
         ],
       },
       ['tableSelector', 'manualTableId']
@@ -127,7 +127,7 @@ describe('resolveCanvasSentence', () => {
           onCard(config)
         )
       )
-    ).toBe('Queries rows from ⟨tableSelector⟩')
+    ).toBe('Query rows from ⟨tableSelector⟩')
     expect(
       render(
         resolveCanvasSentence(
@@ -137,7 +137,7 @@ describe('resolveCanvasSentence', () => {
           onCard(config)
         )
       )
-    ).toBe('Queries rows from ⟨manualTableId⟩')
+    ).toBe('Query rows from ⟨manualTableId⟩')
   })
 
   it('drops an optional clause whole, taking its connective with it', () => {
@@ -145,7 +145,7 @@ describe('resolveCanvasSentence', () => {
     const config = createConfig(
       {
         default: [
-          { text: 'Queries rows from', field: 'table', core: true },
+          { text: 'Query rows from', field: 'table', core: true },
           { text: ', where', field: 'filter' },
           { text: ', up to', field: 'limit', after: 'rows' },
         ],
@@ -162,7 +162,7 @@ describe('resolveCanvasSentence', () => {
           onCard(config)
         )
       )
-    ).toBe('Queries rows from ⟨table⟩')
+    ).toBe('Query rows from ⟨table⟩')
     expect(
       render(
         resolveCanvasSentence(
@@ -172,7 +172,7 @@ describe('resolveCanvasSentence', () => {
           onCard(config)
         )
       )
-    ).toBe('Queries rows from ⟨table⟩ , up to ⟨limit⟩ rows')
+    ).toBe('Query rows from ⟨table⟩ , up to ⟨limit⟩ rows')
   })
 
   it('marks only core slots with a noun, so optional slots never paint a placeholder', () => {
@@ -180,7 +180,7 @@ describe('resolveCanvasSentence', () => {
     const config = createConfig(
       {
         default: [
-          { text: 'Queries rows from', field: 'table', core: true },
+          { text: 'Query rows from', field: 'table', core: true },
           { text: ', where', field: 'filter' },
         ],
       },
@@ -204,8 +204,8 @@ describe('resolveCanvasSentence', () => {
     const config = createConfig(
       {
         byOperation: {
-          send: [{ text: 'Sends an email to', field: 'to', core: true }],
-          search: [{ text: 'Searches email for', field: 'query', core: true }],
+          send: [{ text: 'Send an email to', field: 'to', core: true }],
+          search: [{ text: 'Search email for', field: 'query', core: true }],
         },
       },
       ['operation', 'to', 'query']
@@ -220,7 +220,7 @@ describe('resolveCanvasSentence', () => {
           onCard(config)
         )
       )
-    ).toBe('Sends an email to ⟨to⟩')
+    ).toBe('Send an email to ⟨to⟩')
     expect(
       render(
         resolveCanvasSentence(
@@ -230,12 +230,12 @@ describe('resolveCanvasSentence', () => {
           onCard(config)
         )
       )
-    ).toBe('Searches email for ⟨query⟩')
+    ).toBe('Search email for ⟨query⟩')
   })
 
   it('returns null for an operation with no sentence, keeping the rows layout', () => {
     const config = createConfig({
-      byOperation: { send: [{ text: 'Sends an email to', field: 'to', core: true }] },
+      byOperation: { send: [{ text: 'Send an email to', field: 'to', core: true }] },
     })
 
     expect(
@@ -251,8 +251,8 @@ describe('resolveCanvasSentence', () => {
   it('falls back to the default sentence when the operation has none', () => {
     const config = createConfig(
       {
-        default: [{ text: 'Runs', field: 'code', core: true }],
-        byOperation: { special: [{ text: 'Does the special thing with', field: 'x', core: true }] },
+        default: [{ text: 'Run', field: 'code', core: true }],
+        byOperation: { special: [{ text: 'Do the special thing with', field: 'x', core: true }] },
       },
       ['operation', 'code', 'x']
     )
@@ -266,7 +266,7 @@ describe('resolveCanvasSentence', () => {
           onCard(config)
         )
       )
-    ).toBe('Runs ⟨code⟩')
+    ).toBe('Run ⟨code⟩')
   })
 
   it('returns null when the block declares no sentences at all', () => {
@@ -285,14 +285,14 @@ describe('resolveCanvasSentence', () => {
     /* A dual-mode block's operation dropdown still holds its action default, so
        reusing the action sentence would narrate a call the block will not make. */
     const config = createConfig(
-      { byOperation: { send: [{ text: 'Posts', field: 'message', core: true }] } },
+      { byOperation: { send: [{ text: 'Post', field: 'message', core: true }] } },
       ['operation', { id: 'message', type: 'short-input', title: 'Message' }]
     )
     const withTrigger = {
       ...config,
       canvasPresentation: {
         ...config.canvasPresentation,
-        triggerSentences: { default: ['Runs when a message arrives'] },
+        triggerSentences: { default: ['Run when a message arrives'] },
       },
     } as TestConfig
 
@@ -305,7 +305,7 @@ describe('resolveCanvasSentence', () => {
           onCard(withTrigger)
         )
       )
-    ).toBe('Runs when a message arrives')
+    ).toBe('Run when a message arrives')
   })
 
   it('derives a trigger sentence from the trigger name when none is declared', () => {
@@ -322,19 +322,19 @@ describe('resolveCanvasSentence', () => {
           onCard(config)
         )
       )
-    ).toBe('Runs on Pull Request Opened')
+    ).toBe('Run on Pull Request Opened')
   })
 
   it('keeps literal copy when every slot is hidden, rather than painting nothing', () => {
     const config = createConfig({
-      default: ['Lists every record', { text: 'matching', field: 'query' }],
+      default: ['List every record', { text: 'matching', field: 'query' }],
     })
 
     expect(
       render(
         resolveCanvasSentence(config, { mode: 'action', operationValue: undefined }, has(), none)
       )
-    ).toBe('Lists every record')
+    ).toBe('List every record')
   })
 })
 
@@ -364,9 +364,9 @@ describe('estimateSentenceLines', () => {
   })
 
   it('grows with content', () => {
-    const short = estimateSentenceLines(['Runs code'], () => '', 234)
+    const short = estimateSentenceLines(['Run code'], () => '', 234)
     const long = estimateSentenceLines(
-      ['Queries rows from', { subBlockId: 'table' }, ', where', { subBlockId: 'filter' }],
+      ['Query rows from', { subBlockId: 'table' }, ', where', { subBlockId: 'filter' }],
       () => 'a rather long resolved value',
       234
     )

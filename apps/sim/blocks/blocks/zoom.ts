@@ -30,39 +30,39 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
     sentences: {
       byOperation: {
         zoom_create_meeting: [
-          { text: 'Creates meeting', field: 'topic', core: true },
+          { text: 'Create meeting', field: 'topic', core: true },
           { text: ', starting', field: 'startTime' },
           { text: ', for', field: 'duration', after: 'minutes' },
         ],
-        zoom_list_meetings: ['Lists meetings', { text: 'of type', field: 'listType' }],
-        zoom_get_meeting: [{ text: 'Reads details of meeting', field: MEETING_FIELD, core: true }],
+        zoom_list_meetings: ['List meetings', { text: 'of type', field: 'listType' }],
+        zoom_get_meeting: [{ text: 'Read details of meeting', field: MEETING_FIELD, core: true }],
         zoom_update_meeting: [
-          { text: 'Updates meeting', field: MEETING_FIELD, core: true },
+          { text: 'Update meeting', field: MEETING_FIELD, core: true },
           { text: ', renaming it to', field: 'topicUpdate' },
           { text: ', starting', field: 'startTime' },
         ],
         zoom_delete_meeting: [
-          { text: 'Deletes meeting', field: MEETING_FIELD, core: true },
+          { text: 'Delete meeting', field: MEETING_FIELD, core: true },
           { text: ', occurrence', field: 'occurrenceId' },
         ],
         zoom_get_meeting_invitation: [
-          { text: 'Reads invitation text for meeting', field: MEETING_FIELD, core: true },
+          { text: 'Read invitation text for meeting', field: MEETING_FIELD, core: true },
         ],
         zoom_list_recordings: [
-          'Lists cloud recordings',
+          'List cloud recordings',
           { text: 'from', field: 'fromDate' },
           { text: 'through', field: 'toDate' },
         ],
         zoom_get_meeting_recordings: [
-          { text: 'Fetches recordings of meeting', field: MEETING_FIELD, core: true },
+          { text: 'Fetch recordings of meeting', field: MEETING_FIELD, core: true },
         ],
         zoom_delete_recording: [
-          'Deletes recordings',
+          'Delete recordings',
           { text: 'from meeting', field: MEETING_FIELD, core: true },
           { text: ', recording file', field: 'recordingId' },
         ],
         zoom_list_past_participants: [
-          { text: 'Lists participants of past meeting', field: MEETING_FIELD, core: true },
+          { text: 'List participants of past meeting', field: MEETING_FIELD, core: true },
         ],
       },
     },

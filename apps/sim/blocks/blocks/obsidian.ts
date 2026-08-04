@@ -18,50 +18,50 @@ export const ObsidianBlock: BlockConfig = {
     defaultTitle: 'Obsidian',
     sentences: {
       byOperation: {
-        list_files: ['Lists files in the vault', { text: ', under', field: 'path' }],
-        get_note: [{ text: 'Reads note', field: 'filename', core: true }],
+        list_files: ['List files in the vault', { text: ', under', field: 'path' }],
+        get_note: [{ text: 'Read note', field: 'filename', core: true }],
         create_note: [
-          { text: 'Creates note', field: 'filename', core: true },
+          { text: 'Create note', field: 'filename', core: true },
           { text: ', containing', field: 'content' },
         ],
         append_note: [
-          { text: 'Appends', field: 'content', core: true },
+          { text: 'Append', field: 'content', core: true },
           { text: 'to note', field: 'filename', core: true },
         ],
         patch_note: [
-          { text: 'Patches note', field: 'filename', core: true },
+          { text: 'Patch note', field: 'filename', core: true },
           { text: ', at', field: 'target' },
           { text: ', with', field: 'content' },
         ],
-        delete_note: [{ text: 'Deletes note', field: 'filename', core: true }],
-        search: [{ text: 'Searches notes for', field: 'query', core: true }],
-        get_active: ['Reads the currently active file'],
+        delete_note: [{ text: 'Delete note', field: 'filename', core: true }],
+        search: [{ text: 'Search notes for', field: 'query', core: true }],
+        get_active: ['Read the currently active file'],
         append_active: [
           {
-            text: 'Appends',
+            text: 'Append',
             field: 'content',
             after: 'to the active file',
             core: true,
           },
         ],
         patch_active: [
-          'Patches the active file',
+          'Patch the active file',
           { text: ', at', field: 'target' },
           { text: ', with', field: 'content' },
         ],
-        open_file: [{ text: 'Opens note', field: 'filename', core: true }],
-        list_commands: ['Lists all available commands'],
-        execute_command: [{ text: 'Runs command', field: 'commandId', core: true }],
+        open_file: [{ text: 'Open note', field: 'filename', core: true }],
+        list_commands: ['List all available commands'],
+        execute_command: [{ text: 'Run command', field: 'commandId', core: true }],
         get_periodic_note: [
           {
-            text: 'Reads the current',
+            text: 'Read the current',
             field: 'period',
             after: 'note',
             core: true,
           },
         ],
         append_periodic_note: [
-          { text: 'Appends', field: 'content', core: true },
+          { text: 'Append', field: 'content', core: true },
           {
             text: 'to the current',
             field: 'period',

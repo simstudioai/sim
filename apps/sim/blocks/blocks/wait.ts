@@ -24,7 +24,7 @@ export const WaitBlock: BlockConfig = {
     defaultTitle: 'Wait',
     sentences: {
       default: [
-        { text: 'Pauses for', field: 'timeValue', core: true },
+        { text: 'Pause for', field: 'timeValue', core: true },
         /* Async swaps one unit dropdown for the other, so either can be the
            one that resolves; first available wins. */
         { field: ['timeUnit', 'timeUnitLong'] },

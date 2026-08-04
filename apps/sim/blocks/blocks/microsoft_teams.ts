@@ -31,64 +31,82 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   icon: MicrosoftTeamsIcon,
   canvasPresentation: {
     defaultTitle: 'Microsoft Teams',
+    /*
+     * Per-trigger rather than a picker chip: the picker's own labels are
+     * "Microsoft Teams Channel" and "Microsoft Teams Chat", so chipping one
+     * reads "Runs on Microsoft Teams Channel" under a header already saying
+     * Microsoft Teams. The two also watch different things — the channel
+     * trigger is an outgoing webhook, which Teams only fires on an @mention and
+     * scopes to the team that installed it, so it has no scope field to name;
+     * the chat subscription watches one named conversation.
+     */
+    triggerSentences: {
+      byTrigger: {
+        microsoftteams_webhook: ['Run on an @mention in a channel'],
+        microsoftteams_chat_subscription: [
+          'Run on a new message',
+          { text: 'in', field: 'triggerChatId', core: true },
+        ],
+      },
+    },
     sentences: {
       byOperation: {
-        read_chat: [{ text: 'Reads messages from chat', field: CHAT_FIELD, core: true }],
+        read_chat: [{ text: 'Read messages from chat', field: CHAT_FIELD, core: true }],
         write_chat: [
-          { text: 'Posts', field: 'content', core: true },
+          { text: 'Post', field: 'content', core: true },
           { text: 'to chat', field: CHAT_FIELD, core: true },
           { text: ', attaching', field: ATTACHMENT_FIELD },
         ],
         update_chat_message: [
-          { text: 'Updates chat message', field: 'messageId', core: true },
+          { text: 'Update chat message', field: 'messageId', core: true },
           { text: 'in', field: CHAT_FIELD },
           { text: ', to read', field: 'content' },
         ],
         delete_chat_message: [
-          { text: 'Deletes chat message', field: 'messageId', core: true },
+          { text: 'Delete chat message', field: 'messageId', core: true },
           { text: 'from', field: CHAT_FIELD },
         ],
         read_channel: [
-          { text: 'Reads messages from channel', field: CHANNEL_FIELD, core: true },
+          { text: 'Read messages from channel', field: CHANNEL_FIELD, core: true },
           { text: 'in team', field: TEAM_FIELD },
         ],
         write_channel: [
-          { text: 'Posts', field: 'content', core: true },
+          { text: 'Post', field: 'content', core: true },
           { text: 'to channel', field: CHANNEL_FIELD, core: true },
           { text: 'in team', field: TEAM_FIELD },
         ],
         update_channel_message: [
-          { text: 'Updates channel message', field: 'messageId', core: true },
+          { text: 'Update channel message', field: 'messageId', core: true },
           { text: 'in', field: CHANNEL_FIELD },
           { text: ', to read', field: 'content' },
         ],
         delete_channel_message: [
-          { text: 'Deletes channel message', field: 'messageId', core: true },
+          { text: 'Delete channel message', field: 'messageId', core: true },
           { text: 'from', field: CHANNEL_FIELD },
         ],
         reply_to_message: [
-          { text: 'Replies to message', field: 'messageId', core: true },
+          { text: 'Reply to message', field: 'messageId', core: true },
           { text: 'in channel', field: CHANNEL_FIELD },
           { text: ', with', field: 'content' },
         ],
-        get_message: [{ text: 'Fetches message', field: 'messageId', core: true }],
+        get_message: [{ text: 'Fetch message', field: 'messageId', core: true }],
         set_reaction: [
-          { text: 'Reacts with', field: 'reactionType', core: true },
+          { text: 'React with', field: 'reactionType', core: true },
           { text: 'to message', field: 'messageId' },
         ],
         unset_reaction: [
-          { text: 'Removes reaction', field: 'reactionType', core: true },
+          { text: 'Remove reaction', field: 'reactionType', core: true },
           { text: 'from message', field: 'messageId' },
         ],
-        list_team_members: [{ text: 'Lists members of team', field: TEAM_FIELD, core: true }],
+        list_team_members: [{ text: 'List members of team', field: TEAM_FIELD, core: true }],
         list_channel_members: [
-          { text: 'Lists members of channel', field: CHANNEL_FIELD, core: true },
+          { text: 'List members of channel', field: CHANNEL_FIELD, core: true },
           { text: 'in team', field: TEAM_FIELD },
         ],
-        list_chat_members: [{ text: 'Lists members of chat', field: CHAT_FIELD, core: true }],
-        list_teams: ['Lists teams the signed-in user has joined'],
-        list_chats: ['Lists chats for the signed-in user'],
-        list_channels: [{ text: 'Lists channels in team', field: TEAM_FIELD, core: true }],
+        list_chat_members: [{ text: 'List members of chat', field: CHAT_FIELD, core: true }],
+        list_teams: ['List teams the signed-in user has joined'],
+        list_chats: ['List chats for the signed-in user'],
+        list_channels: [{ text: 'List channels in team', field: TEAM_FIELD, core: true }],
       },
     },
   },

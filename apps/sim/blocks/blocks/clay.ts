@@ -16,7 +16,7 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   canvasPresentation: {
     defaultTitle: 'Clay',
     sentences: {
-      default: [{ text: 'Populates a table with', field: 'data', core: true }],
+      default: [{ text: 'Populate a table with', field: 'data', core: true }],
     },
   },
   subBlocks: [

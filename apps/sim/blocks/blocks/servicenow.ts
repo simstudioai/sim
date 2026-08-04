@@ -23,41 +23,51 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   icon: ServiceNowIcon,
   canvasPresentation: {
     defaultTitle: 'ServiceNow',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in table', field: 'tableName' },
+      ],
+      byTrigger: {
+        servicenow_webhook: ['Run on any record event', { text: 'in table', field: 'tableName' }],
+      },
+    },
     sentences: {
       byOperation: {
         servicenow_create_record: [
-          { text: 'Creates a record in', field: 'tableName', core: true },
+          { text: 'Create a record in', field: 'tableName', core: true },
           { text: ', with', field: 'fields' },
         ],
         servicenow_read_record: [
-          'Reads records',
+          'Read records',
           { text: 'from', field: 'tableName', core: true },
           { text: ', matching', field: RECORD_MATCH_FIELD },
           { text: ', up to', field: 'limit' },
         ],
         servicenow_update_record: [
-          { text: 'Updates record', field: 'sysId', core: true },
+          { text: 'Update record', field: 'sysId', core: true },
           { text: 'in', field: 'tableName' },
           { text: ', setting', field: 'fields' },
         ],
         servicenow_delete_record: [
-          { text: 'Deletes record', field: 'sysId', core: true },
+          { text: 'Delete record', field: 'sysId', core: true },
           { text: 'from', field: 'tableName' },
         ],
         servicenow_aggregate: [
-          { text: 'Aggregates records in', field: 'tableName', core: true },
+          { text: 'Aggregate records in', field: 'tableName', core: true },
           { text: ', grouped by', field: 'groupBy' },
           { text: ', where', field: 'query' },
         ],
         servicenow_list_attachments: [
-          { text: 'Lists attachments on record', field: 'recordSysId', core: true },
+          { text: 'List attachments on record', field: 'recordSysId', core: true },
           { text: 'in', field: 'tableName' },
         ],
         servicenow_download_attachment: [
-          { text: 'Downloads attachment', field: 'attachmentSysId', core: true },
+          { text: 'Download attachment', field: 'attachmentSysId', core: true },
         ],
         servicenow_upload_attachment: [
-          { text: 'Attaches', field: FILE_FIELD, core: true },
+          { text: 'Attach', field: FILE_FIELD, core: true },
           { text: 'to record', field: 'recordSysId', core: true },
           { text: 'in', field: 'tableName' },
         ],

@@ -18,7 +18,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
     defaultTitle: 'Browser Use',
     sentences: {
       default: [
-        { text: 'Runs the browser task', field: 'task', core: true },
+        { text: 'Run the browser task', field: 'task', core: true },
         { text: ', starting at', field: 'startUrl' },
       ],
     },

@@ -69,47 +69,60 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
   icon: InstantlyIcon,
   canvasPresentation: {
     defaultTitle: 'Instantly',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in campaign', field: 'triggerCampaignId' },
+      ],
+      byTrigger: {
+        instantly_webhook: [
+          'Run on any campaign event',
+          { text: 'in campaign', field: 'triggerCampaignId' },
+        ],
+      },
+    },
     sentences: {
       byOperation: {
         list_leads: [
-          'Lists leads',
+          'List leads',
           { text: ', matching', field: 'search' },
           { text: ', in campaign', field: 'campaignId' },
         ],
-        get_lead: [{ text: 'Reads lead', field: 'leadId', core: true }],
+        get_lead: [{ text: 'Read lead', field: 'leadId', core: true }],
         create_lead: [
-          { text: 'Creates lead', field: 'email', core: true },
+          { text: 'Create lead', field: 'email', core: true },
           { text: 'in', field: 'leadDestinationId' },
         ],
-        patch_lead: [{ text: 'Updates fields on lead', field: 'leadId', core: true }],
+        patch_lead: [{ text: 'Update fields on lead', field: 'leadId', core: true }],
         delete_leads: [
-          { text: 'Deletes leads from', field: 'deleteSourceId', core: true },
+          { text: 'Delete leads from', field: 'deleteSourceId', core: true },
           { text: ', up to', field: 'deleteLimit', after: 'leads' },
         ],
         update_lead_interest_status: [
-          { text: 'Sets interest status for', field: 'leadEmail', core: true },
+          { text: 'Set interest status for', field: 'leadEmail', core: true },
           { text: 'in campaign', field: 'campaignId' },
         ],
-        list_campaigns: ['Lists campaigns', { text: ', matching', field: 'search' }],
-        create_campaign: [{ text: 'Creates campaign', field: 'campaignName', core: true }],
+        list_campaigns: ['List campaigns', { text: ', matching', field: 'search' }],
+        create_campaign: [{ text: 'Create campaign', field: 'campaignName', core: true }],
         patch_campaign: [
-          { text: 'Updates campaign', field: 'campaignId', core: true },
+          { text: 'Update campaign', field: 'campaignId', core: true },
           { text: ', renaming it to', field: 'campaignName' },
         ],
-        activate_campaign: [{ text: 'Starts campaign', field: 'campaignId', core: true }],
-        pause_campaign: [{ text: 'Pauses campaign', field: 'campaignId', core: true }],
-        delete_campaign: [{ text: 'Deletes campaign', field: 'campaignId', core: true }],
+        activate_campaign: [{ text: 'Start campaign', field: 'campaignId', core: true }],
+        pause_campaign: [{ text: 'Pause campaign', field: 'campaignId', core: true }],
+        delete_campaign: [{ text: 'Delete campaign', field: 'campaignId', core: true }],
         list_emails: [
-          'Lists inbox emails',
+          'List inbox emails',
           { text: ', matching', field: 'emailSearch' },
           { text: ', in campaign', field: 'campaignId' },
         ],
         reply_to_email: [
-          { text: 'Replies to email', field: 'replyToUuid', core: true },
+          { text: 'Reply to email', field: 'replyToUuid', core: true },
           { text: ', with subject', field: 'subject' },
         ],
-        list_lead_lists: ['Lists lead lists', { text: ', matching', field: 'search' }],
-        create_lead_list: [{ text: 'Creates lead list', field: 'leadListName', core: true }],
+        list_lead_lists: ['List lead lists', { text: ', matching', field: 'search' }],
+        create_lead_list: [{ text: 'Create lead list', field: 'leadListName', core: true }],
       },
     },
   },

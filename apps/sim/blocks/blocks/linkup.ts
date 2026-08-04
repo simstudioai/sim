@@ -17,7 +17,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
     defaultTitle: 'Linkup',
     sentences: {
       default: [
-        { text: 'Searches the web for', field: 'q', core: true },
+        { text: 'Search the web for', field: 'q', core: true },
         { text: ', within', field: 'includeDomains' },
         { text: ', since', field: 'fromDate' },
       ],

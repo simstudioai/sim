@@ -89,7 +89,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     defaultTitle: 'Agent',
     sentences: {
       default: [
-        { text: 'Prompts', field: 'model', core: true },
+        { text: 'Prompt', field: 'model', core: true },
         { text: 'with', field: 'messages' },
         { text: ', using', field: 'tools' },
       ],

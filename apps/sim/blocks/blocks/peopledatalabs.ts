@@ -30,46 +30,46 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
     sentences: {
       byOperation: {
         pdl_person_enrich: [
-          { text: 'Enriches person', field: PERSON_MATCH_FIELD, core: true },
+          { text: 'Enrich person', field: PERSON_MATCH_FIELD, core: true },
           { text: 'at', field: 'company' },
         ],
         pdl_person_identify: [
-          { text: 'Finds candidate matches for', field: PERSON_MATCH_FIELD, core: true },
+          { text: 'Find candidate matches for', field: PERSON_MATCH_FIELD, core: true },
           { text: 'at', field: 'company' },
         ],
         pdl_person_search: [
-          { text: 'Searches people with query', field: SEARCH_QUERY_FIELD, core: true },
+          { text: 'Search people with query', field: SEARCH_QUERY_FIELD, core: true },
           { text: ', up to', field: 'size', after: 'results' },
         ],
         pdl_bulk_person_enrich: [
-          'Enriches people in bulk',
+          'Enrich people in bulk',
           { text: ', requiring', field: 'bulk_person_required' },
         ],
         pdl_company_enrich: [
-          { text: 'Enriches company', field: COMPANY_MATCH_FIELD, core: true },
+          { text: 'Enrich company', field: COMPANY_MATCH_FIELD, core: true },
           { text: 'in', field: 'company_location' },
         ],
         pdl_company_search: [
-          { text: 'Searches companies with query', field: SEARCH_QUERY_FIELD, core: true },
+          { text: 'Search companies with query', field: SEARCH_QUERY_FIELD, core: true },
           { text: ', up to', field: 'size', after: 'results' },
         ],
         pdl_bulk_company_enrich: [
-          'Enriches companies in bulk',
+          'Enrich companies in bulk',
           { text: ', requiring', field: 'bulk_company_required' },
         ],
-        pdl_clean_company: [{ text: 'Normalizes company', field: COMPANY_CLEAN_FIELD, core: true }],
+        pdl_clean_company: [{ text: 'Normalize company', field: COMPANY_CLEAN_FIELD, core: true }],
         pdl_clean_location: [
-          { text: 'Normalizes location', field: 'clean_location_input', core: true },
+          { text: 'Normalize location', field: 'clean_location_input', core: true },
         ],
         pdl_clean_school: [
           {
-            text: 'Normalizes school',
+            text: 'Normalize school',
             field: ['school_name', 'school_website', 'school_profile'],
             core: true,
           },
         ],
         pdl_autocomplete: [
-          { text: 'Suggests', field: 'field', after: 'values', core: true },
+          { text: 'Suggest', field: 'field', after: 'values', core: true },
           { text: 'matching', field: 'text', core: true },
         ],
       },

@@ -42,26 +42,26 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
     sentences: {
       byOperation: {
         prospeo_enrich_person: [
-          { text: 'Enriches', field: PERSON_IDENTITY_FIELD, core: true },
+          { text: 'Enrich', field: PERSON_IDENTITY_FIELD, core: true },
           { text: 'at', field: PERSON_COMPANY_FIELD },
         ],
         prospeo_enrich_company: [
-          { text: 'Enriches company', field: COMPANY_IDENTITY_FIELD, core: true },
+          { text: 'Enrich company', field: COMPANY_IDENTITY_FIELD, core: true },
         ],
-        prospeo_bulk_enrich_person: ['Enriches a batch of person records'],
-        prospeo_bulk_enrich_company: ['Enriches a batch of company records'],
+        prospeo_bulk_enrich_person: ['Enrich a batch of person records'],
+        prospeo_bulk_enrich_company: ['Enrich a batch of company records'],
         prospeo_search_person: [
-          { text: 'Searches for people matching', field: 'sp_filters', core: true },
+          { text: 'Search for people matching', field: 'sp_filters', core: true },
           { text: ', page', field: 'sp_page' },
         ],
         prospeo_search_company: [
-          { text: 'Searches for companies matching', field: 'sc_filters', core: true },
+          { text: 'Search for companies matching', field: 'sc_filters', core: true },
           { text: ', page', field: 'sc_page' },
         ],
         prospeo_search_suggestions: [
-          { text: 'Suggests filter values for', field: SUGGESTION_QUERY_FIELD, core: true },
+          { text: 'Suggest filter values for', field: SUGGESTION_QUERY_FIELD, core: true },
         ],
-        prospeo_account_information: ['Reads plan, credits, and renewal date'],
+        prospeo_account_information: ['Read plan, credits, and renewal date'],
       },
     },
   },

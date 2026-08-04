@@ -25,51 +25,51 @@ export const AppConfigBlock: BlockConfig<
     sentences: {
       byOperation: {
         get_configuration: [
-          { text: 'Reads deployed configuration', field: 'configurationProfileId', core: true },
+          { text: 'Read deployed configuration', field: 'configurationProfileId', core: true },
           { text: 'from environment', field: 'environmentId' },
         ],
         list_applications: [
-          'Lists applications',
+          'List applications',
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
-        create_application: [{ text: 'Creates application', field: 'name', core: true }],
-        get_application: [{ text: 'Fetches application', field: 'applicationId', core: true }],
+        create_application: [{ text: 'Create application', field: 'name', core: true }],
+        get_application: [{ text: 'Fetch application', field: 'applicationId', core: true }],
         update_application: [
-          { text: 'Updates application', field: 'applicationId', core: true },
+          { text: 'Update application', field: 'applicationId', core: true },
           { text: ', renaming to', field: 'name' },
         ],
-        delete_application: [{ text: 'Deletes application', field: 'applicationId', core: true }],
+        delete_application: [{ text: 'Delete application', field: 'applicationId', core: true }],
         list_environments: [
-          { text: 'Lists environments in', field: 'applicationId', core: true },
+          { text: 'List environments in', field: 'applicationId', core: true },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
         create_environment: [
-          { text: 'Creates environment', field: 'name', core: true },
+          { text: 'Create environment', field: 'name', core: true },
           { text: 'in', field: 'applicationId' },
         ],
         get_environment: [
-          { text: 'Fetches environment', field: 'environmentId', core: true },
+          { text: 'Fetch environment', field: 'environmentId', core: true },
           { text: 'in', field: 'applicationId' },
         ],
         update_environment: [
-          { text: 'Updates environment', field: 'environmentId', core: true },
+          { text: 'Update environment', field: 'environmentId', core: true },
           { text: ', renaming to', field: 'name' },
         ],
         delete_environment: [
-          { text: 'Deletes environment', field: 'environmentId', core: true },
+          { text: 'Delete environment', field: 'environmentId', core: true },
           { text: 'in', field: 'applicationId' },
         ],
         list_configuration_profiles: [
-          { text: 'Lists configuration profiles in', field: 'applicationId', core: true },
+          { text: 'List configuration profiles in', field: 'applicationId', core: true },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
         create_configuration_profile: [
-          { text: 'Creates configuration profile', field: 'name', core: true },
+          { text: 'Create configuration profile', field: 'name', core: true },
           { text: ', sourced from', field: 'locationUri' },
         ],
         get_configuration_profile: [
           {
-            text: 'Fetches configuration profile',
+            text: 'Fetch configuration profile',
             field: 'configurationProfileId',
             core: true,
           },
@@ -77,7 +77,7 @@ export const AppConfigBlock: BlockConfig<
         ],
         update_configuration_profile: [
           {
-            text: 'Updates configuration profile',
+            text: 'Update configuration profile',
             field: 'configurationProfileId',
             core: true,
           },
@@ -85,54 +85,54 @@ export const AppConfigBlock: BlockConfig<
         ],
         delete_configuration_profile: [
           {
-            text: 'Deletes configuration profile',
+            text: 'Delete configuration profile',
             field: 'configurationProfileId',
             core: true,
           },
         ],
         create_hosted_configuration_version: [
           {
-            text: 'Adds a hosted version to profile',
+            text: 'Add a hosted version to profile',
             field: 'configurationProfileId',
             core: true,
           },
           { text: ', labeled', field: 'versionLabel' },
         ],
         get_hosted_configuration_version: [
-          { text: 'Reads hosted version', field: 'versionNumber', core: true },
+          { text: 'Read hosted version', field: 'versionNumber', core: true },
           { text: 'of profile', field: 'configurationProfileId' },
         ],
         list_hosted_configuration_versions: [
           {
-            text: 'Lists hosted versions of profile',
+            text: 'List hosted versions of profile',
             field: 'configurationProfileId',
             core: true,
           },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
         delete_hosted_configuration_version: [
-          { text: 'Deletes hosted version', field: 'versionNumber', core: true },
+          { text: 'Delete hosted version', field: 'versionNumber', core: true },
           { text: 'of profile', field: 'configurationProfileId' },
         ],
         list_deployment_strategies: [
-          'Lists deployment strategies',
+          'List deployment strategies',
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
         start_deployment: [
-          { text: 'Deploys configuration version', field: 'configurationVersion', core: true },
+          { text: 'Deploy configuration version', field: 'configurationVersion', core: true },
           { text: 'to environment', field: 'environmentId' },
           { text: ', using strategy', field: 'deploymentStrategyId' },
         ],
         get_deployment: [
-          { text: 'Fetches deployment', field: 'deploymentNumber', core: true },
+          { text: 'Fetch deployment', field: 'deploymentNumber', core: true },
           { text: 'in environment', field: 'environmentId' },
         ],
         list_deployments: [
-          { text: 'Lists deployments in environment', field: 'environmentId', core: true },
+          { text: 'List deployments in environment', field: 'environmentId', core: true },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
         stop_deployment: [
-          { text: 'Stops deployment', field: 'deploymentNumber', core: true },
+          { text: 'Stop deployment', field: 'deploymentNumber', core: true },
           { text: 'in environment', field: 'environmentId' },
         ],
       },

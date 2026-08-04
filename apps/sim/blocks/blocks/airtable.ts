@@ -26,33 +26,42 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   icon: AirtableIcon,
   canvasPresentation: {
     defaultTitle: 'Airtable',
+    /*
+     * The trigger's own `tableId` shares a canonical group with the action
+     * block's `tableSelector`, which owns the basic slot — so the card resolves
+     * `tableId` only once it holds a value, and the clause cannot be `core`.
+     * Literal copy carries the untouched card instead.
+     */
+    triggerSentences: {
+      default: ['Run on a record change', { text: 'in table', field: 'tableId' }],
+    },
     sentences: {
       byOperation: {
-        listBases: [{ text: 'Lists bases for', field: ACCOUNT_FIELD, core: true }],
-        listTables: [{ text: 'Lists tables in', field: BASE_FIELD, core: true }],
-        getSchema: [{ text: 'Reads field and view schema of', field: BASE_FIELD, core: true }],
+        listBases: [{ text: 'List bases for', field: ACCOUNT_FIELD, core: true }],
+        listTables: [{ text: 'List tables in', field: BASE_FIELD, core: true }],
+        getSchema: [{ text: 'Read field and view schema of', field: BASE_FIELD, core: true }],
         list: [
-          { text: 'Lists records from', field: TABLE_FIELD, core: true },
+          { text: 'List records from', field: TABLE_FIELD, core: true },
           { text: ', where', field: 'filterFormula' },
           { text: ', up to', field: 'maxRecords', after: 'records' },
         ],
         get: [
-          { text: 'Fetches record', field: 'recordId', core: true },
+          { text: 'Fetch record', field: 'recordId', core: true },
           { text: 'from', field: TABLE_FIELD, core: true },
         ],
-        create: [{ text: 'Creates records in', field: TABLE_FIELD, core: true }],
+        create: [{ text: 'Create records in', field: TABLE_FIELD, core: true }],
         update: [
-          { text: 'Updates record', field: 'recordId', core: true },
+          { text: 'Update record', field: 'recordId', core: true },
           { text: 'in', field: TABLE_FIELD, core: true },
           { text: ', setting', field: 'fields' },
         ],
-        updateMultiple: [{ text: 'Updates multiple records in', field: TABLE_FIELD, core: true }],
+        updateMultiple: [{ text: 'Update multiple records in', field: TABLE_FIELD, core: true }],
         upsert: [
-          { text: 'Upserts records into', field: TABLE_FIELD, core: true },
+          { text: 'Upsert records into', field: TABLE_FIELD, core: true },
           { text: ', keyed on', field: 'fieldsToMergeOn' },
         ],
         delete: [
-          { text: 'Deletes records', field: 'recordIds', core: true },
+          { text: 'Delete records', field: 'recordIds', core: true },
           { text: 'from', field: TABLE_FIELD, core: true },
         ],
       },

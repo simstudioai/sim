@@ -41,23 +41,23 @@ describe('CanvasSentenceView', () => {
   it('paints a core slot as its noun when the field holds no value', () => {
     const host = mount(
       <CanvasSentenceView
-        segments={['Posts', { subBlockId: 'message', noun: 'a message' }]}
+        segments={['Post', { subBlockId: 'message', noun: 'a message' }]}
         renderChip={chipFor({})}
       />
     )
 
-    expect(host.textContent).toBe('Posts a message')
+    expect(host.textContent).toBe('Post a message')
   })
 
   it('swaps the noun for the value once the field is filled', () => {
     const host = mount(
       <CanvasSentenceView
-        segments={['Posts', { subBlockId: 'message', noun: 'a message' }]}
+        segments={['Post', { subBlockId: 'message', noun: 'a message' }]}
         renderChip={chipFor({ message: 'Ship it' })}
       />
     )
 
-    expect(host.textContent).toBe('Posts Ship it')
+    expect(host.textContent).toBe('Post Ship it')
     expect(host.querySelector('[data-chip="message"]')).not.toBeNull()
   })
 
@@ -65,7 +65,7 @@ describe('CanvasSentenceView', () => {
     const host = mount(
       <CanvasSentenceView
         segments={[
-          'Posts',
+          'Post',
           { subBlockId: 'message', noun: 'a message' },
           ', in thread',
           { subBlockId: 'threadTs' },
@@ -77,7 +77,7 @@ describe('CanvasSentenceView', () => {
     /* The trailing literal is a separate segment and stays; what must not appear
        is an empty chip where `threadTs` would go. */
     expect(host.querySelector('[data-chip="threadTs"]')).toBeNull()
-    expect(host.textContent).toContain('Posts Ship it')
+    expect(host.textContent).toContain('Post Ship it')
   })
 
   it('renders a placeholder noun muted, so it does not read as a filled value', () => {
@@ -100,7 +100,7 @@ describe('CanvasSentenceView', () => {
     const host = mount(
       <CanvasSentenceView
         segments={[
-          'Queries rows from',
+          'Query rows from',
           { subBlockId: 'table', noun: 'a table' },
           ', where',
           { subBlockId: 'filter', noun: 'a filter' },
@@ -109,6 +109,6 @@ describe('CanvasSentenceView', () => {
       />
     )
 
-    expect(host.textContent).toBe('Queries rows from a table, where a filter')
+    expect(host.textContent).toBe('Query rows from a table, where a filter')
   })
 })

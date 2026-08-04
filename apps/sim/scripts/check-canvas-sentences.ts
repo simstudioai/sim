@@ -37,6 +37,7 @@ import { renderSentenceReadings } from '@/lib/workflows/blocks/canvas-sentence-r
 import {
   TRIGGER_SENTENCE_EXEMPT_TYPES,
   validateBlockSentences,
+  validateTriggerSentence,
 } from '@/lib/workflows/blocks/canvas-sentence-validation'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { getBlockRegistry } from '@/blocks/registry'
@@ -143,6 +144,7 @@ for (const [blockType, config] of entries) {
     if (!paintsOnEmptyCard(config, null, { mode: 'trigger', triggerId, triggerName })) {
       paintsNothing.push(`${blockType} trigger.${triggerId}`)
     }
+    failures.push(...validateTriggerSentence(config, triggerId, triggerName))
   }
 
   const sentenceSet = config.canvasPresentation?.sentences

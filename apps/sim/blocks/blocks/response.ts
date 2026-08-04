@@ -23,7 +23,7 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
     defaultTitle: 'Response',
     sentences: {
       default: [
-        { text: 'Returns', field: ['builderData', 'data'], core: true },
+        { text: 'Return', field: ['builderData', 'data'], core: true },
         { text: 'with status', field: 'status' },
       ],
     },

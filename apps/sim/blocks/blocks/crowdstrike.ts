@@ -22,16 +22,16 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
     sentences: {
       byOperation: {
         crowdstrike_query_sensors: [
-          'Searches identity sensors',
+          'Search identity sensors',
           { text: ', where', field: 'filter' },
           { text: ', sorted by', field: 'sort' },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         crowdstrike_get_sensor_details: [
-          { text: 'Fetches sensor details for', field: 'ids', core: true },
+          { text: 'Fetch sensor details for', field: 'ids', core: true },
         ],
         crowdstrike_get_sensor_aggregates: [
-          { text: 'Aggregates sensors with', field: 'aggregateQuery', core: true },
+          { text: 'Aggregate sensors with', field: 'aggregateQuery', core: true },
         ],
       },
     },

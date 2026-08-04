@@ -22,7 +22,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
   canvasPresentation: {
     defaultTitle: 'MCP Tool',
     sentences: {
-      default: ['Runs the', { field: 'tool' }, { text: 'tool on', field: 'server', core: true }],
+      default: ['Run the', { field: 'tool' }, { text: 'tool on', field: 'server', core: true }],
     },
   },
   subBlocks: [

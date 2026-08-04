@@ -25,47 +25,47 @@ export const DubBlock: BlockConfig<DubResponse> = {
     sentences: {
       byOperation: {
         create_link: [
-          { text: 'Creates a short link to', field: 'url', core: true },
+          { text: 'Create a short link to', field: 'url', core: true },
           { text: ', at slug', field: 'key' },
           { text: ', on', field: 'domain' },
         ],
         upsert_link: [
-          { text: 'Creates or updates the short link to', field: 'url', core: true },
+          { text: 'Create or update the short link to', field: 'url', core: true },
           { text: ', at slug', field: 'key' },
           { text: ', on', field: 'domain' },
         ],
-        get_link: [{ text: 'Reads link', field: GET_LINK_FIELD, core: true }],
+        get_link: [{ text: 'Read link', field: GET_LINK_FIELD, core: true }],
         update_link: [
-          { text: 'Updates link', field: 'linkId', core: true },
+          { text: 'Update link', field: 'linkId', core: true },
           { text: ', pointing it to', field: 'updateUrl' },
           { text: ', at slug', field: 'key' },
         ],
-        delete_link: [{ text: 'Deletes link', field: 'linkId', core: true }],
+        delete_link: [{ text: 'Delete link', field: 'linkId', core: true }],
         list_links: [
-          'Lists links',
+          'List links',
           { text: ', matching', field: 'search' },
           { text: ', on', field: 'listDomain' },
           { text: ', up to', field: 'pageSize' },
         ],
         get_links_count: [
-          'Counts links',
+          'Count links',
           { text: ', matching', field: 'countSearch' },
           { text: ', on', field: 'countDomain' },
           { text: ', grouped by', field: 'countGroupBy' },
         ],
-        bulk_create_links: ['Creates up to 100 short links in one request'],
+        bulk_create_links: ['Create up to 100 short links in one request'],
         bulk_update_links: [
           {
-            text: 'Applies one set of changes to links',
+            text: 'Apply one set of changes to links',
             field: BULK_UPDATE_TARGET_FIELD,
             core: true,
           },
           { text: ', setting', field: 'bulkUpdateData' },
         ],
-        bulk_delete_links: [{ text: 'Deletes links', field: 'bulkDeleteLinkIds', core: true }],
+        bulk_delete_links: [{ text: 'Delete links', field: 'bulkDeleteLinkIds', core: true }],
         get_analytics: [
           {
-            text: 'Reads',
+            text: 'Read',
             field: 'analyticsEvent',
             after: 'analytics',
             core: true,
@@ -75,7 +75,7 @@ export const DubBlock: BlockConfig<DubResponse> = {
         ],
         get_events: [
           {
-            text: 'Lists individual',
+            text: 'List individual',
             field: 'eventsEvent',
             after: 'events',
             core: true,
@@ -84,20 +84,20 @@ export const DubBlock: BlockConfig<DubResponse> = {
           { text: ', over', field: 'eventsInterval' },
         ],
         get_qr_code: [
-          { text: 'Generates a QR code for', field: 'qrUrl', core: true },
+          { text: 'Generate a QR code for', field: 'qrUrl', core: true },
           { text: ', at', field: 'qrSize', after: 'pixels' },
         ],
         list_domains: [
-          'Lists the workspace domains',
+          'List the workspace domains',
           { text: ', matching', field: 'domainsSearch' },
         ],
-        list_tags: ['Lists the workspace tags', { text: ', matching', field: 'tagsSearch' }],
+        list_tags: ['List the workspace tags', { text: ', matching', field: 'tagsSearch' }],
         create_tag: [
-          { text: 'Creates tag', field: 'tagName', core: true },
+          { text: 'Create tag', field: 'tagName', core: true },
           { text: ', colored', field: 'tagColor' },
         ],
         list_folders: [
-          'Lists the workspace folders',
+          'List the workspace folders',
           { text: ', matching', field: 'foldersSearch' },
         ],
       },

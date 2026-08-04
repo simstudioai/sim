@@ -20,7 +20,7 @@ export const SQSBlock: BlockConfig<SqsResponse> = {
     sentences: {
       byOperation: {
         send: [
-          { text: 'Sends', field: 'data', core: true },
+          { text: 'Send', field: 'data', core: true },
           { text: 'to queue', field: 'queueUrl', core: true },
         ],
       },

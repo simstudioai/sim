@@ -60,94 +60,99 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
   triggerAllowed: true,
   canvasPresentation: {
     defaultTitle: 'Telegram',
+    /* The bot token is the only trigger field and it is a credential, so the
+       sentence is pure copy — any message reaching the bot starts the run. */
+    triggerSentences: {
+      default: ['Run on a new message to the bot'],
+    },
     sentences: {
       byOperation: {
         telegram_message: [
-          { text: 'Sends', field: 'text', core: true },
+          { text: 'Send', field: 'text', core: true },
           { text: 'to chat', field: 'chatId', core: true },
         ],
         telegram_send_photo: [
-          { text: 'Sends photo', field: PHOTO_FIELD, core: true },
+          { text: 'Send photo', field: PHOTO_FIELD, core: true },
           { text: 'to chat', field: 'chatId', core: true },
           { text: ', captioned', field: 'caption' },
         ],
         telegram_send_video: [
-          { text: 'Sends video', field: VIDEO_FIELD, core: true },
+          { text: 'Send video', field: VIDEO_FIELD, core: true },
           { text: 'to chat', field: 'chatId', core: true },
           { text: ', captioned', field: 'caption' },
         ],
         telegram_send_audio: [
-          { text: 'Sends audio', field: AUDIO_FIELD, core: true },
+          { text: 'Send audio', field: AUDIO_FIELD, core: true },
           { text: 'to chat', field: 'chatId', core: true },
           { text: ', captioned', field: 'caption' },
         ],
         telegram_send_animation: [
-          { text: 'Sends animation', field: ANIMATION_FIELD, core: true },
+          { text: 'Send animation', field: ANIMATION_FIELD, core: true },
           { text: 'to chat', field: 'chatId', core: true },
           { text: ', captioned', field: 'caption' },
         ],
         telegram_send_document: [
-          { text: 'Sends document', field: DOCUMENT_FIELD, core: true },
+          { text: 'Send document', field: DOCUMENT_FIELD, core: true },
           { text: 'to chat', field: 'chatId', core: true },
           { text: ', captioned', field: 'caption' },
         ],
         telegram_send_location: [
-          { text: 'Sends a map point to chat', field: 'chatId', core: true },
+          { text: 'Send a map point to chat', field: 'chatId', core: true },
           { text: ', at latitude', field: 'latitude' },
           { text: ', longitude', field: 'longitude' },
         ],
         telegram_send_contact: [
-          { text: 'Sends the contact', field: 'firstName', core: true },
+          { text: 'Send the contact', field: 'firstName', core: true },
           { text: 'at', field: 'phoneNumber' },
           { text: 'to chat', field: 'chatId', core: true },
         ],
         telegram_send_poll: [
-          { text: 'Sends the poll', field: 'question', core: true },
+          { text: 'Send the poll', field: 'question', core: true },
           { text: 'to chat', field: 'chatId', core: true },
         ],
         telegram_send_chat_action: [
-          { text: 'Sets the status indicator in chat', field: 'chatId', core: true },
+          { text: 'Set the status indicator in chat', field: 'chatId', core: true },
           { text: 'to', field: 'action' },
         ],
         telegram_edit_message_text: [
-          { text: 'Edits message', field: 'messageId', core: true },
+          { text: 'Edit message', field: 'messageId', core: true },
           { text: 'in chat', field: 'chatId' },
           { text: ', to read', field: 'text' },
         ],
         telegram_forward_message: [
-          { text: 'Forwards message', field: 'messageId', core: true },
+          { text: 'Forward message', field: 'messageId', core: true },
           { text: 'from chat', field: 'fromChatId' },
           { text: 'to chat', field: 'chatId' },
         ],
         telegram_copy_message: [
-          { text: 'Copies message', field: 'messageId', core: true },
+          { text: 'Copy message', field: 'messageId', core: true },
           { text: 'from chat', field: 'fromChatId' },
           { text: 'to chat', field: 'chatId' },
         ],
         telegram_delete_message: [
-          { text: 'Deletes message', field: 'messageId', core: true },
+          { text: 'Delete message', field: 'messageId', core: true },
           { text: 'from chat', field: 'chatId' },
         ],
         telegram_pin_message: [
-          { text: 'Pins message', field: 'messageId', core: true },
+          { text: 'Pin message', field: 'messageId', core: true },
           { text: 'in chat', field: 'chatId' },
         ],
         telegram_unpin_message: [
           {
-            text: 'Unpins message',
+            text: 'Unpin message',
             field: 'messageId',
             core: true,
           },
           { text: 'in chat', field: 'chatId', core: true },
         ],
         telegram_set_message_reaction: [
-          { text: 'Sets the reaction on message', field: 'messageId', core: true },
+          { text: 'Set the reaction on message', field: 'messageId', core: true },
           { text: 'to', field: 'reactionEmoji' },
           { text: ', in chat', field: 'chatId' },
         ],
-        telegram_get_chat: [{ text: 'Fetches details for chat', field: 'chatId', core: true }],
+        telegram_get_chat: [{ text: 'Fetch details for chat', field: 'chatId', core: true }],
         telegram_get_chat_member: [
-          { text: 'Fetches member', field: 'userId', core: true },
+          { text: 'Fetch member', field: 'userId', core: true },
           { text: 'of chat', field: 'chatId' },
         ],
       },

@@ -23,39 +23,39 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
     sentences: {
       byOperation: {
         execute_sql: [
-          { text: 'Runs', field: 'statement', core: true },
+          { text: 'Run', field: 'statement', core: true },
           { text: 'on warehouse', field: 'warehouseId' },
         ],
         get_statement: [
           {
-            text: 'Polls SQL statement',
+            text: 'Poll SQL statement',
             field: 'statementId',
             after: 'for results',
             core: true,
           },
         ],
-        list_warehouses: ['Lists all SQL warehouses'],
+        list_warehouses: ['List all SQL warehouses'],
         list_jobs: [
-          'Lists jobs',
+          'List jobs',
           { text: ', named', field: 'name' },
           { text: ', up to', field: 'limit' },
         ],
-        get_job: [{ text: 'Reads the definition of job', field: 'jobId', core: true }],
+        get_job: [{ text: 'Read the definition of job', field: 'jobId', core: true }],
         run_job: [
-          { text: 'Triggers job', field: 'jobId', core: true },
+          { text: 'Trigger job', field: 'jobId', core: true },
           { text: ', with', field: DATABRICKS_RUN_PARAMS_FIELD },
         ],
-        get_run: [{ text: 'Reads the status of run', field: 'runId', core: true }],
+        get_run: [{ text: 'Read the status of run', field: 'runId', core: true }],
         list_runs: [
-          'Lists job runs',
+          'List job runs',
           { text: ', for job', field: 'jobId' },
           { text: ', started after', field: 'startTimeFrom' },
         ],
-        cancel_run: [{ text: 'Cancels run', field: 'runId', core: true }],
-        get_run_output: [{ text: 'Reads the output of run', field: 'runId', core: true }],
-        list_clusters: ['Lists all clusters'],
+        cancel_run: [{ text: 'Cancel run', field: 'runId', core: true }],
+        get_run_output: [{ text: 'Read the output of run', field: 'runId', core: true }],
+        list_clusters: ['List all clusters'],
         get_cluster: [
-          { text: 'Reads the configuration of cluster', field: 'clusterId', core: true },
+          { text: 'Read the configuration of cluster', field: 'clusterId', core: true },
         ],
       },
     },

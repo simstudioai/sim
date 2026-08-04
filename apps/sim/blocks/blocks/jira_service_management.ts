@@ -56,123 +56,130 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
   icon: JiraServiceManagementIcon,
   canvasPresentation: {
     defaultTitle: 'Jira Service Management',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: ', matching', field: 'jqlFilter' },
+      ],
+    },
     sentences: {
       byOperation: {
-        get_service_desks: ['Lists all service desks'],
+        get_service_desks: ['List all service desks'],
         get_request_types: [
-          { text: 'Lists request types in', field: SERVICE_DESK_FIELD, core: true },
+          { text: 'List request types in', field: SERVICE_DESK_FIELD, core: true },
           { text: ', matching', field: 'searchQuery' },
         ],
         create_request: [
-          { text: 'Creates request', field: 'summary', core: true },
+          { text: 'Create request', field: 'summary', core: true },
           { text: 'in', field: SERVICE_DESK_FIELD, core: true },
         ],
-        get_request: [{ text: 'Reads request', field: 'issueIdOrKey', core: true }],
+        get_request: [{ text: 'Read request', field: 'issueIdOrKey', core: true }],
         get_requests: [
-          'Lists requests',
+          'List requests',
           { text: 'in', field: SERVICE_DESK_FIELD },
           { text: ', matching', field: 'searchTerm' },
         ],
         add_comment: [
-          { text: 'Adds comment', field: 'commentBody', core: true },
+          { text: 'Add comment', field: 'commentBody', core: true },
           { text: 'to request', field: 'issueIdOrKey', core: true },
         ],
-        get_comments: [{ text: 'Lists comments on request', field: 'issueIdOrKey', core: true }],
+        get_comments: [{ text: 'List comments on request', field: 'issueIdOrKey', core: true }],
         get_customers: [
-          { text: 'Lists customers of', field: SERVICE_DESK_FIELD, core: true },
+          { text: 'List customers of', field: SERVICE_DESK_FIELD, core: true },
           { text: ', matching', field: 'customerQuery' },
         ],
         add_customer: [
-          { text: 'Adds customers', field: 'accountIds', core: true },
+          { text: 'Add customers', field: 'accountIds', core: true },
           { text: 'to', field: SERVICE_DESK_FIELD, core: true },
         ],
         get_organizations: [
-          { text: 'Lists organizations in', field: SERVICE_DESK_FIELD, core: true },
+          { text: 'List organizations in', field: SERVICE_DESK_FIELD, core: true },
         ],
         create_organization: [
-          { text: 'Creates organization', field: 'organizationName', core: true },
+          { text: 'Create organization', field: 'organizationName', core: true },
         ],
         add_organization: [
-          { text: 'Adds organization', field: 'organizationId', core: true },
+          { text: 'Add organization', field: 'organizationId', core: true },
           { text: 'to', field: SERVICE_DESK_FIELD, core: true },
         ],
-        get_queues: [{ text: 'Lists queues in', field: SERVICE_DESK_FIELD, core: true }],
-        get_sla: [{ text: 'Reads the SLA metrics of request', field: 'issueIdOrKey', core: true }],
+        get_queues: [{ text: 'List queues in', field: SERVICE_DESK_FIELD, core: true }],
+        get_sla: [{ text: 'Read the SLA metrics of request', field: 'issueIdOrKey', core: true }],
         get_transitions: [
           {
-            text: 'Lists transitions available on request',
+            text: 'List transitions available on request',
             field: 'issueIdOrKey',
             core: true,
           },
         ],
         transition_request: [
-          { text: 'Applies transition', field: 'transitionId', core: true },
+          { text: 'Apply transition', field: 'transitionId', core: true },
           { text: 'to request', field: 'issueIdOrKey', core: true },
         ],
         get_participants: [
-          { text: 'Lists participants on request', field: 'issueIdOrKey', core: true },
+          { text: 'List participants on request', field: 'issueIdOrKey', core: true },
         ],
         add_participants: [
           {
-            text: 'Adds participants',
+            text: 'Add participants',
             field: 'participantAccountIds',
             core: true,
           },
           { text: 'to request', field: 'issueIdOrKey', core: true },
         ],
-        get_approvals: [{ text: 'Lists approvals on request', field: 'issueIdOrKey', core: true }],
+        get_approvals: [{ text: 'List approvals on request', field: 'issueIdOrKey', core: true }],
         answer_approval: [
-          { text: 'Answers the approval on request', field: 'issueIdOrKey', core: true },
+          { text: 'Answer the approval on request', field: 'issueIdOrKey', core: true },
           { text: 'with', field: 'approvalDecision' },
         ],
         get_request_type_fields: [
-          { text: 'Reads the fields of request type', field: REQUEST_TYPE_FIELD, core: true },
+          { text: 'Read the fields of request type', field: REQUEST_TYPE_FIELD, core: true },
           { text: 'in', field: SERVICE_DESK_FIELD },
         ],
         get_form_templates: [
-          { text: 'Lists form templates in project', field: 'projectIdOrKey', core: true },
+          { text: 'List form templates in project', field: 'projectIdOrKey', core: true },
         ],
         get_form_structure: [
-          { text: 'Reads the question structure of form', field: 'formId', core: true },
+          { text: 'Read the question structure of form', field: 'formId', core: true },
           { text: 'in project', field: 'projectIdOrKey' },
         ],
         get_issue_forms: [
-          { text: 'Lists forms attached to request', field: 'issueIdOrKey', core: true },
+          { text: 'List forms attached to request', field: 'issueIdOrKey', core: true },
         ],
         attach_form: [
           {
-            text: 'Attaches form template',
+            text: 'Attach form template',
             field: 'formTemplateId',
             core: true,
           },
           { text: 'to request', field: 'issueIdOrKey', core: true },
         ],
         save_form_answers: [
-          { text: 'Saves answers to form', field: 'formId', core: true },
+          { text: 'Save answers to form', field: 'formId', core: true },
           { text: 'on request', field: 'issueIdOrKey', core: true },
         ],
         submit_form: [
-          { text: 'Submits form', field: 'formId', core: true },
+          { text: 'Submit form', field: 'formId', core: true },
           { text: 'on request', field: 'issueIdOrKey', core: true },
         ],
         get_form: [
-          { text: 'Reads form', field: 'formId', core: true },
+          { text: 'Read form', field: 'formId', core: true },
           { text: 'on request', field: 'issueIdOrKey', core: true },
         ],
         get_form_answers: [
-          { text: 'Reads the answers of form', field: 'formId', core: true },
+          { text: 'Read the answers of form', field: 'formId', core: true },
           { text: 'on request', field: 'issueIdOrKey', core: true },
         ],
         reopen_form: [
-          { text: 'Reopens form', field: 'formId', core: true },
+          { text: 'Reopen form', field: 'formId', core: true },
           { text: 'on request', field: 'issueIdOrKey', core: true },
         ],
         delete_form: [
-          { text: 'Removes form', field: 'formId', core: true },
+          { text: 'Remove form', field: 'formId', core: true },
           { text: 'from request', field: 'issueIdOrKey', core: true },
         ],
         externalise_form: [
-          { text: 'Makes form', field: 'formId', core: true },
+          { text: 'Make form', field: 'formId', core: true },
           {
             text: 'on request',
             field: 'issueIdOrKey',
@@ -181,42 +188,42 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
           },
         ],
         internalise_form: [
-          { text: 'Makes form', field: 'formId', core: true },
+          { text: 'Make form', field: 'formId', core: true },
           { text: 'on request', field: 'issueIdOrKey', after: 'internal only', core: true },
         ],
         copy_forms: [
-          { text: 'Copies forms from request', field: 'sourceIssueIdOrKey', core: true },
+          { text: 'Copy forms from request', field: 'sourceIssueIdOrKey', core: true },
           { text: 'to', field: 'targetIssueIdOrKey' },
         ],
-        list_object_schemas: ['Lists all asset schemas'],
-        get_object_schema: [{ text: 'Reads asset schema', field: 'assetSchemaId', core: true }],
+        list_object_schemas: ['List all asset schemas'],
+        get_object_schema: [{ text: 'Read asset schema', field: 'assetSchemaId', core: true }],
         list_object_types: [
           {
-            text: 'Lists object types in asset schema',
+            text: 'List object types in asset schema',
             field: 'assetSchemaId',
             core: true,
           },
         ],
         get_object_type_attributes: [
           {
-            text: 'Reads the attributes of asset object type',
+            text: 'Read the attributes of asset object type',
             field: 'assetObjectTypeId',
             core: true,
           },
         ],
         search_objects_aql: [
-          { text: 'Searches asset objects matching', field: 'assetQlQuery', core: true },
+          { text: 'Search asset objects matching', field: 'assetQlQuery', core: true },
         ],
-        get_object: [{ text: 'Reads asset object', field: 'assetObjectId', core: true }],
+        get_object: [{ text: 'Read asset object', field: 'assetObjectId', core: true }],
         create_object: [
-          { text: 'Creates an asset object of type', field: 'assetObjectTypeId', core: true },
+          { text: 'Create an asset object of type', field: 'assetObjectTypeId', core: true },
           { text: ', with', field: 'assetAttributes' },
         ],
         update_object: [
-          { text: 'Updates asset object', field: 'assetObjectId', core: true },
+          { text: 'Update asset object', field: 'assetObjectId', core: true },
           { text: ', setting', field: 'assetAttributes' },
         ],
-        delete_object: [{ text: 'Deletes asset object', field: 'assetObjectId', core: true }],
+        delete_object: [{ text: 'Delete asset object', field: 'assetObjectId', core: true }],
       },
     },
   },

@@ -12,7 +12,7 @@ export const SearchBlock: BlockConfig = {
   canvasPresentation: {
     defaultTitle: 'Search',
     sentences: {
-      default: [{ text: 'Searches the web for', field: 'query', core: true }],
+      default: [{ text: 'Search the web for', field: 'query', core: true }],
     },
   },
   category: 'blocks',

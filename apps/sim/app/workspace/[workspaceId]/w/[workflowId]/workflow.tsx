@@ -33,6 +33,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
+import { getDefaultBlockName } from '@/lib/workflows/blocks/canvas-presentation'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -1967,7 +1968,7 @@ const WorkflowContent = React.memo(
           const id = generateId()
           // Prefer semantic default names for triggers; then ensure unique numbering centrally
           const defaultTriggerNameDrop = TriggerUtils.getDefaultTriggerName(data.type)
-          const baseName = defaultTriggerNameDrop || blockConfig.name
+          const baseName = defaultTriggerNameDrop || getDefaultBlockName(blockConfig)
           const name = getUniqueBlockName(baseName, blocks)
 
           if (containerInfo) {
@@ -2146,7 +2147,7 @@ const WorkflowContent = React.memo(
 
         const id = generateId()
         const defaultTriggerName = TriggerUtils.getDefaultTriggerName(type)
-        const baseName = defaultTriggerName || blockConfig.name
+        const baseName = defaultTriggerName || getDefaultBlockName(blockConfig)
         const name = getUniqueBlockName(baseName, blocks)
 
         const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {

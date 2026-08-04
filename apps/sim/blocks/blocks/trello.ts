@@ -82,85 +82,85 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
     sentences: {
       byOperation: {
         trello_list_lists: [
-          { text: 'Fetches the lists on board', field: BOARD_FIELD, core: true },
+          { text: 'Fetch the lists on board', field: BOARD_FIELD, core: true },
           { text: ', filtered to', field: 'listFilter' },
         ],
         trello_list_cards: [
-          'Lists cards',
+          'List cards',
           { text: 'from board', field: BOARD_FIELD },
           { text: 'in list', field: 'listId' },
           { text: ', filtered to', field: 'cardFilter' },
         ],
         trello_search: [
-          { text: 'Searches for', field: 'searchQuery', core: true },
+          { text: 'Search for', field: 'searchQuery', core: true },
           { text: ', within boards', field: 'searchBoardIds' },
           { text: ', up to', field: 'searchCardsLimit', after: 'cards' },
         ],
         trello_create_card: [
-          { text: 'Creates card', field: 'name', core: true },
+          { text: 'Create card', field: 'name', core: true },
           { text: 'in list', field: 'listId' },
           { text: ', due', field: 'due' },
         ],
-        trello_get_card: [{ text: 'Fetches card', field: 'cardId', core: true }],
+        trello_get_card: [{ text: 'Fetch card', field: 'cardId', core: true }],
         trello_update_card: [
-          { text: 'Updates card', field: 'cardId', core: true },
+          { text: 'Update card', field: 'cardId', core: true },
           { text: ', renaming to', field: 'name' },
           { text: ', moving to list', field: 'idList' },
         ],
-        trello_delete_card: [{ text: 'Deletes card', field: 'cardId', core: true }],
+        trello_delete_card: [{ text: 'Delete card', field: 'cardId', core: true }],
         trello_get_actions: [
-          'Fetches activity',
+          'Fetch activity',
           { text: 'from', field: ACTIVITY_SOURCE_FIELD },
           { text: ', filtered to', field: 'filter' },
           { text: ', up to', field: 'limit', after: 'actions' },
         ],
         trello_add_comment: [
-          { text: 'Comments', field: 'text', core: true },
+          { text: 'Comment', field: 'text', core: true },
           { text: 'on card', field: 'cardId', core: true },
         ],
         trello_add_checklist: [
-          { text: 'Adds checklist', field: 'checklistName', core: true },
+          { text: 'Add checklist', field: 'checklistName', core: true },
           { text: 'to card', field: 'cardId', core: true },
         ],
         trello_add_checklist_item: [
-          { text: 'Adds item', field: 'itemName', core: true },
+          { text: 'Add item', field: 'itemName', core: true },
           { text: 'to checklist', field: 'checklistId', core: true },
         ],
         trello_update_checklist_item: [
-          { text: 'Updates checklist item', field: 'checkItemId', core: true },
+          { text: 'Update checklist item', field: 'checkItemId', core: true },
           { text: ', marking it', field: 'checkItemState' },
           { text: ', renaming to', field: 'checkItemName' },
         ],
         trello_add_label: [
-          { text: 'Adds label', field: 'labelId', core: true },
+          { text: 'Add label', field: 'labelId', core: true },
           { text: 'to card', field: 'cardId', core: true },
         ],
         trello_remove_label: [
-          { text: 'Removes label', field: 'labelId', core: true },
+          { text: 'Remove label', field: 'labelId', core: true },
           { text: 'from card', field: 'cardId', core: true },
         ],
         trello_add_member: [
-          { text: 'Assigns member', field: 'memberId', core: true },
+          { text: 'Assign member', field: 'memberId', core: true },
           { text: 'to card', field: 'cardId', core: true },
         ],
         trello_remove_member: [
-          { text: 'Unassigns member', field: 'memberId', core: true },
+          { text: 'Unassign member', field: 'memberId', core: true },
           { text: 'from card', field: 'cardId', core: true },
         ],
         trello_list_members: [
-          { text: 'Lists the members of board', field: BOARD_FIELD, core: true },
+          { text: 'List the members of board', field: BOARD_FIELD, core: true },
         ],
         trello_create_board: [
-          { text: 'Creates board', field: 'boardName', core: true },
+          { text: 'Create board', field: 'boardName', core: true },
           { text: 'in workspace', field: 'idOrganization' },
         ],
-        trello_get_board: [{ text: 'Fetches board', field: BOARD_FIELD, core: true }],
+        trello_get_board: [{ text: 'Fetch board', field: BOARD_FIELD, core: true }],
         trello_create_list: [
-          { text: 'Creates list', field: 'listName', core: true },
+          { text: 'Create list', field: 'listName', core: true },
           { text: 'on board', field: BOARD_FIELD },
         ],
         trello_update_list: [
-          { text: 'Updates list', field: 'listId', core: true },
+          { text: 'Update list', field: 'listId', core: true },
           { text: ', renaming to', field: 'listName' },
           { text: ', moving to board', field: 'moveListToBoardId' },
         ],

@@ -43,24 +43,22 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
     defaultTitle: 'TikTok',
     sentences: {
       byOperation: {
-        tiktok_get_user: ['Reads the account profile', { text: ', returning', field: 'fields' }],
+        tiktok_get_user: ['Read the account profile', { text: ', returning', field: 'fields' }],
         tiktok_list_videos: [
-          'Lists videos on the account',
+          'List videos on the account',
           { text: ', up to', field: 'maxCount', after: 'results' },
         ],
-        tiktok_query_videos: [
-          { text: 'Fetches metadata for videos', field: 'videoIds', core: true },
-        ],
+        tiktok_query_videos: [{ text: 'Fetch metadata for videos', field: 'videoIds', core: true }],
         tiktok_upload_video_draft: [
           {
-            text: 'Sends',
+            text: 'Send',
             field: VIDEO_FILE_FIELD,
             after: 'to the inbox as a draft',
             core: true,
           },
         ],
         tiktok_get_post_status: [
-          { text: 'Checks upload status of', field: 'publishId', core: true },
+          { text: 'Check upload status of', field: 'publishId', core: true },
         ],
       },
     },

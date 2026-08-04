@@ -30,6 +30,7 @@ export const gmailPollingTrigger: TriggerConfig = {
     {
       id: 'labelIds',
       title: 'Gmail Labels to Monitor',
+      canvasNoun: 'a label',
       type: 'dropdown',
       multiSelect: true,
       placeholder: 'Select Gmail labels to monitor for new emails',

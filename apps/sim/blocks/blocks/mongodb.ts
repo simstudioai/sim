@@ -20,28 +20,28 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
     sentences: {
       byOperation: {
         query: [
-          { text: 'Finds documents in', field: 'collection', core: true },
+          { text: 'Find documents in', field: 'collection', core: true },
           { text: ', matching', field: 'query' },
           { text: ', up to', field: 'limit', after: 'documents' },
         ],
         insert: [
-          { text: 'Inserts', field: 'documents', core: true },
+          { text: 'Insert', field: 'documents', core: true },
           { text: 'into', field: 'collection', core: true },
         ],
         update: [
-          { text: 'Updates documents in', field: 'collection', core: true },
+          { text: 'Update documents in', field: 'collection', core: true },
           { text: ', matching', field: 'filter' },
           { text: ', setting', field: 'update' },
         ],
         delete: [
-          { text: 'Deletes documents from', field: 'collection', core: true },
+          { text: 'Delete documents from', field: 'collection', core: true },
           { text: ', matching', field: 'filter' },
         ],
         execute: [
-          { text: 'Runs an aggregation pipeline on', field: 'collection', core: true },
+          { text: 'Run an aggregation pipeline on', field: 'collection', core: true },
           { text: ', with stages', field: 'pipeline' },
         ],
-        introspect: [{ text: 'Lists collections and indexes in', field: 'database', core: true }],
+        introspect: [{ text: 'List collections and indexes in', field: 'database', core: true }],
       },
     },
   },

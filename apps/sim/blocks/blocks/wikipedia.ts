@@ -18,13 +18,13 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
     defaultTitle: 'Wikipedia',
     sentences: {
       byOperation: {
-        wikipedia_summary: [{ text: 'Reads the summary of', field: 'pageTitle', core: true }],
+        wikipedia_summary: [{ text: 'Read the summary of', field: 'pageTitle', core: true }],
         wikipedia_search: [
-          { text: 'Searches pages for', field: 'query', core: true },
+          { text: 'Search pages for', field: 'query', core: true },
           { text: ', up to', field: 'searchLimit', after: 'results' },
         ],
-        wikipedia_content: [{ text: 'Reads the full article', field: 'pageTitle', core: true }],
-        wikipedia_random: ['Fetches a random article'],
+        wikipedia_content: [{ text: 'Read the full article', field: 'pageTitle', core: true }],
+        wikipedia_random: ['Fetch a random article'],
       },
     },
   },

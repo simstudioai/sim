@@ -19,24 +19,24 @@ export const KetchBlock: BlockConfig<KetchResponse> = {
     sentences: {
       byOperation: {
         get_consent: [
-          { text: 'Reads consent status for', field: 'identities', core: true },
+          { text: 'Read consent status for', field: 'identities', core: true },
           { text: 'on property', field: 'propertyCode' },
         ],
         set_consent: [
-          { text: 'Updates consent purposes for', field: 'identities', core: true },
+          { text: 'Update consent purposes for', field: 'identities', core: true },
           { text: 'on property', field: 'propertyCode' },
         ],
         get_subscriptions: [
-          { text: 'Reads subscription preferences for', field: 'identities', core: true },
+          { text: 'Read subscription preferences for', field: 'identities', core: true },
           { text: 'on property', field: 'propertyCode' },
         ],
         set_subscriptions: [
-          { text: 'Updates subscription topics for', field: 'identities', core: true },
+          { text: 'Update subscription topics for', field: 'identities', core: true },
           { text: 'on property', field: 'propertyCode' },
         ],
         invoke_right: [
           {
-            text: 'Invokes',
+            text: 'Invoke',
             field: 'rightCode',
             after: 'right',
             core: true,

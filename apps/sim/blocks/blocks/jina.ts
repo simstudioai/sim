@@ -19,11 +19,11 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
     sentences: {
       byOperation: {
         jina_read_url: [
-          { text: 'Extracts page content from', field: 'url', core: true },
+          { text: 'Extract page content from', field: 'url', core: true },
           { text: ', as', field: 'returnFormat' },
         ],
         jina_search: [
-          { text: 'Searches the web for', field: 'q', core: true },
+          { text: 'Search the web for', field: 'q', core: true },
           { text: 'within', field: 'site' },
           { text: ', up to', field: 'num', after: 'results' },
         ],

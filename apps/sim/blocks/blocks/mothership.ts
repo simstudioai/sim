@@ -32,7 +32,7 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
     defaultTitle: 'Sim Chat',
     sentences: {
       default: [
-        { text: 'Asks', field: 'prompt', core: true },
+        { text: 'Ask', field: 'prompt', core: true },
         { text: ', with', field: ['attachmentFiles', 'fileReferences'], after: 'attached' },
         { text: ', using', field: 'tools' },
       ],

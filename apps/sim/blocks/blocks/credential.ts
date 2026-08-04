@@ -41,8 +41,8 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
     defaultTitle: 'Credential',
     sentences: {
       byOperation: {
-        select: ['Selects an OAuth credential'],
-        list: ['Lists OAuth credentials', { text: 'for', field: 'providerFilter' }],
+        select: ['Select an OAuth credential'],
+        list: ['List OAuth credentials', { text: 'for', field: 'providerFilter' }],
       },
     },
   },

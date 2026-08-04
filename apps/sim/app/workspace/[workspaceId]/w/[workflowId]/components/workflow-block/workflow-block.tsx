@@ -1,5 +1,4 @@
 import { type ComponentType, Fragment, memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import { createLogger } from '@sim/logger'
 import {
   BLOCK_DIMENSIONS,
   CanvasSentenceView,
@@ -110,8 +109,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
 import { formatParameterLabel } from '@/tools/params'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
-
-const logger = createLogger('WorkflowBlock')
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
@@ -319,15 +316,6 @@ const SubBlockRow = memo(function SubBlockRow({
   variant,
   icon,
 }: SubBlockRowProps) {
-  const getStringValue = useCallback(
-    (key?: string): string | undefined => {
-      if (!key || !allSubBlockValues) return undefined
-      const candidate = allSubBlockValues[key]?.value
-      return typeof candidate === 'string' && candidate.length > 0 ? candidate : undefined
-    },
-    [allSubBlockValues]
-  )
-
   const rawValues = useMemo(() => {
     if (!allSubBlockValues) return {}
     return Object.entries(allSubBlockValues).reduce<Record<string, unknown>>(
@@ -839,7 +827,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       canonicalModeOverrides,
       triggerMode: effectiveTrigger,
       hiddenIds: hiddenByReactiveCondition,
-      titleOperationSubBlockId: canvasPresentation.usesDefaultTitle
+      titleOperationSubBlockId: canvasPresentation.titleShowsOperation
         ? canvasPresentation.operationSubBlockId
         : null,
     })
@@ -849,7 +837,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     )
 
     const { chipBlocks, rowSubBlocks } = splitCanvasChipBlocks(visibleSubBlocks, {
-      usesDefaultTitle: canvasPresentation.usesDefaultTitle,
+      titleShowsOperation: canvasPresentation.titleShowsOperation,
       operationSubBlockId: canvasPresentation.operationSubBlockId,
     })
 
@@ -1094,7 +1082,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     wouldCreateCycle(useWorkflowStore.getState().edges, source, target)
 
   const getCanvasRowTitle = (subBlock: SubBlockConfig) =>
-    subBlock.id === canvasPresentation.operationSubBlockId && !canvasPresentation.usesDefaultTitle
+    subBlock.id === canvasPresentation.operationSubBlockId &&
+    !canvasPresentation.titleShowsOperation
       ? (canvasPresentation.operationRowTitle ?? subBlock.title ?? subBlock.id)
       : (subBlock.title ?? subBlock.id)
 

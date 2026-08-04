@@ -4,7 +4,7 @@ import type { SubBlockConfig } from '@/blocks/types'
  * The noun a card shows in place of a value the user has not filled in yet.
  *
  * A core clause renders whether or not its field holds a value, so the chip
- * needs something to say when it is empty: `Sends a message to ⟨a channel⟩`.
+ * needs something to say when it is empty: `Send a message to ⟨a channel⟩`.
  * Deriving that from the subblock's own `title` — rather than having each
  * sentence carry replacement copy — is what keeps the two readings of a card
  * from drifting apart. There is only ever one sentence; the chip is what
@@ -75,8 +75,8 @@ export function articleFor(phrase: string): 'a' | 'an' {
 /**
  * Singular words that happen to end in `s`.
  *
- * A plural noun takes no article (`Adds ⟨labels⟩`), so the whole article
- * decision hangs on this, and a false positive reads as `Sets ⟨radius⟩` with its
+ * A plural noun takes no article (`Add ⟨labels⟩`), so the whole article
+ * decision hangs on this, and a false positive reads as `Set ⟨radius⟩` with its
  * "a" missing. `-us`/`-is` covers the productive Latin cases (radius, status,
  * focus, analysis, basis) without listing each; the rest are named.
  *
@@ -110,7 +110,7 @@ const PARENTHETICAL = /\s*\([^)]*\)?/g
  *
  * "Select Channel" is an instruction to the person filling the form; the card is
  * describing what the block does, so it wants the bare noun. Without this, every
- * selector on the canvas reads "posts to ⟨a select channel⟩".
+ * selector on the canvas reads "post to ⟨a select channel⟩".
  */
 const PICKER_IMPERATIVE = /^(select|choose|pick|enter|add)\s+/i
 

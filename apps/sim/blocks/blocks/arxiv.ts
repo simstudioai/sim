@@ -19,13 +19,13 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
     sentences: {
       byOperation: {
         arxiv_search: [
-          { text: 'Searches', field: 'searchField', after: 'for', core: true },
+          { text: 'Search', field: 'searchField', after: 'for', core: true },
           { field: 'searchQuery', core: true },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
-        arxiv_get_paper: [{ text: 'Fetches details for paper', field: 'paperId', core: true }],
+        arxiv_get_paper: [{ text: 'Fetch details for paper', field: 'paperId', core: true }],
         arxiv_get_author_papers: [
-          { text: 'Lists papers by', field: 'authorName', core: true },
+          { text: 'List papers by', field: 'authorName', core: true },
           { text: ', up to', field: 'maxResults', after: 'results' },
         ],
       },

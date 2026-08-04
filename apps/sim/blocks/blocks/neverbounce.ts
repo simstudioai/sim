@@ -19,9 +19,9 @@ export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
     sentences: {
       byOperation: {
         neverbounce_verify_email: [
-          { text: 'Verifies deliverability of', field: 've_email', core: true },
+          { text: 'Verify deliverability of', field: 've_email', core: true },
         ],
-        neverbounce_get_credits: ['Reads remaining paid and free verification credits'],
+        neverbounce_get_credits: ['Read remaining paid and free verification credits'],
       },
     },
   },

@@ -25,33 +25,41 @@ export const GoogleFormsBlock: BlockConfig = {
   icon: GoogleFormsIcon,
   canvasPresentation: {
     defaultTitle: 'Google Forms',
+    /*
+     * The webhook fires for whatever form posts to it, so `triggerFormId` is a
+     * label rather than a scope — it names the form once the user supplies it,
+     * and marking it `core` would promise a filter the trigger does not apply.
+     */
+    triggerSentences: {
+      default: ['Run on a form response', { text: 'from', field: 'triggerFormId' }],
+    },
     sentences: {
       byOperation: {
         get_responses: [
-          { text: 'Reads response', field: 'responseId', core: true },
+          { text: 'Read response', field: 'responseId', core: true },
           { text: 'from form', field: FORM_FIELD, core: true },
           { text: ', matching', field: 'filter' },
         ],
-        get_form: [{ text: 'Reads structure of form', field: FORM_FIELD, core: true }],
-        create_form: [{ text: 'Creates a form titled', field: 'title', core: true }],
-        batch_update: [{ text: 'Applies batch updates to form', field: FORM_FIELD, core: true }],
+        get_form: [{ text: 'Read structure of form', field: FORM_FIELD, core: true }],
+        create_form: [{ text: 'Create a form titled', field: 'title', core: true }],
+        batch_update: [{ text: 'Apply batch updates to form', field: FORM_FIELD, core: true }],
         set_publish_settings: [
-          { text: 'Updates publish settings of form', field: FORM_FIELD, core: true },
+          { text: 'Update publish settings of form', field: FORM_FIELD, core: true },
         ],
         create_watch: [
-          { text: 'Watches form', field: FORM_FIELD, core: true },
+          { text: 'Watch form', field: FORM_FIELD, core: true },
           { text: 'for', field: 'eventType' },
           { text: ', notifying', field: 'topicName' },
         ],
         list_watches: [
-          { text: 'Lists notification watches on form', field: FORM_FIELD, core: true },
+          { text: 'List notification watches on form', field: FORM_FIELD, core: true },
         ],
         delete_watch: [
-          { text: 'Deletes watch', field: 'watchId', core: true },
+          { text: 'Delete watch', field: 'watchId', core: true },
           { text: 'from form', field: FORM_FIELD, core: true },
         ],
         renew_watch: [
-          { text: 'Renews watch', field: 'watchId', core: true },
+          { text: 'Renew watch', field: 'watchId', core: true },
           { text: 'on form', field: FORM_FIELD, core: true },
         ],
       },

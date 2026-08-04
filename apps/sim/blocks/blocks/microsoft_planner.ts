@@ -54,63 +54,63 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
     sentences: {
       byOperation: {
         read_task: [
-          'Reads tasks',
+          'Read tasks',
           { text: ', in plan', field: PLAN_FIELD },
           { text: ', limited to task', field: READ_TASK_FIELD },
         ],
         create_task: [
-          { text: 'Creates task', field: 'title', core: true },
+          { text: 'Create task', field: 'title', core: true },
           { text: 'in plan', field: PLAN_FIELD, core: true },
           { text: ', due', field: 'dueDateTime' },
         ],
         update_task: [
-          { text: 'Updates task', field: 'updateTaskId', core: true },
+          { text: 'Update task', field: 'updateTaskId', core: true },
           { text: ', setting title to', field: 'title' },
           { text: ', due', field: 'dueDateTime' },
         ],
-        delete_task: [{ text: 'Deletes task', field: 'updateTaskId', core: true }],
-        list_plans: ['Lists plans shared with the signed-in user'],
-        read_plan: [{ text: 'Reads plan', field: PLAN_FIELD, core: true }],
+        delete_task: [{ text: 'Delete task', field: 'updateTaskId', core: true }],
+        list_plans: ['List plans shared with the signed-in user'],
+        read_plan: [{ text: 'Read plan', field: PLAN_FIELD, core: true }],
         create_plan: [
-          { text: 'Creates plan', field: 'planTitle', core: true },
+          { text: 'Create plan', field: 'planTitle', core: true },
           { text: 'under group', field: 'groupId' },
         ],
         update_plan: [
-          { text: 'Renames plan', field: PLAN_FIELD, core: true },
+          { text: 'Rename plan', field: PLAN_FIELD, core: true },
           { text: 'to', field: 'planTitle' },
         ],
         get_plan_details: [
-          { text: 'Reads category labels and sharing for plan', field: PLAN_FIELD, core: true },
+          { text: 'Read category labels and sharing for plan', field: PLAN_FIELD, core: true },
         ],
         update_plan_details: [
           {
-            text: 'Updates category labels and sharing for plan',
+            text: 'Update category labels and sharing for plan',
             field: PLAN_FIELD,
             core: true,
           },
         ],
-        delete_plan: [{ text: 'Deletes plan', field: PLAN_FIELD, core: true }],
-        list_buckets: [{ text: 'Lists buckets in plan', field: PLAN_FIELD, core: true }],
-        read_bucket: [{ text: 'Reads bucket', field: 'bucketIdForRead', core: true }],
+        delete_plan: [{ text: 'Delete plan', field: PLAN_FIELD, core: true }],
+        list_buckets: [{ text: 'List buckets in plan', field: PLAN_FIELD, core: true }],
+        read_bucket: [{ text: 'Read bucket', field: 'bucketIdForRead', core: true }],
         create_bucket: [
-          { text: 'Creates bucket', field: 'name', core: true },
+          { text: 'Create bucket', field: 'name', core: true },
           { text: 'in plan', field: PLAN_FIELD },
         ],
         update_bucket: [
-          { text: 'Renames bucket', field: 'bucketIdForRead', core: true },
+          { text: 'Rename bucket', field: 'bucketIdForRead', core: true },
           { text: 'to', field: 'name' },
         ],
-        delete_bucket: [{ text: 'Deletes bucket', field: 'bucketIdForRead', core: true }],
+        delete_bucket: [{ text: 'Delete bucket', field: 'bucketIdForRead', core: true }],
         get_task_details: [
           {
-            text: 'Reads the checklist and references of task',
+            text: 'Read the checklist and references of task',
             field: 'updateTaskId',
             core: true,
           },
         ],
         update_task_details: [
           {
-            text: 'Updates the description and checklist of task',
+            text: 'Update the description and checklist of task',
             field: 'updateTaskId',
             core: true,
           },

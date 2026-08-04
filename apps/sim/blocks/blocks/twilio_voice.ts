@@ -19,19 +19,26 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
   icon: TwilioIcon,
   canvasPresentation: {
     defaultTitle: 'Twilio Voice',
+    /* The account SID and auth token are plumbing. The TwiML is the only part
+       of the trigger worth reading, since it is what the caller hears while the
+       workflow runs behind it — and it is optional, so the clause drops until
+       one is written. */
+    triggerSentences: {
+      default: ['Run on an incoming call', { text: ', answering with', field: 'twimlResponse' }],
+    },
     sentences: {
       byOperation: {
         make_call: [
-          { text: 'Calls', field: 'to', core: true },
+          { text: 'Call', field: 'to', core: true },
           { text: 'from', field: 'from' },
         ],
         list_calls: [
-          'Lists calls',
+          'List calls',
           { text: 'to', field: 'listTo' },
           { text: 'from', field: 'listFrom' },
           { text: 'with status', field: 'listStatus' },
         ],
-        get_recording: [{ text: 'Fetches recording', field: 'recordingSid', core: true }],
+        get_recording: [{ text: 'Fetch recording', field: 'recordingSid', core: true }],
       },
     },
   },

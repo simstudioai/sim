@@ -1,7 +1,9 @@
 import { getSeededSubBlockValues } from '@/lib/workflows/blocks/canvas-card-fields'
 import { getOperationSubBlockId } from '@/lib/workflows/blocks/canvas-sentence'
+import { toImperativeLead } from '@/lib/workflows/blocks/canvas-sentence-imperative'
 import { resolveFieldNoun, startsWithVowelSound } from '@/lib/workflows/blocks/canvas-sentence-noun'
 import { renderSentenceReadings } from '@/lib/workflows/blocks/canvas-sentence-render'
+import { resolveTriggerSentence } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import {
   buildCanonicalIndex,
   type CanonicalIndex,
@@ -71,9 +73,9 @@ const SENTENCE_EXEMPT_TYPES = new Set(['condition', 'router_v2', 'note', 'starte
  * Blocks whose trigger card needs no sentence.
  *
  * The workflow's own entry points. Every other trigger names an external event
- * worth reading — "Runs on Pull Request Opened" — but these *are* the start of
+ * worth reading — "Run on Pull Request Opened" — but these *are* the start of
  * the run, and their header already says so: Start, Chat, Manual. A sentence
- * repeating it would be the "Sends a Slack message" mistake in another costume.
+ * repeating it would be the "Send a Slack message" mistake in another costume.
  */
 export const TRIGGER_SENTENCE_EXEMPT_TYPES = new Set([
   'starter',
@@ -96,7 +98,7 @@ function rendersSentence(config: ValidatableBlockConfig): boolean {
  *
  * Copy that survives a dropped clause — a bare string, or a clause's `after` —
  * must not end on one of these, or the card renders
- * `Queries rows from ⟨orders⟩, where` with nothing following.
+ * `Query rows from ⟨orders⟩, where` with nothing following.
  */
 const DANGLING_CONNECTIVES = new Set([
   'and',
@@ -189,7 +191,7 @@ function leadingCopy(clause: CanvasSentence[number]): string {
  *
  * `DANGLING_CONNECTIVES` cannot see these: the opener sits in the clause's own
  * `text`, in front of its own chip, so the chip renders between the two halves
- * and nothing trails. What breaks is the relation, not the grammar — "Routes
+ * and nothing trails. What breaks is the relation, not the grammar — "Route
  * from ⟨origin⟩" is a well-formed sentence that describes a different journey.
  */
 const CORRELATIVES = [
@@ -440,6 +442,60 @@ function isFieldGuaranteed(
   return [...options].every((option) => covered.has(option))
 }
 
+/**
+ * A card names an action, so its sentence opens with a command — the same voice
+ * as the operation title in the heading directly above it ("Send Email" over
+ * "Send ⟨a subject⟩ to ⟨a recipient⟩"). Third person describes the block to a
+ * reader instead, and the two mixed across a canvas read as two authors.
+ *
+ * Split out from the rules below because it is the only one that holds for a
+ * trigger card too: it reads the copy alone, with no claim about which fields
+ * are present.
+ *
+ * Scoped to the *leading* verb. A second verb coordinated later in the sentence
+ * ("Create or update record ⟨id⟩") is left to review: `and`/`or` joins nouns far
+ * more often than verbs here — "List collections and indexes", "List filings and
+ * reports" — and no rule separates the two without flagging those, which would
+ * cost more trust than the case is worth.
+ */
+function checkImperativeVoice(
+  sentence: CanvasSentence,
+  location: string,
+  failures: SentenceFailure[]
+): void {
+  const lead = sentence[0] === undefined ? '' : leadingCopy(sentence[0])
+  const imperative = toImperativeLead(lead)
+  if (imperative === lead) return
+  failures.push({
+    location,
+    message:
+      `sentence opens "${lead}" in the third person — write "${imperative}". A card names ` +
+      'an action, in the same voice as the operation title in its heading.',
+  })
+}
+
+/**
+ * The voice rule over the sentence a trigger card actually paints.
+ *
+ * Trigger sentences do not go through `checkSentence`: its `core` rules prove a
+ * field is on the *action* card, and trigger mode swaps the subblock set
+ * wholesale, so they would report against a card that does not exist. Voice is
+ * the one rule that survives that difference, and it has to run on the
+ * *resolved* sentence rather than the declaration — most trigger copy is
+ * derived from the trigger's registry name, never authored in a block file.
+ */
+export function validateTriggerSentence(
+  config: ValidatableBlockConfig & Pick<BlockConfig, 'triggers'>,
+  triggerId: string | null,
+  triggerName: string | null
+): SentenceFailure[] {
+  const sentence = resolveTriggerSentence(config, triggerId, triggerName)
+  if (!sentence) return []
+  const failures: SentenceFailure[] = []
+  checkImperativeVoice(sentence, `trigger.${triggerId ?? 'default'}`, failures)
+  return failures
+}
+
 function checkSentence(
   sentence: CanvasSentence,
   location: string,
@@ -454,6 +510,8 @@ function checkSentence(
 
   const survives = (clause: CanvasSentence[number]) =>
     isAlwaysPresent(clause, operationId, blockIndex)
+
+  checkImperativeVoice(sentence, location, failures)
 
   sentence.forEach((clause, index) => {
     const nextClause = sentence[index + 1]
@@ -542,7 +600,7 @@ function checkSentence(
     if (article) {
       if (clause.core === true) {
         /* A core chip shows the field's noun while empty, and a noun carries its
-           own article — so the card reads "Adds a a reaction". */
+           own article — so the card reads "Add a a reaction". */
         const noun = resolveFieldNoun(subBlocksById.get(fieldIds[0])?.[0] ?? { title: '' })
         fail(
           `clause ${index} ends its copy on "${article}", but the "${fieldIds[0]}" chip is ` +
@@ -632,7 +690,7 @@ function checkSentence(
  * Groups operations whose cards read the same, given one reading per operation.
  *
  * Two operations that paint the same card mean a copy-pasted clause was never
- * adjusted — `get_thread` and `get_thread_replies` both reading "Reads thread
+ * adjusted — `get_thread` and `get_thread_replies` both reading "Read thread
  * ⟨id⟩" leaves the user unable to tell which one the block is running.
  */
 function groupByReading(readings: Array<[string, string]>): string[][] {
