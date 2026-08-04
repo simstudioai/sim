@@ -20,6 +20,7 @@ vi.mock('@sim/db', () => ({
     metadata: 'metadata',
     payload: 'payload',
     status: 'status',
+    type: 'type',
   },
   db: dbChainMock.db,
 }))
@@ -236,7 +237,10 @@ describe('DatabaseJobQueue batchEnqueueAndWait', () => {
     dbChainMockFns.where.mockResolvedValueOnce({ count: 0 })
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).resolves.toBe(1)
     await batch
 
@@ -282,13 +286,55 @@ describe('DatabaseJobQueue batchEnqueueAndWait', () => {
     dbChainMockFns.where.mockResolvedValueOnce({ count: 0 })
 
     await expect(
-      queue.cancelByExecution({
-        workflowId: 'workflow-1',
-        executionId: 'parent-execution-1',
-      })
+      queue.cancelByExecution(
+        {
+          workflowId: 'workflow-1',
+          executionId: 'parent-execution-1',
+        },
+        'resume'
+      )
     ).resolves.toBe(1)
     await batch
 
+    expect(observedSignal?.aborted).toBe(true)
+  })
+
+  it('does not abort a shared workflow-group carrier through standalone cancellation', async () => {
+    const queue = new DatabaseJobQueue()
+    let resolveStarted: (() => void) | undefined
+    const started = new Promise<void>((resolve) => {
+      resolveStarted = resolve
+    })
+    let observedSignal: AbortSignal | undefined
+
+    const batch = queue.batchEnqueueAndWait('workflow-group-cell', [
+      {
+        payload: { workflowId: 'workflow-1', executionId: 'execution-1' },
+        options: {
+          cancelKey: 'table-1:row-1:group-1',
+          runner: async (_payload, signal) => {
+            observedSignal = signal
+            resolveStarted?.()
+            await new Promise<void>((resolve) => {
+              signal.addEventListener('abort', () => resolve(), { once: true })
+            })
+          },
+        },
+      },
+    ])
+    await started
+    dbChainMockFns.where.mockResolvedValueOnce({ count: 0 })
+
+    await expect(
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
+    ).resolves.toBe(0)
+    expect(observedSignal?.aborted).toBe(false)
+
+    expect(queue.cancelByKey('table-1:row-1:group-1')).toBe(true)
+    await batch
     expect(observedSignal?.aborted).toBe(true)
   })
 
@@ -315,7 +361,10 @@ describe('DatabaseJobQueue batchEnqueueAndWait', () => {
     )
     await started
     dbChainMockFns.where.mockResolvedValueOnce({ count: 1 })
-    await queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+    await queue.cancelByExecution(
+      { workflowId: 'workflow-1', executionId: 'execution-1' },
+      'standalone'
+    )
     await sleep(1)
 
     expect(markJobFailed).not.toHaveBeenCalled()
@@ -410,7 +459,10 @@ describe('DatabaseJobQueue inline claims', () => {
     await vi.waitFor(() => expect(startJob).toHaveBeenCalledOnce())
     dbChainMockFns.where.mockResolvedValueOnce({ count: 1 })
 
-    await queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+    await queue.cancelByExecution(
+      { workflowId: 'workflow-1', executionId: 'execution-1' },
+      'standalone'
+    )
     resolveClaim?.(true)
     await claimPending
     await sleep(1)
@@ -430,7 +482,10 @@ describe('DatabaseJobQueue cancellation', () => {
     const queue = new DatabaseJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).resolves.toBe(1)
 
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
@@ -452,7 +507,10 @@ describe('DatabaseJobQueue cancellation', () => {
     const queue = new DatabaseJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).resolves.toBe(0)
     expect(mockRecordCancellationResult).toHaveBeenCalledWith({
       backend: 'database',
@@ -465,7 +523,10 @@ describe('DatabaseJobQueue cancellation', () => {
     const queue = new DatabaseJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).resolves.toBe(37)
 
     expect(dbChainMockFns.returning).not.toHaveBeenCalled()
@@ -476,7 +537,10 @@ describe('DatabaseJobQueue cancellation', () => {
     const queue = new DatabaseJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).rejects.toThrow('database unavailable')
     expect(mockRecordCancellationResult).toHaveBeenCalledWith({
       backend: 'database',

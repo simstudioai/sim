@@ -4,6 +4,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -56,6 +57,8 @@ export interface ExecuteWorkflowOptions {
   executionMode?: 'sync' | 'stream' | 'async'
   /** Immutable actor/payer decision captured by preprocessing. */
   billingAttribution?: BillingAttributionSnapshot
+  /** Server-issued run identity persisted with the execution log and snapshot. */
+  trustedExecutionCorrelation?: AsyncExecutionCorrelation
   /** Deployed-chat thinking policy; persisted on the snapshot for resume. */
   includeThinking?: boolean
   /** Deployed-chat tool lifecycle policy; persisted on the snapshot for resume. */
@@ -103,6 +106,9 @@ export async function executeWorkflow(
   const executionId = providedExecutionId || generateId()
   const triggerType = streamConfig?.workflowTriggerType || 'api'
   const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
+  if (streamConfig?.trustedExecutionCorrelation) {
+    loggingSession.setTrustedExecutionCorrelation(streamConfig.trustedExecutionCorrelation)
+  }
 
   try {
     const metadata: ExecutionMetadata = {
@@ -128,6 +134,7 @@ export async function executeWorkflow(
           ? streamConfig.includeToolCalls
           : undefined,
       agentEvents: streamConfig?.agentEvents === true ? true : undefined,
+      correlation: streamConfig?.trustedExecutionCorrelation,
     }
 
     const snapshot = new ExecutionSnapshot(

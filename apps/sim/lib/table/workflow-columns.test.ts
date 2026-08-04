@@ -208,6 +208,16 @@ describe('buildEnqueueItems billing attribution', () => {
 
     expect(item.payload).toHaveProperty('executionTimeoutMs')
     expect(item.options.maxDurationSeconds).toBe(5_700)
+    expect(item.options.metadata?.correlation).toEqual({
+      executionId: 'execution-1',
+      requestId: 'wfgrp-execution-1',
+      source: 'workflow_group',
+      workflowId: 'workflow-1',
+      triggerType: 'table',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
   })
 
   it('preserves an existing immutable attribution snapshot without re-resolving', async () => {

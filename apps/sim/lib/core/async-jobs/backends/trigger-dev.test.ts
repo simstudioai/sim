@@ -78,22 +78,30 @@ import { AsyncJobEnqueueError, JOB_PENDING_RETENTION_HOURS } from '@/lib/core/as
 interface MockListedRun {
   id: string
   tags: string[]
+  taskIdentifier?: string
 }
 
 function createListPage(items: MockListedRun[]) {
+  const runs = items.map((item) => ({
+    taskIdentifier: 'workflow-execution',
+    ...item,
+  }))
   return {
-    data: items,
+    data: runs,
     async *[Symbol.asyncIterator]() {
-      for (const item of items) yield item
+      for (const item of runs) yield item
     },
   }
 }
 
 function createPaginatedList(pages: MockListedRun[][]) {
+  const normalizedPages = pages.map((page) =>
+    page.map((item) => ({ taskIdentifier: 'workflow-execution', ...item }))
+  )
   return {
-    data: pages[0] ?? [],
+    data: normalizedPages[0] ?? [],
     async *[Symbol.asyncIterator]() {
-      for (const page of pages) {
+      for (const page of normalizedPages) {
         for (const item of page) yield item
       }
     },
@@ -348,7 +356,10 @@ describe('TriggerDevJobQueue cancellation', () => {
     const beforeCancellation = Date.now()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).resolves.toBe(2)
     const afterCancellation = Date.now()
 
@@ -375,12 +386,75 @@ describe('TriggerDevJobQueue cancellation', () => {
     })
   })
 
+  it('never cancels a workflow-group carrier through standalone execution cancellation', async () => {
+    mockList
+      .mockReturnValueOnce(
+        createListPage([
+          {
+            id: 'group-carrier',
+            tags: ['workflowId:workflow-1', 'executionId:execution-1'],
+            taskIdentifier: 'workflow-group-cell',
+          },
+          {
+            id: 'workflow-run',
+            tags: ['workflowId:workflow-1', 'executionId:execution-1'],
+            taskIdentifier: 'workflow-execution',
+          },
+        ])
+      )
+      .mockReturnValueOnce(createListPage([]))
+      .mockReturnValueOnce(createListPage([]))
+    const queue = new TriggerDevJobQueue()
+
+    await expect(
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
+    ).resolves.toBe(1)
+
+    expect(mockCancel).toHaveBeenCalledOnce()
+    expect(mockCancel).toHaveBeenCalledWith('workflow-run')
+    expect(mockCancel).not.toHaveBeenCalledWith('group-carrier')
+  })
+
+  it('targets only resume jobs in resume cancellation scope', async () => {
+    mockList
+      .mockReturnValueOnce(
+        createListPage([
+          {
+            id: 'workflow-run',
+            tags: ['workflowId:workflow-1', 'executionId:execution-1'],
+            taskIdentifier: 'workflow-execution',
+          },
+          {
+            id: 'resume-run',
+            tags: ['workflowId:workflow-1', 'executionId:execution-1'],
+            taskIdentifier: 'resume-execution',
+          },
+        ])
+      )
+      .mockReturnValueOnce(createListPage([]))
+      .mockReturnValueOnce(createListPage([]))
+    const queue = new TriggerDevJobQueue()
+
+    await expect(
+      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' }, 'resume')
+    ).resolves.toBe(1)
+
+    expect(mockCancel).toHaveBeenCalledOnce()
+    expect(mockCancel).toHaveBeenCalledWith('resume-run')
+  })
+
   it('records not-found when no active run matches', async () => {
     mockList.mockReturnValue(createListPage([]))
     const queue = new TriggerDevJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).resolves.toBe(0)
 
     expect(mockRecordCancellationResult).toHaveBeenCalledWith({
@@ -394,7 +468,10 @@ describe('TriggerDevJobQueue cancellation', () => {
     const queue = new TriggerDevJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).rejects.toThrow('provider unavailable')
     expect(mockRecordCancellationResult).toHaveBeenCalledWith({
       backend: 'trigger_dev',
@@ -417,7 +494,10 @@ describe('TriggerDevJobQueue cancellation', () => {
     const queue = new TriggerDevJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).rejects.toThrow('provider unavailable')
 
     expect(mockList).toHaveBeenCalledTimes(3)
@@ -459,7 +539,10 @@ describe('TriggerDevJobQueue cancellation', () => {
     const queue = new TriggerDevJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).resolves.toBe(1)
 
     expect(mockCancel).toHaveBeenCalledOnce()
@@ -493,17 +576,14 @@ describe('TriggerDevJobQueue cancellation', () => {
     const queue = new TriggerDevJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).resolves.toBe(1)
 
     expect(mockList).toHaveBeenNthCalledWith(3, {
-      taskIdentifier: [
-        'workflow-execution',
-        'schedule-execution',
-        'webhook-execution',
-        'resume-execution',
-        'workflow-group-cell',
-      ],
+      taskIdentifier: ['workflow-execution', 'schedule-execution', 'webhook-execution'],
       status: ['PENDING_VERSION', 'DELAYED', 'QUEUED', 'DEQUEUED', 'EXECUTING', 'WAITING'],
       from: expect.any(Date),
       limit: 25,
@@ -532,7 +612,10 @@ describe('TriggerDevJobQueue cancellation', () => {
     const queue = new TriggerDevJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).resolves.toBe(75)
 
     expect(mockCancel).toHaveBeenCalledTimes(75)
@@ -572,7 +655,10 @@ describe('TriggerDevJobQueue cancellation', () => {
     const queue = new TriggerDevJobQueue()
 
     await expect(
-      queue.cancelByExecution({ workflowId: 'workflow-1', executionId: 'execution-1' })
+      queue.cancelByExecution(
+        { workflowId: 'workflow-1', executionId: 'execution-1' },
+        'standalone'
+      )
     ).resolves.toBe(20)
 
     expect(maxActiveRetrievals).toBe(10)

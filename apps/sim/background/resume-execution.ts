@@ -16,6 +16,7 @@ import {
 import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { isExecCancelled } from '@/lib/table/deps'
 import type { RowExecutionMetadata } from '@/lib/table/types'
+import { classifyWorkflowCellTerminalResult } from '@/lib/table/workflow-cell-result'
 import {
   createResumeAttemptTimeoutController,
   PauseResumeManager,
@@ -73,12 +74,15 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
       throw new Error(`Paused execution not found: ${pausedExecutionId}`)
     }
     const serializedSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
-    timeoutController ??= createResumeAttemptTimeoutController(
-      serializedSnapshot,
-      signal,
-      pausedExecution.metadata
-    )
-    const attemptSignal = timeoutController.signal
+    if (!timeoutController) {
+      timeoutController = createResumeAttemptTimeoutController(
+        serializedSnapshot,
+        signal,
+        pausedExecution.metadata
+      )
+    }
+    const attemptTimeoutController = timeoutController
+    const attemptSignal = attemptTimeoutController.signal
     const persistedSnapshot = ExecutionSnapshot.fromJSON(serializedSnapshot.snapshot)
     const billingAttribution = assertBillingAttributionSnapshot(
       persistedSnapshot.metadata.billingAttribution
@@ -149,7 +153,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
         success: result.success,
         status: result.status,
       })
-      throwIfResumeAttemptTimedOut(result.status, timeoutController)
+      throwIfResumeAttemptTimedOut(result.status, attemptTimeoutController)
       return {
         success: result.success,
         workflowId,
@@ -174,9 +178,10 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
           payload,
           pausedExecution,
           writers,
-          attemptSignal
+          attemptSignal,
+          attemptTimeoutController
         )
-        if (result.status === 'paused') return result
+        if (result.status === 'paused' || result.status === 'cancelled') return result
         await continueCascadeAfterResume(cellContext, billingAttribution, attemptSignal)
         return result
       }
@@ -187,7 +192,13 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
       logger.info(
         `Resume cascade lock held — writing resumed group only (table=${cellContext.tableId} row=${cellContext.rowId} executionId=${parentExecutionId})`
       )
-      result = await runResumeAndCellTerminal(payload, pausedExecution, writers, attemptSignal)
+      result = await runResumeAndCellTerminal(
+        payload,
+        pausedExecution,
+        writers,
+        attemptSignal,
+        attemptTimeoutController
+      )
     } else {
       result = outcome.result
     }
@@ -198,7 +209,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
       success: result.success,
       status: result.status,
     })
-    throwIfResumeAttemptTimedOut(result.status, timeoutController)
+    throwIfResumeAttemptTimedOut(result.status, attemptTimeoutController)
 
     return {
       success: result.success,
@@ -237,7 +248,7 @@ function throwIfResumeAttemptTimedOut(
 type CellWriters = {
   cellOnBlockComplete: (blockId: string, output: unknown) => Promise<void>
   writeCellTerminal: (
-    status: 'completed' | 'error' | 'paused',
+    status: 'completed' | 'error' | 'cancelled' | 'paused',
     error: string | null
   ) => Promise<void>
 }
@@ -253,9 +264,8 @@ async function buildResumeCellWriters(
   parentExecutionId: string
 ): Promise<CellWriters | null> {
   const { getTableById } = await import('@/lib/table/service')
-  const { createWorkflowCellProgressWriter, writeWorkflowGroupState } = await import(
-    '@/lib/table/cell-write'
-  )
+  const { buildCancelledExecution, createWorkflowCellProgressWriter, writeWorkflowGroupState } =
+    await import('@/lib/table/cell-write')
 
   const table = await getTableById(cellContext.tableId)
   const group = table?.schema.workflowGroups?.find((g) => g.id === cellContext.groupId)
@@ -305,7 +315,7 @@ async function buildResumeCellWriters(
   const cellOnBlockComplete = progressWriter.onBlockComplete
 
   const writeCellTerminal = async (
-    status: 'completed' | 'error' | 'paused',
+    status: 'completed' | 'error' | 'cancelled' | 'paused',
     error: string | null
   ) => {
     await progressWriter.finish()
@@ -320,15 +330,21 @@ async function buildResumeCellWriters(
             error: null,
             blockErrors,
           }
-        : {
-            status,
-            executionId: parentExecutionId,
-            jobId: null,
-            workflowId: cellContext.workflowId,
-            error,
-            runningBlockIds: [],
-            blockErrors,
-          }
+        : status === 'cancelled'
+          ? buildCancelledExecution({
+              executionId: parentExecutionId,
+              workflowId: cellContext.workflowId,
+              blockErrors,
+            })
+          : {
+              status,
+              executionId: parentExecutionId,
+              jobId: null,
+              workflowId: cellContext.workflowId,
+              error,
+              runningBlockIds: [],
+              blockErrors,
+            }
     await writeWorkflowGroupState(writeCtx, {
       executionState: terminal,
       dataPatch: progressWriter.getPendingDataPatch(),
@@ -343,7 +359,8 @@ async function runResumeAndCellTerminal(
   payload: ResumeExecutionPayload,
   pausedExecution: Awaited<ReturnType<typeof PauseResumeManager.getPausedExecutionById>>,
   writers: CellWriters,
-  signal?: AbortSignal
+  signal: AbortSignal | undefined,
+  timeoutController: ReturnType<typeof createTimeoutAbortController>
 ): Promise<Awaited<ReturnType<typeof PauseResumeManager.startResumeExecution>>> {
   if (!pausedExecution) throw new Error('Paused execution missing — already nulled by caller')
   const result = await PauseResumeManager.startResumeExecution({
@@ -359,10 +376,12 @@ async function runResumeAndCellTerminal(
 
   if (result.status === 'paused') {
     await writers.writeCellTerminal('paused', null)
-  } else if (result.success) {
-    await writers.writeCellTerminal('completed', null)
   } else {
-    await writers.writeCellTerminal('error', result.error ?? 'Workflow execution failed')
+    const terminalResult = classifyWorkflowCellTerminalResult(result, {
+      timedOut: timeoutController.isTimedOut(),
+      timeoutMs: timeoutController.timeoutMs,
+    })
+    await writers.writeCellTerminal(terminalResult.status, terminalResult.error)
   }
 
   return result

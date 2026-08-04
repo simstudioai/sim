@@ -7,7 +7,9 @@ import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import {
   AsyncJobEnqueueError,
   type EnqueueOptions,
+  EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE,
   type ExecutionJobBinding,
+  type ExecutionJobCancellationScope,
   JOB_PENDING_RETENTION_HOURS,
   JOB_STATUS,
   type Job,
@@ -30,14 +32,6 @@ const ACTIVE_TRIGGER_RUN_STATUSES = [
 ] as const
 const CANCELLATION_LIST_PAGE_SIZE = 25
 const CANCELLATION_OPERATION_CHUNK_SIZE = 10
-const WORKFLOW_TASK_IDENTIFIERS = [
-  'workflow-execution',
-  'schedule-execution',
-  'webhook-execution',
-  'resume-execution',
-  'workflow-group-cell',
-] as const satisfies readonly JobType[]
-
 function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
   if (error instanceof ApiError && error.status && error.status >= 400 && error.status < 500) {
     return new AsyncJobEnqueueError(toError(error).message, {
@@ -99,6 +93,7 @@ interface CancellationScanState {
 interface CancellationListRun {
   id: string
   tags: string[]
+  taskIdentifier: string
 }
 
 interface CancellationScanOptions {
@@ -420,9 +415,15 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     }
   }
 
-  async cancelByExecution(binding: ExecutionJobBinding): Promise<number> {
+  async cancelByExecution(
+    binding: ExecutionJobBinding,
+    scope: ExecutionJobCancellationScope
+  ): Promise<number> {
     const executionTag = buildExecutionTag(binding.executionId)
     const workflowTag = buildWorkflowTag(binding.workflowId)
+    const allowedTaskIdentifiers = EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE[scope]
+    const isAllowedTask = (run: CancellationListRun) =>
+      (allowedTaskIdentifiers as readonly string[]).includes(run.taskIdentifier)
     const cutoff = new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000)
     const state: CancellationScanState = {
       cancelledJobs: 0,
@@ -441,7 +442,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
             limit: CANCELLATION_LIST_PAGE_SIZE,
           }),
         selectCandidate: (run) =>
-          run.tags.includes(workflowTag) && run.tags.includes(executionTag)
+          isAllowedTask(run) && run.tags.includes(workflowTag) && run.tags.includes(executionTag)
             ? { id: run.id, verifyPayload: false }
             : undefined,
         state,
@@ -458,7 +459,13 @@ export class TriggerDevJobQueue implements JobQueueBackend {
             limit: CANCELLATION_LIST_PAGE_SIZE,
           }),
         selectCandidate: (run) => {
-          if (!run.tags.includes(workflowTag) || run.tags.includes(executionTag)) return undefined
+          if (
+            !isAllowedTask(run) ||
+            !run.tags.includes(workflowTag) ||
+            run.tags.includes(executionTag)
+          ) {
+            return undefined
+          }
           return { id: run.id, verifyPayload: true }
         },
         state,
@@ -469,13 +476,15 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         cancelJob: (jobId) => this.cancelJob(jobId),
         listRuns: () =>
           runs.list({
-            taskIdentifier: [...WORKFLOW_TASK_IDENTIFIERS],
+            taskIdentifier: [...allowedTaskIdentifiers],
             status: [...ACTIVE_TRIGGER_RUN_STATUSES],
             from: cutoff,
             limit: CANCELLATION_LIST_PAGE_SIZE,
           }),
         selectCandidate: (run) =>
-          run.tags.length === 0 ? { id: run.id, verifyPayload: true } : undefined,
+          isAllowedTask(run) && run.tags.length === 0
+            ? { id: run.id, verifyPayload: true }
+            : undefined,
         state,
       })
 
@@ -483,6 +492,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
 
       logger.info('Cancelled trigger.dev runs for execution', {
         ...binding,
+        scope,
         cancelledJobs: state.cancelledJobs,
       })
       recordExecutionCancellationBackendResult({

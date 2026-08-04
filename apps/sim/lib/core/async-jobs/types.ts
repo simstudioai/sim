@@ -41,7 +41,12 @@ export type JobType =
   | 'cleanup-tasks'
   | 'run-data-drain'
 
-export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook' | 'custom_block'
+export type AsyncExecutionCorrelationSource =
+  | 'workflow'
+  | 'schedule'
+  | 'webhook'
+  | 'custom_block'
+  | 'workflow_group'
 
 export interface AsyncExecutionCorrelation {
   executionId: string
@@ -56,11 +61,21 @@ export interface AsyncExecutionCorrelation {
   path?: string
   provider?: string
   scheduledFor?: string
+  tableId?: string
+  rowId?: string
+  groupId?: string
   /**
    * Workspace of the invoking run. Set for custom-block children, whose invoker
    * lives in a different workspace than the log row this correlation lands on.
    */
   invokerWorkspaceId?: string
+}
+
+export interface WorkflowGroupExecutionCorrelation extends AsyncExecutionCorrelation {
+  source: 'workflow_group'
+  tableId: string
+  rowId: string
+  groupId: string
 }
 
 export interface Job<TPayload = unknown, TOutput = unknown> {
@@ -130,6 +145,13 @@ export interface ExecutionJobBinding {
   workflowId: string
   executionId: string
 }
+
+export type ExecutionJobCancellationScope = 'standalone' | 'resume'
+
+export const EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE = {
+  standalone: ['workflow-execution', 'schedule-execution', 'webhook-execution'],
+  resume: ['resume-execution'],
+} as const satisfies Record<ExecutionJobCancellationScope, readonly JobType[]>
 
 export type AsyncJobEnqueueAcceptance = 'rejected' | 'unknown'
 
@@ -249,10 +271,14 @@ export interface JobQueueBackend {
   cancelJob(jobId: string): Promise<void>
 
   /**
-   * Cancel every queued or running job associated with an execution ID.
+   * Cancel queued or running jobs owned by an execution within the explicit
+   * dedicated-job scope. Shared workflow-group carriers are never included.
    * Backends return the number of jobs or in-process runners they targeted.
    */
-  cancelByExecution(binding: ExecutionJobBinding): Promise<number>
+  cancelByExecution(
+    binding: ExecutionJobBinding,
+    scope: ExecutionJobCancellationScope
+  ): Promise<number>
 
   /**
    * Cancel an in-flight job by its `cancelKey` (the domain identity callers

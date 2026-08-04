@@ -24,6 +24,10 @@ import {
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
 import {
+  registerManualExecutionAborter,
+  unregisterManualExecutionAborter,
+} from '@/lib/execution/manual-cancellation'
+import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
@@ -82,6 +86,24 @@ const RUN_BUFFER_UNAVAILABLE_ERROR = 'Run buffer temporarily unavailable'
 const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const CANCELLABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const AUTOMATIC_RESUME_INTERVENTION_PREFIX = 'Automatic resume requires manual intervention: '
+const PAUSED_CANCELLATION_QUEUE_FAILURE_REASON = 'Paused execution cancellation requested'
+
+async function releaseCancelledResumeReservations(
+  resumeEntryIds: readonly string[]
+): Promise<void> {
+  await Promise.all(
+    resumeEntryIds.map(async (resumeEntryId) => {
+      try {
+        await releaseExecutionSlot(resumeEntryId)
+      } catch (error) {
+        logger.warn('Failed to release cancelled resume reservation', {
+          resumeEntryId,
+          error: toError(error).message,
+        })
+      }
+    })
+  )
+}
 
 class ResumeAdmissionError extends Error {
   constructor(
@@ -328,6 +350,18 @@ interface StartResumeExecutionArgs {
   abortSignal?: AbortSignal
 }
 
+export interface ActiveResumeCancellationTarget {
+  resumeEntryId: string
+  pausedExecutionId: string
+  parentExecutionId: string
+  resumeExecutionId: string
+}
+
+export type PausedCancellationStage =
+  | { kind: 'not_paused' }
+  | { kind: 'idle' }
+  | { kind: 'active_resume'; target: ActiveResumeCancellationTarget }
+
 /**
  * Starts a new active-attempt deadline from the immutable payer snapshot saved
  * in bounded pause metadata. Legacy rows extract only the leading snapshot
@@ -455,7 +489,22 @@ export class PauseResumeManager {
       ...resumeMetadata,
     }
 
+    let shouldProcessQueuedResumes = true
+
     await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
       const existing = await tx
         .select()
         .from(pausedExecutions)
@@ -463,6 +512,22 @@ export class PauseResumeManager {
         .for('update')
         .limit(1)
         .then((rows) => rows[0])
+
+      if (executionLog?.status === 'cancelled') {
+        shouldProcessQueuedResumes = false
+        if (existing && existing.status !== 'cancelled') {
+          await tx
+            .update(pausedExecutions)
+            .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+            .where(eq(pausedExecutions.id, existing.id))
+        }
+        return
+      }
+
+      if (existing?.status === 'cancelled') {
+        shouldProcessQueuedResumes = false
+        return
+      }
 
       if (!existing) {
         await tx.insert(pausedExecutions).values({
@@ -525,6 +590,7 @@ export class PauseResumeManager {
             : resumedCount > 0
               ? 'partially_resumed'
               : 'paused'
+      shouldProcessQueuedResumes = nextStatus !== 'cancelling'
 
       await tx
         .update(pausedExecutions)
@@ -565,7 +631,9 @@ export class PauseResumeManager {
     })
 
     await releaseExecutionSlot(reservationId)
-    await PauseResumeManager.processQueuedResumes(executionId, workflowId)
+    if (shouldProcessQueuedResumes) {
+      await PauseResumeManager.processQueuedResumes(executionId, workflowId)
+    }
   }
 
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
@@ -734,6 +802,7 @@ export class PauseResumeManager {
         abortSignal,
         pausedExecution.metadata
       )
+      registerManualExecutionAborter(resumeExecutionId, attemptTimeoutController.abort)
       const result = await PauseResumeManager.runResumeExecution({
         reservationId: resumeEntryId,
         resumeExecutionId,
@@ -824,6 +893,8 @@ export class PauseResumeManager {
       if (result.status === 'paused') {
         await PauseResumeManager.markResumeCompleted({
           resumeEntryId,
+          pausedExecutionId: pausedExecution.id,
+          parentExecutionId: pausedExecution.executionId,
         })
       }
 
@@ -879,6 +950,9 @@ export class PauseResumeManager {
       }
       throw error
     } finally {
+      if (attemptTimeoutController) {
+        unregisterManualExecutionAborter(resumeExecutionId, attemptTimeoutController.abort)
+      }
       attemptTimeoutController?.cleanup()
     }
   }
@@ -1886,15 +1960,84 @@ export class PauseResumeManager {
     const { resumeEntryId, pausedExecutionId, parentExecutionId, contextId } = args
     const now = new Date()
 
+    let targetPausedExecutionId = pausedExecutionId
+    let targetParentExecutionId = parentExecutionId
+    if (!targetPausedExecutionId || !targetParentExecutionId) {
+      const resumeIdentity = await execDb
+        .select({
+          parentExecutionId: resumeQueue.parentExecutionId,
+          pausedExecutionId: resumeQueue.pausedExecutionId,
+        })
+        .from(resumeQueue)
+        .where(eq(resumeQueue.id, resumeEntryId))
+        .limit(1)
+        .then((rows) => rows[0])
+      if (!resumeIdentity) return
+      targetPausedExecutionId = resumeIdentity.pausedExecutionId
+      targetParentExecutionId = resumeIdentity.parentExecutionId
+    }
+
     await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, targetParentExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const pausedExecution = await tx
+        .select({ status: pausedExecutions.status })
+        .from(pausedExecutions)
+        .where(eq(pausedExecutions.id, targetPausedExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const resumeEntry = await tx
+        .select({ status: resumeQueue.status })
+        .from(resumeQueue)
+        .where(eq(resumeQueue.id, resumeEntryId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const cancellationWon =
+        executionLog?.status === 'cancelled' ||
+        pausedExecution?.status === 'cancelling' ||
+        pausedExecution?.status === 'cancelled'
+      if (cancellationWon) {
+        if (resumeEntry?.status === 'claimed') {
+          await tx
+            .update(resumeQueue)
+            .set({
+              status: 'failed',
+              completedAt: now,
+              failureReason: 'Paused execution cancelled',
+            })
+            .where(and(eq(resumeQueue.id, resumeEntryId), eq(resumeQueue.status, 'claimed')))
+        }
+        if (
+          executionLog?.status === 'cancelled' &&
+          pausedExecution &&
+          pausedExecution.status !== 'cancelled'
+        ) {
+          await tx
+            .update(pausedExecutions)
+            .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+            .where(eq(pausedExecutions.id, targetPausedExecutionId))
+        }
+        return
+      }
+
+      if (resumeEntry?.status !== 'claimed') return
+
       await tx
         .update(resumeQueue)
         .set({ status: 'completed', completedAt: now, failureReason: null })
-        .where(eq(resumeQueue.id, resumeEntryId))
+        .where(and(eq(resumeQueue.id, resumeEntryId), eq(resumeQueue.status, 'claimed')))
 
-      if (!pausedExecutionId || !parentExecutionId || !contextId) {
-        return
-      }
+      if (!pausedExecution || !contextId) return
 
       await tx
         .update(pausedExecutions)
@@ -1907,35 +2050,35 @@ export class PauseResumeManager {
           metadata: clearAutomaticResumeWaitingMetadataSql(contextId),
           resumedCount: sql`resumed_count + 1`,
           automaticResumeRetryCount: 0,
-          status: sql`CASE WHEN status = 'cancelling' THEN 'cancelling' WHEN resumed_count + 1 >= total_pause_count THEN 'fully_resumed' ELSE 'partially_resumed' END`,
+          status: sql`CASE WHEN status IN ('cancelling', 'cancelled') THEN status WHEN resumed_count + 1 >= total_pause_count THEN 'fully_resumed' ELSE 'partially_resumed' END`,
           updatedAt: now,
         })
-        .where(eq(pausedExecutions.id, pausedExecutionId))
+        .where(eq(pausedExecutions.id, targetPausedExecutionId))
 
       const [{ remaining }] = await tx
         .select({ remaining: sql<number>`total_pause_count - resumed_count` })
         .from(pausedExecutions)
-        .where(eq(pausedExecutions.executionId, parentExecutionId))
+        .where(eq(pausedExecutions.executionId, targetParentExecutionId))
 
       if (Number(remaining) <= 0) {
         await tx
           .update(pausedExecutions)
           .set({
-            status: sql`CASE WHEN status = 'cancelling' THEN 'cancelling' ELSE 'fully_resumed' END`,
+            status: sql`CASE WHEN status IN ('cancelling', 'cancelled') THEN status ELSE 'fully_resumed' END`,
             updatedAt: now,
           })
-          .where(eq(pausedExecutions.executionId, parentExecutionId))
+          .where(eq(pausedExecutions.executionId, targetParentExecutionId))
       } else {
         await tx
           .update(workflowExecutionLogs)
           .set({ status: 'pending', executionDeadlineAt: null })
           .where(
             and(
-              eq(workflowExecutionLogs.executionId, parentExecutionId),
+              eq(workflowExecutionLogs.executionId, targetParentExecutionId),
               sql`${workflowExecutionLogs.status} != 'cancelled'`,
               sql`NOT EXISTS (
                 SELECT 1 FROM ${pausedExecutions}
-                WHERE ${pausedExecutions.executionId} = ${parentExecutionId}
+                WHERE ${pausedExecutions.executionId} = ${targetParentExecutionId}
                   AND ${pausedExecutions.status} = 'cancelling'
               )`
             )
@@ -1954,10 +2097,36 @@ export class PauseResumeManager {
     const now = new Date()
 
     await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, args.parentExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const pausedExecution = await tx
+        .select({ status: pausedExecutions.status })
+        .from(pausedExecutions)
+        .where(eq(pausedExecutions.id, args.pausedExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
       await tx
         .update(resumeQueue)
         .set({ status: 'failed', failureReason: args.failureReason, completedAt: now })
         .where(eq(resumeQueue.id, args.resumeEntryId))
+
+      if (executionLog?.status === 'cancelled' || pausedExecution?.status === 'cancelled') {
+        if (pausedExecution && pausedExecution.status !== 'cancelled') {
+          await tx
+            .update(pausedExecutions)
+            .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+            .where(eq(pausedExecutions.id, args.pausedExecutionId))
+        }
+        return
+      }
 
       await tx
         .update(pausedExecutions)
@@ -1966,6 +2135,8 @@ export class PauseResumeManager {
           metadata: clearAutomaticResumeWaitingMetadataSql(args.contextId),
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
+
+      if (pausedExecution?.status === 'cancelling') return
 
       await tx
         .update(workflowExecutionLogs)
@@ -1991,25 +2162,36 @@ export class PauseResumeManager {
     const now = new Date()
 
     await execDb.transaction(async (tx) => {
-      const pausedExecution = args.preserveForRetry
-        ? await tx
-            .select({
-              automaticResumeRetryCount: pausedExecutions.automaticResumeRetryCount,
-              status: pausedExecutions.status,
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, args.parentExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const pausedExecution = await tx
+        .select({
+          automaticResumeRetryCount: pausedExecutions.automaticResumeRetryCount,
+          status: pausedExecutions.status,
+        })
+        .from(pausedExecutions)
+        .where(eq(pausedExecutions.id, args.pausedExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const admissionDecision =
+        args.preserveForRetry &&
+        pausedExecution &&
+        isResumablePausedStatus(pausedExecution.status) &&
+        executionLog?.status !== 'cancelled'
+          ? resolveAutomaticResumeAdmissionFailure({
+              currentRetryCount: pausedExecution.automaticResumeRetryCount,
+              retryable: args.retryable === true,
+              now,
             })
-            .from(pausedExecutions)
-            .where(eq(pausedExecutions.id, args.pausedExecutionId))
-            .for('update')
-            .limit(1)
-            .then((rows) => rows[0])
-        : undefined
-      const admissionDecision = pausedExecution
-        ? resolveAutomaticResumeAdmissionFailure({
-            currentRetryCount: pausedExecution.automaticResumeRetryCount,
-            retryable: args.retryable === true,
-            now,
-          })
-        : undefined
+          : undefined
       const canRetry = admissionDecision?.state === 'waiting'
       const automaticResumeWaitingReason = admissionDecision
         ? getAutomaticResumeAdmissionReason(args.failureReason, admissionDecision.state)
@@ -2028,6 +2210,16 @@ export class PauseResumeManager {
             : { status: 'failed', failureReason: args.failureReason, completedAt: now }
         )
         .where(eq(resumeQueue.id, args.resumeEntryId))
+
+      if (executionLog?.status === 'cancelled' || pausedExecution?.status === 'cancelled') {
+        if (pausedExecution && pausedExecution.status !== 'cancelled') {
+          await tx
+            .update(pausedExecutions)
+            .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+            .where(eq(pausedExecutions.id, args.pausedExecutionId))
+        }
+        return
+      }
 
       await tx
         .update(pausedExecutions)
@@ -2056,6 +2248,8 @@ export class PauseResumeManager {
             : {}),
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
+
+      if (pausedExecution?.status === 'cancelling') return
 
       await tx
         .update(workflowExecutionLogs)
@@ -2230,13 +2424,134 @@ export class PauseResumeManager {
     })
   }
 
+  /**
+   * Stages cancellation and identifies the exact claimed resume while holding
+   * the workflow log, pause, and resume queue locks in canonical order.
+   * Resume admission locks the same pause row and rejects `cancelling`, so a
+   * replacement cannot be claimed after this transaction commits.
+   */
+  static async stagePausedCancellation(
+    executionId: string,
+    workflowId: string
+  ): Promise<PausedCancellationStage> {
+    const now = new Date()
+
+    return await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (
+        !executionLog ||
+        (executionLog.status !== 'running' &&
+          executionLog.status !== 'pending' &&
+          executionLog.status !== 'cancelled')
+      ) {
+        return { kind: 'not_paused' }
+      }
+
+      const pausedExecution = await tx
+        .select({ id: pausedExecutions.id, status: pausedExecutions.status })
+        .from(pausedExecutions)
+        .where(
+          and(
+            eq(pausedExecutions.executionId, executionId),
+            eq(pausedExecutions.workflowId, workflowId),
+            inArray(pausedExecutions.status, [...CANCELLABLE_PAUSED_STATUSES, 'cancelling'])
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (!pausedExecution) {
+        return { kind: 'not_paused' }
+      }
+
+      const activeResume = await tx
+        .select({
+          resumeEntryId: resumeQueue.id,
+          pausedExecutionId: resumeQueue.pausedExecutionId,
+          parentExecutionId: resumeQueue.parentExecutionId,
+          resumeExecutionId: resumeQueue.newExecutionId,
+        })
+        .from(resumeQueue)
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            eq(resumeQueue.status, 'claimed')
+          )
+        )
+        .orderBy(desc(resumeQueue.claimedAt))
+        .limit(1)
+        .for('update')
+        .then((rows) => rows[0])
+
+      if (pausedExecution.status !== 'cancelling') {
+        await tx
+          .update(pausedExecutions)
+          .set({ status: 'cancelling', updatedAt: now })
+          .where(
+            and(
+              eq(pausedExecutions.id, pausedExecution.id),
+              inArray(pausedExecutions.status, CANCELLABLE_PAUSED_STATUSES)
+            )
+          )
+      }
+
+      await tx
+        .update(resumeQueue)
+        .set({
+          status: 'failed',
+          completedAt: now,
+          failureReason: PAUSED_CANCELLATION_QUEUE_FAILURE_REASON,
+        })
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            eq(resumeQueue.status, 'pending')
+          )
+        )
+
+      if (!activeResume) {
+        return { kind: 'idle' }
+      }
+
+      return { kind: 'active_resume', target: activeResume }
+    })
+  }
+
   static async completePausedCancellation(
     executionId: string,
     workflowId: string
   ): Promise<boolean> {
     const now = new Date()
 
-    return await execDb.transaction(async (tx) => {
+    const transition = await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
       const pausedExecution = await tx
         .select({ id: pausedExecutions.id, status: pausedExecutions.status })
         .from(pausedExecutions)
@@ -2250,34 +2565,76 @@ export class PauseResumeManager {
         .limit(1)
         .then((rows) => rows[0])
 
-      if (!pausedExecution || pausedExecution.status !== 'cancelling') {
-        if (pausedExecution?.status === 'cancelled') {
-          return true
-        }
-        return false
+      if (!executionLog || !pausedExecution) {
+        return { cancelled: false, claimedResumeEntryIds: [] as string[] }
       }
 
-      const [cancelledExecution] = await tx
-        .update(workflowExecutionLogs)
-        .set({ status: 'cancelled', endedAt: now, executionDeadlineAt: null })
-        .where(
-          and(
-            eq(workflowExecutionLogs.executionId, executionId),
-            eq(workflowExecutionLogs.workflowId, workflowId),
-            inArray(workflowExecutionLogs.status, ['running', 'pending', 'cancelled'])
-          )
-        )
-        .returning({ status: workflowExecutionLogs.status })
+      const cancellationAlreadyTerminal = executionLog.status === 'cancelled'
+      const cancellationWasStaged =
+        pausedExecution.status === 'cancelling' || pausedExecution.status === 'cancelled'
+      if (
+        !cancellationAlreadyTerminal &&
+        (!cancellationWasStaged ||
+          (executionLog.status !== 'running' && executionLog.status !== 'pending'))
+      ) {
+        return { cancelled: false, claimedResumeEntryIds: [] as string[] }
+      }
 
-      if (cancelledExecution?.status !== 'cancelled') return false
+      if (!cancellationAlreadyTerminal) {
+        const [cancelledExecution] = await tx
+          .update(workflowExecutionLogs)
+          .set({ status: 'cancelled', endedAt: now, executionDeadlineAt: null })
+          .where(
+            and(
+              eq(workflowExecutionLogs.executionId, executionId),
+              eq(workflowExecutionLogs.workflowId, workflowId),
+              inArray(workflowExecutionLogs.status, ['running', 'pending', 'cancelled'])
+            )
+          )
+          .returning({ status: workflowExecutionLogs.status })
+
+        if (cancelledExecution?.status !== 'cancelled') {
+          return { cancelled: false, claimedResumeEntryIds: [] as string[] }
+        }
+      }
+
+      if (pausedExecution.status !== 'cancelled') {
+        await tx
+          .update(pausedExecutions)
+          .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+          .where(eq(pausedExecutions.id, pausedExecution.id))
+      }
+
+      const claimedResumeEntries = await tx
+        .select({ id: resumeQueue.id })
+        .from(resumeQueue)
+        .where(
+          and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'claimed'))
+        )
+        .for('update')
 
       await tx
-        .update(pausedExecutions)
-        .set({ status: 'cancelled', updatedAt: now })
-        .where(eq(pausedExecutions.id, pausedExecution.id))
+        .update(resumeQueue)
+        .set({
+          status: 'failed',
+          completedAt: now,
+          failureReason: 'Paused execution cancelled',
+        })
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            inArray(resumeQueue.status, ['pending', 'claimed'])
+          )
+        )
 
-      return true
+      return {
+        cancelled: true,
+        claimedResumeEntryIds: claimedResumeEntries.map((entry) => entry.id),
+      }
     })
+
+    await releaseCancelledResumeReservations(transition.claimedResumeEntryIds)
+    return transition.cancelled
   }
 
   static async blockQueuedResumesForCancellation(
@@ -2315,14 +2672,198 @@ export class PauseResumeManager {
         .set({
           status: 'failed',
           completedAt: now,
-          failureReason: 'Paused execution cancellation requested',
+          failureReason: PAUSED_CANCELLATION_QUEUE_FAILURE_REASON,
         })
         .where(
           and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'pending'))
         )
 
-      return true
+      const activeResume = await tx
+        .select({ id: resumeQueue.id })
+        .from(resumeQueue)
+        .where(
+          and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'claimed'))
+        )
+        .limit(1)
+        .then((rows) => rows[0])
+
+      return !activeResume
     })
+  }
+
+  static async getActiveResumeCancellationTarget(
+    executionId: string,
+    workflowId: string
+  ): Promise<ActiveResumeCancellationTarget | null> {
+    const activeResume = await execDb
+      .select({
+        resumeEntryId: resumeQueue.id,
+        pausedExecutionId: resumeQueue.pausedExecutionId,
+        parentExecutionId: resumeQueue.parentExecutionId,
+        resumeExecutionId: resumeQueue.newExecutionId,
+      })
+      .from(resumeQueue)
+      .innerJoin(pausedExecutions, eq(resumeQueue.pausedExecutionId, pausedExecutions.id))
+      .where(
+        and(
+          eq(resumeQueue.parentExecutionId, executionId),
+          eq(resumeQueue.status, 'claimed'),
+          eq(pausedExecutions.executionId, executionId),
+          eq(pausedExecutions.workflowId, workflowId)
+        )
+      )
+      .orderBy(desc(resumeQueue.claimedAt))
+      .limit(1)
+      .then((rows) => rows[0])
+
+    return activeResume ?? null
+  }
+
+  static async rollbackActiveResumeCancellation(
+    executionId: string,
+    workflowId: string,
+    resumeEntryId: string
+  ): Promise<boolean> {
+    const now = new Date()
+
+    const rollback = await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const pausedExecution = await tx
+        .select({
+          id: pausedExecutions.id,
+          status: pausedExecutions.status,
+        })
+        .from(pausedExecutions)
+        .where(
+          and(
+            eq(pausedExecutions.executionId, executionId),
+            eq(pausedExecutions.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const exactResume = pausedExecution
+        ? await tx
+            .select({
+              contextId: resumeQueue.contextId,
+              id: resumeQueue.id,
+              parentExecutionId: resumeQueue.parentExecutionId,
+              pausedExecutionId: resumeQueue.pausedExecutionId,
+              status: resumeQueue.status,
+            })
+            .from(resumeQueue)
+            .where(eq(resumeQueue.id, resumeEntryId))
+            .for('update')
+            .limit(1)
+            .then((rows) => rows[0])
+        : undefined
+
+      const claimedResumes = pausedExecution
+        ? await tx
+            .select({ id: resumeQueue.id })
+            .from(resumeQueue)
+            .where(
+              and(
+                eq(resumeQueue.parentExecutionId, executionId),
+                eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+                eq(resumeQueue.status, 'claimed')
+              )
+            )
+            .for('update')
+        : []
+
+      const hasReplacementClaim = claimedResumes.some((entry) => entry.id !== resumeEntryId)
+
+      if (
+        !executionLog ||
+        (executionLog.status !== 'running' && executionLog.status !== 'pending') ||
+        pausedExecution?.status !== 'cancelling' ||
+        !exactResume ||
+        (exactResume.status !== 'claimed' &&
+          exactResume.status !== 'failed' &&
+          exactResume.status !== 'completed') ||
+        exactResume.parentExecutionId !== executionId ||
+        exactResume.pausedExecutionId !== pausedExecution.id ||
+        hasReplacementClaim
+      ) {
+        return { rolledBack: false, shouldProcessQueuedResumes: false }
+      }
+
+      await tx
+        .update(pausedExecutions)
+        .set(
+          exactResume.status === 'failed'
+            ? {
+                pausePoints: updatePausePointResumeStateSql(exactResume.contextId, 'paused'),
+                metadata: clearAutomaticResumeWaitingMetadataSql(exactResume.contextId),
+                automaticResumeRetryCount: 0,
+                nextResumeAt: null,
+                status: sql`CASE
+                  WHEN resumed_count >= total_pause_count THEN 'fully_resumed'
+                  WHEN resumed_count > 0 THEN 'partially_resumed'
+                  ELSE 'paused'
+                END`,
+                updatedAt: now,
+              }
+            : {
+                status: sql`CASE
+                  WHEN resumed_count >= total_pause_count THEN 'fully_resumed'
+                  WHEN resumed_count > 0 THEN 'partially_resumed'
+                  ELSE 'paused'
+                END`,
+                updatedAt: now,
+              }
+        )
+        .where(
+          and(
+            eq(pausedExecutions.id, pausedExecution.id),
+            eq(pausedExecutions.status, 'cancelling')
+          )
+        )
+
+      await tx
+        .update(resumeQueue)
+        .set({ status: 'pending', completedAt: null, failureReason: null })
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            eq(resumeQueue.status, 'failed'),
+            eq(resumeQueue.failureReason, PAUSED_CANCELLATION_QUEUE_FAILURE_REASON)
+          )
+        )
+
+      return {
+        rolledBack: true,
+        shouldProcessQueuedResumes: exactResume.status !== 'claimed',
+      }
+    })
+
+    if (rollback.shouldProcessQueuedResumes) {
+      await PauseResumeManager.processQueuedResumes(executionId, workflowId).catch((error) => {
+        logger.warn('Failed to dispatch restored resume queue after cancellation rollback', {
+          executionId,
+          resumeEntryId,
+          error: toError(error).message,
+        })
+      })
+    }
+
+    return rollback.rolledBack
   }
 
   static async clearPausedCancellationIntent(
@@ -2330,26 +2871,87 @@ export class PauseResumeManager {
     workflowId: string
   ): Promise<void> {
     const now = new Date()
-    await execDb
-      .update(pausedExecutions)
-      .set({
-        status: sql`CASE WHEN resumed_count > 0 THEN 'partially_resumed' ELSE 'paused' END`,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(pausedExecutions.executionId, executionId),
-          eq(pausedExecutions.workflowId, workflowId),
-          eq(pausedExecutions.status, 'cancelling')
+
+    const shouldProcessQueuedResumes = await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
         )
-      )
-    await PauseResumeManager.processQueuedResumes(executionId, workflowId)
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const pausedExecution = await tx
+        .select({ id: pausedExecutions.id })
+        .from(pausedExecutions)
+        .where(
+          and(
+            eq(pausedExecutions.executionId, executionId),
+            eq(pausedExecutions.workflowId, workflowId),
+            eq(pausedExecutions.status, 'cancelling')
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (!pausedExecution) {
+        return false
+      }
+
+      const workflowIsActive =
+        executionLog?.status === 'running' || executionLog?.status === 'pending'
+
+      await tx
+        .update(pausedExecutions)
+        .set({
+          status: sql`CASE
+            WHEN resumed_count >= total_pause_count THEN 'fully_resumed'
+            WHEN resumed_count > 0 THEN 'partially_resumed'
+            ELSE 'paused'
+          END`,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(pausedExecutions.id, pausedExecution.id),
+            eq(pausedExecutions.status, 'cancelling')
+          )
+        )
+
+      if (!workflowIsActive) {
+        return false
+      }
+
+      await tx
+        .update(resumeQueue)
+        .set({ status: 'pending', completedAt: null, failureReason: null })
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            eq(resumeQueue.status, 'failed'),
+            eq(resumeQueue.failureReason, PAUSED_CANCELLATION_QUEUE_FAILURE_REASON)
+          )
+        )
+
+      return true
+    })
+
+    if (shouldProcessQueuedResumes) {
+      await PauseResumeManager.processQueuedResumes(executionId, workflowId)
+    }
   }
 
   static async getPausedCancellationStatus(
     executionId: string,
     workflowId: string
-  ): Promise<'cancelling' | 'cancelled' | null> {
+  ): Promise<'active_resume' | 'cancelling' | 'cancelled' | null> {
     const activeResume = await execDb
       .select({ id: resumeQueue.id })
       .from(resumeQueue)
@@ -2358,7 +2960,7 @@ export class PauseResumeManager {
       .then((rows) => rows[0])
 
     if (activeResume) {
-      return null
+      return 'active_resume'
     }
 
     const pausedExecution = await execDb

@@ -47,6 +47,7 @@ const LOG: WorkflowLogSummary = {
   status: 'running',
   duration: null,
   trigger: 'api',
+  executionOrigin: null,
   createdAt: '2026-08-03T00:00:00.000Z',
   workflow: null,
   jobTitle: null,
@@ -132,6 +133,15 @@ describe('LogRowContextMenu cancellation action', () => {
     renderMenu({ log: { ...LOG, status: 'cancelling' } })
 
     expect(findButton('Stopping…')?.disabled).toBe(true)
+  })
+
+  it.each([
+    ['table trigger', null],
+    ['workflow-group', 'workflow_group' as const],
+  ])('shows cancellation for an active %s execution', (_label, executionOrigin) => {
+    renderMenu({ log: { ...LOG, trigger: 'table', executionOrigin } })
+
+    expect(findButton('Cancel Run')?.disabled).toBe(false)
   })
 
   it('only disables the execution matching the pending mutation', () => {

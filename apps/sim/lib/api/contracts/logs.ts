@@ -230,6 +230,7 @@ export const workflowLogSummarySchema = z.object({
   status: z.string().nullable(),
   duration: z.string().nullable(),
   trigger: z.string().nullable(),
+  executionOrigin: z.enum(['workflow_group']).nullable(),
   createdAt: z.string(),
   workflow: workflowSummarySchema.nullable(),
   jobTitle: z.string().nullable(),

@@ -7,7 +7,9 @@ import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import {
   AsyncJobEnqueueError,
   type EnqueueOptions,
+  EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE,
   type ExecutionJobBinding,
+  type ExecutionJobCancellationScope,
   JOB_STATUS,
   type Job,
   type JobMetadata,
@@ -41,7 +43,7 @@ function rowToJob(row: AsyncJobRow): Job {
 }
 
 const inlineAbortControllers = new Map<string, AbortController>()
-const inlineExecutionControllers = new Map<string, Set<AbortController>>()
+const inlineExecutionControllers = new Map<string, Map<AbortController, JobType>>()
 
 /**
  * Per-cancel-key abort controllers for the `batchEnqueueAndWait` direct-call
@@ -93,10 +95,14 @@ function executionBindingKey(binding: ExecutionJobBinding): string {
   return JSON.stringify([binding.workflowId, binding.executionId])
 }
 
-function trackExecutionController(binding: ExecutionJobBinding, controller: AbortController): void {
+function trackExecutionController(
+  binding: ExecutionJobBinding,
+  controller: AbortController,
+  type: JobType
+): void {
   const key = executionBindingKey(binding)
-  const controllers = inlineExecutionControllers.get(key) ?? new Set<AbortController>()
-  controllers.add(controller)
+  const controllers = inlineExecutionControllers.get(key) ?? new Map<AbortController, JobType>()
+  controllers.set(controller, type)
   inlineExecutionControllers.set(key, controllers)
 }
 
@@ -292,7 +298,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
       }
       const binding = getExecutionBinding(item.payload, item.options)
       if (binding) {
-        trackExecutionController(binding, controller)
+        trackExecutionController(binding, controller, type)
         trackedExecutions.push({ binding, controller })
       }
       // Same shared-key semaphore as `runInline`: without it, overlapping
@@ -435,16 +441,23 @@ export class DatabaseJobQueue implements JobQueueBackend {
     logger.debug('Marked job as cancelled (DB queue)', { jobId, abortedInline: aborted })
   }
 
-  async cancelByExecution(binding: ExecutionJobBinding): Promise<number> {
+  async cancelByExecution(
+    binding: ExecutionJobBinding,
+    scope: ExecutionJobCancellationScope
+  ): Promise<number> {
     try {
       const key = executionBindingKey(binding)
       const controllers = inlineExecutionControllers.get(key)
-      const abortedControllers = controllers?.size ?? 0
+      const allowedJobTypes = EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE[scope]
+      let abortedControllers = 0
       if (controllers) {
-        inlineExecutionControllers.delete(key)
-        for (const controller of controllers) {
+        for (const [controller, type] of controllers) {
+          if (!(allowedJobTypes as readonly JobType[]).includes(type)) continue
           controller.abort(new DOMException('user', 'AbortError'))
+          controllers.delete(controller)
+          abortedControllers++
         }
+        if (controllers.size === 0) inlineExecutionControllers.delete(key)
       }
 
       const now = new Date()
@@ -459,6 +472,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
         .where(
           and(
             inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING]),
+            inArray(asyncJobs.type, [...allowedJobTypes]),
             and(
               or(
                 sql`${asyncJobs.metadata}->>'executionId' = ${binding.executionId}`,
@@ -486,6 +500,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
       })
       logger.info('Cancelled database jobs for execution', {
         ...binding,
+        scope,
         cancelledJobs: cancelledRows,
         abortedControllers,
       })
@@ -525,7 +540,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     }
     const abortController = new AbortController()
     inlineAbortControllers.set(jobId, abortController)
-    if (binding) trackExecutionController(binding, abortController)
+    if (binding) trackExecutionController(binding, abortController, type)
     void (async () => {
       if (concurrencyKey && concurrencyLimit && concurrencyLimit > 0) {
         await acquireSlot(concurrencyKey, concurrencyLimit)

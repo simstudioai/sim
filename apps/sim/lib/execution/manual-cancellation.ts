@@ -6,7 +6,8 @@ export function registerManualExecutionAborter(executionId: string, abort: () =>
   activeExecutionAborters.set(executionId, abort)
 }
 
-export function unregisterManualExecutionAborter(executionId: string): void {
+export function unregisterManualExecutionAborter(executionId: string, abort?: () => void): void {
+  if (abort && activeExecutionAborters.get(executionId) !== abort) return
   activeExecutionAborters.delete(executionId)
 }
 

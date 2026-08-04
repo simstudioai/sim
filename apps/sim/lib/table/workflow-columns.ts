@@ -16,7 +16,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, inArray, notInArray, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
+import type { EnqueueOptions, WorkflowGroupExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import {
   getAsyncExecutionTimeoutForBillingAttribution,
@@ -303,13 +303,7 @@ export async function buildEnqueueItems(
         metadata: {
           workflowId: runOpts.workflowId,
           workspaceId: runOpts.workspaceId,
-          correlation: {
-            executionId: runOpts.executionId,
-            requestId: `wfgrp-${runOpts.executionId}`,
-            source: 'workflow' as const,
-            workflowId: runOpts.workflowId,
-            triggerType: 'table',
-          },
+          correlation: buildWorkflowGroupExecutionCorrelation(runOpts),
         },
         concurrencyKey: runOpts.tableId,
         concurrencyLimit,
@@ -320,6 +314,28 @@ export async function buildEnqueueItems(
       },
     }
   })
+}
+
+/**
+ * Builds the server-issued identity that distinguishes a workflow-group cell
+ * attempt from a workflow invoked by a Table trigger block.
+ */
+export function buildWorkflowGroupExecutionCorrelation(
+  run: Pick<
+    WorkflowGroupCellPayload,
+    'executionId' | 'workflowId' | 'tableId' | 'rowId' | 'groupId'
+  >
+): WorkflowGroupExecutionCorrelation {
+  return {
+    executionId: run.executionId,
+    requestId: `wfgrp-${run.executionId}`,
+    source: 'workflow_group',
+    workflowId: run.workflowId,
+    triggerType: 'table',
+    tableId: run.tableId,
+    rowId: run.rowId,
+    groupId: run.groupId,
+  }
 }
 
 /** Stable key for `cancelInlineRun` lookups. Stamped on every enqueue item by

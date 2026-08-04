@@ -24,6 +24,10 @@ import {
   type TimeoutAbortController,
 } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
+import {
+  registerManualExecutionAborter,
+  unregisterManualExecutionAborter,
+} from '@/lib/execution/manual-cancellation'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { retryTableAdmission } from '@/lib/table/admission-retry'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
@@ -39,9 +43,10 @@ import type {
   UpdateRowData,
   WorkflowGroup,
 } from '@/lib/table/types'
-import type {
-  QueuedWorkflowGroupCellPayload,
-  WorkflowGroupCellPayload,
+import {
+  buildWorkflowGroupExecutionCorrelation,
+  type QueuedWorkflowGroupCellPayload,
+  type WorkflowGroupCellPayload,
 } from '@/lib/table/workflow-columns'
 
 export type { WorkflowGroupCellPayload }
@@ -188,6 +193,35 @@ export function createWorkflowGroupCarrierTimeoutController(
   )
 }
 
+/**
+ * Owns cancellation for one workflow-group attempt without aborting the row
+ * carrier that may subsequently execute other groups. The shared in-process
+ * registry is an exact execution-id fast path; remote workers receive the same
+ * exact cancellation through the executor's cancellation channel.
+ */
+export function createWorkflowGroupAttemptTimeoutController(
+  payload: QueuedWorkflowGroupCellPayload,
+  parentSignal?: AbortSignal
+): TimeoutAbortController {
+  const billingAttribution = requirePayloadBillingAttribution(payload)
+  const controller = createTimeoutAbortController(
+    capExecutionTimeoutMs(
+      getAsyncExecutionTimeoutForBillingAttribution(billingAttribution),
+      payload.executionTimeoutMs
+    ),
+    parentSignal
+  )
+  registerManualExecutionAborter(payload.executionId, controller.abort)
+
+  return {
+    ...controller,
+    cleanup: () => {
+      unregisterManualExecutionAborter(payload.executionId, controller.abort)
+      controller.cleanup()
+    },
+  }
+}
+
 /** Cell-task entrypoint. Holds a per-row cascade lock so only one worker
  *  advances a given row at a time; bails on contention. The held lock heart-
  *  beats every 10s so a crashed pod releases within ~30s.
@@ -315,7 +349,7 @@ export async function runRowCascadeLoop(
       currentGroup
     )
 
-    if (result === 'paused') break
+    if (result === 'paused' || result === 'cancelled') break
     // Hard stop (e.g. usage limit): the dispatch was halted and no cell was
     // marked. Propagate so the outer re-drive loop stops too — otherwise it
     // would re-pick the still-pending queued marker and spin.
@@ -332,25 +366,19 @@ export async function runRowCascadeLoop(
   return undefined
 }
 
-/** Returns `'paused'` to signal the cascade loop must exit (resume worker
- *  takes over) and `'blocked'` for a hard stop (usage limit — dispatch halted,
- *  cell left unmarked). `'completed' | 'error'` keep the loop running. */
+/** Returns `'paused'` or `'cancelled'` when the cascade must exit and
+ *  `'blocked'` for a hard stop (usage limit — dispatch halted, cell left
+ *  unmarked). `'completed' | 'error'` keep the loop running. */
 async function runWorkflowAndWriteTerminal(
   payload: QueuedWorkflowGroupCellPayload,
   signal: AbortSignal | undefined,
   table: TableDefinition,
   group: WorkflowGroup
-): Promise<'completed' | 'error' | 'paused' | 'blocked'> {
+): Promise<'completed' | 'error' | 'cancelled' | 'paused' | 'blocked'> {
   const { tableId, tableName, rowId, groupId, workflowId, workspaceId, executionId, dispatchId } =
     payload
   const billingAttribution = requirePayloadBillingAttribution(payload)
-  const timeoutController = createTimeoutAbortController(
-    capExecutionTimeoutMs(
-      getAsyncExecutionTimeoutForBillingAttribution(billingAttribution),
-      payload.executionTimeoutMs
-    ),
-    signal
-  )
+  const timeoutController = createWorkflowGroupAttemptTimeoutController(payload, signal)
   const attemptSignal = timeoutController.signal
   // Read from the live `group`, not the payload: in a cascade the payload is the
   // first group's snapshot, so a downstream group with a different version must
@@ -366,10 +394,14 @@ async function runWorkflowAndWriteTerminal(
         '@/lib/workflows/persistence/utils'
       )
       const {
+        buildCancelledExecution,
         createWorkflowCellProgressWriter,
         writeWorkflowGroupState,
         markWorkflowGroupPickedUp,
       } = await import('@/lib/table/cell-write')
+      const { classifyWorkflowCellTerminalResult } = await import(
+        '@/lib/table/workflow-cell-result'
+      )
       const { stashCellContextForResume } = await import('@/lib/table/workflow-columns')
 
       const cellCtx = { tableId, rowId, workspaceId, groupId, executionId, requestId, table }
@@ -419,7 +451,7 @@ async function runWorkflowAndWriteTerminal(
           return 'error'
         }
 
-        if (cancelledBeforeRun(row.executions?.[groupId])) return 'error'
+        if (cancelledBeforeRun(row.executions?.[groupId])) return 'cancelled'
 
         const enrichmentBillingAttribution = billingAttribution
 
@@ -678,7 +710,7 @@ async function runWorkflowAndWriteTerminal(
           return 'error'
         }
 
-        if (cancelledBeforeRun(row.executions?.[groupId])) return 'error'
+        if (cancelledBeforeRun(row.executions?.[groupId])) return 'cancelled'
 
         // Billing / usage / timeout gate — route table cells through the same
         // preprocessing every other trigger uses. Keep running draft
@@ -825,7 +857,9 @@ async function runWorkflowAndWriteTerminal(
           // release this concurrency slot promptly instead of sleeping out the
           // full retry budget.
           const refreshed = await getRowById(tableId, rowId, workspaceId)
-          if (!refreshed || cancelledBeforeRun(refreshed.executions?.[groupId])) return 'error'
+          if (!refreshed || cancelledBeforeRun(refreshed.executions?.[groupId])) {
+            return refreshed ? 'cancelled' : 'error'
+          }
         }
 
         // SQL guard also rejects if a stop click stamped `cancelled` between this
@@ -926,6 +960,7 @@ async function runWorkflowAndWriteTerminal(
             onBlockStart: progressWriter.onBlockStart,
             onBlockComplete: progressWriter.onBlockComplete,
             billingAttribution: preprocess.billingAttribution,
+            trustedExecutionCorrelation: buildWorkflowGroupExecutionCorrelation(payload),
           },
           executionId
         )
@@ -961,20 +996,24 @@ async function runWorkflowAndWriteTerminal(
           return 'paused'
         }
 
-        await writeState(
-          {
-            status: result.success ? 'completed' : 'error',
-            executionId,
-            jobId: null,
-            workflowId,
-            error: result.success ? null : (result.error ?? 'Workflow execution failed'),
-            runningBlockIds: [],
-            blockErrors,
-          },
-          pendingDataPatch,
-          eventOutputs
-        )
-        return result.success ? 'completed' : 'error'
+        const terminalResult = classifyWorkflowCellTerminalResult(result, {
+          timedOut: timeoutController.isTimedOut(),
+          timeoutMs: timeoutController.timeoutMs,
+        })
+        const terminalState =
+          terminalResult.status === 'cancelled'
+            ? buildCancelledExecution({ executionId, workflowId, blockErrors })
+            : {
+                status: terminalResult.status,
+                executionId,
+                jobId: null,
+                workflowId,
+                error: terminalResult.error,
+                runningBlockIds: [],
+                blockErrors,
+              }
+        await writeState(terminalState, pendingDataPatch, eventOutputs)
+        return terminalResult.status
       } catch (err) {
         const message = toError(err).message
         logger.error(

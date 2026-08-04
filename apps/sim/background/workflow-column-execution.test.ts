@@ -5,9 +5,11 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
+import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import {
   buildTableAbortState,
   buildTableUsageLimitClear,
+  createWorkflowGroupAttemptTimeoutController,
   createWorkflowGroupCarrierTimeoutController,
   terminalizeAbortedQueuedCarrierMarker,
 } from '@/background/workflow-column-execution'
@@ -65,6 +67,18 @@ describe('table workflow carrier deadline', () => {
     expect(getExecutionDeadlineAt(laterGroup.signal)?.getTime()).toBe(carrierDeadline)
     laterGroup.cleanup()
     carrier.cleanup()
+  })
+
+  it('aborts one registered attempt without aborting its row carrier', () => {
+    const carrier = new AbortController()
+    const attempt = createWorkflowGroupAttemptTimeoutController(QUEUED_PAYLOAD, carrier.signal)
+
+    expect(abortManualExecution(QUEUED_PAYLOAD.executionId)).toBe(true)
+    expect(attempt.signal.aborted).toBe(true)
+    expect(carrier.signal.aborted).toBe(false)
+
+    attempt.cleanup()
+    expect(abortManualExecution(QUEUED_PAYLOAD.executionId)).toBe(false)
   })
 })
 

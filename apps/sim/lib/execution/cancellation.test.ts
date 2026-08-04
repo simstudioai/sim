@@ -189,4 +189,17 @@ describe('manual execution cancellation registry', () => {
     expect(abortManualExecution('execution-1')).toBe(false)
     expect(abort).not.toHaveBeenCalled()
   })
+
+  it('does not let stale cleanup unregister a replacement aborter', () => {
+    const staleAbort = vi.fn()
+    const replacementAbort = vi.fn()
+
+    registerManualExecutionAborter('execution-1', staleAbort)
+    registerManualExecutionAborter('execution-1', replacementAbort)
+    unregisterManualExecutionAborter('execution-1', staleAbort)
+
+    expect(abortManualExecution('execution-1')).toBe(true)
+    expect(staleAbort).not.toHaveBeenCalled()
+    expect(replacementAbort).toHaveBeenCalledOnce()
+  })
 })

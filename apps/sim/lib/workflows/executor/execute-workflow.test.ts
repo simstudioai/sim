@@ -13,6 +13,7 @@ const {
   loggingSessionConstructorMock,
   projectDiagnosticErrorMock,
   safeStartMock,
+  setTrustedExecutionCorrelationMock,
 } = vi.hoisted(() => ({
   captureServerEventMock: vi.fn(),
   executeWorkflowCoreMock: vi.fn(),
@@ -20,6 +21,7 @@ const {
   loggingSessionConstructorMock: vi.fn(),
   projectDiagnosticErrorMock: vi.fn(),
   safeStartMock: vi.fn(),
+  setTrustedExecutionCorrelationMock: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -30,6 +32,7 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
   LoggingSession: class {
     projectDiagnosticError = projectDiagnosticErrorMock
     safeStart = safeStartMock
+    setTrustedExecutionCorrelation = setTrustedExecutionCorrelationMock
 
     constructor(...args: unknown[]) {
       loggingSessionConstructorMock(...args)
@@ -203,6 +206,32 @@ describe('executeWorkflow billing attribution', () => {
     expect(executeWorkflowCoreMock).toHaveBeenCalledWith(
       expect.objectContaining({ trustedInitialResolvedSecretTraceProvenance: provenance })
     )
+  })
+
+  it('persists server-issued workflow-group correlation in execution metadata', async () => {
+    const correlation = {
+      executionId: 'execution-1',
+      requestId: 'wfgrp-execution-1',
+      source: 'workflow_group' as const,
+      workflowId: 'workflow-1',
+      triggerType: 'table',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    }
+
+    await executeWorkflow(workflow, 'request-1', { rowId: 'row-1' }, 'actor-1', {
+      enabled: true,
+      workflowTriggerType: 'table',
+      billingAttribution,
+      trustedExecutionCorrelation: correlation,
+    })
+
+    const coreParams = executeWorkflowCoreMock.mock.calls[0]?.[0] as {
+      snapshot: ExecutionSnapshot
+    }
+    expect(coreParams.snapshot.metadata.correlation).toEqual(correlation)
+    expect(setTrustedExecutionCorrelationMock).toHaveBeenCalledWith(correlation)
   })
 
   it('uses the shared diagnostic projection for operational logs and failure telemetry', async () => {
