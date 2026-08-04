@@ -116,6 +116,20 @@ function pathLeaf(path: string): string {
   return decodePathSegment(leaf)
 }
 
+/** Returns the final path segment without a file extension or virtual content suffix. */
+function pathStem(path: string): string {
+  const normalized = path.replace(/\/+$/, '').replace(/\/content$/, '')
+  const leaf = pathLeaf(normalized)
+  const extensionIndex = leaf.lastIndexOf('.')
+  return extensionIndex > 0 ? leaf.slice(0, extensionIndex) : leaf
+}
+
+function grepTitle(args: ToolArgs): string {
+  const target = pathStem(stringArg(args, 'path')) || 'Internal Knowledge Base'
+  const pattern = truncate(stringArg(args, 'pattern').replace(/\s+/g, ' '), 60)
+  return pattern ? `Searching ${target} for ${pattern}` : `Searching ${target}`
+}
+
 function summarizeTargets(targets: string[], fallback: string): string {
   const normalized = targets.map((target) => target.trim()).filter(Boolean)
   if (normalized.length === 0) return fallback
@@ -770,12 +784,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return target ? `Searching Sim docs for "${truncate(target, 60)}"` : 'Searching Sim docs'
     }
     case 'grep': {
-      const target = firstStringArg(args, 'toolTitle', 'title')
-      return target ? `Searching for ${target}` : 'Searching'
+      return grepTitle(args)
     }
     case 'glob': {
-      const target = firstStringArg(args, 'toolTitle', 'title')
-      return target ? `Searching by path ${target}` : 'Searching by path'
+      return 'Exploring Internal Knowledge Base'
     }
     case 'mv': {
       const sources = stringArrayArg(args, 'sources')
@@ -973,6 +985,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Editing: 'Edited',
   Enabling: 'Enabled',
   Executing: 'Executed',
+  Exploring: 'Explored',
   Extracting: 'Extracted',
   Fading: 'Faded',
   Fetching: 'Fetched',

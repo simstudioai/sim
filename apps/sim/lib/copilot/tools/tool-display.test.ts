@@ -98,14 +98,53 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     ).toBeLessThanOrEqual('Searching Sim docs for ""'.length + 60 + '...'.length)
   })
 
-  it('uses path-search wording for glob titles', () => {
-    expect(getToolDisplayTitle('glob')).toBe('Searching by path')
+  it('uses a deterministic internal-knowledge title for glob', () => {
+    expect(getToolDisplayTitle('glob')).toBe('Exploring Internal Knowledge Base')
     expect(getToolDisplayTitle('glob', { toolTitle: 'docs corpus manifest' })).toBe(
-      'Searching by path docs corpus manifest'
+      'Exploring Internal Knowledge Base'
+    )
+    expect(getToolCompletedTitle(getToolDisplayTitle('glob'))).toBe(
+      'Explored Internal Knowledge Base'
+    )
+  })
+
+  it('titles grep from its path and pattern rather than a generated summary', () => {
+    expect(
+      getToolDisplayTitle('grep', {
+        path: 'docs/self-hosting.mdx',
+        pattern: 'BYOK',
+        toolTitle: 'BYOK in documentation',
+      })
+    ).toBe('Searching self-hosting for BYOK')
+    expect(
+      getToolDisplayTitle('grep', {
+        path: 'files/Q4%20Report.pdf/content',
+        pattern: 'revenue',
+      })
+    ).toBe('Searching Q4 Report for revenue')
+    expect(getToolDisplayTitle('grep', { pattern: 'BYOK' })).toBe(
+      'Searching Internal Knowledge Base for BYOK'
+    )
+    expect(getToolDisplayTitle('grep', { path: 'workflows/', pattern: 'slack' })).toBe(
+      'Searching workflows for slack'
     )
     expect(
-      getToolCompletedTitle(getToolDisplayTitle('glob', { toolTitle: 'docs corpus manifest' }))
-    ).toBe('Searched by path docs corpus manifest')
+      getToolCompletedTitle(
+        getToolDisplayTitle('grep', { path: 'docs/self-hosting.mdx', pattern: 'BYOK' })
+      )
+    ).toBe('Searched self-hosting for BYOK')
+  })
+
+  it('does not ask the model to generate glob or grep display summaries', () => {
+    for (const toolName of ['glob', 'grep'] as const) {
+      const parameters = TOOL_CATALOG[toolName].parameters as {
+        properties?: Record<string, unknown>
+        required?: string[]
+      }
+      expect(parameters.properties).not.toHaveProperty('toolTitle')
+      expect(parameters.required).toContain('pattern')
+      expect(parameters.required).not.toContain('toolTitle')
+    }
   })
 
   it('uses fetch wording for page-content retrieval', () => {

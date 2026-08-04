@@ -2548,13 +2548,8 @@ export const Glob: ToolCatalogEntry = {
         description:
           'Glob pattern to match file paths. Supports * (any segment) and ** (any depth).',
       },
-      toolTitle: {
-        type: 'string',
-        description:
-          'Required target-only UI phrase for the path-search row. The UI prefix is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Searching by path workflow configs".',
-      },
     },
-    required: ['pattern', 'toolTitle'],
+    required: ['pattern'],
   },
 }
 
@@ -2597,13 +2592,8 @@ export const Grep: ToolCatalogEntry = {
         description:
           "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
       },
-      toolTitle: {
-        type: 'string',
-        description:
-          'Required target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
-      },
     },
-    required: ['pattern', 'toolTitle'],
+    required: ['pattern'],
   },
 }
 
