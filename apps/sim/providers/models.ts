@@ -4601,11 +4601,15 @@ export function getHostedFireworksModels(): string[] {
 }
 
 export function updateFireworksModels(models: string[]): void {
-  const staticIds = new Set(STATIC_FIREWORKS_MODELS.map((model) => model.id.toLowerCase()))
+  const staticIdsAndAliases = new Set(
+    STATIC_FIREWORKS_MODELS.flatMap((model) => [model.id, ...(model.aliases ?? [])]).map((id) =>
+      id.toLowerCase()
+    )
+  )
   PROVIDER_DEFINITIONS.fireworks.models = [
     ...STATIC_FIREWORKS_MODELS,
     ...models
-      .filter((modelId) => !staticIds.has(modelId.toLowerCase()))
+      .filter((modelId) => !staticIdsAndAliases.has(modelId.toLowerCase()))
       .map((modelId) => ({
         id: modelId,
         pricing: {

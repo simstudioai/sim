@@ -521,6 +521,17 @@ describe('hosted Fireworks static catalog', () => {
     )
     expect(getModelPricing('fireworks/glm-5.2')?.input).toBeGreaterThan(0)
   })
+
+  it('does not duplicate a hosted model returned under its upstream resource alias', () => {
+    updateFireworksModels(['fireworks/accounts/fireworks/models/glm-5p2'])
+
+    expect(getProviderModels('fireworks')).not.toContain(
+      'fireworks/accounts/fireworks/models/glm-5p2'
+    )
+    expect(getProviderModels('fireworks').filter((id) => id === 'fireworks/glm-5.2')).toHaveLength(
+      1
+    )
+  })
 })
 
 describe('GPT-5.6 pricing', () => {

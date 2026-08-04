@@ -63,6 +63,7 @@ describe('custom model config', () => {
       parseCustomModelConfig({
         provider: 'fireworks',
         model: 'nvidia-nemotron-3-super-120b-a12b-fp8',
+        deployment: 'accounts/acme/deployments/nemotron-super-fp8',
         credentials: { mode: 'explicit', apiKey: '{{FIREWORKS_API_KEY}}' },
       }).model
     ).toBe('fireworks/nemotron-3-super-120b-a12b-fp8')
@@ -80,6 +81,46 @@ describe('custom model config', () => {
         credentials: { mode: 'auto' },
       })
     ).toThrow('credentials.mode must be "explicit"')
+  })
+
+  it('requires a valid deployment resource for Fireworks on-demand models', () => {
+    const base = {
+      provider: 'fireworks',
+      model: 'fireworks/qwen3.7-max',
+      credentials: { mode: 'explicit', apiKey: '{{FIREWORKS_API_KEY}}' },
+    }
+
+    expect(() => parseCustomModelConfig(base)).toThrow('deployment is required')
+    expect(() => parseCustomModelConfig({ ...base, deployment: 'qwen-prod' })).toThrow(
+      'must match accounts/<account-id>/deployments/<deployment-id>'
+    )
+    expect(
+      parseCustomModelConfig({
+        ...base,
+        deployment: 'accounts/acme/deployments/qwen-prod',
+      })
+    ).toMatchObject({
+      model: 'fireworks/qwen3.7-max',
+      deployment: 'accounts/acme/deployments/qwen-prod',
+    })
+  })
+
+  it('accepts Fireworks priority only for catalog models with a documented priority rate', () => {
+    expect(
+      parseCustomModelConfig({
+        provider: 'fireworks',
+        model: 'fireworks/minimax-m2.7',
+        providerOptions: { service_tier: 'priority' },
+      }).providerOptions
+    ).toEqual({ service_tier: 'priority' })
+
+    expect(() =>
+      parseCustomModelConfig({
+        provider: 'fireworks',
+        model: 'fireworks/nemotron-3-ultra-nvfp4',
+        providerOptions: { service_tier: 'priority' },
+      })
+    ).toThrow('priority processing is unavailable')
   })
 
   it('includes every requested Fireworks model and xAI Grok 4.5 in the JSON schema', () => {

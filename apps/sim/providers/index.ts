@@ -232,7 +232,9 @@ export async function executeProviderRequest(
     applyStreamingCostPolicy(
       response,
       resolveModelCostPolicy(sanitizedRequest.model, isBYOK),
-      sanitizedRequest.credentialMode === 'explicit' ? sanitizedRequest.model : undefined
+      isBYOK && sanitizedRequest.capabilityPolicy === 'passthrough'
+        ? sanitizedRequest.model
+        : undefined
     )
     return response
   }
@@ -270,7 +272,7 @@ export async function executeProviderRequest(
       ? (applyModelCostPolicy(rawModelCost, costPolicy) as typeof response.cost)
       : calculateBillableModelCost(response.model, promptTokens, completionTokens, { isBYOK })
 
-    if (sanitizedRequest.credentialMode === 'explicit' && rawModelCost) {
+    if (isBYOK && sanitizedRequest.capabilityPolicy === 'passthrough' && rawModelCost) {
       response.estimatedProviderCost = buildEstimatedProviderCost(response.model, rawModelCost)
     }
 

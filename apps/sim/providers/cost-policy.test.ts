@@ -207,6 +207,37 @@ describe('priceModelUsage', () => {
 
     expect(openAIShaped).toEqual(anthropicShaped)
   })
+
+  it('uses the whole prompt, including cache reads, to select long-context rates', () => {
+    const cost = priceModelUsage(
+      'grok-4.5',
+      {
+        input: 120_000,
+        cacheRead: 100_000,
+        output: 10_000,
+        contextInputTokens: 220_000,
+      },
+      LIST_PRICE_POLICY
+    )
+
+    expect(cost).toMatchObject({ input: 0.54, output: 0.12, total: 0.66 })
+  })
+
+  it('applies priority pricing after long-context and cache tier selection', () => {
+    const cost = priceModelUsage(
+      'grok-4.5',
+      {
+        input: 120_000,
+        cacheRead: 100_000,
+        output: 10_000,
+        contextInputTokens: 220_000,
+        serviceTier: 'priority',
+      },
+      LIST_PRICE_POLICY
+    )
+
+    expect(cost).toMatchObject({ input: 1.08, output: 0.24, total: 1.32 })
+  })
 })
 
 describe('withoutToolCost', () => {

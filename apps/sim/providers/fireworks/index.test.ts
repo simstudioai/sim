@@ -161,6 +161,19 @@ describe('fireworksProvider', () => {
     expect(result).toMatchObject({ model: 'fireworks/glm-5.2' })
   })
 
+  it('uses an on-demand deployment as the wire target while retaining the catalog id', async () => {
+    mockCreate.mockResolvedValueOnce(textResponse('ok'))
+
+    const result = await fireworksProvider.executeRequest({
+      ...baseRequest,
+      model: 'fireworks/qwen3.7-max',
+      providerModel: 'accounts/acme/deployments/qwen-prod',
+    })
+
+    expect(callBody(0).model).toBe('accounts/acme/deployments/qwen-prod')
+    expect(result).toMatchObject({ model: 'fireworks/qwen3.7-max' })
+  })
+
   it('passes custom options and reasoning through while canonical fields win', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('ok'))
 

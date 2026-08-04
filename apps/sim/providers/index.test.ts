@@ -624,6 +624,30 @@ describe('executeProviderRequest — custom model policy', () => {
     })
   })
 
+  it('returns the same estimate when custom auto credentials resolve to workspace BYOK', async () => {
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'fw-workspace-key', isBYOK: true })
+    mockExecuteRequest.mockResolvedValue({
+      content: 'ok',
+      model: 'fireworks/minimax-m2.7',
+      tokens: { input: 1000, output: 500, total: 1500 },
+    })
+
+    const result = (await executeProviderRequest('fireworks', {
+      model: 'fireworks/minimax-m2.7',
+      workspaceId: 'ws-1',
+      credentialMode: 'auto',
+      capabilityPolicy: 'passthrough',
+    })) as ProviderResponse
+
+    expect(result.cost).toMatchObject({ input: 0, output: 0, total: 0 })
+    expect(result.estimatedProviderCost).toMatchObject({
+      available: true,
+      input: 0.0003,
+      output: 0.0006,
+      total: 0.0009,
+    })
+  })
+
   it('reports GPU-time billing without inventing an on-demand request price', async () => {
     mockExecuteRequest.mockResolvedValue({
       content: 'ok',

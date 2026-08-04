@@ -6,6 +6,7 @@ import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
+import { addFireworksUsage, priceFireworksUsage } from '@/providers/fireworks/usage'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
@@ -30,7 +31,6 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
-  calculateCost,
   generateSchemaInstructions,
   isFunctionToolCall,
   prepareToolExecution,
@@ -91,7 +91,10 @@ export const fireworksProvider: ProviderConfig = {
       baseURL: 'https://api.fireworks.ai/inference/v1',
     })
 
-    const requestedModel = resolveFireworksWireModel(request.model.replace(/^fireworks\//, ''))
+    const requestedModel =
+      request.providerModel ?? resolveFireworksWireModel(request.model.replace(/^fireworks\//, ''))
+    const serviceTier =
+      request.providerOptions?.service_tier === 'priority' ? 'priority' : 'default'
 
     logger.info('Preparing Fireworks request', {
       model: requestedModel,
@@ -183,25 +186,10 @@ export const fireworksProvider: ProviderConfig = {
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
             createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
+              const pricedUsage = priceFireworksUsage(request.model, usage, serviceTier)
               output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
-
-              // Pricing keys on the catalog id (fireworks/<name>), not the wire
-              // name — static hosted entries price; dynamic ids stay unpriced.
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
+              output.tokens = pricedUsage.tokens
+              output.cost = pricedUsage.cost
 
               finalizeTiming()
             }),
@@ -222,11 +210,10 @@ export const fireworksProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
-      const tokens = {
-        input: currentResponse.usage?.prompt_tokens || 0,
-        output: currentResponse.usage?.completion_tokens || 0,
-        total: currentResponse.usage?.total_tokens || 0,
-      }
+      let currentTurnUsage = priceFireworksUsage(request.model, currentResponse.usage, serviceTier)
+      const usageTotals = priceFireworksUsage(request.model, undefined, serviceTier)
+      addFireworksUsage(usageTotals, currentTurnUsage)
+      const { tokens, cost: modelCost } = usageTotals
       const toolCalls: FunctionCallResponse[] = []
       const toolResults: Record<string, unknown>[] = []
       const currentMessages = [...formattedMessages]
@@ -265,7 +252,7 @@ export const fireworksProvider: ProviderConfig = {
           timeSegments,
           currentResponse,
           toolCallsInResponse,
-          { model: request.model, provider: 'fireworks' }
+          { model: request.model, provider: 'fireworks', cost: currentTurnUsage.cost }
         )
 
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
@@ -418,6 +405,8 @@ export const fireworksProvider: ProviderConfig = {
           nextPayload,
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
+        currentTurnUsage = priceFireworksUsage(request.model, currentResponse.usage, serviceTier)
+        addFireworksUsage(usageTotals, currentTurnUsage)
         const nextForcedToolResult = checkForForcedToolUsage(
           currentResponse,
           nextPayload.tool_choice,
@@ -439,11 +428,6 @@ export const fireworksProvider: ProviderConfig = {
         if (currentResponse.choices[0]?.message?.content) {
           content = currentResponse.choices[0].message.content
         }
-        if (currentResponse.usage) {
-          tokens.input += currentResponse.usage.prompt_tokens || 0
-          tokens.output += currentResponse.usage.completion_tokens || 0
-          tokens.total += currentResponse.usage.total_tokens || 0
-        }
         iterationCount++
       }
 
@@ -453,6 +437,7 @@ export const fireworksProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(timeSegments, currentResponse, pendingToolCalls, {
           model: request.model,
           provider: 'fireworks',
+          cost: currentTurnUsage.cost,
         })
 
         if (pendingToolCalls?.length && !(request.responseFormat && hasActiveTools)) {
@@ -476,6 +461,12 @@ export const fireworksProvider: ProviderConfig = {
             finalPayload,
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
+          const finalTurnUsage = priceFireworksUsage(
+            request.model,
+            finalResponse.usage,
+            serviceTier
+          )
+          addFireworksUsage(usageTotals, finalTurnUsage)
           const finalEndTime = Date.now()
           const finalDuration = finalEndTime - finalStartTime
 
@@ -491,17 +482,15 @@ export const fireworksProvider: ProviderConfig = {
           if (finalResponse.choices[0]?.message?.content) {
             content = finalResponse.choices[0].message.content
           }
-          if (finalResponse.usage) {
-            tokens.input += finalResponse.usage.prompt_tokens || 0
-            tokens.output += finalResponse.usage.completion_tokens || 0
-            tokens.total += finalResponse.usage.total_tokens || 0
-          }
-
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             finalResponse,
             finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
-            { model: request.model, provider: 'fireworks' }
+            {
+              model: request.model,
+              provider: 'fireworks',
+              cost: finalTurnUsage.cost,
+            }
           )
         }
       }
@@ -534,6 +523,8 @@ export const fireworksProvider: ProviderConfig = {
           finalPayload,
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
+        const finalTurnUsage = priceFireworksUsage(request.model, finalResponse.usage, serviceTier)
+        addFireworksUsage(usageTotals, finalTurnUsage)
         const finalEndTime = Date.now()
         const finalDuration = finalEndTime - finalStartTime
 
@@ -549,29 +540,26 @@ export const fireworksProvider: ProviderConfig = {
         if (finalResponse.choices[0]?.message?.content) {
           content = finalResponse.choices[0].message.content
         }
-        if (finalResponse.usage) {
-          tokens.input += finalResponse.usage.prompt_tokens || 0
-          tokens.output += finalResponse.usage.completion_tokens || 0
-          tokens.total += finalResponse.usage.total_tokens || 0
-        }
-
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           finalResponse,
           finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
-          { model: request.model, provider: 'fireworks' }
+          {
+            model: request.model,
+            provider: 'fireworks',
+            cost: finalTurnUsage.cost,
+          }
         )
       }
 
       if (request.stream) {
-        // Pricing keys on the catalog id (fireworks/<name>), not the wire name.
-        const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
         const toolCost = sumToolCosts(toolResults)
         const finalCost = {
-          input: accumulatedCost.input,
-          output: accumulatedCost.output,
+          input: modelCost.input,
+          output: modelCost.output,
           toolCost: toolCost || undefined,
-          total: accumulatedCost.total + toolCost,
+          total: modelCost.total + toolCost,
+          pricing: modelCost.pricing,
         }
 
         const streamingResult = createStreamingExecution({
@@ -586,14 +574,14 @@ export const fireworksProvider: ProviderConfig = {
             iterations: timeSegments.filter((segment) => segment.type === 'model').length,
             timeSegments,
           },
-          initialTokens: { input: tokens.input, output: tokens.output, total: tokens.total },
+          initialTokens: { ...tokens },
           initialCost: finalCost,
           toolCalls:
             toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) => {
             output.content = content
-            output.tokens = { input: tokens.input, output: tokens.output, total: tokens.total }
+            output.tokens = { ...tokens }
             output.cost = finalCost
             finalizeTiming()
             return createSettledAgentEventStream(content)
@@ -611,6 +599,7 @@ export const fireworksProvider: ProviderConfig = {
         content,
         model: request.model,
         tokens,
+        cost: modelCost,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,
         timing: {
