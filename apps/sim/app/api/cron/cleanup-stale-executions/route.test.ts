@@ -194,6 +194,18 @@ describe('stale execution cleanup deadline grace', () => {
     }
   })
 
+  it('claims every cleanup page without overlapping concurrent workers', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(7)
+    for (const [strength, options] of dbChainMockFns.for.mock.calls) {
+      expect(strength).toBe('update')
+      expect(options).toEqual({ skipLocked: true })
+    }
+  })
+
   it('caps every bulk mutation and returns only scalar export cleanup fields', async () => {
     const stateBatch = Array.from({ length: 1000 }, (_, index) => ({ id: `state-${index}` }))
     const retentionBatch = Array.from({ length: 2000 }, (_, index) => ({

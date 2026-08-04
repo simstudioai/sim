@@ -70,8 +70,9 @@ interface RunBatchedMutationOptions<TRow> {
 }
 
 /**
- * Runs a mutation in bounded pages. Candidate selection happens inside each
- * mutation query, so only the bounded RETURNING rows enter application memory.
+ * Runs a mutation in bounded pages. Each mutation must select candidates inside
+ * the mutation statement with `FOR UPDATE SKIP LOCKED`, so concurrent cleanup
+ * workers claim disjoint pages and a short RETURNING page proves exhaustion.
  */
 async function runBatchedMutation<TRow>({
   batchSize,
@@ -147,46 +148,52 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN - workflowRowsConsidered
         )
         currentWorkflowBatchSize = 0
-        const candidates = await db
-          .select({ id: workflowExecutionLogs.id })
-          .from(workflowExecutionLogs)
-          .where(staleExecutionPredicate)
-          .limit(limit)
-        currentWorkflowBatchSize = candidates.length
-        staleExecutionsFound += candidates.length
-        if (candidates.length === 0) break
+        const { candidates, updatedExecutions } = await db.transaction(async (tx) => {
+          const candidates = await tx
+            .select({ id: workflowExecutionLogs.id })
+            .from(workflowExecutionLogs)
+            .where(staleExecutionPredicate)
+            .limit(limit)
+            .for('update', { skipLocked: true })
+          currentWorkflowBatchSize = candidates.length
+          if (candidates.length === 0) return { candidates, updatedExecutions: [] }
 
-        const updatedExecutions = await db
-          .update(workflowExecutionLogs)
-          .set({
-            status: 'failed',
-            endedAt: now,
-            executionDeadlineAt: null,
-            totalDurationMs,
-            executionData: sql`jsonb_set(
-              COALESCE(execution_data, '{}'::jsonb),
-              ARRAY['error'],
-              to_jsonb(
-                CASE
-                  WHEN ${workflowExecutionLogs.executionDeadlineAt} IS NOT NULL
-                    THEN ${EXECUTION_DEADLINE_ERROR}::text
-                  ELSE ${'Execution terminated: worker timeout or crash after '}::text
-                    || ${staleDurationMinutes}::text
-                    || ' minutes'
-                END
-              )
-            )`,
-          })
-          .where(
-            and(
-              staleExecutionPredicate,
-              inArray(
-                workflowExecutionLogs.id,
-                candidates.map(({ id }) => id)
+          const updatedExecutions = await tx
+            .update(workflowExecutionLogs)
+            .set({
+              status: 'failed',
+              endedAt: now,
+              executionDeadlineAt: null,
+              totalDurationMs,
+              executionData: sql`jsonb_set(
+                COALESCE(execution_data, '{}'::jsonb),
+                ARRAY['error'],
+                to_jsonb(
+                  CASE
+                    WHEN ${workflowExecutionLogs.executionDeadlineAt} IS NOT NULL
+                      THEN ${EXECUTION_DEADLINE_ERROR}::text
+                    ELSE ${'Execution terminated: worker timeout or crash after '}::text
+                      || ${staleDurationMinutes}::text
+                      || ' minutes'
+                  END
+                )
+              )`,
+            })
+            .where(
+              and(
+                staleExecutionPredicate,
+                inArray(
+                  workflowExecutionLogs.id,
+                  candidates.map(({ id }) => id)
+                )
               )
             )
-          )
-          .returning({ id: workflowExecutionLogs.id })
+            .returning({ id: workflowExecutionLogs.id })
+
+          return { candidates, updatedExecutions }
+        })
+        staleExecutionsFound += candidates.length
+        if (candidates.length === 0) break
 
         cleaned += updatedExecutions.length
         workflowRowsConsidered += candidates.length
@@ -202,6 +209,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       logger.error('Failed to clean up stale workflow executions:', {
         error: toError(error).message,
       })
+      staleExecutionsFound += currentWorkflowBatchSize
       failed += currentWorkflowBatchSize
     }
 
@@ -237,6 +245,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             .from(asyncJobs)
             .where(staleProcessingPredicate)
             .limit(limit)
+            .for('update', { skipLocked: true })
 
           return db
             .update(asyncJobs)
@@ -292,6 +301,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             .from(tableJobs)
             .where(staleTableJobPredicate)
             .limit(limit)
+            .for('update', { skipLocked: true })
 
           return db
             .update(tableJobs)
@@ -325,6 +335,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             .from(tableJobs)
             .where(terminalTableJobPredicate)
             .limit(limit)
+            .for('update', { skipLocked: true })
 
           return db
             .delete(tableJobs)
@@ -379,6 +390,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             .from(asyncJobs)
             .where(stalePendingPredicate)
             .limit(limit)
+            .for('update', { skipLocked: true })
 
           return db
             .update(asyncJobs)
@@ -426,6 +438,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             .from(asyncJobs)
             .where(retainedJobPredicate)
             .limit(limit)
+            .for('update', { skipLocked: true })
 
           return db
             .delete(asyncJobs)
@@ -489,6 +502,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             )
           )
           .limit(DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE)
+          .for('update', { skipLocked: true })
 
         const deleted = await db
           .delete(workflowDeploymentOperation)
