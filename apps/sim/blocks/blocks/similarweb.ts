@@ -13,6 +13,36 @@ export const SimilarwebBlock: BlockConfig = {
   integrationType: IntegrationType.Analytics,
   bgColor: '#000922',
   icon: SimilarwebIcon,
+  canvasPresentation: {
+    defaultTitle: 'Similarweb',
+    sentences: {
+      byOperation: {
+        similarweb_website_overview: [
+          { text: 'Reads the analytics overview for', field: 'domain', core: true },
+        ],
+        similarweb_traffic_visits: [
+          { text: 'Reads total visits for', field: 'domain', core: true },
+          { text: ', scoped to', field: 'country' },
+        ],
+        similarweb_bounce_rate: [
+          { text: 'Reads bounce rate for', field: 'domain', core: true },
+          { text: ', scoped to', field: 'country' },
+        ],
+        similarweb_pages_per_visit: [
+          { text: 'Reads pages per visit for', field: 'domain', core: true },
+          { text: ', scoped to', field: 'country' },
+        ],
+        similarweb_visit_duration: [
+          { text: 'Reads desktop visit duration for', field: 'domain', core: true },
+          { text: ', scoped to', field: 'country' },
+        ],
+        similarweb_page_views: [
+          { text: 'Reads total page views for', field: 'domain', core: true },
+          { text: ', scoped to', field: 'country' },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

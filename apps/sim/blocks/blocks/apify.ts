@@ -19,6 +19,39 @@ export const ApifyBlock: BlockConfig<RunActorResult> = {
   bgColor: '#FFFFFF',
   icon: ApifyIcon,
 
+  canvasPresentation: {
+    defaultTitle: 'Apify',
+    sentences: {
+      byOperation: {
+        apify_run_actor_sync: [
+          { text: 'Runs actor', field: 'actorId', after: 'and waits for results', core: true },
+        ],
+        apify_run_actor_async: [
+          {
+            text: 'Starts actor',
+            field: 'actorId',
+            after: ', polling until it finishes',
+            core: true,
+          },
+        ],
+        apify_run_task: [
+          {
+            text: 'Runs saved task',
+            field: 'taskId',
+            after: 'and returns its dataset items',
+            core: true,
+          },
+        ],
+        apify_get_dataset_items: [
+          { text: 'Fetches items from dataset', field: 'datasetId', core: true },
+          { text: ', limited to', field: 'itemLimit' },
+          { text: ', skipping', field: 'offset' },
+        ],
+        apify_get_run: [{ text: 'Reads the status of run', field: 'runId', core: true }],
+      },
+    },
+  },
+
   subBlocks: [
     {
       id: 'operation',

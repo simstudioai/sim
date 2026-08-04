@@ -16,6 +16,9 @@ const SANDBOX_SCOPED_OPERATIONS = [
   'delete_sandbox',
 ]
 
+/** Canonical `file` pair: an uploaded file in basic mode, a file reference in advanced. */
+const DAYTONA_UPLOAD_FIELD = ['uploadFile', 'fileRef'] as const
+
 export const DaytonaBlock: BlockConfig = {
   type: 'daytona',
   name: 'Daytona',
@@ -28,6 +31,56 @@ export const DaytonaBlock: BlockConfig = {
   bgColor: '#FFFFFF',
   icon: DaytonaIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Daytona',
+    sentences: {
+      byOperation: {
+        create_sandbox: [
+          'Creates a sandbox',
+          { text: 'named', field: 'sandboxName' },
+          { text: 'from snapshot', field: 'snapshot' },
+          { text: ', in region', field: 'target' },
+        ],
+        run_code: [
+          { text: 'Runs', field: 'language', after: 'code', core: true },
+          { text: 'in sandbox', field: 'sandboxId' },
+        ],
+        execute_command: [
+          { text: 'Runs', field: 'command', core: true },
+          { text: 'in sandbox', field: 'sandboxId' },
+          { text: ', from', field: 'cwd' },
+        ],
+        upload_file: [
+          { text: 'Uploads', field: DAYTONA_UPLOAD_FIELD, core: true },
+          { text: 'to', field: 'destinationPath', core: true },
+          { text: 'in sandbox', field: 'sandboxId' },
+        ],
+        download_file: [
+          { text: 'Downloads', field: 'filePath', core: true },
+          { text: 'from sandbox', field: 'sandboxId' },
+        ],
+        list_files: [
+          'Lists files',
+          { text: 'under', field: 'directoryPath' },
+          { text: 'in sandbox', field: 'sandboxId' },
+        ],
+        git_clone: [
+          { text: 'Clones', field: 'repoUrl', core: true },
+          { text: 'into sandbox', field: 'sandboxId' },
+          { text: ', at branch', field: 'gitBranch' },
+        ],
+        list_sandboxes: [
+          'Lists sandboxes',
+          { text: ', named like', field: 'nameFilter' },
+          { text: ', labeled', field: 'labelFilter' },
+        ],
+        get_sandbox: [{ text: 'Reads details of sandbox', field: 'sandboxId', core: true }],
+        start_sandbox: [{ text: 'Starts sandbox', field: 'sandboxId', core: true }],
+        stop_sandbox: [{ text: 'Stops sandbox', field: 'sandboxId', core: true }],
+        delete_sandbox: [{ text: 'Deletes sandbox', field: 'sandboxId', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {

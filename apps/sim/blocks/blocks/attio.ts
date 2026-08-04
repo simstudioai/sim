@@ -4,6 +4,20 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AttioResponse } from '@/tools/attio/types'
 import { getTrigger } from '@/triggers'
 
+/*
+ * Canonical basic/advanced pairs, shared by the card sentences below. Naming
+ * both members is what keeps a sentence rendering for an advanced-mode user,
+ * who has only the manual field filled.
+ */
+const OBJECT_TYPE_FIELD = ['objectTypeSelector', 'objectType'] as const
+const LIST_FIELD = ['listSelector', 'listIdOrSlug'] as const
+/*
+ * A comment targets exactly one of an entry, a record, or a thread, chosen by
+ * the `commentTarget` dropdown. Not a canonical pair — mutually exclusive
+ * alternates, so the first one configured wins.
+ */
+const COMMENT_TARGET_FIELD = ['commentEntryId', 'commentRecordId', 'commentThreadId'] as const
+
 export const AttioBlock: BlockConfig<AttioResponse> = {
   type: 'attio',
   name: 'Attio',
@@ -15,6 +29,167 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#1D1E20',
   icon: AttioIcon,
+  canvasPresentation: {
+    defaultTitle: 'Attio',
+    sentences: {
+      byOperation: {
+        list_records: [
+          { text: 'Lists records in', field: OBJECT_TYPE_FIELD, core: true },
+          { text: ', where', field: 'filter' },
+          { text: ', sorted by', field: 'sorts' },
+        ],
+        get_record: [
+          { text: 'Reads record', field: 'recordId', core: true },
+          { text: 'from', field: OBJECT_TYPE_FIELD },
+        ],
+        create_record: [
+          { text: 'Creates a record in', field: OBJECT_TYPE_FIELD, core: true },
+          { text: ', with', field: 'values' },
+        ],
+        update_record: [
+          { text: 'Updates record', field: 'recordId', core: true },
+          { text: 'in', field: OBJECT_TYPE_FIELD },
+          { text: ', setting', field: 'values' },
+        ],
+        delete_record: [
+          { text: 'Deletes record', field: 'recordId', core: true },
+          { text: 'from', field: OBJECT_TYPE_FIELD },
+        ],
+        search_records: [
+          { text: 'Searches for', field: 'query', core: true },
+          { text: 'across', field: 'objects' },
+        ],
+        assert_record: [
+          { text: 'Upserts a record in', field: OBJECT_TYPE_FIELD, core: true },
+          { text: ', matched on', field: 'matchingAttribute' },
+          { text: ', with', field: 'values' },
+        ],
+        list_notes: [
+          'Lists notes',
+          { text: ', on record', field: 'noteParentRecordId' },
+          { text: ', in', field: 'noteParentObject' },
+        ],
+        get_note: [{ text: 'Reads note', field: 'noteId', core: true }],
+        create_note: [
+          { text: 'Creates note', field: 'noteTitle', core: true },
+          { text: 'on record', field: 'noteParentRecordId', core: true },
+          { text: 'in', field: 'noteParentObject' },
+        ],
+        delete_note: [{ text: 'Deletes note', field: 'noteId', core: true }],
+        list_tasks: [
+          'Lists tasks',
+          { text: ', assigned to', field: 'taskFilterAssignee' },
+          { text: ', linked to record', field: 'taskFilterRecordId' },
+        ],
+        get_task: [{ text: 'Reads task', field: 'taskId', core: true }],
+        create_task: [
+          { text: 'Creates task', field: 'taskContent', core: true },
+          { text: ', due', field: 'taskDeadline' },
+          { text: ', assigned to', field: 'taskAssignees' },
+        ],
+        update_task: [
+          { text: 'Updates task', field: 'taskId', core: true },
+          { text: ', due', field: 'taskDeadline' },
+          { text: ', assigned to', field: 'taskAssignees' },
+        ],
+        delete_task: [{ text: 'Deletes task', field: 'taskId', core: true }],
+        list_objects: ['Lists every object in the workspace'],
+        get_object: [{ text: 'Reads object', field: 'objectIdOrSlug', core: true }],
+        create_object: [
+          { text: 'Creates object', field: 'objectApiSlug', core: true },
+          { text: ', named', field: 'objectSingularNoun' },
+        ],
+        update_object: [
+          { text: 'Updates object', field: 'objectIdOrSlug', core: true },
+          { text: ', renaming to', field: 'objectSingularNoun' },
+          { text: ', with slug', field: 'objectApiSlug' },
+        ],
+        list_lists: ['Lists every list in the workspace'],
+        get_list: [{ text: 'Reads list', field: LIST_FIELD, core: true }],
+        create_list: [
+          { text: 'Creates list', field: 'listName', core: true },
+          { text: 'on', field: 'listParentObject' },
+        ],
+        update_list: [
+          { text: 'Updates list', field: LIST_FIELD, core: true },
+          { text: ', renaming to', field: 'listName' },
+          { text: ', with slug', field: 'listApiSlug' },
+        ],
+        query_list_entries: [
+          { text: 'Queries entries in list', field: LIST_FIELD, core: true },
+          { text: ', where', field: 'entryFilter' },
+          { text: ', sorted by', field: 'entrySorts' },
+        ],
+        get_list_entry: [
+          { text: 'Reads entry', field: 'entryId', core: true },
+          { text: 'from list', field: LIST_FIELD },
+        ],
+        create_list_entry: [
+          { text: 'Adds record', field: 'entryParentRecordId', core: true },
+          { text: 'to list', field: LIST_FIELD },
+          { text: ', with', field: 'entryValues' },
+        ],
+        update_list_entry: [
+          { text: 'Updates entry', field: 'entryId', core: true },
+          { text: 'in list', field: LIST_FIELD },
+          { text: ', setting', field: 'entryValues' },
+        ],
+        delete_list_entry: [
+          { text: 'Removes entry', field: 'entryId', core: true },
+          { text: 'from list', field: LIST_FIELD },
+        ],
+        list_members: ['Lists every workspace member'],
+        get_member: [{ text: 'Reads workspace member', field: 'memberId', core: true }],
+        create_comment: [
+          { text: 'Posts comment', field: 'commentContent', core: true },
+          { text: 'on', field: COMMENT_TARGET_FIELD },
+        ],
+        get_comment: [{ text: 'Reads comment', field: 'commentId', core: true }],
+        delete_comment: [{ text: 'Deletes comment', field: 'commentId', core: true }],
+        list_threads: [
+          'Lists comment threads',
+          { text: ', on record', field: 'threadFilterRecordId' },
+          { text: ', on entry', field: 'threadFilterEntryId' },
+          { text: ', in list', field: 'threadFilterList' },
+        ],
+        get_thread: [{ text: 'Reads comment thread', field: 'threadId', core: true }],
+        list_webhooks: ['Lists every webhook in the workspace'],
+        get_webhook: [{ text: 'Reads webhook', field: 'webhookId', core: true }],
+        create_webhook: [
+          { text: 'Creates a webhook to', field: 'webhookTargetUrl', core: true },
+          { text: ', subscribed to', field: 'webhookSubscriptions' },
+        ],
+        update_webhook: [
+          { text: 'Updates webhook', field: 'webhookId', core: true },
+          { text: ', pointing to', field: 'webhookTargetUrl' },
+          { text: ', subscribed to', field: 'webhookSubscriptions' },
+        ],
+        delete_webhook: [{ text: 'Deletes webhook', field: 'webhookId', core: true }],
+        list_attributes: [
+          { text: 'Lists attributes on', field: 'attributeIdentifier', core: true },
+        ],
+        get_attribute: [
+          { text: 'Reads attribute', field: 'attributeId', core: true },
+          { text: 'on', field: 'attributeIdentifier' },
+        ],
+        create_attribute: [
+          {
+            text: 'Creates',
+            field: 'attributeType',
+            after: 'attribute',
+            core: true,
+          },
+          { field: 'attributeTitle', core: true },
+          { text: 'on', field: 'attributeIdentifier' },
+        ],
+        update_attribute: [
+          { text: 'Updates attribute', field: 'attributeId', core: true },
+          { text: 'on', field: 'attributeIdentifier' },
+          { text: ', renaming to', field: 'attributeTitle' },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.OAuth,
 
   subBlocks: [

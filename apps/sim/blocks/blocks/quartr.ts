@@ -45,6 +45,8 @@ const DATE_RANGE_LIST_OPERATIONS = [
 
 const UPDATED_RANGE_LIST_OPERATIONS = ['list_companies', ...DATE_RANGE_LIST_OPERATIONS]
 
+const COMPANY_FILTER_FIELD = ['tickers', 'companyIds'] as const
+
 export const QuartrBlock: BlockConfig<ToolResponse> = {
   type: 'quartr',
   name: 'Quartr',
@@ -57,6 +59,72 @@ export const QuartrBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/quartr',
   bgColor: '#000000',
   icon: QuartrIcon,
+  canvasPresentation: {
+    defaultTitle: 'Quartr',
+    sentences: {
+      byOperation: {
+        list_companies: [
+          'Lists covered companies',
+          { text: ', matching', field: COMPANY_FILTER_FIELD },
+          { text: ', listed in', field: 'countries' },
+          { text: ', up to', field: 'limit' },
+        ],
+        get_company: [{ text: 'Reads company', field: 'companyId', core: true }],
+        list_events: [
+          'Lists corporate events',
+          { text: ', for', field: COMPANY_FILTER_FIELD },
+          { text: ', from', field: 'startDate' },
+          { text: ', until', field: 'endDate' },
+        ],
+        get_event: [{ text: 'Reads event', field: 'eventId', core: true }],
+        get_event_summary: [
+          { text: 'Reads the AI summary of event', field: 'eventId', core: true },
+          { text: ', at', field: 'summaryLength', after: 'length' },
+        ],
+        list_event_types: ['Lists the available event types'],
+        list_documents: [
+          'Lists documents of every kind',
+          { text: ', for', field: COMPANY_FILTER_FIELD },
+          { text: ', from', field: 'startDate' },
+          { text: ', until', field: 'endDate' },
+        ],
+        list_document_types: ['Lists the available document types'],
+        list_reports: [
+          'Lists filings and reports',
+          { text: ', for', field: COMPANY_FILTER_FIELD },
+          { text: ', from', field: 'startDate' },
+          { text: ', until', field: 'endDate' },
+        ],
+        get_report: [{ text: 'Downloads report', field: 'reportId', core: true }],
+        list_slide_decks: [
+          'Lists slide decks',
+          { text: ', for', field: COMPANY_FILTER_FIELD },
+          { text: ', from', field: 'startDate' },
+          { text: ', until', field: 'endDate' },
+        ],
+        get_slide_deck: [{ text: 'Downloads slide deck', field: 'slideDeckId', core: true }],
+        list_transcripts: [
+          'Lists event transcripts',
+          { text: ', for', field: COMPANY_FILTER_FIELD },
+          { text: ', from', field: 'startDate' },
+          { text: ', until', field: 'endDate' },
+        ],
+        get_transcript: [{ text: 'Downloads transcript', field: 'transcriptId', core: true }],
+        list_audio: [
+          'Lists archived event audio',
+          { text: ', for', field: COMPANY_FILTER_FIELD },
+          { text: ', from', field: 'startDate' },
+          { text: ', until', field: 'endDate' },
+        ],
+        get_audio: [{ text: 'Reads audio recording', field: 'audioId', core: true }],
+        list_live_events: [
+          'Lists live and upcoming events',
+          { text: ', for', field: COMPANY_FILTER_FIELD },
+          { text: ', in state', field: 'states' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

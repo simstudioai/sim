@@ -49,6 +49,14 @@ const CAPABILITY_OPS = ['check_imessage', 'check_rcs'] as const
 
 const PARTICIPANT_OPS = ['add_participant', 'remove_participant'] as const
 
+const MEDIA_FIELD = ['mediaUrl', 'mediaAttachmentId'] as const
+
+const VOICE_MEMO_FIELD = ['voiceMemoUrl', 'voiceAttachmentId'] as const
+
+const TAPBACK_FIELD = ['reactionType', 'reactionCustomEmoji'] as const
+
+const ATTACHMENT_FILE_FIELD = ['uploadFile', 'fileRef'] as const
+
 const splitHandles = (value: unknown): string[] =>
   String(value)
     .split(/[\n,]/)
@@ -67,6 +75,154 @@ export const LinqBlock: BlockConfig = {
   bgColor: '#000000',
   icon: LinqIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Linq',
+    sentences: {
+      byOperation: {
+        send_message: [
+          { text: 'Sends', field: 'messageText', core: true },
+          { text: 'to chat', field: 'chatId', core: true },
+          { text: ', attaching', field: MEDIA_FIELD },
+        ],
+        create_chat: [
+          { text: 'Starts a chat with', field: 'recipients', core: true },
+          { text: ', opening with', field: 'messageText' },
+          { text: ', from', field: 'senderFrom' },
+        ],
+        list_chats: [
+          'Lists chats',
+          { text: ', from sender', field: 'filterFrom' },
+          { text: ', to recipient', field: 'filterTo' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_chat: [
+          {
+            text: 'Fetches chat',
+            field: 'chatId',
+            after: 'with its participants',
+            core: true,
+          },
+        ],
+        update_chat: [
+          { text: 'Updates chat', field: 'chatId', core: true },
+          { text: ', naming it', field: 'displayName' },
+          { text: ', with icon', field: 'groupChatIcon' },
+        ],
+        mark_chat_read: [{ text: 'Marks chat', field: 'chatId', after: 'as read', core: true }],
+        leave_chat: [{ text: 'Leaves group chat', field: 'chatId', core: true }],
+        add_participant: [
+          { text: 'Adds', field: 'participantHandle', core: true },
+          { text: 'to chat', field: 'chatId', core: true },
+        ],
+        remove_participant: [
+          { text: 'Removes', field: 'participantHandle', core: true },
+          { text: 'from chat', field: 'chatId', core: true },
+        ],
+        start_typing: [{ text: 'Shows a typing indicator in chat', field: 'chatId', core: true }],
+        stop_typing: [{ text: 'Hides the typing indicator in chat', field: 'chatId', core: true }],
+        send_voice_memo: [
+          {
+            text: 'Sends voice memo',
+            field: VOICE_MEMO_FIELD,
+            core: true,
+          },
+          { text: 'to chat', field: 'chatId', core: true },
+        ],
+        share_contact_card: [
+          { text: 'Shares your contact card with chat', field: 'chatId', core: true },
+        ],
+        list_messages: [
+          { text: 'Lists messages in chat', field: 'chatId', core: true },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        list_thread: [
+          { text: 'Lists the thread containing message', field: 'messageId', core: true },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_message: [
+          {
+            text: 'Fetches message',
+            field: 'messageId',
+            after: 'with its delivery status',
+            core: true,
+          },
+        ],
+        edit_message: [
+          { text: 'Edits message', field: 'messageId', core: true },
+          { text: 'to read', field: 'editText' },
+        ],
+        delete_message: [
+          {
+            text: 'Deletes message',
+            field: 'messageId',
+            after: 'without unsending it',
+            core: true,
+          },
+        ],
+        react_to_message: [
+          {
+            text: 'Adds or removes tapback',
+            field: TAPBACK_FIELD,
+            core: true,
+          },
+          { text: 'on message', field: 'messageId', core: true },
+        ],
+        create_attachment: [
+          {
+            text: 'Uploads',
+            field: ATTACHMENT_FILE_FIELD,
+            after: 'as a reusable attachment',
+            core: true,
+          },
+        ],
+        get_attachment: [
+          {
+            text: 'Fetches attachment',
+            field: 'attachmentId',
+            after: 'with its download URL',
+            core: true,
+          },
+        ],
+        delete_attachment: [{ text: 'Deletes attachment', field: 'attachmentId', core: true }],
+        list_phone_numbers: ['Lists phone numbers on the account'],
+        check_imessage: [
+          { text: 'Checks whether', field: 'address', after: 'supports iMessage', core: true },
+          { text: ', from', field: 'capabilityFrom' },
+        ],
+        check_rcs: [
+          { text: 'Checks whether', field: 'address', after: 'supports RCS', core: true },
+          { text: ', from', field: 'capabilityFrom' },
+        ],
+        get_contact_card: ['Fetches contact cards', { text: ', for', field: 'contactPhoneNumber' }],
+        create_contact_card: [
+          { text: 'Creates a contact card for', field: 'contactPhoneNumber', core: true },
+          { text: ', named', field: 'contactFirstName' },
+        ],
+        update_contact_card: [
+          { text: 'Updates the contact card for', field: 'contactPhoneNumber', core: true },
+          { text: ', setting the name to', field: 'contactFirstName' },
+        ],
+        create_webhook_subscription: [
+          { text: 'Subscribes', field: 'webhookTargetUrl', core: true },
+          { text: 'to', field: 'webhookEvents' },
+          { text: ', for', field: 'webhookPhoneNumbers' },
+        ],
+        list_webhook_subscriptions: ['Lists webhook subscriptions on the account'],
+        get_webhook_subscription: [
+          { text: 'Fetches webhook subscription', field: 'subscriptionId', core: true },
+        ],
+        update_webhook_subscription: [
+          { text: 'Updates webhook subscription', field: 'subscriptionId', core: true },
+          { text: ', pointing at', field: 'webhookTargetUrl' },
+          { text: ', subscribed to', field: 'webhookEvents' },
+        ],
+        delete_webhook_subscription: [
+          { text: 'Deletes webhook subscription', field: 'subscriptionId', core: true },
+        ],
+        list_webhook_events: ['Lists available webhook event types'],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -141,6 +297,7 @@ export const LinqBlock: BlockConfig = {
     {
       id: 'recipients',
       title: 'To',
+      canvasNoun: 'recipients',
       type: 'long-input',
       placeholder: 'Comma- or newline-separated handles (+14155550000, alice@example.com)',
       condition: { field: 'operation', value: 'create_chat' },
@@ -293,6 +450,7 @@ export const LinqBlock: BlockConfig = {
     {
       id: 'filterFrom',
       title: 'From',
+      canvasNoun: 'a sender',
       type: 'short-input',
       placeholder: 'Filter by sender number (E.164)',
       condition: { field: 'operation', value: 'list_chats' },
@@ -301,6 +459,7 @@ export const LinqBlock: BlockConfig = {
     {
       id: 'filterTo',
       title: 'To',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'Filter by participant handle',
       condition: { field: 'operation', value: 'list_chats' },

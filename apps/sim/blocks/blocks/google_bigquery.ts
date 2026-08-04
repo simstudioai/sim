@@ -15,6 +15,9 @@ const EXISTING_DATASET_OPS = [
 const EXISTING_TABLE_OPS = ['get_table', 'insert_rows', 'delete_table', 'list_table_data']
 const LOCATION_OPS = ['query', 'get_query_results']
 
+const DATASET_FIELD = ['datasetSelector', 'datasetId'] as const
+const TABLE_FIELD = ['tableSelector', 'tableId'] as const
+
 export const GoogleBigQueryBlock: BlockConfig = {
   type: 'google_bigquery',
   name: 'Google BigQuery',
@@ -26,6 +29,54 @@ export const GoogleBigQueryBlock: BlockConfig = {
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: GoogleBigQueryIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google BigQuery',
+    sentences: {
+      byOperation: {
+        query: [
+          { text: 'Runs query', field: 'query', core: true },
+          { text: ', returning up to', field: 'maxResults', after: 'rows' },
+        ],
+        get_query_results: [
+          { text: 'Fetches results for job', field: 'jobId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'rows' },
+        ],
+        list_datasets: [
+          { text: 'Lists datasets in', field: 'projectId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        create_dataset: [
+          { text: 'Creates dataset', field: 'newDatasetId', core: true },
+          { text: 'in', field: 'datasetLocation' },
+        ],
+        delete_dataset: [{ text: 'Deletes dataset', field: DATASET_FIELD, core: true }],
+        list_tables: [
+          { text: 'Lists tables in', field: DATASET_FIELD, core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        get_table: [
+          { text: 'Reads the schema of', field: TABLE_FIELD, core: true },
+          { text: 'in', field: DATASET_FIELD },
+        ],
+        create_table: [
+          { text: 'Creates table', field: 'newTableId', core: true },
+          { text: 'in', field: DATASET_FIELD },
+        ],
+        delete_table: [
+          { text: 'Deletes table', field: TABLE_FIELD, core: true },
+          { text: 'from', field: DATASET_FIELD },
+        ],
+        list_table_data: [
+          { text: 'Previews rows from', field: TABLE_FIELD, core: true },
+          { text: ', up to', field: 'maxResults', after: 'rows' },
+        ],
+        insert_rows: [
+          { text: 'Inserts', field: 'rows', core: true },
+          { text: 'into', field: TABLE_FIELD, core: true },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.OAuth,
   subBlocks: [
     {

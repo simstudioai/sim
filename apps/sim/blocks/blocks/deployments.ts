@@ -1,6 +1,8 @@
 import { SimDeploymentsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 
+const WORKFLOW_FIELD = ['workflowSelector', 'manualWorkflowId'] as const
+
 export const DeploymentsBlock: BlockConfig = {
   type: 'deployments',
   name: 'Deployments',
@@ -19,6 +21,31 @@ export const DeploymentsBlock: BlockConfig = {
   icon: SimDeploymentsIcon,
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/workflows/deployment',
+  canvasPresentation: {
+    defaultTitle: 'Deployments',
+    sentences: {
+      byOperation: {
+        deployments_deploy: [
+          { text: 'Deploys', field: WORKFLOW_FIELD, after: 'live', core: true },
+          { text: ', as version', field: 'versionName' },
+        ],
+        deployments_undeploy: [
+          { text: 'Takes', field: WORKFLOW_FIELD, after: 'offline', core: true },
+        ],
+        deployments_promote: [
+          { text: 'Promotes version', field: 'version', core: true },
+          { text: 'of', field: WORKFLOW_FIELD, after: 'to live', core: true },
+        ],
+        deployments_list_versions: [
+          { text: 'Lists every deployment version of', field: WORKFLOW_FIELD, core: true },
+        ],
+        deployments_get_version: [
+          { text: 'Reads version', field: 'version', core: true },
+          { text: 'of', field: WORKFLOW_FIELD, after: 'with its deployed state', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

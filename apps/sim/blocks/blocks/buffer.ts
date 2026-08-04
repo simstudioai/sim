@@ -18,6 +18,40 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
   bgColor: '#FFFFFF',
   icon: BufferIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Buffer',
+    sentences: {
+      byOperation: {
+        create_post: [
+          { text: 'Creates a post on channel', field: 'channelId', core: true },
+          { text: ', saying', field: 'text' },
+          { text: ', publishing at', field: 'dueAt' },
+        ],
+        edit_post: [
+          { text: 'Updates post', field: 'postId', core: true },
+          { text: ', to say', field: 'text' },
+          { text: ', rescheduled for', field: 'dueAt' },
+        ],
+        get_posts: [
+          'Lists posts',
+          { text: ', on channels', field: 'channelIds' },
+          { text: ', with status', field: 'status' },
+          { text: ', up to', field: 'limit' },
+        ],
+        get_post: [{ text: 'Fetches post', field: 'postId', core: true }],
+        delete_post: [{ text: 'Deletes post', field: 'postId', core: true }],
+        get_channels: ['Lists connected channels'],
+        create_idea: [
+          { text: 'Saves idea', field: 'text', core: true },
+          { text: ', titled', field: 'title' },
+          { text: ', to group', field: 'groupId' },
+        ],
+        get_ideas: ['Lists saved ideas', { text: ', up to', field: 'limit' }],
+        get_idea_groups: ['Lists idea groups'],
+        get_account: ['Reads the authenticated account'],
+      },
+    },
+  },
 
   subBlocks: [
     {

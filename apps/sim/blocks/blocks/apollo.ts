@@ -5,6 +5,9 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ApolloResponse } from '@/tools/apollo/types'
 
+/** Identifies a person by email when available, otherwise by given name. */
+const PERSON_IDENTITY_FIELD = ['email', 'first_name'] as const
+
 export const ApolloBlock: BlockConfig<ApolloResponse> = {
   type: 'apollo',
   name: 'Apollo',
@@ -17,6 +20,107 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#EBF212',
   icon: ApolloIcon,
+  canvasPresentation: {
+    defaultTitle: 'Apollo',
+    sentences: {
+      byOperation: {
+        people_search: [
+          'Searches for people',
+          { text: ', with title', field: 'person_titles' },
+          { text: ', in', field: 'person_locations' },
+          { text: ', at', field: 'organization_names' },
+        ],
+        people_enrich: [
+          { text: 'Enriches person', field: PERSON_IDENTITY_FIELD, core: true },
+          { text: 'at', field: ['organization_name', 'domain'] },
+        ],
+        people_bulk_enrich: [{ text: 'Enriches the people in', field: 'people', core: true }],
+        organization_search: [
+          'Searches for companies',
+          { text: ', named', field: 'q_organization_name' },
+          { text: ', in', field: 'organization_locations' },
+          { text: ', with headcount', field: 'organization_num_employees_ranges' },
+        ],
+        organization_enrich: [{ text: 'Enriches company', field: 'domain', core: true }],
+        organization_bulk_enrich: [
+          { text: 'Enriches the companies in', field: 'domains', core: true },
+        ],
+        contact_create: [
+          { text: 'Creates contact', field: PERSON_IDENTITY_FIELD, core: true },
+          { text: ', titled', field: 'title' },
+          { text: ', at', field: 'organization_name' },
+        ],
+        contact_update: [
+          { text: 'Updates contact', field: 'contact_id', core: true },
+          { text: ', with new title', field: 'title' },
+          { text: ', at company', field: 'organization_name' },
+        ],
+        contact_search: [
+          'Searches saved contacts',
+          { text: ', matching', field: 'q_keywords' },
+          { text: ', in stage', field: 'contact_stage_ids' },
+          { text: ', labeled', field: 'contact_label_ids' },
+        ],
+        contact_bulk_create: [
+          { text: 'Creates the contacts in', field: 'contacts', core: true },
+          { text: ', labeled', field: 'append_label_names' },
+        ],
+        contact_bulk_update: [
+          { text: 'Updates the contacts in', field: 'contacts', core: true },
+          { text: ', setting', field: 'contact_attributes' },
+        ],
+        account_create: [
+          { text: 'Creates account', field: 'account_name', core: true },
+          { text: ', at', field: 'domain' },
+          { text: ', located in', field: 'raw_address' },
+        ],
+        account_update: [
+          { text: 'Updates account', field: 'account_id', core: true },
+          { text: ', with new name', field: 'account_name' },
+          { text: ', at domain', field: 'domain' },
+        ],
+        account_search: [
+          'Searches saved accounts',
+          { text: ', named', field: 'q_organization_name' },
+          { text: ', in stage', field: 'account_stage_ids' },
+          { text: ', labeled', field: 'account_label_ids' },
+        ],
+        account_bulk_create: [
+          { text: 'Creates the accounts in', field: 'accounts', core: true },
+          { text: ', labeled', field: 'append_label_names' },
+        ],
+        account_bulk_update: [
+          { text: 'Updates the accounts in', field: 'accounts', core: true },
+          { text: ', renaming each to', field: 'account_bulk_update_name' },
+          { text: ', setting', field: 'account_attributes' },
+        ],
+        opportunity_create: [
+          { text: 'Creates deal', field: 'opportunity_name', core: true },
+          { text: ', worth', field: 'amount' },
+          { text: ', closing', field: 'closed_date' },
+        ],
+        opportunity_search: ['Lists all deals', { text: ', sorted by', field: 'sort_by_field' }],
+        opportunity_get: [{ text: 'Fetches deal', field: 'opportunity_id', core: true }],
+        opportunity_update: [
+          { text: 'Updates deal', field: 'opportunity_id', core: true },
+          { text: ', renaming to', field: 'opportunity_name' },
+          { text: ', setting amount to', field: 'amount' },
+        ],
+        sequence_search: ['Searches sequences', { text: ', named', field: 'q_name' }],
+        sequence_add: [
+          { text: 'Adds', field: 'contact_ids', core: true },
+          { text: 'to sequence', field: 'sequence_id', core: true },
+          { text: ', sending from', field: 'send_email_from_email_address' },
+        ],
+        task_create: [
+          { text: 'Creates a task for contacts', field: 'contact_ids', core: true },
+          { text: ', due', field: 'due_at' },
+        ],
+        task_search: ['Searches tasks', { text: ', sorted by', field: 'sort_by_field' }],
+        email_accounts: ['Lists linked email accounts'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

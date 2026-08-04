@@ -201,6 +201,232 @@ export const RipplingBlock: BlockConfig = {
   bgColor: '#502D3C',
   icon: RipplingIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Rippling',
+    sentences: {
+      byOperation: {
+        list_workers: [
+          'Lists workers',
+          { text: ', matching', field: 'filter' },
+          { text: ', sorted by', field: 'orderBy' },
+        ],
+        get_worker: [{ text: 'Fetches worker', field: 'id', core: true }],
+        list_users: ['Lists users', { text: ', sorted by', field: 'orderBy' }],
+        get_user: [{ text: 'Fetches user', field: 'id', core: true }],
+        list_companies: ['Lists companies', { text: ', sorted by', field: 'orderBy' }],
+        get_current_user: ['Reads SSO details for the current user'],
+        list_entitlements: ['Lists entitlements'],
+        list_departments: ['Lists departments', { text: ', sorted by', field: 'orderBy' }],
+        get_department: [{ text: 'Fetches department', field: 'id', core: true }],
+        create_department: [
+          { text: 'Creates department', field: 'name', core: true },
+          { text: ', under parent', field: 'parentId' },
+        ],
+        update_department: [
+          { text: 'Updates department', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', under parent', field: 'parentId' },
+        ],
+        list_teams: ['Lists teams', { text: ', sorted by', field: 'orderBy' }],
+        get_team: [{ text: 'Fetches team', field: 'id', core: true }],
+        list_employment_types: [
+          'Lists employment types',
+          { text: ', sorted by', field: 'orderBy' },
+        ],
+        get_employment_type: [{ text: 'Fetches employment type', field: 'id', core: true }],
+        list_titles: ['Lists job titles', { text: ', sorted by', field: 'orderBy' }],
+        get_title: [{ text: 'Fetches job title', field: 'id', core: true }],
+        create_title: [{ text: 'Creates job title', field: 'name', core: true }],
+        update_title: [
+          { text: 'Updates job title', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_title: [{ text: 'Deletes job title', field: 'id', core: true }],
+        list_custom_fields: ['Lists custom fields', { text: ', sorted by', field: 'orderBy' }],
+        list_job_functions: ['Lists job functions', { text: ', sorted by', field: 'orderBy' }],
+        get_job_function: [{ text: 'Fetches job function', field: 'id', core: true }],
+        list_work_locations: ['Lists work locations', { text: ', sorted by', field: 'orderBy' }],
+        get_work_location: [{ text: 'Fetches work location', field: 'id', core: true }],
+        create_work_location: [
+          { text: 'Creates work location', field: 'name', core: true },
+          { text: 'at', field: 'streetAddress' },
+          { text: 'in', field: 'locality' },
+        ],
+        update_work_location: [
+          { text: 'Updates work location', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', at', field: 'streetAddress' },
+        ],
+        delete_work_location: [{ text: 'Deletes work location', field: 'id', core: true }],
+        list_business_partners: [
+          'Lists business partners',
+          { text: ', matching', field: 'filter' },
+          { text: ', sorted by', field: 'orderBy' },
+        ],
+        get_business_partner: [{ text: 'Fetches business partner', field: 'id', core: true }],
+        create_business_partner: [
+          { text: 'Makes worker', field: 'workerId', core: true },
+          { text: 'a business partner in group', field: 'businessPartnerGroupId' },
+        ],
+        delete_business_partner: [{ text: 'Deletes business partner', field: 'id', core: true }],
+        list_business_partner_groups: [
+          'Lists business partner groups',
+          { text: ', sorted by', field: 'orderBy' },
+        ],
+        get_business_partner_group: [
+          { text: 'Fetches business partner group', field: 'id', core: true },
+        ],
+        create_business_partner_group: [
+          { text: 'Creates business partner group', field: 'name', core: true },
+          { text: ', for domain', field: 'domain' },
+        ],
+        delete_business_partner_group: [
+          { text: 'Deletes business partner group', field: 'id', core: true },
+        ],
+        list_supergroups: [
+          'Lists supergroups',
+          { text: ', matching', field: 'filter' },
+          { text: ', sorted by', field: 'orderBy' },
+        ],
+        get_supergroup: [{ text: 'Fetches supergroup', field: 'id', core: true }],
+        list_supergroup_members: [{ text: 'Lists members of supergroup', field: 'id', core: true }],
+        list_supergroup_inclusion_members: [
+          { text: 'Lists inclusion members of supergroup', field: 'id', core: true },
+        ],
+        list_supergroup_exclusion_members: [
+          { text: 'Lists exclusion members of supergroup', field: 'id', core: true },
+        ],
+        update_supergroup_inclusion_members: [
+          { text: 'Updates inclusion members of supergroup', field: 'id', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        update_supergroup_exclusion_members: [
+          { text: 'Updates exclusion members of supergroup', field: 'id', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        list_custom_objects: ['Lists custom objects'],
+        get_custom_object: [{ text: 'Fetches custom object', field: 'id', core: true }],
+        create_custom_object: [
+          { text: 'Creates custom object', field: 'name', core: true },
+          { text: ', in category', field: 'category' },
+        ],
+        update_custom_object: [
+          { text: 'Updates custom object', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', in category', field: 'category' },
+        ],
+        delete_custom_object: [{ text: 'Deletes custom object', field: 'id', core: true }],
+        list_custom_object_fields: [
+          { text: 'Lists fields of custom object', field: 'customObjectId', core: true },
+        ],
+        get_custom_object_field: [
+          { text: 'Fetches field', field: 'id', core: true },
+          { text: 'of custom object', field: 'customObjectId' },
+        ],
+        create_custom_object_field: [
+          { text: 'Creates field', field: 'name', core: true },
+          { text: 'on custom object', field: 'customObjectId' },
+        ],
+        update_custom_object_field: [
+          { text: 'Updates field', field: 'id', core: true },
+          { text: 'on custom object', field: 'customObjectId' },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_custom_object_field: [
+          { text: 'Deletes field', field: 'id', core: true },
+          { text: 'from custom object', field: 'customObjectId' },
+        ],
+        list_custom_object_records: [
+          { text: 'Lists records of custom object', field: 'customObjectId', core: true },
+        ],
+        get_custom_object_record: [
+          { text: 'Fetches record', field: 'id', core: true },
+          { text: 'from custom object', field: 'customObjectId' },
+        ],
+        get_custom_object_record_by_external_id: [
+          { text: 'Fetches the record with external ID', field: 'externalId', core: true },
+          { text: 'from custom object', field: 'customObjectId' },
+        ],
+        query_custom_object_records: [
+          { text: 'Queries records of custom object', field: 'customObjectId', core: true },
+          { text: ', where', field: 'query' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_custom_object_record: [
+          { text: 'Creates a record in custom object', field: 'customObjectId', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        update_custom_object_record: [
+          { text: 'Updates record', field: 'id', core: true },
+          { text: 'in custom object', field: 'customObjectId' },
+          { text: ', setting', field: 'data' },
+        ],
+        delete_custom_object_record: [
+          { text: 'Deletes record', field: 'id', core: true },
+          { text: 'from custom object', field: 'customObjectId' },
+        ],
+        bulk_create_custom_object_records: [
+          { text: 'Bulk creates', field: 'records', core: true },
+          { text: 'in custom object', field: 'customObjectId', core: true },
+        ],
+        bulk_update_custom_object_records: [
+          { text: 'Bulk updates', field: 'records', core: true },
+          { text: 'in custom object', field: 'customObjectId', core: true },
+        ],
+        bulk_delete_custom_object_records: [
+          { text: 'Bulk deletes', field: 'records', core: true },
+          { text: 'from custom object', field: 'customObjectId', core: true },
+        ],
+        list_custom_apps: ['Lists custom apps'],
+        get_custom_app: [{ text: 'Fetches custom app', field: 'id', core: true }],
+        create_custom_app: [
+          { text: 'Creates custom app', field: 'name', core: true },
+          { text: ', with API name', field: 'apiName' },
+        ],
+        update_custom_app: [
+          { text: 'Updates custom app', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_custom_app: [{ text: 'Deletes custom app', field: 'id', core: true }],
+        list_custom_pages: ['Lists custom pages'],
+        get_custom_page: [{ text: 'Fetches custom page', field: 'id', core: true }],
+        create_custom_page: [{ text: 'Creates custom page', field: 'name', core: true }],
+        update_custom_page: [
+          { text: 'Updates custom page', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_custom_page: [{ text: 'Deletes custom page', field: 'id', core: true }],
+        list_custom_settings: ['Lists custom settings', { text: ', sorted by', field: 'orderBy' }],
+        get_custom_setting: [{ text: 'Fetches custom setting', field: 'id', core: true }],
+        create_custom_setting: [
+          { text: 'Creates custom setting', field: 'displayName', core: true },
+          { text: ', of type', field: 'settingDataType' },
+        ],
+        update_custom_setting: [
+          { text: 'Updates custom setting', field: 'id', core: true },
+          { text: ', renaming to', field: 'displayName' },
+        ],
+        delete_custom_setting: [{ text: 'Deletes custom setting', field: 'id', core: true }],
+        list_object_categories: ['Lists object categories'],
+        get_object_category: [{ text: 'Fetches object category', field: 'id', core: true }],
+        create_object_category: [
+          { text: 'Creates object category', field: 'name', core: true },
+          { text: ', described as', field: 'description' },
+        ],
+        update_object_category: [
+          { text: 'Updates object category', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_object_category: [{ text: 'Deletes object category', field: 'id', core: true }],
+        get_report_run: [{ text: 'Fetches report run', field: 'id', core: true }],
+        trigger_report_run: [
+          { text: 'Runs report', field: 'id', core: true },
+          { text: ', output as', field: 'outputType' },
+        ],
+        create_draft_hires: [{ text: 'Creates draft hires from', field: 'data', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -765,6 +991,7 @@ Return ONLY the JSON - no explanations, no extra text.`,
     {
       id: 'data',
       title: 'Data',
+      canvasNoun: 'a payload',
       type: 'long-input',
       placeholder: '{ "key": "value" }',
       condition: { field: 'operation', value: [...DATA_PASSTHROUGH_OPS] },

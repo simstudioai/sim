@@ -3,6 +3,9 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { PostHogResponse } from '@/tools/posthog/types'
 
+/** Cohort membership definition, whichever of the three forms the user filled. */
+const COHORT_DEFINITION_FIELD = ['filters', 'query', 'groups'] as const
+
 export const PostHogBlock: BlockConfig<PostHogResponse> = {
   type: 'posthog',
   name: 'PostHog',
@@ -15,6 +18,194 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
   integrationType: IntegrationType.Analytics,
   bgColor: '#FFFFFF',
   icon: PosthogIcon,
+  canvasPresentation: {
+    defaultTitle: 'PostHog',
+    sentences: {
+      byOperation: {
+        posthog_capture_event: [
+          { text: 'Captures event', field: 'event', core: true },
+          { text: 'for', field: 'distinctId' },
+        ],
+        posthog_batch_events: ['Captures a batch of events'],
+        posthog_list_persons: [
+          { text: 'Lists persons matching', field: 'search', core: true },
+          { text: ', with distinct ID', field: 'distinctIdFilter' },
+          { text: ', up to', field: 'limit' },
+        ],
+        posthog_get_person: [{ text: 'Fetches person', field: 'personId', core: true }],
+        posthog_delete_person: [
+          {
+            text: 'Deletes person',
+            field: 'personId',
+            core: true,
+            after: 'and all their events',
+          },
+        ],
+        posthog_query: [{ text: 'Runs HogQL query', field: 'query', core: true }],
+        posthog_list_insights: [
+          { text: 'Lists insights, up to', field: 'limit', core: true },
+          { text: ', starting at', field: 'offset' },
+        ],
+        posthog_get_insight: [{ text: 'Fetches insight', field: 'insightId', core: true }],
+        posthog_create_insight: [
+          { text: 'Creates insight', field: 'name', core: true },
+          { text: ', querying', field: 'insightQuery' },
+          { text: ', on dashboards', field: 'dashboards' },
+        ],
+        posthog_update_insight: [
+          { text: 'Updates insight', field: 'insightId', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', querying', field: 'insightQuery' },
+        ],
+        posthog_list_dashboards: [
+          { text: 'Lists dashboards, up to', field: 'limit', core: true },
+          { text: ', starting at', field: 'offset' },
+        ],
+        posthog_get_dashboard: [{ text: 'Fetches dashboard', field: 'dashboardId', core: true }],
+        posthog_create_dashboard: [
+          { text: 'Creates dashboard', field: 'name', core: true },
+          { text: ', from template', field: 'useTemplate' },
+          { text: ', tagged', field: 'tags' },
+        ],
+        posthog_list_actions: [
+          { text: 'Lists actions, up to', field: 'limit', core: true },
+          { text: ', starting at', field: 'offset' },
+        ],
+        posthog_list_cohorts: [
+          { text: 'Lists cohorts, up to', field: 'limit', core: true },
+          { text: ', starting at', field: 'offset' },
+        ],
+        posthog_get_cohort: [{ text: 'Fetches cohort', field: 'cohortId', core: true }],
+        posthog_create_cohort: [
+          { text: 'Creates cohort', field: 'name', core: true },
+          { text: ', matching', field: COHORT_DEFINITION_FIELD },
+        ],
+        posthog_update_cohort: [
+          { text: 'Updates cohort', field: 'cohortId', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', matching', field: COHORT_DEFINITION_FIELD },
+        ],
+        posthog_list_annotations: [
+          { text: 'Lists annotations, up to', field: 'limit', core: true },
+          { text: ', starting at', field: 'offset' },
+        ],
+        posthog_create_annotation: [
+          { text: 'Creates annotation', field: 'content', core: true },
+          { text: ', dated', field: 'dateMarker' },
+        ],
+        posthog_list_feature_flags: [
+          { text: 'Lists feature flags, up to', field: 'limit', core: true },
+          { text: ', starting at', field: 'offset' },
+        ],
+        posthog_get_feature_flag: [
+          { text: 'Fetches feature flag', field: 'featureFlagId', core: true },
+        ],
+        posthog_create_feature_flag: [
+          { text: 'Creates feature flag', field: 'key', core: true },
+          { text: ', named', field: 'name' },
+          { text: ', rolled out to', field: 'rolloutPercentage', after: 'percent of users' },
+        ],
+        posthog_update_feature_flag: [
+          { text: 'Updates feature flag', field: 'featureFlagId', core: true },
+          { text: ', rolled out to', field: 'rolloutPercentage', after: 'percent of users' },
+        ],
+        posthog_delete_feature_flag: [
+          { text: 'Deletes feature flag', field: 'featureFlagId', core: true },
+        ],
+        posthog_evaluate_flags: [
+          { text: 'Evaluates feature flags for', field: 'distinctId', core: true },
+          { text: ', in groups', field: 'groups' },
+        ],
+        posthog_list_experiments: [
+          { text: 'Lists experiments, up to', field: 'limit', core: true },
+          { text: ', starting at', field: 'offset' },
+        ],
+        posthog_get_experiment: [{ text: 'Fetches experiment', field: 'experimentId', core: true }],
+        posthog_create_experiment: [
+          { text: 'Creates experiment', field: 'name', core: true },
+          { text: ', on feature flag', field: 'featureFlagKey' },
+          { text: ', starting', field: 'experimentStartDate' },
+        ],
+        posthog_update_experiment: [
+          { text: 'Updates experiment', field: 'experimentId', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', ending', field: 'experimentEndDate' },
+        ],
+        posthog_list_surveys: [
+          { text: 'Lists surveys, up to', field: 'limit', core: true },
+          { text: ', starting at', field: 'offset' },
+        ],
+        posthog_get_survey: [{ text: 'Fetches survey', field: 'surveyId', core: true }],
+        posthog_create_survey: [
+          { text: 'Creates survey', field: 'name', core: true },
+          { text: ', asking', field: 'questions' },
+        ],
+        posthog_update_survey: [
+          { text: 'Updates survey', field: 'surveyId', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', asking', field: 'questions' },
+        ],
+        posthog_delete_survey: [{ text: 'Deletes survey', field: 'surveyId', core: true }],
+        posthog_list_session_recordings: [
+          {
+            text: 'Lists session recordings, up to',
+            field: 'limit',
+            core: true,
+          },
+          { text: ', starting at', field: 'offset' },
+        ],
+        posthog_get_session_recording: [
+          { text: 'Fetches session recording', field: 'recordingId', core: true },
+        ],
+        posthog_list_recording_playlists: [
+          {
+            text: 'Lists recording playlists, up to',
+            field: 'limit',
+            core: true,
+          },
+          { text: ', starting at', field: 'offset' },
+        ],
+        posthog_list_event_definitions: [
+          {
+            text: 'Lists event definitions matching',
+            field: 'search',
+            core: true,
+          },
+          { text: ', up to', field: 'limit' },
+        ],
+        posthog_get_event_definition: [
+          { text: 'Fetches event definition', field: 'eventDefinitionId', core: true },
+        ],
+        posthog_update_event_definition: [
+          { text: 'Updates event definition', field: 'eventDefinitionId', core: true },
+          { text: ', describing it as', field: 'description' },
+          { text: ', tagged', field: 'tags' },
+        ],
+        posthog_list_property_definitions: [
+          {
+            text: 'Lists property definitions matching',
+            field: 'search',
+            core: true,
+          },
+          { text: ', up to', field: 'limit' },
+        ],
+        posthog_get_property_definition: [
+          { text: 'Fetches property definition', field: 'propertyDefinitionId', core: true },
+        ],
+        posthog_update_property_definition: [
+          { text: 'Updates property definition', field: 'propertyDefinitionId', core: true },
+          { text: ', typed as', field: 'propertyType' },
+          { text: ', tagged', field: 'tags' },
+        ],
+        posthog_list_projects: ['Lists projects in the organization'],
+        posthog_get_project: [{ text: 'Fetches project', field: 'projectIdParam', core: true }],
+        posthog_list_organizations: ['Lists accessible organizations'],
+        posthog_get_organization: [
+          { text: 'Fetches organization', field: 'organizationId', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

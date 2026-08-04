@@ -2,6 +2,9 @@ import { PolymarketIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 
+const MARKET_REF_FIELD = ['marketId', 'marketSlug'] as const
+const EVENT_REF_FIELD = ['eventId', 'eventSlug'] as const
+
 export const PolymarketBlock: BlockConfig = {
   type: 'polymarket',
   name: 'Polymarket',
@@ -14,6 +17,83 @@ export const PolymarketBlock: BlockConfig = {
   bgColor: '#4C82FB',
   iconColor: '#4C82FB',
   icon: PolymarketIcon,
+  canvasPresentation: {
+    defaultTitle: 'Polymarket',
+    sentences: {
+      byOperation: {
+        get_markets: [
+          'Lists prediction markets',
+          { text: ', sorted by', field: 'order' },
+          { text: ', tagged', field: 'tagId' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_market: [{ text: 'Fetches market', field: MARKET_REF_FIELD, core: true }],
+        get_events: [
+          'Lists events',
+          { text: ', sorted by', field: 'orderEvents' },
+          { text: ', tagged', field: 'tagId' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_event: [{ text: 'Fetches event', field: EVENT_REF_FIELD, core: true }],
+        get_tags: [
+          'Lists the tags available for filtering markets',
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        search: [
+          { text: 'Searches markets, events, and profiles for', field: 'query', core: true },
+        ],
+        get_series: [
+          'Lists series of related markets',
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_series_by_id: [{ text: 'Fetches series', field: 'seriesId', core: true }],
+        get_orderbook: [{ text: 'Reads the order book for token', field: 'tokenId', core: true }],
+        get_price: [
+          { text: 'Reads the price of token', field: 'tokenId', core: true },
+          { text: ', on the', field: 'side', after: 'side' },
+        ],
+        get_midpoint: [{ text: 'Reads the midpoint price of token', field: 'tokenId', core: true }],
+        get_price_history: [
+          { text: 'Reads price history for token', field: 'tokenId', core: true },
+          { text: ', over', field: 'interval' },
+          { text: ', at', field: 'fidelity', after: 'minute resolution' },
+        ],
+        get_last_trade_price: [
+          { text: 'Reads the last trade price of token', field: 'tokenId', core: true },
+        ],
+        get_spread: [{ text: 'Reads the bid-ask spread of token', field: 'tokenId', core: true }],
+        get_tick_size: [
+          { text: 'Reads the minimum tick size of token', field: 'tokenId', core: true },
+        ],
+        get_positions: [
+          { text: 'Lists positions held by', field: 'user', core: true },
+          { text: ', in market', field: 'market' },
+          { text: ', worth at least', field: 'sizeThreshold' },
+        ],
+        get_trades: [
+          'Lists trades',
+          { text: ', by', field: 'user' },
+          { text: ', in market', field: 'market' },
+          { text: ', on the', field: 'tradeSide', after: 'side' },
+        ],
+        get_activity: [
+          { text: 'Lists on-chain activity for', field: 'activityUser', core: true },
+          { text: ', of type', field: 'activityType' },
+          { text: ', in market', field: 'activityMarket' },
+        ],
+        get_leaderboard: [
+          'Ranks top traders',
+          { text: ', by', field: 'leaderboardOrderBy' },
+          { text: ', in', field: 'leaderboardCategory' },
+          { text: ', over', field: 'leaderboardTimePeriod' },
+        ],
+        get_holders: [
+          { text: 'Lists top holders of market', field: 'holdersMarket', core: true },
+          { text: ', holding at least', field: 'holdersMinBalance' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

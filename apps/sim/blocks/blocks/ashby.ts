@@ -52,6 +52,92 @@ export const AshbyBlock: BlockConfig = {
   iconColor: '#5D4ED6',
   icon: AshbyIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Ashby',
+    sentences: {
+      byOperation: {
+        list_candidates: ['Lists candidates', { text: ', created after', field: 'createdAfter' }],
+        get_candidate: [{ text: 'Reads candidate', field: 'candidateId', core: true }],
+        create_candidate: [
+          { text: 'Creates candidate', field: 'name', core: true },
+          { text: 'with email', field: 'email' },
+          { text: ', reachable at', field: 'phoneNumber' },
+        ],
+        update_candidate: [
+          { text: 'Updates candidate', field: 'candidateId', core: true },
+          { text: ', renaming to', field: 'updateName' },
+          { text: ', with email', field: 'email' },
+        ],
+        search_candidates: [
+          'Searches candidates',
+          { text: ', by name', field: 'searchName' },
+          { text: ', by email', field: 'searchEmail' },
+        ],
+        list_jobs: [
+          'Lists jobs',
+          { text: ', with status', field: 'jobStatus' },
+          { text: ', opened after', field: 'openedAfter' },
+          { text: ', opened before', field: 'openedBefore' },
+        ],
+        get_job: [{ text: 'Reads job', field: 'jobId', core: true }],
+        create_note: [
+          { text: 'Adds note', field: 'note', core: true },
+          { text: 'to candidate', field: 'candidateId', core: true },
+        ],
+        list_notes: [{ text: 'Lists notes on candidate', field: 'candidateId', core: true }],
+        list_applications: [
+          'Lists applications',
+          { text: ', with status', field: 'filterStatus' },
+          { text: ', for job', field: 'filterJobId' },
+          { text: ', created after', field: 'createdAfter' },
+        ],
+        get_application: [{ text: 'Reads application', field: 'applicationId', core: true }],
+        create_application: [
+          { text: 'Creates an application for candidate', field: 'appCandidateId', core: true },
+          { text: 'on job', field: 'jobId' },
+        ],
+        list_offers: [
+          'Lists offers',
+          { text: ', for application', field: 'offerApplicationId' },
+          { text: ', created after', field: 'createdAfter' },
+        ],
+        change_application_stage: [
+          { text: 'Moves application', field: 'applicationId', core: true },
+          { text: 'to stage', field: 'interviewStageId' },
+          { text: ', with archive reason', field: 'archiveReasonId' },
+        ],
+        add_candidate_tag: [
+          { text: 'Adds tag', field: 'tagId', core: true },
+          { text: 'to candidate', field: 'candidateId', core: true },
+        ],
+        remove_candidate_tag: [
+          { text: 'Removes tag', field: 'tagId', core: true },
+          { text: 'from candidate', field: 'candidateId', core: true },
+        ],
+        get_offer: [{ text: 'Reads offer', field: 'offerId', core: true }],
+        list_sources: ['Lists candidate sources'],
+        list_candidate_tags: ['Lists candidate tags'],
+        list_archive_reasons: ['Lists archive reasons'],
+        list_custom_fields: ['Lists custom field definitions'],
+        list_departments: ['Lists departments'],
+        list_locations: ['Lists locations'],
+        list_job_postings: [
+          'Lists job postings',
+          { text: ', in', field: 'postingLocation' },
+          { text: ', for department', field: 'postingDepartment' },
+          { text: ', on board', field: 'jobBoardId' },
+        ],
+        get_job_posting: [{ text: 'Reads job posting', field: 'jobPostingId', core: true }],
+        list_openings: ['Lists openings', { text: ', created after', field: 'createdAfter' }],
+        list_users: ['Lists users'],
+        list_interviews: [
+          'Lists interview schedules',
+          { text: ', for application', field: 'applicationId' },
+          { text: ', at stage', field: 'interviewStageId' },
+        ],
+      },
+    },
+  },
 
   triggers: {
     enabled: true,

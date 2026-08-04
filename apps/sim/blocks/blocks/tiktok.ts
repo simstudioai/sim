@@ -22,6 +22,9 @@ const TIKTOK_OPERATION_INPUT_KEYS = [
   'publishId',
 ] as const
 
+/** Video to upload, whichever mode the card is in. */
+const VIDEO_FILE_FIELD = ['videoFile', 'videoFileRef'] as const
+
 export const TikTokBlock: BlockConfig<TikTokResponse> = {
   type: 'tiktok',
   name: 'TikTok',
@@ -36,6 +39,32 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
   icon: TikTokIcon,
   triggerAllowed: true,
   hideFromToolbar: false,
+  canvasPresentation: {
+    defaultTitle: 'TikTok',
+    sentences: {
+      byOperation: {
+        tiktok_get_user: ['Reads the account profile', { text: ', returning', field: 'fields' }],
+        tiktok_list_videos: [
+          'Lists videos on the account',
+          { text: ', up to', field: 'maxCount', after: 'results' },
+        ],
+        tiktok_query_videos: [
+          { text: 'Fetches metadata for videos', field: 'videoIds', core: true },
+        ],
+        tiktok_upload_video_draft: [
+          {
+            text: 'Sends',
+            field: VIDEO_FILE_FIELD,
+            after: 'to the inbox as a draft',
+            core: true,
+          },
+        ],
+        tiktok_get_post_status: [
+          { text: 'Checks upload status of', field: 'publishId', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

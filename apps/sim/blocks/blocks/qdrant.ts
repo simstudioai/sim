@@ -14,6 +14,23 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#1A223F',
   icon: QdrantIcon,
+  canvasPresentation: {
+    defaultTitle: 'Qdrant',
+    sentences: {
+      byOperation: {
+        upsert: [{ text: 'Upserts points into', field: 'collection', core: true }],
+        search: [
+          { text: 'Searches', field: 'collection', after: 'for similar vectors', core: true },
+          { text: ', where', field: 'filter' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        fetch: [
+          { text: 'Fetches points', field: 'ids', core: true },
+          { text: 'from', field: 'collection', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

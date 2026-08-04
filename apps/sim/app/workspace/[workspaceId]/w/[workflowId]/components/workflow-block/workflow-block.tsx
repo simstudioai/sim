@@ -1,6 +1,11 @@
 import { type ComponentType, Fragment, memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { BLOCK_DIMENSIONS, SubBlockRowView, WorkflowBlockView } from '@sim/workflow-renderer'
+import {
+  BLOCK_DIMENSIONS,
+  CanvasSentenceView,
+  SubBlockRowView,
+  WorkflowBlockView,
+} from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import {
   ArrowLeftRight,
@@ -29,12 +34,20 @@ import { createMcpToolId } from '@/lib/mcp/shared'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureEvent } from '@/lib/posthog/client'
+import { getCardSubBlocks } from '@/lib/workflows/blocks/canvas-card-fields'
 import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
 import {
   showsCanvasDefaultHandles,
   showsCanvasErrorRow,
   splitCanvasChipBlocks,
 } from '@/lib/workflows/blocks/canvas-rows'
+import {
+  type CardSelector,
+  estimateSentenceLines,
+  getOperationSubBlockId,
+  resolveCanvasSentence,
+} from '@/lib/workflows/blocks/canvas-sentence'
+import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
@@ -51,13 +64,7 @@ import {
 } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
-  evaluateSubBlockCondition,
   hasAdvancedValues,
-  isSubBlockFeatureEnabled,
-  isSubBlockHidden,
-  isSubBlockVisibleForMode,
-  isToolInputOnlySubBlock,
-  isTriggerModeSubBlock,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -102,6 +109,7 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
 import { formatParameterLabel } from '@/tools/params'
+import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkflowBlock')
 
@@ -150,156 +158,9 @@ function getMetaIcon(subBlock: SubBlockConfig): MetaIcon | null {
   )
 }
 
-/** A value token in a summary sentence, referencing a visible subblock. */
-interface SentenceToken {
-  id: string
-}
-
-type SentenceSegment = string | SentenceToken
-
-const T = (id: string): SentenceToken => ({ id })
-
-/**
- * Builds the natural-language summary for a block as text fragments
- * interleaved with value tokens (rendered as inline chips). Returns null for
- * block types or states without a template - those keep the field-row layout.
- * `resolve` returns the first listed subblock id that is visible with a
- * displayable value, so templates only reference real, configured fields.
- */
-function buildSentenceSegments(
-  type: string,
-  operation: unknown,
-  resolve: (...ids: string[]) => string | null
-): SentenceSegment[] | null {
-  if (type === 'table') {
-    const table = resolve('tableSelector', 'manualTableId')
-    if (!table) return null
-    const rowId = resolve('rowId')
-    const data = resolve('data')
-    const filter = resolve('filterBuilder', 'bulkFilterBuilder', 'filter')
-    const sort = resolve('sortBuilder', 'sort')
-    const limit = resolve('limit')
-
-    switch (operation) {
-      case 'query_rows': {
-        const segments: SentenceSegment[] = ['Queries rows from', T(table)]
-        if (filter) segments.push(', where', T(filter))
-        if (sort) segments.push(', sorted by', T(sort))
-        if (limit) segments.push(', up to', T(limit), 'rows')
-        return segments
-      }
-      case 'insert_row':
-        return ['Inserts a row into', T(table), ...(data ? [', with', T(data)] : [])]
-      case 'upsert_row': {
-        const conflict = resolve('conflictColumnSelector', 'manualConflictColumn')
-        return ['Upserts a row into', T(table), ...(conflict ? [', keyed on', T(conflict)] : [])]
-      }
-      case 'batch_insert_rows': {
-        const rows = resolve('rows')
-        return ['Inserts', ...(rows ? [T(rows)] : ['rows']), 'into', T(table)]
-      }
-      case 'update_row':
-        return [
-          'Updates row',
-          ...(rowId ? [T(rowId)] : []),
-          'in',
-          T(table),
-          ...(data ? [', setting', T(data)] : []),
-        ]
-      case 'delete_row':
-        return ['Deletes row', ...(rowId ? [T(rowId)] : []), 'from', T(table)]
-      case 'get_row':
-        return ['Fetches row', ...(rowId ? [T(rowId)] : []), 'from', T(table)]
-      case 'update_rows_by_filter':
-        return [
-          'Updates rows in',
-          T(table),
-          ...(filter ? [', where', T(filter)] : []),
-          ...(data ? [', setting', T(data)] : []),
-        ]
-      case 'delete_rows_by_filter':
-        return ['Deletes rows from', T(table), ...(filter ? [', where', T(filter)] : [])]
-      case 'get_schema':
-        return ['Reads the schema of', T(table)]
-      default:
-        return null
-    }
-  }
-
-  if (type === 'agent') {
-    const model = resolve('model')
-    if (!model) return null
-    const messages = resolve('messages')
-    const tools = resolve('tools')
-    const segments: SentenceSegment[] = ['Prompts', T(model)]
-    if (messages) segments.push('with', T(messages))
-    if (tools) segments.push(', using', T(tools))
-    return segments
-  }
-
-  if (type === 'api') {
-    const url = resolve('url')
-    if (!url) return null
-    const method = resolve('method')
-    const body = resolve('body')
-    const segments: SentenceSegment[] = method
-      ? ['Sends a', T(method), 'request to', T(url)]
-      : ['Sends a request to', T(url)]
-    if (body) segments.push(', with body', T(body))
-    return segments
-  }
-
-  if (type === 'function') {
-    const code = resolve('code')
-    if (!code) return null
-    return ['Runs code', T(code)]
-  }
-
-  return null
-}
-
-/** Approximate character widths for the sentence line estimate (px). */
-const SENTENCE_TEXT_CHAR_PX = 6.3
-const SENTENCE_CHIP_CHAR_PX = 6.8
-/** Inline chip horizontal padding + surrounding gap (px). */
-const SENTENCE_CHIP_EXTRA_PX = 26
 /** Usable sentence width inside the card: the 250px card less its `p-2`. */
 const SENTENCE_WRAP_WIDTH_PX =
   BLOCK_DIMENSIONS.FIXED_WIDTH - BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING
-/** Chip text is truncated around this many characters by max-width. */
-const SENTENCE_CHIP_MAX_CHARS = 24
-/**
- * Rendered cap on an inline value chip: `max-w-[160px]` on the chip itself
- * (see SubBlockRowView's `inline-value`). Without this clamp a long value is
- * estimated wider than it can ever paint, which predicts an extra wrapped
- * line and pads the card's height.
- */
-const SENTENCE_CHIP_MAX_PX = 160
-
-/**
- * Estimates the wrapped line count of a summary sentence for the
- * deterministic node height. Approximate by design - being off by a line
- * only affects node bounds, never handle anchoring (source/target anchor to
- * the header and the error port anchors to the bottom).
- */
-function estimateSentenceLines(
-  segments: SentenceSegment[],
-  getValueText: (id: string) => string
-): number {
-  let widthPx = 0
-  for (const segment of segments) {
-    if (typeof segment === 'string') {
-      widthPx += segment.length * SENTENCE_TEXT_CHAR_PX + 4
-    } else {
-      widthPx += Math.min(
-        Math.min(getValueText(segment.id).length, SENTENCE_CHIP_MAX_CHARS) * SENTENCE_CHIP_CHAR_PX +
-          SENTENCE_CHIP_EXTRA_PX,
-        SENTENCE_CHIP_MAX_PX
-      )
-    }
-  }
-  return Math.max(1, Math.ceil(widthPx / SENTENCE_WRAP_WIDTH_PX))
-}
 
 /**
  * Names of MCP tool-schema parameters whose argument values are displayable
@@ -965,57 +826,27 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     const effectiveTrigger = displayTriggerMode
     const canvasPresentation = resolveCanvasBlockPresentation(config, name, rawValues)
 
-    const visibleSubBlocks = config.subBlocks.filter((block) => {
-      if (block.hidden) return false
-      if (block.hideFromPreview) return false
-      if (hiddenByReactiveCondition.has(block.id)) return false
-      if (!isSubBlockFeatureEnabled(block)) return false
-
-      // Configures the block as an agent tool; it has no meaning on the canvas.
-      if (isToolInputOnlySubBlock(block)) return false
-      if (isSubBlockHidden(block)) return false
-
-      const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
-
-      if (effectiveTrigger) {
-        const isValidTriggerSubblock = isPureTriggerBlock
-          ? isTriggerModeSubBlock(block) || !block.mode
-          : isTriggerModeSubBlock(block)
-
-        if (!isValidTriggerSubblock) {
-          return false
-        }
-      } else {
-        if (isTriggerModeSubBlock(block)) {
-          return false
-        }
-      }
-
-      if (
-        !isSubBlockVisibleForMode(
-          block,
-          effectiveAdvanced,
-          canonicalIndex,
-          rawValues,
-          canonicalModeOverrides
-        )
-      ) {
-        return false
-      }
-
-      if (block.condition && !evaluateSubBlockCondition(block.condition, rawValues)) {
-        return false
-      }
-
-      if (
-        canvasPresentation.usesDefaultTitle &&
-        block.id === canvasPresentation.operationSubBlockId
-      ) {
-        return false
-      }
-
-      return hasDisplayableRowValue(block, rawValues[block.id])
+    /*
+     * Visible on the card, whether or not it holds a value. A sentence's core
+     * slots render either way — the chip shows the field's noun until it is
+     * filled — so the sentence needs this set, while the field rows below it
+     * need the value-bearing subset.
+     */
+    const displayableSubBlocks = getCardSubBlocks(config, {
+      advanced: effectiveAdvanced,
+      values: rawValues,
+      canonicalIndex,
+      canonicalModeOverrides,
+      triggerMode: effectiveTrigger,
+      hiddenIds: hiddenByReactiveCondition,
+      titleOperationSubBlockId: canvasPresentation.usesDefaultTitle
+        ? canvasPresentation.operationSubBlockId
+        : null,
     })
+
+    const visibleSubBlocks = displayableSubBlocks.filter((block) =>
+      hasDisplayableRowValue(block, rawValues[block.id])
+    )
 
     const { chipBlocks, rowSubBlocks } = splitCanvasChipBlocks(visibleSubBlocks, {
       usesDefaultTitle: canvasPresentation.usesDefaultTitle,
@@ -1039,7 +870,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       rows.push(currentRow)
     }
 
-    return { rows, stateToUse, chipBlocks, canvasPresentation }
+    return { rows, stateToUse, chipBlocks, canvasPresentation, displayableSubBlocks }
   }, [
     config.subBlocks,
     config.category,
@@ -1064,6 +895,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const subBlockState = subBlockRowsData.stateToUse
   const chipBlocks = subBlockRowsData.chipBlocks
   const canvasPresentation = subBlockRowsData.canvasPresentation
+  const displayableSubBlocks = subBlockRowsData.displayableSubBlocks
   const topologySubBlocks = data.isPreview
     ? (data.blockState?.subBlocks ?? {})
     : (currentStoreBlock?.subBlocks ?? {})
@@ -1107,17 +939,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     }))
   }, [type, topologySubBlocks, id])
 
-  /**
-   * Whether anything renders below the header — subblock rows, chips, or the
-   * condition/router branch rows.
-   */
   const showsErrorRow = showsCanvasErrorRow(config, type, displayTriggerMode)
-  const hasContentBelowHeader =
-    subBlockRows.length > 0 ||
-    chipBlocks.length > 0 ||
-    conditionRows.length > 0 ||
-    routerRows.length > 0 ||
-    showsErrorRow
 
   /**
    * Total rendered row count. `mcp-dynamic-args` expands one row per parameter
@@ -1143,6 +965,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   /**
    * Natural-language summary data: segments + line estimate for the block
    * types with a sentence template. Null keeps the field-row layout.
+   *
+   * A card in trigger mode gets its own sentence, not the action one: the
+   * operation dropdown still holds its action-mode default, so reusing it would
+   * narrate an action the block is not going to run.
    */
   const sentenceData = useMemo(() => {
     if (type === 'condition' || type === 'router_v2') return null
@@ -1151,15 +977,71 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     for (const row of subBlockRows) {
       for (const subBlock of row) visibleSubBlocksById.set(subBlock.id, subBlock)
     }
-    const resolve = (...ids: string[]) =>
-      ids.find((candidate) => visibleSubBlocksById.has(candidate)) ?? null
-    const segments = buildSentenceSegments(type, subBlockState.operation?.value, resolve)
+    /*
+     * The operation is read straight off state rather than through the visible
+     * set: it is filtered out of the rows whenever it supplies the card title,
+     * so it would never resolve.
+     */
+    const operationSubBlockId = getOperationSubBlockId(config)
+    const rawValues: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(subBlockState)) rawValues[key] = entry?.value
+
+    const card: CardSelector = displayTriggerMode
+      ? (() => {
+          const triggerId = resolveSelectedTriggerId(config, rawValues)
+          return {
+            mode: 'trigger' as const,
+            triggerId,
+            triggerName: triggerId ? (TRIGGER_REGISTRY[triggerId]?.name ?? null) : null,
+          }
+        })()
+      : {
+          mode: 'action',
+          operationValue: operationSubBlockId ? rawValues[operationSubBlockId] : undefined,
+        }
+
+    /* The definition this operation actually shows, so a core slot's noun comes
+       from the right one — ids repeat across operations with different titles. */
+    const onCardById = new Map<string, SubBlockConfig>()
+    for (const subBlock of displayableSubBlocks) {
+      if (!onCardById.has(subBlock.id)) onCardById.set(subBlock.id, subBlock)
+    }
+    const segments = resolveCanvasSentence(
+      config,
+      card,
+      (subBlockId) => visibleSubBlocksById.has(subBlockId),
+      (subBlockId) => onCardById.get(subBlockId) ?? null
+    )
     if (!segments) return null
-    const lines = estimateSentenceLines(segments, (subBlockId) =>
-      getDisplayValue(subBlockState[subBlockId]?.value)
+    const lines = estimateSentenceLines(
+      segments,
+      (subBlockId) => getDisplayValue(subBlockState[subBlockId]?.value),
+      SENTENCE_WRAP_WIDTH_PX
     )
     return { segments, visibleSubBlocksById, lines }
-  }, [type, chipBlocks, subBlockRows, subBlockState])
+  }, [
+    type,
+    config,
+    chipBlocks,
+    subBlockRows,
+    subBlockState,
+    displayableSubBlocks,
+    displayTriggerMode,
+  ])
+
+  /**
+   * Whether anything renders below the header — the summary sentence, subblock
+   * rows, chips, or the condition/router branch rows. The sentence counts on
+   * its own: one built purely from literals and fallbacks resolves no field, so
+   * it contributes no rows or chips, but it still paints.
+   */
+  const hasContentBelowHeader =
+    sentenceData !== null ||
+    subBlockRows.length > 0 ||
+    chipBlocks.length > 0 ||
+    conditionRows.length > 0 ||
+    routerRows.length > 0 ||
+    showsErrorRow
 
   /**
    * Compute and publish deterministic layout metrics for workflow blocks.
@@ -1221,36 +1103,30 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const isBranchBlock = type === 'condition' || type === 'router_v2'
 
   const sentence = sentenceData ? (
-    <>
-      {sentenceData.segments.map((segment, index) => {
-        if (typeof segment === 'string') {
-          const glue = index > 0 && !segment.startsWith(',') && !segment.startsWith('.') ? ' ' : ''
-          return <Fragment key={`text-${index}`}>{`${glue}${segment}`}</Fragment>
-        }
-        const subBlock = sentenceData.visibleSubBlocksById.get(segment.id)
+    <CanvasSentenceView
+      segments={sentenceData.segments}
+      renderChip={(subBlockId) => {
+        const subBlock = sentenceData.visibleSubBlocksById.get(subBlockId)
         if (!subBlock) return null
-        const rawValue = subBlockState[segment.id]?.value
+        const rawValue = subBlockState[subBlockId]?.value
         return (
-          <Fragment key={`value-${index}`}>
-            {' '}
-            <SubBlockRow
-              title={getCanvasRowTitle(subBlock)}
-              value={getDisplayValue(rawValue)}
-              subBlock={subBlock}
-              rawValue={rawValue}
-              workspaceId={workspaceId}
-              workflowId={currentWorkflowId}
-              blockId={id}
-              allSubBlockValues={subBlockState}
-              displayAdvancedOptions={effectiveAdvanced}
-              canonicalIndex={canonicalIndex}
-              canonicalModeOverrides={canonicalModeOverrides}
-              variant='inline-value'
-            />
-          </Fragment>
+          <SubBlockRow
+            title={getCanvasRowTitle(subBlock)}
+            value={getDisplayValue(rawValue)}
+            subBlock={subBlock}
+            rawValue={rawValue}
+            workspaceId={workspaceId}
+            workflowId={currentWorkflowId}
+            blockId={id}
+            allSubBlockValues={subBlockState}
+            displayAdvancedOptions={effectiveAdvanced}
+            canonicalIndex={canonicalIndex}
+            canonicalModeOverrides={canonicalModeOverrides}
+            variant='inline-value'
+          />
         )
-      })}
-    </>
+      }}
+    />
   ) : undefined
 
   const chips =

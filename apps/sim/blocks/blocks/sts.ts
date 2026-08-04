@@ -15,6 +15,33 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
   authMode: AuthMode.ApiKey,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: STSIcon,
+  canvasPresentation: {
+    defaultTitle: 'AWS STS',
+    sentences: {
+      byOperation: {
+        assume_role: [
+          { text: 'Assumes role', field: 'roleArn', core: true },
+          { text: 'as session', field: 'roleSessionName' },
+        ],
+        assume_role_with_web_identity: [
+          { text: 'Assumes role', field: 'roleArn', after: 'via web identity', core: true },
+          { text: ', as session', field: 'roleSessionName' },
+        ],
+        assume_role_with_saml: [
+          { text: 'Assumes role', field: 'roleArn', after: 'via SAML', core: true },
+        ],
+        get_caller_identity: ['Reads the IAM identity of the calling credentials'],
+        get_session_token: [
+          'Issues temporary session credentials',
+          { text: 'for', field: 'durationSeconds', after: 'seconds' },
+          { text: ', verified by MFA device', field: 'serialNumber' },
+        ],
+        get_access_key_info: [
+          { text: 'Reads the account for access key', field: 'targetAccessKeyId', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -17,6 +17,134 @@ export const GoogleVaultBlock: BlockConfig = {
   integrationType: IntegrationType.Security,
   bgColor: '#E8F0FE',
   icon: GoogleVaultIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Vault',
+    sentences: {
+      byOperation: {
+        create_matters_export: [
+          { text: 'Creates export', field: 'exportName', core: true },
+          { text: 'in matter', field: 'matterId', core: true },
+          { text: ', over', field: 'corpus' },
+        ],
+        list_matters_export: [
+          {
+            text: 'Lists exports in matter',
+            field: 'matterId',
+            core: true,
+          },
+          { text: ', narrowed to export', field: 'listExportId' },
+        ],
+        delete_matters_export: [
+          { text: 'Deletes export', field: 'exportId', core: true },
+          { text: 'from matter', field: 'matterId' },
+        ],
+        download_export_file: [
+          { text: 'Downloads export file', field: 'objectName', core: true },
+          { text: 'from bucket', field: 'bucketName' },
+        ],
+        create_matters_holds: [
+          { text: 'Creates hold', field: 'holdName', core: true },
+          { text: 'in matter', field: 'matterId', core: true },
+          { text: ', over', field: 'corpus' },
+        ],
+        list_matters_holds: [
+          {
+            text: 'Lists holds in matter',
+            field: 'matterId',
+            core: true,
+          },
+          { text: ', narrowed to hold', field: 'listHoldId' },
+        ],
+        update_matters_holds: [
+          { text: 'Replaces every field of hold', field: 'holdId', core: true },
+          { text: 'in matter', field: 'matterId' },
+        ],
+        delete_matters_holds: [
+          { text: 'Deletes hold', field: 'holdId', core: true },
+          { text: 'from matter', field: 'matterId' },
+        ],
+        add_held_accounts: [
+          { text: 'Adds', field: 'heldAccountEmails', core: true },
+          { text: 'to hold', field: 'holdId', core: true },
+        ],
+        remove_held_accounts: [
+          { text: 'Removes', field: 'heldAccountIds', core: true },
+          { text: 'from hold', field: 'holdId', core: true },
+        ],
+        create_matters: [
+          { text: 'Creates matter', field: 'name', core: true },
+          { text: ', described as', field: 'description' },
+        ],
+        list_matters: [
+          'Lists matters',
+          { text: ', narrowed to matter', field: 'listMatterId' },
+          { text: ', up to', field: 'pageSize', after: 'per page' },
+        ],
+        update_matters: [
+          {
+            text: 'Updates matter',
+            field: 'matterId',
+            core: true,
+          },
+          { text: ', setting name to', field: 'name' },
+        ],
+        close_matters: [
+          {
+            text: 'Closes matter',
+            field: 'matterId',
+            core: true,
+          },
+        ],
+        reopen_matters: [
+          {
+            text: 'Reopens matter',
+            field: 'matterId',
+            core: true,
+          },
+        ],
+        delete_matters: [
+          {
+            text: 'Permanently deletes matter',
+            field: 'matterId',
+            core: true,
+          },
+        ],
+        undelete_matters: [
+          {
+            text: 'Restores deleted matter',
+            field: 'matterId',
+            core: true,
+          },
+        ],
+        add_matters_permissions: [
+          { text: 'Grants', field: 'accountId', core: true },
+          { text: 'the', field: 'role', after: 'role' },
+          { text: 'on matter', field: 'matterId' },
+        ],
+        remove_matters_permissions: [
+          { text: 'Removes collaborator', field: 'accountId', core: true },
+          { text: 'from matter', field: 'matterId' },
+        ],
+        create_saved_query: [
+          { text: 'Saves query', field: 'displayName', core: true },
+          { text: 'in matter', field: 'matterId', core: true },
+          { text: ', matching', field: 'terms' },
+        ],
+        list_saved_queries: [
+          {
+            text: 'Lists saved queries in matter',
+            field: 'matterId',
+            core: true,
+          },
+          { text: ', narrowed to query', field: 'listSavedQueryId' },
+        ],
+        delete_saved_query: [
+          { text: 'Deletes saved query', field: 'savedQueryId', core: true },
+          { text: 'from matter', field: 'matterId' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

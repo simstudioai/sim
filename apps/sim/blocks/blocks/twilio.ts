@@ -16,6 +16,15 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   bgColor: '#F22F46', // Twilio brand color
   iconColor: '#F22F46',
   icon: TwilioIcon,
+  canvasPresentation: {
+    defaultTitle: 'Twilio SMS',
+    sentences: {
+      default: [
+        { text: 'Sends', field: 'message', core: true },
+        { text: 'to', field: 'phoneNumbers', core: true },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'phoneNumbers',

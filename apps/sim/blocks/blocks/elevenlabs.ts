@@ -12,6 +12,9 @@ const VOICE_OPERATIONS = [
 ]
 const AUDIO_INPUT_OPERATIONS = ['speech_to_speech', 'audio_isolation']
 
+/** Source audio, uploaded (basic) or referenced from a previous block (advanced). */
+const AUDIO_FILE_FIELD = ['audioFile', 'audioFileRef'] as const
+
 const toNumber = (value: unknown): number | undefined => {
   if (value === undefined || value === null || value === '') return undefined
   const parsed = Number(value)
@@ -36,6 +39,40 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
   icon: ElevenLabsIcon,
+  canvasPresentation: {
+    defaultTitle: 'ElevenLabs',
+    sentences: {
+      byOperation: {
+        tts: [
+          { text: 'Speaks', field: 'text', core: true },
+          { text: 'with voice', field: 'voiceId' },
+        ],
+        sound_effects: [
+          { text: 'Generates a sound effect from', field: 'text', core: true },
+          { text: ', lasting', field: 'durationSeconds', after: 'seconds' },
+        ],
+        speech_to_speech: [
+          { text: 'Converts', field: AUDIO_FILE_FIELD, core: true },
+          { text: 'to voice', field: 'voiceId', core: true },
+        ],
+        audio_isolation: [{ text: 'Isolates speech in', field: AUDIO_FILE_FIELD, core: true }],
+        list_voices: [
+          'Lists voices',
+          { text: ', matching', field: 'search' },
+          { text: ', in category', field: 'category' },
+        ],
+        get_voice: [{ text: 'Reads metadata for voice', field: 'voiceId', core: true }],
+        get_voice_settings: [{ text: 'Reads the settings of voice', field: 'voiceId', core: true }],
+        edit_voice_settings: [
+          { text: 'Updates settings for voice', field: 'voiceId', core: true },
+          { text: ', stability', field: 'editStability' },
+          { text: ', similarity', field: 'editSimilarityBoost' },
+        ],
+        list_models: ['Lists available models'],
+        get_user: ['Reads account and subscription details'],
+      },
+    },
+  },
 
   subBlocks: [
     {

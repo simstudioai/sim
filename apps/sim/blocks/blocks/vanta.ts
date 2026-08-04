@@ -34,6 +34,9 @@ const DOCUMENT_ID_OPERATIONS = [
 
 const CONTROL_ID_OPERATIONS = ['get_control', 'list_control_tests', 'list_control_documents']
 
+/** Canonical `file` group: the basic upload picker and its advanced file reference. */
+const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
+
 /**
  * Maps a tri-state dropdown value ("any" | "true" | "false") to an optional
  * boolean tool param.
@@ -65,6 +68,105 @@ export const VantaBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/vanta',
   bgColor: '#F8F4F3',
   icon: VantaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Vanta',
+    sentences: {
+      byOperation: {
+        list_frameworks: ['Lists compliance frameworks'],
+        get_framework: [{ text: 'Reads framework', field: 'frameworkId', core: true }],
+        list_framework_controls: [
+          { text: 'Lists controls in framework', field: 'frameworkId', core: true },
+        ],
+        list_controls: [
+          'Lists security controls',
+          { text: ', in frameworks', field: 'frameworkMatchesAny' },
+        ],
+        get_control: [{ text: 'Reads control', field: 'controlId', core: true }],
+        list_control_tests: [{ text: 'Lists tests for control', field: 'controlId', core: true }],
+        list_control_documents: [
+          { text: 'Lists evidence documents for control', field: 'controlId', core: true },
+        ],
+        list_tests: [
+          'Lists automated tests',
+          { text: ', in framework', field: 'frameworkFilter' },
+          { text: ', for control', field: 'controlFilter' },
+          { text: ', from integration', field: 'integrationFilter' },
+        ],
+        get_test: [{ text: 'Reads automated test', field: 'testId', core: true }],
+        list_test_entities: [
+          { text: 'Lists resources flagged by test', field: 'testId', core: true },
+        ],
+        list_documents: [
+          'Lists evidence documents',
+          { text: ', in frameworks', field: 'frameworkMatchesAny' },
+          { text: ', with status', field: 'documentStatusFilter' },
+        ],
+        get_document: [{ text: 'Reads evidence document', field: 'documentId', core: true }],
+        list_document_uploads: [
+          { text: 'Lists files uploaded to document', field: 'documentId', core: true },
+        ],
+        upload_document_file: [
+          { text: 'Uploads', field: UPLOAD_FILE_FIELD, core: true },
+          { text: 'to document', field: 'documentId', core: true },
+          { text: ', effective', field: 'effectiveAtDate' },
+        ],
+        download_document_file: [
+          { text: 'Downloads file', field: 'uploadedFileId', core: true },
+          { text: 'from document', field: 'documentId' },
+        ],
+        submit_document: [
+          { text: 'Submits document', field: 'documentId', after: 'for review', core: true },
+        ],
+        list_people: [
+          'Lists people',
+          { text: ', matching', field: 'emailAndNameFilter' },
+          { text: ', in groups', field: 'groupIdsMatchesAny' },
+          { text: ', with task status', field: 'taskStatusMatchesAny' },
+        ],
+        get_person: [{ text: 'Reads person', field: 'personId', core: true }],
+        list_policies: ['Lists security policies'],
+        get_policy: [{ text: 'Reads security policy', field: 'policyId', core: true }],
+        list_vendors: [
+          'Lists vendors',
+          { text: ', named', field: 'vendorName' },
+          { text: ', with status', field: 'vendorStatusFilter' },
+        ],
+        get_vendor: [{ text: 'Reads vendor', field: 'vendorId', core: true }],
+        list_monitored_computers: [
+          'Lists monitored computers',
+          { text: ', with compliance issues', field: 'complianceStatusFilterMatchesAny' },
+        ],
+        list_vulnerabilities: [
+          'Lists vulnerabilities',
+          { text: ', matching', field: 'searchQuery' },
+          { text: ', in package', field: 'packageIdentifier' },
+          { text: ', on asset', field: 'vulnerableAssetId' },
+        ],
+        list_vulnerability_remediations: [
+          'Lists remediated vulnerabilities',
+          { text: ', from integration', field: 'integrationId' },
+          { text: ', fixed after', field: 'remediatedAfterDate' },
+          { text: ', fixed before', field: 'remediatedBeforeDate' },
+        ],
+        list_vulnerable_assets: [
+          'Lists vulnerable assets',
+          { text: ', matching', field: 'searchQuery' },
+          { text: ', from integration', field: 'integrationId' },
+          { text: ', in account', field: 'assetExternalAccountId' },
+        ],
+        get_vulnerable_asset: [
+          { text: 'Reads vulnerable asset', field: 'vulnerableAssetId', core: true },
+        ],
+        list_risk_scenarios: [
+          'Lists risk scenarios',
+          { text: ', matching', field: 'searchString' },
+          { text: ', owned by', field: 'ownerMatchesAny' },
+          { text: ', in categories', field: 'categoryMatchesAny' },
+        ],
+        get_risk_scenario: [{ text: 'Reads risk scenario', field: 'riskScenarioId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -28,6 +28,9 @@ const KERNEL_ID_OPERATIONS = [
   'jupyter_interrupt_kernel',
 ] as const
 
+/** Both members of the `file` canonical group — advanced mode fills only `fileRef`. */
+const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
+
 export const JupyterBlock: BlockConfig = {
   type: 'jupyter',
   name: 'Jupyter',
@@ -39,6 +42,50 @@ export const JupyterBlock: BlockConfig = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#FFFFFF',
   icon: JupyterIcon,
+  canvasPresentation: {
+    defaultTitle: 'Jupyter',
+    sentences: {
+      byOperation: {
+        jupyter_list_contents: [
+          {
+            text: 'Lists contents of',
+            field: 'path',
+            core: true,
+          },
+        ],
+        jupyter_get_content: [{ text: 'Reads', field: 'path', core: true }],
+        jupyter_create_file: [
+          { text: 'Creates', field: 'type', core: true },
+          { text: 'at', field: 'path', core: true },
+        ],
+        jupyter_upload_file: [
+          { text: 'Uploads', field: UPLOAD_FILE_FIELD, core: true },
+          { text: 'to', field: 'directory' },
+        ],
+        jupyter_rename_content: [
+          { text: 'Renames', field: 'path', core: true },
+          { text: 'to', field: 'newPath' },
+        ],
+        jupyter_delete_content: [{ text: 'Deletes', field: 'path', core: true }],
+        jupyter_copy_content: [
+          { text: 'Copies', field: 'copyFromPath', core: true },
+          { text: 'into', field: 'path' },
+        ],
+        jupyter_list_kernels: ['Lists running kernels'],
+        jupyter_start_kernel: [{ text: 'Starts kernel', field: 'kernelName', core: true }],
+        jupyter_stop_kernel: [{ text: 'Shuts down kernel', field: 'kernelId', core: true }],
+        jupyter_restart_kernel: [{ text: 'Restarts kernel', field: 'kernelId', core: true }],
+        jupyter_interrupt_kernel: [{ text: 'Interrupts kernel', field: 'kernelId', core: true }],
+        jupyter_list_kernelspecs: ['Lists available kernel specs'],
+        jupyter_list_sessions: ['Lists active sessions'],
+        jupyter_create_session: [
+          { text: 'Opens a session on', field: 'path', core: true },
+          { text: ', running', field: 'kernelName' },
+        ],
+        jupyter_delete_session: [{ text: 'Deletes session', field: 'sessionId', core: true }],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [
@@ -167,6 +214,7 @@ export const JupyterBlock: BlockConfig = {
     {
       id: 'copyFromPath',
       title: 'Copy From Path',
+      canvasNoun: 'a path',
       type: 'short-input',
       placeholder: 'notebooks/source.ipynb',
       condition: { field: 'operation', value: 'jupyter_copy_content' },

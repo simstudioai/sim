@@ -3,6 +3,12 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * What a new deployment targets. `project` is the advanced-mode override for
+ * `name`, so an advanced user has only the second filled — first available wins.
+ */
+const DEPLOY_TARGET_PROJECT_FIELD = ['name', 'project'] as const
+
 export const VercelBlock: BlockConfig = {
   type: 'vercel',
   name: 'Vercel',
@@ -14,6 +20,198 @@ export const VercelBlock: BlockConfig = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#171717',
   icon: VercelIcon,
+  canvasPresentation: {
+    defaultTitle: 'Vercel',
+    sentences: {
+      byOperation: {
+        list_deployments: [
+          'Lists deployments',
+          { text: ', for project', field: 'deploymentsProjectId' },
+          { text: ', targeting', field: 'target' },
+          { text: ', in state', field: 'state' },
+        ],
+        get_deployment: [{ text: 'Reads deployment', field: 'deploymentId', core: true }],
+        create_deployment: [
+          { text: 'Deploys project', field: DEPLOY_TARGET_PROJECT_FIELD, core: true },
+          { text: 'to', field: 'deployTarget' },
+          { text: ', redeploying from', field: 'redeployId' },
+        ],
+        cancel_deployment: [{ text: 'Cancels deployment', field: 'deploymentId', core: true }],
+        delete_deployment: [{ text: 'Deletes deployment', field: 'deploymentId', core: true }],
+        get_deployment_events: [
+          {
+            text: 'Reads build and runtime logs for deployment',
+            field: 'deploymentId',
+            core: true,
+          },
+          { text: ', up to', field: 'eventsLimit', after: 'events' },
+        ],
+        list_deployment_files: [
+          { text: 'Lists files in deployment', field: 'deploymentId', core: true },
+        ],
+        promote_deployment: [
+          {
+            text: 'Promotes deployment',
+            field: 'deploymentId',
+            after: 'to production',
+            core: true,
+          },
+          { text: 'for project', field: 'projectId' },
+        ],
+        list_projects: ['Lists projects', { text: ', matching', field: 'search' }],
+        get_project: [{ text: 'Reads project', field: 'projectId', core: true }],
+        create_project: [
+          { text: 'Creates project', field: 'projectName', core: true },
+          { text: ', built with', field: 'framework' },
+          { text: ', rooted at', field: 'rootDirectory' },
+        ],
+        update_project: [
+          { text: 'Updates project', field: 'projectId', core: true },
+          { text: ', renaming to', field: 'updateProjectName' },
+          { text: ', setting framework to', field: 'framework' },
+        ],
+        delete_project: [{ text: 'Deletes project', field: 'projectId', core: true }],
+        pause_project: [{ text: 'Pauses project', field: 'projectId', core: true }],
+        unpause_project: [{ text: 'Unpauses project', field: 'projectId', core: true }],
+        list_project_domains: [
+          { text: 'Lists domains on project', field: 'projectId', core: true },
+          { text: ', up to', field: 'projectDomainsLimit', after: 'domains' },
+        ],
+        add_project_domain: [
+          { text: 'Adds domain', field: 'domainName', core: true },
+          { text: 'to project', field: 'projectId' },
+          { text: ', redirecting to', field: 'updateDomainRedirect' },
+        ],
+        update_project_domain: [
+          { text: 'Updates domain', field: 'domainName', core: true },
+          { text: 'on project', field: 'projectId' },
+          { text: ', redirecting to', field: 'updateDomainRedirect' },
+        ],
+        verify_project_domain: [
+          { text: 'Verifies domain', field: 'domainName', core: true },
+          { text: 'on project', field: 'projectId' },
+        ],
+        remove_project_domain: [
+          { text: 'Removes domain', field: 'domainName', core: true },
+          { text: 'from project', field: 'projectId' },
+        ],
+        get_env_vars: [
+          {
+            text: 'Reads environment variables for project',
+            field: 'projectId',
+            core: true,
+          },
+          { text: ', on branch', field: 'envVarsGitBranch' },
+        ],
+        create_env_var: [
+          { text: 'Creates environment variable', field: 'envKey', core: true },
+          { text: 'in project', field: 'projectId' },
+          { text: ', for', field: 'envTarget' },
+        ],
+        update_env_var: [
+          { text: 'Updates environment variable', field: 'envId', core: true },
+          { text: 'in project', field: 'projectId' },
+          { text: ', setting key to', field: 'envKey' },
+        ],
+        delete_env_var: [
+          { text: 'Deletes environment variable', field: 'envId', core: true },
+          { text: 'from project', field: 'projectId' },
+        ],
+        list_domains: ['Lists all domains in the account'],
+        get_domain: [{ text: 'Reads domain', field: 'domainName', core: true }],
+        add_domain: [
+          { text: 'Adds domain', field: 'domainName', after: 'to the account', core: true },
+        ],
+        delete_domain: [
+          {
+            text: 'Deletes domain',
+            field: 'domainName',
+            after: 'from the account',
+            core: true,
+          },
+        ],
+        get_domain_config: [
+          { text: 'Reads DNS configuration for domain', field: 'domainName', core: true },
+        ],
+        list_dns_records: [
+          { text: 'Lists DNS records for domain', field: 'domainName', core: true },
+          { text: ', up to', field: 'dnsRecordsLimit', after: 'records' },
+        ],
+        create_dns_record: [
+          { text: 'Creates a DNS record on', field: 'domainName', core: true },
+          { text: ', named', field: 'recordName' },
+          { text: ', of type', field: 'recordType' },
+        ],
+        update_dns_record: [
+          { text: 'Updates DNS record', field: 'recordId', core: true },
+          { text: ', setting name to', field: 'updateRecordName' },
+          { text: ', pointing to', field: 'updateRecordValue' },
+        ],
+        delete_dns_record: [
+          { text: 'Deletes DNS record', field: 'recordId', core: true },
+          { text: 'from domain', field: 'domainName' },
+        ],
+        list_aliases: ['Lists aliases in the account'],
+        get_alias: [{ text: 'Reads alias', field: 'aliasId', core: true }],
+        create_alias: [
+          { text: 'Assigns alias', field: 'aliasName', core: true },
+          { text: 'to deployment', field: 'aliasDeploymentId' },
+          { text: ', redirecting to', field: 'aliasRedirect' },
+        ],
+        delete_alias: [{ text: 'Deletes alias', field: 'aliasId', core: true }],
+        list_edge_configs: ['Lists Edge Config stores'],
+        get_edge_config: [{ text: 'Reads Edge Config store', field: 'edgeConfigId', core: true }],
+        create_edge_config: [
+          { text: 'Creates Edge Config store', field: 'edgeConfigSlug', core: true },
+        ],
+        get_edge_config_items: [
+          { text: 'Reads every item in Edge Config', field: 'edgeConfigId', core: true },
+        ],
+        update_edge_config_items: [
+          { text: 'Writes items to Edge Config', field: 'edgeConfigId', core: true },
+        ],
+        delete_edge_config: [
+          { text: 'Deletes Edge Config store', field: 'edgeConfigId', core: true },
+        ],
+        list_webhooks: ['Lists webhooks'],
+        get_webhook: [{ text: 'Reads webhook', field: 'webhookId', core: true }],
+        create_webhook: [
+          { text: 'Creates a webhook posting to', field: 'webhookUrl', core: true },
+          { text: ', on events', field: 'webhookEvents' },
+          { text: ', for projects', field: 'webhookProjectIds' },
+        ],
+        delete_webhook: [{ text: 'Deletes webhook', field: 'webhookId', core: true }],
+        list_checks: [
+          { text: 'Lists checks on deployment', field: 'checkDeploymentId', core: true },
+        ],
+        get_check: [
+          { text: 'Reads check', field: 'checkId', core: true },
+          { text: 'on deployment', field: 'checkDeploymentId' },
+        ],
+        create_check: [
+          { text: 'Creates check', field: 'checkName', core: true },
+          { text: 'on deployment', field: 'checkDeploymentId' },
+        ],
+        update_check: [
+          { text: 'Updates check', field: 'checkId', core: true },
+          { text: 'on deployment', field: 'checkDeploymentId' },
+          { text: ', setting status to', field: 'checkStatus' },
+        ],
+        rerequest_check: [
+          { text: 'Reruns check', field: 'checkId', core: true },
+          { text: 'on deployment', field: 'checkDeploymentId' },
+        ],
+        list_teams: ['Lists teams', { text: ', up to', field: 'teamsLimit', after: 'results' }],
+        get_team: [{ text: 'Reads team', field: 'teamIdParam', core: true }],
+        list_team_members: [
+          { text: 'Lists members of team', field: 'teamIdParam', core: true },
+          { text: ', with role', field: 'memberRole' },
+          { text: ', matching', field: 'teamMembersSearch' },
+        ],
+        get_user: ['Reads the authenticated user'],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
   triggers: {
     enabled: true,

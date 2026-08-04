@@ -17,6 +17,24 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
   bgColor: '#F22F46', // Twilio brand color
   iconColor: '#F22F46',
   icon: TwilioIcon,
+  canvasPresentation: {
+    defaultTitle: 'Twilio Voice',
+    sentences: {
+      byOperation: {
+        make_call: [
+          { text: 'Calls', field: 'to', core: true },
+          { text: 'from', field: 'from' },
+        ],
+        list_calls: [
+          'Lists calls',
+          { text: 'to', field: 'listTo' },
+          { text: 'from', field: 'listFrom' },
+          { text: 'with status', field: 'listStatus' },
+        ],
+        get_recording: [{ text: 'Fetches recording', field: 'recordingSid', core: true }],
+      },
+    },
+  },
   triggerAllowed: true,
   subBlocks: [
     ...getTrigger('twilio_voice_webhook').subBlocks,
@@ -49,6 +67,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     {
       id: 'to',
       title: 'To Phone Number',
+      canvasNoun: 'a phone number',
       type: 'short-input',
       placeholder: '+14155551234',
       condition: {

@@ -11,8 +11,16 @@ import {
 } from '@/lib/workflows/autolayout/constants'
 import type { BlockMetrics, BoundingBox, Edge, GraphNode } from '@/lib/workflows/autolayout/types'
 import { showsCanvasErrorRow } from '@/lib/workflows/blocks/canvas-rows'
+import {
+  type CardSelector,
+  estimateSentenceLines,
+  getOperationSubBlockId,
+  resolveCanvasSentence,
+} from '@/lib/workflows/blocks/canvas-sentence'
+import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
+import { getDisplayValue, hasDisplayableRowValue } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -27,6 +35,7 @@ import {
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 /**
  * Resolves a potentially undefined numeric value to a fallback
@@ -161,6 +170,7 @@ function getContainerMetrics(block: BlockState): BlockMetrics {
 function getVisiblePreviewSubBlocks(block: BlockState): {
   visibleSubBlocks: SubBlockConfig[]
   fallbackCount: number
+  rawValues: Record<string, unknown>
 } {
   const blockConfig = getBlock(block.type)
   if (!blockConfig?.subBlocks?.length) {
@@ -168,6 +178,7 @@ function getVisiblePreviewSubBlocks(block: BlockState): {
       visibleSubBlocks: [],
       fallbackCount: Object.values(block.subBlocks || {}).filter((subBlock) => subBlock != null)
         .length,
+      rawValues: {},
     }
   }
 
@@ -223,7 +234,66 @@ function getVisiblePreviewSubBlocks(block: BlockState): {
     return evaluateSubBlockCondition(subBlock.condition, rawValues)
   })
 
-  return { visibleSubBlocks, fallbackCount: visibleSubBlocks.length }
+  return { visibleSubBlocks, fallbackCount: visibleSubBlocks.length, rawValues }
+}
+
+/**
+ * Estimates the wrapped line count of a block's summary sentence, or 0 when it
+ * declares none for this state.
+ *
+ * The renderer shows a value chip for a field that is visible *and* holds a
+ * displayable value, and a noun chip for a core slot that is merely visible, so
+ * both predicates are passed here. That makes this the one part of the estimate
+ * that reproduces the card exactly rather than over-counting — a sentence
+ * replaces every field row, so guessing high here would reserve a card's worth
+ * of empty space under every sentenced block.
+ *
+ * Returns 0 in trigger mode, matching the renderer: a sentence describes the
+ * block's action, which a card in trigger mode does not run.
+ */
+function estimateSentenceLineCount(
+  block: BlockState,
+  visibleSubBlocks: SubBlockConfig[],
+  rawValues: Record<string, unknown>
+): number {
+  const blockConfig = getBlock(block.type)
+  if (!blockConfig?.canvasPresentation?.sentences) return 0
+
+  const availableIds = new Set<string>()
+  const onCardById = new Map<string, SubBlockConfig>()
+  for (const subBlock of visibleSubBlocks) {
+    if (!onCardById.has(subBlock.id)) onCardById.set(subBlock.id, subBlock)
+    if (hasDisplayableRowValue(subBlock, rawValues[subBlock.id])) availableIds.add(subBlock.id)
+  }
+
+  const operationSubBlockId = getOperationSubBlockId(blockConfig)
+  const card: CardSelector = block.triggerMode
+    ? (() => {
+        const triggerId = resolveSelectedTriggerId(blockConfig, rawValues)
+        return {
+          mode: 'trigger' as const,
+          triggerId,
+          triggerName: triggerId ? (TRIGGER_REGISTRY[triggerId]?.name ?? null) : null,
+        }
+      })()
+    : {
+        mode: 'action',
+        operationValue: operationSubBlockId ? rawValues[operationSubBlockId] : undefined,
+      }
+
+  const segments = resolveCanvasSentence(
+    blockConfig,
+    card,
+    (subBlockId) => availableIds.has(subBlockId),
+    (subBlockId) => onCardById.get(subBlockId) ?? null
+  )
+  if (!segments) return 0
+
+  return estimateSentenceLines(
+    segments,
+    (subBlockId) => getDisplayValue(rawValues[subBlockId]),
+    BLOCK_DIMENSIONS.FIXED_WIDTH - BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING
+  )
 }
 
 /**
@@ -233,17 +303,20 @@ function getVisiblePreviewSubBlocks(block: BlockState): {
  * or a server-side layout run. Anything the user has seen publishes its exact
  * height instead, and `getRegularBlockMetrics` takes the larger of the two.
  *
- * Deliberately biased to over-estimate. Two card layouts cannot be reproduced
- * from block state alone: the natural-language summary that replaces every
- * field row, and `mcp-dynamic-args`, which expands into one row per argument.
- * Counting every config-visible field — including the empty ones the card
- * omits — is the slack that keeps those two from landing short. An
- * over-estimate opens a gap under a card; an under-estimate overlaps it with
- * the next one, so the bias only ever errs the cosmetic way.
+ * Deliberately biased to over-estimate on the field-row path, where
+ * `mcp-dynamic-args` expands into one row per argument and cannot be
+ * reproduced from block state. Counting every config-visible field — including
+ * the empty ones the card omits — is the slack that keeps it from landing
+ * short. An over-estimate opens a gap under a card; an under-estimate overlaps
+ * it with the next one, so the bias only ever errs the cosmetic way.
+ *
+ * A block that declares a summary sentence is exact instead: the sentence
+ * replaces every field row, so the row-count slack would reserve a whole card
+ * of empty space beneath it.
  */
 function estimateWorkflowBlockDimensions(block: BlockState): { width: number; height: number } {
   const blockConfig = getBlock(block.type)
-  const { visibleSubBlocks, fallbackCount } = getVisiblePreviewSubBlocks(block)
+  const { visibleSubBlocks, fallbackCount, rawValues } = getVisiblePreviewSubBlocks(block)
 
   if (!blockConfig) {
     return {
@@ -257,9 +330,14 @@ function estimateWorkflowBlockDimensions(block: BlockState): { width: number; he
     }
   }
 
+  const sentenceLineCount = estimateSentenceLineCount(block, visibleSubBlocks, rawValues)
+
   return calculateWorkflowBlockDimensions({
     blockType: block.type,
-    visibleSubBlockCount: visibleSubBlocks.length,
+    /* A sentence replaces the rows entirely, so counting both would stack the
+       two layouts on top of each other. */
+    visibleSubBlockCount: sentenceLineCount > 0 ? 0 : visibleSubBlocks.length,
+    sentenceLineCount,
     /* The one input the branch left out. Every block that can emit an error
        carries the row permanently, so omitting it under-counted 32px on
        almost every card — the one direction that causes overlaps. */

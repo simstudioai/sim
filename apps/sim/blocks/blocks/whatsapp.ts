@@ -12,6 +12,12 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
+/**
+ * Upload Media's file is a canonical basic/advanced pair — an advanced-mode
+ * user has only the reference filled, so both members have to be listed.
+ */
+const UPLOAD_FILE_FIELD = ['uploadFile', 'uploadFileRef'] as const
+
 export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   type: 'whatsapp',
   name: 'WhatsApp',
@@ -25,6 +31,48 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   bgColor: '#25D366',
   iconColor: '#25D366',
   icon: WhatsAppIcon,
+  canvasPresentation: {
+    defaultTitle: 'WhatsApp',
+    sentences: {
+      byOperation: {
+        send_message: [
+          { text: 'Sends', field: 'message', core: true },
+          { text: 'to', field: 'phoneNumber', core: true },
+        ],
+        send_template: [
+          { text: 'Sends template', field: 'templateName', core: true },
+          { text: 'to', field: 'phoneNumber', core: true },
+        ],
+        send_media: [
+          { text: 'Sends', field: 'mediaType', core: true },
+          { text: 'to', field: 'phoneNumber', core: true },
+          { text: ', captioned', field: 'caption' },
+        ],
+        send_interactive: [
+          {
+            text: 'Sends a message with',
+            field: 'interactiveType',
+            core: true,
+          },
+          { text: 'to', field: 'phoneNumber', core: true },
+        ],
+        send_reaction: [
+          { text: 'Reacts with', field: 'emoji', core: true },
+          { text: 'to message', field: 'messageId', core: true },
+        ],
+        mark_read: [{ text: 'Marks message', field: 'messageId', core: true, after: 'as read' }],
+        upload_media: [
+          {
+            text: 'Uploads',
+            field: UPLOAD_FILE_FIELD,
+            core: true,
+            after: 'and returns a media ID',
+          },
+        ],
+        get_media: [{ text: 'Downloads media', field: 'downloadMediaId', core: true }],
+      },
+    },
+  },
   triggerAllowed: true,
   subBlocks: [
     {

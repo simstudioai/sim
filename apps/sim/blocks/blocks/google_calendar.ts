@@ -6,6 +6,9 @@ import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks
 import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
 import { getTrigger } from '@/triggers'
 
+const CALENDAR_FIELD = ['calendarId', 'manualCalendarId'] as const
+const DESTINATION_CALENDAR_FIELD = ['destinationCalendar', 'manualDestinationCalendarId'] as const
+
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   type: 'google_calendar',
   name: 'Google Calendar (Legacy)',
@@ -18,6 +21,91 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: GoogleCalendarIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Calendar',
+    sentences: {
+      byOperation: {
+        create: [
+          { text: 'Creates event', field: 'summary', core: true },
+          { text: 'on', field: CALENDAR_FIELD },
+          { text: ', starting', field: 'startDateTime' },
+        ],
+        list: [
+          'Lists events',
+          { text: 'on', field: CALENDAR_FIELD },
+          { text: ', matching', field: 'q' },
+          { text: ', from', field: 'timeMin' },
+        ],
+        get: [
+          { text: 'Reads event', field: 'eventId', core: true },
+          { text: 'from', field: CALENDAR_FIELD },
+        ],
+        update: [
+          { text: 'Updates event', field: 'eventId', core: true },
+          { text: 'on', field: CALENDAR_FIELD },
+          { text: ', setting title to', field: 'summary' },
+        ],
+        delete: [
+          { text: 'Deletes event', field: 'eventId', core: true },
+          { text: 'from', field: CALENDAR_FIELD },
+        ],
+        move: [
+          { text: 'Moves event', field: 'eventId', core: true },
+          { text: 'from', field: CALENDAR_FIELD },
+          {
+            text: 'to',
+            field: DESTINATION_CALENDAR_FIELD,
+            core: true,
+          },
+        ],
+        instances: [
+          { text: 'Lists instances of recurring event', field: 'eventId', core: true },
+          { text: 'on', field: CALENDAR_FIELD },
+        ],
+        list_calendars: [
+          'Lists calendars',
+          { text: ', with at least', field: 'minAccessRole', after: 'access' },
+          { text: ', up to', field: 'maxResults' },
+        ],
+        quick_add: [
+          { text: 'Creates an event from', field: 'text', core: true },
+          { text: 'on', field: CALENDAR_FIELD },
+        ],
+        invite: [
+          { text: 'Invites', field: 'attendees', core: true },
+          { text: 'to event', field: 'eventId', core: true },
+        ],
+        freebusy: [
+          { text: 'Checks free/busy for', field: 'calendarIds', core: true },
+          { text: ', starting', field: 'timeMin' },
+          { text: ', through', field: 'timeMax' },
+        ],
+        create_calendar: [
+          { text: 'Creates calendar', field: 'summary', core: true },
+          { text: 'in time zone', field: 'timeZone' },
+        ],
+        update_calendar: [
+          { text: 'Updates calendar', field: CALENDAR_FIELD, core: true },
+          { text: ', setting name to', field: 'summary' },
+          { text: ', time zone to', field: 'timeZone' },
+        ],
+        delete_calendar: [{ text: 'Deletes calendar', field: CALENDAR_FIELD, core: true }],
+        share_calendar: [
+          { text: 'Shares', field: CALENDAR_FIELD, core: true },
+          { text: 'with', field: ['scopeValue', 'scopeType'] },
+        ],
+        update_acl: [
+          { text: 'Sets sharing rule', field: 'ruleId', core: true },
+          { text: 'to', field: 'role' },
+        ],
+        list_acl: ['Lists sharing rules', { text: 'on', field: CALENDAR_FIELD }],
+        unshare_calendar: [
+          { text: 'Removes sharing rule', field: 'ruleId', core: true },
+          { text: 'from', field: CALENDAR_FIELD },
+        ],
+      },
+    },
+  },
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'google_calendar_v2' },
   subBlocks: [

@@ -17,6 +17,28 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
   integrationType: IntegrationType.Analytics,
   bgColor: '#181C1E',
   icon: FathomIcon,
+  canvasPresentation: {
+    defaultTitle: 'Fathom',
+    sentences: {
+      byOperation: {
+        fathom_list_meetings: [
+          'Lists recent meetings',
+          { text: ', recorded by', field: 'recordedBy' },
+          { text: ', of type', field: 'meetingType' },
+          { text: ', since', field: 'createdAfter' },
+        ],
+        fathom_list_meeting_types: ['Lists all meeting types'],
+        fathom_get_summary: [
+          { text: 'Fetches the summary of recording', field: 'recordingId', core: true },
+        ],
+        fathom_get_transcript: [
+          { text: 'Fetches the transcript of recording', field: 'recordingId', core: true },
+        ],
+        fathom_list_team_members: ['Lists team members', { text: 'on team', field: 'teams' }],
+        fathom_list_teams: ['Lists all teams'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

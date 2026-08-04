@@ -2,6 +2,12 @@ import { EnrichSoIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
+/**
+ * City and country are independent filters rather than a canonical pair, so the
+ * sentence shows whichever the user narrowed to, most specific first.
+ */
+const PEOPLE_LOCATION_FIELD = ['locationCity', 'locationCountry'] as const
+
 export const EnrichBlock: BlockConfig = {
   type: 'enrich',
   name: 'Enrich',
@@ -14,6 +20,118 @@ export const EnrichBlock: BlockConfig = {
   integrationType: IntegrationType.Sales,
   bgColor: '#E5E5E6',
   icon: EnrichSoIcon,
+  canvasPresentation: {
+    defaultTitle: 'Enrich',
+    sentences: {
+      byOperation: {
+        email_to_profile: [
+          { text: 'Looks up the full LinkedIn profile for', field: 'email', core: true },
+        ],
+        email_to_person_lite: [
+          { text: 'Looks up basic profile details for', field: 'email', core: true },
+        ],
+        linkedin_profile: [{ text: 'Enriches the profile at', field: 'linkedinUrl', core: true }],
+        find_email: [
+          { text: 'Finds the work email for', field: 'fullName', core: true },
+          { text: 'at', field: 'companyDomain' },
+        ],
+        linkedin_to_work_email: [
+          {
+            text: 'Finds the work email behind the profile at',
+            field: 'linkedinUrl',
+            core: true,
+          },
+        ],
+        linkedin_to_personal_email: [
+          {
+            text: 'Finds the personal email behind the profile at',
+            field: 'linkedinUrl',
+            core: true,
+          },
+        ],
+        phone_finder: [
+          {
+            text: 'Finds the phone number behind the profile at',
+            field: 'linkedinUrl',
+            core: true,
+          },
+        ],
+        email_to_phone: [{ text: 'Finds the phone number linked to', field: 'email', core: true }],
+        verify_email: [{ text: 'Verifies the deliverability of', field: 'email', core: true }],
+        disposable_email_check: [
+          { text: 'Checks whether', field: 'email', after: 'is disposable', core: true },
+        ],
+        email_to_ip: [{ text: 'Finds the IP address linked to', field: 'email', core: true }],
+        ip_to_company: [{ text: 'Identifies the company behind', field: 'ip', core: true }],
+        company_lookup: [
+          {
+            text: 'Looks up company details for',
+            field: ['companyName', 'domain'],
+            core: true,
+          },
+        ],
+        company_funding: [
+          { text: 'Reads funding and traffic history for', field: 'domain', core: true },
+        ],
+        company_revenue: [
+          { text: 'Reads revenue and competitor data for', field: 'domain', core: true },
+        ],
+        search_people: [
+          'Searches for people',
+          { text: ', with title', field: 'subTitle' },
+          { text: ', in', field: PEOPLE_LOCATION_FIELD },
+          { text: ', within industry', field: 'industry' },
+        ],
+        search_company: [
+          'Searches for companies',
+          { text: ', named', field: 'searchCompanyName' },
+          { text: ', in', field: PEOPLE_LOCATION_FIELD },
+          { text: ', with at least', field: 'staffCountMin', after: 'employees' },
+        ],
+        search_company_employees: [
+          'Searches employees within companies',
+          { text: ', with titles', field: 'jobTitles' },
+          { text: ', in', field: ['city', 'country'] },
+        ],
+        search_similar_companies: [
+          { text: 'Finds companies similar to', field: 'linkedinCompanyUrl', core: true },
+          { text: ', in', field: 'accountLocation' },
+        ],
+        sales_pointer_people: ['Runs an advanced people search'],
+        search_jobs: [
+          { text: 'Searches job postings for', field: 'keywords', core: true },
+          { text: ', in', field: 'jobLocation' },
+          { text: ', posted', field: 'timePosted' },
+        ],
+        search_posts: [
+          { text: 'Searches posts for', field: 'keywords', core: true },
+          { text: ', posted', field: 'datePosted' },
+        ],
+        get_post_details: [{ text: 'Reads the post at', field: 'postUrl', core: true }],
+        search_post_reactions: [{ text: 'Lists reactions on post', field: 'postUrn', core: true }],
+        search_post_reactions_by_url: [
+          { text: 'Lists reactions on the post at', field: 'postUrl', core: true },
+        ],
+        search_post_comments: [{ text: 'Lists comments on post', field: 'postUrn', core: true }],
+        search_post_comments_by_url: [
+          { text: 'Lists comments on the post at', field: 'postUrl', core: true },
+        ],
+        search_people_activities: [
+          { text: 'Lists', field: 'activityType', core: true },
+          { text: 'from profile', field: 'profileId', core: true },
+        ],
+        search_company_activities: [
+          { text: 'Lists', field: 'activityType', core: true },
+          { text: 'from company', field: 'companyId', core: true },
+        ],
+        reverse_hash_lookup: [
+          { text: 'Resolves the email behind hash', field: 'hash', core: true },
+        ],
+        search_logo: [{ text: 'Fetches the logo for', field: 'domain', core: true }],
+        check_credits: ['Checks remaining API credits'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

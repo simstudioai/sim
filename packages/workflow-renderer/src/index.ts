@@ -10,6 +10,12 @@ export {
 } from './subflow/subflow-node-view'
 export type { BlockRunStatus, DiffStatus, EdgeDiffStatus, EdgeRunStatus } from './types'
 export {
+  type CanvasSentenceSegment,
+  CanvasSentenceView,
+  type CanvasSentenceViewProps,
+} from './workflow-block/canvas-sentence-view'
+export { InlineChip, type InlineChipProps } from './workflow-block/inline-chip'
+export {
   CURSOR_SOURCE_HANDLE_ID,
   getCursorBranchSourceHandleId,
   getCursorSourceHandleId,

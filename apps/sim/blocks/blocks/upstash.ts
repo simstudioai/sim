@@ -50,6 +50,57 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
   bgColor: '#181C1E',
   authMode: AuthMode.ApiKey,
   icon: UpstashIcon,
+  canvasPresentation: {
+    defaultTitle: 'Upstash',
+    sentences: {
+      byOperation: {
+        get: [{ text: 'Reads key', field: 'key', core: true }],
+        set: [
+          { text: 'Sets key', field: 'key', core: true },
+          { text: 'to', field: 'value' },
+          { text: ', expiring in', field: 'ex', after: 'seconds' },
+        ],
+        delete: [{ text: 'Deletes key', field: 'key', core: true }],
+        keys: ['Lists keys', { text: 'matching', field: 'pattern' }],
+        hset: [
+          { text: 'Sets field', field: 'field', core: true },
+          { text: 'in hash', field: 'key', core: true },
+          { text: 'to', field: 'value' },
+        ],
+        hget: [
+          { text: 'Reads field', field: 'field', core: true },
+          { text: 'from hash', field: 'key', core: true },
+        ],
+        hgetall: [{ text: 'Reads every field of hash', field: 'key', core: true }],
+        incr: [{ text: 'Increments', field: 'key', core: true, after: 'by one' }],
+        incrby: [
+          { text: 'Increments', field: 'key', core: true },
+          { text: 'by', field: 'increment' },
+        ],
+        exists: [{ text: 'Checks whether key', field: 'key', core: true, after: 'exists' }],
+        setnx: [
+          { text: 'Sets key', field: 'key', core: true },
+          { text: 'to', field: 'value' },
+          'only if it does not exist',
+        ],
+        lpush: [
+          { text: 'Prepends', field: 'value', core: true },
+          { text: 'to list', field: 'key', core: true },
+        ],
+        lrange: [
+          { text: 'Reads list', field: 'key', core: true },
+          { text: 'from index', field: 'start' },
+          { text: 'to', field: 'stop' },
+        ],
+        expire: [
+          { text: 'Expires key', field: 'key', core: true },
+          { text: 'in', field: 'seconds', after: 'seconds' },
+        ],
+        ttl: [{ text: 'Reads time to live of key', field: 'key', core: true }],
+        command: [{ text: 'Runs command', field: 'command', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

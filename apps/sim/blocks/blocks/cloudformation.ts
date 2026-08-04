@@ -48,6 +48,64 @@ export const CloudFormationBlock: BlockConfig<
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
   iconColor: '#FF4F8B',
   icon: CloudFormationIcon,
+  canvasPresentation: {
+    defaultTitle: 'CloudFormation',
+    sentences: {
+      byOperation: {
+        describe_stacks: [{ text: 'Describes stack', field: 'stackName', core: true }],
+        create_stack: [{ text: 'Creates stack', field: 'stackName', core: true }],
+        update_stack: [{ text: 'Updates stack', field: 'stackName', core: true }],
+        delete_stack: [
+          { text: 'Deletes stack', field: 'stackName', core: true },
+          { text: ', retaining', field: 'retainResources' },
+        ],
+        cancel_update_stack: [
+          { text: 'Cancels the update in progress on stack', field: 'stackName', core: true },
+        ],
+        create_change_set: [
+          { text: 'Creates change set', field: 'changeSetName', core: true },
+          { text: 'for stack', field: 'stackName' },
+        ],
+        describe_change_set: [
+          { text: 'Reads change set', field: 'changeSetName', core: true },
+          { text: 'on stack', field: 'stackName' },
+        ],
+        execute_change_set: [
+          { text: 'Applies change set', field: 'changeSetName', core: true },
+          { text: 'to stack', field: 'stackName' },
+        ],
+        list_stack_resources: [
+          { text: 'Lists resources in stack', field: 'stackName', core: true },
+        ],
+        describe_stack_events: [
+          { text: 'Reads event history of stack', field: 'stackName', core: true },
+          { text: ', up to', field: 'limit', after: 'events' },
+        ],
+        detect_stack_drift: [
+          { text: 'Starts drift detection on stack', field: 'stackName', core: true },
+        ],
+        describe_stack_drift_detection_status: [
+          {
+            text: 'Checks status of drift detection',
+            field: 'stackDriftDetectionId',
+            core: true,
+          },
+        ],
+        get_template: [
+          { text: 'Fetches the template of stack', field: 'stackName', core: true },
+          { text: ', at stage', field: 'templateStage' },
+        ],
+        get_template_summary: [
+          {
+            text: 'Summarizes the template of stack',
+            field: 'stackName',
+            core: true,
+          },
+        ],
+        validate_template: ['Validates a template'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

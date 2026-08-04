@@ -15,6 +15,40 @@ export const ZoomInfoBlock: BlockConfig<ZoomInfoResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#EA1B15',
   icon: ZoomInfoIcon,
+  canvasPresentation: {
+    defaultTitle: 'ZoomInfo',
+    sentences: {
+      byOperation: {
+        search_companies: [
+          'Searches companies',
+          { text: 'named', field: 'companyName' },
+          { text: 'in', field: 'country' },
+        ],
+        search_contacts: [
+          'Searches contacts',
+          { text: 'titled', field: 'jobTitle' },
+          { text: 'at', field: 'companyName' },
+        ],
+        enrich_companies: [
+          'Enriches companies with firmographics',
+          { text: ', returning', field: 'outputFields' },
+        ],
+        enrich_contacts: [
+          'Enriches contacts with emails and phone numbers',
+          { text: ', returning', field: 'outputFields' },
+        ],
+        search_intent: [
+          { text: 'Finds companies with intent on', field: 'topics', core: true },
+          { text: ', in', field: 'country' },
+        ],
+        search_news: [
+          'Searches news articles',
+          { text: 'in', field: 'categories' },
+          { text: ', published since', field: 'pageDateMin' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

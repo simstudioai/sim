@@ -82,6 +82,43 @@ export const EnrichmentBlock: BlockConfig<EnrichmentRunResponse> = {
   bgColor: '#9333EA',
   icon: EnrichmentIcon,
 
+  canvasPresentation: {
+    defaultTitle: 'Data Enrichment',
+    sentences: {
+      byOperation: {
+        'work-email': [
+          { text: 'Finds the work email for', field: 'work-email__fullName', core: true },
+          { text: 'at', field: 'work-email__companyDomain' },
+        ],
+        'email-verification': [
+          {
+            text: 'Checks deliverability of',
+            field: 'email-verification__email',
+            core: true,
+          },
+        ],
+        'phone-number': [
+          { text: 'Finds the phone number for', field: 'phone-number__fullName', core: true },
+          { text: 'at', field: 'phone-number__companyDomain' },
+        ],
+        'company-domain': [
+          {
+            text: 'Finds the website domain for',
+            field: 'company-domain__companyName',
+            core: true,
+          },
+        ],
+        'company-info': [
+          {
+            text: 'Looks up size and description for',
+            field: 'company-info__domain',
+            core: true,
+          },
+        ],
+      },
+    },
+  },
+
   subBlocks: [
     {
       id: 'operation',

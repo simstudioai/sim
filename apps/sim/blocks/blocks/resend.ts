@@ -15,6 +15,40 @@ export const ResendBlock: BlockConfig = {
   bgColor: '#181C1E',
   icon: ResendIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Resend',
+    sentences: {
+      byOperation: {
+        send_email: [
+          { text: 'Sends', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+        ],
+        get_email: [{ text: 'Reads sent email', field: 'emailId', core: true }],
+        cancel_email: [{ text: 'Cancels scheduled email', field: 'cancelEmailId', core: true }],
+        create_contact: [{ text: 'Creates contact', field: 'email', core: true }],
+        list_contacts: ['Lists all contacts'],
+        get_contact: [{ text: 'Reads contact', field: 'contactId', core: true }],
+        update_contact: [{ text: 'Updates contact', field: 'contactId', core: true }],
+        delete_contact: [{ text: 'Deletes contact', field: 'contactId', core: true }],
+        create_audience: [{ text: 'Creates audience', field: 'audienceName', core: true }],
+        get_audience: [{ text: 'Reads audience', field: 'audienceId', core: true }],
+        list_audiences: ['Lists all audiences'],
+        delete_audience: [{ text: 'Deletes audience', field: 'audienceId', core: true }],
+        create_broadcast: [
+          'Drafts a broadcast',
+          { text: 'for audience', field: 'audienceId', core: true },
+          { text: ', subject', field: 'broadcastSubject' },
+          { text: ', named', field: 'broadcastName' },
+        ],
+        send_broadcast: [
+          { text: 'Sends broadcast', field: 'broadcastId', core: true },
+          { text: ', scheduled for', field: 'broadcastScheduledAt' },
+        ],
+        get_broadcast: [{ text: 'Reads broadcast', field: 'broadcastId', core: true }],
+        list_domains: ['Lists verified domains'],
+      },
+    },
+  },
 
   triggers: {
     enabled: true,
@@ -75,6 +109,7 @@ export const ResendBlock: BlockConfig = {
     {
       id: 'to',
       title: 'To',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'recipient@example.com',
       condition: { field: 'operation', value: 'send_email' },

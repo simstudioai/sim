@@ -16,6 +16,63 @@ export const PagerDutyBlock: BlockConfig = {
   iconColor: '#06AC38',
   icon: PagerDutyIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'PagerDuty',
+    sentences: {
+      byOperation: {
+        list_incidents: [
+          'Lists incidents',
+          { text: ', with status', field: 'statuses' },
+          { text: ', on service', field: 'listServiceIds' },
+          { text: ', since', field: 'listSince' },
+        ],
+        get_incident: [{ text: 'Reads incident', field: 'getIncidentId', core: true }],
+        create_incident: [
+          { text: 'Opens incident', field: 'title', core: true },
+          { text: 'on service', field: 'createServiceId' },
+          { text: ', assigned to', field: 'assigneeId' },
+        ],
+        update_incident: [
+          { text: 'Updates incident', field: 'updateIncidentId', core: true },
+          { text: 'to', field: 'updateStatus' },
+          { text: ', at urgency', field: 'updateUrgency' },
+        ],
+        snooze_incident: [
+          { text: 'Snoozes incident', field: 'snoozeIncidentId', core: true },
+          { text: 'for', field: 'snoozeDuration', after: 'seconds' },
+        ],
+        merge_incidents: [
+          { text: 'Merges', field: 'mergeSourceIncidentIds', core: true },
+          { text: 'into incident', field: 'mergeTargetIncidentId', core: true },
+        ],
+        add_note: [
+          { text: 'Adds note', field: 'noteContent', core: true },
+          { text: 'to incident', field: 'noteIncidentId', core: true },
+        ],
+        list_incident_alerts: [
+          { text: 'Lists alerts on incident', field: 'alertsIncidentId', core: true },
+          { text: ', with status', field: 'alertsStatuses' },
+        ],
+        list_services: ['Lists services', { text: ', matching', field: 'serviceQuery' }],
+        get_service: [{ text: 'Reads service', field: 'getServiceId', core: true }],
+        list_oncalls: [
+          'Lists who is on call',
+          { text: ', on schedule', field: 'oncallScheduleIds' },
+          { text: ', under policy', field: 'oncallEscalationPolicyIds' },
+        ],
+        list_escalation_policies: [
+          'Lists escalation policies',
+          { text: ', matching', field: 'escalationPolicyQuery' },
+        ],
+        list_schedules: ['Lists on-call schedules', { text: ', matching', field: 'scheduleQuery' }],
+        list_users: ['Lists users', { text: ', matching', field: 'userQuery' }],
+        send_event: [
+          { text: 'Sends', field: 'eventAction', after: 'event', core: true },
+          { text: 'for', field: 'eventSummary' },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

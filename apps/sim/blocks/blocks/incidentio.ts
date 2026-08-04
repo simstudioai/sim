@@ -4,6 +4,15 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { IncidentioResponse } from '@/tools/incidentio/types'
 import { getTrigger } from '@/triggers'
 
+/** Identifiers a user can be looked up by, whichever one is filled. */
+const USER_LOOKUP_FIELD = ['user_email', 'user_slack_id'] as const
+
+/** Override target: an id, an email, or a Slack id — exactly one is supplied. */
+const OVERRIDE_USER_FIELD = ['user_id', 'user_email', 'user_slack_id'] as const
+
+/** An escalation pages either a path or an explicit user list, never both. */
+const ESCALATION_TARGET_FIELD = ['escalation_path_id', 'user_ids'] as const
+
 export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   type: 'incidentio',
   name: 'incident.io',
@@ -16,6 +25,129 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   integrationType: IntegrationType.Observability,
   bgColor: '#FFFFFF',
   icon: IncidentioIcon,
+  canvasPresentation: {
+    defaultTitle: 'incident.io',
+    sentences: {
+      byOperation: {
+        incidentio_incidents_list: ['Lists incidents'],
+        incidentio_incidents_create: [
+          { text: 'Creates incident', field: 'name', core: true },
+          { text: 'at severity', field: 'severity_id', core: true },
+        ],
+        incidentio_incidents_show: [{ text: 'Fetches incident', field: 'id', core: true }],
+        incidentio_incidents_update: [
+          { text: 'Updates incident', field: 'id', core: true },
+          { text: ', to status', field: 'incident_status_id' },
+          { text: ', at severity', field: 'severity_id' },
+        ],
+        incidentio_actions_list: [
+          'Lists actions',
+          { text: 'on incident', field: 'incident_id' },
+          { text: ', in mode', field: 'incident_mode' },
+        ],
+        incidentio_actions_show: [{ text: 'Fetches action', field: 'id', core: true }],
+        incidentio_follow_ups_list: [
+          'Lists follow-ups',
+          { text: 'on incident', field: 'incident_id' },
+          { text: ', in mode', field: 'incident_mode' },
+        ],
+        incidentio_follow_ups_show: [{ text: 'Fetches follow-up', field: 'id', core: true }],
+        incidentio_users_list: ['Lists users', { text: ', matching', field: USER_LOOKUP_FIELD }],
+        incidentio_users_show: [{ text: 'Fetches user', field: 'id', core: true }],
+        incidentio_workflows_list: ['Lists workflows'],
+        incidentio_workflows_create: [
+          { text: 'Creates workflow', field: 'name', core: true },
+          { text: ', triggered by', field: 'trigger' },
+        ],
+        incidentio_workflows_show: [{ text: 'Fetches workflow', field: 'id', core: true }],
+        incidentio_workflows_update: [
+          { text: 'Updates workflow', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        incidentio_workflows_delete: [{ text: 'Deletes workflow', field: 'id', core: true }],
+        incidentio_schedules_list: ['Lists on-call schedules'],
+        incidentio_schedules_create: [
+          { text: 'Creates schedule', field: 'name', core: true },
+          { text: ', in', field: 'timezone' },
+        ],
+        incidentio_schedules_show: [{ text: 'Fetches schedule', field: 'id', core: true }],
+        incidentio_schedules_update: [
+          { text: 'Updates schedule', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        incidentio_schedules_delete: [{ text: 'Deletes schedule', field: 'id', core: true }],
+        incidentio_escalations_list: ['Lists escalations'],
+        incidentio_escalations_create: [
+          { text: 'Raises escalation', field: 'title', core: true },
+          { text: ', to', field: ESCALATION_TARGET_FIELD },
+        ],
+        incidentio_escalations_show: [{ text: 'Fetches escalation', field: 'id', core: true }],
+        incidentio_custom_fields_list: ['Lists custom fields'],
+        incidentio_custom_fields_create: [
+          { text: 'Creates custom field', field: 'name', core: true },
+          { text: ', of type', field: 'field_type' },
+        ],
+        incidentio_custom_fields_show: [{ text: 'Fetches custom field', field: 'id', core: true }],
+        incidentio_custom_fields_update: [
+          { text: 'Updates custom field', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        incidentio_custom_fields_delete: [
+          { text: 'Deletes custom field', field: 'id', core: true },
+        ],
+        incidentio_severities_list: ['Lists severity levels'],
+        incidentio_incident_statuses_list: ['Lists incident statuses'],
+        incidentio_incident_types_list: ['Lists incident types'],
+        incidentio_incident_roles_list: ['Lists incident roles'],
+        incidentio_incident_roles_create: [
+          { text: 'Creates incident role', field: 'name', core: true },
+          { text: ', with shortform', field: 'shortform' },
+        ],
+        incidentio_incident_roles_show: [
+          { text: 'Fetches incident role', field: 'id', core: true },
+        ],
+        incidentio_incident_roles_update: [
+          { text: 'Updates incident role', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        incidentio_incident_roles_delete: [
+          { text: 'Deletes incident role', field: 'id', core: true },
+        ],
+        incidentio_incident_timestamps_list: ['Lists incident timestamps'],
+        incidentio_incident_timestamps_show: [
+          { text: 'Fetches incident timestamp', field: 'id', core: true },
+        ],
+        incidentio_incident_updates_list: [
+          'Lists status updates',
+          { text: 'on incident', field: 'incident_id' },
+        ],
+        incidentio_schedule_entries_list: [
+          { text: 'Lists entries on schedule', field: 'schedule_id', core: true },
+          { text: ', from', field: 'entry_window_start' },
+          { text: ', through', field: 'entry_window_end' },
+        ],
+        incidentio_schedule_overrides_create: [
+          { text: 'Overrides schedule', field: 'schedule_id', core: true },
+          { text: ', assigning', field: OVERRIDE_USER_FIELD },
+          { text: ', from', field: 'start_at' },
+        ],
+        incidentio_escalation_paths_list: ['Lists escalation paths'],
+        incidentio_escalation_paths_create: [
+          { text: 'Creates escalation path', field: 'name', core: true },
+        ],
+        incidentio_escalation_paths_show: [
+          { text: 'Fetches escalation path', field: 'id', core: true },
+        ],
+        incidentio_escalation_paths_update: [
+          { text: 'Updates escalation path', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        incidentio_escalation_paths_delete: [
+          { text: 'Deletes escalation path', field: 'id', core: true },
+        ],
+      },
+    },
+  },
   triggers: {
     enabled: true,
     available: [

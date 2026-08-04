@@ -15,6 +15,60 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
   bgColor: '#191919',
   iconColor: '#007DC1',
   icon: OktaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Okta',
+    sentences: {
+      byOperation: {
+        okta_list_users: [
+          'Lists users',
+          { text: ', matching', field: 'search' },
+          { text: ', filtered by', field: 'filter' },
+          { text: ', up to', field: 'limit' },
+        ],
+        okta_get_user: [{ text: 'Reads user', field: 'userId', core: true }],
+        okta_create_user: [
+          { text: 'Creates user', field: 'email', core: true },
+          { text: ', with job title', field: 'title' },
+          { text: ', in department', field: 'department' },
+        ],
+        okta_update_user: [
+          { text: 'Updates the profile of user', field: 'userId', core: true },
+          { text: ', setting email to', field: 'email' },
+        ],
+        okta_activate_user: [{ text: 'Activates user', field: 'userId', core: true }],
+        okta_deactivate_user: [{ text: 'Deactivates user', field: 'userId', core: true }],
+        okta_suspend_user: [{ text: 'Suspends user', field: 'userId', core: true }],
+        okta_unsuspend_user: [{ text: 'Unsuspends user', field: 'userId', core: true }],
+        okta_reset_password: [{ text: 'Resets the password of user', field: 'userId', core: true }],
+        okta_delete_user: [{ text: 'Permanently deletes user', field: 'userId', core: true }],
+        okta_list_groups: [
+          'Lists groups',
+          { text: ', matching', field: 'search' },
+          { text: ', filtered by', field: 'filter' },
+          { text: ', up to', field: 'limit' },
+        ],
+        okta_get_group: [{ text: 'Reads group', field: 'groupId', core: true }],
+        okta_create_group: [{ text: 'Creates group', field: 'groupName', core: true }],
+        okta_update_group: [
+          { text: 'Renames group', field: 'groupId', core: true },
+          { text: 'to', field: 'groupName' },
+        ],
+        okta_delete_group: [{ text: 'Deletes group', field: 'groupId', core: true }],
+        okta_add_user_to_group: [
+          { text: 'Adds user', field: 'userId', core: true },
+          { text: 'to group', field: 'groupId' },
+        ],
+        okta_remove_user_from_group: [
+          { text: 'Removes user', field: 'userId', core: true },
+          { text: 'from group', field: 'groupId' },
+        ],
+        okta_list_group_members: [
+          { text: 'Lists the members of group', field: 'groupId', core: true },
+          { text: ', up to', field: 'limit' },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

@@ -14,6 +14,63 @@ export const LaunchDarklyBlock: BlockConfig = {
   bgColor: '#191919',
   iconColor: '#405BFF',
   icon: LaunchDarklyIcon,
+  canvasPresentation: {
+    defaultTitle: 'LaunchDarkly',
+    sentences: {
+      byOperation: {
+        list_flags: [
+          'Lists feature flags',
+          { text: 'in project', field: 'projectKey' },
+          { text: ', tagged', field: 'tag' },
+        ],
+        get_flag: [
+          { text: 'Reads flag', field: 'flagKey', core: true },
+          { text: 'in project', field: 'projectKey' },
+        ],
+        create_flag: [
+          { text: 'Creates flag', field: 'flagName', core: true },
+          { text: 'with key', field: 'newFlagKey' },
+        ],
+        update_flag: [
+          { text: 'Updates flag', field: 'flagKey', core: true },
+          { text: ', renaming to', field: 'updateName' },
+          { text: ', adding tags', field: 'addTags' },
+        ],
+        toggle_flag: [
+          { text: 'Sets flag', field: 'flagKey', core: true },
+          { text: 'to', field: 'enabled' },
+          { text: 'in', field: 'environmentKey' },
+        ],
+        delete_flag: [
+          { text: 'Deletes flag', field: 'flagKey', core: true },
+          { text: 'from project', field: 'projectKey' },
+        ],
+        get_flag_status: [
+          { text: 'Reads rollout status of flag', field: 'flagKey', core: true },
+          { text: 'in', field: 'environmentKey' },
+        ],
+        list_projects: [
+          'Lists all projects',
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        list_environments: ['Lists environments', { text: 'in project', field: 'projectKey' }],
+        list_segments: [
+          'Lists user segments',
+          { text: 'in project', field: 'projectKey' },
+          { text: ', scoped to', field: 'environmentKey' },
+        ],
+        list_members: [
+          'Lists account members',
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_audit_log: [
+          'Lists audit log entries',
+          { text: ', matching', field: 'spec' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

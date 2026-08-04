@@ -35,6 +35,32 @@ export const GrainBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/grain',
   icon: GrainIcon,
   bgColor: '#F6FAF9',
+  canvasPresentation: {
+    defaultTitle: 'Grain',
+    sentences: {
+      byOperation: {
+        grain_list_recordings: [
+          'Lists meeting recordings',
+          { text: ', titled like', field: 'titleSearch' },
+          { text: ', after', field: 'afterDatetime' },
+          { text: ', before', field: 'beforeDatetime' },
+        ],
+        grain_get_recording: [{ text: 'Reads recording', field: 'recordingId', core: true }],
+        grain_get_transcript: [
+          { text: 'Reads the transcript of recording', field: 'recordingId', core: true },
+        ],
+        grain_list_views: ['Lists views'],
+        grain_list_teams: ['Lists teams'],
+        grain_list_meeting_types: ['Lists meeting types'],
+        grain_create_hook: [
+          { text: 'Creates a webhook posting to', field: 'hookUrl', core: true },
+          { text: ', for view', field: 'viewId' },
+        ],
+        grain_list_hooks: ['Lists webhooks'],
+        grain_delete_hook: [{ text: 'Deletes webhook', field: 'hookId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -505,6 +531,35 @@ export const GrainV2Block: BlockConfig = {
   sunset: undefined,
   type: 'grain_v2',
   hideFromToolbar: false,
+  canvasPresentation: {
+    defaultTitle: 'Grain',
+    sentences: {
+      byOperation: {
+        grain_list_recordings: [
+          'Lists meeting recordings',
+          { text: ', titled like', field: 'titleSearch' },
+          { text: ', after', field: 'afterDatetime' },
+          { text: ', before', field: 'beforeDatetime' },
+        ],
+        grain_get_recording: [{ text: 'Reads recording', field: 'recordingId', core: true }],
+        grain_get_transcript: [
+          { text: 'Reads the transcript of recording', field: 'recordingId', core: true },
+        ],
+        grain_list_teams: ['Lists teams'],
+        grain_list_meeting_types: ['Lists meeting types'],
+        grain_create_hook_v2: [
+          { text: 'Creates a webhook posting to', field: 'hookUrl', core: true },
+          { text: ', on event', field: 'hookType' },
+        ],
+        grain_list_hooks_v2: [
+          'Lists webhooks',
+          { text: ', for event', field: 'hookTypeFilter' },
+          { text: ', in state', field: 'hookState' },
+        ],
+        grain_delete_hook_v2: [{ text: 'Deletes webhook', field: 'hookId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     ...GrainBlock.subBlocks.flatMap((sb) => {
       // Drop v1 trigger subblocks (matched per source trigger), the v1

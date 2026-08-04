@@ -4,6 +4,15 @@ import { IntegrationType } from '@/blocks/types'
 import type { ClerkResponse } from '@/tools/clerk/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * Mutually exclusive ways to identify a user being created — Clerk accepts any
+ * one of them, so the card shows whichever the builder filled in first.
+ */
+const NEW_USER_IDENTIFIER_FIELD = ['emailAddress', 'phoneNumber', 'username'] as const
+
+/** Human name, whichever half the builder supplied. */
+const FULL_NAME_FIELD = ['firstName', 'lastName'] as const
+
 export const ClerkBlock: BlockConfig<ClerkResponse> = {
   type: 'clerk',
   name: 'Clerk',
@@ -15,6 +24,132 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
   integrationType: IntegrationType.Security,
   bgColor: '#131316',
   icon: ClerkIcon,
+  canvasPresentation: {
+    defaultTitle: 'Clerk',
+    sentences: {
+      byOperation: {
+        clerk_list_users: [
+          'Lists users',
+          { text: ', matching', field: 'query' },
+          { text: ', with email', field: 'emailAddressFilter' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        clerk_get_user: [{ text: 'Fetches user', field: 'userId', core: true }],
+        clerk_create_user: [
+          { text: 'Creates user', field: NEW_USER_IDENTIFIER_FIELD, core: true },
+          { text: ', named', field: FULL_NAME_FIELD },
+        ],
+        clerk_update_user: [
+          { text: 'Updates user', field: 'userId', core: true },
+          { text: ', renaming to', field: FULL_NAME_FIELD },
+          { text: ', with username', field: 'username' },
+        ],
+        clerk_delete_user: [{ text: 'Deletes user', field: 'userId', core: true }],
+        clerk_ban_user: [{ text: 'Bans user', field: 'userId', core: true }],
+        clerk_unban_user: [{ text: 'Unbans user', field: 'userId', core: true }],
+        clerk_lock_user: [{ text: 'Locks user', field: 'userId', core: true }],
+        clerk_unlock_user: [{ text: 'Unlocks user', field: 'userId', core: true }],
+        clerk_get_user_oauth_token: [
+          { text: 'Fetches OAuth token of user', field: 'userId', core: true },
+          { text: ', from provider', field: 'provider' },
+        ],
+        clerk_list_organizations: [
+          'Lists organizations',
+          { text: ', matching', field: 'orgQuery' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        clerk_get_organization: [
+          { text: 'Fetches organization', field: 'organizationId', core: true },
+        ],
+        clerk_create_organization: [
+          { text: 'Creates organization', field: 'orgName', core: true },
+          { text: ', owned by', field: 'createdBy' },
+          { text: ', with slug', field: 'slug' },
+        ],
+        clerk_update_organization: [
+          { text: 'Updates organization', field: 'organizationId', core: true },
+          { text: ', renaming it to', field: 'orgName' },
+          { text: ', capped at', field: 'maxAllowedMemberships', after: 'members' },
+        ],
+        clerk_delete_organization: [
+          { text: 'Deletes organization', field: 'organizationId', core: true },
+        ],
+        clerk_list_organization_memberships: [
+          { text: 'Lists members of organization', field: 'organizationId', core: true },
+          { text: ', with role', field: 'role' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        clerk_add_organization_member: [
+          { text: 'Adds user', field: 'userId', core: true },
+          { text: 'to organization', field: 'organizationId' },
+          { text: 'as', field: 'role' },
+        ],
+        clerk_update_organization_membership: [
+          { text: 'Changes the role of user', field: 'userId', core: true },
+          { text: 'in organization', field: 'organizationId' },
+          { text: 'to', field: 'role' },
+        ],
+        clerk_remove_organization_member: [
+          { text: 'Removes user', field: 'userId', core: true },
+          { text: 'from organization', field: 'organizationId' },
+        ],
+        clerk_create_organization_invitation: [
+          { text: 'Invites', field: 'emailAddress', core: true },
+          { text: 'to organization', field: 'organizationId' },
+          { text: 'as', field: 'role' },
+        ],
+        clerk_list_organization_invitations: [
+          { text: 'Lists invitations for organization', field: 'organizationId', core: true },
+          { text: ', with status', field: 'invitationStatus' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        clerk_list_sessions: [
+          'Lists sessions',
+          { text: ', for user', field: 'sessionUserId' },
+          { text: ', on client', field: 'clientId' },
+          { text: ', with status', field: 'sessionStatus' },
+        ],
+        clerk_get_session: [{ text: 'Fetches session', field: 'sessionId', core: true }],
+        clerk_revoke_session: [{ text: 'Revokes session', field: 'sessionId', core: true }],
+        clerk_list_allowlist_identifiers: [
+          'Lists allowlist identifiers',
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        clerk_create_allowlist_identifier: [
+          { text: 'Adds', field: 'identifier', after: 'to the allowlist', core: true },
+        ],
+        clerk_delete_allowlist_identifier: [
+          {
+            text: 'Removes identifier',
+            field: 'identifierId',
+            after: 'from the allowlist',
+            core: true,
+          },
+        ],
+        clerk_list_blocklist_identifiers: ['Lists blocklist identifiers'],
+        clerk_create_blocklist_identifier: [
+          { text: 'Adds', field: 'identifier', after: 'to the blocklist', core: true },
+        ],
+        clerk_delete_blocklist_identifier: [
+          {
+            text: 'Removes identifier',
+            field: 'identifierId',
+            after: 'from the blocklist',
+            core: true,
+          },
+        ],
+        clerk_list_jwt_templates: ['Lists JWT templates'],
+        clerk_get_jwt_template: [{ text: 'Fetches JWT template', field: 'templateId', core: true }],
+        clerk_create_actor_token: [
+          { text: 'Issues an impersonation token for user', field: 'userId', core: true },
+          { text: ', valid for', field: 'expiresInSeconds', after: 'seconds' },
+        ],
+        clerk_revoke_actor_token: [
+          { text: 'Revokes actor token', field: 'actorTokenId', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

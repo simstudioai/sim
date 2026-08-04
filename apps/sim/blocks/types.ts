@@ -257,6 +257,14 @@ interface ParamConfig {
 export interface SubBlockConfig {
   id: string
   title?: string
+  /**
+   * How this field reads inside a card sentence when it holds no value yet —
+   * `'a channel'`, `'an issue'`. Only needed when the derived form (the `title`
+   * lowered into prose, with an article) does not survive being read
+   * mid-sentence: `'Message ID to Reply To'` has to become `'a message'`.
+   * See `resolveFieldNoun`.
+   */
+  canvasNoun?: string
   type: SubBlockType
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode. 'trigger-advanced' is the advanced side of a trigger field — either a canonical pair member or a standalone field shown under the block-level advanced toggle
   canonicalParamId?: string
@@ -487,6 +495,46 @@ export interface SubBlockConfig {
   unsupportedToolTypes?: ('mcp' | 'custom-tool')[]
 }
 
+/**
+ * One clause of a block card's summary sentence.
+ *
+ * A bare string is literal copy that always renders. A clause object renders
+ * `text`, then the value of the first subblock in `field` that is visible and
+ * configured, then `after`.
+ *
+ * A clause whose `field` resolves to nothing is dropped whole — its `text` and
+ * `after` go with it, which is why each optional clause must carry its own
+ * connective (`', where'`, not a bare `'where'` after a shared comma).
+ */
+export type CanvasSentenceClause =
+  | string
+  | {
+      /** Copy rendered before the value chip. */
+      text?: string
+      /**
+       * Subblock ids, first visible-and-configured wins. Always list a
+       * canonical basic/advanced pair in full (`['tableSelector',
+       * 'manualTableId']`) — an advanced-mode user has only the second filled.
+       */
+      field: string | readonly string[]
+      /** Copy rendered after the value chip. */
+      after?: string
+      /**
+       * Renders whether or not the field holds a value — its chip shows the
+       * value when set, and the field's noun when not (`resolveFieldNoun`), so
+       * `Sends a message to ⟨a channel⟩` is what an untouched card reads.
+       *
+       * Every sentence needs at least one, and the core clauses alone must read
+       * as a complete sentence: they are the whole of what a fresh card says.
+       * Clauses without it render only once their field is filled, which is
+       * what keeps a configured card from becoming a wall of placeholders.
+       */
+      core?: boolean
+    }
+
+/** An ordered set of clauses forming one card summary sentence. */
+export type CanvasSentence = readonly CanvasSentenceClause[]
+
 export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   type: string
   name: string
@@ -519,6 +567,39 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
     operationSubBlockId?: string
     /** Label used for the operation row after a user gives the block a custom name. */
     operationRowTitle?: string
+    /**
+     * Natural-language summary shown on the card in place of its field rows.
+     *
+     * Third-person present with the block as the implicit subject — the header
+     * already names it, so write `Posts a message to ⟨#eng⟩`, never `Sends a
+     * Slack message`. A block with no summary keeps the field-row layout, which
+     * is what makes adoption incremental.
+     */
+    sentences?: {
+      /** Used when the block has no operation dropdown. */
+      default?: CanvasSentence
+      /** Keyed by the operation dropdown's option ids. */
+      byOperation?: Record<string, CanvasSentence>
+    }
+    /**
+     * Summary shown while the card is in trigger mode.
+     *
+     * A separate set, not a `byOperation` key: trigger mode swaps the subblock
+     * set wholesale, and the card means something else entirely — it no longer
+     * describes an action the block takes but the event that starts the run. So
+     * the voice changes with it: `Runs when an email arrives in ⟨INBOX⟩`, never
+     * `Reads an email`.
+     *
+     * Optional. A trigger with nothing configurable worth naming falls back to
+     * the selected trigger's own registry name (`Runs on Pull Request Opened`),
+     * which is already curated — see `resolveTriggerSentence`.
+     */
+    triggerSentences?: {
+      /** Used when the block exposes a single trigger. */
+      default?: CanvasSentence
+      /** Keyed by trigger id, as listed in `triggers.available`. */
+      byTrigger?: Record<string, CanvasSentence>
+    }
   }
   subBlocks: SubBlockConfig[]
   triggerAllowed?: boolean

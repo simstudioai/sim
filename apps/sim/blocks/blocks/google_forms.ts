@@ -5,6 +5,13 @@ import { IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
+/*
+ * Canonical basic/advanced pair for the form a card points at. Listing both
+ * members keeps the sentence working for an advanced-mode user, who has only
+ * the raw id filled.
+ */
+const FORM_FIELD = ['formSelector', 'manualFormId'] as const
+
 export const GoogleFormsBlock: BlockConfig = {
   type: 'google_forms',
   name: 'Google Forms',
@@ -16,6 +23,40 @@ export const GoogleFormsBlock: BlockConfig = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: GoogleFormsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Forms',
+    sentences: {
+      byOperation: {
+        get_responses: [
+          { text: 'Reads response', field: 'responseId', core: true },
+          { text: 'from form', field: FORM_FIELD, core: true },
+          { text: ', matching', field: 'filter' },
+        ],
+        get_form: [{ text: 'Reads structure of form', field: FORM_FIELD, core: true }],
+        create_form: [{ text: 'Creates a form titled', field: 'title', core: true }],
+        batch_update: [{ text: 'Applies batch updates to form', field: FORM_FIELD, core: true }],
+        set_publish_settings: [
+          { text: 'Updates publish settings of form', field: FORM_FIELD, core: true },
+        ],
+        create_watch: [
+          { text: 'Watches form', field: FORM_FIELD, core: true },
+          { text: 'for', field: 'eventType' },
+          { text: ', notifying', field: 'topicName' },
+        ],
+        list_watches: [
+          { text: 'Lists notification watches on form', field: FORM_FIELD, core: true },
+        ],
+        delete_watch: [
+          { text: 'Deletes watch', field: 'watchId', core: true },
+          { text: 'from form', field: FORM_FIELD, core: true },
+        ],
+        renew_watch: [
+          { text: 'Renews watch', field: 'watchId', core: true },
+          { text: 'on form', field: FORM_FIELD, core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

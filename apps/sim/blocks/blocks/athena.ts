@@ -41,6 +41,58 @@ export const AthenaBlock: BlockConfig<
   bgColor: 'linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)',
   iconColor: '#A166FF',
   icon: AthenaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Athena',
+    sentences: {
+      byOperation: {
+        start_query: [
+          { text: 'Runs', field: 'queryString', core: true },
+          { text: 'on database', field: 'database' },
+        ],
+        get_query_execution: [
+          { text: 'Reads the status of query', field: 'queryExecutionId', core: true },
+        ],
+        get_query_results: [
+          { text: 'Fetches the results of query', field: 'queryExecutionId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'rows' },
+        ],
+        stop_query: [{ text: 'Stops query', field: 'queryExecutionId', core: true }],
+        list_query_executions: [
+          'Lists recent query executions',
+          { text: ', in workgroup', field: 'workGroup' },
+          { text: ', up to', field: 'maxResults' },
+        ],
+        batch_get_query_execution: [
+          {
+            text: 'Reads the status of every query in',
+            field: 'queryExecutionIds',
+            core: true,
+          },
+        ],
+        create_named_query: [
+          { text: 'Saves named query', field: 'queryName', core: true },
+          { text: 'on database', field: 'database' },
+        ],
+        get_named_query: [{ text: 'Reads named query', field: 'namedQueryId', core: true }],
+        list_named_queries: [
+          'Lists saved named queries',
+          { text: ', in workgroup', field: 'workGroup' },
+          { text: ', up to', field: 'maxResults' },
+        ],
+        delete_named_query: [{ text: 'Deletes named query', field: 'namedQueryId', core: true }],
+        list_databases: [
+          'Lists databases',
+          { text: ', in catalog', field: 'catalogName' },
+          { text: ', up to', field: 'maxResults' },
+        ],
+        list_table_metadata: [
+          'Lists tables and their columns',
+          { text: ', in database', field: 'databaseName' },
+          { text: ', matching', field: 'expression' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

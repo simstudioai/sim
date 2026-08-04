@@ -4,6 +4,9 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { LoopsResponse } from '@/tools/loops/types'
 import { getTrigger } from '@/triggers'
 
+/** How a contact is identified — email or user id, whichever the user filled. */
+const CONTACT_FIELD = ['contactEmail', 'userId'] as const
+
 export const LoopsBlock: BlockConfig<LoopsResponse> = {
   type: 'loops',
   name: 'Loops',
@@ -16,6 +19,59 @@ export const LoopsBlock: BlockConfig<LoopsResponse> = {
   integrationType: IntegrationType.Email,
   bgColor: '#FAFAF9',
   icon: LoopsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Loops',
+    sentences: {
+      byOperation: {
+        create_contact: [
+          { text: 'Creates a contact for', field: 'email', core: true },
+          { text: ', in group', field: 'userGroup' },
+        ],
+        update_contact: [
+          { text: 'Updates contact', field: CONTACT_FIELD, core: true },
+          { text: ', moving them to group', field: 'userGroup' },
+        ],
+        find_contact: [{ text: 'Finds contact', field: CONTACT_FIELD, core: true }],
+        delete_contact: [{ text: 'Deletes contact', field: CONTACT_FIELD, core: true }],
+        send_transactional_email: [
+          {
+            text: 'Sends template',
+            field: 'transactionalId',
+            core: true,
+          },
+          { text: 'to', field: 'email', core: true },
+        ],
+        send_event: [
+          { text: 'Sends event', field: 'eventName', core: true },
+          { text: 'for contact', field: CONTACT_FIELD },
+        ],
+        list_mailing_lists: ['Lists all mailing lists'],
+        list_transactional_emails: [
+          'Lists published transactional templates',
+          { text: ', up to', field: 'perPage', after: 'per page' },
+        ],
+        create_contact_property: [
+          { text: 'Creates contact property', field: 'propertyName', core: true },
+          { text: ', typed as', field: 'propertyType' },
+        ],
+        list_contact_properties: ['Lists contact properties'],
+        check_contact_suppression: [
+          { text: 'Checks whether', field: CONTACT_FIELD, core: true, after: 'is suppressed' },
+        ],
+        remove_contact_suppression: [
+          {
+            text: 'Removes',
+            field: CONTACT_FIELD,
+            core: true,
+            after: 'from the suppression list',
+          },
+        ],
+        get_transactional_email: [
+          { text: 'Reads transactional template', field: 'transactionalId', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -1,10 +1,22 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
-import { HANDLE_POSITIONS, humanizeBlockName, WorkflowTypeTag } from '@sim/workflow-renderer'
+import {
+  CanvasSentenceView,
+  HANDLE_POSITIONS,
+  humanizeBlockName,
+  SubBlockRowView,
+  WorkflowTypeTag,
+} from '@sim/workflow-renderer'
 import { WORKFLOW_SOURCE_HANDLE_ID, WORKFLOW_TARGET_HANDLE_ID } from '@sim/workflow-types/workflow'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
+import {
+  type CardSelector,
+  getOperationSubBlockId,
+  resolveCanvasSentence,
+} from '@/lib/workflows/blocks/canvas-sentence'
+import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import {
   getDisplayValue,
   hasDisplayableRowValue,
@@ -26,6 +38,7 @@ import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 /** Execution status for blocks in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'
@@ -95,23 +108,19 @@ interface SubBlockRowProps {
 }
 
 /**
- * Renders a single subblock row with title and optional value.
- * Matches the SubBlockRow component in WorkflowBlock.
- * - Masks password fields with bullets
- * - Resolves dropdown/combobox labels
- * - Resolves workflow names from registry
- * - Resolves variable names from store
- * - Resolves tool and skill names (registry + stored names; no API access)
- * - Shows '-' for other selector types that need hydration
+ * Resolves a subblock's value to the string the card shows.
+ *
+ * Shared by the label/value rows and the chips inside a summary sentence so a
+ * value cannot render one way in a row and another way inline. The preview is
+ * hook-free, so selector types that need an API round-trip resolve to `-`.
  */
-const SubBlockRow = memo(function SubBlockRow({
-  title,
-  value,
-  subBlock,
-  rawValue,
-  workflowMap,
-  workflowLabelsReady,
-}: SubBlockRowProps) {
+function resolvePreviewDisplayValue(
+  value: string | undefined,
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown,
+  workflowMap: Record<string, WorkflowMetadata>,
+  workflowLabelsReady: boolean
+): string | undefined {
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
 
@@ -126,8 +135,8 @@ const SubBlockRow = memo(function SubBlockRow({
           Object.values(useVariablesStore.getState().variables)
         )
       : null
-  // The preview is hook-free, so custom tools referenced only by id resolve
-  // through their inline schema/registry fallbacks rather than the API.
+  // Custom tools referenced only by id resolve through their inline
+  // schema/registry fallbacks rather than the API.
   const toolsDisplay = resolveToolsLabel(subBlock, rawValue, [])
   const skillsDisplay = resolveSkillsLabel(subBlock, rawValue, [])
   const workflowName = resolveWorkflowSelectionLabel(subBlock, rawValue, workflowLookup)
@@ -146,7 +155,35 @@ const SubBlockRow = memo(function SubBlockRow({
     skillsDisplay ||
     workflowName ||
     workflowMultiSelectionNames
-  const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
+
+  return maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
+}
+
+/**
+ * Renders a single subblock row with title and optional value.
+ * Matches the SubBlockRow component in WorkflowBlock.
+ * - Masks password fields with bullets
+ * - Resolves dropdown/combobox labels
+ * - Resolves workflow names from registry
+ * - Resolves variable names from store
+ * - Resolves tool and skill names (registry + stored names; no API access)
+ * - Shows '-' for other selector types that need hydration
+ */
+const SubBlockRow = memo(function SubBlockRow({
+  title,
+  value,
+  subBlock,
+  rawValue,
+  workflowMap,
+  workflowLabelsReady,
+}: SubBlockRowProps) {
+  const displayValue = resolvePreviewDisplayValue(
+    value,
+    subBlock,
+    rawValue,
+    workflowMap,
+    workflowLabelsReady
+  )
 
   return (
     <div className='flex h-5 items-center gap-2'>
@@ -208,7 +245,14 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     [blockConfig, name, rawValues]
   )
 
-  const visibleSubBlocks = useMemo(() => {
+  /**
+   * Visible on the card, whether or not it holds a value.
+   *
+   * A sentence's core slots render either way — the chip shows the field's noun
+   * until it is filled — so the sentence needs this set, while the field rows
+   * below it need the value-bearing subset.
+   */
+  const displayableSubBlocks = useMemo(() => {
     if (!blockConfig?.subBlocks) return []
 
     const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
@@ -246,7 +290,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       ) {
         return false
       }
-      return hasDisplayableRowValue(subBlock, rawValues[subBlock.id])
+      return true
     })
   }, [
     lightweight,
@@ -259,6 +303,67 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     rawValues,
     canvasPresentation,
   ])
+
+  /**
+   * The definition this operation shows, by id.
+   *
+   * Doubles as the chip lookup, which used to rescan `visibleSubBlocks` for
+   * every slot on every render of every previewed card.
+   */
+  const onCardById = useMemo(() => {
+    const byId = new Map<string, SubBlockConfig>()
+    for (const subBlock of displayableSubBlocks) {
+      if (!byId.has(subBlock.id)) byId.set(subBlock.id, subBlock)
+    }
+    return byId
+  }, [displayableSubBlocks])
+
+  /* Lightweight mode has no values to test, so it keeps every displayable row. */
+  const visibleSubBlocks = useMemo(
+    () =>
+      lightweight
+        ? displayableSubBlocks
+        : displayableSubBlocks.filter((subBlock) =>
+            hasDisplayableRowValue(subBlock, rawValues[subBlock.id])
+          ),
+    [lightweight, displayableSubBlocks, rawValues]
+  )
+
+  /**
+   * The block's natural-language summary, which replaces its field rows.
+   *
+   * Resolved against the same visible-and-configured set the rows use, so the
+   * preview reaches the same sentence the editor canvas paints. Skipped in
+   * lightweight mode, which has no values to resolve chips from.
+   */
+  const sentenceSegments = useMemo(() => {
+    const effectiveTrigger = isTrigger || type === 'starter'
+    if (lightweight || !blockConfig) return null
+    if (type === 'condition' || type === 'router_v2' || type === 'starter') return null
+
+    const availableIds = new Set(visibleSubBlocks.map((subBlock) => subBlock.id))
+    const operationSubBlockId = getOperationSubBlockId(blockConfig)
+    const card: CardSelector = effectiveTrigger
+      ? (() => {
+          const triggerId = resolveSelectedTriggerId(blockConfig, rawValues)
+          return {
+            mode: 'trigger' as const,
+            triggerId,
+            triggerName: triggerId ? (TRIGGER_REGISTRY[triggerId]?.name ?? null) : null,
+          }
+        })()
+      : {
+          mode: 'action',
+          operationValue: operationSubBlockId ? rawValues[operationSubBlockId] : undefined,
+        }
+
+    return resolveCanvasSentence(
+      blockConfig,
+      card,
+      (subBlockId) => availableIds.has(subBlockId),
+      (subBlockId) => onCardById.get(subBlockId) ?? null
+    )
+  }, [lightweight, blockConfig, type, isTrigger, visibleSubBlocks, onCardById, rawValues])
 
   /**
    * Compute condition rows for condition blocks.
@@ -358,7 +463,9 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       : type === 'router_v2'
         ? /* The Context row renders whether or not any routes are defined. */
           true
-        : hasSubBlocks
+        : /* A sentence built only from literals resolves no field, so it
+             contributes no rows but still paints. */
+          sentenceSegments !== null || hasSubBlocks
 
   const hasError = executionStatus === 'error'
   const hasSuccess = executionStatus === 'success'
@@ -425,6 +532,33 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                 workflowLabelsReady={workflowLabelsReady}
               />
             ))
+          ) : sentenceSegments ? (
+            <CanvasSentenceView
+              segments={sentenceSegments}
+              renderChip={(subBlockId) => {
+                const subBlock = onCardById.get(subBlockId)
+                if (!subBlock) return null
+                const rawValue = rawValues[subBlockId]
+                const displayValue = resolvePreviewDisplayValue(
+                  getDisplayValue(rawValue),
+                  subBlock,
+                  rawValue,
+                  workflowMap,
+                  workflowLabelsReady
+                )
+                /* The preview has no hooks, so a selector it cannot hydrate comes
+                   back as the `-` sentinel. That reads as noise mid-sentence, so
+                   hand the slot back and let its noun stand in instead. */
+                if (!displayValue || displayValue === '-') return null
+                return (
+                  <SubBlockRowView
+                    title={subBlock.title ?? subBlock.id}
+                    displayValue={displayValue}
+                    variant='inline-value'
+                  />
+                )
+              }}
+            />
           ) : type === 'router_v2' ? (
             <>
               <SubBlockRow

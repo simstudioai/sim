@@ -17,6 +17,49 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
   bgColor: '#F25A5A',
   iconColor: '#F25A5A',
   icon: RevenueCatIcon,
+  canvasPresentation: {
+    defaultTitle: 'RevenueCat',
+    sentences: {
+      byOperation: {
+        get_customer: [{ text: 'Reads customer', field: 'appUserId', core: true }],
+        delete_customer: [{ text: 'Deletes customer', field: 'appUserId', core: true }],
+        create_purchase: [
+          { text: 'Records a purchase of', field: 'productId', core: true },
+          { text: 'for customer', field: 'appUserId', core: true },
+          { text: ', priced', field: 'price' },
+        ],
+        grant_entitlement: [
+          { text: 'Grants entitlement', field: 'entitlementIdentifier', core: true },
+          { text: 'to customer', field: 'appUserId' },
+          { text: ', lasting', field: 'duration' },
+        ],
+        revoke_entitlement: [
+          { text: 'Revokes entitlement', field: 'entitlementIdentifier', core: true },
+          { text: 'from customer', field: 'appUserId' },
+        ],
+        list_offerings: [
+          { text: 'Lists offerings available to', field: 'appUserId', core: true },
+          { text: ', on', field: 'platform' },
+        ],
+        update_subscriber_attributes: [
+          { text: 'Updates attributes on customer', field: 'appUserId', core: true },
+        ],
+        defer_google_subscription: [
+          { text: 'Defers Google Play subscription', field: 'productId', core: true },
+          { text: 'for customer', field: 'appUserId' },
+          { text: ', by', field: 'extendByDays', after: 'days' },
+        ],
+        refund_google_subscription: [
+          { text: 'Refunds store transaction', field: 'productId', core: true },
+          { text: 'for customer', field: 'appUserId' },
+        ],
+        revoke_google_subscription: [
+          { text: 'Revokes Google Play subscription', field: 'productId', core: true },
+          { text: 'from customer', field: 'appUserId' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

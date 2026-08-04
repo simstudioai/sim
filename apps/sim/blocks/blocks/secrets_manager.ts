@@ -14,6 +14,44 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
   integrationType: IntegrationType.Security,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: SecretsManagerIcon,
+  canvasPresentation: {
+    defaultTitle: 'AWS Secrets Manager',
+    sentences: {
+      byOperation: {
+        get_secret: [
+          { text: 'Reads the value of secret', field: 'secretId', core: true },
+          { text: ', at stage', field: 'versionStage' },
+        ],
+        list_secrets: ['Lists secrets', { text: ', up to', field: 'maxResults' }],
+        create_secret: [
+          { text: 'Creates secret', field: 'name', core: true },
+          { text: ', described as', field: 'description' },
+        ],
+        update_secret: [{ text: 'Overwrites the value of secret', field: 'secretId', core: true }],
+        delete_secret: [
+          { text: 'Deletes secret', field: 'secretId', core: true },
+          { text: ', after', field: 'recoveryWindowInDays', after: 'days' },
+        ],
+        describe_secret: [{ text: 'Reads metadata of secret', field: 'secretId', core: true }],
+        tag_resource: [
+          { text: 'Tags secret', field: 'secretId', core: true },
+          { text: ', with', field: 'tags' },
+        ],
+        untag_resource: [
+          { text: 'Removes tags', field: 'tagKeys', core: true },
+          { text: 'from secret', field: 'secretId', core: true },
+        ],
+        restore_secret: [
+          { text: 'Cancels the scheduled deletion of secret', field: 'secretId', core: true },
+        ],
+        rotate_secret: [
+          { text: 'Rotates secret', field: 'secretId', core: true },
+          { text: ', every', field: 'automaticallyAfterDays', after: 'days' },
+          { text: ', using Lambda', field: 'rotationLambdaARN' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

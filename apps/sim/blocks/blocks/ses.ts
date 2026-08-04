@@ -15,6 +15,98 @@ export const SESBlock: BlockConfig<ToolResponse> = {
   authMode: AuthMode.ApiKey,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: SESIcon,
+  canvasPresentation: {
+    defaultTitle: 'AWS SES',
+    sentences: {
+      byOperation: {
+        send_email: [
+          { text: 'Sends', field: 'subject', core: true },
+          { text: 'to', field: 'toAddresses', core: true },
+          { text: ', copying', field: 'ccAddresses' },
+        ],
+        send_templated_email: [
+          { text: 'Sends template', field: 'templateName', core: true },
+          { text: 'to', field: 'toAddresses' },
+          { text: ', filled with', field: 'templateData' },
+        ],
+        send_bulk_email: [
+          { text: 'Bulk-sends template', field: 'templateName', core: true },
+          { text: 'to', field: 'destinations' },
+        ],
+        list_identities: [
+          'Lists verified sender identities',
+          { text: ', up to', field: 'pageSize', after: 'per page' },
+        ],
+        get_account: ['Reads account sending quota and status'],
+        create_template: [
+          { text: 'Creates email template', field: 'templateName', core: true },
+          { text: ', with subject', field: 'subjectPart' },
+        ],
+        get_template: [
+          { text: 'Reads the content of template', field: 'templateName', core: true },
+        ],
+        list_templates: [
+          'Lists email templates',
+          { text: ', up to', field: 'pageSize', after: 'per page' },
+        ],
+        delete_template: [{ text: 'Deletes email template', field: 'templateName', core: true }],
+        update_template: [
+          { text: 'Updates email template', field: 'templateName', core: true },
+          { text: ', setting subject to', field: 'subjectPart' },
+        ],
+        send_custom_verification_email: [
+          { text: 'Sends a verification email to', field: 'emailAddress', core: true },
+          { text: ', using template', field: 'templateName' },
+        ],
+        create_email_identity: [
+          { text: 'Starts verification of identity', field: 'emailIdentity', core: true },
+        ],
+        get_email_identity: [
+          {
+            text: 'Reads the verification status of identity',
+            field: 'emailIdentity',
+            core: true,
+          },
+        ],
+        delete_email_identity: [
+          { text: 'Deletes verified identity', field: 'emailIdentity', core: true },
+        ],
+        put_suppressed_destination: [
+          {
+            text: 'Adds',
+            field: 'emailAddress',
+            after: 'to the suppression list',
+            core: true,
+          },
+          { text: ', as a', field: 'reason' },
+        ],
+        get_suppressed_destination: [
+          { text: 'Reads the suppression record for', field: 'emailAddress', core: true },
+        ],
+        list_suppressed_destinations: [
+          'Lists suppressed addresses',
+          { text: ', with reason', field: 'reasons' },
+          { text: ', suppressed since', field: 'startDate' },
+        ],
+        delete_suppressed_destination: [
+          {
+            text: 'Removes',
+            field: 'emailAddress',
+            after: 'from the suppression list',
+            core: true,
+          },
+        ],
+        create_configuration_set: [
+          {
+            text: 'Creates configuration set',
+            field: 'newConfigurationSetName',
+            core: true,
+          },
+          { text: ', sending through IP pool', field: 'sendingPoolName' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

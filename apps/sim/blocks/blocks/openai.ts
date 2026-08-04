@@ -13,6 +13,15 @@ export const OpenAIBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/openai',
   bgColor: '#000000',
   icon: OpenAIIcon,
+  canvasPresentation: {
+    defaultTitle: 'Embeddings',
+    sentences: {
+      default: [
+        { text: 'Embeds', field: 'input', core: true },
+        { text: 'with', field: 'model' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'input',

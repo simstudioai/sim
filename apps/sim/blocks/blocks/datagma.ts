@@ -14,6 +14,29 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: DatagmaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Datagma',
+    sentences: {
+      byOperation: {
+        datagma_find_email: [
+          { text: 'Finds the work email for', field: 'fe_fullName', core: true },
+          { text: 'at', field: 'fe_company' },
+        ],
+        datagma_enrich_person: [
+          { text: 'Enriches the profile for', field: 'ep_data', core: true },
+          { text: 'at', field: 'ep_companyKeyword' },
+        ],
+        datagma_enrich_company: [
+          { text: 'Enriches the company profile for', field: 'ec_data', core: true },
+        ],
+        datagma_find_phone: [
+          { text: 'Finds a mobile number from', field: 'fp_username', core: true },
+          { text: ', matched on', field: 'fp_email' },
+        ],
+        datagma_get_credits: ['Checks the remaining credit balance'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -14,6 +14,66 @@ export const GoogleMapsBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   bgColor: '#FFFFFF',
   icon: GoogleMapsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Maps',
+    sentences: {
+      byOperation: {
+        geocode: [{ text: 'Converts', field: 'address', core: true, after: 'to coordinates' }],
+        reverse_geocode: [
+          { text: 'Finds the address at', field: 'latitude', core: true },
+          { text: ',', field: 'longitude' },
+        ],
+        directions: [
+          { text: 'Routes from', field: 'origin', core: true },
+          { text: 'to', field: 'destination', core: true },
+          { text: ', by', field: 'mode' },
+        ],
+        distance_matrix: [
+          { text: 'Measures travel time from', field: 'origin', core: true },
+          { text: 'to', field: 'destinations', core: true },
+          { text: ', by', field: 'mode' },
+        ],
+        places_search: [
+          { text: 'Finds places matching', field: 'query', core: true },
+          { text: ', near', field: 'locationBias' },
+        ],
+        places_nearby: [
+          { text: 'Lists places within', field: 'radius', core: true, after: 'meters' },
+          { text: 'of', field: 'aqLatitude' },
+          { text: ',', field: 'aqLongitude' },
+        ],
+        place_details: [{ text: 'Reads details of place', field: 'placeId', core: true }],
+        elevation: [
+          { text: 'Reads elevation at', field: 'latitude', core: true },
+          { text: ',', field: 'longitude' },
+        ],
+        timezone: [
+          { text: 'Reads timezone at', field: 'latitude', core: true },
+          { text: ',', field: 'longitude' },
+        ],
+        snap_to_roads: [{ text: 'Snaps', field: 'path', core: true, after: 'to nearby roads' }],
+        speed_limits: [{ text: 'Reads speed limits for', field: ['path', 'placeIds'], core: true }],
+        validate_address: [
+          { text: 'Validates', field: 'addressToValidate', core: true },
+          { text: 'in', field: 'regionCode' },
+        ],
+        geolocate: ['Estimates device location from WiFi and cell signals'],
+        air_quality: [
+          { text: 'Reads air quality at', field: 'aqLatitude', core: true },
+          { text: ',', field: 'aqLongitude' },
+        ],
+        pollen: [
+          { text: 'Forecasts pollen at', field: 'aqLatitude', core: true },
+          { text: ',', field: 'aqLongitude' },
+          { text: ', over', field: 'days', after: 'days' },
+        ],
+        solar: [
+          { text: 'Reads solar potential at', field: 'aqLatitude', core: true },
+          { text: ',', field: 'aqLongitude' },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     // Operation selector

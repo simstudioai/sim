@@ -6,6 +6,16 @@ import { normalizeFileInput } from '@/blocks/utils'
 import type { MicrosoftTeamsResponse } from '@/tools/microsoft_teams/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * Canonical basic/advanced pairs for the card sentences below. Listing both
+ * members is what keeps a sentence working for an advanced-mode user, who has
+ * only the manual id filled.
+ */
+const TEAM_FIELD = ['teamSelector', 'manualTeamId'] as const
+const CHAT_FIELD = ['chatSelector', 'manualChatId'] as const
+const CHANNEL_FIELD = ['channelSelector', 'manualChannelId'] as const
+const ATTACHMENT_FIELD = ['attachmentFiles', 'fileReferences'] as const
+
 export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   type: 'microsoft_teams',
   name: 'Microsoft Teams',
@@ -19,6 +29,69 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   triggerAllowed: true,
   bgColor: '#FFFFFF',
   icon: MicrosoftTeamsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Microsoft Teams',
+    sentences: {
+      byOperation: {
+        read_chat: [{ text: 'Reads messages from chat', field: CHAT_FIELD, core: true }],
+        write_chat: [
+          { text: 'Posts', field: 'content', core: true },
+          { text: 'to chat', field: CHAT_FIELD, core: true },
+          { text: ', attaching', field: ATTACHMENT_FIELD },
+        ],
+        update_chat_message: [
+          { text: 'Updates chat message', field: 'messageId', core: true },
+          { text: 'in', field: CHAT_FIELD },
+          { text: ', to read', field: 'content' },
+        ],
+        delete_chat_message: [
+          { text: 'Deletes chat message', field: 'messageId', core: true },
+          { text: 'from', field: CHAT_FIELD },
+        ],
+        read_channel: [
+          { text: 'Reads messages from channel', field: CHANNEL_FIELD, core: true },
+          { text: 'in team', field: TEAM_FIELD },
+        ],
+        write_channel: [
+          { text: 'Posts', field: 'content', core: true },
+          { text: 'to channel', field: CHANNEL_FIELD, core: true },
+          { text: 'in team', field: TEAM_FIELD },
+        ],
+        update_channel_message: [
+          { text: 'Updates channel message', field: 'messageId', core: true },
+          { text: 'in', field: CHANNEL_FIELD },
+          { text: ', to read', field: 'content' },
+        ],
+        delete_channel_message: [
+          { text: 'Deletes channel message', field: 'messageId', core: true },
+          { text: 'from', field: CHANNEL_FIELD },
+        ],
+        reply_to_message: [
+          { text: 'Replies to message', field: 'messageId', core: true },
+          { text: 'in channel', field: CHANNEL_FIELD },
+          { text: ', with', field: 'content' },
+        ],
+        get_message: [{ text: 'Fetches message', field: 'messageId', core: true }],
+        set_reaction: [
+          { text: 'Reacts with', field: 'reactionType', core: true },
+          { text: 'to message', field: 'messageId' },
+        ],
+        unset_reaction: [
+          { text: 'Removes reaction', field: 'reactionType', core: true },
+          { text: 'from message', field: 'messageId' },
+        ],
+        list_team_members: [{ text: 'Lists members of team', field: TEAM_FIELD, core: true }],
+        list_channel_members: [
+          { text: 'Lists members of channel', field: CHANNEL_FIELD, core: true },
+          { text: 'in team', field: TEAM_FIELD },
+        ],
+        list_chat_members: [{ text: 'Lists members of chat', field: CHAT_FIELD, core: true }],
+        list_teams: ['Lists teams the signed-in user has joined'],
+        list_chats: ['Lists chats for the signed-in user'],
+        list_channels: [{ text: 'Lists channels in team', field: TEAM_FIELD, core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

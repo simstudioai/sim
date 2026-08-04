@@ -14,6 +14,62 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#F5F6FA',
   icon: CloudflareIcon,
+  canvasPresentation: {
+    defaultTitle: 'Cloudflare',
+    sentences: {
+      byOperation: {
+        list_zones: [
+          'Lists zones',
+          { text: 'named', field: 'name' },
+          { text: ', with status', field: 'status' },
+        ],
+        get_zone: [{ text: 'Reads details of zone', field: 'zoneId', core: true }],
+        create_zone: [
+          { text: 'Adds zone', field: 'name', core: true },
+          { text: ', set up as', field: 'zoneType' },
+        ],
+        delete_zone: [{ text: 'Deletes zone', field: 'zoneId', core: true }],
+        list_dns_records: [
+          { text: 'Lists DNS records in zone', field: 'zoneId', core: true },
+          { text: ', of type', field: 'type' },
+          { text: ', named', field: 'name' },
+        ],
+        create_dns_record: [
+          { text: 'Adds DNS record', field: 'name', core: true },
+          { text: 'of type', field: 'type' },
+          { text: ', pointing at', field: 'content' },
+        ],
+        update_dns_record: [
+          { text: 'Updates DNS record', field: 'recordId', core: true },
+          { text: ', pointing it at', field: 'content' },
+          { text: ', with TTL', field: 'ttl' },
+        ],
+        delete_dns_record: [
+          { text: 'Deletes DNS record', field: 'recordId', core: true },
+          { text: 'from zone', field: 'zoneId' },
+        ],
+        list_certificates: [
+          { text: 'Lists certificate packs for zone', field: 'zoneId', core: true },
+          { text: ', with status', field: 'status' },
+        ],
+        get_zone_settings: [{ text: 'Reads all settings of zone', field: 'zoneId', core: true }],
+        update_zone_setting: [
+          { text: 'Sets', field: 'settingId', core: true },
+          { text: 'to', field: 'value' },
+          { text: 'on zone', field: 'zoneId' },
+        ],
+        dns_analytics: [
+          { text: 'Reports DNS analytics for zone', field: 'zoneId', core: true },
+          { text: ', from', field: 'since', core: true },
+          { text: 'to', field: 'until', core: true },
+        ],
+        purge_cache: [
+          { text: 'Purges cache for zone', field: 'zoneId', core: true },
+          { text: ', limited to', field: ['files', 'prefixes', 'hosts', 'tags'] },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

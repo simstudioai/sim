@@ -15,6 +15,31 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/tavily',
   bgColor: '#FFFFFF',
   icon: TavilyIcon,
+  canvasPresentation: {
+    defaultTitle: 'Tavily',
+    sentences: {
+      byOperation: {
+        tavily_search: [
+          { text: 'Searches the web for', field: 'query', core: true },
+          { text: ', within', field: 'include_domains' },
+          { text: ', up to', field: 'max_results', after: 'results' },
+        ],
+        tavily_extract: [
+          { text: 'Extracts page content from', field: 'urls', core: true },
+          { text: ', as', field: 'format' },
+        ],
+        tavily_crawl: [
+          { text: 'Crawls pages under', field: 'url', core: true },
+          { text: ', following', field: 'instructions' },
+          { text: ', up to', field: 'limit', after: 'pages' },
+        ],
+        tavily_map: [
+          { text: 'Maps the site structure under', field: 'url', core: true },
+          { text: ', down to depth', field: 'max_depth' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

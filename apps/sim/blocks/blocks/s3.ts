@@ -30,6 +30,9 @@ function parseObjectKeys(value: unknown): string[] {
     .filter(Boolean)
 }
 
+/** Upload payload: an uploaded file, a referenced file, or inline text. */
+const UPLOAD_SOURCE_FIELD = ['uploadFile', 'fileReference', 'content'] as const
+
 export const S3Block: BlockConfig<S3Response> = {
   type: 's3',
   name: 'S3',
@@ -42,6 +45,56 @@ export const S3Block: BlockConfig<S3Response> = {
   integrationType: IntegrationType.Documents,
   bgColor: 'linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)',
   icon: S3Icon,
+  canvasPresentation: {
+    defaultTitle: 'S3',
+    sentences: {
+      byOperation: {
+        get_object: [{ text: 'Downloads the object at', field: 's3Uri', core: true }],
+        put_object: [
+          { text: 'Uploads', field: UPLOAD_SOURCE_FIELD, core: true },
+          { text: 'to', field: 'bucketName', core: true },
+          { text: 'as', field: 'objectKey' },
+        ],
+        list_objects: [
+          { text: 'Lists objects in', field: 'bucketName', core: true },
+          { text: ', under', field: 'prefix' },
+          { text: ', up to', field: 'maxKeys' },
+        ],
+        delete_object: [
+          { text: 'Deletes object', field: 'objectKey', core: true },
+          { text: 'from', field: 'bucketName' },
+        ],
+        delete_objects: [
+          { text: 'Deletes objects', field: 'objectKeys', core: true },
+          { text: 'from', field: 'bucketName' },
+        ],
+        copy_object: [
+          { text: 'Copies', field: 'sourceKey', core: true },
+          { text: 'to', field: 'destinationBucket' },
+          { text: 'as', field: 'destinationKey' },
+        ],
+        head_object: [
+          { text: 'Reads metadata of', field: 'objectKey', core: true },
+          { text: 'in', field: 'bucketName' },
+        ],
+        presigned_url: [
+          { text: 'Generates a presigned URL for', field: 'objectKey', core: true },
+          { text: 'in', field: 'bucketName' },
+          { text: ', valid for', field: 'expiresIn', after: 'seconds' },
+        ],
+        list_buckets: [
+          'Lists buckets',
+          { text: ', starting with', field: 'bucketPrefix' },
+          { text: ', up to', field: 'maxBuckets' },
+        ],
+        create_bucket: [
+          { text: 'Creates bucket', field: 'bucketName', core: true },
+          { text: 'in', field: 'region' },
+        ],
+        delete_bucket: [{ text: 'Deletes bucket', field: 'bucketName', core: true }],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {
@@ -145,6 +198,7 @@ export const S3Block: BlockConfig<S3Response> = {
     {
       id: 'uploadFile',
       title: 'File to Upload',
+      canvasNoun: 'a file',
       type: 'file-upload',
       canonicalParamId: 'file',
       placeholder: 'Upload a file',

@@ -6,6 +6,8 @@ import { normalizeFileInput } from '@/blocks/utils'
 import type { FirefliesResponse } from '@/tools/fireflies/types'
 import { getTrigger } from '@/triggers'
 
+const AUDIO_FILE_FIELD = ['audioFile', 'audioFileReference'] as const
+
 export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   type: 'fireflies',
   name: 'Fireflies (Legacy)',
@@ -20,6 +22,56 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   icon: FirefliesIcon,
+  canvasPresentation: {
+    defaultTitle: 'Fireflies',
+    sentences: {
+      byOperation: {
+        fireflies_list_transcripts: [
+          'Lists meeting transcripts',
+          { text: ', matching', field: 'keyword' },
+          { text: ', hosted by', field: 'hostEmail' },
+          { text: ', since', field: 'fromDate' },
+        ],
+        fireflies_get_transcript: [
+          {
+            text: 'Fetches transcript',
+            field: 'transcriptId',
+            after: 'with summary and action items',
+            core: true,
+          },
+        ],
+        fireflies_get_user: [{ text: 'Fetches user', field: 'userId', core: true }],
+        fireflies_list_users: ['Lists everyone on the team'],
+        fireflies_upload_audio: [
+          {
+            text: 'Uploads',
+            field: AUDIO_FILE_FIELD,
+            after: 'for transcription',
+            core: true,
+          },
+          { text: ', titled', field: 'title' },
+        ],
+        fireflies_delete_transcript: [
+          { text: 'Deletes transcript', field: 'transcriptId', core: true },
+        ],
+        fireflies_add_to_live_meeting: [
+          { text: 'Adds the notetaker bot to', field: 'meetingLink', core: true },
+          { text: ', for', field: 'duration', after: 'minutes' },
+        ],
+        fireflies_create_bite: [
+          'Creates a soundbite',
+          { text: 'from transcript', field: 'transcriptId', core: true },
+          { text: ', named', field: 'biteName' },
+        ],
+        fireflies_list_bites: [
+          'Lists soundbites',
+          { text: ', from transcript', field: 'transcriptId' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        fireflies_list_contacts: ['Lists contacts met in past meetings'],
+      },
+    },
+  },
   bgColor: '#100730',
   subBlocks: [
     {

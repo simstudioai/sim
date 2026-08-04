@@ -17,6 +17,33 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
   bgColor: '#FFFFFF',
   icon: GoogleMeetIcon,
   authMode: AuthMode.OAuth,
+  canvasPresentation: {
+    defaultTitle: 'Google Meet',
+    sentences: {
+      byOperation: {
+        create_space: ['Creates a meeting space', { text: ', with access', field: 'accessType' }],
+        get_space: [{ text: 'Reads details of meeting space', field: 'spaceName', core: true }],
+        end_conference: [
+          { text: 'Ends the active conference in space', field: 'spaceName', core: true },
+        ],
+        list_conference_records: [
+          'Lists conference records',
+          { text: ', matching', field: 'filter' },
+        ],
+        get_conference_record: [
+          { text: 'Reads details of conference record', field: 'conferenceName', core: true },
+        ],
+        list_participants: [
+          {
+            text: 'Lists participants of conference record',
+            field: 'conferenceName',
+            core: true,
+          },
+          { text: ', matching', field: 'filter' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

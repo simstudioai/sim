@@ -14,6 +14,111 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#000000',
   icon: RailwayIcon,
+  canvasPresentation: {
+    defaultTitle: 'Railway',
+    sentences: {
+      byOperation: {
+        list_projects: [
+          'Lists projects',
+          { text: ', in workspace', field: 'listProjectsWorkspaceId' },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        get_project: [
+          {
+            text: 'Fetches project',
+            field: 'detailProjectId',
+            after: 'with its services and environments',
+            core: true,
+          },
+        ],
+        create_project: [
+          { text: 'Creates project', field: 'createProjectName', core: true },
+          { text: ', in workspace', field: 'createProjectWorkspaceId' },
+          { text: ', with default environment', field: 'defaultEnvironmentName' },
+        ],
+        update_project: [
+          { text: 'Updates project', field: 'updateProjectId', core: true },
+          { text: ', renaming it to', field: 'updateProjectName' },
+        ],
+        delete_project: [{ text: 'Deletes project', field: 'deleteProjectId', core: true }],
+        transfer_project: [
+          { text: 'Transfers project', field: 'transferProjectId', core: true },
+          { text: 'to workspace', field: 'workspaceId' },
+        ],
+        list_project_members: [
+          { text: 'Lists members of project', field: 'membersProjectId', core: true },
+        ],
+        create_environment: [
+          { text: 'Creates environment', field: 'environmentName', core: true },
+          { text: 'in project', field: 'createEnvironmentProjectId' },
+          { text: ', cloned from', field: 'sourceEnvironmentId' },
+        ],
+        delete_environment: [
+          { text: 'Deletes environment', field: 'deleteEnvironmentId', core: true },
+        ],
+        create_service: [
+          { text: 'Creates service', field: 'createServiceName', core: true },
+          { text: 'from', field: ['createServiceRepo', 'createServiceImage'] },
+          { text: ', in project', field: 'createServiceProjectId' },
+        ],
+        delete_service: [
+          {
+            text: 'Deletes service',
+            field: 'deleteServiceId',
+            after: 'and all of its deployments',
+            core: true,
+          },
+        ],
+        list_deployments: [
+          { text: 'Lists deployments of service', field: 'deploymentServiceId', core: true },
+          { text: ', in environment', field: 'deploymentEnvironmentId' },
+          { text: ', up to', field: 'deploymentFirst', after: 'results' },
+        ],
+        get_deployment: [{ text: 'Fetches deployment', field: 'deploymentId', core: true }],
+        deploy_service: [
+          { text: 'Deploys service', field: 'deployServiceId', core: true },
+          { text: 'to environment', field: 'deployEnvironmentId' },
+          { text: ', at commit', field: 'deployCommitSha' },
+        ],
+        restart_deployment: [
+          {
+            text: 'Restarts deployment',
+            field: 'deploymentId',
+            after: 'without rebuilding it',
+            core: true,
+          },
+        ],
+        rollback_deployment: [
+          {
+            text: 'Rolls the service back to deployment',
+            field: 'deploymentId',
+            core: true,
+          },
+        ],
+        get_deployment_logs: [
+          { text: 'Reads runtime logs of deployment', field: 'deploymentId', core: true },
+          { text: ', up to', field: 'logsLimit', after: 'lines' },
+        ],
+        list_variables: [
+          {
+            text: 'Lists variables in environment',
+            field: 'variablesEnvironmentId',
+            core: true,
+          },
+          { text: ', for service', field: 'variablesServiceId' },
+        ],
+        upsert_variable: [
+          { text: 'Sets variable', field: 'variableName', core: true },
+          { text: 'to', field: 'variableValue' },
+          { text: ', in environment', field: 'upsertEnvironmentId' },
+        ],
+        delete_variable: [
+          { text: 'Deletes variable', field: 'deleteVariableName', core: true },
+          { text: 'from environment', field: 'deleteVariableEnvironmentId' },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

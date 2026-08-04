@@ -31,6 +31,99 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
   integrationType: IntegrationType.Commerce,
   icon: ShopifyIcon,
   bgColor: '#FFFFFF',
+  canvasPresentation: {
+    defaultTitle: 'Shopify',
+    sentences: {
+      byOperation: {
+        shopify_create_product: [
+          { text: 'Creates product', field: 'title', core: true },
+          { text: ', of type', field: 'productType' },
+          { text: ', as', field: 'status' },
+        ],
+        shopify_get_product: [{ text: 'Fetches product', field: 'productId', core: true }],
+        shopify_list_products: [
+          'Lists products',
+          { text: ', matching', field: 'productQuery' },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        shopify_update_product: [
+          { text: 'Updates product', field: 'productId', core: true },
+          { text: ', renaming to', field: 'title' },
+          { text: ', setting status to', field: 'status' },
+        ],
+        shopify_delete_product: [{ text: 'Deletes product', field: 'productId', core: true }],
+        shopify_get_order: [{ text: 'Fetches order', field: 'orderId', core: true }],
+        shopify_list_orders: [
+          'Lists orders',
+          { text: ', matching', field: 'orderQuery' },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        shopify_update_order: [
+          { text: 'Updates order', field: 'orderId', core: true },
+          { text: ', setting email to', field: 'orderEmail' },
+          { text: ', with note', field: 'orderNote' },
+        ],
+        shopify_cancel_order: [
+          { text: 'Cancels order', field: 'orderId', core: true },
+          { text: ', citing', field: 'cancelReason' },
+        ],
+        shopify_create_customer: [
+          'Creates a customer',
+          { text: 'named', field: 'firstName' },
+          { text: 'with email', field: 'customerEmail' },
+        ],
+        shopify_get_customer: [{ text: 'Fetches customer', field: 'customerId', core: true }],
+        shopify_list_customers: [
+          'Lists customers',
+          { text: ', matching', field: 'customerQuery' },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        shopify_update_customer: [
+          { text: 'Updates customer', field: 'customerId', core: true },
+          { text: ', setting email to', field: 'customerEmail' },
+          { text: ', with phone', field: 'phone' },
+        ],
+        shopify_delete_customer: [{ text: 'Deletes customer', field: 'customerId', core: true }],
+        shopify_list_inventory_items: [
+          'Lists inventory items',
+          { text: ', matching', field: 'inventoryQuery' },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        shopify_get_inventory_level: [
+          { text: 'Reads the inventory level of item', field: 'inventoryItemId', core: true },
+          { text: 'at location', field: 'locationId' },
+        ],
+        shopify_adjust_inventory: [
+          { text: 'Adjusts inventory of item', field: 'inventoryItemId', core: true },
+          { text: 'by', field: 'delta' },
+          { text: 'at location', field: 'locationId' },
+        ],
+        shopify_list_locations: [
+          'Lists inventory locations',
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        shopify_create_fulfillment: [
+          {
+            text: 'Marks fulfillment order',
+            field: 'fulfillmentOrderId',
+            after: 'as shipped',
+            core: true,
+          },
+          { text: ', via', field: 'trackingCompany' },
+          { text: ', tracking', field: 'trackingNumber' },
+        ],
+        shopify_list_collections: [
+          'Lists collections',
+          { text: ', matching', field: 'collectionQuery' },
+          { text: ', up to', field: 'first', after: 'results' },
+        ],
+        shopify_get_collection: [
+          { text: 'Fetches collection', field: 'collectionId', core: true },
+          { text: ', with up to', field: 'productsFirst', after: 'products' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

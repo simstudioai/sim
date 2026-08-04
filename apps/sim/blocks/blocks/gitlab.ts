@@ -143,6 +143,251 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
   integrationType: IntegrationType.DevOps,
   icon: GitLabIcon,
   bgColor: '#FFFFFF',
+  canvasPresentation: {
+    defaultTitle: 'GitLab',
+    sentences: {
+      byOperation: {
+        gitlab_list_projects: ['Lists projects', { text: ', matching', field: 'searchQuery' }],
+        gitlab_get_project: [{ text: 'Reads project', field: 'projectId', core: true }],
+        gitlab_list_groups: ['Lists groups', { text: ', matching', field: 'searchQuery' }],
+        gitlab_get_group: [{ text: 'Reads group', field: 'groupId', core: true }],
+        gitlab_list_issues: [
+          { text: 'Lists issues in', field: 'projectId', core: true },
+          { text: ', labeled', field: 'labels' },
+          { text: ', matching', field: 'searchQuery' },
+        ],
+        gitlab_get_issue: [
+          { text: 'Reads issue', field: 'issueIid', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_create_issue: [
+          { text: 'Creates issue', field: 'title', core: true },
+          { text: 'in', field: 'projectId' },
+          { text: ', labeled', field: 'labels' },
+        ],
+        gitlab_update_issue: [
+          { text: 'Updates issue', field: 'issueIid', core: true },
+          { text: 'in', field: 'projectId' },
+          { text: ', with labels', field: 'labels' },
+        ],
+        gitlab_delete_issue: [
+          { text: 'Deletes issue', field: 'issueIid', core: true },
+          { text: 'from', field: 'projectId' },
+        ],
+        gitlab_create_issue_note: [
+          { text: 'Comments', field: 'body', core: true },
+          { text: 'on issue', field: 'issueIid', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_list_merge_requests: [
+          { text: 'Lists merge requests in', field: 'projectId', core: true },
+          { text: ', targeting', field: 'targetBranchFilter' },
+          { text: ', labeled', field: 'labels' },
+        ],
+        gitlab_get_merge_request: [
+          { text: 'Reads merge request', field: 'mergeRequestIid', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_create_merge_request: [
+          { text: 'Opens merge request', field: 'title', core: true },
+          { text: 'from', field: 'sourceBranch' },
+          { text: 'into', field: 'targetBranch' },
+        ],
+        gitlab_update_merge_request: [
+          { text: 'Updates merge request', field: 'mergeRequestIid', core: true },
+          { text: 'in', field: 'projectId' },
+          { text: ', with labels', field: 'labels' },
+        ],
+        gitlab_merge_merge_request: [
+          { text: 'Merges merge request', field: 'mergeRequestIid', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_create_merge_request_note: [
+          { text: 'Comments', field: 'body', core: true },
+          { text: 'on merge request', field: 'mergeRequestIid', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_list_pipelines: [
+          { text: 'Lists pipelines in', field: 'projectId', core: true },
+          { text: ', on', field: 'ref' },
+        ],
+        gitlab_get_pipeline: [
+          { text: 'Reads pipeline', field: 'pipelineId', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_create_pipeline: [
+          { text: 'Triggers a pipeline in', field: 'projectId', core: true },
+          { text: 'on', field: 'ref' },
+        ],
+        gitlab_retry_pipeline: [
+          { text: 'Retries pipeline', field: 'pipelineId', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_cancel_pipeline: [
+          { text: 'Cancels pipeline', field: 'pipelineId', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_list_repository_tree: [
+          { text: 'Lists files in', field: 'projectId', core: true },
+          { text: 'under', field: 'path' },
+          { text: ', on', field: 'ref' },
+        ],
+        gitlab_get_file: [
+          { text: 'Reads file', field: 'filePath', core: true },
+          { text: 'from', field: 'projectId' },
+          { text: ', on', field: 'ref' },
+        ],
+        gitlab_create_file: [
+          { text: 'Creates file', field: 'filePath', core: true },
+          { text: 'on', field: 'branch' },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_update_file: [
+          { text: 'Updates file', field: 'filePath', core: true },
+          { text: 'on', field: 'branch' },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_list_commits: [
+          { text: 'Lists commits in', field: 'projectId', core: true },
+          { text: 'on', field: 'refName' },
+          { text: ', by', field: 'author' },
+        ],
+        gitlab_list_branches: [
+          { text: 'Lists branches in', field: 'projectId', core: true },
+          { text: ', matching', field: 'query' },
+        ],
+        gitlab_create_branch: [
+          { text: 'Creates branch', field: 'branch', core: true },
+          { text: 'from', field: 'ref' },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_delete_branch: [
+          { text: 'Deletes branch', field: 'branch', core: true },
+          { text: 'from', field: 'projectId' },
+        ],
+        gitlab_compare_branches: [
+          { text: 'Compares', field: 'compareFrom', core: true },
+          { text: 'with', field: 'compareTo' },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_get_merge_request_changes: [
+          { text: 'Reads the diff of merge request', field: 'mergeRequestIid', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_approve_merge_request: [
+          { text: 'Approves merge request', field: 'mergeRequestIid', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_list_pipeline_jobs: [
+          { text: 'Lists jobs for pipeline', field: 'pipelineId', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_get_job_log: [
+          { text: 'Reads the log of job', field: 'jobId', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_play_job: [
+          { text: 'Runs manual job', field: 'jobId', core: true },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_list_releases: [{ text: 'Lists releases in', field: 'projectId', core: true }],
+        gitlab_create_release: [
+          { text: 'Creates release', field: ['releaseName', 'tagName'], core: true },
+          { text: 'from', field: 'ref' },
+          { text: 'in', field: 'projectId' },
+        ],
+        gitlab_list_members: [
+          { text: 'Lists members of', field: 'resourceId', core: true },
+          { text: ', matching', field: 'query' },
+        ],
+        gitlab_add_member: [
+          { text: 'Adds user', field: ['userId', 'username'], core: true },
+          { text: 'to', field: 'resourceId' },
+          { text: 'as', field: 'accessLevel' },
+        ],
+        gitlab_update_member: [
+          { text: 'Sets member', field: 'userId', core: true },
+          { text: 'in', field: 'resourceId' },
+          { text: 'to', field: 'memberAccessLevel' },
+        ],
+        gitlab_remove_member: [
+          { text: 'Removes member', field: 'userId', core: true },
+          { text: 'from', field: 'resourceId' },
+        ],
+        gitlab_invite_member: [
+          { text: 'Invites', field: 'email', core: true },
+          { text: 'to', field: 'resourceId' },
+          { text: 'as', field: 'accessLevel' },
+        ],
+        gitlab_list_invitations: [
+          { text: 'Lists pending invitations to', field: 'resourceId', core: true },
+          { text: ', matching', field: 'query' },
+        ],
+        gitlab_update_invitation: [
+          { text: 'Updates the invitation for', field: 'email', core: true },
+          { text: 'in', field: 'resourceId' },
+          { text: 'to', field: 'invitationAccessLevel' },
+        ],
+        gitlab_revoke_invitation: [
+          { text: 'Revokes the invitation for', field: 'email', core: true },
+          { text: 'in', field: 'resourceId' },
+        ],
+        gitlab_list_access_requests: [
+          { text: 'Lists pending access requests for', field: 'resourceId', core: true },
+        ],
+        gitlab_approve_access_request: [
+          { text: 'Approves access for user', field: 'userId', core: true },
+          { text: 'to', field: 'resourceId' },
+          { text: 'as', field: 'accessLevel' },
+        ],
+        gitlab_deny_access_request: [
+          { text: 'Denies access for user', field: 'userId', core: true },
+          { text: 'to', field: 'resourceId' },
+        ],
+        gitlab_list_saml_group_links: [
+          { text: 'Lists SAML group links on', field: 'groupId', core: true },
+        ],
+        gitlab_add_saml_group_link: [
+          { text: 'Links SAML group', field: 'samlGroupName', core: true },
+          { text: 'to', field: 'groupId' },
+          { text: 'as', field: 'accessLevel' },
+        ],
+        gitlab_delete_saml_group_link: [
+          { text: 'Unlinks SAML group', field: 'samlGroupName', core: true },
+          { text: 'from', field: 'groupId' },
+        ],
+        gitlab_list_user_memberships: [
+          { text: 'Lists memberships of user', field: 'userId', core: true },
+        ],
+        gitlab_search_users: [{ text: 'Searches users for', field: 'userSearch', core: true }],
+        gitlab_create_user: [
+          {
+            text: 'Creates user',
+            field: ['userAdminUsername', 'userAdminEmail'],
+            core: true,
+          },
+          { text: 'named', field: 'userAdminName' },
+        ],
+        gitlab_update_user: [
+          { text: 'Updates user', field: 'userId', core: true },
+          { text: ', setting name to', field: 'userAdminName' },
+        ],
+        gitlab_delete_user: [{ text: 'Deletes user', field: 'userId', core: true }],
+        gitlab_block_user: [{ text: 'Blocks user', field: 'userId', core: true }],
+        gitlab_unblock_user: [{ text: 'Unblocks user', field: 'userId', core: true }],
+        gitlab_deactivate_user: [{ text: 'Deactivates user', field: 'userId', core: true }],
+        gitlab_activate_user: [{ text: 'Activates user', field: 'userId', core: true }],
+        gitlab_ban_user: [{ text: 'Bans user', field: 'userId', core: true }],
+        gitlab_unban_user: [{ text: 'Unbans user', field: 'userId', core: true }],
+        gitlab_approve_user: [{ text: 'Approves the signup of user', field: 'userId', core: true }],
+        gitlab_reject_user: [{ text: 'Rejects the signup of user', field: 'userId', core: true }],
+        gitlab_delete_user_identity: [
+          { text: 'Unlinks', field: 'provider', core: true },
+          { text: 'from user', field: 'userId', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -497,6 +742,7 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
     {
       id: 'compareFrom',
       title: 'From',
+      canvasNoun: 'a ref',
       type: 'short-input',
       placeholder: 'Branch, tag, or commit SHA to compare from',
       required: true,

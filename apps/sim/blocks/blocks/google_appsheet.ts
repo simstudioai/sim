@@ -15,6 +15,29 @@ export const GoogleAppsheetBlock: BlockConfig<GoogleAppsheetResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: GoogleAppsheetIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google AppSheet',
+    sentences: {
+      byOperation: {
+        google_appsheet_find_rows: [
+          { text: 'Reads rows from', field: 'tableName', core: true },
+          { text: ', matching', field: 'selector' },
+        ],
+        google_appsheet_add_rows: [
+          { text: 'Adds', field: 'rows', core: true },
+          { text: 'to', field: 'tableName', core: true },
+        ],
+        google_appsheet_edit_rows: [
+          { text: 'Updates', field: 'rows', core: true },
+          { text: 'in', field: 'tableName', core: true },
+        ],
+        google_appsheet_delete_rows: [
+          { text: 'Deletes', field: 'rows', core: true },
+          { text: 'from', field: 'tableName', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

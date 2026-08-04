@@ -16,6 +16,40 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#262627', // Typeform brand color
   icon: TypeformIcon,
+  canvasPresentation: {
+    defaultTitle: 'Typeform',
+    sentences: {
+      byOperation: {
+        typeform_responses: [
+          { text: 'Reads responses from form', field: 'formId', core: true },
+          { text: ', since', field: 'since' },
+          { text: ', up to', field: 'pageSize', after: 'responses' },
+        ],
+        typeform_files: [
+          { text: 'Downloads file', field: 'filename', core: true },
+          { text: 'from response', field: 'responseId', core: true },
+        ],
+        typeform_insights: [{ text: 'Reads insights for form', field: 'formId', core: true }],
+        typeform_list_forms: [
+          'Lists forms',
+          { text: ', matching', field: 'search' },
+          { text: ', in workspace', field: 'workspaceId' },
+        ],
+        typeform_get_form: [{ text: 'Reads the structure of form', field: 'formId', core: true }],
+        typeform_create_form: [
+          { text: 'Creates form', field: 'title', core: true },
+          { text: ', in workspace', field: 'workspaceIdCreate' },
+        ],
+        typeform_update_form: [
+          { text: 'Patches form', field: 'formId', core: true },
+          { text: ', with', field: 'operations' },
+        ],
+        typeform_delete_form: [
+          { text: 'Deletes form', field: 'formId', core: true, after: 'and its responses' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

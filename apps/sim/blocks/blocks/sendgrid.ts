@@ -17,6 +17,46 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
   authMode: AuthMode.ApiKey,
   bgColor: '#1A82E2',
   icon: SendgridIcon,
+  canvasPresentation: {
+    defaultTitle: 'SendGrid',
+    sentences: {
+      byOperation: {
+        send_mail: [
+          { text: 'Sends', field: 'mailSubject', core: true },
+          { text: 'to', field: 'to', core: true },
+        ],
+        add_contact: [
+          { text: 'Adds contact', field: 'email', core: true },
+          { text: 'to lists', field: 'contactListIds' },
+        ],
+        get_contact: [{ text: 'Reads contact', field: 'contactId', core: true }],
+        search_contacts: [{ text: 'Searches contacts matching', field: 'query', core: true }],
+        delete_contacts: [{ text: 'Deletes contacts', field: 'contactIds', core: true }],
+        create_list: [{ text: 'Creates contact list', field: 'listName', core: true }],
+        get_list: [{ text: 'Reads contact list', field: 'listId', core: true }],
+        list_all_lists: [
+          'Lists contact lists',
+          { text: ', up to', field: 'listPageSize', after: 'per page' },
+        ],
+        delete_list: [{ text: 'Deletes contact list', field: 'listId', core: true }],
+        add_contacts_to_list: [{ text: 'Adds contacts to list', field: 'listId', core: true }],
+        remove_contacts_from_list: [
+          { text: 'Removes contacts from list', field: 'listId', core: true },
+        ],
+        create_template: [{ text: 'Creates email template', field: 'templateName', core: true }],
+        get_template: [{ text: 'Reads email template', field: 'templateId', core: true }],
+        list_templates: [
+          'Lists email templates',
+          { text: ', up to', field: 'templatePageSize', after: 'per page' },
+        ],
+        delete_template: [{ text: 'Deletes email template', field: 'templateId', core: true }],
+        create_template_version: [
+          { text: 'Adds version', field: 'versionName', core: true },
+          { text: 'to template', field: 'templateId', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -75,6 +115,7 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
     {
       id: 'to',
       title: 'To Email',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'recipient@example.com',
       condition: { field: 'operation', value: 'send_mail' },

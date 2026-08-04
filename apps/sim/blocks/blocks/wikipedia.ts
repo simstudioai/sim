@@ -14,6 +14,20 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#000000',
   icon: WikipediaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Wikipedia',
+    sentences: {
+      byOperation: {
+        wikipedia_summary: [{ text: 'Reads the summary of', field: 'pageTitle', core: true }],
+        wikipedia_search: [
+          { text: 'Searches pages for', field: 'query', core: true },
+          { text: ', up to', field: 'searchLimit', after: 'results' },
+        ],
+        wikipedia_content: [{ text: 'Reads the full article', field: 'pageTitle', core: true }],
+        wikipedia_random: ['Fetches a random article'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

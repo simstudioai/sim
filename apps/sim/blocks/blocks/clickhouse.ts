@@ -81,6 +81,64 @@ export const ClickHouseBlock: BlockConfig<ClickHouseResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#f9ff69',
   icon: ClickHouseIcon,
+  canvasPresentation: {
+    defaultTitle: 'ClickHouse',
+    sentences: {
+      byOperation: {
+        query: [{ text: 'Queries rows with', field: 'query', core: true }],
+        execute: [{ text: 'Executes raw SQL', field: 'query', core: true }],
+        insert: [
+          { text: 'Inserts a row into', field: 'table', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        insert_rows: [{ text: 'Bulk inserts rows into', field: 'table', core: true }],
+        update: [
+          { text: 'Updates rows in', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+          { text: ', setting', field: 'data' },
+        ],
+        delete: [
+          { text: 'Deletes rows from', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+        ],
+        list_databases: ['Lists all databases on the server'],
+        list_tables: [{ text: 'Lists tables in', field: 'database', core: true }],
+        describe_table: [{ text: 'Describes the columns of', field: 'table', core: true }],
+        show_create_table: [
+          { text: 'Reads the CREATE TABLE statement for', field: 'table', core: true },
+        ],
+        count_rows: [
+          { text: 'Counts rows in', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+        ],
+        introspect: [{ text: 'Introspects the schema of', field: 'database', core: true }],
+        create_database: [{ text: 'Creates database', field: 'name', core: true }],
+        drop_database: [{ text: 'Drops database', field: 'name', core: true }],
+        create_table: [
+          { text: 'Creates table', field: 'table', core: true },
+          { text: ', ordered by', field: 'orderBy' },
+          { text: ', partitioned by', field: 'partitionBy' },
+        ],
+        drop_table: [{ text: 'Drops table', field: 'table', core: true }],
+        truncate_table: [{ text: 'Removes all rows from', field: 'table', core: true }],
+        rename_table: [
+          { text: 'Renames table', field: 'table', core: true },
+          { text: 'to', field: 'newTable' },
+        ],
+        optimize_table: [{ text: 'Merges the parts of', field: 'table', core: true }],
+        list_partitions: [{ text: 'Lists active partitions of', field: 'table', core: true }],
+        drop_partition: [
+          { text: 'Drops partition', field: 'partition', core: true },
+          { text: 'from', field: 'table' },
+        ],
+        list_mutations: ['Lists mutations', { text: 'on', field: 'table' }],
+        list_running_queries: ['Lists currently running queries'],
+        kill_query: [{ text: 'Kills query', field: 'queryId', core: true }],
+        table_stats: ['Reads row counts and disk size', { text: 'for', field: 'table' }],
+        list_clusters: ['Lists clusters, shards, and replicas'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

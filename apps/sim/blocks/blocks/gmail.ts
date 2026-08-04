@@ -44,6 +44,17 @@ function selectGmailToolId(params: Record<string, any>): string {
   }
 }
 
+/**
+ * Canonical basic/advanced pairs, shared by the card sentences below. Listing
+ * both members is what keeps a sentence working for an advanced-mode user, who
+ * has only the manual field filled.
+ */
+const ATTACHMENTS_FIELD = ['attachmentFiles', 'attachments'] as const
+const FOLDER_FIELD = ['folder', 'manualFolder'] as const
+const DESTINATION_LABEL_FIELD = ['destinationLabel', 'manualDestinationLabel'] as const
+const SOURCE_LABEL_FIELD = ['sourceLabel', 'manualSourceLabel'] as const
+const MANAGE_LABEL_FIELD = ['labelSelector', 'manualLabelId'] as const
+
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
   type: 'gmail',
   name: 'Gmail (Legacy)',
@@ -62,6 +73,61 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     defaultName: 'Gmail',
     operationSubBlockId: 'operation',
     operationRowTitle: 'Action',
+    sentences: {
+      byOperation: {
+        send_gmail: [
+          { text: 'Sends', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+          { text: ', attaching', field: ATTACHMENTS_FIELD },
+        ],
+        draft_gmail: [
+          { text: 'Drafts', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+          { text: ', attaching', field: ATTACHMENTS_FIELD },
+        ],
+        edit_draft_gmail: [
+          { text: 'Updates draft', field: 'draftId', core: true },
+          { text: ', addressed to', field: 'to' },
+        ],
+        read_gmail: [
+          {
+            text: 'Reads up to',
+            field: 'maxResults',
+            after: 'messages',
+            core: true,
+          },
+          { text: 'in', field: FOLDER_FIELD, core: true },
+        ],
+        search_gmail: [
+          { text: 'Searches messages matching', field: 'query', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        move_gmail: [
+          { text: 'Moves message', field: 'moveMessageId', core: true },
+          { text: 'from', field: SOURCE_LABEL_FIELD },
+          { text: 'to', field: DESTINATION_LABEL_FIELD, core: true },
+        ],
+        mark_read_gmail: [
+          { text: 'Marks message', field: 'actionMessageId', core: true, after: 'as read' },
+        ],
+        mark_unread_gmail: [
+          { text: 'Marks message', field: 'actionMessageId', core: true, after: 'as unread' },
+        ],
+        archive_gmail: [{ text: 'Archives message', field: 'actionMessageId', core: true }],
+        unarchive_gmail: [{ text: 'Unarchives message', field: 'actionMessageId', core: true }],
+        delete_gmail: [
+          { text: 'Moves message', field: 'actionMessageId', core: true, after: 'to trash' },
+        ],
+        add_label_gmail: [
+          { text: 'Adds label', field: MANAGE_LABEL_FIELD, core: true },
+          { text: 'to message', field: 'labelActionMessageId' },
+        ],
+        remove_label_gmail: [
+          { text: 'Removes label', field: MANAGE_LABEL_FIELD, core: true },
+          { text: 'from message', field: 'labelActionMessageId' },
+        ],
+      },
+    },
   },
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'gmail_v2' },
@@ -124,6 +190,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     {
       id: 'to',
       title: 'To',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'Recipient email address',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail', 'edit_draft_gmail'] },

@@ -2,6 +2,27 @@ import { RocketlaneIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
+/**
+ * Who a membership change targets, for the card sentences below. Rocketlane
+ * accepts either internal user IDs or the same people by email, so both are
+ * listed and the first one the user filled wins.
+ */
+const MEMBER_TARGET_FIELD = ['memberUserIds', 'memberEmailIds'] as const
+
+/** The person a placeholder assignment or a time-off is booked against. */
+const USER_TARGET_FIELD = ['userId', 'userEmail'] as const
+
+/**
+ * What a time entry is logged against. `timeEntrySource` keeps exactly one of
+ * these visible, so the first match is always the real target.
+ */
+const TIME_ENTRY_TARGET_FIELD = [
+  'timeEntryTaskId',
+  'timeEntryProjectId',
+  'timeEntryPhaseId',
+  'timeEntryActivityName',
+] as const
+
 const PROJECT_ID_REQUIRED_OPS = [
   'get_project',
   'update_project',
@@ -807,6 +828,230 @@ export const RocketlaneBlock: BlockConfig = {
   bgColor: '#000000',
   icon: RocketlaneIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Rocketlane',
+    sentences: {
+      byOperation: {
+        create_project: [
+          { text: 'Creates project', field: 'projectName', core: true },
+          { text: 'for', field: 'customerCompanyName' },
+          { text: ', due', field: 'dueDate' },
+        ],
+        get_project: [{ text: 'Reads project', field: 'projectId', core: true }],
+        list_projects: [
+          'Lists projects',
+          { text: ', matching', field: 'projectNameContains' },
+          { text: ', with status', field: 'statusEquals' },
+        ],
+        update_project: [
+          { text: 'Updates project', field: 'projectId', core: true },
+          { text: ', renaming to', field: 'projectName' },
+          { text: ', with status', field: 'statusValue' },
+        ],
+        archive_project: [{ text: 'Archives project', field: 'projectId', core: true }],
+        delete_project: [{ text: 'Deletes project', field: 'projectId', core: true }],
+        add_project_members: [
+          { text: 'Adds', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'to project', field: 'projectId', core: true },
+        ],
+        remove_project_members: [
+          { text: 'Removes', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'from project', field: 'projectId', core: true },
+        ],
+        import_template: [
+          { text: 'Imports template', field: 'templateId', core: true },
+          { text: 'into project', field: 'projectId' },
+        ],
+        list_placeholders: [
+          { text: 'Lists placeholders in project', field: 'projectId', core: true },
+        ],
+        assign_placeholders: [
+          { text: 'Assigns placeholder', field: 'placeholderId', core: true },
+          { text: 'to', field: USER_TARGET_FIELD },
+          { text: 'in project', field: 'projectId' },
+        ],
+        unassign_placeholders: [
+          { text: 'Clears the assignee on placeholder', field: 'placeholderId', core: true },
+          { text: 'in project', field: 'projectId' },
+        ],
+        create_task: [
+          { text: 'Creates task', field: 'taskName', core: true },
+          { text: 'in project', field: 'projectId' },
+          { text: ', due', field: 'dueDate' },
+        ],
+        get_task: [{ text: 'Reads task', field: 'taskId', core: true }],
+        list_tasks: [
+          'Lists tasks',
+          { text: 'in project', field: 'projectId' },
+          { text: ', with status', field: 'taskStatus' },
+        ],
+        update_task: [
+          { text: 'Updates task', field: 'taskId', core: true },
+          { text: ', renaming to', field: 'taskName' },
+          { text: ', with status', field: 'statusValue' },
+        ],
+        delete_task: [{ text: 'Deletes task', field: 'taskId', core: true }],
+        move_task_to_phase: [
+          { text: 'Moves task', field: 'taskId', core: true },
+          { text: 'to phase', field: 'phaseId' },
+        ],
+        add_task_assignees: [
+          { text: 'Assigns', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'to task', field: 'taskId', core: true },
+        ],
+        remove_task_assignees: [
+          { text: 'Unassigns', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'from task', field: 'taskId', core: true },
+        ],
+        add_task_followers: [
+          { text: 'Adds', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'as followers of task', field: 'taskId', core: true },
+        ],
+        remove_task_followers: [
+          { text: 'Removes', field: MEMBER_TARGET_FIELD, core: true },
+          { text: 'from the followers of task', field: 'taskId', core: true },
+        ],
+        add_task_dependencies: [
+          { text: 'Makes task', field: 'taskId', core: true },
+          { text: 'depend on', field: 'dependencyTaskIds', core: true },
+        ],
+        remove_task_dependencies: [
+          { text: 'Stops task', field: 'taskId', core: true },
+          {
+            text: 'from depending on',
+            field: 'dependencyTaskIds',
+            core: true,
+          },
+        ],
+        create_phase: [
+          { text: 'Creates phase', field: 'phaseName', core: true },
+          { text: 'in project', field: 'projectId' },
+          { text: ', due', field: 'dueDate' },
+        ],
+        get_phase: [{ text: 'Reads phase', field: 'phaseId', core: true }],
+        list_phases: [
+          { text: 'Lists phases in project', field: 'projectId', core: true },
+          { text: ', named', field: 'phaseName' },
+        ],
+        update_phase: [
+          { text: 'Updates phase', field: 'phaseId', core: true },
+          { text: ', renaming to', field: 'phaseName' },
+          { text: ', with status', field: 'statusValue' },
+        ],
+        delete_phase: [{ text: 'Deletes phase', field: 'phaseId', core: true }],
+        create_field: [
+          { text: 'Creates field', field: 'fieldLabel', core: true },
+          { text: 'of type', field: 'fieldType' },
+          { text: 'on', field: 'objectType' },
+        ],
+        get_field: [{ text: 'Reads field', field: 'fieldId', core: true }],
+        list_fields: [
+          'Lists custom fields',
+          { text: ', of type', field: 'fieldType' },
+          { text: ', on', field: 'objectType' },
+        ],
+        update_field: [
+          { text: 'Updates field', field: 'fieldId', core: true },
+          { text: ', renaming to', field: 'fieldLabel' },
+        ],
+        delete_field: [{ text: 'Deletes field', field: 'fieldId', core: true }],
+        add_field_option: [
+          { text: 'Adds option', field: 'optionLabel', core: true },
+          { text: 'to field', field: 'fieldId' },
+        ],
+        update_field_option: [
+          { text: 'Updates option', field: 'optionValue', core: true },
+          { text: 'on field', field: 'fieldId' },
+          { text: ', renaming to', field: 'optionLabel' },
+        ],
+        create_time_entry: [
+          { text: 'Logs', field: 'minutes', after: 'minutes', core: true },
+          { text: 'against', field: TIME_ENTRY_TARGET_FIELD },
+          { text: 'on', field: 'date' },
+        ],
+        get_time_entry: [{ text: 'Reads time entry', field: 'timeEntryId', core: true }],
+        list_time_entries: [
+          'Lists time entries',
+          { text: ', on', field: 'dateEq' },
+          { text: ', for user', field: 'userIdEq' },
+        ],
+        search_time_entries: [
+          'Searches time entries',
+          { text: ', on', field: 'dateEq' },
+          { text: ', for project', field: 'projectIdEq' },
+        ],
+        update_time_entry: [
+          { text: 'Updates time entry', field: 'timeEntryId', core: true },
+          { text: ', setting', field: 'minutes', after: 'minutes' },
+        ],
+        delete_time_entry: [{ text: 'Deletes time entry', field: 'timeEntryId', core: true }],
+        list_time_entry_categories: ['Lists time entry categories'],
+        create_time_off: [
+          { text: 'Books time off for', field: USER_TARGET_FIELD, core: true },
+          { text: 'from', field: 'startDate', core: true },
+          { text: 'to', field: 'endDate', core: true },
+        ],
+        get_time_off: [{ text: 'Reads time-off', field: 'timeOffId', core: true }],
+        list_time_offs: [
+          'Lists time-offs',
+          { text: ', for user', field: ['userIdEq', 'emailIdEq'] },
+          { text: ', of type', field: 'timeOffTypeEq' },
+        ],
+        delete_time_off: [{ text: 'Deletes time-off', field: 'timeOffId', core: true }],
+        get_user: [{ text: 'Reads user', field: 'userId', core: true }],
+        list_users: [
+          'Lists users',
+          { text: ', with email', field: ['emailEq', 'emailCn'] },
+          { text: ', with status', field: 'userStatusEq' },
+        ],
+        create_space: [
+          { text: 'Creates space', field: 'spaceName', core: true },
+          { text: 'in project', field: 'projectId' },
+        ],
+        get_space: [{ text: 'Reads space', field: 'spaceId', core: true }],
+        list_spaces: [
+          { text: 'Lists spaces in project', field: 'projectId', core: true },
+          { text: ', named', field: ['spaceNameEq', 'spaceNameCn'] },
+        ],
+        update_space: [
+          { text: 'Updates space', field: 'spaceId', core: true },
+          { text: ', renaming to', field: 'spaceName' },
+        ],
+        delete_space: [{ text: 'Deletes space', field: 'spaceId', core: true }],
+        create_space_document: [
+          { text: 'Creates', field: 'spaceDocumentName', core: true },
+          { text: 'in space', field: 'spaceId', core: true },
+        ],
+        get_space_document: [{ text: 'Reads document', field: 'spaceDocumentId', core: true }],
+        list_space_documents: [
+          { text: 'Lists documents in project', field: 'projectId', core: true },
+          { text: ', in space', field: 'spaceIdEq' },
+        ],
+        update_space_document: [
+          { text: 'Updates document', field: 'spaceDocumentId', core: true },
+          { text: ', renaming to', field: 'spaceDocumentName' },
+        ],
+        delete_space_document: [{ text: 'Deletes document', field: 'spaceDocumentId', core: true }],
+        list_resource_allocations: [
+          { text: 'Lists resource allocations from', field: 'startDate', core: true },
+          { text: 'to', field: 'endDate', core: true },
+          { text: ', for project', field: 'projectIdEq' },
+        ],
+        get_invoice: [{ text: 'Reads invoice', field: 'invoiceId', core: true }],
+        list_invoices: [
+          'Lists invoices',
+          { text: ', with status', field: ['invoiceStatusEq', 'invoiceStatusOneOf'] },
+          { text: ', for company', field: ['companyIdEq', 'companyIdOneOf'] },
+        ],
+        get_invoice_line_items: [
+          { text: 'Lists line items on invoice', field: 'invoiceId', core: true },
+        ],
+        get_invoice_payments: [
+          { text: 'Lists payments recorded against invoice', field: 'invoiceId', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

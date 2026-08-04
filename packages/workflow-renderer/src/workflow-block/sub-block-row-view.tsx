@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
-import { ChipTag, cn } from '@sim/emcn'
+import { cn } from '@sim/emcn'
 import { OverflowSpan } from '../lib/overflow-span'
+import { InlineChip } from './inline-chip'
 
 /**
  * Props for the pure subblock summary row. The container resolves the value —
@@ -50,15 +51,12 @@ export function SubBlockRowView({
 }: SubBlockRowViewProps) {
   if (variant === 'inline-value') {
     return (
-      <ChipTag
-        variant='mono'
-        className='inline-flex max-w-[160px] translate-y-[-1px] bg-[var(--surface-2)] align-middle shadow-[inset_0_0_0_1px_var(--border-1)] dark:bg-[var(--surface-2)]'
-      >
+      <InlineChip>
         <OverflowSpan
           value={displayValue ?? title}
           className={cn('min-w-0 truncate', isMonospace && 'font-mono')}
         />
-      </ChipTag>
+      </InlineChip>
     )
   }
 

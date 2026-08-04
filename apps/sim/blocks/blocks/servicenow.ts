@@ -5,6 +5,10 @@ import { normalizeFileInput } from '@/blocks/utils'
 import type { ServiceNowResponse } from '@/tools/servicenow/types'
 import { getTrigger } from '@/triggers'
 
+const FILE_FIELD = ['uploadFile', 'fileReference'] as const
+
+const RECORD_MATCH_FIELD = ['sysId', 'number', 'query'] as const
+
 export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   type: 'servicenow',
   name: 'ServiceNow',
@@ -17,6 +21,49 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   authMode: AuthMode.ApiKey,
   bgColor: '#032D42',
   icon: ServiceNowIcon,
+  canvasPresentation: {
+    defaultTitle: 'ServiceNow',
+    sentences: {
+      byOperation: {
+        servicenow_create_record: [
+          { text: 'Creates a record in', field: 'tableName', core: true },
+          { text: ', with', field: 'fields' },
+        ],
+        servicenow_read_record: [
+          'Reads records',
+          { text: 'from', field: 'tableName', core: true },
+          { text: ', matching', field: RECORD_MATCH_FIELD },
+          { text: ', up to', field: 'limit' },
+        ],
+        servicenow_update_record: [
+          { text: 'Updates record', field: 'sysId', core: true },
+          { text: 'in', field: 'tableName' },
+          { text: ', setting', field: 'fields' },
+        ],
+        servicenow_delete_record: [
+          { text: 'Deletes record', field: 'sysId', core: true },
+          { text: 'from', field: 'tableName' },
+        ],
+        servicenow_aggregate: [
+          { text: 'Aggregates records in', field: 'tableName', core: true },
+          { text: ', grouped by', field: 'groupBy' },
+          { text: ', where', field: 'query' },
+        ],
+        servicenow_list_attachments: [
+          { text: 'Lists attachments on record', field: 'recordSysId', core: true },
+          { text: 'in', field: 'tableName' },
+        ],
+        servicenow_download_attachment: [
+          { text: 'Downloads attachment', field: 'attachmentSysId', core: true },
+        ],
+        servicenow_upload_attachment: [
+          { text: 'Attaches', field: FILE_FIELD, core: true },
+          { text: 'to record', field: 'recordSysId', core: true },
+          { text: 'in', field: 'tableName' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {

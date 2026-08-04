@@ -172,6 +172,15 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
   }),
 }
 
+/*
+ * Canonical basic/advanced pairs, shared by the card summaries below. Listing
+ * both members is what keeps the sentence working for an advanced-mode user,
+ * who has only the manual field filled.
+ */
+const TABLE_FIELD = ['tableSelector', 'manualTableId'] as const
+const FILTER_FIELD = ['filterBuilder', 'filter'] as const
+const SORT_FIELD = ['sortBuilder', 'order'] as const
+
 export const TableV2Block: BlockConfig<TableQueryV2Response> = {
   type: 'table_v2',
   name: 'Table',
@@ -202,6 +211,53 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
   preview: true,
   bgColor: '#10B981',
   icon: TableIcon,
+  canvasPresentation: {
+    defaultTitle: 'Table',
+    sentences: {
+      byOperation: {
+        query_rows: [
+          { text: 'Queries rows from', field: TABLE_FIELD, core: true },
+          { text: ', where', field: FILTER_FIELD },
+          { text: ', sorted by', field: SORT_FIELD },
+        ],
+        insert_row: [
+          { text: 'Inserts a row into', field: TABLE_FIELD, core: true },
+          { text: ', with', field: 'data' },
+        ],
+        upsert_row: [
+          { text: 'Upserts a row into', field: TABLE_FIELD, core: true },
+          { text: ', keyed on', field: ['conflictColumnSelector', 'manualConflictColumn'] },
+        ],
+        batch_insert_rows: [
+          { text: 'Inserts', field: 'rows', core: true },
+          { text: 'into', field: TABLE_FIELD, core: true },
+        ],
+        update_rows_by_filter: [
+          { text: 'Updates rows in', field: TABLE_FIELD, core: true },
+          { text: ', where', field: FILTER_FIELD },
+          { text: ', setting', field: 'data' },
+        ],
+        delete_rows_by_filter: [
+          { text: 'Deletes rows from', field: TABLE_FIELD, core: true },
+          { text: ', where', field: FILTER_FIELD },
+        ],
+        update_row: [
+          { text: 'Updates row', field: 'rowId', core: true },
+          { text: 'in', field: TABLE_FIELD, core: true },
+          { text: ', setting', field: 'data' },
+        ],
+        delete_row: [
+          { text: 'Deletes row', field: 'rowId', core: true },
+          { text: 'from', field: TABLE_FIELD, core: true },
+        ],
+        get_row: [
+          { text: 'Fetches row', field: 'rowId', core: true },
+          { text: 'from', field: TABLE_FIELD, core: true },
+        ],
+        get_schema: [{ text: 'Reads the schema of', field: TABLE_FIELD, core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

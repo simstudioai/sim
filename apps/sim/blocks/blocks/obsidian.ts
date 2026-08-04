@@ -14,6 +14,64 @@ export const ObsidianBlock: BlockConfig = {
   bgColor: '#0F0F0F',
   icon: ObsidianIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Obsidian',
+    sentences: {
+      byOperation: {
+        list_files: ['Lists files in the vault', { text: ', under', field: 'path' }],
+        get_note: [{ text: 'Reads note', field: 'filename', core: true }],
+        create_note: [
+          { text: 'Creates note', field: 'filename', core: true },
+          { text: ', containing', field: 'content' },
+        ],
+        append_note: [
+          { text: 'Appends', field: 'content', core: true },
+          { text: 'to note', field: 'filename', core: true },
+        ],
+        patch_note: [
+          { text: 'Patches note', field: 'filename', core: true },
+          { text: ', at', field: 'target' },
+          { text: ', with', field: 'content' },
+        ],
+        delete_note: [{ text: 'Deletes note', field: 'filename', core: true }],
+        search: [{ text: 'Searches notes for', field: 'query', core: true }],
+        get_active: ['Reads the currently active file'],
+        append_active: [
+          {
+            text: 'Appends',
+            field: 'content',
+            after: 'to the active file',
+            core: true,
+          },
+        ],
+        patch_active: [
+          'Patches the active file',
+          { text: ', at', field: 'target' },
+          { text: ', with', field: 'content' },
+        ],
+        open_file: [{ text: 'Opens note', field: 'filename', core: true }],
+        list_commands: ['Lists all available commands'],
+        execute_command: [{ text: 'Runs command', field: 'commandId', core: true }],
+        get_periodic_note: [
+          {
+            text: 'Reads the current',
+            field: 'period',
+            after: 'note',
+            core: true,
+          },
+        ],
+        append_periodic_note: [
+          { text: 'Appends', field: 'content', core: true },
+          {
+            text: 'to the current',
+            field: 'period',
+            after: 'note',
+            core: true,
+          },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

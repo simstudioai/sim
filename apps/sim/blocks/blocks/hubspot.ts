@@ -18,6 +18,236 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
   bgColor: '#FF7A59',
   iconColor: '#FF7A59',
   icon: HubspotIcon,
+  canvasPresentation: {
+    defaultTitle: 'HubSpot',
+    sentences: {
+      byOperation: {
+        get_contacts: [
+          'Reads contacts',
+          { text: 'matching', field: 'contactId' },
+          { text: ', returning', field: 'properties' },
+        ],
+        create_contact: [
+          {
+            text: 'Creates a contact with',
+            field: 'propertiesToSet',
+            core: true,
+          },
+          { text: ', linked to', field: 'associations' },
+        ],
+        update_contact: [
+          { text: 'Updates contact', field: 'contactId', core: true },
+          { text: ', setting', field: 'propertiesToSet' },
+        ],
+        search_contacts: [
+          'Searches contacts',
+          { text: ', matching', field: 'query' },
+          { text: ', where', field: 'filterGroups' },
+          { text: ', sorted by', field: 'sorts' },
+        ],
+        delete_contact: [{ text: 'Archives contact', field: 'contactId', core: true }],
+        get_companies: [
+          'Reads companies',
+          { text: 'matching', field: 'companyId' },
+          { text: ', returning', field: 'properties' },
+        ],
+        create_company: [
+          {
+            text: 'Creates a company with',
+            field: 'propertiesToSet',
+            core: true,
+          },
+          { text: ', linked to', field: 'associations' },
+        ],
+        update_company: [
+          { text: 'Updates company', field: 'companyId', core: true },
+          { text: ', setting', field: 'propertiesToSet' },
+        ],
+        search_companies: [
+          'Searches companies',
+          { text: ', matching', field: 'query' },
+          { text: ', where', field: 'filterGroups' },
+          { text: ', sorted by', field: 'sorts' },
+        ],
+        delete_company: [{ text: 'Archives company', field: 'companyId', core: true }],
+        get_deals: [
+          'Reads deals',
+          { text: 'matching', field: 'dealId' },
+          { text: ', returning', field: 'properties' },
+        ],
+        create_deal: [
+          { text: 'Creates a deal with', field: 'propertiesToSet', core: true },
+          { text: ', linked to', field: 'associations' },
+        ],
+        update_deal: [
+          { text: 'Updates deal', field: 'dealId', core: true },
+          { text: ', setting', field: 'propertiesToSet' },
+        ],
+        search_deals: [
+          'Searches deals',
+          { text: ', matching', field: 'query' },
+          { text: ', where', field: 'filterGroups' },
+          { text: ', sorted by', field: 'sorts' },
+        ],
+        delete_deal: [{ text: 'Archives deal', field: 'dealId', core: true }],
+        get_tickets: [
+          'Reads tickets',
+          { text: 'matching', field: 'ticketId' },
+          { text: ', returning', field: 'properties' },
+        ],
+        create_ticket: [
+          { text: 'Creates a ticket with', field: 'propertiesToSet', core: true },
+          { text: ', linked to', field: 'associations' },
+        ],
+        update_ticket: [
+          { text: 'Updates ticket', field: 'ticketId', core: true },
+          { text: ', setting', field: 'propertiesToSet' },
+        ],
+        search_tickets: [
+          'Searches tickets',
+          { text: ', matching', field: 'query' },
+          { text: ', where', field: 'filterGroups' },
+          { text: ', sorted by', field: 'sorts' },
+        ],
+        delete_ticket: [{ text: 'Archives ticket', field: 'ticketId', core: true }],
+        get_notes: [
+          'Reads notes',
+          { text: 'matching', field: 'noteId' },
+          { text: ', returning', field: 'properties' },
+        ],
+        create_note: [
+          { text: 'Logs a note with', field: 'propertiesToSet', core: true },
+          { text: ', linked to', field: 'associations' },
+        ],
+        search_notes: [
+          'Searches notes',
+          { text: ', matching', field: 'query' },
+          { text: ', where', field: 'filterGroups' },
+          { text: ', sorted by', field: 'sorts' },
+        ],
+        get_emails: [
+          'Reads emails',
+          { text: 'matching', field: 'emailId' },
+          { text: ', returning', field: 'properties' },
+        ],
+        create_email: [
+          { text: 'Logs an email with', field: 'propertiesToSet', core: true },
+          { text: ', linked to', field: 'associations' },
+        ],
+        search_emails: [
+          'Searches emails',
+          { text: ', matching', field: 'query' },
+          { text: ', where', field: 'filterGroups' },
+          { text: ', sorted by', field: 'sorts' },
+        ],
+        get_properties: [
+          { text: 'Reads property definitions on', field: 'objectType', core: true },
+          { text: ', for', field: 'propertyName' },
+        ],
+        list_associations: [
+          { text: 'Lists', field: 'toObjectType', core: true },
+          { text: 'associated with record', field: 'objectId', core: true },
+        ],
+        create_association: [
+          { text: 'Associates record', field: 'objectId', core: true },
+          { text: 'with record', field: 'toObjectId', core: true },
+        ],
+        delete_association: [
+          { text: 'Removes every association between record', field: 'objectId', core: true },
+          { text: 'and record', field: 'toObjectId', core: true },
+        ],
+        get_association_labels: [
+          { text: 'Reads association types between', field: 'objectType', core: true },
+          { text: 'and', field: 'toObjectType', core: true },
+        ],
+        get_line_items: [
+          'Reads line items',
+          { text: 'matching', field: 'lineItemId' },
+          { text: ', returning', field: 'properties' },
+        ],
+        create_line_item: [
+          {
+            text: 'Creates a line item with',
+            field: 'propertiesToSet',
+            core: true,
+          },
+          { text: ', linked to', field: 'associations' },
+        ],
+        update_line_item: [
+          { text: 'Updates line item', field: 'lineItemId', core: true },
+          { text: ', setting', field: 'propertiesToSet' },
+        ],
+        search_line_items: [
+          'Searches line items',
+          { text: ', matching', field: 'query' },
+          { text: ', where', field: 'filterGroups' },
+          { text: ', sorted by', field: 'sorts' },
+        ],
+        delete_line_item: [{ text: 'Archives line item', field: 'lineItemId', core: true }],
+        get_quotes: [
+          'Reads quotes',
+          { text: 'matching', field: 'quoteId' },
+          { text: ', returning', field: 'properties' },
+        ],
+        search_quotes: [
+          'Searches quotes',
+          { text: ', matching', field: 'query' },
+          { text: ', where', field: 'filterGroups' },
+          { text: ', sorted by', field: 'sorts' },
+        ],
+        get_appointments: [
+          'Reads appointments',
+          { text: 'matching', field: 'appointmentId' },
+          { text: ', returning', field: 'properties' },
+        ],
+        create_appointment: [
+          {
+            text: 'Creates an appointment with',
+            field: 'propertiesToSet',
+            core: true,
+          },
+          { text: ', linked to', field: 'associations' },
+        ],
+        update_appointment: [
+          { text: 'Updates appointment', field: 'appointmentId', core: true },
+          { text: ', setting', field: 'propertiesToSet' },
+        ],
+        get_carts: [
+          'Reads carts',
+          { text: 'matching', field: 'cartId' },
+          { text: ', returning', field: 'properties' },
+        ],
+        list_owners: ['Lists all owners', { text: ', up to', field: 'limit', after: 'per page' }],
+        get_marketing_events: [
+          'Reads marketing events',
+          { text: 'matching', field: 'eventId' },
+          { text: ', up to', field: 'limit', after: 'per page' },
+        ],
+        get_lists: [
+          'Reads lists',
+          { text: 'matching', field: 'listId' },
+          { text: ', named', field: 'query' },
+        ],
+        create_list: [
+          { text: 'Creates list', field: 'listName', core: true },
+          { text: ', as a', field: 'processingType', after: 'list' },
+        ],
+        get_list_memberships: [
+          { text: 'Reads members of list', field: 'listId', core: true },
+          { text: ', up to', field: 'limit', after: 'per page' },
+        ],
+        add_list_memberships: [
+          { text: 'Adds', field: 'recordIds', core: true },
+          { text: 'to list', field: 'listId', core: true },
+        ],
+        remove_list_memberships: [
+          { text: 'Removes', field: 'recordIds', core: true },
+          { text: 'from list', field: 'listId', core: true },
+        ],
+        get_users: ['Reads all users', { text: ', returning', field: 'properties' }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -253,6 +483,7 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
     {
       id: 'toObjectType',
       title: 'To Object Type',
+      canvasNoun: 'an object type',
       type: 'short-input',
       placeholder: 'e.g., "emails", "notes", "contacts"',
       condition: {
@@ -269,6 +500,7 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
     {
       id: 'toObjectId',
       title: 'To Record ID',
+      canvasNoun: 'a record ID',
       type: 'short-input',
       placeholder: 'ID of the target record',
       condition: { field: 'operation', value: ['create_association', 'delete_association'] },

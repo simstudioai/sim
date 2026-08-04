@@ -15,6 +15,55 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#0D1117',
   icon: PineconeIcon,
+  canvasPresentation: {
+    defaultTitle: 'Pinecone',
+    sentences: {
+      byOperation: {
+        generate: [
+          { text: 'Generates embeddings for', field: 'inputs', core: true },
+          { text: 'with', field: 'model' },
+        ],
+        upsert_text: [
+          { text: 'Upserts', field: 'records', core: true },
+          { text: 'into namespace', field: 'namespace' },
+        ],
+        update_vector: [
+          { text: 'Updates vector', field: 'id', core: true },
+          { text: 'in namespace', field: 'namespace' },
+        ],
+        delete_vectors: [
+          'Deletes vectors',
+          { text: 'matching', field: ['ids', 'filter'] },
+          { text: 'from namespace', field: 'namespace' },
+        ],
+        search_text: [
+          { text: 'Searches for', field: 'searchQuery', core: true },
+          { text: 'in namespace', field: 'namespace' },
+          { text: ', returning top', field: 'topK' },
+        ],
+        search_vector: [
+          'Searches by vector',
+          { text: 'in namespace', field: 'namespace' },
+          { text: ', returning top', field: 'topK' },
+        ],
+        fetch: [
+          { text: 'Fetches vectors', field: 'ids', core: true },
+          { text: 'from namespace', field: 'namespace' },
+        ],
+        list_vector_ids: [
+          'Lists vector IDs',
+          { text: 'in namespace', field: 'namespace' },
+          { text: ', starting with', field: 'prefix' },
+          { text: ', up to', field: 'limit', after: 'IDs' },
+        ],
+        describe_index_stats: ['Reads index statistics'],
+        list_indexes: ['Lists all indexes'],
+        describe_index: [
+          { text: 'Reads the configuration of index', field: 'indexName', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

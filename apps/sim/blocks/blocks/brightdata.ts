@@ -15,6 +15,45 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#FFFFFF',
   icon: BrightDataIcon,
+  canvasPresentation: {
+    defaultTitle: 'Bright Data',
+    sentences: {
+      byOperation: {
+        scrape_url: [
+          { text: 'Scrapes', field: 'url', core: true },
+          { text: 'as', field: 'dataFormat' },
+          { text: ', from', field: 'country' },
+        ],
+        serp_search: [
+          { text: 'Searches', field: 'searchEngine', core: true },
+          { text: 'for', field: 'query', core: true },
+          { text: ', returning', field: 'numResults', after: 'results' },
+        ],
+        discover: [
+          { text: 'Discovers and ranks pages for', field: 'discoverQuery', core: true },
+          { text: ', in', field: 'mode', after: 'mode' },
+          { text: ', returning', field: 'numResults', after: 'results' },
+        ],
+        sync_scrape: [
+          { text: 'Scrapes', field: 'syncUrls', core: true },
+          { text: 'with scraper', field: 'syncDatasetId', core: true },
+          'and waits for results',
+        ],
+        scrape_dataset: [
+          { text: 'Queues a scraping job for', field: 'urls', core: true },
+          { text: 'with scraper', field: 'datasetId', core: true },
+        ],
+        snapshot_status: [
+          { text: 'Checks the progress of snapshot', field: 'snapshotId', core: true },
+        ],
+        download_snapshot: [
+          { text: 'Downloads snapshot', field: 'snapshotId', core: true },
+          { text: 'as', field: 'downloadFormat' },
+        ],
+        cancel_snapshot: [{ text: 'Cancels snapshot', field: 'snapshotId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -5,6 +5,10 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleDocsResponse } from '@/tools/google_docs/types'
 
+const DOCUMENT_FIELD = ['documentId', 'manualDocumentId'] as const
+const FOLDER_FIELD = ['folderSelector', 'folderId'] as const
+const NAMED_RANGE_FIELD = ['namedRangeId', 'namedRangeName'] as const
+
 export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
   type: 'google_docs',
   name: 'Google Docs',
@@ -17,6 +21,85 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: GoogleDocsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Docs',
+    sentences: {
+      byOperation: {
+        read: [{ text: 'Reads content from', field: DOCUMENT_FIELD, core: true }],
+        write: [
+          { text: 'Appends', field: 'content', core: true },
+          { text: 'to', field: DOCUMENT_FIELD, core: true },
+        ],
+        create: [
+          { text: 'Creates document', field: 'title', core: true },
+          { text: 'in folder', field: FOLDER_FIELD },
+          { text: ', containing', field: 'content' },
+        ],
+        insert_text: [
+          { text: 'Inserts', field: 'text', core: true },
+          { text: 'into', field: DOCUMENT_FIELD, core: true },
+          { text: ', at index', field: 'index' },
+        ],
+        replace_text: [
+          { text: 'Replaces', field: 'searchText', core: true },
+          { text: 'with', field: 'replaceText' },
+          { text: 'throughout', field: DOCUMENT_FIELD, core: true },
+        ],
+        insert_table: [
+          { text: 'Inserts a table into', field: DOCUMENT_FIELD, core: true },
+          { text: ', with', field: 'rows', after: 'rows' },
+          { text: 'by', field: 'columns', after: 'columns' },
+        ],
+        insert_image: [
+          { text: 'Inserts image', field: 'imageUrl', core: true },
+          { text: 'into', field: DOCUMENT_FIELD, core: true },
+          { text: ', at index', field: 'index' },
+        ],
+        insert_page_break: [
+          { text: 'Inserts a page break into', field: DOCUMENT_FIELD, core: true },
+          { text: ', at index', field: 'index' },
+        ],
+        update_text_style: [
+          { text: 'Restyles text in', field: DOCUMENT_FIELD, core: true },
+          { text: ', from index', field: 'startIndex' },
+          { text: 'to', field: 'endIndex' },
+        ],
+        update_paragraph_style: [
+          { text: 'Sets paragraphs in', field: DOCUMENT_FIELD, core: true },
+          { text: 'to', field: 'namedStyleType' },
+          { text: ', aligned', field: 'alignment' },
+        ],
+        create_paragraph_bullets: [
+          { text: 'Adds list formatting in', field: DOCUMENT_FIELD, core: true },
+          { text: ', using', field: 'bulletPreset' },
+          { text: ', from index', field: 'startIndex' },
+        ],
+        delete_paragraph_bullets: [
+          { text: 'Removes list formatting in', field: DOCUMENT_FIELD, core: true },
+          { text: ', from index', field: 'startIndex' },
+          { text: 'to', field: 'endIndex' },
+        ],
+        delete_content_range: [
+          { text: 'Deletes content in', field: DOCUMENT_FIELD, core: true },
+          { text: ', from index', field: 'startIndex' },
+          { text: 'to', field: 'endIndex' },
+        ],
+        create_named_range: [
+          { text: 'Creates named range', field: 'name', core: true },
+          { text: 'in', field: DOCUMENT_FIELD, core: true },
+          { text: ', from index', field: 'startIndex' },
+        ],
+        delete_named_range: [
+          {
+            text: 'Deletes named range',
+            field: NAMED_RANGE_FIELD,
+            core: true,
+          },
+          { text: 'from', field: DOCUMENT_FIELD, core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {

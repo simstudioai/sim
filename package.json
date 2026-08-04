@@ -34,6 +34,7 @@
     "check:react-query": "bun run scripts/check-react-query-patterns.ts --check",
     "check:client-boundary": "bun run scripts/check-client-boundary-imports.ts --check",
     "check:utils": "bun run scripts/check-utils-enforcement.ts",
+    "check:canvas-sentences": "bun run apps/sim/scripts/check-canvas-sentences.ts --require-coverage",
     "check:bare-icons": "bun run scripts/check-bare-icons.ts",
     "check:icon-paths": "bun run scripts/check-icon-paths.ts",
     "check:migrations": "bun run scripts/check-migrations-safety.ts",

@@ -5,6 +5,8 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DocuSignResponse } from '@/tools/docusign/types'
 
+const DOCUMENT_FIELD = ['uploadDocument', 'documentRef'] as const
+
 export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
   type: 'docusign',
   name: 'DocuSign',
@@ -17,6 +19,41 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
   bgColor: '#FFFFFF',
   icon: DocuSignIcon,
   authMode: AuthMode.OAuth,
+  canvasPresentation: {
+    defaultTitle: 'DocuSign',
+    sentences: {
+      byOperation: {
+        send_envelope: [
+          { text: 'Sends', field: DOCUMENT_FIELD, core: true },
+          { text: 'for signature to', field: 'signerEmail', core: true },
+        ],
+        create_from_template: [
+          { text: 'Sends an envelope from template', field: 'templateId', core: true },
+          { text: ', titled', field: 'emailSubject' },
+        ],
+        get_envelope: [{ text: 'Fetches the status of envelope', field: 'envelopeId', core: true }],
+        list_envelopes: [
+          'Lists envelopes',
+          { text: ', with status', field: 'listEnvelopeStatus' },
+          { text: ', matching', field: 'searchText' },
+          { text: ', sent since', field: 'fromDate' },
+        ],
+        void_envelope: [
+          { text: 'Voids envelope', field: 'envelopeId', core: true },
+          { text: ', citing', field: 'voidedReason' },
+        ],
+        download_document: [
+          'Downloads the signed document',
+          { text: 'from envelope', field: 'envelopeId', core: true },
+          { text: ', document', field: 'documentId' },
+        ],
+        list_templates: ['Lists templates', { text: ', matching', field: 'searchText' }],
+        list_recipients: [
+          { text: 'Lists recipients of envelope', field: 'envelopeId', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

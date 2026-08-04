@@ -7,6 +7,9 @@ import type { SupabaseResponse } from '@/tools/supabase/types'
 
 const logger = createLogger('SupabaseBlock')
 
+/** Canonical basic/advanced pair for the storage upload payload. */
+const FILE_DATA_FIELD = ['file', 'fileContent'] as const
+
 export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   type: 'supabase',
   name: 'Supabase',
@@ -19,6 +22,119 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#1C1C1C',
   icon: SupabaseIcon,
+  canvasPresentation: {
+    defaultTitle: 'Supabase',
+    sentences: {
+      byOperation: {
+        query: [
+          { text: 'Queries rows from', field: 'table', core: true },
+          { text: ', where', field: 'filter' },
+          { text: ', up to', field: 'limit', after: 'rows' },
+        ],
+        get_row: [
+          { text: 'Fetches one row from', field: 'table', core: true },
+          { text: ', where', field: 'filter' },
+        ],
+        insert: [
+          { text: 'Inserts a row into', field: 'table', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        update: [
+          { text: 'Updates rows in', field: 'table', core: true },
+          { text: ', where', field: 'filter' },
+          { text: ', setting', field: 'data' },
+        ],
+        delete: [
+          { text: 'Deletes rows from', field: 'table', core: true },
+          { text: ', where', field: 'filter' },
+        ],
+        upsert: [
+          { text: 'Upserts a row into', field: 'table', core: true },
+          { text: ', keyed on', field: 'onConflict' },
+        ],
+        count: [
+          { text: 'Counts rows in', field: 'table', core: true },
+          { text: ', where', field: 'filter' },
+        ],
+        text_search: [
+          { text: 'Full-text searches', field: 'table', core: true },
+          { text: 'for', field: 'query' },
+          { text: ', in column', field: 'column' },
+        ],
+        vector_search: [
+          { text: 'Finds similar rows via', field: 'functionName', core: true },
+          { text: ', above similarity', field: 'matchThreshold' },
+          { text: ', up to', field: 'matchCount', after: 'matches' },
+        ],
+        rpc: [
+          { text: 'Calls Postgres function', field: 'functionName', core: true },
+          { text: ', with', field: 'params' },
+        ],
+        invoke_function: [
+          { text: 'Invokes edge function', field: 'functionName', core: true },
+          { text: 'via', field: 'method' },
+        ],
+        introspect: [
+          {
+            text: 'Introspects schema',
+            field: 'schema',
+            core: true,
+          },
+        ],
+        storage_upload: [
+          { text: 'Uploads', field: FILE_DATA_FIELD, core: true },
+          { text: 'to', field: 'bucket', core: true },
+          { text: ', in folder', field: 'path' },
+        ],
+        storage_download: [
+          { text: 'Downloads', field: 'path', core: true },
+          { text: 'from', field: 'bucket' },
+        ],
+        storage_list: [
+          { text: 'Lists files in', field: 'bucket', core: true },
+          { text: ', under', field: 'path' },
+          { text: ', matching', field: 'search' },
+        ],
+        storage_delete: [
+          { text: 'Deletes', field: 'paths', core: true },
+          { text: 'from', field: 'bucket' },
+        ],
+        storage_move: [
+          { text: 'Moves', field: 'fromPath', core: true },
+          { text: 'to', field: 'toPath' },
+        ],
+        storage_copy: [
+          { text: 'Copies', field: 'fromPath', core: true },
+          { text: 'to', field: 'toPath' },
+        ],
+        storage_get_public_url: [
+          { text: 'Gets the public URL for', field: 'path', core: true },
+          { text: 'in', field: 'bucket' },
+        ],
+        storage_create_signed_url: [
+          { text: 'Creates a signed URL for', field: 'path', core: true },
+          { text: ', valid for', field: 'expiresIn', after: 'seconds' },
+        ],
+        storage_create_signed_upload_url: [
+          { text: 'Creates a signed upload URL for', field: 'path', core: true },
+          { text: 'in', field: 'bucket' },
+        ],
+        storage_create_bucket: [
+          { text: 'Creates bucket', field: 'bucket', core: true },
+          { text: ', capped at', field: 'fileSizeLimit', after: 'bytes per file' },
+        ],
+        storage_update_bucket: [
+          { text: 'Updates the settings of bucket', field: 'bucket', core: true },
+          { text: ', capping files at', field: 'fileSizeLimit', after: 'bytes' },
+        ],
+        storage_empty_bucket: [
+          { text: 'Deletes every file in bucket', field: 'bucket', core: true },
+        ],
+        storage_list_buckets: ['Lists all storage buckets'],
+        storage_delete_bucket: [{ text: 'Deletes bucket', field: 'bucket', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -839,6 +955,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     {
       id: 'fromPath',
       title: 'From Path',
+      canvasNoun: 'a path',
       type: 'short-input',
       placeholder: 'folder/old.jpg',
       condition: { field: 'operation', value: 'storage_move' },
@@ -855,6 +972,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     {
       id: 'fromPath',
       title: 'From Path',
+      canvasNoun: 'a path',
       type: 'short-input',
       placeholder: 'folder/source.jpg',
       condition: { field: 'operation', value: 'storage_copy' },

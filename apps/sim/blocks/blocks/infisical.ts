@@ -15,6 +15,36 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
   bgColor: '#F7FE62',
   icon: InfisicalIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Infisical',
+    sentences: {
+      byOperation: {
+        list_secrets: [
+          { text: 'Lists secrets in project', field: 'projectId', core: true },
+          { text: ', environment', field: 'environment' },
+          { text: ', under', field: 'secretPath' },
+        ],
+        get_secret: [
+          { text: 'Reads secret', field: 'secretName', core: true },
+          { text: 'from environment', field: 'environment' },
+          { text: ', at version', field: 'secretVersion' },
+        ],
+        create_secret: [
+          { text: 'Creates secret', field: 'secretName', core: true },
+          { text: 'in environment', field: 'environment' },
+        ],
+        update_secret: [
+          { text: 'Updates secret', field: 'secretName', core: true },
+          { text: 'in environment', field: 'environment' },
+          { text: ', renaming it to', field: 'newSecretName' },
+        ],
+        delete_secret: [
+          { text: 'Deletes secret', field: 'secretName', core: true },
+          { text: 'from environment', field: 'environment' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

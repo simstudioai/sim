@@ -14,6 +14,18 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: EnrowIcon,
+  canvasPresentation: {
+    defaultTitle: 'Enrow',
+    sentences: {
+      byOperation: {
+        enrow_find_email: [
+          { text: 'Finds email address for', field: 'fullname', core: true },
+          { text: 'at', field: ['company_domain', 'company_name'] },
+        ],
+        enrow_verify_email: [{ text: 'Verifies deliverability of', field: 've_email', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

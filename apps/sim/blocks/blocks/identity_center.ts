@@ -14,6 +14,38 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
   integrationType: IntegrationType.Security,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: IdentityCenterIcon,
+  canvasPresentation: {
+    defaultTitle: 'AWS Identity Center',
+    sentences: {
+      byOperation: {
+        list_instances: ['Lists all instances', { text: 'in', field: 'region' }],
+        list_accounts: ['Lists organization accounts', { text: 'in', field: 'region' }],
+        describe_account: [{ text: 'Reads details of account', field: 'accountId', core: true }],
+        list_permission_sets: ['Lists permission sets', { text: 'in', field: 'region' }],
+        get_user: [{ text: 'Looks up the user with email', field: 'email', core: true }],
+        get_group: [{ text: 'Looks up the group named', field: 'displayName', core: true }],
+        list_groups: ['Lists Identity Store groups', { text: 'in', field: 'identityStoreId' }],
+        create_account_assignment: [
+          { text: 'Grants', field: 'principalId', core: true },
+          { text: 'access to account', field: 'accountId', core: true },
+        ],
+        delete_account_assignment: [
+          { text: 'Revokes', field: 'principalId', core: true },
+          { text: 'access to account', field: 'accountId', core: true },
+        ],
+        check_assignment_status: [
+          { text: 'Checks provisioning status of request', field: 'requestId', core: true },
+        ],
+        check_assignment_deletion_status: [
+          { text: 'Checks deprovisioning status of request', field: 'requestId', core: true },
+        ],
+        list_account_assignments: [
+          'Lists account assignments',
+          { text: 'for', field: 'principalId' },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

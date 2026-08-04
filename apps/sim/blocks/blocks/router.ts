@@ -158,6 +158,17 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   icon: ConnectIcon,
   hideFromToolbar: true, // Hide legacy version from toolbar
   sunset: { status: 'legacy', replacedBy: 'router_v2' },
+  /* The legacy router paints an ordinary card — only `router_v2` renders the
+     branch rows that replace a sentence. */
+  canvasPresentation: {
+    defaultTitle: 'Router',
+    sentences: {
+      default: [
+        { text: 'Routes based on', field: 'prompt', core: true },
+        { text: ', using', field: 'model' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'prompt',

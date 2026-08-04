@@ -14,6 +14,27 @@ export const GammaBlock: BlockConfig<GammaResponse> = {
   bgColor: '#002253',
   icon: GammaIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Gamma',
+    sentences: {
+      byOperation: {
+        generate: [
+          { text: 'Generates', field: 'format', core: true },
+          { text: 'from', field: 'inputText', core: true },
+          { text: ', across', field: 'numCards', after: 'cards' },
+        ],
+        generate_from_template: [
+          { text: 'Adapts template', field: 'gammaId', core: true },
+          { text: 'using', field: 'prompt' },
+        ],
+        check_status: [
+          { text: 'Checks the status of generation', field: 'generationId', core: true },
+        ],
+        list_themes: ['Lists available themes'],
+        list_folders: ['Lists available folders'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

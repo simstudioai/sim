@@ -3,6 +3,14 @@ import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowled
 import type { BlockConfig } from '@/blocks/types'
 import { getCohereRerankerApiKeyCondition } from '@/blocks/utils'
 
+/*
+ * Canonical basic/advanced pairs, shared by the card sentences below. Listing
+ * both members is what keeps the sentence working for an advanced-mode user,
+ * who has only the manual field filled.
+ */
+const KNOWLEDGE_BASE_FIELD = ['knowledgeBaseSelector', 'manualKnowledgeBaseId'] as const
+const DOCUMENT_FIELD = ['documentSelector', 'documentId'] as const
+
 export const KnowledgeBlock: BlockConfig = {
   type: 'knowledge',
   name: 'Knowledge',
@@ -19,6 +27,68 @@ export const KnowledgeBlock: BlockConfig = {
   `,
   bgColor: '#00B0B0',
   icon: PackageSearchIcon,
+  canvasPresentation: {
+    defaultTitle: 'Knowledge',
+    sentences: {
+      byOperation: {
+        search: [
+          { text: 'Searches', field: KNOWLEDGE_BASE_FIELD, core: true },
+          { text: 'for', field: 'query' },
+          { text: ', returning top', field: 'topK', after: 'matches' },
+        ],
+        list_documents: [
+          { text: 'Lists documents in', field: KNOWLEDGE_BASE_FIELD, core: true },
+          { text: ', matching', field: 'search' },
+          { text: ', up to', field: 'limit', after: 'documents' },
+        ],
+        get_document: [
+          { text: 'Reads document', field: DOCUMENT_FIELD, core: true },
+          { text: 'from', field: KNOWLEDGE_BASE_FIELD },
+        ],
+        create_document: [
+          { text: 'Creates document', field: 'name', core: true },
+          { text: 'in', field: KNOWLEDGE_BASE_FIELD, core: true },
+        ],
+        upsert_document: [
+          { text: 'Upserts document', field: 'name', core: true },
+          { text: 'into', field: KNOWLEDGE_BASE_FIELD, core: true },
+        ],
+        delete_document: [
+          { text: 'Deletes document', field: DOCUMENT_FIELD, core: true },
+          { text: 'from', field: KNOWLEDGE_BASE_FIELD },
+        ],
+        list_chunks: [
+          { text: 'Lists chunks of document', field: DOCUMENT_FIELD, core: true },
+          { text: ', matching', field: 'chunkSearch' },
+          { text: ', up to', field: 'limit', after: 'chunks' },
+        ],
+        upload_chunk: [
+          { text: 'Adds a chunk to document', field: DOCUMENT_FIELD, core: true },
+          { text: 'in', field: KNOWLEDGE_BASE_FIELD },
+        ],
+        update_chunk: [
+          { text: 'Rewrites chunk', field: 'chunkId', core: true },
+          { text: 'of document', field: DOCUMENT_FIELD },
+        ],
+        delete_chunk: [
+          { text: 'Deletes chunk', field: 'chunkId', core: true },
+          { text: 'from document', field: DOCUMENT_FIELD },
+        ],
+        list_tags: [{ text: 'Lists tags defined on', field: KNOWLEDGE_BASE_FIELD, core: true }],
+        list_connectors: [
+          { text: 'Lists connectors syncing into', field: KNOWLEDGE_BASE_FIELD, core: true },
+        ],
+        get_connector: [
+          { text: 'Reads connector', field: 'connectorId', core: true },
+          { text: 'on', field: KNOWLEDGE_BASE_FIELD },
+        ],
+        trigger_sync: [
+          { text: 'Starts a sync on connector', field: 'connectorId', core: true },
+          { text: 'in', field: KNOWLEDGE_BASE_FIELD },
+        ],
+      },
+    },
+  },
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/integrations/knowledge',
   subBlocks: [

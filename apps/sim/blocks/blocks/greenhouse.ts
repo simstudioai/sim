@@ -15,6 +15,47 @@ export const GreenhouseBlock: BlockConfig<GreenhouseResponse> = {
   bgColor: '#469776',
   iconColor: '#469776',
   icon: GreenhouseIcon,
+  canvasPresentation: {
+    defaultTitle: 'Greenhouse',
+    sentences: {
+      byOperation: {
+        greenhouse_list_candidates: [
+          'Lists candidates',
+          { text: ', for job', field: 'job_id' },
+          { text: ', with email', field: 'email' },
+          { text: ', created after', field: 'created_after' },
+        ],
+        greenhouse_get_candidate: [{ text: 'Fetches candidate', field: 'candidateId', core: true }],
+        greenhouse_list_jobs: [
+          'Lists jobs',
+          { text: ', with status', field: 'status' },
+          { text: ', in department', field: 'department_id' },
+          { text: ', at office', field: 'office_id' },
+        ],
+        greenhouse_get_job: [{ text: 'Fetches job', field: 'jobId', core: true }],
+        greenhouse_list_applications: [
+          'Lists applications',
+          { text: ', for job', field: 'job_id' },
+          { text: ', with status', field: 'applicationStatus' },
+          { text: ', active since', field: 'last_activity_after' },
+        ],
+        greenhouse_get_application: [
+          { text: 'Fetches application', field: 'applicationId', core: true },
+        ],
+        greenhouse_list_users: [
+          'Lists users',
+          { text: ', with email', field: 'email' },
+          { text: ', created after', field: 'created_after' },
+        ],
+        greenhouse_get_user: [{ text: 'Fetches user', field: 'userId', core: true }],
+        greenhouse_list_departments: ['Lists all departments'],
+        greenhouse_list_offices: ['Lists all offices'],
+        greenhouse_list_job_stages: [
+          { text: 'Lists interview stages for job', field: 'jobId', core: true },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   triggers: {

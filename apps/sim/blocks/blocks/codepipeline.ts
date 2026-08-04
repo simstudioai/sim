@@ -47,6 +47,65 @@ export const CodePipelineBlock: BlockConfig<
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
   iconColor: '#527FFF',
   icon: CodePipelineIcon,
+  canvasPresentation: {
+    defaultTitle: 'CodePipeline',
+    sentences: {
+      byOperation: {
+        start_execution: [
+          { text: 'Starts a run of', field: 'pipelineName', core: true },
+          { text: ', with variables', field: 'pipelineVariables' },
+        ],
+        get_pipeline_state: [
+          { text: 'Reads the stage status of', field: 'pipelineName', core: true },
+        ],
+        get_pipeline: [
+          {
+            text: 'Reads the stage and action structure of',
+            field: 'pipelineName',
+            core: true,
+          },
+          { text: ', at version', field: 'getPipelineVersion' },
+        ],
+        list_pipelines: ['Lists all pipelines', { text: ', up to', field: 'maxResults' }],
+        list_pipeline_executions: [
+          { text: 'Lists recent executions of', field: 'pipelineName', core: true },
+          { text: ', succeeded in stage', field: 'succeededInStage' },
+        ],
+        list_action_executions: [
+          { text: 'Lists action-level history for', field: 'pipelineName', core: true },
+          { text: ', in execution', field: 'pipelineExecutionId' },
+        ],
+        get_pipeline_execution: [
+          { text: 'Reads execution', field: 'pipelineExecutionId', core: true },
+          { text: 'of', field: 'pipelineName' },
+        ],
+        stop_execution: [
+          { text: 'Stops execution', field: 'pipelineExecutionId', core: true },
+          { text: 'of', field: 'pipelineName' },
+          { text: ', because', field: 'stopReason' },
+        ],
+        retry_stage_execution: [
+          { text: 'Retries stage', field: 'stageName', core: true },
+          { text: 'of', field: 'pipelineName' },
+        ],
+        put_approval_result: [
+          { text: 'Sets approval', field: 'actionName', core: true },
+          { text: 'to', field: 'approvalStatus' },
+          { text: ', in', field: 'pipelineName' },
+        ],
+        disable_stage_transition: [
+          { text: 'Freezes stage', field: 'stageName', core: true },
+          { text: 'in', field: 'pipelineName' },
+          { text: ', blocking', field: 'transitionType', after: 'transitions' },
+        ],
+        enable_stage_transition: [
+          { text: 'Unfreezes stage', field: 'stageName', core: true },
+          { text: 'in', field: 'pipelineName' },
+          { text: ', allowing', field: 'transitionType', after: 'transitions' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

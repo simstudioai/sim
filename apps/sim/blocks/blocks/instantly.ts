@@ -67,6 +67,52 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
   integrationType: IntegrationType.Email,
   bgColor: '#FFFFFF',
   icon: InstantlyIcon,
+  canvasPresentation: {
+    defaultTitle: 'Instantly',
+    sentences: {
+      byOperation: {
+        list_leads: [
+          'Lists leads',
+          { text: ', matching', field: 'search' },
+          { text: ', in campaign', field: 'campaignId' },
+        ],
+        get_lead: [{ text: 'Reads lead', field: 'leadId', core: true }],
+        create_lead: [
+          { text: 'Creates lead', field: 'email', core: true },
+          { text: 'in', field: 'leadDestinationId' },
+        ],
+        patch_lead: [{ text: 'Updates fields on lead', field: 'leadId', core: true }],
+        delete_leads: [
+          { text: 'Deletes leads from', field: 'deleteSourceId', core: true },
+          { text: ', up to', field: 'deleteLimit', after: 'leads' },
+        ],
+        update_lead_interest_status: [
+          { text: 'Sets interest status for', field: 'leadEmail', core: true },
+          { text: 'in campaign', field: 'campaignId' },
+        ],
+        list_campaigns: ['Lists campaigns', { text: ', matching', field: 'search' }],
+        create_campaign: [{ text: 'Creates campaign', field: 'campaignName', core: true }],
+        patch_campaign: [
+          { text: 'Updates campaign', field: 'campaignId', core: true },
+          { text: ', renaming it to', field: 'campaignName' },
+        ],
+        activate_campaign: [{ text: 'Starts campaign', field: 'campaignId', core: true }],
+        pause_campaign: [{ text: 'Pauses campaign', field: 'campaignId', core: true }],
+        delete_campaign: [{ text: 'Deletes campaign', field: 'campaignId', core: true }],
+        list_emails: [
+          'Lists inbox emails',
+          { text: ', matching', field: 'emailSearch' },
+          { text: ', in campaign', field: 'campaignId' },
+        ],
+        reply_to_email: [
+          { text: 'Replies to email', field: 'replyToUuid', core: true },
+          { text: ', with subject', field: 'subject' },
+        ],
+        list_lead_lists: ['Lists lead lists', { text: ', matching', field: 'search' }],
+        create_lead_list: [{ text: 'Creates lead list', field: 'leadListName', core: true }],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

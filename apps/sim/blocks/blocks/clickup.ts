@@ -79,6 +79,31 @@ const CLICKUP_HIERARCHY_OPS = [
   ...CLICKUP_LIST_OPS,
 ]
 
+/**
+ * Canonical basic/advanced pairs for the hierarchy pickers, shared by the card
+ * sentences below. Listing both members is what keeps a sentence working for an
+ * advanced-mode user, who has only the manual id filled.
+ */
+const WORKSPACE_FIELD = ['workspaceSelector', 'manualWorkspaceId'] as const
+const SPACE_FIELD = ['spaceSelector', 'manualSpaceId'] as const
+const LIST_FIELD = ['listSelector', 'manualListId'] as const
+
+/**
+ * Where a list lives, for the two operations whose `listParent` dropdown swaps
+ * between a folder and a folderless space. Both canonical pairs are listed in
+ * full, and only one of them is ever visible, so the first match is the real
+ * parent.
+ */
+const LIST_PARENT_FIELD = [
+  'folderSelector',
+  'manualFolderId',
+  'listSpaceSelector',
+  'manualListSpaceId',
+] as const
+
+/** Attachment payload, whichever upload mode the user picked. */
+const ATTACHMENT_FIELD = ['attachmentFile', 'fileReference'] as const
+
 export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
   type: 'clickup',
   name: 'ClickUp',
@@ -92,6 +117,131 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: ClickUpIcon,
+  canvasPresentation: {
+    defaultTitle: 'ClickUp',
+    sentences: {
+      byOperation: {
+        create_task: [
+          { text: 'Creates task', field: 'name', core: true },
+          { text: 'in list', field: LIST_FIELD },
+        ],
+        get_task: [{ text: 'Fetches task', field: 'taskId', core: true }],
+        update_task: [
+          { text: 'Updates task', field: 'taskId', core: true },
+          { text: ', setting status to', field: 'status' },
+        ],
+        delete_task: [{ text: 'Deletes task', field: 'taskId', core: true }],
+        get_tasks: [
+          { text: 'Lists tasks in', field: LIST_FIELD, core: true },
+          { text: ', with status', field: 'statuses' },
+        ],
+        search_tasks: [
+          { text: 'Searches tasks across', field: WORKSPACE_FIELD, core: true },
+          { text: ', assigned to', field: 'assignees' },
+        ],
+        create_comment: [
+          { text: 'Comments', field: 'commentText', core: true },
+          { text: 'on task', field: 'taskId', core: true },
+        ],
+        get_comments: [{ text: 'Lists comments on task', field: 'taskId', core: true }],
+        update_comment: [
+          { text: 'Updates comment', field: 'commentId', core: true },
+          { text: ', setting its text to', field: 'commentText' },
+        ],
+        delete_comment: [{ text: 'Deletes comment', field: 'commentId', core: true }],
+        upload_attachment: [
+          { text: 'Uploads', field: ATTACHMENT_FIELD, core: true },
+          { text: 'to task', field: 'taskId', core: true },
+        ],
+        add_tag_to_task: [
+          { text: 'Tags task', field: 'taskId', core: true },
+          { text: 'with', field: 'tagName' },
+        ],
+        remove_tag_from_task: [
+          { text: 'Removes tag', field: 'tagName', core: true },
+          { text: 'from task', field: 'taskId', core: true },
+        ],
+        get_space_tags: [{ text: 'Lists task tags in space', field: SPACE_FIELD, core: true }],
+        get_task_members: [{ text: 'Lists members of task', field: 'taskId', core: true }],
+        get_list_members: [{ text: 'Lists members of list', field: LIST_FIELD, core: true }],
+        get_custom_fields: [{ text: 'Lists custom fields on list', field: LIST_FIELD, core: true }],
+        set_custom_field_value: [
+          { text: 'Sets custom field', field: 'fieldId', core: true },
+          { text: 'on task', field: 'taskId' },
+          { text: 'to', field: 'fieldValue' },
+        ],
+        remove_custom_field_value: [
+          { text: 'Clears custom field', field: 'fieldId', core: true },
+          { text: 'on task', field: 'taskId' },
+        ],
+        create_checklist: [
+          { text: 'Adds checklist', field: 'name', core: true },
+          { text: 'to task', field: 'taskId', core: true },
+        ],
+        update_checklist: [
+          { text: 'Updates checklist', field: 'checklistId', core: true },
+          { text: ', renaming it to', field: 'name' },
+          { text: ', at position', field: 'position' },
+        ],
+        delete_checklist: [{ text: 'Deletes checklist', field: 'checklistId', core: true }],
+        create_checklist_item: [
+          { text: 'Adds item', field: 'name', core: true },
+          { text: 'to checklist', field: 'checklistId', core: true },
+        ],
+        update_checklist_item: [
+          { text: 'Updates checklist item', field: 'checklistItemId', core: true },
+          { text: ', renaming it to', field: 'name' },
+          { text: ', assigned to', field: 'itemAssignee' },
+        ],
+        delete_checklist_item: [
+          { text: 'Deletes checklist item', field: 'checklistItemId', core: true },
+          { text: 'from checklist', field: 'checklistId' },
+        ],
+        get_time_entries: [
+          { text: 'Lists time entries in', field: WORKSPACE_FIELD, core: true },
+          { text: ', since', field: 'timeStartDate' },
+          { text: ', until', field: 'timeEndDate' },
+        ],
+        create_time_entry: [
+          {
+            text: 'Logs a time entry on task',
+            field: 'timerTaskId',
+            core: true,
+          },
+          { text: 'in', field: WORKSPACE_FIELD, core: true },
+        ],
+        update_time_entry: [
+          { text: 'Updates time entry', field: 'timerId', core: true },
+          { text: ', setting its description to', field: 'entryDescription' },
+        ],
+        delete_time_entry: [
+          { text: 'Deletes time entry', field: 'timerId', core: true },
+          { text: 'from', field: WORKSPACE_FIELD },
+        ],
+        start_timer: [
+          { text: 'Starts a timer on task', field: 'timerTaskId', core: true },
+          { text: 'in', field: WORKSPACE_FIELD, core: true },
+        ],
+        stop_timer: [{ text: 'Stops the running timer in', field: WORKSPACE_FIELD, core: true }],
+        get_running_timer: [
+          { text: 'Fetches the running timer in', field: WORKSPACE_FIELD, core: true },
+          { text: ', for', field: 'entryAssignee' },
+        ],
+        get_workspaces: ['Lists available workspaces'],
+        get_spaces: [{ text: 'Lists spaces in', field: WORKSPACE_FIELD, core: true }],
+        get_folders: [{ text: 'Lists folders in space', field: SPACE_FIELD, core: true }],
+        get_lists: [{ text: 'Lists every list in', field: LIST_PARENT_FIELD, core: true }],
+        create_folder: [
+          { text: 'Creates folder', field: 'name', core: true },
+          { text: 'in space', field: SPACE_FIELD },
+        ],
+        create_list: [
+          { text: 'Creates list', field: 'name', core: true },
+          { text: 'in', field: LIST_PARENT_FIELD },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

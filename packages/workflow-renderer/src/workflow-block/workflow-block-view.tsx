@@ -380,6 +380,9 @@ export interface WorkflowBlockViewProps {
    * Natural-language summary of what the block does, with inline value
    * chips. When present it replaces the statement line and field rows;
    * the error footer stays.
+   *
+   * Pass a {@link CanvasSentenceView}, which owns the paragraph and the
+   * segment spacing so every surface renders the sentence identically.
    */
   sentence?: ReactNode
   /**
@@ -1004,9 +1007,7 @@ export function WorkflowBlockView({
                 ))}
               </>
             ) : sentence ? (
-              <p className='min-w-0 break-words text-[var(--text-muted)] text-sm leading-6'>
-                {sentence}
-              </p>
+              sentence
             ) : (
               <>
                 {chips && (

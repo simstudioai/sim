@@ -17,6 +17,145 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: SalesforceIcon,
+  canvasPresentation: {
+    defaultTitle: 'Salesforce',
+    sentences: {
+      byOperation: {
+        get_accounts: [
+          'Lists accounts',
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_account: [
+          { text: 'Creates account', field: 'name', core: true },
+          { text: ', of type', field: 'type' },
+          { text: ', in industry', field: 'industry' },
+        ],
+        update_account: [
+          { text: 'Updates account', field: 'accountId', core: true },
+          { text: ', setting name to', field: 'name' },
+          { text: ', industry', field: 'industry' },
+        ],
+        delete_account: [{ text: 'Deletes account', field: 'accountId', core: true }],
+        get_contacts: [
+          { text: 'Fetches contact', field: 'contactId', core: true },
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_contact: [
+          { text: 'Creates contact', field: 'lastName', core: true },
+          { text: ', at account', field: 'accountId' },
+          { text: ', with email', field: 'email' },
+        ],
+        update_contact: [
+          { text: 'Updates contact', field: 'contactId', core: true },
+          { text: ', setting email to', field: 'email' },
+          { text: ', job title', field: 'title' },
+        ],
+        delete_contact: [{ text: 'Deletes contact', field: 'contactId', core: true }],
+        get_leads: [
+          { text: 'Fetches lead', field: 'leadId', core: true },
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_lead: [
+          { text: 'Creates lead', field: 'lastName', core: true },
+          { text: ', at company', field: 'company' },
+          { text: ', sourced from', field: 'leadSource' },
+        ],
+        update_lead: [
+          { text: 'Updates lead', field: 'leadId', core: true },
+          { text: ', setting status to', field: 'status' },
+          { text: ', company', field: 'company' },
+        ],
+        delete_lead: [{ text: 'Deletes lead', field: 'leadId', core: true }],
+        get_opportunities: [
+          { text: 'Fetches opportunity', field: 'opportunityId', core: true },
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_opportunity: [
+          { text: 'Creates opportunity', field: 'name', core: true },
+          { text: ', at stage', field: 'stageName' },
+          { text: ', worth', field: 'amount' },
+        ],
+        update_opportunity: [
+          { text: 'Updates opportunity', field: 'opportunityId', core: true },
+          { text: ', setting stage to', field: 'stageName' },
+          { text: ', amount', field: 'amount' },
+        ],
+        delete_opportunity: [{ text: 'Deletes opportunity', field: 'opportunityId', core: true }],
+        get_cases: [
+          { text: 'Fetches case', field: 'caseId', core: true },
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_case: [
+          { text: 'Creates case', field: 'subject', core: true },
+          { text: ', at priority', field: 'priority' },
+          { text: ', from', field: 'origin' },
+        ],
+        update_case: [
+          { text: 'Updates case', field: 'caseId', core: true },
+          { text: ', setting status to', field: 'status' },
+          { text: ', priority', field: 'priority' },
+        ],
+        delete_case: [{ text: 'Deletes case', field: 'caseId', core: true }],
+        get_tasks: [
+          { text: 'Fetches task', field: 'taskId', core: true },
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_task: [
+          { text: 'Creates task', field: 'subject', core: true },
+          { text: ', due', field: 'activityDate' },
+          { text: ', at priority', field: 'priority' },
+        ],
+        update_task: [
+          { text: 'Updates task', field: 'taskId', core: true },
+          { text: ', setting status to', field: 'status' },
+          { text: ', due', field: 'activityDate' },
+        ],
+        delete_task: [{ text: 'Deletes task', field: 'taskId', core: true }],
+        list_reports: [
+          'Lists recently viewed reports',
+          { text: ', matching', field: 'searchTerm' },
+        ],
+        get_report: [{ text: 'Reads the definition of report', field: 'reportId', core: true }],
+        run_report: [
+          { text: 'Runs report', field: 'reportId', core: true },
+          { text: ', filtered by', field: 'filters' },
+        ],
+        list_report_types: ['Lists available report types'],
+        list_dashboards: ['Lists recently used dashboards'],
+        get_dashboard: [{ text: 'Reads dashboard', field: 'dashboardId', core: true }],
+        refresh_dashboard: [{ text: 'Refreshes dashboard', field: 'dashboardId', core: true }],
+        query: [{ text: 'Runs SOQL query', field: 'query', core: true }],
+        query_more: [
+          { text: 'Fetches more query results from', field: 'nextRecordsUrl', core: true },
+        ],
+        describe_object: [{ text: 'Reads the field metadata of', field: 'objectName', core: true }],
+        list_objects: ['Lists all available objects'],
+        create_custom_field: [
+          { text: 'Adds custom field', field: 'fieldName', core: true },
+          { text: 'to object', field: 'objectName' },
+          { text: ', of type', field: 'fieldType' },
+        ],
+        update_custom_field: [
+          { text: 'Updates custom field', field: 'fieldId', core: true },
+          { text: ', setting label to', field: 'label' },
+          { text: ', help text', field: 'inlineHelpText' },
+        ],
+        delete_custom_field: [{ text: 'Deletes custom field', field: 'fieldId', core: true }],
+        create_custom_object: [
+          { text: 'Creates custom object', field: 'objectName', core: true },
+          { text: ', labeled', field: 'label' },
+          { text: ', shared as', field: 'sharingModel' },
+        ],
+        tooling_query: [{ text: 'Runs Tooling API query', field: 'query', core: true }],
+      },
+    },
+  },
   triggers: {
     enabled: true,
     available: [

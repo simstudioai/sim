@@ -3,6 +3,11 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { DubResponse } from '@/tools/dub/types'
 
+const GET_LINK_FIELD = ['linkId', 'getLinkExternalId', 'getLinkKey'] as const
+const BULK_UPDATE_TARGET_FIELD = ['bulkUpdateLinkIds', 'bulkUpdateExternalIds'] as const
+const ANALYTICS_LINK_FIELD = ['analyticsLinkId', 'analyticsExternalId'] as const
+const EVENTS_LINK_FIELD = ['eventsLinkId', 'eventsExternalId'] as const
+
 export const DubBlock: BlockConfig<DubResponse> = {
   type: 'dub',
   name: 'Dub',
@@ -15,6 +20,89 @@ export const DubBlock: BlockConfig<DubResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#181C1E',
   icon: DubIcon,
+  canvasPresentation: {
+    defaultTitle: 'Dub',
+    sentences: {
+      byOperation: {
+        create_link: [
+          { text: 'Creates a short link to', field: 'url', core: true },
+          { text: ', at slug', field: 'key' },
+          { text: ', on', field: 'domain' },
+        ],
+        upsert_link: [
+          { text: 'Creates or updates the short link to', field: 'url', core: true },
+          { text: ', at slug', field: 'key' },
+          { text: ', on', field: 'domain' },
+        ],
+        get_link: [{ text: 'Reads link', field: GET_LINK_FIELD, core: true }],
+        update_link: [
+          { text: 'Updates link', field: 'linkId', core: true },
+          { text: ', pointing it to', field: 'updateUrl' },
+          { text: ', at slug', field: 'key' },
+        ],
+        delete_link: [{ text: 'Deletes link', field: 'linkId', core: true }],
+        list_links: [
+          'Lists links',
+          { text: ', matching', field: 'search' },
+          { text: ', on', field: 'listDomain' },
+          { text: ', up to', field: 'pageSize' },
+        ],
+        get_links_count: [
+          'Counts links',
+          { text: ', matching', field: 'countSearch' },
+          { text: ', on', field: 'countDomain' },
+          { text: ', grouped by', field: 'countGroupBy' },
+        ],
+        bulk_create_links: ['Creates up to 100 short links in one request'],
+        bulk_update_links: [
+          {
+            text: 'Applies one set of changes to links',
+            field: BULK_UPDATE_TARGET_FIELD,
+            core: true,
+          },
+          { text: ', setting', field: 'bulkUpdateData' },
+        ],
+        bulk_delete_links: [{ text: 'Deletes links', field: 'bulkDeleteLinkIds', core: true }],
+        get_analytics: [
+          {
+            text: 'Reads',
+            field: 'analyticsEvent',
+            after: 'analytics',
+            core: true,
+          },
+          { text: 'for link', field: ANALYTICS_LINK_FIELD },
+          { text: ', over', field: 'analyticsInterval' },
+        ],
+        get_events: [
+          {
+            text: 'Lists individual',
+            field: 'eventsEvent',
+            after: 'events',
+            core: true,
+          },
+          { text: 'for link', field: EVENTS_LINK_FIELD },
+          { text: ', over', field: 'eventsInterval' },
+        ],
+        get_qr_code: [
+          { text: 'Generates a QR code for', field: 'qrUrl', core: true },
+          { text: ', at', field: 'qrSize', after: 'pixels' },
+        ],
+        list_domains: [
+          'Lists the workspace domains',
+          { text: ', matching', field: 'domainsSearch' },
+        ],
+        list_tags: ['Lists the workspace tags', { text: ', matching', field: 'tagsSearch' }],
+        create_tag: [
+          { text: 'Creates tag', field: 'tagName', core: true },
+          { text: ', colored', field: 'tagColor' },
+        ],
+        list_folders: [
+          'Lists the workspace folders',
+          { text: ', matching', field: 'foldersSearch' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

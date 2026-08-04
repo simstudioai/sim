@@ -802,6 +802,27 @@ const TYPE_ID_OPS = ['core_get_type']
 
 const VENUE_ID_OPS = ['football_get_venue', 'motorsport_get_venue']
 
+/**
+ * Secondary clauses shared by the card summaries below. Every operation here
+ * reads one entity keyed by one or two ids, so the repeated shapes are the
+ * tail clauses rather than canonical basic/advanced field pairs.
+ *
+ * Operations that narrow a shared parent scope (a fixture's laps, a fixture's
+ * odds) anchor on the narrowing id and carry the parent as the tail clause, so
+ * a half-filled card still reads differently from its broader sibling.
+ *
+ * The tail clauses that close a range or scope a lookup carry a `fallback`
+ * naming their operand, because every one of them is a required input: without
+ * it an untouched card would state half a relation — an open-ended "from this
+ * date onward" query, or a squad lookup with no season — that the endpoint
+ * cannot serve.
+ */
+const TO_END_DATE = { text: 'to', field: 'endDate', core: true } as const
+const TO_TIMESTAMP = { text: 'to', field: 'toTimestamp', core: true } as const
+const IN_SEASON = { text: 'in season', field: 'seasonId', core: true } as const
+const IN_FIXTURE = { text: 'in fixture', field: 'fixtureId' } as const
+const FOR_FIXTURE = { text: 'for fixture', field: 'fixtureId' } as const
+
 export const SportmonksBlock: BlockConfig = {
   type: 'sportmonks',
   name: 'Sportmonks',
@@ -814,6 +835,506 @@ export const SportmonksBlock: BlockConfig = {
   bgColor: '#171534',
   icon: SportmonksIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Sportmonks',
+    sentences: {
+      byOperation: {
+        football_expected_by_player: ['Lists expected goals per player'],
+        football_expected_by_team: ['Lists expected goals per team'],
+        football_get_all_commentaries: ['Lists all match commentaries'],
+        football_get_all_fixtures: ['Lists all football fixtures'],
+        football_get_all_players: ['Lists all football players'],
+        football_get_all_rivals: ['Lists all team rivalries'],
+        football_get_all_teams: ['Lists all football teams'],
+        football_get_all_transfer_rumours: ['Lists all transfer rumours'],
+        football_get_all_transfers: ['Lists all transfers'],
+        football_get_brackets_by_season: [
+          { text: 'Reads knockout bracket for season', field: 'seasonId', core: true },
+        ],
+        football_get_coach: [{ text: 'Fetches coach', field: 'coachId', core: true }],
+        football_get_coaches: ['Lists all football coaches'],
+        football_get_coaches_by_country: [
+          { text: 'Lists coaches from country', field: 'countryId', core: true },
+        ],
+        football_get_commentaries_by_fixture: [
+          { text: 'Lists commentary for fixture', field: 'fixtureId', core: true },
+        ],
+        football_get_current_leagues_by_team: [
+          { text: 'Lists current leagues for team', field: 'teamId', core: true },
+        ],
+        football_get_expected_lineups_by_player: [
+          { text: 'Lists expected lineups for player', field: 'playerId', core: true },
+        ],
+        football_get_expected_lineups_by_team: [
+          { text: 'Lists expected lineups for team', field: 'teamId', core: true },
+        ],
+        football_get_extended_team_squad: [
+          { text: 'Lists extended squad for team', field: 'teamId', core: true },
+        ],
+        football_get_fixture: [{ text: 'Fetches fixture', field: 'fixtureId', core: true }],
+        football_get_fixtures_by_date: [{ text: 'Lists fixtures on', field: 'date', core: true }],
+        football_get_fixtures_by_date_range: [
+          { text: 'Lists fixtures from', field: 'startDate', core: true },
+          TO_END_DATE,
+        ],
+        football_get_fixtures_by_date_range_for_team: [
+          { text: 'Lists fixtures for team', field: 'teamId', core: true },
+          { text: 'from', field: 'startDate', core: true },
+          TO_END_DATE,
+        ],
+        football_get_fixtures_by_ids: [{ text: 'Fetches fixtures', field: 'ids', core: true }],
+        football_get_grouped_standings_by_round: [
+          { text: 'Reads grouped standings for round', field: 'roundId', core: true },
+        ],
+        football_get_head_to_head: [
+          { text: 'Lists head-to-head fixtures between team', field: 'team1', core: true },
+          { text: 'and', field: 'team2', core: true },
+        ],
+        football_get_inplay_livescores: ['Lists fixtures currently in play'],
+        football_get_latest_coaches: ['Lists coaches updated in the last two hours'],
+        football_get_latest_fixtures: ['Lists fixtures updated in the last 10 seconds'],
+        football_get_latest_livescores: ['Lists livescores updated in the last 10 seconds'],
+        football_get_latest_players: ['Lists players updated in the last two hours'],
+        football_get_latest_totw: [
+          { text: 'Reads latest Team of the Week for league', field: 'leagueId', core: true },
+        ],
+        football_get_latest_transfers: ['Lists latest transfers'],
+        football_get_league: [{ text: 'Fetches league', field: 'leagueId', core: true }],
+        football_get_leagues: ['Lists all football leagues'],
+        football_get_leagues_by_country: [
+          { text: 'Lists leagues in country', field: 'countryId', core: true },
+        ],
+        football_get_leagues_by_date: [
+          { text: 'Lists leagues with fixtures on', field: 'date', core: true },
+        ],
+        football_get_leagues_by_team: [
+          { text: 'Lists leagues for team', field: 'teamId', core: true },
+        ],
+        football_get_live_leagues: ['Lists leagues with fixtures in play'],
+        football_get_live_probabilities: ['Lists live prediction probabilities'],
+        football_get_live_probabilities_by_fixture: [
+          { text: 'Lists live probabilities for fixture', field: 'fixtureId', core: true },
+        ],
+        football_get_live_standings_by_league: [
+          { text: 'Reads live standings for league', field: 'leagueId', core: true },
+        ],
+        football_get_livescores: ['Lists fixtures starting within 15 minutes or in play'],
+        football_get_match_facts: ['Lists all match facts'],
+        football_get_match_facts_by_date_range: [
+          { text: 'Lists match facts from', field: 'startDate', core: true },
+          TO_END_DATE,
+        ],
+        football_get_match_facts_by_fixture: [
+          { text: 'Lists match facts for fixture', field: 'fixtureId', core: true },
+        ],
+        football_get_match_facts_by_league: [
+          { text: 'Lists match facts for league', field: 'leagueId', core: true },
+        ],
+        football_get_past_fixtures_by_tv_station: [
+          { text: 'Lists past fixtures on TV station', field: 'tvStationId', core: true },
+        ],
+        football_get_player: [{ text: 'Fetches player', field: 'playerId', core: true }],
+        football_get_players_by_country: [
+          { text: 'Lists players from country', field: 'countryId', core: true },
+        ],
+        football_get_postmatch_news: ['Lists all post-match news'],
+        football_get_postmatch_news_by_season: [
+          { text: 'Lists post-match news for season', field: 'seasonId', core: true },
+        ],
+        football_get_predictability_by_league: [
+          { text: 'Reads prediction accuracy for league', field: 'leagueId', core: true },
+        ],
+        football_get_prematch_news: ['Lists all pre-match news'],
+        football_get_prematch_news_by_season: [
+          { text: 'Lists pre-match news for season', field: 'seasonId', core: true },
+        ],
+        football_get_prematch_news_upcoming: ['Lists pre-match news for upcoming fixtures'],
+        football_get_probabilities: ['Lists all prediction probabilities'],
+        football_get_probabilities_by_fixture: [
+          { text: 'Lists predictions for fixture', field: 'fixtureId', core: true },
+        ],
+        football_get_referee: [{ text: 'Fetches referee', field: 'refereeId', core: true }],
+        football_get_referees: ['Lists all football referees'],
+        football_get_referees_by_country: [
+          { text: 'Lists referees from country', field: 'countryId', core: true },
+        ],
+        football_get_referees_by_season: [
+          { text: 'Lists referees in season', field: 'seasonId', core: true },
+        ],
+        football_get_rivals_by_team: [
+          { text: 'Lists rivals of team', field: 'teamId', core: true },
+        ],
+        football_get_round: [{ text: 'Fetches round', field: 'roundId', core: true }],
+        football_get_round_statistics: [
+          { text: 'Reads statistics for round', field: 'roundId', core: true },
+        ],
+        football_get_rounds: ['Lists all football rounds'],
+        football_get_rounds_by_season: [
+          { text: 'Lists rounds in season', field: 'seasonId', core: true },
+        ],
+        football_get_schedules_by_season: [
+          { text: 'Reads full schedule for season', field: 'seasonId', core: true },
+        ],
+        football_get_schedules_by_season_and_team: [
+          { text: 'Reads schedule for team', field: 'teamId', core: true },
+          IN_SEASON,
+        ],
+        football_get_schedules_by_team: [
+          { text: 'Reads full schedule for team', field: 'teamId', core: true },
+        ],
+        football_get_season: [{ text: 'Fetches season', field: 'seasonId', core: true }],
+        football_get_seasons: ['Lists all football seasons'],
+        football_get_seasons_by_team: [
+          { text: 'Lists seasons for team', field: 'teamId', core: true },
+        ],
+        football_get_stage: [{ text: 'Fetches stage', field: 'stageId', core: true }],
+        football_get_stage_statistics: [
+          { text: 'Reads statistics for stage', field: 'stageId', core: true },
+        ],
+        football_get_stages: ['Lists all football stages'],
+        football_get_stages_by_season: [
+          { text: 'Lists stages in season', field: 'seasonId', core: true },
+        ],
+        football_get_standing_corrections_by_season: [
+          { text: 'Lists standing corrections for season', field: 'seasonId', core: true },
+        ],
+        football_get_standings: ['Lists all standings'],
+        football_get_standings_by_round: [
+          { text: 'Reads standings for round', field: 'roundId', core: true },
+        ],
+        football_get_standings_by_season: [
+          { text: 'Reads standings for season', field: 'seasonId', core: true },
+        ],
+        football_get_state: [{ text: 'Fetches fixture state', field: 'stateId', core: true }],
+        football_get_states: ['Lists all fixture states'],
+        football_get_team: [{ text: 'Fetches team', field: 'teamId', core: true }],
+        football_get_team_rankings: ['Lists all team rankings'],
+        football_get_team_rankings_by_date: [
+          { text: 'Lists team rankings on', field: 'date', core: true },
+        ],
+        football_get_team_rankings_by_team: [
+          { text: 'Reads rankings for team', field: 'teamId', core: true },
+        ],
+        football_get_team_squad: [
+          { text: 'Lists current squad for team', field: 'teamId', core: true },
+        ],
+        football_get_team_squad_by_season: [
+          { text: 'Lists squad for team', field: 'teamId', core: true },
+          IN_SEASON,
+        ],
+        football_get_teams_by_country: [
+          { text: 'Lists teams from country', field: 'countryId', core: true },
+        ],
+        football_get_teams_by_season: [
+          { text: 'Lists teams in season', field: 'seasonId', core: true },
+        ],
+        football_get_topscorers_by_season: [
+          { text: 'Lists topscorers in season', field: 'seasonId', core: true },
+        ],
+        football_get_topscorers_by_stage: [
+          { text: 'Lists topscorers in stage', field: 'stageId', core: true },
+        ],
+        football_get_totw: ['Lists all Team of the Week entries'],
+        football_get_totw_by_round: [
+          { text: 'Reads Team of the Week for round', field: 'roundId', core: true },
+        ],
+        football_get_transfer: [{ text: 'Fetches transfer', field: 'transferId', core: true }],
+        football_get_transfer_rumour: [
+          { text: 'Fetches transfer rumour', field: 'rumourId', core: true },
+        ],
+        football_get_transfer_rumours_between_dates: [
+          { text: 'Lists transfer rumours from', field: 'startDate', core: true },
+          TO_END_DATE,
+        ],
+        football_get_transfer_rumours_by_player: [
+          { text: 'Lists transfer rumours for player', field: 'playerId', core: true },
+        ],
+        football_get_transfer_rumours_by_team: [
+          { text: 'Lists transfer rumours for team', field: 'teamId', core: true },
+        ],
+        football_get_transfers_between_dates: [
+          { text: 'Lists transfers from', field: 'startDate', core: true },
+          TO_END_DATE,
+        ],
+        football_get_transfers_by_player: [
+          { text: 'Lists transfers for player', field: 'playerId', core: true },
+        ],
+        football_get_transfers_by_team: [
+          { text: 'Lists transfers for team', field: 'teamId', core: true },
+        ],
+        football_get_tv_station: [{ text: 'Fetches TV station', field: 'tvStationId', core: true }],
+        football_get_tv_stations: ['Lists all TV stations'],
+        football_get_tv_stations_by_fixture: [
+          { text: 'Lists TV stations broadcasting fixture', field: 'fixtureId', core: true },
+        ],
+        football_get_upcoming_fixtures_by_market: [
+          { text: 'Lists upcoming fixtures for market', field: 'marketId', core: true },
+        ],
+        football_get_upcoming_fixtures_by_tv_station: [
+          { text: 'Lists upcoming fixtures on TV station', field: 'tvStationId', core: true },
+        ],
+        football_get_value_bets: ['Lists all value bets'],
+        football_get_value_bets_by_fixture: [
+          { text: 'Lists value bets for fixture', field: 'fixtureId', core: true },
+        ],
+        football_get_venue: [{ text: 'Fetches venue', field: 'venueId', core: true }],
+        football_get_venues: ['Lists all football venues'],
+        football_get_venues_by_season: [
+          { text: 'Lists venues in season', field: 'seasonId', core: true },
+        ],
+        football_search_coaches: [
+          { text: 'Searches coaches matching', field: 'query', core: true },
+        ],
+        football_search_fixtures: [
+          { text: 'Searches fixtures matching', field: 'query', core: true },
+        ],
+        football_search_leagues: [
+          { text: 'Searches leagues matching', field: 'query', core: true },
+        ],
+        football_search_players: [
+          { text: 'Searches players matching', field: 'query', core: true },
+        ],
+        football_search_referees: [
+          { text: 'Searches referees matching', field: 'query', core: true },
+        ],
+        football_search_rounds: [{ text: 'Searches rounds matching', field: 'query', core: true }],
+        football_search_seasons: [
+          { text: 'Searches seasons matching', field: 'query', core: true },
+        ],
+        football_search_stages: [{ text: 'Searches stages matching', field: 'query', core: true }],
+        football_search_teams: [{ text: 'Searches teams matching', field: 'query', core: true }],
+        football_search_venues: [{ text: 'Searches venues matching', field: 'query', core: true }],
+        motorsport_get_all_fixtures: ['Lists all motorsport fixtures'],
+        motorsport_get_current_leagues_by_team: [
+          { text: 'Lists current motorsport leagues for team', field: 'teamId', core: true },
+        ],
+        motorsport_get_driver: [{ text: 'Fetches driver', field: 'driverId', core: true }],
+        motorsport_get_driver_standings: ['Lists all driver standings'],
+        motorsport_get_driver_standings_by_season: [
+          { text: 'Reads driver standings for season', field: 'seasonId', core: true },
+        ],
+        motorsport_get_drivers: ['Lists all motorsport drivers'],
+        motorsport_get_drivers_by_country: [
+          { text: 'Lists drivers from country', field: 'countryId', core: true },
+        ],
+        motorsport_get_drivers_by_season: [
+          { text: 'Lists drivers in season', field: 'seasonId', core: true },
+        ],
+        motorsport_get_fixture: [
+          { text: 'Fetches motorsport fixture', field: 'fixtureId', core: true },
+        ],
+        motorsport_get_fixtures_by_date: [
+          { text: 'Lists motorsport fixtures on', field: 'date', core: true },
+        ],
+        motorsport_get_fixtures_by_date_range: [
+          { text: 'Lists motorsport fixtures from', field: 'startDate', core: true },
+          TO_END_DATE,
+        ],
+        motorsport_get_fixtures_by_ids: [
+          { text: 'Fetches motorsport fixtures', field: 'fixtureIds', core: true },
+        ],
+        motorsport_get_laps_by_fixture: [
+          { text: 'Lists laps in fixture', field: 'fixtureId', core: true },
+        ],
+        motorsport_get_laps_by_fixture_and_driver: [
+          { text: 'Lists laps for driver', field: 'driverId', core: true },
+          IN_FIXTURE,
+        ],
+        motorsport_get_laps_by_fixture_and_lap: [
+          { text: 'Reads lap', field: 'lapNumber', core: true },
+          IN_FIXTURE,
+        ],
+        motorsport_get_latest_laps_by_fixture: [
+          { text: 'Lists latest laps in fixture', field: 'fixtureId', core: true },
+        ],
+        motorsport_get_latest_pitstops_by_fixture: [
+          { text: 'Lists latest pitstops in fixture', field: 'fixtureId', core: true },
+        ],
+        motorsport_get_latest_stints_by_fixture: [
+          { text: 'Lists latest tyre stints in fixture', field: 'fixtureId', core: true },
+        ],
+        motorsport_get_latest_updated_drivers: ['Lists recently updated motorsport drivers'],
+        motorsport_get_latest_updated_fixtures: ['Lists recently updated motorsport fixtures'],
+        motorsport_get_league: [
+          { text: 'Fetches motorsport league', field: 'leagueId', core: true },
+        ],
+        motorsport_get_leagues: ['Lists all motorsport leagues'],
+        motorsport_get_leagues_by_country: [
+          { text: 'Lists motorsport leagues in country', field: 'countryId', core: true },
+        ],
+        motorsport_get_leagues_by_date: [
+          { text: 'Lists motorsport leagues with fixtures on', field: 'date', core: true },
+        ],
+        motorsport_get_leagues_by_live: ['Lists motorsport leagues with live fixtures'],
+        motorsport_get_leagues_by_team: [
+          { text: 'Lists motorsport leagues for team', field: 'teamId', core: true },
+        ],
+        motorsport_get_livescores: ['Lists motorsport fixtures in progress'],
+        motorsport_get_pitstops_by_fixture: [
+          { text: 'Lists pitstops in fixture', field: 'fixtureId', core: true },
+        ],
+        motorsport_get_pitstops_by_fixture_and_driver: [
+          { text: 'Lists pitstops for driver', field: 'driverId', core: true },
+          IN_FIXTURE,
+        ],
+        motorsport_get_pitstops_by_fixture_and_lap: [
+          { text: 'Lists pitstops on lap', field: 'lapNumber', core: true },
+          IN_FIXTURE,
+        ],
+        motorsport_get_race_results_by_season_and_driver: [
+          { text: 'Lists race results for driver', field: 'driverId', core: true },
+          IN_SEASON,
+        ],
+        motorsport_get_race_results_by_season_and_team: [
+          { text: 'Lists race results for team', field: 'teamId', core: true },
+          IN_SEASON,
+        ],
+        motorsport_get_schedules_by_season: [
+          { text: 'Reads motorsport schedule for season', field: 'seasonId', core: true },
+        ],
+        motorsport_get_season: [
+          { text: 'Fetches motorsport season', field: 'seasonId', core: true },
+        ],
+        motorsport_get_seasons: ['Lists all motorsport seasons'],
+        motorsport_get_stage: [{ text: 'Fetches motorsport stage', field: 'stageId', core: true }],
+        motorsport_get_stages: ['Lists all motorsport stages'],
+        motorsport_get_stages_by_season: [
+          { text: 'Lists motorsport stages in season', field: 'seasonId', core: true },
+        ],
+        motorsport_get_state: [
+          { text: 'Fetches motorsport fixture state', field: 'stateId', core: true },
+        ],
+        motorsport_get_states: ['Lists all motorsport fixture states'],
+        motorsport_get_stints_by_fixture: [
+          { text: 'Lists tyre stints in fixture', field: 'fixtureId', core: true },
+        ],
+        motorsport_get_stints_by_fixture_and_driver: [
+          { text: 'Lists tyre stints for driver', field: 'driverId', core: true },
+          IN_FIXTURE,
+        ],
+        motorsport_get_stints_by_fixture_and_stint: [
+          { text: 'Reads tyre stint', field: 'stintNumber', core: true },
+          IN_FIXTURE,
+        ],
+        motorsport_get_team: [{ text: 'Fetches motorsport team', field: 'teamId', core: true }],
+        motorsport_get_team_standings: ['Lists all constructor standings'],
+        motorsport_get_team_standings_by_season: [
+          { text: 'Reads constructor standings for season', field: 'seasonId', core: true },
+        ],
+        motorsport_get_teams: ['Lists all motorsport teams'],
+        motorsport_get_teams_by_country: [
+          { text: 'Lists motorsport teams from country', field: 'countryId', core: true },
+        ],
+        motorsport_get_teams_by_season: [
+          { text: 'Lists motorsport teams in season', field: 'seasonId', core: true },
+        ],
+        motorsport_get_venue: [{ text: 'Fetches motorsport venue', field: 'venueId', core: true }],
+        motorsport_get_venues: ['Lists all motorsport venues'],
+        motorsport_get_venues_by_season: [
+          { text: 'Lists motorsport venues in season', field: 'seasonId', core: true },
+        ],
+        motorsport_search_drivers: [
+          { text: 'Searches motorsport drivers matching', field: 'query', core: true },
+        ],
+        motorsport_search_leagues: [
+          { text: 'Searches motorsport leagues matching', field: 'query', core: true },
+        ],
+        motorsport_search_stages: [
+          { text: 'Searches motorsport stages matching', field: 'query', core: true },
+        ],
+        motorsport_search_teams: [
+          { text: 'Searches motorsport teams matching', field: 'query', core: true },
+        ],
+        motorsport_search_venues: [
+          { text: 'Searches motorsport venues matching', field: 'query', core: true },
+        ],
+        odds_get_all_historical_odds: ['Lists all historical pre-match odds'],
+        odds_get_all_inplay_odds: ['Lists all in-play odds'],
+        odds_get_all_pre_match_odds: ['Lists all pre-match odds'],
+        odds_get_all_premium_odds: ['Lists all premium pre-match odds'],
+        odds_get_bookmaker: [{ text: 'Fetches bookmaker', field: 'bookmakerId', core: true }],
+        odds_get_bookmaker_event_ids_by_fixture: [
+          { text: 'Lists bookmaker event IDs for fixture', field: 'fixtureId', core: true },
+        ],
+        odds_get_bookmakers: ['Lists all bookmakers'],
+        odds_get_bookmakers_by_fixture: [
+          { text: 'Lists bookmakers covering fixture', field: 'fixtureId', core: true },
+        ],
+        odds_get_inplay_odds_by_fixture: [
+          { text: 'Lists in-play odds for fixture', field: 'fixtureId', core: true },
+        ],
+        odds_get_inplay_odds_by_fixture_and_bookmaker: [
+          { text: 'Lists in-play odds from bookmaker', field: 'bookmakerId', core: true },
+          FOR_FIXTURE,
+        ],
+        odds_get_inplay_odds_by_fixture_and_market: [
+          { text: 'Lists in-play odds on market', field: 'marketId', core: true },
+          FOR_FIXTURE,
+        ],
+        odds_get_last_updated_inplay_odds: ['Lists in-play odds updated in the last 10 seconds'],
+        odds_get_last_updated_pre_match_odds: [
+          'Lists pre-match odds updated in the last 10 seconds',
+        ],
+        odds_get_market: [{ text: 'Fetches betting market', field: 'marketId', core: true }],
+        odds_get_markets: ['Lists all betting markets'],
+        odds_get_pre_match_odds_by_fixture: [
+          { text: 'Lists pre-match odds for fixture', field: 'fixtureId', core: true },
+        ],
+        odds_get_pre_match_odds_by_fixture_and_bookmaker: [
+          { text: 'Lists pre-match odds from bookmaker', field: 'bookmakerId', core: true },
+          FOR_FIXTURE,
+        ],
+        odds_get_pre_match_odds_by_fixture_and_market: [
+          { text: 'Lists pre-match odds on market', field: 'marketId', core: true },
+          FOR_FIXTURE,
+        ],
+        odds_get_premium_odds_by_fixture: [
+          { text: 'Lists premium odds for fixture', field: 'fixtureId', core: true },
+        ],
+        odds_get_premium_odds_by_fixture_and_bookmaker: [
+          { text: 'Lists premium odds from bookmaker', field: 'bookmakerId', core: true },
+          FOR_FIXTURE,
+        ],
+        odds_get_premium_odds_by_fixture_and_market: [
+          { text: 'Lists premium odds on market', field: 'marketId', core: true },
+          FOR_FIXTURE,
+        ],
+        odds_get_updated_historical_odds_between: [
+          { text: 'Lists historical odds updated from', field: 'fromTimestamp', core: true },
+          TO_TIMESTAMP,
+        ],
+        odds_get_updated_premium_odds_between: [
+          { text: 'Lists premium odds updated from', field: 'fromTimestamp', core: true },
+          TO_TIMESTAMP,
+        ],
+        odds_search_bookmakers: [
+          { text: 'Searches bookmakers matching', field: 'query', core: true },
+        ],
+        odds_search_markets: [
+          { text: 'Searches betting markets matching', field: 'query', core: true },
+        ],
+        core_get_cities: ['Lists all cities'],
+        core_get_city: [{ text: 'Fetches city', field: 'cityId', core: true }],
+        core_get_continent: [{ text: 'Fetches continent', field: 'continentId', core: true }],
+        core_get_continents: ['Lists all continents'],
+        core_get_countries: ['Lists all countries'],
+        core_get_country: [{ text: 'Fetches country', field: 'countryId', core: true }],
+        core_get_entity_filters: ['Lists available filters per entity'],
+        core_get_my_usage: ['Reads API usage'],
+        core_get_region: [{ text: 'Fetches region', field: 'regionId', core: true }],
+        core_get_regions: ['Lists all regions'],
+        core_get_timezones: ['Lists supported time zones'],
+        core_get_type: [{ text: 'Fetches type', field: 'typeId', core: true }],
+        core_get_type_by_entity: ['Lists available types per entity'],
+        core_get_types: ['Lists all reference types'],
+        core_search_cities: [{ text: 'Searches cities matching', field: 'query', core: true }],
+        core_search_countries: [
+          { text: 'Searches countries matching', field: 'query', core: true },
+        ],
+        core_search_regions: [{ text: 'Searches regions matching', field: 'query', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -1681,6 +2202,7 @@ export const SportmonksBlock: BlockConfig = {
     {
       id: 'fromTimestamp',
       title: 'From (UNIX timestamp)',
+      canvasNoun: 'a timestamp',
       type: 'short-input',
       placeholder: 'Start UNIX timestamp',
       condition: { field: 'operation', value: FROM_TIMESTAMP_OPS },
@@ -1834,6 +2356,7 @@ export const SportmonksBlock: BlockConfig = {
     {
       id: 'toTimestamp',
       title: 'To (UNIX timestamp)',
+      canvasNoun: 'a timestamp',
       type: 'short-input',
       placeholder: 'End UNIX timestamp',
       condition: { field: 'operation', value: TO_TIMESTAMP_OPS },

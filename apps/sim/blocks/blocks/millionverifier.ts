@@ -14,6 +14,17 @@ export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: MillionVerifierIcon,
+  canvasPresentation: {
+    defaultTitle: 'MillionVerifier',
+    sentences: {
+      byOperation: {
+        millionverifier_verify_email: [
+          { text: 'Verifies deliverability of', field: 've_email', core: true },
+        ],
+        millionverifier_get_credits: ['Reads remaining verification credits'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
