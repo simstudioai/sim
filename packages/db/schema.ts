@@ -896,11 +896,6 @@ export const webhook = pgTable(
       providerActiveWorkflowDeploymentIdx: index(
         'idx_webhook_on_provider_is_active_workflow_id_deploym_bdeed5468'
       ).on(table.provider, table.isActive, table.workflowId, table.deploymentVersionId),
-      tiktokCredentialIdIdx: index('webhook_tiktok_credential_id_idx')
-        .on(webhookCredentialIdExpression(table.providerConfig))
-        .where(
-          sql`${table.provider} = 'tiktok' AND ${table.isActive} = true AND ${table.archivedAt} IS NULL`
-        ),
       workflowBlockUpdatedDescIdx: index('idx_webhook_on_workflow_id_block_id_updated_at_desc').on(
         table.workflowId,
         table.blockId,
