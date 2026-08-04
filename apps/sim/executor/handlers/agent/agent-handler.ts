@@ -53,7 +53,8 @@ import { stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
-  formatAttachmentBytes,
+  formatAttachmentSizes,
+  getProviderFileStrategy,
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
@@ -978,11 +979,18 @@ export class AgentBlockHandler implements BlockHandler {
           !(canUseProviderLargeFilePath(providerId) && shouldUseLargeFilePath(file, providerId))
       )
       if (missingFile) {
-        const inlineMB = formatAttachmentBytes(inlineMaxBytes)
+        const { size: sizeMB, limit: inlineMB } = formatAttachmentSizes(
+          missingFile.size,
+          inlineMaxBytes
+        )
         const oversized = Number.isFinite(missingFile.size) && missingFile.size > inlineMaxBytes
+        const reason =
+          getProviderFileStrategy(providerId) === 'inline'
+            ? `provider "${providerId}" has no large-file upload path`
+            : 'this deployment has no cloud file storage for the large-file upload path'
         throw new Error(
           oversized
-            ? `File "${missingFile.name}" (${formatAttachmentBytes(missingFile.size)}MB) exceeds the ${inlineMB}MB inline attachment limit, and provider "${providerId}" has no large-file upload path for it.`
+            ? `File "${missingFile.name}" (${sizeMB}MB) exceeds the ${inlineMB}MB inline attachment limit, and ${reason}.`
             : `File "${missingFile.name}" could not be read for provider "${providerId}". The file may no longer be accessible.`
         )
       }

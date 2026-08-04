@@ -2,9 +2,14 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildOpenAIMessageContent } from '@/providers/attachments'
+import {
+  buildOpenAIMessageContent,
+  INLINE_ATTACHMENT_THRESHOLD_BYTES,
+  LARGE_FILE_PATH_THRESHOLD_BYTES,
+} from '@/providers/attachments'
 import {
   attachLargeFileRemoteUrls,
+  getInlineHydrationMaxBytes,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
 import type { ProviderRequest } from '@/providers/types'
@@ -117,9 +122,9 @@ describe('OpenAI large-file attachment lifecycle', () => {
     ])
   })
 
-  /** Just under the crossover, so this fails if the threshold is ever raised back above it. */
-  it('leaves files below the upload crossover on the base64 path', async () => {
-    const request = makeRequest(6 * 1024 * 1024)
+  /** Exactly at the crossover — `shouldUseLargeFilePath` uses `>`, so this must stay inline. */
+  it('leaves a file exactly at the upload crossover on the base64 path', async () => {
+    const request = makeRequest(LARGE_FILE_PATH_THRESHOLD_BYTES)
 
     await attachLargeFileRemoteUrls(request, 'openai')
     await uploadLargeFilesToProvider(request, 'openai')
@@ -127,6 +132,22 @@ describe('OpenAI large-file attachment lifecycle', () => {
     expect(fetch).not.toHaveBeenCalled()
     expect(request.messages?.[0].files?.[0].providerFileId).toBeUndefined()
     expect(request.messages?.[0].files?.[0].remoteUrl).toBeUndefined()
+  })
+
+  /**
+   * The hydration cap has to track `shouldUseLargeFilePath`'s crossover exactly. Stopping short
+   * of it leaves a band with neither base64 nor a handle — the defect this function was added to
+   * remove — and `remote-url` deliberately crosses over later than `files-api`.
+   */
+  it('caps base64 hydration exactly where each strategy hands off to an upload', () => {
+    mockHasCloudStorage.mockReturnValue(true)
+    expect(getInlineHydrationMaxBytes('openai')).toBe(LARGE_FILE_PATH_THRESHOLD_BYTES)
+    expect(getInlineHydrationMaxBytes('anthropic')).toBe(INLINE_ATTACHMENT_THRESHOLD_BYTES)
+    expect(getInlineHydrationMaxBytes('bedrock')).toBe(INLINE_ATTACHMENT_THRESHOLD_BYTES)
+
+    mockHasCloudStorage.mockReturnValue(false)
+    expect(getInlineHydrationMaxBytes('openai')).toBe(INLINE_ATTACHMENT_THRESHOLD_BYTES)
+    expect(getInlineHydrationMaxBytes('anthropic')).toBe(INLINE_ATTACHMENT_THRESHOLD_BYTES)
   })
 
   /**

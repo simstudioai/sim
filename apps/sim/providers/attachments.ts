@@ -111,7 +111,14 @@ export function shouldUseLargeFilePath(
   if (strategy === 'remote-url' && isGeneratedDocumentSourceType(file.type)) return false
   const threshold =
     strategy === 'files-api' ? LARGE_FILE_PATH_THRESHOLD_BYTES : INLINE_ATTACHMENT_THRESHOLD_BYTES
-  return Number.isFinite(file.size) && file.size > threshold
+  /**
+   * A file whose declared size is missing or zero cannot be routed by size. `files-api` uploads
+   * read the real bytes from storage and enforce the ceiling there, so routing one is always
+   * safe — and refusing to would strand it with neither base64 (hydration bails on the real
+   * length) nor a handle.
+   */
+  if (!Number.isFinite(file.size) || file.size <= 0) return strategy === 'files-api'
+  return file.size > threshold
 }
 
 const PDF_MIME_TYPE = 'application/pdf'
@@ -213,16 +220,28 @@ export function getProviderAttachmentMaxBytes(providerId: ProviderId | string): 
   return getProviderFileAttachment(providerId).maxBytes
 }
 
+const MEBIBYTE = 1024 * 1024
+
 /**
- * Renders a byte count for a user-facing limit message.
+ * Renders a size and the ceiling it violated, both in one unit derived from the ceiling.
  *
- * Decimal MB, because that is the unit the vendors publish and therefore the number a user is
- * comparing against. Dividing by 1024² instead reported OpenAI's 50 MB ceiling as "48MB", so a
- * user shrinking a 49 MB file to get under it was chasing a limit that did not exist.
+ * Ceilings are authored in whichever unit the vendor publishes — decimal MB for OpenAI, binary
+ * MiB for everyone else — so a single fixed divisor is wrong for one group or the other: 1024²
+ * reports OpenAI's 50 MB as "48MB", and 10⁶ reports Anthropic's 50 MiB as "52MB". Either way the
+ * user is told a limit that does not exist. Taking the unit from the ceiling keeps the number
+ * they see equal to the number the vendor documents, and keeps both figures in the same sentence
+ * directly comparable.
  */
-export function formatAttachmentBytes(bytes: number): string {
-  const megabytes = bytes / 1_000_000
-  return megabytes < 10 ? megabytes.toFixed(2).replace(/\.?0+$/, '') : megabytes.toFixed(0)
+export function formatAttachmentSizes(
+  bytes: number,
+  limitBytes: number
+): { size: string; limit: string } {
+  const divisor = limitBytes % MEBIBYTE === 0 ? MEBIBYTE : 1_000_000
+  const render = (value: number) => {
+    const scaled = value / divisor
+    return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2)
+  }
+  return { size: render(bytes), limit: render(limitBytes) }
 }
 
 export function inferAttachmentMimeType(file: UserFile): string {
@@ -412,8 +431,7 @@ export function prepareProviderAttachments(
 
     const maxBytes = getProviderAttachmentMaxBytes(providerId)
     if (Number.isFinite(file.size) && file.size > maxBytes) {
-      const sizeMB = formatAttachmentBytes(file.size)
-      const maxMB = formatAttachmentBytes(maxBytes)
+      const { size: sizeMB, limit: maxMB } = formatAttachmentSizes(file.size, maxBytes)
       throw new Error(
         `File "${file.name}" (${sizeMB}MB) exceeds the ${maxMB}MB agent attachment limit for provider "${providerId}"`
       )

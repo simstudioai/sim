@@ -25,7 +25,10 @@ vi.mock('@/tools', () => ({
 
 vi.mock('@/providers/utils', () => ({
   isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' && toolCall !== null && 'function' in toolCall,
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   prepareToolExecution: mockPrepareToolExecution,
   calculateCost: () => ({ input: 0.01, output: 0.02, total: 0.03 }),
   sumToolCosts: () => 0,

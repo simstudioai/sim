@@ -120,6 +120,12 @@ export function enrichLastModelSegment(
  * returns the raw string if it is not valid JSON.
  */
 function parseToolCallArguments(rawArguments: string): Record<string, unknown> | string {
+  /**
+   * `isFunctionToolCall` only proves `function` is present, not that it is well formed — a
+   * gateway can send `function: {}`. Without this the JSON parse below receives `undefined` and
+   * this returns it, breaking the declared return type.
+   */
+  if (typeof rawArguments !== 'string') return ''
   try {
     const parsed = JSON.parse(rawArguments)
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -189,7 +195,7 @@ export function enrichLastModelSegmentFromChatCompletions(
 
   const toolCalls: IterationToolCall[] = (toolCallsInResponse ?? []).map((tc) => ({
     id: tc.id,
-    name: tc.function.name,
+    name: tc.function.name ?? '',
     arguments: parseToolCallArguments(tc.function.arguments),
   }))
 

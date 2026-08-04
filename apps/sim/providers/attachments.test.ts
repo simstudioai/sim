@@ -11,7 +11,7 @@ import {
   buildOpenAICompatibleChatContent,
   buildOpenAIMessageContent,
   buildOpenRouterMessageContent,
-  formatAttachmentBytes,
+  formatAttachmentSizes,
   formatMessagesForProvider,
   getProviderAttachmentMaxBytes,
   getProviderFileStrategy,
@@ -289,11 +289,28 @@ describe('provider attachments', () => {
 })
 
 describe('attachment limit formatting', () => {
-  /** Guards the report of OpenAI's decimal 50 MB ceiling as "48MB" when divided by 1024². */
-  it('reports a decimal-MB ceiling as the vendor publishes it', () => {
-    expect(formatAttachmentBytes(50_000_000)).toBe('50')
-    expect(formatAttachmentBytes(10 * 1024 * 1024)).toBe('10')
-    expect(formatAttachmentBytes(9_591_617)).toBe('9.59')
+  /**
+   * Guards both directions of the unit bug: dividing every ceiling by 1024² reported OpenAI's
+   * decimal 50 MB as "48MB", and dividing every ceiling by 10⁶ reported Anthropic's 50 MiB as
+   * "52MB". Each vendor's number must come back as that vendor publishes it.
+   */
+  it('reports each ceiling in the unit its vendor publishes', () => {
+    expect(formatAttachmentSizes(0, 50_000_000).limit).toBe('50')
+    expect(formatAttachmentSizes(0, 50 * 1024 * 1024).limit).toBe('50')
+    expect(formatAttachmentSizes(0, 20 * 1024 * 1024).limit).toBe('20')
+    expect(formatAttachmentSizes(0, 25 * 1024 * 1024).limit).toBe('25')
+    expect(formatAttachmentSizes(0, 10 * 1024 * 1024).limit).toBe('10')
+  })
+
+  /** The size and the ceiling share a unit, so the sentence can never contradict itself. */
+  it('never renders an over-limit file as equal to the limit', () => {
+    const groq = formatAttachmentSizes(21_000_000, 20 * 1024 * 1024)
+    expect(groq.limit).toBe('20')
+    expect(groq.size).toBe('20.03')
+
+    const openai = formatAttachmentSizes(9_591_617, 50_000_000)
+    expect(openai.limit).toBe('50')
+    expect(openai.size).toBe('9.59')
   })
 })
 
@@ -313,6 +330,14 @@ describe('provider large-file capability', () => {
    * A `remote-url` provider only fetches images and PDFs, so it must not take over from base64
    * early — text documents in the 6-10 MB band inline fine today and would start failing.
    */
+  /** A size we cannot read must still reach the uploader, which enforces the ceiling itself. */
+  it('routes an unknown-size file to a files-api upload rather than stranding it', () => {
+    const unknown = { size: 0, type: 'text/csv' }
+    expect(shouldUseLargeFilePath(unknown, 'openai')).toBe(true)
+    expect(shouldUseLargeFilePath(unknown, 'anthropic')).toBe(false)
+    expect(shouldUseLargeFilePath({ size: Number.NaN, type: 'text/csv' }, 'openai')).toBe(true)
+  })
+
   it('crosses over to an upload at different sizes for files-api and remote-url', () => {
     const midBand = { size: LARGE_FILE_PATH_THRESHOLD_BYTES + 1, type: 'text/plain' }
     expect(shouldUseLargeFilePath(midBand, 'openai')).toBe(true)
