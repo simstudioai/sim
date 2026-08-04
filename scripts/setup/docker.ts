@@ -25,9 +25,8 @@ function daemonUp(): boolean {
   return spawnSync('docker', ['info'], { stdio: 'ignore' }).status === 0
 }
 
+/** Uses `Bun.which` rather than `which`, which is not a standard Windows command. */
 function installed(): boolean {
-  // Bun.which resolves PATH cross-platform (incl. PATHEXT on Windows); `which`
-  // is not a standard Windows command.
   return Bun.which('docker') !== null
 }
 
@@ -44,32 +43,48 @@ function orbstackSelected(): boolean {
   return result.status === 0 && result.stdout.trim() === 'orbstack'
 }
 
-/**
- * Whether macOS can launch this app. The well-known directories cover every
- * normal install without spawning anything; LaunchServices is the authority
- * for the rest, since a Homebrew `--appdir` can put the bundle anywhere and
- * `open -a` would still find it there.
- */
 function appInstalled(app: DockerApp): boolean {
-  if (APP_DIRS.some((dir) => existsSync(join(dir, app.bundle)))) return true
-  const lookup = spawnSync('osascript', ['-e', `path to application "${app.name}"`], {
-    stdio: 'ignore',
-  })
-  return lookup.status === 0
+  return APP_DIRS.some((dir) => existsSync(join(dir, app.bundle)))
+}
+
+interface DockerChoice {
+  app: DockerApp
+  /** The CLI names this provider, so no other app can bring its daemon up. */
+  explicit: boolean
 }
 
 /**
- * Which GUI app owns the `docker` CLI on this Mac. Both apps install a `docker`
- * binary, so CLI presence alone doesn't say which one to launch. An explicit
- * OrbStack selection wins, but only when OrbStack is still installed — a
- * context or `DOCKER_HOST` left behind by an uninstall would otherwise pick an
- * app that can never come up. Otherwise fall back to whichever app is present,
- * which also covers CLIs too old for `docker context show`.
+ * Which app to offer to start. Both providers install a `docker` binary, so CLI
+ * presence alone doesn't say which one to launch. An OrbStack selection is
+ * explicit; anything else is a guess the launch is allowed to correct, which is
+ * why the install probe here doesn't have to be exhaustive.
  */
-function macDockerApp(): DockerApp {
-  if (orbstackSelected() && appInstalled(ORBSTACK_APP)) return ORBSTACK_APP
-  if (appInstalled(DOCKER_DESKTOP_APP)) return DOCKER_DESKTOP_APP
-  return appInstalled(ORBSTACK_APP) ? ORBSTACK_APP : DOCKER_DESKTOP_APP
+function macDockerApp(): DockerChoice {
+  if (orbstackSelected()) return { app: ORBSTACK_APP, explicit: true }
+  const orbstackOnly = appInstalled(ORBSTACK_APP) && !appInstalled(DOCKER_DESKTOP_APP)
+  return { app: orbstackOnly ? ORBSTACK_APP : DOCKER_DESKTOP_APP, explicit: false }
+}
+
+/**
+ * Starts a provider. `open` exits non-zero when macOS knows no such app, which
+ * settles installation authoritatively and without a dialog — it resolves the
+ * name the same way the launch does, so the two cannot disagree.
+ */
+function openApp(app: DockerApp): boolean {
+  return spawnSync('open', ['-a', app.name], { stdio: 'ignore' }).status === 0
+}
+
+/**
+ * Starts the chosen provider, retrying with the other one when the choice was
+ * only a guess. An explicit OrbStack selection is never redirected: `docker
+ * info` would still be addressing OrbStack's socket, so Docker Desktop cannot
+ * satisfy it however successfully it starts.
+ */
+function startDockerApp({ app, explicit }: DockerChoice): DockerApp | null {
+  if (openApp(app)) return app
+  if (explicit) return null
+  const other = app === ORBSTACK_APP ? DOCKER_DESKTOP_APP : ORBSTACK_APP
+  return openApp(other) ? other : null
 }
 
 /**
@@ -94,22 +109,32 @@ export async function ensureDocker(required: boolean): Promise<boolean> {
     return false
   }
 
-  const app = macDockerApp()
+  const choice = macDockerApp()
 
   const launch = await p.confirm({
-    message: `Docker is installed but not running — start ${app.name} now?`,
+    message: `Docker is installed but not running — start ${choice.app.name} now?`,
     initialValue: true,
   })
   if (!launch) {
     if (required) {
       throw new SetupError('Docker is required for this mode.', [
-        `start ${app.name}, then re-run the wizard`,
+        `start ${choice.app.name}, then re-run the wizard`,
       ])
     }
     return false
   }
 
-  spawnSync('open', ['-a', app.name], { stdio: 'ignore' })
+  const app = startDockerApp(choice)
+  if (!app) {
+    if (choice.explicit) {
+      throw new SetupError('The docker CLI is pointed at OrbStack, which is not installed.', [
+        `reinstall it: ${theme.command('brew install orbstack')}`,
+        `or point the CLI elsewhere: unset DOCKER_HOST / ${theme.command('docker context use <name>')}`,
+      ])
+    }
+    throw new SetupError('No docker app is installed.', INSTALL_HINTS)
+  }
+
   const spin = p.spinner()
   spin.start(`Waiting for the Docker daemon (${app.name})…`)
   const up = await waitFor(async () => daemonUp(), 90_000, 2000)
