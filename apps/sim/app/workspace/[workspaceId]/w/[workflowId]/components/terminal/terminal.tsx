@@ -206,7 +206,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
+                'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -316,7 +316,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
+                'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -443,7 +443,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
+                'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />

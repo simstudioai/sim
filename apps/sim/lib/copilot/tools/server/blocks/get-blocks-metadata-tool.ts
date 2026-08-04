@@ -6,7 +6,10 @@ import { z } from 'zod'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
@@ -124,20 +127,32 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       context?.userId && context?.workspaceId
         ? await getUserPermissionConfig(context.userId, context.workspaceId)
         : null
-    const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+    const allowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      getAllowedIntegrationsFromEnv()
+    )
+    const visibility = overlayVisibility()
 
     const result: Record<string, CopilotBlockMetadata> = {}
     for (const blockId of blockIds || []) {
-      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
+      const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
+      if (!isIntegrationDeploymentAvailableForVisibility(blockId, visibility)) {
+        logger.debug('Block unavailable for this deployment', { blockId })
+        continue
+      }
+      if (
+        allowedIntegrations != null &&
+        !specialBlock &&
+        !isBlockTypeAccessControlExempt(blockId) &&
+        !allowedIntegrations.includes(blockId.toLowerCase())
+      ) {
         logger.debug('Block not allowed by permission group', { blockId })
         continue
       }
 
       let metadata: any
 
-      if (SPECIAL_BLOCKS_METADATA[blockId]) {
-        const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
+      if (specialBlock) {
         const { commonParameters, operationParameters } = splitParametersByOperation(
           specialBlock.subBlocks || [],
           specialBlock.inputs || {}
@@ -170,7 +185,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         // explicitly: unrevealed preview blocks and kill-switched types stay
         // out of the agent's metadata (the router wraps this tool in
         // withBlockVisibility).
-        if (isHiddenUnder(overlayVisibility(), blockConfig)) {
+        if (isHiddenUnder(visibility, blockConfig)) {
           logger.debug('Skipping block gated by visibility', { blockId })
           continue
         }

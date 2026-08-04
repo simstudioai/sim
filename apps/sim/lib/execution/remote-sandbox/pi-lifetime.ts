@@ -6,41 +6,26 @@
 
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
+import { inspectCapability, SANDBOX_CAPABILITY } from '@/lib/core/config/env-capabilities'
 import { getMaxExecutionTimeout, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
 const logger = createLogger('PiSandboxLifetime')
 
-/**
- * E2B rejects a create above the 24-hour continuous-runtime limit. Daytona has
- * no equivalent provider ceiling, so it may use the platform's full execution
- * timeout. This module reads the provider directly from `env` to stay independent
- * of the provider adapters and the remote-sandbox barrel.
- */
+/** E2B's documented continuous-runtime ceiling for a single sandbox. */
 const E2B_PI_SANDBOX_PROVIDER_LIMIT_MS = 24 * 60 * 60 * 1000
 
-function providerLifetimeCeilingMs(): number {
-  const executionCeilingMs = getMaxExecutionTimeout()
-  return (env.SANDBOX_PROVIDER || 'e2b').toLowerCase() === 'e2b'
-    ? Math.min(executionCeilingMs, E2B_PI_SANDBOX_PROVIDER_LIMIT_MS)
-    : executionCeilingMs
-}
-
 /**
- * The longest a Pi sandbox may live.
- *
- * Derived from the platform's longest execution rather than carrying a number of
- * its own, because the two had drifted: this was pinned just under E2B's *Hobby*
- * hour while paid async executions could already run for ninety minutes, so a
- * long Babysit run lost its sandbox with half an hour of budget left and stopped
- * on a limit no plan actually imposed.
- *
- * Tying it to {@link getMaxExecutionTimeout} means the sandbox is never the
- * binding constraint on a run the platform would let continue, and an operator
- * who raises the async timeout gets a sandbox that keeps up without editing this
- * file. `getMaxExecutionTimeout` already resolves its env at module scope, so
- * reading it here is exactly as static as the constant it replaces.
+ * The platform-wide ceiling for one workflow execution. Provider-specific
+ * limits are applied by {@link providerLifetimeCeilingMs}.
  */
-export const PI_SANDBOX_MAX_LIFETIME_MS = providerLifetimeCeilingMs()
+export const PI_SANDBOX_MAX_LIFETIME_MS = getMaxExecutionTimeout()
+
+function providerLifetimeCeilingMs(): number {
+  const providerId = inspectCapability(SANDBOX_CAPABILITY, env).providerId
+  return providerId === 'daytona'
+    ? PI_SANDBOX_MAX_LIFETIME_MS
+    : Math.min(PI_SANDBOX_MAX_LIFETIME_MS, E2B_PI_SANDBOX_PROVIDER_LIMIT_MS)
+}
 
 /**
  * The shortest lifetime a Pi run can actually complete in, and the floor an
@@ -62,10 +47,11 @@ export const PI_SANDBOX_MIN_LIFETIME_MS = 31 * 60 * 1000
  * The lifetime requested for a Pi sandbox. Both adapters now enforce an absolute
  * wall-clock lifetime: E2B through `timeoutMs`, Daytona through `ttlMinutes`.
  *
- * It defaults to {@link PI_SANDBOX_MAX_LIFETIME_MS}: a run that finishes kills
- * its sandbox explicitly, so on the normal path the lifetime is a ceiling rather
- * than a budget. {@link resolvePiRunLifetimeMs} keeps orphan exposure
- * proportional by lowering that ceiling to the run's own deadline.
+ * It defaults to the selected provider's ceiling: the platform execution
+ * ceiling for Daytona, or E2B's lower 24-hour continuous-runtime limit. A run
+ * that finishes kills its sandbox explicitly, so on the normal path the
+ * lifetime is a ceiling rather than a budget. {@link resolvePiRunLifetimeMs}
+ * keeps orphan exposure proportional by lowering it to the run's own deadline.
  *
  * `PI_SANDBOX_LIFETIME_MS` may only lower it, and only as far as
  * {@link PI_SANDBOX_MIN_LIFETIME_MS}, so a misconfigured value can neither
@@ -73,8 +59,9 @@ export const PI_SANDBOX_MIN_LIFETIME_MS = 31 * 60 * 1000
  * push.
  */
 export function resolvePiSandboxLifetimeMs(): number {
+  const providerCeilingMs = providerLifetimeCeilingMs()
   const configured = Number.parseInt(env.PI_SANDBOX_LIFETIME_MS ?? '', 10)
-  if (!Number.isFinite(configured) || configured <= 0) return PI_SANDBOX_MAX_LIFETIME_MS
+  if (!Number.isFinite(configured) || configured <= 0) return providerCeilingMs
 
   if (configured < PI_SANDBOX_MIN_LIFETIME_MS) {
     logger.warn('PI_SANDBOX_LIFETIME_MS is below the minimum a Pi run can finish in; raising it', {
@@ -84,7 +71,7 @@ export function resolvePiSandboxLifetimeMs(): number {
     return PI_SANDBOX_MIN_LIFETIME_MS
   }
 
-  return Math.min(configured, PI_SANDBOX_MAX_LIFETIME_MS)
+  return Math.min(configured, providerCeilingMs)
 }
 
 /**

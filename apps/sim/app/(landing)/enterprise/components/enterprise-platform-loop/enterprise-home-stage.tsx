@@ -217,7 +217,7 @@ export function EnterpriseHomeStage({
             <div className='flex items-center justify-between'>
               <span className='flex items-center gap-2'>
                 <span className='text-[13px] text-[var(--text-muted)]'>Suggested actions</span>
-                <ChevronDown className='h-[7px] w-[9px] text-[var(--text-muted)]' />
+                <ChevronDown className='size-[14px] text-[var(--text-muted)]' />
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='text-[13px] text-[var(--text-muted)]'>Shuffle</span>

@@ -46,6 +46,7 @@ const {
   mockEnv: {
     SANDBOX_PROVIDER: 'e2b' as string | undefined,
     PI_SANDBOX_LIFETIME_MS: undefined as string | undefined,
+    E2B_ENABLED: 'true',
     E2B_API_KEY: 'test-key',
     E2B_FUNCTION_TEMPLATE_ID: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479' as
       | string
@@ -120,9 +121,10 @@ import {
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import {
-  PI_SANDBOX_MAX_LIFETIME_MS,
   PI_SANDBOX_MIN_LIFETIME_MS,
+  resolvePiSandboxLifetimeMs,
 } from '@/lib/execution/remote-sandbox/pi-lifetime'
+import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 
 type Provider = 'e2b' | 'daytona'
 const PROVIDERS: Provider[] = ['e2b', 'daytona']
@@ -1215,6 +1217,26 @@ describe('custom dependency sets', () => {
     }
   })
 
+  it('selects E2B for doc and Pi sandboxes without a Function template', async () => {
+    useProvider('e2b')
+    const original = mockEnv.E2B_FUNCTION_TEMPLATE_ID
+    mockEnv.E2B_FUNCTION_TEMPLATE_ID = undefined
+    try {
+      const provider = resolveProvider()
+      const doc = await provider.create('doc')
+      const pi = await provider.create('pi')
+
+      expect(provider.id).toBe('e2b')
+      expect(mockE2BCreate).toHaveBeenNthCalledWith(1, 'mothership-docs', expect.anything())
+      expect(mockE2BCreate).toHaveBeenNthCalledWith(2, 'sim-pi', expect.anything())
+      await expect(provider.create('code')).rejects.toThrow(/E2B_FUNCTION_TEMPLATE_ID is unset/)
+      await doc.kill()
+      await pi.kill()
+    } finally {
+      mockEnv.E2B_FUNCTION_TEMPLATE_ID = original
+    }
+  })
+
   it('rejects a mutable Function E2B template alias at runtime', async () => {
     const original = mockEnv.E2B_FUNCTION_TEMPLATE_ID
     mockEnv.E2B_FUNCTION_TEMPLATE_ID = 'sim-function-latest'
@@ -1262,6 +1284,32 @@ describe('custom dependency sets', () => {
         /DAYTONA_FUNCTION_SNAPSHOT_ID is unset/
       )
       expect(mockDaytonaCreate).not.toHaveBeenCalled()
+    } finally {
+      mockEnv.DAYTONA_FUNCTION_SNAPSHOT_ID = original
+    }
+  })
+
+  it('selects Daytona for doc and Pi sandboxes without a Function snapshot', async () => {
+    useProvider('daytona')
+    const original = mockEnv.DAYTONA_FUNCTION_SNAPSHOT_ID
+    mockEnv.DAYTONA_FUNCTION_SNAPSHOT_ID = undefined
+    try {
+      const provider = resolveProvider()
+      const doc = await provider.create('doc')
+      const pi = await provider.create('pi')
+
+      expect(provider.id).toBe('daytona')
+      expect(mockDaytonaCreate).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ snapshot: 'mothership-docs:v1' })
+      )
+      expect(mockDaytonaCreate).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ snapshot: 'sim-pi:v1' })
+      )
+      await expect(provider.create('code')).rejects.toThrow(/DAYTONA_FUNCTION_SNAPSHOT_ID is unset/)
+      await doc.kill()
+      await pi.kill()
     } finally {
       mockEnv.DAYTONA_FUNCTION_SNAPSHOT_ID = original
     }
@@ -1608,7 +1656,7 @@ describe('Pi sandbox lifetime', () => {
     const [template, options] = mockE2BCreate.mock.calls[0]
     expect(template).toBe('sim-pi')
     // E2B's default is five minutes, which kills any Pi run that outlives it.
-    expect(options.timeoutMs).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+    expect(options.timeoutMs).toBe(resolvePiSandboxLifetimeMs())
     // The execution ceiling may exceed one continuous E2B session; the provider
     // hard limit remains authoritative for this sandbox.
     expect(options.timeoutMs).toBeLessThanOrEqual(getMaxExecutionTimeout())
@@ -1621,7 +1669,7 @@ describe('Pi sandbox lifetime', () => {
 
     await withPiSandbox({}, async () => undefined)
 
-    expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
+    expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(resolvePiSandboxLifetimeMs())
   })
 
   it('honours a configured lifetime between the floor and the ceiling', async () => {
@@ -1810,7 +1858,7 @@ describe('Pi sandbox lifetime', () => {
       expect.objectContaining({
         snapshot: 'sim-pi:v1',
         ephemeral: true,
-        ttlMinutes: Math.ceil(PI_SANDBOX_MAX_LIFETIME_MS / 60_000),
+        ttlMinutes: Math.ceil(resolvePiSandboxLifetimeMs() / 60_000),
       })
     )
   })

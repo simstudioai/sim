@@ -3,15 +3,25 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { getAllowedIntegrationsContract } from '@/lib/api/contracts/common'
+import {
+  type GetAllowedIntegrationsResponse,
+  getAllowedIntegrationsContract,
+  type IntegrationAvailabilityResponse,
+} from '@/lib/api/contracts/common'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import {
+  isDeploymentGatedIntegrationType,
+  resolveIntegrationAvailabilityStateForVisibility,
+} from '@/lib/integrations/availability'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
 } from '@/lib/permission-groups/types'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
+import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 
 export interface PermissionConfigResult {
@@ -26,10 +36,7 @@ export interface PermissionConfigResult {
   isToolAllowed: (toolId: string) => boolean
   isInvitationsDisabled: boolean
   isPublicApiDisabled: boolean
-}
-
-interface AllowedIntegrationsResponse {
-  allowedIntegrations: string[] | null
+  integrationAvailability: ReadonlyMap<string, IntegrationAvailabilityResponse>
 }
 
 const allowedIntegrationsKeys = {
@@ -38,37 +45,17 @@ const allowedIntegrationsKeys = {
 }
 
 function useAllowedIntegrationsFromEnv() {
-  return useQuery<AllowedIntegrationsResponse>({
+  return useQuery<GetAllowedIntegrationsResponse>({
     queryKey: allowedIntegrationsKeys.env(),
-    queryFn: async ({ signal }) => {
-      try {
-        return await requestJson(getAllowedIntegrationsContract, { signal })
-      } catch (error) {
-        // Treat any auth/server failure as "no env allowlist configured"
-        // so the UI falls back to the permission-group-driven allowlist.
-        if (error instanceof ApiClientError) {
-          return { allowedIntegrations: null }
-        }
-        throw error
-      }
-    },
+    queryFn: ({ signal }) => requestJson(getAllowedIntegrationsContract, { signal }),
     staleTime: 5 * 60 * 1000,
   })
-}
-
-/**
- * Intersects two allowlists. If either is null (unrestricted), returns the other.
- * If both are set, returns only items present in both.
- */
-function intersectAllowlists(a: string[] | null, b: string[] | null): string[] | null {
-  if (a === null) return b
-  if (b === null) return a.map((i) => i.toLowerCase())
-  return a.map((i) => i.toLowerCase()).filter((i) => b.includes(i))
 }
 
 export function usePermissionConfig(): PermissionConfigResult {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
+  const blockOverlayVersion = useCustomBlockOverlayVersion()
 
   const { data: permissionData, isLoading: isPermissionLoading } =
     useUserPermissionConfig(workspaceId)
@@ -88,16 +75,38 @@ export function usePermissionConfig(): PermissionConfigResult {
 
   const mergedAllowedIntegrations = useMemo(() => {
     const envAllowlist = envAllowlistData?.allowedIntegrations ?? null
-    return intersectAllowlists(config.allowedIntegrations, envAllowlist)
+    return intersectIntegrationAllowlists(config.allowedIntegrations, envAllowlist)
   }, [config.allowedIntegrations, envAllowlistData])
+
+  const integrationAvailability = useMemo(() => {
+    const visibility = overlayVisibility()
+    return new Map(
+      (envAllowlistData?.integrationAvailability ?? []).map((availability) => [
+        availability.type.toLowerCase(),
+        {
+          ...availability,
+          state: resolveIntegrationAvailabilityStateForVisibility(availability, visibility),
+        },
+      ])
+    )
+  }, [envAllowlistData?.integrationAvailability, blockOverlayVersion])
 
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {
+      const normalizedBlockType = blockType.toLowerCase()
+      const availability = integrationAvailability.get(normalizedBlockType)
+      if (
+        isDeploymentGatedIntegrationType(normalizedBlockType) &&
+        availability &&
+        (availability.state === 'unavailable' || availability.state === 'misconfigured')
+      ) {
+        return false
+      }
       if (isBlockTypeAccessControlExempt(blockType)) return true
       if (mergedAllowedIntegrations === null) return true
-      return mergedAllowedIntegrations.includes(blockType.toLowerCase())
+      return mergedAllowedIntegrations.includes(normalizedBlockType)
     }
-  }, [mergedAllowedIntegrations])
+  }, [integrationAvailability, mergedAllowedIntegrations])
 
   const isProviderAllowed = useMemo(() => {
     return (providerId: string) => {
@@ -123,14 +132,9 @@ export function usePermissionConfig(): PermissionConfigResult {
 
   const filterBlocks = useMemo(() => {
     return <T extends { type: string }>(blocks: T[]): T[] => {
-      if (mergedAllowedIntegrations === null) return blocks
-      return blocks.filter(
-        (block) =>
-          isBlockTypeAccessControlExempt(block.type) ||
-          mergedAllowedIntegrations.includes(block.type.toLowerCase())
-      )
+      return blocks.filter((block) => isBlockAllowed(block.type))
     }
-  }, [mergedAllowedIntegrations])
+  }, [isBlockAllowed])
 
   const filterProviders = useMemo(() => {
     return (providerIds: string[]): string[] => {
@@ -167,6 +171,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
+      integrationAvailability,
     }),
     [
       mergedConfig,
@@ -180,6 +185,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
+      integrationAvailability,
     ]
   )
 }

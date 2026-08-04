@@ -17,9 +17,22 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const SECRET_ACCESS_TOKEN = 'ya29.a0SECRET_GOOGLE_BEARER_TOKEN_DO_NOT_LEAK'
 
-const { getAllOAuthServicesMock, decodeJwtMock } = vi.hoisted(() => ({
+const {
+  getAllOAuthServicesMock,
+  decodeJwtMock,
+  isOAuthServiceDeploymentAvailableMock,
+  createIntegrationCredentialVisibilityMock,
+  getUserPermissionConfigMock,
+  getAccessibleOAuthCredentialsMock,
+  checkWorkspaceAccessMock,
+} = vi.hoisted(() => ({
   getAllOAuthServicesMock: vi.fn(),
   decodeJwtMock: vi.fn(),
+  isOAuthServiceDeploymentAvailableMock: vi.fn(() => true),
+  createIntegrationCredentialVisibilityMock: vi.fn(),
+  getUserPermissionConfigMock: vi.fn(),
+  getAccessibleOAuthCredentialsMock: vi.fn(),
+  checkWorkspaceAccessMock: vi.fn(),
 }))
 
 const getPersonalAndWorkspaceEnvMock = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
@@ -28,6 +41,30 @@ afterAll(resetEnvironmentUtilsMock)
 
 vi.mock('@/lib/oauth', () => ({
   getAllOAuthServices: getAllOAuthServicesMock,
+}))
+
+vi.mock('@/lib/integrations/availability.server', () => ({
+  isOAuthServiceDeploymentAvailable: isOAuthServiceDeploymentAvailableMock,
+}))
+
+vi.mock('@/lib/integrations/credential-visibility.server', () => ({
+  createIntegrationCredentialVisibility: createIntegrationCredentialVisibilityMock,
+}))
+
+vi.mock('@/lib/core/config/env-flags', () => ({
+  getAllowedIntegrationsFromEnv: vi.fn(() => null),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: getUserPermissionConfigMock,
+}))
+
+vi.mock('@/lib/credentials/environment', () => ({
+  getAccessibleOAuthCredentials: getAccessibleOAuthCredentialsMock,
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  checkWorkspaceAccess: checkWorkspaceAccessMock,
 }))
 
 vi.mock('jose', () => ({
@@ -72,16 +109,38 @@ describe('getCredentialsServerTool', () => {
 
     getAllOAuthServicesMock.mockReturnValue([
       {
+        serviceId: 'gmail',
         providerId: 'google-default',
         name: 'Google',
         description: 'Google account',
         baseProvider: 'google',
+        authType: 'oauth',
       },
       {
+        serviceId: 'slack',
         providerId: 'slack',
+        serviceAccountProviderId: 'slack-custom-bot',
         name: 'Slack',
         description: 'Slack workspace',
         baseProvider: 'slack',
+        authType: 'oauth',
+      },
+      {
+        serviceId: 'notion',
+        providerId: 'notion',
+        serviceAccountProviderId: 'notion-service-account',
+        name: 'Notion',
+        description: 'Notion workspace',
+        baseProvider: 'notion',
+        authType: 'oauth',
+      },
+      {
+        serviceId: 'claude-platform',
+        providerId: 'claude-platform',
+        name: 'Claude Platform',
+        description: 'Claude managed agents',
+        baseProvider: 'claude-platform',
+        authType: 'service_account',
       },
     ])
 
@@ -92,6 +151,30 @@ describe('getCredentialsServerTool', () => {
     })
 
     decodeJwtMock.mockReturnValue({ email: 'brent@cellular.so' })
+    isOAuthServiceDeploymentAvailableMock.mockReturnValue(true)
+    getUserPermissionConfigMock.mockResolvedValue(null)
+    getAccessibleOAuthCredentialsMock.mockResolvedValue([])
+    checkWorkspaceAccessMock.mockResolvedValue({ canAdmin: false })
+    createIntegrationCredentialVisibilityMock.mockImplementation(
+      ({ allowedIntegrationTypes, oauthServices }) => {
+        const isAllowed = (service: { serviceId: string }) =>
+          allowedIntegrationTypes === null || allowedIntegrationTypes.has(service.serviceId)
+        const isOAuthServiceVisible = (service: { serviceId: string; providerId: string }) =>
+          isAllowed(service) && isOAuthServiceDeploymentAvailableMock(service.providerId)
+        return {
+          isOAuthServiceVisible,
+          isCredentialVisible: ({ providerId, type }: { providerId: string; type?: string }) => {
+            const service = oauthServices.find(
+              (candidate: { providerId: string; serviceAccountProviderId?: string }) =>
+                candidate.providerId === providerId ||
+                candidate.serviceAccountProviderId === providerId
+            )
+            if (!service || !isAllowed(service)) return !service
+            return type === 'service_account' || isOAuthServiceVisible(service)
+          },
+        }
+      }
+    )
   })
 
   it('never returns access tokens for connected OAuth credentials', async () => {
@@ -125,6 +208,67 @@ describe('getCredentialsServerTool', () => {
 
     expect(JSON.stringify(result)).not.toContain(SECRET_ACCESS_TOKEN)
     expect(JSON.stringify(result)).not.toContain('refresh-secret')
+  })
+
+  it('does not advertise OAuth providers unavailable in this deployment', async () => {
+    isOAuthServiceDeploymentAvailableMock.mockImplementation(
+      (providerId: string) => providerId !== 'slack'
+    )
+
+    const result = await getCredentialsServerTool.execute({}, { userId: 'user-1' })
+
+    expect(
+      result.oauth.notConnected.services.map(
+        (service: { providerId: string }) => service.providerId
+      )
+    ).not.toContain('slack')
+  })
+
+  it('uses context.workspaceId and hides integrations disallowed for the viewer', async () => {
+    getUserPermissionConfigMock.mockResolvedValue({ allowedIntegrations: ['slack'] })
+
+    const result = await getCredentialsServerTool.execute(
+      {},
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(getUserPermissionConfigMock).toHaveBeenCalledWith('user-1', 'workspace-1')
+    expect(result.oauth.connected.credentials).toEqual([])
+    expect(
+      result.oauth.notConnected.services.map(
+        (service: { providerId: string }) => service.providerId
+      )
+    ).toEqual(['slack'])
+  })
+
+  it('does not advertise service-account-only entries as OAuth connections', async () => {
+    const result = await getCredentialsServerTool.execute({}, { userId: 'user-1' })
+
+    expect(
+      result.oauth.notConnected.services.map(
+        (service: { providerId: string }) => service.providerId
+      )
+    ).not.toContain('claude-platform')
+  })
+
+  it('hides shared service-account credentials disallowed for the viewer', async () => {
+    getUserPermissionConfigMock.mockResolvedValue({ allowedIntegrations: ['slack'] })
+    getAccessibleOAuthCredentialsMock.mockResolvedValue([
+      {
+        id: 'notion-service-account-1',
+        providerId: 'notion-service-account',
+        type: 'service_account',
+        displayName: 'Notion token',
+        updatedAt: new Date('2026-04-17T02:26:05.546Z'),
+      },
+    ])
+
+    const result = await getCredentialsServerTool.execute(
+      {},
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.oauth.connected.credentials).toEqual([])
   })
 
   it('rejects unauthenticated callers without touching the database', async () => {

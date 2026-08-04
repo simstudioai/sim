@@ -24,7 +24,7 @@ export const ToggleButton = memo(function ToggleButton({ isExpanded, onClick }: 
     >
       <ChevronDown
         className={clsx(
-          'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+          'size-[14px] flex-shrink-0 transition-transform duration-100',
           !isExpanded && 'rotate-180'
         )}
       />

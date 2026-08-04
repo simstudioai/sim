@@ -1,11 +1,12 @@
 /**
- * Environment utility functions for consistent environment detection across the application
+ * Loaded by `next.config.ts` before the `@/` alias is available, so
+ * config-boundary dependencies in this module must use relative imports.
  */
+
 import {
   isImmutableDaytonaSnapshotRef,
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
-  normalizeSandboxProvider,
 } from '@sim/utils/sandbox-references'
 import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
@@ -13,6 +14,7 @@ import {
   resolveEnterpriseEntitlement,
 } from './enterprise-entitlements'
 import { env, envBoolean, getEnv, isFalsy, isTruthy } from './env'
+import { hasEnvCapabilityValue, inspectCapability, SANDBOX_CAPABILITY } from './env-capabilities'
 
 /**
  * Is the application running in production mode
@@ -395,8 +397,7 @@ export const isForkingEnabled = enterpriseFeatureEnabled(
  * Availability below is derived from THIS provider's credentials, so a
  * Daytona-only deployment (E2B unset) still enables remote execution.
  */
-const sandboxProvider =
-  normalizeSandboxProvider(env.SANDBOX_PROVIDER) ?? (env.SANDBOX_PROVIDER ? undefined : 'e2b')
+const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, env).providerId
 
 /**
  * Whether remote code/shell execution is available with the selected provider.
@@ -412,14 +413,14 @@ const sandboxProvider =
  */
 export const isRemoteSandboxEnabled =
   sandboxProvider === 'daytona'
-    ? Boolean(env.DAYTONA_API_KEY) &&
+    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
       Boolean(
         env.DAYTONA_FUNCTION_SNAPSHOT_ID &&
           isImmutableDaytonaSnapshotRef(env.DAYTONA_FUNCTION_SNAPSHOT_ID)
       )
     : sandboxProvider === 'e2b'
       ? isTruthy(env.E2B_ENABLED) &&
-        Boolean(env.E2B_API_KEY) &&
+        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
         Boolean(
           env.E2B_FUNCTION_TEMPLATE_ID && isImmutableE2BTemplateRef(env.E2B_FUNCTION_TEMPLATE_ID)
         ) &&
@@ -443,11 +444,12 @@ export const isRemoteSandboxEnabled =
  */
 export const isDocSandboxEnabled =
   sandboxProvider === 'daytona'
-    ? Boolean(env.DAYTONA_API_KEY) && Boolean(env.DAYTONA_DOC_SNAPSHOT_ID)
+    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
+      hasEnvCapabilityValue(env, 'DAYTONA_DOC_SNAPSHOT_ID')
     : sandboxProvider === 'e2b'
       ? isTruthy(env.E2B_ENABLED) &&
-        Boolean(env.E2B_API_KEY) &&
-        Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
+        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+        hasEnvCapabilityValue(env, 'MOTHERSHIP_E2B_DOC_TEMPLATE_ID')
       : false
 
 /**

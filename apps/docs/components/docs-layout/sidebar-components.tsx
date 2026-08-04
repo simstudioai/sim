@@ -1,6 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { ChevronRight } from '@sim/emcn/icons'
 import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
 import { useSidebar } from 'fumadocs-ui/components/sidebar/base'
 import Link from 'next/link'
@@ -10,25 +11,13 @@ import { cn } from '@/lib/utils'
 
 function SidebarChevron({ open, className }: { open: boolean; className?: string }) {
   return (
-    <svg
-      width='5'
-      height='8'
-      viewBox='0 0 6 10'
-      fill='none'
+    <ChevronRight
       className={cn(
-        'flex-shrink-0 transition-transform duration-200',
+        'size-[14px] flex-shrink-0 transition-transform duration-200',
         open && 'rotate-90',
         className
       )}
-    >
-      <path
-        d='M1 1L5 5L1 9'
-        stroke='currentColor'
-        strokeWidth='1.33'
-        strokeLinecap='square'
-        strokeLinejoin='miter'
-      />
-    </svg>
+    />
   )
 }
 
@@ -56,14 +45,16 @@ const ITEM_BASE =
 const ITEM_ACTIVE_MOBILE = 'bg-[var(--surface-active)] font-medium text-[var(--text-primary)]'
 
 const ITEM_DESKTOP =
-  'lg:mb-[0.0625rem] lg:block lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-small lg:leading-tight'
+  'lg:mb-[0.0625rem] lg:block lg:rounded-lg lg:px-2 lg:py-1.5 lg:font-normal lg:text-sm lg:leading-tight'
 const ITEM_TEXT = 'lg:text-[var(--text-body)]'
-const ITEM_HOVER = 'lg:hover:bg-[var(--surface-3)]'
-const ITEM_ACTIVE = 'lg:bg-[var(--surface-active)] lg:font-normal lg:text-[var(--text-body)]'
+const ITEM_HOVER = 'lg:hover:bg-[var(--surface-active)]'
+const ITEM_ACTIVE =
+  'lg:bg-[var(--surface-active)] lg:font-normal lg:text-[var(--text-body)] lg:hover:bg-[var(--surface-6)]'
 
 const FOLDER_TEXT = 'lg:text-[var(--text-body)] lg:font-medium'
-const FOLDER_HOVER = 'lg:hover:bg-[var(--surface-3)]'
-const FOLDER_ACTIVE = 'lg:bg-[var(--surface-active)] lg:text-[var(--text-body)]'
+const FOLDER_HOVER = 'lg:hover:bg-[var(--surface-active)]'
+const FOLDER_ACTIVE =
+  'lg:bg-[var(--surface-active)] lg:text-[var(--text-body)] lg:hover:bg-[var(--surface-6)]'
 
 export function SidebarItem({ item }: { item: Item }) {
   const pathname = usePathname()
@@ -144,7 +135,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
                 'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
                 'text-[var(--text-muted)] hover:bg-[var(--surface-active)] hover:text-[var(--text-body)]',
                 active && ITEM_ACTIVE_MOBILE,
-                'lg:block lg:flex-1 lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-small lg:leading-tight',
+                'lg:block lg:flex-1 lg:rounded-lg lg:px-2 lg:py-1.5 lg:text-sm lg:leading-tight',
                 FOLDER_TEXT,
                 !active && FOLDER_HOVER,
                 active && FOLDER_ACTIVE
@@ -157,7 +148,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
                 onClick={toggleOpen}
                 className={cn(
                   'rounded-md p-1 hover:bg-[var(--surface-active)]',
-                  'lg:cursor-pointer lg:rounded-md lg:p-1 lg:transition-colors lg:hover:bg-[var(--surface-3)]'
+                  'lg:cursor-pointer lg:rounded-md lg:p-1 lg:transition-colors lg:hover:bg-[var(--surface-active)]'
                 )}
                 aria-label={open ? 'Collapse' : 'Expand'}
               >
@@ -171,7 +162,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
             className={cn(
               'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
               'text-[var(--text-muted)] hover:bg-[var(--surface-active)]',
-              'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-left lg:text-small lg:leading-tight',
+              'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:rounded-lg lg:px-2 lg:py-1.5 lg:text-left lg:text-sm lg:leading-tight',
               FOLDER_TEXT,
               FOLDER_HOVER
             )}

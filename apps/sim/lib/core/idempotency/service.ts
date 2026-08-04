@@ -128,8 +128,7 @@ return redis.call('DEL', KEYS[1])
  *
  * Storage is determined once based on configuration:
  * - If `forceStorage` is set → that backend unconditionally
- * - Else if `REDIS_URL` is set → Redis
- * - Else → PostgreSQL
+ * - Else use the provider selected by the cache capability
  */
 export class IdempotencyService {
   private config: Required<Omit<IdempotencyConfig, 'forceStorage'>>

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
+import { redisConfigMockFns, resetEnvMock, resetRedisConfigMock, setEnv } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
@@ -26,7 +26,10 @@ const { mockRedis, persistedEntries } = vi.hoisted(() => {
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
-afterAll(resetRedisConfigMock)
+afterAll(() => {
+  resetEnvMock()
+  resetRedisConfigMock()
+})
 
 import {
   createExecutionEventWriter,
@@ -77,6 +80,7 @@ function countOccurrences(haystack: string, needle: string): number {
 describe('execution event buffer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setEnv({ REDIS_URL: 'redis://localhost:6379' })
     persistedEntries.length = 0
     mockGetRedisClient.mockReturnValue(mockRedis)
     mockRedis.get.mockResolvedValue(null)

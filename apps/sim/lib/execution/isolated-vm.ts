@@ -7,6 +7,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
+import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
   type SecureFetchOptions,
@@ -354,8 +355,7 @@ async function tryAcquireDistributedLease(
   leaseId: string,
   timeoutMs: number
 ): Promise<LeaseAcquireResult> {
-  // Redis not configured: explicit local-mode fallback is allowed.
-  if (!env.REDIS_URL) return 'acquired'
+  if (getConfiguredCacheProvider() === 'database') return 'acquired'
 
   const redis = getRedisClient()
   if (!redis) {

@@ -200,7 +200,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         </div>
                         <span className='text-[var(--text-body)] text-sm'>Sim</span>
                         <ChevronDown
-                          className='h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150'
+                          className='size-[14px] text-[var(--text-icon)] transition-transform duration-150'
                           style={{
                             transform: toolsExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
                           }}
@@ -298,7 +298,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
                   <span className='text-[var(--text-muted)] text-small'>Suggested actions</span>
-                  <ChevronDown className='h-[7px] w-[9px] text-[var(--text-muted)]' />
+                  <ChevronDown className='size-[14px] text-[var(--text-muted)]' />
                 </div>
                 <div className='-mr-2 flex items-center gap-1.5 rounded-lg px-2 py-1'>
                   <span className='-mt-px text-[var(--text-muted)] text-small'>Shuffle</span>
@@ -411,7 +411,7 @@ function MiniTablePanel() {
                       <span className='font-medium text-[11px] text-[var(--text-primary)]'>
                         {col.label}
                       </span>
-                      <ChevronDown className='ml-auto h-[6px] w-[8px] text-[var(--text-muted)]' />
+                      <ChevronDown className='ml-auto size-[14px] text-[var(--text-muted)]' />
                     </div>
                   </th>
                 )

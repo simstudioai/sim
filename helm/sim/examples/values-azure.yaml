@@ -111,6 +111,7 @@ app:
 
     # Azure Blob Storage Configuration (RECOMMENDED for production)
     # Create a storage account and containers in your Azure subscription
+    STORAGE_PROVIDER: "azure"
     AZURE_ACCOUNT_NAME: "simstudiostorageacct"           # Azure storage account name
     AZURE_ACCOUNT_KEY: ""                                 # Storage account access key
     # Or use connection string instead of account name/key:

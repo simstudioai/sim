@@ -23,14 +23,14 @@ Sim stores every uploaded file — knowledge base documents, chat attachments, e
 
 ## How the backend is selected
 
-Sim picks the backend automatically from environment variables — there is no explicit "provider" flag. The logic, in order of precedence:
+Set `STORAGE_PROVIDER` to `local`, `s3`, `azure`, or `gcs` to select a backend explicitly. When it is unset, Sim infers the backend from the configured environment variables in this order:
 
 1. **Azure Blob** — used if `AZURE_STORAGE_CONTAINER_NAME` is set **and** either (`AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY`) or `AZURE_CONNECTION_STRING` is set.
 2. **AWS S3** — used if `S3_BUCKET_NAME` **and** `AWS_REGION` are set (and Azure is not configured).
 3. **Google Cloud Storage** — used if `GCS_BUCKET_NAME` is set (and neither Azure nor S3 is configured).
 4. **Local disk** — the fallback when none is configured.
 
-If more than one backend is configured, the first match in that order wins. Set only the variables for the backend you intend to use.
+If `STORAGE_PROVIDER` is unset, Sim skips incomplete backends and uses the first ready match in that order. A higher-priority backend with its required fields present but invalid supplied values fails fast instead of silently falling through. An explicit `STORAGE_PROVIDER` takes precedence and must be valid and complete.
 
 ## Set up AWS S3
 

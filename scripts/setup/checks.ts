@@ -1,12 +1,18 @@
 import {
-  IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR,
-  IMMUTABLE_E2B_TEMPLATE_REF_ERROR,
-  isImmutableDaytonaSnapshotRef,
-  isImmutableE2BTemplateRef,
-  isValidSandboxReleaseGeneration,
-  normalizeSandboxProvider,
-  SANDBOX_RELEASE_GENERATION_ERROR,
-} from '@sim/utils/sandbox-references'
+  ASYNC_JOBS_CAPABILITY,
+  CACHE_CAPABILITY,
+  CORE_CONFIGURATION_KEYS,
+  EMAIL_CAPABILITY,
+  EnvCapabilityConfigurationError,
+  inspectCapability,
+  inspectOAuthClientCapability,
+  OAUTH_CLIENT_CAPABILITIES,
+  OCR_CAPABILITY,
+  requireCapability,
+  SANDBOX_CAPABILITY,
+  STORAGE_CAPABILITY,
+} from '../../apps/sim/lib/core/config/env-capabilities.ts'
+import { getSetupCommand } from './capability-config.ts'
 import { portOpen } from './detect.ts'
 import {
   type EnvFile,
@@ -22,7 +28,7 @@ import {
   writeEnvValues,
 } from './env-files.ts'
 import { httpHealth, pgProbe, redisPing } from './probes.ts'
-import { FLAG_TWINS, hasMailProvider, LOGIN_PROVIDERS } from './twins.ts'
+import { FLAG_TWINS, LOGIN_PROVIDERS } from './twins.ts'
 
 export type CheckGroup = 'files' | 'schema' | 'consistency' | 'coherence' | 'live'
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'skip'
@@ -74,15 +80,10 @@ export function loadCheckContext(live: boolean): CheckContext {
   return { env, layout, primary: layout === 'root' ? env.root : env.sim, live }
 }
 
-const REQUIRED_KEYS: Partial<Record<EnvTarget, string[]>> = {
-  sim: [
-    'DATABASE_URL',
-    'BETTER_AUTH_SECRET',
-    'BETTER_AUTH_URL',
-    'NEXT_PUBLIC_APP_URL',
-    'ENCRYPTION_KEY',
-    'INTERNAL_API_SECRET',
-  ],
+export const REQUIRED_APP_KEYS = CORE_CONFIGURATION_KEYS
+
+const REQUIRED_KEYS: Partial<Record<EnvTarget, readonly string[]>> = {
+  sim: REQUIRED_APP_KEYS,
   realtime: [
     'DATABASE_URL',
     'BETTER_AUTH_URL',
@@ -120,7 +121,11 @@ function checkFiles(ctx: CheckContext): Finding[] {
   for (const target of layoutTargets(ctx.layout)) {
     const file = ctx.env[target]
     if (file.exists) {
-      findings.push({ group: 'files', status: 'pass', message: `${rel(file)} exists` })
+      findings.push({
+        group: 'files',
+        status: 'pass',
+        message: `${rel(file)} exists`,
+      })
       continue
     }
     const canSeed = target !== 'sim' && ctx.env.sim.exists
@@ -241,7 +246,13 @@ function checkConsistency(ctx: CheckContext): Finding[] {
   // file has nothing to disagree with.
   if (ctx.layout !== 'split') {
     return ctx.layout === 'root'
-      ? [{ group: 'consistency', status: 'skip', message: 'single .env — nothing to mirror' }]
+      ? [
+          {
+            group: 'consistency',
+            status: 'skip',
+            message: 'single .env — nothing to mirror',
+          },
+        ]
       : []
   }
   const findings: Finding[] = []
@@ -290,27 +301,38 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   const findings: Finding[] = []
   const sim = ctx.primary
   if (!sim.exists) return findings
-  if (isTruthy(sim.vars.get('TRIGGER_DEV_ENABLED'))) {
-    const missing = ['TRIGGER_SECRET_KEY', 'TRIGGER_PROJECT_ID'].filter((k) => !sim.vars.get(k))
-    if (missing.length > 0) {
+  const capabilityChecks = [
+    {
+      command: getSetupCommand(ASYNC_JOBS_CAPABILITY.id),
+      resolve: () => requireCapability(ASYNC_JOBS_CAPABILITY, sim.vars),
+    },
+    {
+      command: getSetupCommand(CACHE_CAPABILITY.id),
+      resolve: () => requireCapability(CACHE_CAPABILITY, sim.vars),
+    },
+    {
+      command: getSetupCommand(SANDBOX_CAPABILITY.id),
+      resolve: () => {
+        const inspection = inspectCapability(SANDBOX_CAPABILITY, sim.vars)
+        if (inspection.error) throw inspection.error
+        return inspection
+      },
+    },
+    {
+      command: getSetupCommand(OCR_CAPABILITY.id),
+      resolve: () => requireCapability(OCR_CAPABILITY, sim.vars),
+    },
+  ]
+  for (const check of capabilityChecks) {
+    try {
+      check.resolve()
+    } catch (error) {
+      if (!(error instanceof EnvCapabilityConfigurationError)) throw error
       findings.push({
         group: 'coherence',
         status: 'fail',
-        message: `TRIGGER_DEV_ENABLED is on but ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not set`,
-        fix: 'set the missing Trigger.dev vars or remove TRIGGER_DEV_ENABLED (jobs fall back to the DB queue)',
-      })
-    }
-  }
-  const redisUrl = sim.vars.get('REDIS_URL')
-  if (redisUrl?.startsWith('rediss://')) {
-    const host = new URL(redisUrl).hostname
-    if (/^\d+\.\d+\.\d+\.\d+$/.test(host) && !sim.vars.get('REDIS_TLS_SERVERNAME')) {
-      findings.push({
-        group: 'coherence',
-        status: 'fail',
-        message:
-          'rediss:// with a bare IP host requires REDIS_TLS_SERVERNAME — the redis client throws without it',
-        fix: 'set REDIS_TLS_SERVERNAME to the certificate hostname',
+        message: error.message,
+        fix: check.command,
       })
     }
   }
@@ -330,50 +352,15 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       // schema group already reports the invalid URL
     }
   }
-  const hasS3 = Boolean(sim.vars.get('AWS_REGION') && sim.vars.get('S3_BUCKET_NAME'))
-  const s3Partial = Boolean(sim.vars.get('AWS_REGION')) !== Boolean(sim.vars.get('S3_BUCKET_NAME'))
-  const hasAzure = Boolean(
-    sim.vars.get('AZURE_CONNECTION_STRING') || sim.vars.get('AZURE_ACCOUNT_NAME')
-  )
-  const azurePartial =
-    Boolean(sim.vars.get('AZURE_ACCOUNT_NAME')) &&
-    !sim.vars.get('AZURE_ACCOUNT_KEY') &&
-    !sim.vars.get('AZURE_CONNECTION_STRING')
-  const hasGcs = Boolean(sim.vars.get('GCS_BUCKET_NAME'))
-  if (s3Partial) {
+  try {
+    requireCapability(STORAGE_CAPABILITY, sim.vars)
+  } catch (error) {
+    if (!(error instanceof EnvCapabilityConfigurationError)) throw error
     findings.push({
       group: 'coherence',
       status: 'fail',
-      message:
-        'S3 is half-configured (need BOTH AWS_REGION and S3_BUCKET_NAME) — storage silently falls back to local disk',
-      fix: 'set the missing var, or remove both to use local disk intentionally',
-    })
-  }
-  if (azurePartial) {
-    findings.push({
-      group: 'coherence',
-      status: 'fail',
-      message:
-        'Azure storage is half-configured — AZURE_ACCOUNT_NAME needs AZURE_ACCOUNT_KEY (or use AZURE_CONNECTION_STRING)',
-      fix: 'set the missing credential, or remove the Azure vars',
-    })
-  }
-  if (hasAzure && hasS3) {
-    findings.push({
-      group: 'coherence',
-      status: 'warn',
-      message:
-        'both Azure Blob and S3 are configured — Azure takes precedence, the S3 vars are ignored',
-      fix: 'remove the backend you are not using',
-    })
-  }
-  if (hasGcs && (hasAzure || hasS3)) {
-    findings.push({
-      group: 'coherence',
-      status: 'warn',
-      message:
-        'GCS is configured alongside Azure/S3 — GCS is only used when neither of those is set',
-      fix: 'remove the backend you are not using',
+      message: error.message,
+      fix: getSetupCommand(STORAGE_CAPABILITY.id),
     })
   }
   for (const { server, client } of FLAG_TWINS) {
@@ -395,36 +382,17 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   }
 
   /**
-   * NEXT_PUBLIC_SANDBOXES_ENABLED is not a 1:1 twin: each provider needs its
-   * credential and dedicated Function base. Without the browser flag the
-   * Function block hides its language and sandbox controls even when the server
-   * is ready.
+   * Function sandbox visibility is not a 1:1 server/client twin. The selected
+   * provider is ready only when its credential and immutable Function base are
+   * valid, while the browser separately reads the public visibility flag.
    */
-  const configuredSandboxProvider = sim.vars.get('SANDBOX_PROVIDER')
-  const sandboxProvider =
-    normalizeSandboxProvider(configuredSandboxProvider) ??
-    (configuredSandboxProvider ? undefined : 'e2b')
-  if (configuredSandboxProvider && !sandboxProvider) {
-    findings.push({
-      group: 'coherence',
-      status: 'fail',
-      message: `SANDBOX_PROVIDER is "${configuredSandboxProvider}" (expected e2b or daytona)`,
-      fix: 'set SANDBOX_PROVIDER=e2b or SANDBOX_PROVIDER=daytona',
-    })
-  }
-  const e2bFunctionRef = sim.vars.get('E2B_FUNCTION_TEMPLATE_ID')
-  const e2bFunctionGeneration = sim.vars.get('E2B_FUNCTION_TEMPLATE_GENERATION')
-  const daytonaFunctionRef = sim.vars.get('DAYTONA_FUNCTION_SNAPSHOT_ID')
+  const sandboxInspection = inspectCapability(SANDBOX_CAPABILITY, sim.vars)
+  const sandboxProvider = sandboxInspection.providerId
+  const selectedSandboxProvider = sandboxInspection.providers.find(
+    (provider) => provider.id === sandboxProvider
+  )
   const remoteSandboxAvailable =
-    sandboxProvider === 'daytona'
-      ? Boolean(sim.vars.get('DAYTONA_API_KEY')) &&
-        Boolean(daytonaFunctionRef && isImmutableDaytonaSnapshotRef(daytonaFunctionRef))
-      : sandboxProvider === 'e2b'
-        ? isTruthy(sim.vars.get('E2B_ENABLED')) &&
-          Boolean(sim.vars.get('E2B_API_KEY')) &&
-          Boolean(e2bFunctionRef && isImmutableE2BTemplateRef(e2bFunctionRef)) &&
-          Boolean(e2bFunctionGeneration && isValidSandboxReleaseGeneration(e2bFunctionGeneration))
-        : false
+    !sandboxInspection.error && selectedSandboxProvider?.state === 'ready'
   const publicSandboxEnabled = isTruthy(sim.vars.get('NEXT_PUBLIC_SANDBOXES_ENABLED'))
   if (remoteSandboxAvailable && !publicSandboxEnabled) {
     findings.push({
@@ -462,22 +430,42 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
-  if (isTruthy(sim.vars.get('EMAIL_VERIFICATION_ENABLED')) && !hasMailProvider(sim.vars)) {
+  const email = inspectCapability(EMAIL_CAPABILITY, sim.vars)
+  const emailConfigured = email.configured
+  if (email.error) {
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message: email.error.message,
+      fix: getSetupCommand(EMAIL_CAPABILITY.id),
+    })
+  }
+  if (isTruthy(sim.vars.get('EMAIL_VERIFICATION_ENABLED')) && !emailConfigured) {
     findings.push({
       group: 'coherence',
       status: 'fail',
       message:
-        'EMAIL_VERIFICATION_ENABLED is on but no mail provider is configured — verification emails only go to the console, locking out new users',
-      fix: 'configure RESEND_API_KEY / SMTP_* / AWS_SES_REGION, or turn verification off',
+        'EMAIL_VERIFICATION_ENABLED is on but no mail provider is configured — the app must bypass verification to avoid locking out new users',
+      fix: `${getSetupCommand(EMAIL_CAPABILITY.id)}, or turn verification off`,
+    })
+  }
+
+  for (const providerId of Object.keys(OAUTH_CLIENT_CAPABILITIES)) {
+    const oauth = inspectOAuthClientCapability(providerId, sim.vars)
+    if (oauth.state !== 'partial' && oauth.state !== 'invalid') continue
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message: `${providerId} OAuth is partially configured — missing ${oauth.missingFields.join(', ')}`,
+      fix: oauth.setupCommand,
     })
   }
 
   const featureRules: Array<{ flag: string; needs: string[]; label: string }> = [
-    { flag: 'BILLING_ENABLED', needs: ['STRIPE_SECRET_KEY'], label: 'billing' },
     {
-      flag: 'E2B_ENABLED',
-      needs: ['E2B_API_KEY', 'E2B_FUNCTION_TEMPLATE_ID', 'E2B_FUNCTION_TEMPLATE_GENERATION'],
-      label: 'E2B Function execution',
+      flag: 'BILLING_ENABLED',
+      needs: ['STRIPE_SECRET_KEY'],
+      label: 'billing',
     },
     { flag: 'SSO_ENABLED', needs: ['SSO_ISSUER'], label: 'SSO' },
   ]
@@ -490,43 +478,6 @@ function checkCoherence(ctx: CheckContext): Finding[] {
         status: 'fail',
         message: `${rule.flag} is on but ${missing.join(', ')} is not set — ${rule.label} will fail at runtime`,
         fix: `set ${missing.join(', ')} or remove ${rule.flag}`,
-      })
-    }
-  }
-  if (e2bFunctionRef && !isImmutableE2BTemplateRef(e2bFunctionRef)) {
-    findings.push({
-      group: 'coherence',
-      status: 'fail',
-      message: `E2B_FUNCTION_TEMPLATE_ID ${IMMUTABLE_E2B_TEMPLATE_REF_ERROR}`,
-      fix: 'run the Function E2B builder and copy the exact <template>:<build-id> value it prints',
-    })
-  }
-  if (e2bFunctionGeneration && !isValidSandboxReleaseGeneration(e2bFunctionGeneration)) {
-    findings.push({
-      group: 'coherence',
-      status: 'fail',
-      message: `E2B_FUNCTION_TEMPLATE_GENERATION ${SANDBOX_RELEASE_GENERATION_ERROR}`,
-      fix: 'run the Function E2B builder and copy the release generation it prints',
-    })
-  }
-  if (daytonaFunctionRef && !isImmutableDaytonaSnapshotRef(daytonaFunctionRef)) {
-    findings.push({
-      group: 'coherence',
-      status: 'fail',
-      message: `DAYTONA_FUNCTION_SNAPSHOT_ID ${IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR}`,
-      fix: 'run the Function Daytona builder and copy the snapshot ID it prints',
-    })
-  }
-  if (sandboxProvider === 'daytona') {
-    const missing = ['DAYTONA_API_KEY', 'DAYTONA_FUNCTION_SNAPSHOT_ID'].filter(
-      (key) => !sim.vars.get(key)
-    )
-    if (missing.length > 0) {
-      findings.push({
-        group: 'coherence',
-        status: 'fail',
-        message: `SANDBOX_PROVIDER is daytona but ${missing.join(', ')} is not set — Daytona Function execution will fail at runtime`,
-        fix: `set ${missing.join(', ')} or select another SANDBOX_PROVIDER`,
       })
     }
   }
@@ -582,7 +533,11 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   }
 
   if (findings.length === 0) {
-    findings.push({ group: 'coherence', status: 'pass', message: 'no conflicting settings' })
+    findings.push({
+      group: 'coherence',
+      status: 'pass',
+      message: 'no conflicting settings',
+    })
   }
   return findings
 }
@@ -607,7 +562,11 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
         fix: 'start Postgres (bun run setup can manage a pgvector container) or fix DATABASE_URL',
       })
     } else {
-      findings.push({ group: 'live', status: 'pass', message: 'database reachable' })
+      findings.push({
+        group: 'live',
+        status: 'pass',
+        message: 'database reachable',
+      })
       if (!probe.pgvectorAvailable) {
         findings.push({
           group: 'live',
@@ -616,7 +575,10 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
           fix: 'use the pgvector/pgvector:pg17 image or install the extension',
         })
       }
-      const { applied, journal } = probe.migrations ?? { applied: null, journal: 0 }
+      const { applied, journal } = probe.migrations ?? {
+        applied: null,
+        journal: 0,
+      }
       if (applied === null) {
         findings.push({
           group: 'live',
@@ -651,8 +613,10 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
 }
 
 async function checkRedis(sim: EnvFile): Promise<Finding[]> {
+  const inspection = inspectCapability(CACHE_CAPABILITY, sim.vars)
+  if (inspection.error || inspection.providerId !== 'redis') return []
   const redisUrl = sim.vars.get('REDIS_URL')
-  if (!redisUrl) return []
+  if (!redisUrl) throw new Error('Redis resolved as ready without REDIS_URL')
   const ping = await redisPing(redisUrl)
   return [
     ping.ok
@@ -668,10 +632,22 @@ async function checkRedis(sim: EnvFile): Promise<Finding[]> {
 
 async function checkService(label: string, port: number, url: string): Promise<Finding[]> {
   if (!(await portOpen(port))) {
-    return [{ group: 'live', status: 'skip', message: `${label}: not running on :${port}` }]
+    return [
+      {
+        group: 'live',
+        status: 'skip',
+        message: `${label}: not running on :${port}`,
+      },
+    ]
   }
   if (await httpHealth(url)) {
-    return [{ group: 'live', status: 'pass', message: `${label} healthy on :${port}` }]
+    return [
+      {
+        group: 'live',
+        status: 'pass',
+        message: `${label} healthy on :${port}`,
+      },
+    ]
   }
   return [
     {

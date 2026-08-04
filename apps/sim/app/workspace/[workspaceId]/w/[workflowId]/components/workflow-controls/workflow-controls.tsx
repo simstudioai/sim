@@ -113,7 +113,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
                 </Tooltip.Trigger>
                 <Button className='-m-1 !p-1.5 group' variant='ghost'>
                   <ChevronDown
-                    className={`h-[8px] w-[10px] text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${isCanvasModeOpen ? 'rotate-180' : ''}`}
+                    className={`size-[14px] text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${isCanvasModeOpen ? 'rotate-180' : ''}`}
                   />
                 </Button>
               </div>

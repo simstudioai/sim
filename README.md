@@ -28,6 +28,7 @@
 
 ```bash
 git clone https://github.com/simstudioai/sim.git && cd sim
+bun install
 bun run setup
 ```
 
@@ -80,6 +81,25 @@ Open [http://localhost:3000](http://localhost:3000)
 - **Kubernetes (Helm)** — deploy to a local cluster
 
 When it finishes, open [http://localhost:3000](http://localhost:3000).
+
+Reconfigure an optional capability without rerunning the full wizard:
+
+```bash
+bun run setup status
+bun run setup email
+bun run setup storage
+bun run setup sandbox
+bun run setup jobs
+bun run setup cache
+bun run setup knowledge
+bun run setup llm
+bun run setup integration slack
+```
+
+`bun run setup status` detects the effective local-dev, Docker Compose, or current-context
+Helm configuration and reports configured, missing, or invalid capabilities and OAuth
+integrations without printing credential values. This is separate from `bun run sim status`,
+which reports whether installed services are running and healthy.
 
 Manage your install with `bun run sim`:
 
