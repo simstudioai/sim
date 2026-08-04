@@ -1,6 +1,6 @@
 'use client'
 
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactElement } from 'react'
 import { memo } from 'react'
 import { Database, Table } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
@@ -20,11 +20,17 @@ import type {
   FolderedItem,
   IntegrationSearchItem,
   PageItem,
+  SearchEntry,
+  SearchEntryHandlers,
   TaskItem,
   WorkflowItem,
   WorkspaceItem,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
-import { GROUP_HEADING_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+import {
+  GROUP_HEADING_CLASSNAME,
+  SECTION_LABELS,
+  searchEntryKey,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import type {
   SearchBlockItem,
   SearchDocItem,
@@ -367,3 +373,247 @@ function createIconGroup(
     )
   })
 }
+
+interface RenderEntryOptions {
+  keyPrefix: string
+  meta?: string
+  pinned: boolean
+  onTogglePin: () => void
+}
+
+function renderSearchEntry(
+  entry: SearchEntry,
+  handlers: SearchEntryHandlers,
+  options: RenderEntryOptions
+): ReactElement {
+  const key = `${options.keyPrefix}${entry.section}-${entry.item.id}`
+  const rowProps = {
+    meta: options.meta,
+    pinned: options.pinned,
+    onTogglePin: options.onTogglePin,
+  }
+
+  switch (entry.section) {
+    case 'actions':
+      return (
+        <MemoizedActionItem
+          key={key}
+          value={`${entry.item.name} ${entry.item.keywords ?? ''} ${key}`}
+          onSelect={() => handlers.onSelectAction(entry.item)}
+          icon={entry.item.icon}
+          name={entry.item.name}
+          shortcut={entry.item.shortcut}
+          {...rowProps}
+        />
+      )
+    case 'connectedAccounts':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectConnectedAccount(entry.item)}
+          icon={entry.item.icon}
+          bgColor={entry.item.bgColor}
+          showColoredIcon
+          label={entry.item.name}
+          {...rowProps}
+        />
+      )
+    case 'integrations':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectIntegration(entry.item)}
+          icon={entry.item.icon}
+          bgColor={entry.item.bgColor}
+          showColoredIcon
+          label={entry.item.name}
+          {...rowProps}
+        />
+      )
+    case 'blocks':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectBlock(entry.item)}
+          icon={entry.item.icon}
+          bgColor={entry.item.bgColor}
+          showColoredIcon
+          workflowType={entry.item.type}
+          label={entry.item.name}
+          {...rowProps}
+        />
+      )
+    case 'tools':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectTool(entry.item)}
+          icon={entry.item.icon}
+          bgColor={entry.item.bgColor}
+          showColoredIcon
+          label={entry.item.name}
+          {...rowProps}
+        />
+      )
+    case 'triggers':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectTrigger(entry.item)}
+          icon={entry.item.icon}
+          bgColor={entry.item.bgColor}
+          showColoredIcon
+          label={entry.item.name}
+          {...rowProps}
+        />
+      )
+    case 'chats':
+      return (
+        <MemoizedTaskItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectChat(entry.item)}
+          name={entry.item.name}
+          {...rowProps}
+        />
+      )
+    case 'workflows':
+      return (
+        <MemoizedWorkflowItem
+          key={key}
+          value={`${entry.item.name} ${entry.item.folderPath?.join(' / ') ?? ''} ${key}`}
+          onSelect={() => handlers.onSelectWorkflow(entry.item)}
+          name={entry.item.name}
+          folderPath={entry.item.folderPath}
+          isCurrent={entry.item.isCurrent}
+          {...rowProps}
+        />
+      )
+    case 'tables':
+      return (
+        <MemoizedIconItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectTable(entry.item)}
+          name={entry.item.name}
+          icon={Table}
+          {...rowProps}
+        />
+      )
+    case 'files':
+      return (
+        <MemoizedFileItem
+          key={key}
+          value={`${entry.item.name} ${entry.item.folderPath?.join(' / ') ?? ''} ${key}`}
+          onSelect={() => handlers.onSelectFile(entry.item)}
+          name={entry.item.name}
+          folderPath={entry.item.folderPath}
+          {...rowProps}
+        />
+      )
+    case 'knowledgeBases':
+      return (
+        <MemoizedIconItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectKnowledgeBase(entry.item)}
+          name={entry.item.name}
+          icon={Database}
+          {...rowProps}
+        />
+      )
+    case 'toolOperations':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.searchValue} ${key}`}
+          onSelect={() => handlers.onSelectToolOperation(entry.item)}
+          icon={entry.item.icon}
+          bgColor={entry.item.bgColor}
+          showColoredIcon
+          label={entry.item.name}
+          {...rowProps}
+        />
+      )
+    case 'workspaces':
+      return (
+        <MemoizedWorkspaceItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectWorkspace(entry.item)}
+          name={entry.item.name}
+          isCurrent={entry.item.isCurrent}
+          {...rowProps}
+        />
+      )
+    case 'docs':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.name} docs documentation ${key}`}
+          onSelect={() => handlers.onSelectDoc(entry.item)}
+          icon={entry.item.icon}
+          bgColor='#6B7280'
+          showColoredIcon
+          label={entry.item.name}
+          {...rowProps}
+        />
+      )
+    case 'pages':
+      return (
+        <MemoizedPageItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectPage(entry.item)}
+          icon={entry.item.icon}
+          name={entry.item.name}
+          shortcut={entry.item.shortcut}
+          {...rowProps}
+        />
+      )
+  }
+}
+
+interface SearchEntryGroupProps {
+  variant: 'section' | 'topMatch' | 'favorites'
+  heading?: string
+  entries: SearchEntry[]
+  handlers: SearchEntryHandlers
+  favorites: ReadonlySet<string>
+  onToggleFavorite: (entry: SearchEntry) => void
+}
+
+/** Renders ordinary and aggregate rows with their existing section chrome. */
+export const SearchEntryGroup = memo(function SearchEntryGroup({
+  variant,
+  heading,
+  entries,
+  handlers,
+  favorites,
+  onToggleFavorite,
+}: SearchEntryGroupProps) {
+  if (entries.length === 0) return null
+
+  const aggregate = variant !== 'section'
+  const groupHeading =
+    variant === 'topMatch' ? 'Top Match' : variant === 'favorites' ? 'Favorites' : heading
+  const keyPrefix = aggregate ? `${variant}-` : ''
+
+  return (
+    <Command.Group heading={groupHeading} className={GROUP_HEADING_CLASSNAME}>
+      {entries.map((entry) =>
+        renderSearchEntry(entry, handlers, {
+          keyPrefix,
+          meta: aggregate ? SECTION_LABELS[entry.section] : undefined,
+          pinned: favorites.has(searchEntryKey(entry)),
+          onTogglePin: () => onToggleFavorite(entry),
+        })
+      )}
+    </Command.Group>
+  )
+})

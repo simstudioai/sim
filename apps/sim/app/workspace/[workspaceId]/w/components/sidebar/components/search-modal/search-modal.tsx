@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { cn, Library, useNativeSurfaceOcclusionReady } from '@sim/emcn'
+import { cn, Library } from '@sim/emcn'
 import {
+  Calendar,
   Database,
   Duplicate,
   File,
   FolderPlus,
-  Hammer,
   HelpCircle,
   Home,
   Integration,
@@ -15,7 +15,6 @@ import {
   Play,
   Plus,
   Search,
-  SelectAll,
   Send,
   Settings,
   Table,
@@ -23,14 +22,36 @@ import {
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { Command } from 'cmdk'
+import { Scan } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
-import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transport'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { captureEvent } from '@/lib/posthog/client'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { SearchEntryGroup } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/search-groups'
+import type {
+  ActionItem,
+  FileItem,
+  IntegrationSearchItem,
+  PageItem,
+  SearchEntry,
+  SearchEntryHandlers,
+  SearchModalProps,
+  TaskItem,
+  WorkflowItem,
+  WorkspaceItem,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+import {
+  getGlobalTopMatches,
+  getSectionNameMatches,
+  MAX_RESULTS_PER_GROUP,
+  SECTION_LABELS,
+  scoreActions,
+  scoreSectionItems,
+  searchEntryKey,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import {
   CMDK_ITEM_GAP_CLASS,
   CMDK_SECTION_GAP_CLASS,
@@ -38,6 +59,7 @@ import {
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useSearchFavoritesStore } from '@/stores/modals/search/favorites/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type {
   SearchBlockItem,
@@ -45,38 +67,11 @@ import type {
   SearchSection,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
-import {
-  ActionsGroup,
-  BlocksGroup,
-  ChatsGroup,
-  ConnectedAccountsGroup,
-  DocsGroup,
-  FilesGroup,
-  IntegrationsGroup,
-  KnowledgeBasesGroup,
-  PagesGroup,
-  TablesGroup,
-  ToolOpsGroup,
-  ToolsGroup,
-  TriggersGroup,
-  WorkflowsGroup,
-  WorkspacesGroup,
-} from './components/search-groups'
-import type {
-  ActionItem,
-  FileItem,
-  IntegrationSearchItem,
-  PageItem,
-  SearchModalProps,
-  TaskItem,
-  WorkflowItem,
-  WorkspaceItem,
-} from './utils'
-import { filterAndCap, filterAndSort } from './utils'
+import { SEARCH_SECTIONS } from '@/stores/modals/search/types'
 
 const logger = createLogger('SearchModal')
 
-export type { SearchModalProps } from './utils'
+export type { SearchModalProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 
 export function SearchModal({
   open,
@@ -102,12 +97,6 @@ export function SearchModal({
   const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
   const [mounted, setMounted] = useState(false)
-  const atomicBrowserOcclusion = supportsAtomicBrowserPanelOcclusion()
-  const nativeSurfaceReady = useNativeSurfaceOcclusionReady(open, 'modal')
-  const visuallyOpen = open && nativeSurfaceReady
-  const [retainNativeSurfaceOcclusion, setRetainNativeSurfaceOcclusion] = useState(open)
-  const nativeSurfaceOcclusionActive =
-    open || (atomicBrowserOcclusion && retainNativeSurfaceOcclusion)
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
   const invokeCommand = useInvokeGlobalCommand()
@@ -124,24 +113,18 @@ export function SearchModal({
     setMounted(true)
   }, [])
 
-  useEffect(() => {
-    if (!atomicBrowserOcclusion) return
-    if (open) {
-      setRetainNativeSurfaceOcclusion(true)
-      return
-    }
-    // Transition-end normally releases this first. The fallback covers
-    // reduced-motion/user-agent cases where no transition event is emitted.
-    const timeout = window.setTimeout(() => setRetainNativeSurfaceOcclusion(false), 200)
-    return () => window.clearTimeout(timeout)
-  }, [atomicBrowserOcclusion, open])
-
   const { blocks, tools, triggers, toolOperations, docs } = useSearchModalStore(
     (state) => state.data
   )
 
   const sections = useSearchModalStore((state) => state.sections)
-  const showSection = (key: SearchSection) => !sections || sections.includes(key)
+  const displaySections = useMemo(
+    () => SEARCH_SECTIONS.filter((section) => !sections || sections.includes(section)),
+    [sections]
+  )
+  const favoriteKeys = useSearchFavoritesStore((state) => state.favorites)
+  const toggleFavorite = useSearchFavoritesStore((state) => state.toggleFavorite)
+  const favoriteSet = useMemo(() => new Set(favoriteKeys), [favoriteKeys])
 
   const openHelpModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('open-help-modal'))
@@ -155,13 +138,6 @@ export function SearchModal({
           name: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
-          hidden: permissionConfig.hideIntegrationsTab,
-        },
-        {
-          id: 'skills',
-          name: 'Skills',
-          icon: Hammer,
-          href: `/workspace/${workspaceId}/skills`,
           hidden: permissionConfig.hideIntegrationsTab,
         },
         {
@@ -180,10 +156,16 @@ export function SearchModal({
         },
         {
           id: 'knowledge-base',
-          name: 'Knowledge bases',
+          name: 'Knowledge base',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
+        },
+        {
+          id: 'scheduled-tasks',
+          name: 'Scheduled tasks',
+          icon: Calendar,
+          href: `/workspace/${workspaceId}/scheduled-tasks`,
         },
         {
           id: 'logs',
@@ -282,7 +264,7 @@ export function SearchModal({
       id: 'fit-to-view',
       name: 'Fit workflow to view',
       keywords: 'zoom center recenter canvas reset',
-      icon: SelectAll,
+      icon: Scan,
       shortcut: '⌘⇧F',
       context: 'workflow',
       run: () => invokeCommand('fit-to-view'),
@@ -325,12 +307,8 @@ export function SearchModal({
     if (open) setSearch('')
   }
 
-  /**
-   * Focus only once the dialog is actually visible: `.focus()` is a no-op while
-   * the surface still carries `invisible`, and nothing re-focuses afterwards.
-   */
   useEffect(() => {
-    if (!visuallyOpen || !inputRef.current) return
+    if (!open || !inputRef.current) return
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       'value'
@@ -340,7 +318,7 @@ export function SearchModal({
       inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
     }
     inputRef.current.focus()
-  }, [visuallyOpen])
+  }, [open])
 
   const deferredSearch = useDeferredValue(search)
   const deferredSearchRef = useRef(deferredSearch)
@@ -592,128 +570,223 @@ export function SearchModal({
     onOpenChangeRef.current(false)
   }, [])
 
-  const filteredActions = useMemo(() => {
-    const available = actions.filter(
-      (a) =>
-        a.context === 'global' ||
-        (a.context === 'workflow' && isOnWorkflowPage) ||
-        (a.context === 'integrations' && isOnIntegrationsPage)
+  const entriesBySection = useMemo((): Record<SearchSection, SearchEntry[]> => {
+    const query = deferredSearch.trim()
+    const visibleSections = new Set(displaySections)
+    const rank = <T,>(
+      section: SearchSection,
+      items: T[],
+      toValue: (item: T) => string,
+      toExtra?: (item: T) => string | undefined
+    ) => {
+      if (!visibleSections.has(section)) return []
+      return query
+        ? scoreSectionItems(section, items, toValue, deferredSearch, toExtra).slice(
+            0,
+            MAX_RESULTS_PER_GROUP
+          )
+        : items.map((item) => ({ item, score: 0 }))
+    }
+    const availableActions = actions.filter(
+      (action) =>
+        action.context === 'global' ||
+        (action.context === 'workflow' && isOnWorkflowPage) ||
+        (action.context === 'integrations' && isOnIntegrationsPage)
     )
-    return filterAndSort(available, (a) => `${a.name} ${a.keywords ?? ''}`, deferredSearch)
-  }, [actions, isOnWorkflowPage, isOnIntegrationsPage, deferredSearch])
+    const rankedActions = visibleSections.has('actions')
+      ? query
+        ? scoreActions(availableActions, deferredSearch)
+        : availableActions.map((item) => ({ item, score: 0 }))
+      : []
+    const availableBlocks = isOnWorkflowPage
+      ? blocks.filter(
+          (block) => !block.sourceWorkflowId || block.sourceWorkflowId !== currentWorkflowId
+        )
+      : []
+    const availableTools = isOnWorkflowPage
+      ? tools.filter(
+          (tool) => !tool.sourceWorkflowId || tool.sourceWorkflowId !== currentWorkflowId
+        )
+      : []
+    const rankedIntegrations =
+      isOnIntegrationsPage && query ? rank('integrations', integrations, (item) => item.name) : []
 
-  /**
-   * Blocks and tools rank by name first, with `searchValue` (type + option
-   * labels) as a lower-tier fallback, so an exact name match wins while a block
-   * stays findable by an option label.
-   */
-  const filteredBlocks = useMemo(() => {
-    if (!isOnWorkflowPage) return []
-    // A custom block is hidden on its own source workflow's canvas — placing it
-    // there recurses (same exclusion as the toolbar).
-    return filterAndCap(
-      blocks.filter((b) => !b.sourceWorkflowId || b.sourceWorkflowId !== currentWorkflowId),
-      (b) => b.name,
-      deferredSearch,
-      (b) => b.searchValue
-    )
-  }, [isOnWorkflowPage, blocks, deferredSearch, currentWorkflowId])
-
-  const filteredTools = useMemo(() => {
-    if (!isOnWorkflowPage) return []
-    return filterAndCap(
-      tools.filter((t) => !t.sourceWorkflowId || t.sourceWorkflowId !== currentWorkflowId),
-      (t) => t.name,
-      deferredSearch,
-      (t) => t.searchValue
-    )
-  }, [isOnWorkflowPage, tools, deferredSearch, currentWorkflowId])
-
-  const filteredTriggers = useMemo(() => {
-    if (!isOnWorkflowPage) return []
-    return filterAndCap(triggers, (t) => `${t.name} ${t.id}`, deferredSearch)
-  }, [isOnWorkflowPage, triggers, deferredSearch])
-
-  const filteredToolOps = useMemo(() => {
-    if (!isOnWorkflowPage) return []
-    return filterAndCap(
-      toolOperations,
-      (op) => op.name,
-      deferredSearch,
-      (op) => op.searchValue
-    )
-  }, [isOnWorkflowPage, toolOperations, deferredSearch])
-
-  const filteredDocs = useMemo(() => {
-    if (!isOnWorkflowPage) return []
-    return filterAndCap(docs, (d) => `${d.name} docs documentation`, deferredSearch)
-  }, [isOnWorkflowPage, docs, deferredSearch])
-
-  const filteredTables = useMemo(
-    () =>
-      filterAndCap(
-        tables,
-        (t) => t.name,
-        deferredSearch,
-        (t) => t.folderPath?.join(' ')
-      ),
-    [tables, deferredSearch]
-  )
-  const filteredFiles = useMemo(
-    () =>
-      filterAndCap(
-        files,
-        (f) => f.name,
-        deferredSearch,
-        (f) => f.folderPath?.join(' ')
-      ),
-    [files, deferredSearch]
-  )
-  const filteredKnowledgeBases = useMemo(
-    () =>
-      filterAndCap(
-        knowledgeBases,
-        (kb) => kb.name,
-        deferredSearch,
-        (kb) => kb.folderPath?.join(' ')
-      ),
-    [knowledgeBases, deferredSearch]
-  )
-
-  const filteredWorkflows = useMemo(
-    () =>
-      filterAndCap(
+    return {
+      actions: rankedActions.map(({ item, score }) => ({ section: 'actions', item, score })),
+      connectedAccounts: (isOnIntegrationsPage
+        ? rank('connectedAccounts', connectedAccounts, (item) => item.name)
+        : []
+      ).map(({ item, score }) => ({ section: 'connectedAccounts', item, score })),
+      integrations: rankedIntegrations.map(({ item, score }) => ({
+        section: 'integrations',
+        item,
+        score,
+      })),
+      blocks: rank(
+        'blocks',
+        availableBlocks,
+        (item) => item.name,
+        (item) => item.searchValue
+      ).map(({ item, score }) => ({ section: 'blocks', item, score })),
+      tools: rank(
+        'tools',
+        availableTools,
+        (item) => item.name,
+        (item) => item.searchValue
+      ).map(({ item, score }) => ({ section: 'tools', item, score })),
+      triggers: rank(
+        'triggers',
+        isOnWorkflowPage ? triggers : [],
+        (item) => item.name,
+        (item) => `${item.name} ${item.id}`
+      ).map(({ item, score }) => ({ section: 'triggers', item, score })),
+      chats: rank('chats', chats, (item) => item.name).map(({ item, score }) => ({
+        section: 'chats',
+        item,
+        score,
+      })),
+      workflows: rank(
+        'workflows',
         workflows,
-        (w) => w.name,
-        deferredSearch,
-        (w) => w.folderPath?.join(' ')
+        (item) => item.name,
+        (item) => item.folderPath?.join(' ')
+      ).map(({ item, score }) => ({ section: 'workflows', item, score })),
+      tables: rank('tables', tables, (item) => item.name).map(({ item, score }) => ({
+        section: 'tables',
+        item,
+        score,
+      })),
+      files: rank(
+        'files',
+        files,
+        (item) => item.name,
+        (item) => item.folderPath?.join(' ')
+      ).map(({ item, score }) => ({ section: 'files', item, score })),
+      knowledgeBases: rank('knowledgeBases', knowledgeBases, (item) => item.name).map(
+        ({ item, score }) => ({ section: 'knowledgeBases', item, score })
       ),
-    [workflows, deferredSearch]
-  )
-  const filteredChats = useMemo(
-    () => filterAndCap(chats, (t) => t.name, deferredSearch),
-    [chats, deferredSearch]
-  )
-  const filteredWorkspaces = useMemo(
-    () => filterAndCap(workspaces, (w) => w.name, deferredSearch),
-    [workspaces, deferredSearch]
-  )
-  const filteredPages = useMemo(
-    () => filterAndSort(pages, (p) => p.name, deferredSearch),
-    [pages, deferredSearch]
+      toolOperations: rank(
+        'toolOperations',
+        isOnWorkflowPage ? toolOperations : [],
+        (item) => item.name,
+        (item) => item.searchValue
+      ).map(({ item, score }) => ({ section: 'toolOperations', item, score })),
+      workspaces: rank('workspaces', workspaces, (item) => item.name).map(({ item, score }) => ({
+        section: 'workspaces',
+        item,
+        score,
+      })),
+      docs: rank(
+        'docs',
+        isOnWorkflowPage ? docs : [],
+        (item) => item.name,
+        (item) => `${item.name} docs documentation`
+      ).map(({ item, score }) => ({ section: 'docs', item, score })),
+      pages: rank('pages', pages, (item) => item.name).map(({ item, score }) => ({
+        section: 'pages',
+        item,
+        score,
+      })),
+    }
+  }, [
+    deferredSearch,
+    displaySections,
+    actions,
+    isOnWorkflowPage,
+    isOnIntegrationsPage,
+    blocks,
+    currentWorkflowId,
+    tools,
+    integrations,
+    connectedAccounts,
+    triggers,
+    chats,
+    workflows,
+    tables,
+    files,
+    knowledgeBases,
+    toolOperations,
+    workspaces,
+    docs,
+    pages,
+  ])
+
+  const { matchingSectionGroups, remainingSectionGroups } = useMemo(() => {
+    const matchingSections = getSectionNameMatches(displaySections, deferredSearch)
+    const matchingSet = new Set<SearchSection>(matchingSections)
+    const toGroup = (section: SearchSection) => ({
+      section,
+      entries: entriesBySection[section],
+    })
+    return {
+      matchingSectionGroups: matchingSections.map(toGroup),
+      remainingSectionGroups: displaySections
+        .filter((section) => !matchingSet.has(section))
+        .map(toGroup),
+    }
+  }, [deferredSearch, displaySections, entriesBySection])
+
+  const globalTopMatches = useMemo(
+    () => (deferredSearch.trim() ? getGlobalTopMatches(entriesBySection, displaySections) : []),
+    [deferredSearch, entriesBySection, displaySections]
   )
 
-  /** Connected accounts: visible on the integrations page even with empty input. */
-  const filteredConnectedAccounts = useMemo(() => {
-    if (!isOnIntegrationsPage) return []
-    return filterAndCap(connectedAccounts, (a) => a.name, deferredSearch)
-  }, [isOnIntegrationsPage, connectedAccounts, deferredSearch])
+  const favoriteEntries = useMemo((): SearchEntry[] => {
+    const entriesByKey = new Map<string, SearchEntry>()
+    for (const section of displaySections) {
+      for (const entry of entriesBySection[section]) {
+        entriesByKey.set(searchEntryKey(entry), entry)
+      }
+    }
+    const entries: SearchEntry[] = []
+    for (const key of favoriteKeys) {
+      const entry = entriesByKey.get(key)
+      if (entry) entries.push(entry)
+    }
+    return deferredSearch.trim() ? entries.slice(0, MAX_RESULTS_PER_GROUP) : entries
+  }, [favoriteKeys, displaySections, entriesBySection, deferredSearch])
 
-  /** Catalog integrations: only shown once the user has typed something. */
-  const filteredIntegrations = useMemo(() => {
-    if (!isOnIntegrationsPage || !deferredSearch.trim()) return []
-    return filterAndCap(integrations, (i) => i.name, deferredSearch)
-  }, [isOnIntegrationsPage, deferredSearch, integrations])
+  const handleToggleFavorite = useCallback(
+    (entry: SearchEntry) => toggleFavorite(searchEntryKey(entry)),
+    [toggleFavorite]
+  )
+
+  const entryHandlers = useMemo(
+    (): SearchEntryHandlers => ({
+      onSelectAction: handleActionSelect,
+      onSelectConnectedAccount: handleConnectedAccountSelect,
+      onSelectIntegration: handleIntegrationSelect,
+      onSelectBlock: handleBlockSelectAsBlock,
+      onSelectTool: handleBlockSelectAsTool,
+      onSelectTrigger: handleBlockSelectAsTrigger,
+      onSelectChat: handleChatSelect,
+      onSelectWorkflow: handleWorkflowSelect,
+      onSelectTable: handleTableSelect,
+      onSelectFile: handleFileSelect,
+      onSelectKnowledgeBase: handleKbSelect,
+      onSelectToolOperation: handleToolOperationSelect,
+      onSelectWorkspace: handleWorkspaceSelect,
+      onSelectDoc: handleDocSelect,
+      onSelectPage: handlePageSelect,
+    }),
+    [
+      handleActionSelect,
+      handleConnectedAccountSelect,
+      handleIntegrationSelect,
+      handleBlockSelectAsBlock,
+      handleBlockSelectAsTool,
+      handleBlockSelectAsTrigger,
+      handleChatSelect,
+      handleWorkflowSelect,
+      handleTableSelect,
+      handleFileSelect,
+      handleKbSelect,
+      handleToolOperationSelect,
+      handleWorkspaceSelect,
+      handleDocSelect,
+      handlePageSelect,
+    ]
+  )
 
   if (!mounted) return null
 
@@ -722,32 +795,20 @@ export function SearchModal({
       <div
         className={cn(
           'fixed inset-0 z-[var(--z-modal)] transition-opacity duration-100',
-          visuallyOpen ? 'opacity-100' : !open && 'pointer-events-none opacity-0',
-          open && !visuallyOpen && 'opacity-0'
+          open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={handleOverlayClick}
-        onTransitionEnd={(event) => {
-          if (
-            atomicBrowserOcclusion &&
-            !open &&
-            event.target === event.currentTarget &&
-            event.propertyName === 'opacity'
-          ) {
-            setRetainNativeSurfaceOcclusion(false)
-          }
-        }}
-        aria-hidden={!visuallyOpen}
-        data-native-surface-occlusion={nativeSurfaceOcclusionActive ? 'modal' : undefined}
+        aria-hidden={!open}
       />
 
       <div
         role='dialog'
-        aria-modal={visuallyOpen}
-        aria-hidden={!visuallyOpen}
+        aria-modal={open}
+        aria-hidden={!open}
         aria-label='Search'
         className={cn(
           '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
-          visuallyOpen ? 'visible opacity-100' : 'invisible opacity-0'
+          open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
         style={{
           left: isOnWorkflowPage
@@ -761,7 +822,7 @@ export function SearchModal({
               <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
               <Command.Input
                 ref={inputRef}
-                autoFocus={!atomicBrowserOcclusion}
+                autoFocus
                 onValueChange={handleSearchChange}
                 placeholder='Search anything...'
                 className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
@@ -778,55 +839,46 @@ export function SearchModal({
                 No results found.
               </Command.Empty>
 
-              {showSection('actions') && (
-                <ActionsGroup items={filteredActions} onSelect={handleActionSelect} />
-              )}
-              {showSection('connectedAccounts') && (
-                <ConnectedAccountsGroup
-                  items={filteredConnectedAccounts}
-                  onSelect={handleConnectedAccountSelect}
+              {globalTopMatches.length > 0 && (
+                <SearchEntryGroup
+                  variant='topMatch'
+                  entries={globalTopMatches}
+                  handlers={entryHandlers}
+                  favorites={favoriteSet}
+                  onToggleFavorite={handleToggleFavorite}
                 />
               )}
-              {showSection('integrations') && (
-                <IntegrationsGroup
-                  items={filteredIntegrations}
-                  onSelect={handleIntegrationSelect}
+              {matchingSectionGroups.map(({ section, entries }) => (
+                <SearchEntryGroup
+                  key={section}
+                  variant='section'
+                  heading={SECTION_LABELS[section]}
+                  entries={entries}
+                  handlers={entryHandlers}
+                  favorites={favoriteSet}
+                  onToggleFavorite={handleToggleFavorite}
+                />
+              ))}
+              {favoriteEntries.length > 0 && (
+                <SearchEntryGroup
+                  variant='favorites'
+                  entries={favoriteEntries}
+                  handlers={entryHandlers}
+                  favorites={favoriteSet}
+                  onToggleFavorite={handleToggleFavorite}
                 />
               )}
-              {showSection('blocks') && (
-                <BlocksGroup items={filteredBlocks} onSelect={handleBlockSelectAsBlock} />
-              )}
-              {showSection('tools') && (
-                <ToolsGroup items={filteredTools} onSelect={handleBlockSelectAsTool} />
-              )}
-              {showSection('triggers') && (
-                <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />
-              )}
-              {showSection('chats') && (
-                <ChatsGroup items={filteredChats} onSelect={handleChatSelect} />
-              )}
-              {showSection('tables') && (
-                <TablesGroup items={filteredTables} onSelect={handleTableSelect} />
-              )}
-              {showSection('files') && (
-                <FilesGroup items={filteredFiles} onSelect={handleFileSelect} />
-              )}
-              {showSection('knowledgeBases') && (
-                <KnowledgeBasesGroup items={filteredKnowledgeBases} onSelect={handleKbSelect} />
-              )}
-              {showSection('workflows') && (
-                <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
-              )}
-              {showSection('toolOperations') && (
-                <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
-              )}
-              {showSection('workspaces') && (
-                <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
-              )}
-              {showSection('docs') && <DocsGroup items={filteredDocs} onSelect={handleDocSelect} />}
-              {showSection('pages') && (
-                <PagesGroup items={filteredPages} onSelect={handlePageSelect} />
-              )}
+              {remainingSectionGroups.map(({ section, entries }) => (
+                <SearchEntryGroup
+                  key={section}
+                  variant='section'
+                  heading={SECTION_LABELS[section]}
+                  entries={entries}
+                  handlers={entryHandlers}
+                  favorites={favoriteSet}
+                  onToggleFavorite={handleToggleFavorite}
+                />
+              ))}
             </Command.List>
           </Command>
         </div>

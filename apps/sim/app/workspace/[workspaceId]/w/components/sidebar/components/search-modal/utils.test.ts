@@ -2,7 +2,132 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { filterAndCap, filterAndSort, fuzzyMatch, MAX_RESULTS_PER_GROUP } from './utils'
+import {
+  filterAndCap,
+  filterAndSort,
+  fuzzyMatch,
+  getGlobalTopMatches,
+  getSectionNameMatches,
+  MAX_RESULTS_PER_GROUP,
+  type SearchEntry,
+  scoreActions,
+  scoreAndSort,
+  scoreSectionItems,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+
+describe('getGlobalTopMatches', () => {
+  it('merge-ranks results across every visible section', () => {
+    const action: SearchEntry = {
+      section: 'actions',
+      score: 7,
+      item: {
+        id: 'create-folder',
+        name: 'Create folder',
+        icon: () => null,
+        context: 'global',
+        run: () => {},
+      },
+    }
+    const workflow: SearchEntry = {
+      section: 'workflows',
+      score: 20,
+      item: { id: 'workflow-1', name: 'New customer workflow', href: '/workflow-1' },
+    }
+    const chat: SearchEntry = {
+      section: 'chats',
+      score: 83,
+      item: { id: 'chat-1', name: 'New chat', href: '/chat-1' },
+    }
+
+    const matches = getGlobalTopMatches(
+      { actions: [action], workflows: [workflow], chats: [chat] },
+      ['actions', 'workflows', 'chats']
+    )
+
+    expect(matches.map((entry) => entry.item.id)).toEqual(['chat-1', 'workflow-1', 'create-folder'])
+  })
+
+  it('breaks identical visible-name matches by the original section order', () => {
+    const action = {
+      id: 'new-chat-action',
+      name: 'New chat',
+      keywords: 'message conversation',
+      icon: () => null,
+      context: 'global' as const,
+      run: () => {},
+    }
+    const chat = { id: 'new-chat-result', name: 'New chat', href: '/new-chat-result' }
+    const [actionMatch] = scoreActions([action], 'new c')
+    const [chatMatch] = scoreAndSort([chat], (item) => item.name, 'new c')
+
+    expect(actionMatch.score).toBe(chatMatch.score)
+    expect(
+      getGlobalTopMatches(
+        {
+          actions: [{ section: 'actions', ...actionMatch }],
+          chats: [{ section: 'chats', ...chatMatch }],
+        },
+        ['actions', 'chats']
+      ).map((entry) => entry.item.id)
+    ).toEqual(['new-chat-action', 'new-chat-result'])
+  })
+
+  it('keeps only the five highest-scoring entries', () => {
+    const workflows: SearchEntry[] = Array.from({ length: 8 }, (_, index) => ({
+      section: 'workflows',
+      score: index,
+      item: { id: `workflow-${index}`, name: `Workflow ${index}`, href: `/workflow-${index}` },
+    }))
+
+    expect(getGlobalTopMatches({ workflows }, ['workflows']).map((entry) => entry.item.id)).toEqual(
+      ['workflow-7', 'workflow-6', 'workflow-5', 'workflow-4', 'workflow-3']
+    )
+  })
+})
+
+describe('getSectionNameMatches', () => {
+  const sections = ['actions', 'workflows', 'workspaces', 'chats', 'pages'] as const
+
+  it('promotes exact and partial section-name matches', () => {
+    expect(getSectionNameMatches(sections, 'Workspaces')).toEqual(['workspaces'])
+    expect(getSectionNameMatches(sections, 'chat')).toEqual(['chats'])
+    expect(getSectionNameMatches(sections, 'work')).toEqual(['workflows', 'workspaces'])
+  })
+
+  it('does not change section priority for non-section or empty queries', () => {
+    expect(getSectionNameMatches(sections, 'settings')).toEqual([])
+    expect(getSectionNameMatches(sections, '')).toEqual([])
+  })
+})
+
+describe('scoreSectionItems', () => {
+  it("surfaces a section's items when the query matches the section name", () => {
+    const chats = [{ name: 'Quarterly planning' }, { name: 'Incident follow-up' }]
+
+    expect(scoreSectionItems('chats', chats, (chat) => chat.name, 'Chats')).toEqual([
+      { item: chats[0], score: expect.any(Number) },
+      { item: chats[1], score: expect.any(Number) },
+    ])
+  })
+
+  it('keeps direct matches first and preserves natural fallback order', () => {
+    const workspaces = [
+      { name: 'Workspaces demo', keywords: 'long metadata' },
+      { name: 'Acme', keywords: 'a much longer metadata value' },
+      { name: 'Beta', keywords: '' },
+    ]
+
+    expect(
+      scoreSectionItems(
+        'workspaces',
+        workspaces,
+        (workspace) => workspace.name,
+        'workspaces',
+        (workspace) => workspace.keywords
+      ).map(({ item }) => item.name)
+    ).toEqual(['Workspaces demo', 'Acme', 'Beta'])
+  })
+})
 
 /**
  * The matcher that shipped before fuzzy matching was introduced. Re-implemented

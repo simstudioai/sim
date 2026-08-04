@@ -8,6 +8,7 @@ export {
   MemoizedWorkspaceItem,
 } from './command-items'
 export {
+  ActionsGroup,
   BlocksGroup,
   ChatsGroup,
   ConnectedAccountsGroup,
@@ -16,6 +17,7 @@ export {
   IntegrationsGroup,
   KnowledgeBasesGroup,
   PagesGroup,
+  SearchEntryGroup,
   TablesGroup,
   ToolOpsGroup,
   ToolsGroup,

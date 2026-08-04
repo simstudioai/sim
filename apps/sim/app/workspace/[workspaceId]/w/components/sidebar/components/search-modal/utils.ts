@@ -1,4 +1,10 @@
 import type { ComponentType } from 'react'
+import type {
+  SearchBlockItem,
+  SearchDocItem,
+  SearchSection,
+  SearchToolOperationItem,
+} from '@/stores/modals/search/types'
 
 export interface IntegrationSearchItem {
   id: string
@@ -98,6 +104,114 @@ export interface CommandItemProps {
   workflowType?: string
   /** Primary text of the row. */
   label: string
+  /** Right-aligned source section shown in aggregate result groups. */
+  meta?: string
+  /** Whether this result is pinned. */
+  pinned?: boolean
+  /** Toggles this result's pinned state. */
+  onTogglePin?: () => void
+}
+
+export const SECTION_LABELS: Record<SearchSection, string> = {
+  actions: 'Actions',
+  connectedAccounts: 'Connected',
+  integrations: 'Integrations',
+  blocks: 'Blocks',
+  tools: 'Tools',
+  triggers: 'Triggers',
+  chats: 'Chats',
+  workflows: 'Workflows',
+  tables: 'Tables',
+  files: 'Files',
+  knowledgeBases: 'Knowledge bases',
+  toolOperations: 'Tool operations',
+  workspaces: 'Workspaces',
+  docs: 'Docs',
+  pages: 'Pages',
+}
+
+export const TOP_MATCH_COUNT = 5
+
+export type SearchEntry =
+  | { section: 'actions'; score: number; item: ActionItem }
+  | { section: 'connectedAccounts' | 'integrations'; score: number; item: IntegrationSearchItem }
+  | { section: 'blocks' | 'tools' | 'triggers'; score: number; item: SearchBlockItem }
+  | { section: 'chats'; score: number; item: TaskItem }
+  | { section: 'workflows'; score: number; item: WorkflowItem }
+  | { section: 'tables' | 'knowledgeBases'; score: number; item: TaskItem }
+  | { section: 'files'; score: number; item: FileItem }
+  | { section: 'toolOperations'; score: number; item: SearchToolOperationItem }
+  | { section: 'workspaces'; score: number; item: WorkspaceItem }
+  | { section: 'docs'; score: number; item: SearchDocItem }
+  | { section: 'pages'; score: number; item: PageItem }
+
+export interface SearchEntryHandlers {
+  onSelectAction: (item: ActionItem) => void
+  onSelectConnectedAccount: (item: IntegrationSearchItem) => void
+  onSelectIntegration: (item: IntegrationSearchItem) => void
+  onSelectBlock: (item: SearchBlockItem) => void
+  onSelectTool: (item: SearchBlockItem) => void
+  onSelectTrigger: (item: SearchBlockItem) => void
+  onSelectChat: (item: TaskItem) => void
+  onSelectWorkflow: (item: WorkflowItem) => void
+  onSelectTable: (item: TaskItem) => void
+  onSelectFile: (item: FileItem) => void
+  onSelectKnowledgeBase: (item: TaskItem) => void
+  onSelectToolOperation: (item: SearchToolOperationItem) => void
+  onSelectWorkspace: (item: WorkspaceItem) => void
+  onSelectDoc: (item: SearchDocItem) => void
+  onSelectPage: (item: PageItem) => void
+}
+
+/** Stable, section-qualified identity used by the persisted favorites store. */
+export function searchEntryKey(entry: SearchEntry): string {
+  return `${entry.section}:${entry.item.id}`
+}
+
+/** Merge-ranks visible sections into the five highest-scoring results. */
+export function getGlobalTopMatches(
+  entriesBySection: Partial<Record<SearchSection, readonly SearchEntry[]>>,
+  sections: readonly SearchSection[]
+): SearchEntry[] {
+  const sectionOrder = new Map(sections.map((section, index) => [section, index]))
+  const topMatches: Array<{ entry: SearchEntry; originalIndex: number }> = []
+  let originalIndex = 0
+
+  const compare = (
+    a: { entry: SearchEntry; originalIndex: number },
+    b: { entry: SearchEntry; originalIndex: number }
+  ) =>
+    b.entry.score - a.entry.score ||
+    (sectionOrder.get(a.entry.section) ?? sections.length) -
+      (sectionOrder.get(b.entry.section) ?? sections.length) ||
+    a.originalIndex - b.originalIndex
+
+  for (const section of sections) {
+    for (const entry of entriesBySection[section] ?? []) {
+      const candidate = { entry, originalIndex }
+      originalIndex += 1
+      const insertionIndex = topMatches.findIndex((current) => compare(candidate, current) < 0)
+      if (insertionIndex === -1) {
+        if (topMatches.length < TOP_MATCH_COUNT) topMatches.push(candidate)
+        continue
+      }
+      topMatches.splice(insertionIndex, 0, candidate)
+      if (topMatches.length > TOP_MATCH_COUNT) topMatches.pop()
+    }
+  }
+
+  return topMatches.map(({ entry }) => entry)
+}
+
+/** Returns visible sections whose heading matches the query, strongest first. */
+export function getSectionNameMatches(
+  sections: readonly SearchSection[],
+  search: string
+): SearchSection[] {
+  if (!search.trim()) return []
+  return scoreAndSort([...sections], (section) => SECTION_LABELS[section], search).map(
+    ({ item }) => item
+  )
 }
 
 export const GROUP_HEADING_CLASSNAME =
@@ -256,12 +370,73 @@ const NAME_MATCH_TIER = 1_000_000
  */
 function scoreItem(name: string, extra: string | undefined, search: string): FuzzyResult {
   const byName = fuzzyMatch(name, search)
-  if (!extra) return byName
   if (byName.matched) {
     return { matched: true, score: byName.score + NAME_MATCH_TIER, positions: byName.positions }
   }
+  if (!extra) return NO_MATCH
   const byExtra = fuzzyMatch(extra, search)
   return byExtra.matched ? byExtra : NO_MATCH
+}
+
+/** Scores and sorts matches while retaining scores for cross-section ranking. */
+export function scoreAndSort<T>(
+  items: T[],
+  toValue: (item: T) => string,
+  search: string,
+  toExtra?: (item: T) => string | undefined
+): Array<{ item: T; score: number }> {
+  const query = search.trim()
+  const scored: Array<{ item: T; score: number }> = []
+  for (const item of items) {
+    const { matched, score } = scoreItem(toValue(item), toExtra?.(item), query)
+    if (matched) scored.push({ item, score })
+  }
+  scored.sort((a, b) => b.score - a.score)
+  return scored
+}
+
+/**
+ * Scores normal item matches first, then fills a matched section with its
+ * remaining rows in natural order.
+ */
+export function scoreSectionItems<T>(
+  section: SearchSection,
+  items: T[],
+  toValue: (item: T) => string,
+  search: string,
+  toExtra?: (item: T) => string | undefined
+): Array<{ item: T; score: number }> {
+  const rankedItems = scoreAndSort(items, toValue, search, toExtra)
+  const sectionMatch = fuzzyMatch(SECTION_LABELS[section], search.trim())
+  if (!sectionMatch.matched) return rankedItems
+
+  const matchedItems = new Set(rankedItems.map(({ item }) => item))
+  const lowestItemScore = rankedItems.at(-1)?.score
+  const fallbackScore =
+    lowestItemScore === undefined
+      ? sectionMatch.score
+      : Math.min(sectionMatch.score, lowestItemScore - 1)
+
+  return [
+    ...rankedItems,
+    ...items
+      .filter((item) => !matchedItems.has(item))
+      .map((item) => ({ item, score: fallbackScore })),
+  ]
+}
+
+/** Scores actions by visible name before falling back to their keywords. */
+export function scoreActions(
+  actions: ActionItem[],
+  search: string
+): Array<{ item: ActionItem; score: number }> {
+  return scoreSectionItems(
+    'actions',
+    actions,
+    (action) => action.name,
+    search,
+    (action) => `${action.name} ${action.keywords ?? ''}`
+  )
 }
 
 /**
@@ -275,15 +450,8 @@ export function filterAndSort<T>(
   search: string,
   toExtra?: (item: T) => string | undefined
 ): T[] {
-  const query = search.trim()
-  if (!query) return items
-  const scored: Array<{ item: T; score: number }> = []
-  for (const item of items) {
-    const { matched, score } = scoreItem(toValue(item), toExtra?.(item), query)
-    if (matched) scored.push({ item, score })
-  }
-  scored.sort((a, b) => b.score - a.score)
-  return scored.map((entry) => entry.item)
+  if (!search.trim()) return items
+  return scoreAndSort(items, toValue, search, toExtra).map((entry) => entry.item)
 }
 
 /**

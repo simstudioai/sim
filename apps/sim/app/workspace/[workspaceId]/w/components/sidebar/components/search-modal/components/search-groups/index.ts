@@ -8,6 +8,7 @@ export {
   IntegrationsGroup,
   KnowledgeBasesGroup,
   PagesGroup,
+  SearchEntryGroup,
   TablesGroup,
   ToolOpsGroup,
   ToolsGroup,
