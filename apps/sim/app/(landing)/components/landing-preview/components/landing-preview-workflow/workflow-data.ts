@@ -401,10 +401,6 @@ export const RESOURCE_CHATS: Record<string, PreviewChat> = {
     user: 'What’s in our knowledge base?',
     assistant: 'Here are your knowledge bases. Your agents read from these to ground every answer.',
   },
-  'scheduled-tasks': {
-    user: 'What’s scheduled to run?',
-    assistant: 'These are your scheduled tasks. I can pause, edit, or add a new one for you.',
-  },
 }
 
 /** The chat shown for a staged resource: the workflow's own exchange, else the view's. */

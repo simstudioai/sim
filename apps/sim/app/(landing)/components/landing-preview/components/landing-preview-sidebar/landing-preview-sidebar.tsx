@@ -1,25 +1,9 @@
 'use client'
 import { ChevronDown, cn, Home, Library } from '@sim/emcn'
-import {
-  Calendar,
-  Database,
-  File,
-  HelpCircle,
-  Search,
-  Settings,
-  Table,
-  Workflow,
-} from '@sim/emcn/icons'
+import { Database, File, HelpCircle, Search, Settings, Table, Workflow } from '@sim/emcn/icons'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
-export type SidebarView =
-  | 'home'
-  | 'workflow'
-  | 'tables'
-  | 'files'
-  | 'knowledge'
-  | 'logs'
-  | 'scheduled-tasks'
+export type SidebarView = 'home' | 'workflow' | 'tables' | 'files' | 'knowledge' | 'logs'
 
 interface LandingPreviewSidebarProps {
   workflows: PreviewWorkflow[]
@@ -34,7 +18,6 @@ const WORKSPACE_NAV = [
   { id: 'tables', label: 'Tables', icon: Table },
   { id: 'files', label: 'Files', icon: File },
   { id: 'knowledge', label: 'Knowledge Base', icon: Database },
-  { id: 'scheduled-tasks', label: 'Scheduled Tasks', icon: Calendar },
   { id: 'logs', label: 'Logs', icon: Library },
 ] as const
 

@@ -43,7 +43,7 @@ interface EditorLoopProps {
 
 /**
  * The chat-free sibling of the enterprise platform loop, shared by the
- * workflows and scheduled-tasks heroes. Same architecture (the
+ * workflows hero. Same architecture (the
  * {@link HeroLoopShell}'s fixed 1280x735 design-space layer scaled to the
  * window, a parent-owned clock driving a presentational stage, reduced-motion
  * showing the finished frame) and the same live sidebar, but the workspace
