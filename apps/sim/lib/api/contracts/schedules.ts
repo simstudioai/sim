@@ -157,7 +157,7 @@ export type UpdateScheduleBody = z.input<typeof updateScheduleBodySchema>
 /**
  * Deletes a single occurrence of a recurring task (gcal "this event"): the
  * occurrence's instant is added to the schedule's exclusion list and the next
- * run advances past it. Deleting the whole series uses {@link deleteScheduleContract}.
+ * run advances past it. Deleting the whole series uses `DELETE /api/schedules/[id]`.
  */
 export const excludeOccurrenceBodySchema = z.object({
   action: z.literal('exclude_occurrence'),
@@ -271,43 +271,11 @@ export const reactivateScheduleContract = defineRouteContract({
   },
 })
 
-export const disableScheduleContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/schedules/[id]',
-  params: scheduleIdParamsSchema,
-  body: disableScheduleBodySchema,
-  response: {
-    mode: 'json',
-    schema: messageResponseSchema,
-  },
-})
-
 export const updateScheduleContract = defineRouteContract({
   method: 'PUT',
   path: '/api/schedules/[id]',
   params: scheduleIdParamsSchema,
   body: scheduleUpdateSchema,
-  response: {
-    mode: 'json',
-    schema: messageResponseSchema,
-  },
-})
-
-export const excludeOccurrenceContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/schedules/[id]',
-  params: scheduleIdParamsSchema,
-  body: excludeOccurrenceBodySchema,
-  response: {
-    mode: 'json',
-    schema: messageResponseSchema,
-  },
-})
-
-export const deleteScheduleContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/schedules/[id]',
-  params: scheduleIdParamsSchema,
   response: {
     mode: 'json',
     schema: messageResponseSchema,

@@ -32,7 +32,7 @@ export function BubbleChatDelay({ size = 24, width, height, ...props }: IconProp
         stroke='currentColor'
         strokeLinecap='round'
         strokeLinejoin='round'
-        strokeWidth='1.5'
+        strokeWidth='1.55'
       />
     </svg>
   )
