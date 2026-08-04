@@ -1356,6 +1356,7 @@ export type DeployWorkflowResponse = {
       version: number
       action: 'deploy' | 'activate'
       status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+      isCurrent: boolean
       readiness: {
         webhooks: 'pending' | 'ready' | 'not_applicable'
         schedules: 'pending' | 'ready' | 'not_applicable'
@@ -2633,6 +2634,8 @@ export type ListTablesQuery = {
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
 }
 
 export type ListTablesResponse = {
@@ -2785,6 +2788,7 @@ export type ListUsageLogsQuery = {
     | 'knowledge-base'
     | 'voice-input'
     | 'enrichment'
+    | 'voice-output'
   workspaceId?: string
   period?: '1d' | '7d' | '30d' | 'all' | 'custom'
   startDate?: string
@@ -2807,6 +2811,7 @@ export type ListUsageLogsResponse = {
       | 'knowledge-base'
       | 'voice-input'
       | 'enrichment'
+      | 'voice-output'
     workflowName: string | null
     creditCost: number
   }>
@@ -3060,6 +3065,7 @@ export type RollbackWorkflowResponse = {
       version: number
       action: 'deploy' | 'activate'
       status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+      isCurrent: boolean
       readiness: {
         webhooks: 'pending' | 'ready' | 'not_applicable'
         schedules: 'pending' | 'ready' | 'not_applicable'
@@ -3191,6 +3197,7 @@ export type UndeployWorkflowResponse = {
       version: number
       action: 'deploy' | 'activate'
       status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+      isCurrent: boolean
       readiness: {
         webhooks: 'pending' | 'ready' | 'not_applicable'
         schedules: 'pending' | 'ready' | 'not_applicable'
@@ -4910,6 +4917,8 @@ export const V2_OPERATIONS = {
         default: 'createdAt',
       },
       sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+      limit: { kind: 'number', default: 100 },
+      cursor: { kind: 'string' },
     },
   },
   listTableViews: {
@@ -4941,6 +4950,7 @@ export const V2_OPERATIONS = {
           'knowledge-base',
           'voice-input',
           'enrichment',
+          'voice-output',
         ] as const,
       },
       workspaceId: { kind: 'string' },
