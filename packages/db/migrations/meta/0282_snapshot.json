@@ -13618,6 +13618,22 @@
           "method": "btree",
           "with": {}
         },
+        "webhook_tiktok_credential_id_idx": {
+          "name": "webhook_tiktok_credential_id_idx",
+          "columns": [
+            {
+              "expression": "((\"provider_config\")::jsonb ->> 'credentialId')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"webhook\".\"provider\" = 'tiktok' AND \"webhook\".\"is_active\" = true AND \"webhook\".\"archived_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "idx_webhook_on_workflow_id_block_id_updated_at_desc": {
           "name": "idx_webhook_on_workflow_id_block_id_updated_at_desc",
           "columns": [

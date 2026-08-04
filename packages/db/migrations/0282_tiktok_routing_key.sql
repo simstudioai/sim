@@ -60,9 +60,3 @@ END $$;
 DROP TABLE IF EXISTS "_tiktok_webhook_routing_backfill";
 --> statement-breakpoint
 COMMIT;
---> statement-breakpoint
-SET lock_timeout = 0;
---> statement-breakpoint
-DROP INDEX CONCURRENTLY IF EXISTS "webhook_tiktok_credential_id_idx";
---> statement-breakpoint
-SET lock_timeout = '5s';

@@ -7,17 +7,25 @@ import { requestUtilsMockFns, resetEnvMock, setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDispatchResolvedWebhookTarget, mockFindWebhooksByRoutingKey, mockRelease } = vi.hoisted(
-  () => ({
-    mockDispatchResolvedWebhookTarget: vi.fn(),
-    mockFindWebhooksByRoutingKey: vi.fn(),
-    mockRelease: vi.fn(),
-  })
-)
+const {
+  mockDispatchResolvedWebhookTarget,
+  mockFindLegacyTikTokWebhooks,
+  mockFindWebhooksByRoutingKey,
+  mockRelease,
+} = vi.hoisted(() => ({
+  mockDispatchResolvedWebhookTarget: vi.fn(),
+  mockFindLegacyTikTokWebhooks: vi.fn(),
+  mockFindWebhooksByRoutingKey: vi.fn(),
+  mockRelease: vi.fn(),
+}))
 
 vi.mock('@/lib/webhooks/processor', () => ({
   dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
   findWebhooksByRoutingKey: mockFindWebhooksByRoutingKey,
+}))
+
+vi.mock('@/lib/webhooks/tiktok-legacy-routing', () => ({
+  findLegacyTikTokWebhooks: mockFindLegacyTikTokWebhooks,
 }))
 
 vi.mock('@/lib/core/admission/gate', () => ({
@@ -68,6 +76,7 @@ describe('TikTok app webhook route', () => {
     setEnv({ TIKTOK_CLIENT_ID: 'client-key', TIKTOK_CLIENT_SECRET: 'client-secret' })
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
     mockFindWebhooksByRoutingKey.mockResolvedValue([])
+    mockFindLegacyTikTokWebhooks.mockResolvedValue([])
     mockDispatchResolvedWebhookTarget.mockResolvedValue({ outcome: 'queued', reason: 'queued' })
   })
 
@@ -102,6 +111,22 @@ describe('TikTok app webhook route', () => {
 
     expect(response.status).toBe(200)
     expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
+  })
+
+  it('also dispatches legacy null-routing-key registrations during rolling deployment', async () => {
+    mockFindLegacyTikTokWebhooks.mockResolvedValue([target('legacy-webhook')])
+
+    const response = await POST(signedRequest({ userOpenId: 'legacy-user' }))
+
+    expect(response.status).toBe(200)
+    expect(mockFindLegacyTikTokWebhooks).toHaveBeenCalledWith('legacy-user')
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'legacy-webhook' }),
+      expect.objectContaining({ id: 'workflow-legacy-webhook' }),
+      expect.any(Object),
+      expect.any(NextRequest),
+      expect.any(Object)
+    )
   })
 
   it('dispatches matching workflows sequentially', async () => {
