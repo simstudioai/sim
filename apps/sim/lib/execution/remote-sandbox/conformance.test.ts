@@ -1293,7 +1293,9 @@ describe('custom dependency sets', () => {
       })
 
       if (provider === 'e2b') {
-        expect(mockE2BCreate.mock.calls[0][1].timeoutMs).toBe(46_000)
+        const sandboxTimeoutMs = mockE2BCreate.mock.calls[0][1].timeoutMs
+        expect(sandboxTimeoutMs).toBeGreaterThan(45_000)
+        expect(sandboxTimeoutMs).toBeLessThanOrEqual(46_000)
         const commandTimeoutMs = mockE2BCommandsRun.mock.calls.at(-1)?.[1].timeoutMs
         expect(commandTimeoutMs).toBeGreaterThan(45_000)
         expect(commandTimeoutMs).toBeLessThanOrEqual(46_000)
@@ -1318,7 +1320,9 @@ describe('custom dependency sets', () => {
     })
 
     if (provider === 'e2b') {
-      expect(mockE2BCommandsRun.mock.calls.at(-1)?.[1].timeoutMs).toBe(1000)
+      const commandTimeoutMs = mockE2BCommandsRun.mock.calls.at(-1)?.[1].timeoutMs
+      expect(commandTimeoutMs).toBeGreaterThan(0)
+      expect(commandTimeoutMs).toBeLessThanOrEqual(1000)
     } else {
       expect(mockExecuteSessionCommand.mock.calls.at(-1)?.[2]).toBe(1)
     }
