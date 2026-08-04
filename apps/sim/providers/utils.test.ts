@@ -2,6 +2,7 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   calculateCost,
+  describeModelLevel,
   extractAndParseJSON,
   filterBlacklistedModels,
   formatCost,
@@ -1765,5 +1766,34 @@ describe('prepareToolExecution invoker identity hand-off', () => {
     )
 
     expect(executionParams._context.executionId).toBeUndefined()
+  })
+})
+
+/**
+ * The agent block's tuning-level fields accept variable and environment references, so any
+ * message that echoes a caller-supplied level can otherwise carry whatever that reference
+ * resolved to — including secret content.
+ */
+describe('describeModelLevel', () => {
+  it('echoes a level the catalogue declares', () => {
+    expect(describeModelLevel('high')).toBe('high')
+    expect(describeModelLevel('minimal')).toBe('minimal')
+    expect(describeModelLevel('xhigh')).toBe('xhigh')
+  })
+
+  it('echoes the auto and none sentinels', () => {
+    expect(describeModelLevel('auto')).toBe('auto')
+    expect(describeModelLevel('none')).toBe('none')
+  })
+
+  it('redacts anything else to a length', () => {
+    const secret = 'sk-proj-abcdef0123456789'
+    expect(describeModelLevel(secret)).toBe(`[redacted ${secret.length} chars]`)
+    expect(describeModelLevel(secret)).not.toContain('abcdef')
+  })
+
+  it('reports an absent level without throwing', () => {
+    expect(describeModelLevel(undefined)).toBe('(unset)')
+    expect(describeModelLevel('')).toBe('(unset)')
   })
 })

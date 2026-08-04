@@ -44,6 +44,7 @@ import {
   getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
   getThinkingLevelsForModel as getThinkingLevelsForModelFromDefinitions,
   getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
+  isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
   supportsTemperature as supportsTemperatureFromDefinitions,
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
@@ -1379,6 +1380,30 @@ export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageContro
 
 export function supportsTemperature(model: string): boolean {
   return supportsTemperatureFromDefinitions(model)
+}
+
+/**
+ * Levels the pickers offer on top of what a model declares. `auto` means "say nothing" and
+ * `none` means "explicitly off"; provider adapters special-case both, so neither is an
+ * unrecognized level.
+ */
+const MODEL_LEVEL_SENTINELS = new Set(['auto', 'none'])
+
+/**
+ * Renders a tuning level for a log line or an error message.
+ *
+ * The agent block's reasoning effort, verbosity, and thinking level fields accept variable and
+ * environment references, so an unrecognized level is not necessarily a mistyped level — it is
+ * whatever the reference resolved to, up to and including secret content. Only a level the
+ * catalogue declares somewhere is safe to echo; anything else is reported by length alone,
+ * which still distinguishes a stray level from a resolved blob.
+ *
+ * Every site that puts a caller-supplied level into a message must go through this.
+ */
+export function describeModelLevel(value: string | undefined): string {
+  if (!value) return '(unset)'
+  const isSafe = MODEL_LEVEL_SENTINELS.has(value) || isKnownModelLevelValue(value)
+  return isSafe ? value : `[redacted ${value.length} chars]`
 }
 
 export function supportsReasoningEffort(model: string): boolean {

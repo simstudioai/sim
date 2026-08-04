@@ -20,7 +20,6 @@ import {
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
   isKnownModelId,
-  isKnownModelLevelValue,
 } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
 import {
@@ -29,6 +28,7 @@ import {
 } from '@/providers/runtime-context'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
+  describeModelLevel,
   generateStructuredOutputInstructions,
   sumToolCosts,
   supportsPromptCaching,
@@ -59,27 +59,9 @@ function normalizeModelLevel(value: string | undefined): string | undefined {
   return normalized || undefined
 }
 
-/**
- * Levels the pickers offer on top of what a model declares. `auto` means "say nothing" and
- * `none` means "explicitly off"; every provider adapter special-cases them, so neither is
- * an unrecognized level.
- */
 const MODEL_LEVEL_SENTINELS = new Set(['auto', 'none'])
 
 type ModelLevelField = 'reasoningEffort' | 'verbosity' | 'thinkingLevel'
-
-/**
- * Renders a level for a log line.
- *
- * These fields accept variable and environment references, so an unrecognized value is not
- * necessarily a mistyped level — it is whatever the reference resolved to, which may be secret
- * content. Only a level the catalogue declares somewhere is safe to echo; anything else is
- * reported by length alone, which is enough to tell a stray level from a resolved blob.
- */
-function describeLevel(value: string): string {
-  const isSafe = MODEL_LEVEL_SENTINELS.has(value) || isKnownModelLevelValue(value)
-  return isSafe ? value : `[redacted ${value.length} chars]`
-}
 
 /**
  * Clears a level whose resolved model does not accept the field at all.
@@ -99,7 +81,7 @@ function dropUnsupportedLevel(
     logger.warn('Model does not support this level; dropping it from the request', {
       field,
       model,
-      value: describeLevel(value),
+      value: describeModelLevel(value),
     })
   }
   return undefined
@@ -126,7 +108,7 @@ function warnOnUnrecognizedLevel(
   logger.warn('Model level is not one this model declares; forwarding to the provider', {
     field,
     model,
-    value: describeLevel(value),
+    value: describeModelLevel(value),
     declaredValues,
   })
 }
