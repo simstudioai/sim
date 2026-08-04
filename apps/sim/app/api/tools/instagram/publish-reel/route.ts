@@ -56,7 +56,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     let coverUrl: string | undefined
-    if (body.cover != null && body.cover !== '') {
+    if (body.cover != null) {
       const resolvedCover = await resolveInstagramMedia({
         input: body.cover,
         userId: authResult.userId,
