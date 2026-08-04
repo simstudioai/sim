@@ -206,10 +206,23 @@ describe('AddUserModal', () => {
         password: 'canary-password',
         emailVerified: true,
       },
-      { onSuccess: expect.any(Function) }
+      { onSuccess: expect.any(Function), onSettled: expect.any(Function) }
     )
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(onCreated).toHaveBeenCalledWith(CREATED_USER)
+  })
+
+  it('ignores repeated submissions before the pending state renders', async () => {
+    await renderModal()
+    await fillRequiredFields()
+
+    await act(async () => {
+      const addUserButton = buttonLabelled('Add user')
+      addUserButton.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      addUserButton.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(mockMutate).toHaveBeenCalledTimes(1)
   })
 
   it('supports unverified accounts without exposing a platform-role control', async () => {
@@ -231,6 +244,7 @@ describe('AddUserModal', () => {
     expect(container.querySelector('[aria-label="Platform role"]')).toBeNull()
     expect(mockMutate).toHaveBeenCalledWith(expect.objectContaining({ emailVerified: false }), {
       onSuccess: expect.any(Function),
+      onSettled: expect.any(Function),
     })
   })
 

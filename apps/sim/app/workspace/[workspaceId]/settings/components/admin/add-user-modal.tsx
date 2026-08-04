@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -26,6 +26,7 @@ interface AddUserModalProps {
 
 export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProps) {
   const addUser = useAddUser()
+  const submissionInFlightRef = useRef(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -55,13 +56,14 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
   }
 
   const handleClose = () => {
-    if (addUser.isPending) return
+    if (submissionInFlightRef.current || addUser.isPending) return
     reset()
     onOpenChange(false)
   }
 
   const handleAddUser = () => {
-    if (!canSubmit) return
+    if (!canSubmit || submissionInFlightRef.current) return
+    submissionInFlightRef.current = true
     addUser.reset()
     addUser.mutate(
       {
@@ -75,6 +77,9 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
           reset()
           onOpenChange(false)
           onCreated(user)
+        },
+        onSettled: () => {
+          submissionInFlightRef.current = false
         },
       }
     )
