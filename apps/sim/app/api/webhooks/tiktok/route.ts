@@ -98,6 +98,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const legacyWebhooks = await findLegacyTikTokWebhooks(envelope.user_openid)
     const webhooks = [...routedWebhooks, ...legacyWebhooks]
     let dispatched = 0
+    let failed = 0
     for (const { webhook, workflow } of webhooks) {
       const result = await dispatchResolvedWebhookTarget(webhook, workflow, envelope, request, {
         requestId,
@@ -105,14 +106,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         triggerTimestampMs: envelope.create_time * 1000,
       })
       if (result.outcome === 'queued') dispatched += 1
+      if (result.outcome === 'failed') failed += 1
     }
 
     logger.info(`[${requestId}] Processed TikTok webhook delivery`, {
       dispatched,
+      failed,
       event: envelope.event,
       targetCount: webhooks.length,
       userOpenIdPrefix: envelope.user_openid.slice(0, 12),
     })
+
+    if (failed > 0) {
+      return NextResponse.json({ error: 'Temporarily unable to accept webhook' }, { status: 503 })
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error) {

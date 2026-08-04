@@ -145,7 +145,7 @@ describe('TikTok app webhook route', () => {
     expect(order).toEqual(['start:webhook-1', 'end:webhook-1', 'start:webhook-2', 'end:webhook-2'])
   })
 
-  it('acknowledges provider-local dispatch failures like the Slack app route', async () => {
+  it('returns a retryable response when a target cannot be dispatched', async () => {
     mockFindWebhooksByRoutingKey.mockResolvedValue([target('webhook-1')])
     mockDispatchResolvedWebhookTarget.mockResolvedValue({
       outcome: 'failed',
@@ -154,7 +154,7 @@ describe('TikTok app webhook route', () => {
 
     const response = await POST(signedRequest())
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(503)
   })
 
   it('returns 503 when target lookup fails', async () => {
