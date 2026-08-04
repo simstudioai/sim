@@ -84,31 +84,35 @@ describe('tables import argument guards', () => {
     await importCommand().parseAsync(['node', 'sim', 'tables', 'import', ...argv])
   }
 
-  it('refuses to guess the target', async () => {
-    // Defaulting to a new table would turn a forgotten `--to-table` into a
-    // silent second copy of the data.
-    await expect(run(['f.csv'])).rejects.toThrow(/exactly one of --new-table/)
-    await expect(run(['f.csv', '--new-table', 'a', '--to-table', 't'])).rejects.toThrow(
-      /exactly one of --new-table/
-    )
-  })
-
   it('refuses to guess the source', async () => {
-    await expect(run(['--new-table', 'a'])).rejects.toThrow(/exactly one of <path>/)
-    await expect(run(['f.csv', '--new-table', 'a', '--file-id', 'w_1'])).rejects.toThrow(
-      /exactly one of <path>/
+    // A new table is a safe default; where the bytes are is not inferable.
+    await expect(run([])).rejects.toThrow(/exactly one of <path>/)
+    await expect(run(['f.csv', '--file-id', 'w_1'])).rejects.toThrow(/exactly one of <path>/)
+  })
+
+  it('rejects existing-table flags when creating one', async () => {
+    // Ignoring these would let `--mode replace` read as honoured while a new
+    // table is created beside the one it was meant to overwrite.
+    await expect(run(['f.csv', '--mode', 'replace'])).rejects.toThrow(/applies to --table-id/)
+    await expect(run(['f.csv', '--mapping', '{}'])).rejects.toThrow(/applies to --table-id/)
+    await expect(run(['f.csv', '--create-columns', '{}'])).rejects.toThrow(/applies to --table-id/)
+  })
+
+  it('rejects new-table flags when importing into an existing one', async () => {
+    await expect(run(['f.csv', '--table-id', 't', '--name', 'x'])).rejects.toThrow(
+      /--table-id already names the destination/
+    )
+    await expect(run(['f.csv', '--table-id', 't', '--folder-id', 'f'])).rejects.toThrow(
+      /--table-id already names the destination/
     )
   })
 
-  it('names the flag when mapping is paired with a new table', async () => {
-    // The server rejects this too, but as a message about the request body.
-    await expect(run(['f.csv', '--new-table', 'a', '--mapping', '{}'])).rejects.toThrow(
-      /--to-table only/
-    )
+  it('asks for a name when there is no file name to take one from', async () => {
+    await expect(run(['--file-id', 'w_1'])).rejects.toThrow(/--name <name>/)
   })
 
   it('checks all of that before touching the filesystem', async () => {
     // `f.csv` does not exist; a "cannot read" error would mean a guard ran late.
-    await expect(run(['f.csv'])).rejects.toThrow(/exactly one of/)
+    await expect(run(['f.csv', '--mode', 'append'])).rejects.toThrow(/applies to --table-id/)
   })
 })

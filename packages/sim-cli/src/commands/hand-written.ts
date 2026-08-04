@@ -294,9 +294,9 @@ interface TableImport {
 }
 
 interface ImportOptions {
-  newTable?: string
-  toTable?: string
-  mode: string
+  name?: string
+  tableId?: string
+  mode?: string
   folderId?: string
   fileId?: string
   mapping?: string
@@ -304,6 +304,22 @@ interface ImportOptions {
   timezone?: string
   /** commander sets this false for `--no-wait`. */
   wait: boolean
+}
+
+/**
+ * Turns a file name into a legal table name.
+ *
+ * Table names are identifiers — `^[A-Za-z_][A-Za-z0-9_]*$`, 128 max — so the
+ * obvious `basename(path)` would reject most real files: `2026-sales.csv` and
+ * `customer data.csv` both fail. Runs of anything else collapse to a single
+ * underscore, and a leading digit gets one in front, so a default derived from
+ * the file is a name the server actually accepts.
+ */
+function tableNameFrom(fileName: string): string {
+  const stem = fileName.replace(/\.[^.]+$/, '')
+  const cleaned = stem.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  if (!cleaned) return 'imported_table'
+  return (/^[0-9]/.test(cleaned) ? `_${cleaned}` : cleaned).slice(0, 128)
 }
 
 /** How often to ask an in-progress import where it got to. */
@@ -414,37 +430,49 @@ export function attachHandWritten(program: Command): void {
     )
 
   // ── tables import ── a transfer, then an async job to watch ──────────────
-  const tablesGroup = group(program, 'tables')
-  tablesGroup
+  group(program, 'tables')
     .command('import [path]')
-    .description('Import a CSV into a new or existing table')
-    .option('--new-table <name>', 'Create a table with this name')
-    .option('--to-table <tableId>', 'Import into an existing table')
-    .option('--mode <append|replace>', 'How to write into an existing table', 'append')
-    .option('--folder-id <id>', 'Folder for a new table')
+    .description('Import a CSV, into a new table by default')
+    .option('--name <name>', 'Name for the new table (defaults to the file name)')
+    .option('--table-id <id>', 'Import into this existing table instead of creating one')
+    .option('--mode <append|replace>', 'How to write into --table-id (default: append)')
+    .option('--folder-id <id>', 'Folder for the new table')
     .option('--file-id <id>', 'Import a file already in the workspace instead of a local path')
-    .option('--mapping <json|@file>', 'Column mapping (existing table only)')
-    .option('--create-columns <json|@file>', 'Columns to create (existing table only)')
+    .option('--mapping <json|@file>', 'Column mapping (--table-id only)')
+    .option('--create-columns <json|@file>', 'Columns to create (--table-id only)')
     .option('--timezone <iana>', 'Timezone for date parsing, e.g. America/New_York')
     .option('--no-wait', 'Return once the import is queued instead of watching it')
     .action(async (path: string | undefined, options: ImportOptions, command: Command) => {
       const { client } = clientFrom(command)
       const workspaceId = client.requireWorkspace()
 
-      // Both target choices are stated, never inferred. Defaulting to a new
-      // table would turn a forgotten `--to-table` into a second copy of the
-      // data, which is not something to discover afterwards.
-      if (Boolean(options.newTable) === Boolean(options.toTable)) {
-        throw new SimApiError('Pass exactly one of --new-table <name> or --to-table <id>', 0)
-      }
+      // The one thing that cannot be inferred: the bytes are either local or
+      // already in the workspace, and neither implies the other.
       if (Boolean(path) === Boolean(options.fileId)) {
         throw new SimApiError('Pass exactly one of <path> or --file-id <id>', 0)
       }
-      // The server rejects these against a new table; saying so here names the
-      // flag rather than returning a validation error about the request body.
-      if (options.newTable && (options.mapping || options.createColumns)) {
+
+      const intoExisting = Boolean(options.tableId)
+
+      // Flags that only mean something for one target. Silently ignoring them
+      // would let `--mode replace` read as honoured while a new table is
+      // created beside the one it was meant to overwrite.
+      const misplaced = intoExisting
+        ? ([
+            ['--name', options.name],
+            ['--folder-id', options.folderId],
+          ] as const)
+        : ([
+            ['--mode', options.mode],
+            ['--mapping', options.mapping],
+            ['--create-columns', options.createColumns],
+          ] as const)
+      for (const [flag, value] of misplaced) {
+        if (value === undefined) continue
         throw new SimApiError(
-          '--mapping and --create-columns apply to --to-table only: a new table takes its columns from the CSV',
+          intoExisting
+            ? `${flag} applies to a new table; --table-id already names the destination`
+            : `${flag} applies to --table-id: a new table takes its name and columns from the CSV`,
           0
         )
       }
@@ -459,13 +487,18 @@ export function attachHandWritten(program: Command): void {
           }
         : { type: 'workspace_file', fileId: options.fileId }
 
-      const target = options.toTable
-        ? { type: 'existing', tableId: options.toTable, mode: options.mode }
-        : {
-            type: 'new',
-            name: options.newTable,
-            ...(options.folderId ? { folderId: options.folderId } : {}),
-          }
+      let target: Record<string, unknown>
+      if (intoExisting) {
+        target = { type: 'existing', tableId: options.tableId, mode: options.mode ?? 'append' }
+      } else {
+        // A local file names the table; a workspace file id does not, and
+        // guessing one from an id would produce nonsense.
+        const name = options.name ?? (local ? tableNameFrom(local.name) : undefined)
+        if (!name) {
+          throw new SimApiError('Pass --name <name> to say what the new table is called', 0)
+        }
+        target = { type: 'new', name, ...(options.folderId ? { folderId: options.folderId } : {}) }
+      }
 
       const started = await client.request<{ data: TableImport }>('/api/v2/tables/imports', {
         method: 'POST',
