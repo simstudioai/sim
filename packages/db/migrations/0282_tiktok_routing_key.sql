@@ -1,7 +1,10 @@
 -- Resolve the server-attested TikTok open_id once at deploy time, like Slack's
 -- team_id routing. Rows whose credential/account identity cannot be proven are
 -- deliberately left unchanged so the migration never guesses a tenant key.
-CREATE TEMP TABLE "_tiktok_webhook_routing_backfill" ON COMMIT DROP AS
+-- migration-safe: session-local scratch table created only by this migration; no application code reads it.
+DROP TABLE IF EXISTS "_tiktok_webhook_routing_backfill";
+--> statement-breakpoint
+CREATE TEMP TABLE "_tiktok_webhook_routing_backfill" ON COMMIT PRESERVE ROWS AS
 SELECT
 	"webhook"."id" AS "webhook_id",
 	"webhook"."workflow_id",
@@ -52,6 +55,9 @@ BEGIN
 	SELECT count(*) INTO migrated_count FROM "_tiktok_webhook_routing_backfill";
 	RAISE NOTICE 'Migrated % TikTok webhook rows to routing_key', migrated_count;
 END $$;
+--> statement-breakpoint
+-- migration-safe: remove the session-local scratch table after the backfill completes.
+DROP TABLE IF EXISTS "_tiktok_webhook_routing_backfill";
 --> statement-breakpoint
 COMMIT;
 --> statement-breakpoint
