@@ -4,6 +4,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  findOwnedTableImport,
   getOwnedTableImportUpload,
   startUploadedTableImport,
   toV2TableImport,
@@ -29,6 +30,12 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Impor
       userId: auth.userId,
       uploadToken: parsed.data.headers['upload-token'],
     })
+    const existing = await findOwnedTableImport({
+      importId: upload.id,
+      workspaceId: upload.workspaceId,
+      userId: upload.userId,
+    })
+    if (existing) return NextResponse.json({ data: toV2TableImport(existing) })
     const completed = await completeUploadSession({
       session: upload,
       parts: parsed.data.body.parts,

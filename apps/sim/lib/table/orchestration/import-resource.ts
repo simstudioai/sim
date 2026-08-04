@@ -161,7 +161,7 @@ export async function getOwnedTableImport(params: {
   return record
 }
 
-async function findOwnedTableImport(params: {
+export async function findOwnedTableImport(params: {
   importId: string
   workspaceId: string
   userId: string

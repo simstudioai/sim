@@ -5,6 +5,7 @@ import { v2CompleteTableImportContract } from '@/lib/api/contracts/v2/tables'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  findOwnedTableImport,
   getOwnedTableImportUpload,
   startUploadedTableImport,
   toV2TableImport,
@@ -49,6 +50,12 @@ export const POST = withRouteHandler(
         userId,
         uploadToken: parsed.data.headers['upload-token'],
       })
+      const existing = await findOwnedTableImport({
+        importId: upload.id,
+        workspaceId: upload.workspaceId,
+        userId: upload.userId,
+      })
+      if (existing) return v2Data(toV2TableImport(existing), { rateLimit })
       const completed = await completeUploadSession({
         session: upload,
         parts: parsed.data.body.parts,
