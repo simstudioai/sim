@@ -21,10 +21,9 @@ import {
   Label,
   useCopyToClipboard,
 } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, Check, Clipboard, Plus, Server } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Check, Clipboard, Plus, Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { McpIcon } from '@/components/icons'
@@ -597,7 +596,7 @@ function ServerDetailView({
                       {activeConfigTab === 'cursor' && (
                         <a
                           href={getCursorInstallUrl(server.isPublic, server.name)}
-                          className='absolute top-1.5 right-2 inline-flex rounded-md bg-[var(--surface-5)] ring-1 ring-[var(--border-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
+                          className='absolute top-1.5 right-2 inline-flex rounded-md bg-[var(--surface-5)] ring-[length:var(--border-width)] ring-[var(--border-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
                         >
                           <img
                             src='https://cursor.com/deeplink/mcp-install-dark.svg'

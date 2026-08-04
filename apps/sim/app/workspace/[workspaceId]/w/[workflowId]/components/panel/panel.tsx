@@ -23,11 +23,10 @@ import {
   Trash,
   toast,
 } from '@sim/emcn'
-import { Download, Lock, Unlock } from '@sim/emcn/icons'
+import { BubbleChatDelay, Download, Lock, Plus, Square, Unlock } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { History, Plus, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -858,7 +857,7 @@ export const Panel = memo(function Panel() {
                     >
                       <PopoverTrigger asChild>
                         <Button variant='ghost' className='p-0'>
-                          <History className='size-[14px]' />
+                          <BubbleChatDelay className='size-[14px]' />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>

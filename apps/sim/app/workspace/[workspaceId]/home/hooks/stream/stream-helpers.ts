@@ -15,7 +15,6 @@ import {
   ManageCredential,
   ManageCustomTool,
   ManageMcpTool,
-  ManageScheduledTask,
   ManageSkill,
   QueryLogs,
   Redeploy,
@@ -374,10 +373,6 @@ export function resolveStreamingToolDisplayTitle(
 
   if (name === ManageSkill.id) {
     return resolveStreamingManagedResourceTitle(name, streamingArgs, ['name', 'skillName', 'title'])
-  }
-
-  if (name === ManageScheduledTask.id) {
-    return resolveStreamingManagedResourceTitle(name, streamingArgs, ['title', 'taskName', 'name'])
   }
 
   if (name === ManageCredential.id) {

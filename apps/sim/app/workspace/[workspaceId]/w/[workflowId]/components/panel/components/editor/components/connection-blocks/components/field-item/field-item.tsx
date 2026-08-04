@@ -2,9 +2,9 @@
 
 import { useCallback } from 'react'
 import { Badge, handleKeyboardActivation } from '@sim/emcn'
+import { ChevronDown } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { ChevronDown } from 'lucide-react'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { normalizeName } from '@/executor/constants'
 

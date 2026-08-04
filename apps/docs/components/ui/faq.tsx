@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '@sim/emcn/icons'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { cn } from '@/lib/utils'
 

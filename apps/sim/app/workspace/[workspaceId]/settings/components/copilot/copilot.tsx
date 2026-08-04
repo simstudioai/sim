@@ -11,9 +11,9 @@ import {
   ChipModalHeader,
   SecretReveal,
 } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
-import { Plus } from 'lucide-react'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'

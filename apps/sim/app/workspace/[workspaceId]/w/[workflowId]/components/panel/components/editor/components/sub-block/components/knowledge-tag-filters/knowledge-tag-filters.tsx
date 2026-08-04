@@ -12,8 +12,8 @@ import {
   Label,
   Trash,
 } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

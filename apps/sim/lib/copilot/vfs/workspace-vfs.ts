@@ -6,7 +6,6 @@ import {
   customTools as customToolsTable,
   document,
   folder as folderTable,
-  jobExecutionLogs,
   knowledgeBaseTagDefinitions,
   knowledgeConnector,
   mcpServers as mcpServersTable,
@@ -15,11 +14,10 @@ import {
   workflowExecutionLogs,
   workflowMcpServer,
   workflowMcpTool,
-  workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import {
   buildWorkspaceContextMd,
@@ -76,7 +74,6 @@ import {
   serializeEnvironmentVariables,
   serializeFileMeta,
   serializeIntegrationSchema,
-  serializeJobMeta,
   serializeKBMeta,
   serializeMcpServer,
   serializeRecentExecutions,
@@ -452,9 +449,6 @@ function getStaticComponentFiles(): Map<string, string> {
  *   files/{name}                         (workspace file leaf; dynamic content on read)
  *   files/{path}/{name}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
  *   files/{path}/{name}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
- *   jobs/{title}/meta.json
- *   jobs/{title}/history.json
- *   jobs/{title}/executions.json
  *   tasks/{title}/session.md
  *   tasks/{title}/chat.json
  *   custom-tools/{name}.json
@@ -684,7 +678,6 @@ export class WorkspaceVFS {
               customBlocksSummary,
               mcpServersSummary,
               skillsSummary,
-              jobsSummary,
               wsRow,
               members,
             ] = await Promise.all([
@@ -700,7 +693,6 @@ export class WorkspaceVFS {
               timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
               timed('skills', this.materializeSkills(workspaceId)),
-              timed('jobs', this.materializeJobs(workspaceId)),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
               timed('members', getUsersWithPermissions(workspaceId)),
               // Writes tasks/ files only — WORKSPACE.md has no Tasks section
@@ -722,7 +714,6 @@ export class WorkspaceVFS {
               customBlocks: customBlocksSummary,
               mcpServers: mcpServersSummary,
               skills: skillsSummary,
-              jobs: jobsSummary,
             }
 
             this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
@@ -2102,114 +2093,6 @@ export class WorkspaceVFS {
         workspaceId,
         error: toError(err).message,
       })
-    }
-  }
-
-  /**
-   * Materialize scheduled jobs using the workflowSchedule table.
-   * Returns a summary for WORKSPACE.md generation.
-   */
-  private async materializeJobs(
-    workspaceId: string
-  ): Promise<NonNullable<WorkspaceMdData['jobs']>> {
-    try {
-      const jobRows = await db
-        .select({
-          id: workflowSchedule.id,
-          jobTitle: workflowSchedule.jobTitle,
-          prompt: workflowSchedule.prompt,
-          cronExpression: workflowSchedule.cronExpression,
-          timezone: workflowSchedule.timezone,
-          status: workflowSchedule.status,
-          lifecycle: workflowSchedule.lifecycle,
-          successCondition: workflowSchedule.successCondition,
-          maxRuns: workflowSchedule.maxRuns,
-          runCount: workflowSchedule.runCount,
-          nextRunAt: workflowSchedule.nextRunAt,
-          lastRanAt: workflowSchedule.lastRanAt,
-          sourceTaskName: workflowSchedule.sourceTaskName,
-          sourceChatId: workflowSchedule.sourceChatId,
-          jobHistory: workflowSchedule.jobHistory,
-          createdAt: workflowSchedule.createdAt,
-        })
-        .from(workflowSchedule)
-        .where(
-          and(
-            eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-            eq(workflowSchedule.sourceType, 'job'),
-            isNull(workflowSchedule.archivedAt),
-            ne(workflowSchedule.status, 'completed')
-          )
-        )
-
-      for (const job of jobRows) {
-        const safeName = sanitizeName(job.jobTitle || job.id)
-        this.files.set(
-          `jobs/${safeName}/meta.json`,
-          serializeJobMeta({
-            id: job.id,
-            title: job.jobTitle,
-            prompt: job.prompt || '',
-            cronExpression: job.cronExpression,
-            timezone: job.timezone,
-            status: job.status,
-            lifecycle: job.lifecycle,
-            successCondition: job.successCondition,
-            maxRuns: job.maxRuns,
-            runCount: job.runCount,
-            nextRunAt: job.nextRunAt,
-            lastRanAt: job.lastRanAt,
-            sourceTaskName: job.sourceTaskName,
-            sourceChatId: job.sourceChatId,
-            createdAt: job.createdAt,
-          })
-        )
-
-        const history = job.jobHistory as Array<{ timestamp: string; summary: string }> | null
-        if (history && history.length > 0) {
-          this.files.set(`jobs/${safeName}/history.json`, JSON.stringify(history, null, 2))
-        }
-
-        // executions.json is lazy, advertised only when the job has run (cheap
-        // signal: lastRanAt) — no per-job query on a read/glob.
-        if (job.lastRanAt) {
-          this.registerLazy(`jobs/${safeName}/executions.json`, async () => {
-            const execRows = await db
-              .select({
-                id: jobExecutionLogs.id,
-                executionId: jobExecutionLogs.executionId,
-                status: jobExecutionLogs.status,
-                trigger: jobExecutionLogs.trigger,
-                startedAt: jobExecutionLogs.startedAt,
-                endedAt: jobExecutionLogs.endedAt,
-                totalDurationMs: jobExecutionLogs.totalDurationMs,
-              })
-              .from(jobExecutionLogs)
-              .where(eq(jobExecutionLogs.scheduleId, job.id))
-              .orderBy(desc(jobExecutionLogs.startedAt))
-              .limit(5)
-            return execRows.length > 0 ? serializeRecentExecutions(execRows) : null
-          })
-        }
-      }
-
-      return jobRows
-        .filter((j) => j.status !== 'completed')
-        .map((j) => ({
-          id: j.id,
-          title: j.jobTitle,
-          prompt: j.prompt || '',
-          cronExpression: j.cronExpression,
-          status: j.status,
-          lifecycle: j.lifecycle,
-          sourceTaskName: j.sourceTaskName,
-        }))
-    } catch (err) {
-      logger.warn('Failed to materialize jobs', {
-        workspaceId,
-        error: toError(err).message,
-      })
-      return []
     }
   }
 

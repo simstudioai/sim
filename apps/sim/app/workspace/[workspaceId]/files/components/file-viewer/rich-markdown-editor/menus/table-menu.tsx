@@ -1,9 +1,4 @@
 import { useCallback, useState } from 'react'
-import { posToDOMRect } from '@tiptap/core'
-import { PluginKey } from '@tiptap/pm/state'
-import type { Editor } from '@tiptap/react'
-import { useEditorState } from '@tiptap/react'
-import { BubbleMenu } from '@tiptap/react/menus'
 import {
   ArrowDown,
   ArrowLeft,
@@ -12,8 +7,13 @@ import {
   Columns3,
   Rows3,
   Table as TableIcon,
-  Trash2,
-} from 'lucide-react'
+  Trash,
+} from '@sim/emcn/icons'
+import { posToDOMRect } from '@tiptap/core'
+import { PluginKey } from '@tiptap/pm/state'
+import type { Editor } from '@tiptap/react'
+import { useEditorState } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
 import { ToolbarButton, ToolbarDivider } from './toolbar-button'
 
 /** Pins the toolbar to the viewport instead of tracking the (often wide) table as it scrolls horizontally. */
@@ -118,7 +118,7 @@ export function TableBubbleMenu({ editor, scrollContainerRef }: TableBubbleMenuP
         onClick={() => editor.chain().focus().toggleHeaderRow().run()}
       />
       <ToolbarButton
-        icon={Trash2}
+        icon={Trash}
         label='Delete table'
         isActive={false}
         onClick={() => editor.chain().focus().deleteTable().run()}

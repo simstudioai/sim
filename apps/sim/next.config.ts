@@ -33,7 +33,6 @@ const LANDING_ROUTES = [
   'models',
   'pricing',
   'privacy',
-  'scheduled-tasks',
   'solutions',
   'tables',
   'terms',
@@ -475,6 +474,15 @@ const nextConfig: NextConfig = {
         permanent: true,
       }
     )
+
+    // The scheduled-tasks marketing page is retired with the feature. The URL is
+    // indexed, so send it to the surface that still carries scheduled execution
+    // (the workflow Schedule trigger) instead of letting it 404.
+    redirects.push({
+      source: '/scheduled-tasks',
+      destination: '/workflows',
+      permanent: true,
+    })
 
     /**
      * The marketing Academy course/lesson pages were removed; content is

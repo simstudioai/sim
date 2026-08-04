@@ -6,7 +6,7 @@ import {
   chipGeometryClass,
   TRIGGER_BORDER_CLASS,
 } from '@sim/emcn'
-import { Search } from 'lucide-react'
+import { Search } from '@sim/emcn/icons'
 import { cn } from '@/lib/utils'
 
 export function SearchTrigger() {

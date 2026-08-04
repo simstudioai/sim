@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { cn, Input } from '@sim/emcn'
-import { Wand2 } from 'lucide-react'
+import { Wand } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
 import {
@@ -418,7 +418,7 @@ export const ShortInput = memo(function ShortInput({
               aria-label='Generate content with AI'
               className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
             >
-              <Wand2 className='size-4' />
+              <Wand className='size-4' />
             </Button>
           </div>
         )}

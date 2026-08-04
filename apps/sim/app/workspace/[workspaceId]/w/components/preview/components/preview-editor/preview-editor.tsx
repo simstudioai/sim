@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
-  ChevronDown,
   Code,
   Combobox,
   cn,
@@ -14,21 +13,21 @@ import {
   Label,
   Tooltip,
 } from '@sim/emcn'
-import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
   ArrowUp,
   Check,
-  ChevronDown as ChevronDownIcon,
+  ChevronDown,
   ChevronUp,
   Clipboard,
-  ExternalLink,
-  Maximize2,
-  RepeatIcon,
+  Expand,
+  Repeat,
   Search,
-  SplitIcon,
+  Split,
+  SquareArrowUpRight,
   X,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
@@ -404,7 +403,7 @@ function ConnectionsSection({
                   {connection.blockName}
                 </span>
                 {hasFields && (
-                  <ChevronDownIcon
+                  <ChevronDown
                     className={cn(
                       'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
                       'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
@@ -467,7 +466,7 @@ function ConnectionsSection({
               >
                 Variables
               </span>
-              <ChevronDownIcon
+              <ChevronDown
                 className={cn(
                   'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
                   'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
@@ -519,7 +518,7 @@ function ConnectionsSection({
               >
                 Secrets
               </span>
-              <ChevronDownIcon
+              <ChevronDown
                 className={cn(
                   'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
                   'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
@@ -1100,7 +1099,7 @@ function PreviewEditorContent({
 
   if (isSubflow) {
     const isLoop = block.type === 'loop'
-    const SubflowIcon = isLoop ? RepeatIcon : SplitIcon
+    const SubflowIcon = isLoop ? Repeat : Split
     const subflowBgColor = isLoop ? '#2FB3FF' : '#FEE12B'
     const subflowName = block.name || (isLoop ? 'Loop' : 'Parallel')
 
@@ -1440,9 +1439,9 @@ function PreviewEditorContent({
                               className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                             >
                               {isExecutionMode && onDrillDown ? (
-                                <Maximize2 className='size-[12px]' />
+                                <Expand className='size-[12px]' />
                               ) : (
-                                <ExternalLink className='size-[12px]' />
+                                <SquareArrowUpRight className='size-[12px]' />
                               )}
                             </Button>
                           </Tooltip.Trigger>

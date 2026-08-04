@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'

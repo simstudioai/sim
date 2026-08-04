@@ -10,7 +10,7 @@ import {
   ChipModalHeader,
   cn,
 } from '@sim/emcn'
-import { Settings2 } from 'lucide-react'
+import { ManageWorkspace } from '@sim/emcn/icons'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -135,7 +135,7 @@ export function GroupedCheckboxList({
         )}
       >
         <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
-          <Settings2 className='size-4 flex-shrink-0 opacity-50' />
+          <ManageWorkspace className='size-4 flex-shrink-0 opacity-50' />
           <span className='truncate'>Configure PII Types</span>
         </span>
         <SelectedCountDisplay

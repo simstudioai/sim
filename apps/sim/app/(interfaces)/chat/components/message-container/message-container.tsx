@@ -2,7 +2,7 @@
 
 import type { Ref, RefObject } from 'react'
 import { Button } from '@sim/emcn'
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown } from '@sim/emcn/icons'
 import {
   type ChatMessage,
   ClientChatMessage,

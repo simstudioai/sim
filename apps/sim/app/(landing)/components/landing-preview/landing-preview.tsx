@@ -7,7 +7,6 @@ import { LandingPreviewFiles } from '@/app/(landing)/components/landing-preview/
 import { LandingPreviewHome } from '@/app/(landing)/components/landing-preview/components/landing-preview-home/landing-preview-home'
 import { LandingPreviewKnowledge } from '@/app/(landing)/components/landing-preview/components/landing-preview-knowledge/landing-preview-knowledge'
 import { LandingPreviewLogs } from '@/app/(landing)/components/landing-preview/components/landing-preview-logs/landing-preview-logs'
-import { LandingPreviewScheduledTasks } from '@/app/(landing)/components/landing-preview/components/landing-preview-scheduled-tasks/landing-preview-scheduled-tasks'
 import type { SidebarView } from '@/app/(landing)/components/landing-preview/components/landing-preview-sidebar/landing-preview-sidebar'
 import { LandingPreviewSidebar } from '@/app/(landing)/components/landing-preview/components/landing-preview-sidebar/landing-preview-sidebar'
 import { LandingPreviewStageHeader } from '@/app/(landing)/components/landing-preview/components/landing-preview-stage/landing-preview-stage-header'
@@ -26,7 +25,6 @@ const CHAT_TITLES: Partial<Record<SidebarView, string>> = {
   tables: 'Workspace data',
   files: 'Files',
   knowledge: 'Knowledge base',
-  'scheduled-tasks': 'Scheduled tasks',
 }
 
 const containerVariants: Variants = {
@@ -108,7 +106,7 @@ interface LandingPreviewProps {
   /**
    * Initial staged view for the static snapshot (`autoplay={false}`). Defaults
    * to `'workflow'`. Lets each feature stage show the platform surface that
-   * matches its callout (e.g. `'logs'`, `'scheduled-tasks'`).
+   * matches its callout (e.g. `'logs'`, `'tables'`).
    */
   initialView?: SidebarView
   /** Initial workflow for the static snapshot. Defaults to the first preview workflow. */
@@ -326,15 +324,6 @@ export function LandingPreview({
                             <LandingPreviewLogs />
                           </m.div>
                         )}
-                        {activeView === 'scheduled-tasks' && (
-                          <m.div
-                            key='scheduled-tasks'
-                            className='flex h-full w-full flex-col'
-                            {...viewTransition}
-                          >
-                            <LandingPreviewScheduledTasks />
-                          </m.div>
-                        )}
                       </AnimatePresence>
                     ) : activeView === 'tables' ? (
                       <LandingPreviewTables />
@@ -344,8 +333,6 @@ export function LandingPreview({
                       <LandingPreviewKnowledge />
                     ) : activeView === 'logs' ? (
                       <LandingPreviewLogs />
-                    ) : activeView === 'scheduled-tasks' ? (
-                      <LandingPreviewScheduledTasks />
                     ) : (
                       <LandingPreviewWorkflow workflow={activeWorkflow} />
                     )}

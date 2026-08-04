@@ -19,7 +19,6 @@ import {
   Tooltip,
   useCopyToClipboard,
 } from '@sim/emcn'
-import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
   ArrowUp,
@@ -29,7 +28,8 @@ import {
   Clipboard,
   Search,
   X,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
 import { createPortal } from 'react-dom'
 import type { TraceSpan } from '@/lib/logs/types'
 import {

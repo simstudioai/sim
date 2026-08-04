@@ -22,7 +22,6 @@ import {
   shouldExecuteInline,
 } from '@/lib/core/async-jobs'
 import { JOB_STATUS, type Job } from '@/lib/core/async-jobs/types'
-import { env } from '@/lib/core/config/env'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import {
   getExecutionReservationTtlMs,
@@ -48,7 +47,6 @@ import {
 import { calculateScheduleInfraRetryDelayMs } from '@/lib/workflows/schedules/retry'
 import {
   applyScheduleFailureUpdate,
-  executeJobInline,
   executeScheduleJob,
   releaseScheduleLock,
   type ScheduleExecutionPayload,
@@ -65,7 +63,6 @@ const WORKFLOW_CHUNK_SIZE = 100
  * into hundreds of inline sends; the remainder is logged.
  */
 const STALE_SCHEDULE_RECOVERY_NOTIFY_LIMIT = 25
-const JOB_CHUNK_SIZE = 100
 const MAX_TICK_DURATION_MS = 3 * 60 * 1000
 const STALE_SCHEDULE_CLAIM_MS = getExecutionReservationTtlMs()
 const STALE_SCHEDULE_RECOVERY_BATCH_SIZE = 100
@@ -94,9 +91,6 @@ const workflowScheduleFilter = (queuedAt: Date) =>
     sql`(${workflowSchedule.sourceType} = 'workflow' OR ${workflowSchedule.sourceType} IS NULL)`,
     activeWorkflowDeploymentFilter()
   )
-
-const jobScheduleFilter = (queuedAt: Date) =>
-  and(dueFilter(queuedAt), sql`${workflowSchedule.sourceType} = 'job'`)
 
 async function runWithDatabaseScheduleStartTurn(
   operation: () => Promise<DatabaseScheduleStartResult>
@@ -198,44 +192,7 @@ async function claimWorkflowSchedules(queuedAt: Date, limit: number) {
   })
 }
 
-async function claimJobSchedules(queuedAt: Date, limit: number) {
-  if (limit <= 0) return []
-
-  return db.transaction(async (tx) => {
-    const rows = await tx
-      .select({ id: workflowSchedule.id })
-      .from(workflowSchedule)
-      .where(jobScheduleFilter(queuedAt))
-      .for('update', { skipLocked: true })
-      .limit(limit)
-
-    if (rows.length === 0) return []
-
-    return tx
-      .update(workflowSchedule)
-      .set({ lastQueuedAt: queuedAt, updatedAt: queuedAt })
-      .where(
-        and(
-          jobScheduleFilter(queuedAt),
-          inArray(
-            workflowSchedule.id,
-            rows.map((row) => row.id)
-          )
-        )
-      )
-      .returning({
-        id: workflowSchedule.id,
-        cronExpression: workflowSchedule.cronExpression,
-        timezone: workflowSchedule.timezone,
-        failedCount: workflowSchedule.failedCount,
-        lastQueuedAt: workflowSchedule.lastQueuedAt,
-        sourceType: workflowSchedule.sourceType,
-      })
-  })
-}
-
 type ClaimedSchedule = Awaited<ReturnType<typeof claimWorkflowSchedules>>[number]
-type ClaimedJob = Awaited<ReturnType<typeof claimJobSchedules>>[number]
 type JobQueue = Awaited<ReturnType<typeof getJobQueue>>
 type DatabaseScheduleExecutionTarget = Pick<
   ClaimedSchedule,
@@ -1285,40 +1242,13 @@ async function processScheduleItem(
   }
 }
 
-async function processJobItem(job: ClaimedJob, queuedAt: Date, requestId: string) {
-  const queueTime = job.lastQueuedAt ?? queuedAt
-  const payload = {
-    scheduleId: job.id,
-    cronExpression: job.cronExpression || undefined,
-    failedCount: job.failedCount || 0,
-    now: queueTime.toISOString(),
-  }
-
-  try {
-    await executeJobInline(payload)
-  } catch (error) {
-    logger.error(`[${requestId}] Job execution failed for ${job.id}`, {
-      error: toError(error).message,
-    })
-    await releaseScheduleLock(
-      job.id,
-      requestId,
-      queuedAt,
-      `Failed to release lock for job ${job.id}`,
-      undefined,
-      { expectedLastQueuedAt: queueTime }
-    )
-  }
-}
-
 interface ScheduleTickResult {
   processedCount: number
   totalSchedules: number
-  totalJobs: number
 }
 
 /**
- * Drains due schedules and jobs, claiming and enqueuing work until the tick
+ * Drains due schedules, claiming and enqueuing work until the tick
  * budget is exhausted or no more items are due. Runs detached from the HTTP
  * response so the cron caller does not wait; cross-replica safety is provided by
  * the `FOR UPDATE SKIP LOCKED` claim layer, not this function.
@@ -1329,25 +1259,11 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
   const jobQueue = await getJobQueue()
   const useDatabaseFallback = shouldExecuteInline()
   let totalSchedules = 0
-  let totalJobs = 0
   let iterations = 0
   let remainingWorkflowBudget = SCHEDULE_WORKFLOW_ENQUEUE_LIMIT
   let schedulesExhausted = false
-  /**
-   * Prompt jobs run through the mothership, so without a key every claim ends in
-   * a 401. Skipping the claim entirely leaves the rows `active` and resumable;
-   * claiming them would burn each one through `MAX_CONSECUTIVE_FAILURES` and
-   * permanently disable a schedule the user can no longer see, let alone stop.
-   * Keyed on the credential rather than `CHAT_ENABLED` so jobs keep running for
-   * a deployment that only hid the UI.
-   */
-  let jobsExhausted = !env.COPILOT_API_KEY
-  if (jobsExhausted) {
-    logger.info(`[${requestId}] COPILOT_API_KEY not set, skipping prompt job claims`)
-  }
-
   while (Date.now() - tickStart < MAX_TICK_DURATION_MS) {
-    if (schedulesExhausted && jobsExhausted) break
+    if (schedulesExhausted) break
     const queuedAt = new Date()
     let resumedPendingSchedules = 0
     let databaseScheduleSlots = SCHEDULE_EXECUTION_CONCURRENCY_LIMIT
@@ -1373,25 +1289,22 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
       schedulesExhausted = true
     }
 
-    const [dueSchedules, dueJobs] = await Promise.all([
-      schedulesExhausted ? [] : claimWorkflowSchedules(queuedAt, workflowClaimLimit),
-      jobsExhausted ? [] : claimJobSchedules(queuedAt, JOB_CHUNK_SIZE),
-    ])
+    const dueSchedules = schedulesExhausted
+      ? []
+      : await claimWorkflowSchedules(queuedAt, workflowClaimLimit)
 
     remainingWorkflowBudget -= dueSchedules.length
     if (dueSchedules.length < workflowClaimLimit || remainingWorkflowBudget <= 0) {
       schedulesExhausted = true
     }
-    if (dueJobs.length < JOB_CHUNK_SIZE) jobsExhausted = true
 
-    if (dueSchedules.length === 0 && dueJobs.length === 0 && resumedPendingSchedules === 0) break
+    if (dueSchedules.length === 0 && resumedPendingSchedules === 0) break
 
     iterations += 1
     totalSchedules += dueSchedules.length + resumedPendingSchedules
-    totalJobs += dueJobs.length
 
     logger.info(
-      `[${requestId}] Iteration ${iterations}: claimed ${dueSchedules.length} schedules, resumed ${resumedPendingSchedules} pending schedule jobs, ${dueJobs.length} jobs`,
+      `[${requestId}] Iteration ${iterations}: claimed ${dueSchedules.length} schedules, resumed ${resumedPendingSchedules} pending schedule jobs`,
       {
         remainingWorkflowBudget,
         scheduleConcurrencyLimit: SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
@@ -1406,16 +1319,13 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
           )
         : []
 
-    await Promise.allSettled([
-      ...schedulePromises,
-      ...dueJobs.map((job) => processJobItem(job, queuedAt, requestId)),
-    ])
+    await Promise.allSettled(schedulePromises)
   }
 
-  const totalCount = totalSchedules + totalJobs
+  const totalCount = totalSchedules
   const durationMs = Date.now() - tickStart
   logger.info(
-    `[${requestId}] Processed ${totalCount} items across ${iterations} iteration(s) in ${durationMs}ms (${totalSchedules} schedules, ${totalJobs} jobs)`,
+    `[${requestId}] Processed ${totalCount} items across ${iterations} iteration(s) in ${durationMs}ms`,
     {
       scheduleConcurrencyLimit: SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
       scheduleEnqueueBudget: SCHEDULE_WORKFLOW_ENQUEUE_LIMIT,
@@ -1423,7 +1333,7 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
     }
   )
 
-  return { processedCount: totalCount, totalSchedules, totalJobs }
+  return { processedCount: totalCount, totalSchedules }
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {

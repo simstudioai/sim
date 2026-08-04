@@ -66,6 +66,16 @@ export default {
       },
       spacing: {
         '4.5': '18px',
+        /**
+         * Hairline scale key. Overriding `spacing` rather than `width`/`height`
+         * keeps every derived scale in agreement — a `w-px` line and the
+         * `-right-px` offset that positions it resolve to the same value, which
+         * a width-only override desynchronizes by half a device pixel.
+         */
+        px: 'var(--border-width)',
+      },
+      borderWidth: {
+        DEFAULT: 'var(--border-width)',
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -98,7 +108,13 @@ export default {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
         },
-        border: 'hsl(var(--border))',
+        /**
+         * Neutral border colors are plain hex, not the HSL triplets the shadcn
+         * keys below use — `hsl(var(--border))` would be invalid CSS and get
+         * dropped, leaving the utility to fall through to the `*` border-color
+         * rule in globals by accident.
+         */
+        border: 'var(--border)',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         chart: {
@@ -122,11 +138,6 @@ export default {
           950: '#0a0a0a',
         },
       },
-      fontWeight: {
-        base: 'var(--font-weight-base)',
-        medium: 'var(--font-weight-medium)',
-        semibold: 'var(--font-weight-semibold)',
-      },
       borderRadius: {
         xs: '2px',
         sm: 'calc(var(--radius) - 4px)',
@@ -140,8 +151,18 @@ export default {
         kbd: 'var(--shadow-kbd)',
         'kbd-sm': 'var(--shadow-kbd-sm)',
         card: 'var(--shadow-card)',
+        ambient: 'var(--shadow-ambient)',
       },
       dropShadow: {},
+      maxWidth: {
+        /**
+         * The home/chat reading column. The heading, input, suggested actions,
+         * transcript, and its skeleton must all share one value or the footer
+         * input visibly misaligns with the messages above it — so they read this
+         * key rather than repeating a literal.
+         */
+        chat: '44rem',
+      },
       transitionProperty: {
         width: 'width',
         left: 'left',

@@ -1,4 +1,4 @@
-import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { Repeat, Split } from '@sim/emcn/icons'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { getToolOperationsIndex } from '@/lib/search/tool-operations'
@@ -128,14 +128,14 @@ export const useSearchModalStore = create<SearchModalState>()(
           {
             id: 'loop',
             name: 'Loop',
-            icon: RepeatIcon,
+            icon: Repeat,
             bgColor: '#2FB3FF',
             type: 'loop',
           },
           {
             id: 'parallel',
             name: 'Parallel',
-            icon: SplitIcon,
+            icon: Split,
             bgColor: '#FEE12B',
             type: 'parallel',
           },

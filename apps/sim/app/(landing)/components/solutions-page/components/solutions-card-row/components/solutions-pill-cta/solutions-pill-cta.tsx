@@ -1,7 +1,7 @@
 'use client'
 
 import { ChipLink } from '@sim/emcn'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight } from '@sim/emcn/icons'
 import type { SolutionsPillCta as SolutionsPillCtaConfig } from '@/app/(landing)/components/solutions-page/types'
 
 /**

@@ -30,8 +30,7 @@ import {
   PopoverContent,
   PopoverItem,
 } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
-import { Globe } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Globe, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import { createPortal } from 'react-dom'
 import {
@@ -1036,7 +1035,7 @@ export function BrowserSession({
                 type='button'
                 aria-label='Browser menu'
                 title='Browser menu'
-                className={cn(chipVariants({ flush: true }), 'flex-shrink-0')}
+                className={cn(chipVariants(), 'flex-shrink-0')}
               >
                 <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
               </button>

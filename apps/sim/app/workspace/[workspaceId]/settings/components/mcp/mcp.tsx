@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Badge, Button, Chip, ChipConfirmModal, cn, Tooltip, toast } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { McpIcon } from '@/components/icons'

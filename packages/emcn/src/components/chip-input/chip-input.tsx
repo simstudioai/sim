@@ -32,7 +32,7 @@ import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chip-chrome'
 type ChipInputIcon = React.ComponentType<{ className?: string }>
 
 export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
-  /** Leading icon component (e.g. lucide `Search`). Rendered at 14px in `--text-icon`, with the chip's 1.5 gap. */
+  /** Leading icon component (e.g. `Search` from `@sim/emcn/icons`). Rendered at 14px in `--text-icon`, with the chip's 1.5 gap. */
   icon?: ChipInputIcon
   /** Trailing content rendered after the input (e.g. reveal / copy buttons). */
   endAdornment?: React.ReactNode

@@ -11,21 +11,21 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@sim/emcn'
-import { Download } from '@sim/emcn/icons'
-import clsx from 'clsx'
 import {
   ArrowDown,
   ArrowUp,
   Check,
   Clipboard,
   Database,
+  Download,
   MoreHorizontal,
   Palette,
   Pause,
   Search,
-  Trash2,
+  Trash,
   X,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import clsx from 'clsx'
 import Link from 'next/link'
 import {
   AgentStreamThinkingChrome,
@@ -467,7 +467,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Clear console'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Trash2 className='h-3.5 w-3.5' />
+                      <Trash className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>

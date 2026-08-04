@@ -2,7 +2,7 @@
 
 import { memo, type SVGProps } from 'react'
 import { cn } from '@sim/emcn'
-import { Box } from 'lucide-react'
+import { Box } from '@sim/emcn/icons'
 import type { BlockIcon } from '@/blocks/types'
 
 const cache = new Map<string, BlockIcon>()
@@ -41,8 +41,7 @@ export function makeImageIcon(url: string): BlockIcon {
 }
 
 /** Fallback icon for custom blocks published without an uploaded image. */
-// double-cast-allowed: a lucide icon component fills the SVG-typed BlockIcon slot
-export const DefaultCustomBlockIcon: BlockIcon = Box as unknown as BlockIcon
+export const DefaultCustomBlockIcon: BlockIcon = Box
 
 /**
  * Resolve a custom block's icon: the uploaded image, else the org's whitelabel logo

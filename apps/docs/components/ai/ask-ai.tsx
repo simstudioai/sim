@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { MessageCircle } from 'lucide-react'
+import { Task } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 
 const AskAIPanel = dynamic(() => import('./ask-ai-panel').then((m) => m.AskAIPanel), {
@@ -11,7 +11,7 @@ const AskAIPanel = dynamic(() => import('./ask-ai-panel').then((m) => m.AskAIPan
       aria-hidden
       className='fixed right-4 bottom-4 z-50 flex size-11 items-center justify-center rounded-full border border-[var(--border-1)] bg-[var(--surface-5)] shadow-[var(--shadow-medium)] dark:bg-[var(--surface-4)]'
     >
-      <MessageCircle className='size-[16px] animate-pulse text-[var(--text-icon)]' />
+      <Task className='size-[16px] animate-pulse text-[var(--text-icon)]' />
     </div>
   ),
 })
@@ -46,7 +46,7 @@ export function AskAI({ locale }: AskAIProps) {
           onClick={handleOpen}
           className='fixed right-4 bottom-4 z-50 flex h-11 items-center gap-1.5 rounded-full border border-[var(--border-1)] bg-[var(--surface-5)] px-4 font-season text-[var(--text-body)] text-sm shadow-[var(--shadow-medium)] transition-colors hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]'
         >
-          <MessageCircle className='size-[16px] text-[var(--text-icon)]' />
+          <Task className='size-[16px] text-[var(--text-icon)]' />
           Ask Sim
         </button>
       )}

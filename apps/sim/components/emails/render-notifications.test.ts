@@ -15,7 +15,6 @@ describe('renderScheduleDisabledEmail', () => {
   it('renders the failure count for a threshold disable', async () => {
     const html = await renderScheduleDisabledEmail({
       recipientName: 'John',
-      kind: 'workflow',
       resourceName: 'Daily digest',
       reason: 'consecutive_failures',
       failedCount: 100,
@@ -30,20 +29,18 @@ describe('renderScheduleDisabledEmail', () => {
 
   it('renders reason copy instead of a count for a single-strike disable', async () => {
     const html = await renderScheduleDisabledEmail({
-      kind: 'job',
       resourceName: 'Weekly report',
       reason: 'authentication_error',
-      manageLink: 'https://sim.ai/workspace/ws_123/scheduled-tasks',
+      manageLink: 'https://sim.ai/workspace/ws_123/w/wf_456',
     })
 
     expect(html).toContain('could not be authenticated')
     expect(html).not.toContain('times in a row')
-    expect(html).toContain('Open scheduled tasks')
+    expect(html).toContain('Open workflow')
   })
 
   it('falls back to a generic noun and omits the CTA when the source is unknown', async () => {
     const html = await renderScheduleDisabledEmail({
-      kind: 'workflow',
       reason: 'workflow_not_found',
     })
 

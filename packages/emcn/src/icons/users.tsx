@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 /**
- * Users icon component - two person silhouettes
+ * Users icon component - two person silhouettes side by side
  * @param props - SVG properties including className, fill, etc.
  */
 export function Users(props: SVGProps<SVGSVGElement>) {
@@ -19,10 +19,10 @@ export function Users(props: SVGProps<SVGSVGElement>) {
       aria-hidden='true'
       {...props}
     >
-      <circle cx='8.25' cy='5.75' r='3.5' />
-      <path d='M0.75 18.75C0.75 14.61 4.11 11.25 8.25 11.25C12.39 11.25 15.75 14.61 15.75 18.75' />
-      <path d='M14.25 0.93C15.11 0.63 16.04 0.73 16.83 1.19C17.62 1.65 18.17 2.42 18.33 3.32C18.49 4.21 18.25 5.13 17.68 5.83C17.11 6.54 16.27 6.95 15.37 6.97' />
-      <path d='M16.75 11.43C18.08 11.67 19.29 12.35 20.17 13.37C21.05 14.39 21.53 15.69 21.53 17.03V18.75' />
+      <circle cx='7.5' cy='6' r='3.75' />
+      <path d='M0.75 18.25C0.75 14.52 3.77 11.5 7.5 11.5C11.23 11.5 14.25 14.52 14.25 18.25' />
+      <circle cx='15.75' cy='6.75' r='2.75' />
+      <path d='M15.25 12.25C17.73 12.25 19.75 14.94 19.75 18.25' />
     </svg>
   )
 }

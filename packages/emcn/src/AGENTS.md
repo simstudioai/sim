@@ -1,6 +1,6 @@
 # EMCN Components Scope
 
-These rules apply to `apps/sim/components/emcn/**`.
+These rules apply to `packages/emcn/**`.
 
 - Import from `@sim/emcn`, never from subpaths except CSS files.
 - Use Radix UI primitives for accessibility where applicable.

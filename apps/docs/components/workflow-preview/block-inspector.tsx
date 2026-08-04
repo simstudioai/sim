@@ -10,7 +10,7 @@ import {
   FieldDivider,
   Label,
 } from '@sim/emcn'
-import { BookOpen, Pencil } from 'lucide-react'
+import { BookOpen, Pencil } from '@sim/emcn/icons'
 import { resolveIcon } from '@/components/workflow-preview/block-icons'
 import { formatReferences } from '@/components/workflow-preview/format-references'
 

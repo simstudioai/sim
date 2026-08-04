@@ -2,8 +2,8 @@
 
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useChat } from '@ai-sdk/react'
+import { ArrowUp, Square, Task, X } from '@sim/emcn/icons'
 import { DefaultChatTransport } from 'ai'
-import { ArrowUp, MessageCircle, Square, X } from 'lucide-react'
 import { Streamdown } from 'streamdown'
 import { cn } from '@/lib/utils'
 import 'streamdown/styles.css'
@@ -102,7 +102,7 @@ export function AskAIPanel({ locale, open, onClose }: AskAIPanelProps) {
     >
       <div className='flex items-center justify-between border-[var(--border-1)] border-b px-4 py-3'>
         <span className='flex items-center gap-1.5 font-season text-[var(--text-body)] text-sm'>
-          <MessageCircle className='size-[16px] text-[var(--text-icon)]' />
+          <Task className='size-[16px] text-[var(--text-icon)]' />
           Ask Sim
         </span>
         <button
