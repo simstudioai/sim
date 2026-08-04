@@ -321,6 +321,13 @@ describe('attachment limit formatting', () => {
       const justOver = formatAttachmentSizes(limit + 1, limit)
       expect(justOver.size).not.toBe(justOver.limit)
     }
+
+    /**
+     * Every ceiling above divides to an exact integer, so floor/round/ceil are indistinguishable
+     * on them — only a ceiling with a fractional remainder pins the limit-side rounding.
+     */
+    const fractional = formatAttachmentSizes(12_345_679, 12_345_678)
+    expect(fractional.size).not.toBe(fractional.limit)
   })
 
   it('keeps a comfortably over-limit size readable', () => {

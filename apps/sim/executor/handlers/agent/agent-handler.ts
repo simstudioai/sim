@@ -15,7 +15,6 @@ import {
   SIM_AUTO_SYSTEM_PREAMBLE,
 } from '@/lib/model-router/resolve'
 import {
-  isGeneratedDocumentSourceType,
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
   processFilesToUserFiles,
   type RawFileInput,
@@ -985,11 +984,19 @@ export class AgentBlockHandler implements BlockHandler {
           inlineMaxBytes
         )
         const oversized = Number.isFinite(missingFile.size) && missingFile.size > inlineMaxBytes
-        const reason = isGeneratedDocumentSourceType(missingFile.type)
-          ? `a generated document cannot use the large-file path for provider "${providerId}"`
-          : getProviderFileStrategy(providerId) === 'inline'
+        /**
+         * Ordered by how general the cause is. A provider with no upload path at all cannot be
+         * helped by changing the file, and a deployment with no object storage cannot reach any
+         * upload path whatever the file is — so both outrank the format-specific case. Leading
+         * with the generated-document arm blamed the document on providers that have no upload
+         * path for anything, and on hosts whose only real problem was unconfigured storage.
+         */
+        const reason =
+          getProviderFileStrategy(providerId) === 'inline'
             ? `provider "${providerId}" has no large-file upload path`
-            : 'this deployment has no cloud file storage for the large-file upload path'
+            : !canUseProviderLargeFilePath(providerId)
+              ? 'this deployment has no cloud file storage for the large-file upload path'
+              : `a generated document cannot use the large-file path for provider "${providerId}", because a signed URL points at the generation source rather than the rendered file`
         throw new Error(
           oversized
             ? `File "${missingFile.name}" (${sizeMB}MB) exceeds the ${inlineMB}MB inline attachment limit, and ${reason}.`
