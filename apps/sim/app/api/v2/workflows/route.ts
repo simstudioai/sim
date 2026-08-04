@@ -1,20 +1,47 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertFolderInWorkspace,
+  assertFolderMutable,
+  FolderLockedError,
+  FolderNotFoundError,
+} from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, isNull, or } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { type V2WorkflowListItem, v2ListWorkflowsContract } from '@/lib/api/contracts/v2/workflows'
+import {
+  type V2WorkflowListItem,
+  type V2WorkflowSortBy,
+  v2CreateWorkflowContract,
+  v2ListWorkflowsContract,
+} from '@/lib/api/contracts/v2/workflows'
+import {
+  encodeKeyset,
+  type KeysetKey,
+  keysetAfter,
+  keysetColumns,
+  listOrderBy,
+  numberKey,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { performCreateWorkflow } from '@/lib/workflows/orchestration'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
-  decodeCursor,
-  encodeCursor,
+  cursorSortKey,
+  decodeSortedCursor,
+  encodeSortedCursor,
   v2CursorList,
+  v2CursorSortError,
+  v2Data,
   v2Error,
+  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
@@ -25,12 +52,39 @@ const logger = createLogger('V2WorkflowsAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** Keyset cursor for the `(sortOrder, createdAt, id)` ordering. */
-interface WorkflowListCursor {
-  sortOrder: number
-  createdAt: string
+type WorkflowRow = {
   id: string
+  name: string
+  sortOrder: number
+  runCount: number
+  createdAt: Date
+  updatedAt: Date
 }
+
+/**
+ * The keysets behind the sortable workflow fields. `satisfies` makes the map
+ * total over the contract enum, so a new sortable field cannot ship without an
+ * ordering. Every key column is `NOT NULL` and each keyset ends in `id`, which
+ * is what keeps a page boundary inside a run of equal values stable.
+ *
+ * `position` keeps its historical three-part ordering: workflows share a
+ * `sortOrder` freely, and dropping `createdAt` from the tiebreak would reshuffle
+ * every workspace's default list.
+ */
+const workflowId = textKey<WorkflowRow>(workflow.id, (row) => row.id)
+const workflowCreatedAt = timestampKey<WorkflowRow>(workflow.createdAt, (row) => row.createdAt)
+
+const WORKFLOW_SORTS = {
+  position: [
+    numberKey<WorkflowRow>(workflow.sortOrder, (row) => row.sortOrder),
+    workflowCreatedAt,
+    workflowId,
+  ],
+  name: [textKey<WorkflowRow>(workflow.name, (row) => row.name), workflowId],
+  createdAt: [workflowCreatedAt, workflowId],
+  updatedAt: [timestampKey<WorkflowRow>(workflow.updatedAt, (row) => row.updatedAt), workflowId],
+  runCount: [numberKey<WorkflowRow>(workflow.runCount, (row) => row.runCount), workflowId],
+} satisfies Record<V2WorkflowSortBy, readonly KeysetKey<WorkflowRow>[]>
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -59,36 +113,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const conditions = [eq(workflow.workspaceId, params.workspaceId), isNull(workflow.archivedAt)]
+    const sortKey = cursorSortKey(params.sortBy, params.sortOrder)
+    const keys: readonly KeysetKey<WorkflowRow>[] = WORKFLOW_SORTS[params.sortBy]
+    const decoded = decodeSortedCursor(params.cursor, sortKey)
+    if (decoded.status === 'invalid') return v2CursorSortError()
 
-    if (params.folderId) {
-      conditions.push(eq(workflow.folderId, params.folderId))
-    }
+    // `null` here is a cursor whose values don't fit this sort — a client error, not an empty page.
+    const resumeAfter =
+      decoded.status === 'ok' ? keysetAfter(keys, decoded.keys, params.sortOrder) : undefined
+    if (resumeAfter === null) return v2CursorSortError()
 
-    if (params.deployedOnly) {
-      conditions.push(eq(workflow.isDeployed, true))
-    }
-
-    if (params.cursor) {
-      const cursorData = decodeCursor<WorkflowListCursor>(params.cursor)
-      if (cursorData) {
-        const cursorCondition = or(
-          gt(workflow.sortOrder, cursorData.sortOrder),
-          and(
-            eq(workflow.sortOrder, cursorData.sortOrder),
-            gt(workflow.createdAt, new Date(cursorData.createdAt))
-          ),
-          and(
-            eq(workflow.sortOrder, cursorData.sortOrder),
-            eq(workflow.createdAt, new Date(cursorData.createdAt)),
-            gt(workflow.id, cursorData.id)
-          )
-        )
-        if (cursorCondition) {
-          conditions.push(cursorCondition)
-        }
-      }
-    }
+    const conditions = [
+      eq(workflow.workspaceId, params.workspaceId),
+      isNull(workflow.archivedAt),
+      params.folderId ? eq(workflow.folderId, params.folderId) : undefined,
+      params.deployedOnly ? eq(workflow.isDeployed, true) : undefined,
+      searchFilter(workflow.name, params.search),
+      resumeAfter,
+    ]
 
     const rows = await db
       .select({
@@ -107,21 +149,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
       .from(workflow)
       .where(and(...conditions))
-      .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
+      .orderBy(...listOrderBy(keysetColumns(keys), params.sortOrder))
       .limit(params.limit + 1)
 
     const hasMore = rows.length > params.limit
     const data = rows.slice(0, params.limit)
 
-    let nextCursor: string | null = null
-    if (hasMore && data.length > 0) {
-      const last = data[data.length - 1]
-      nextCursor = encodeCursor({
-        sortOrder: last.sortOrder,
-        createdAt: last.createdAt.toISOString(),
-        id: last.id,
-      })
-    }
+    const last = data.at(-1)
+    const nextCursor =
+      hasMore && last ? encodeSortedCursor(sortKey, encodeKeyset(keys, last)) : null
 
     const formatted: V2WorkflowListItem[] = data.map((w) => ({
       id: w.id,
@@ -140,6 +176,81 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return v2CursorList(formatted, nextCursor, { rateLimit })
   } catch (error) {
     logger.error(`[${requestId}] Workflows fetch error`, {
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return v2Error('INTERNAL_ERROR', 'Internal server error')
+  }
+})
+
+/** POST /api/v2/workflows — Create an empty workflow in a workspace. */
+export const POST = withRouteHandler(async (request: NextRequest) => {
+  const requestId = generateId().slice(0, 8)
+
+  try {
+    const rateLimit = await checkRateLimit(request, 'workflows')
+    if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
+
+    const userId = rateLimit.userId!
+
+    const gate = await v2ApiGateError(userId)
+    if (gate) return gate
+
+    const parsed = await parseRequest(
+      v2CreateWorkflowContract,
+      request,
+      {},
+      { validationErrorResponse: v2ValidationError }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { workspaceId, name, description, folderId } = parsed.data.body
+
+    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    if (access) return v2WorkspaceAccessError(access)
+
+    /**
+     * Ownership before lock state: `assertFolderMutable` walks the folder's
+     * ancestor chain without filtering on workspace, so checking it first would
+     * let a caller distinguish a locked folder in someone else's workspace
+     * (423) from one that simply does not exist (400).
+     */
+    if (folderId) await assertFolderInWorkspace(folderId, workspaceId)
+    await assertFolderMutable(folderId ?? null)
+
+    const result = await performCreateWorkflow({
+      userId,
+      workspaceId,
+      name,
+      description,
+      folderId,
+      requestId,
+    })
+
+    if (!result.success || !result.workflow) {
+      return v2ErrorForOrchestration(result.errorCode, result.error ?? 'Failed to create workflow')
+    }
+
+    const created = result.workflow
+    const item: V2WorkflowListItem = {
+      id: created.id,
+      name: created.name,
+      description: created.description ?? null,
+      folderId: created.folderId ?? null,
+      workspaceId: created.workspaceId,
+      isDeployed: false,
+      deployedAt: null,
+      runCount: 0,
+      lastRunAt: null,
+      createdAt: created.createdAt.toISOString(),
+      updatedAt: created.updatedAt.toISOString(),
+    }
+
+    return v2Data(item, { rateLimit, status: 201 })
+  } catch (error) {
+    if (error instanceof FolderNotFoundError) return v2Error('BAD_REQUEST', error.message)
+    if (error instanceof FolderLockedError) return v2Error('LOCKED', error.message)
+
+    logger.error(`[${requestId}] Workflow create error`, {
       error: getErrorMessage(error, 'Unknown error'),
     })
     return v2Error('INTERNAL_ERROR', 'Internal server error')

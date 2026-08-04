@@ -113,7 +113,9 @@ async function selectExpiredWorkspaceFiles(
           key: workspaceFiles.key,
           workspaceId: workspaceFiles.workspaceId,
           context: workspaceFiles.context,
-          size: workspaceFiles.size,
+          size: sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(
+            Number
+          ),
         })
         .from(workspaceFiles)
         .where(
@@ -325,7 +327,12 @@ async function deleteExpiredBillableWorkspaceFileRows(
                 lt(workspaceFiles.deletedAt, retentionDate)
               )
             )
-            .returning({ id: workspaceFiles.id, size: workspaceFiles.size })
+            .returning({
+              id: workspaceFiles.id,
+              size: sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(
+                Number
+              ),
+            })
           if (deletedRows.some(({ size }) => size < 0)) {
             throw new Error('Cannot delete workspace files with negative stored-byte metadata')
           }

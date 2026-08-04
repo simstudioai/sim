@@ -21,7 +21,6 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   type BreadcrumbItem,
   type ColumnOption,
@@ -35,13 +34,13 @@ import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components
 import { ImportProgressMenu } from '@/app/workspace/[workspaceId]/tables/components/import-progress-menu'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
-  downloadTableExport,
+  downloadExportResult,
   useCancelTableRuns,
   useCreateTableView,
   useDeleteTable,
   useDeleteTableRowsAsync,
   useDeleteTableView,
-  useExportTableAsync,
+  useExportTable,
   useRenameTable,
   useRunColumn,
   useTableViews,
@@ -1026,16 +1025,11 @@ export function Table({
   const handleExportCsv = useCallback(async () => {
     if (!tableData) return
     try {
-      // Big tables export as a background job (the file downloads when the job completes via the
-      // SSE stream); small ones keep the instant synchronous stream. While a delete job runs,
-      // rowCount is a doomed-estimate-adjusted number — not ground truth — so always take the
-      // async path (safe at any size; exports bypass the one-job-per-table gate).
-      const deleteRunning = tableData.jobType === 'delete' && tableData.jobStatus === 'running'
-      if (deleteRunning || tableData.rowCount > TABLE_LIMITS.EXPORT_ASYNC_THRESHOLD_ROWS) {
-        await exportTableAsync.mutateAsync({ format: 'csv' })
-        toast.success('Export started — the download will begin when it finishes')
+      const exported = await exportTableAsync.mutateAsync({ format: 'csv' })
+      if (exported.status === 'completed') {
+        await downloadExportResult(workspaceId, exported.id)
       } else {
-        await downloadTableExport(tableData.id, tableData.name)
+        toast.success('Export started — the download will begin when it finishes')
       }
       captureEvent(posthogRef.current, 'table_exported', {
         table_id: tableData.id,
@@ -1256,7 +1250,7 @@ export function Table({
 
   const deleteTableMutation = useDeleteTable(workspaceId)
   const deleteRowsAsyncMutation = useDeleteTableRowsAsync({ workspaceId, tableId })
-  const exportTableAsync = useExportTableAsync({ workspaceId, tableId })
+  const exportTableAsync = useExportTable({ workspaceId, tableId })
   const handleDeleteTable = async () => {
     try {
       await deleteTableMutation.mutateAsync(tableId)

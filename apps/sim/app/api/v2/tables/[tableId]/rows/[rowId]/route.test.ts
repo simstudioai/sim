@@ -96,4 +96,27 @@ describe('DELETE /api/v2/tables/[tableId]/rows/[rowId]', () => {
     expect(res.status).toBe(status)
     expect((await res.json()).error.code).toBe(code)
   })
+
+  it('names the lock on a 423 that arrived as a classified outcome, not a throw', async () => {
+    mockPerformDeleteRow.mockResolvedValue({
+      success: false,
+      errorCode: 'locked',
+      error: 'Row deletes are locked for this table',
+      lock: 'delete',
+    })
+
+    const res = await callDelete()
+
+    expect(res.status).toBe(423)
+    expect((await res.json()).error.details).toEqual({ lock: 'delete' })
+  })
+
+  it('omits details entirely when the lock kind is unknown', async () => {
+    // A caller branching on `details.lock` should see absence, not a null.
+    mockPerformDeleteRow.mockResolvedValue({ success: false, errorCode: 'locked', error: 'nope' })
+
+    const res = await callDelete()
+
+    expect((await res.json()).error.details).toBeUndefined()
+  })
 })

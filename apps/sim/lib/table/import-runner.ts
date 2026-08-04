@@ -77,6 +77,8 @@ export interface TableImportPayload {
    * worker never needs a settings lookup.
    */
   timezone?: string
+  /** Storage context for the source object. Legacy imports default to `workspace`. */
+  storageContext?: 'workspace' | 'table-import'
 }
 
 /**
@@ -89,12 +91,14 @@ export interface TableImportPayload {
  */
 export async function runTableImport(payload: TableImportPayload): Promise<void> {
   const { importId, tableId, workspaceId, userId, fileKey, fileName, delimiter, mode } = payload
+  const storageContext = payload.storageContext ?? 'workspace'
   const requestId = generateId().slice(0, 8)
   // Hoisted so `finally` can destroy it on any failure — otherwise the storage HTTP body leaks
   // open until it times out.
   let source: Readable | undefined
 
   try {
+    if (!(await updateJobProgress(tableId, 0, importId))) throw new ImportSupersededError()
     const loaded = await getTableById(tableId, { includeArchived: true })
     if (!loaded) throw new Error(`Import target table ${tableId} not found`)
     const table = loaded
@@ -131,10 +135,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
 
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
     // the local dev provider, in which case the bar stays indeterminate (rows still show).
-    const totalBytes = (await headObject(fileKey, 'workspace'))?.size ?? 0
+    const totalBytes = (await headObject(fileKey, storageContext))?.size ?? 0
 
     // Stream the file rather than buffering it — a ~1M-row import must never be held in memory.
-    source = await downloadFileStream({ key: fileKey, context: 'workspace' })
+    source = await downloadFileStream({ key: fileKey, context: storageContext })
 
     // The kickoff route's extension-derived delimiter is only the fallback — the separator is
     // sniffed from the file's head so semicolon/pipe exports don't collapse into one column.
@@ -183,6 +187,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
      * map onto the existing schema, optionally auto-creating `createColumns` first.
      */
     const resolveSetup = async () => {
+      if (!(await updateJobProgress(tableId, inserted, importId))) {
+        throw new ImportSupersededError()
+      }
       const headers = csvHeaders
 
       if (mode === 'create') {
@@ -433,7 +440,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // import is terminal so the workspace bucket doesn't accumulate. Best-effort. Skipped for
     // persistent workspace files (deleteSourceFile: false).
     if (payload.deleteSourceFile !== false) {
-      await deleteFile({ key: fileKey, context: 'workspace' }).catch((err) => {
+      await deleteFile({ key: fileKey, context: storageContext }).catch((err) => {
         logger.warn(`[${requestId}] Failed to delete imported file`, { fileKey, err })
       })
     }

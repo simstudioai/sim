@@ -1,27 +1,59 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { folderIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
+  addWorkflowGroupBodySchema,
+  cancelTableRunsBodyBaseSchema,
   createTableColumnBodySchema,
+  createTableViewBodySchema,
+  csvImportCreateColumnsSchema,
+  csvImportMappingSchema,
   deleteTableColumnBodySchema,
+  deleteWorkflowGroupBodySchema,
+  exportTableAsyncBodySchema,
   predicateSchema,
+  refineCancelTableRunsScope,
+  runColumnBodyBaseSchema,
+  runColumnExcludeMutexRefine,
+  runColumnScopeMutexRefine,
   sortSpecSchema,
   tableColumnSchema,
   tableIdParamsSchema,
+  tableLocksSchema,
+  tableNameSchema,
   tableRowParamsSchema,
   tableRowsQueryBaseSchema,
+  tableViewConfigSchema,
+  tableViewParamsSchema,
   updateRowsByFilterBodySchema,
   updateTableColumnBodySchema,
   updateTableRowBodySchema,
+  updateTableViewBodySchema,
+  updateWorkflowGroupBodySchema,
   upsertTableRowBodySchema,
+  workflowGroupOutputColumnSchema,
 } from '@/lib/api/contracts/tables'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import {
   v1CreateTableBodySchema,
   v1CreateTableRowsBodySchema,
   v1ListTablesQuerySchema,
 } from '@/lib/api/contracts/v1/tables'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2SearchSchema,
+  v2SortFields,
+} from '@/lib/api/contracts/v2/shared'
+import {
+  v2CompleteUploadBodySchema,
+  v2OptionalUploadTokenHeadersSchema,
+  v2PartUrlsBodySchema,
+  v2PartUrlsDataSchema,
+  v2UploadTokenHeadersSchema,
+} from '@/lib/api/contracts/v2/uploads'
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
  * v2 tables contracts.
@@ -47,13 +79,29 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 
 /** Default page size when a row query/list `limit` is omitted. */
 export const V2_DEFAULT_ROW_LIMIT = 100
-/** Hard cap on an explicit page `limit`. Larger pulls use `limit=0` (query) or the async export. */
+/** Hard cap on an explicit page `limit`. Larger pulls use `limit=0` (query) or an export resource. */
 export const V2_MAX_ROW_LIMIT = 1000
 
 /**
  * Public table shape emitted by `toApiTable` (timestamps ISO-serialized).
  * Concrete so the v2 contract describes exactly what the wire carries.
  */
+/**
+ * The table's current background job, or `null` when idle.
+ *
+ * Import and delete jobs are also derived onto the table (one write job per table at a time).
+ * Durable imports and exports have their own resource endpoints for complete lifecycle state.
+ */
+export const v2TableJobStateSchema = z.object({
+  id: z.string().nullable(),
+  type: z.enum(['import', 'delete', 'export', 'backfill', 'update']).nullable(),
+  status: z.enum(['running', 'ready', 'failed', 'canceled']),
+  rowsProcessed: z.number(),
+  /** Failure reason for a `failed` job; `null` otherwise. */
+  error: z.string().nullable(),
+})
+export type V2TableJobState = z.output<typeof v2TableJobStateSchema>
+
 export const v2ApiTableSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -61,6 +109,16 @@ export const v2ApiTableSchema = z.object({
   schema: z.object({ columns: z.array(tableColumnSchema) }),
   rowCount: z.number(),
   maxRows: z.number(),
+  /** Owning folder, or `null` when the table sits at the workspace root. */
+  folderId: z.string().nullable(),
+  /**
+   * Governance flags, read-only on the public API. They are enforced on every
+   * write (a locked verb returns 423), but flipping them is a first-party admin
+   * action — see {@link v2UpdateTableBodySchema}.
+   */
+  locks: tableLocksSchema,
+  /** In-flight background job, or `null` when the table is idle. */
+  job: v2TableJobStateSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -141,17 +199,37 @@ export const v2UpsertRowDataSchema = z.object({
 })
 export type V2UpsertRowData = z.output<typeof v2UpsertRowDataSchema>
 
+export const v2TableSortFields = ['name', 'createdAt', 'updatedAt'] as const
+
+export type V2TableSortBy = (typeof v2TableSortFields)[number]
+
+/**
+ * Table list query: the workspace scope every table route shares, plus the v2
+ * search/sort convention and a folder filter. Kept separate from
+ * `v1ListTablesQuerySchema` — the single-table read/delete routes reuse that
+ * schema and have no list params.
+ */
+export const v2ListTablesQuerySchema = v1ListTablesQuerySchema.extend({
+  /** Restrict to one table folder. */
+  folderId: z.string().min(1, 'folderId cannot be empty').optional(),
+  search: v2SearchSchema,
+  ...v2SortFields(v2TableSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
+})
+
+export type V2ListTablesQuery = z.output<typeof v2ListTablesQuerySchema>
+
 /**
  * Table list. `listTables` returns every table in the workspace (a small,
  * bounded per-workspace set), so today the cursor list is a single full page
  * (`nextCursor` is always `null`). Using the canonical cursor envelope keeps the
  * whole v2 list surface uniform, and real pagination can be added later behind
- * the opaque cursor without an interface change.
+ * the opaque cursor without an interface change. Search, folder filter, and
+ * sort all run in that query, not over its result.
  */
 export const v2ListTablesContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/tables',
-  query: v1ListTablesQuerySchema,
+  query: v2ListTablesQuerySchema,
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2ApiTableSchema),
@@ -178,6 +256,48 @@ export const v2GetTableContract = defineRouteContract({
     schema: v2DataResponse(v2TableDataSchema),
   },
 })
+
+/**
+ * Table update. Every field is optional but at least one must be present:
+ * `name` renames and `folderId` moves the table (explicit `null` moves it to
+ * the workspace root; omission leaves the placement untouched).
+ *
+ * `locks` is deliberately **not** accepted here, which is why this body is
+ * declared rather than reusing the first-party `updateTableBodySchema`. The
+ * governance flags are read-only on the public surface: an API key that can
+ * write a table must not also be able to clear the lock that was put there to
+ * stop it. Flipping a lock stays a first-party admin action. The body is
+ * `.strict()`, so a caller sending `locks` gets a 400 naming the field instead
+ * of a silent no-op that reads as success.
+ */
+export const v2UpdateTableBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    name: tableNameSchema.optional(),
+    folderId: folderIdSchema.nullable().optional(),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.name === undefined && body.folderId === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Provide a new name or folder',
+        path: ['name'],
+      })
+    }
+  })
+
+export const v2UpdateTableContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/tables/[tableId]',
+  params: tableIdParamsSchema,
+  body: v2UpdateTableBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2TableDataSchema),
+  },
+})
+export type V2UpdateTableBody = z.input<typeof v2UpdateTableBodySchema>
 
 export const v2DeleteTableContract = defineRouteContract({
   method: 'DELETE',
@@ -265,7 +385,7 @@ export const v2QueryRowsBodySchema = z.object({
     .min(0, 'Limit must be at least 0 (use 0 for an unbounded query)')
     .max(
       V2_MAX_ROW_LIMIT,
-      `Limit cannot exceed ${V2_MAX_ROW_LIMIT}; use limit=0 for a full result or the async export for large datasets`
+      `Limit cannot exceed ${V2_MAX_ROW_LIMIT}; use limit=0 for a full result or create an export resource for large datasets`
     )
     .optional(),
   cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
@@ -405,5 +525,630 @@ export const v2UpsertTableRowContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2UpsertRowDataSchema),
+  },
+})
+
+/**
+ * Body for the endpoints whose only input is the workspace the table must
+ * belong to. Present so every v2 mutation carries the same scope check the rest
+ * of the surface applies through `resolveWorkspaceScope`.
+ */
+export const v2WorkspaceScopedBodySchema = z.object({ workspaceId: workspaceIdSchema })
+export type V2WorkspaceScopedBody = z.input<typeof v2WorkspaceScopedBodySchema>
+
+/**
+ * Un-archives a table archived by `DELETE /api/v2/tables/[tableId]`. Resolves
+ * the table with archived rows included, so it is the one table endpoint whose
+ * target is expected NOT to be active.
+ */
+export const v2RestoreTableContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/restore',
+  params: tableIdParamsSchema,
+  body: v2WorkspaceScopedBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2TableDataSchema),
+  },
+})
+
+/**
+ * A saved view: a named preset of `{ filter, sort, column layout }` over a
+ * table. Presentation state only — a view narrows what a reader sees by
+ * default, it is never an access boundary, and every row it hides stays
+ * reachable by reading the table without it. Timestamps ISO-serialized.
+ */
+export const v2ApiViewSchema = z.object({
+  id: z.string(),
+  tableId: z.string(),
+  name: z.string(),
+  config: tableViewConfigSchema,
+  isDefault: z.boolean(),
+  /** User who saved the view; `null` for views whose author is gone. */
+  createdBy: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type V2ApiView = z.output<typeof v2ApiViewSchema>
+
+/** A single view payload. */
+export const v2TableViewDataSchema = z.object({ view: v2ApiViewSchema })
+export type V2TableViewData = z.output<typeof v2TableViewDataSchema>
+
+/** Delete confirmation — the id of the view that was removed. */
+export const v2DeleteTableViewDataSchema = z.object({ id: z.string() })
+export type V2DeleteTableViewData = z.output<typeof v2DeleteTableViewDataSchema>
+
+/**
+ * Every saved view on a table, oldest first. A table carries a small bounded
+ * set of views, so this is a single full page (`nextCursor` is always `null`);
+ * the cursor envelope keeps the v2 list surface uniform.
+ */
+export const v2ListTableViewsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/tables/[tableId]/views',
+  params: tableIdParamsSchema,
+  query: v1ListTablesQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2ApiViewSchema),
+  },
+})
+
+export const v2CreateTableViewContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/views',
+  params: tableIdParamsSchema,
+  body: createTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2TableViewDataSchema),
+  },
+})
+
+export const v2GetTableViewContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/tables/[tableId]/views/[viewId]',
+  params: tableViewParamsSchema,
+  query: v1ListTablesQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2TableViewDataSchema),
+  },
+})
+
+export const v2UpdateTableViewContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/tables/[tableId]/views/[viewId]',
+  params: tableViewParamsSchema,
+  body: updateTableViewBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2TableViewDataSchema),
+  },
+})
+
+/** Deleting the default view simply leaves the table unfiltered. */
+export const v2DeleteTableViewContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/tables/[tableId]/views/[viewId]',
+  params: tableViewParamsSchema,
+  query: v1ListTablesQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2DeleteTableViewDataSchema),
+  },
+})
+
+/**
+ * One workflow/enrichment column group: a backing workflow (or registry
+ * enrichment) plus the output columns its runs populate. Read-only on v2 —
+ * groups are authored in the workflow builder, and the public surface exposes
+ * them so a caller can discover the `groupIds` the run endpoints take.
+ */
+export const v2WorkflowGroupSchema = z.object({
+  id: z.string(),
+  /** Backing workflow id for `manual` groups; `''` for enrichment groups. */
+  workflowId: z.string(),
+  /** Registry enrichment id for `enrichment` groups. */
+  enrichmentId: z.string().optional(),
+  name: z.string().optional(),
+  type: z.enum(['manual', 'enrichment']).optional(),
+  dependencies: z.object({ columns: z.array(z.string()).optional() }).optional(),
+  outputs: z.array(
+    z.object({
+      blockId: z.string(),
+      path: z.string(),
+      outputId: z.string().optional(),
+      columnName: z.string(),
+    })
+  ),
+  inputMappings: z.array(z.object({ inputName: z.string(), columnName: z.string() })).optional(),
+  deploymentMode: z.enum(['live', 'deployed']).optional(),
+  /** When `false` the group never auto-fires; it runs only on an explicit request. */
+  autoRun: z.boolean().optional(),
+})
+export type V2WorkflowGroup = z.output<typeof v2WorkflowGroupSchema>
+
+/**
+ * The table's workflow/enrichment groups. Bounded per table, so a single full
+ * page (`nextCursor` is always `null`).
+ */
+export const v2ListWorkflowGroupsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/tables/[tableId]/groups',
+  params: tableIdParamsSchema,
+  query: v1ListTablesQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkflowGroupSchema),
+  },
+})
+
+/**
+ * Output column of a group, as the public surface accepts it. The first-party
+ * shape carries `workflowGroupId` because the client mints the group id before
+ * posting; v2 server-generates it, so the field is stamped from the group being
+ * written rather than being a caller's to supply (and get wrong).
+ */
+const v2WorkflowGroupOutputColumnSchema = workflowGroupOutputColumnSchema.omit({
+  workflowGroupId: true,
+})
+
+/**
+ * A group names its producer two mutually exclusive ways, and the underlying
+ * shape leaves both optional. Rejecting the mismatch here means the route never
+ * has to guess which one a half-specified group meant.
+ */
+function refineGroupSource(
+  group: { type?: 'manual' | 'enrichment'; workflowId?: string; enrichmentId?: string },
+  ctx: z.RefinementCtx,
+  path: (string | number)[]
+): void {
+  // `manual` is the workflow-backed default — it does not mean hand-entered.
+  const type = group.type ?? 'manual'
+  if (type === 'enrichment' && !group.enrichmentId) {
+    ctx.addIssue({
+      code: 'custom',
+      path: [...path, 'enrichmentId'],
+      message: 'enrichmentId is required when type is "enrichment"',
+    })
+  }
+  if (type === 'manual' && !group.workflowId) {
+    ctx.addIssue({
+      code: 'custom',
+      path: [...path, 'workflowId'],
+      message: 'workflowId is required when type is "manual"',
+    })
+  }
+}
+
+/**
+ * Create a group and the columns its runs populate, in one call.
+ *
+ * Two deliberate departures from the first-party body:
+ * - `group.id` is optional and server-generated. The UI mints an id so it can
+ *   render optimistically; a public caller has no such need and a client-chosen
+ *   id is a collision waiting to happen.
+ * - `autoRun` defaults to **false**. On the first-party surface it defaults to
+ *   true so a UI add fills cells immediately, but here it would make one POST
+ *   fan out a metered run across every existing row. Callers opt in, or fire
+ *   explicitly via `POST /columns/run`.
+ */
+export const v2AddWorkflowGroupBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    group: addWorkflowGroupBodySchema.shape.group.extend({
+      id: z.string().min(1).optional(),
+    }),
+    outputColumns: z.array(v2WorkflowGroupOutputColumnSchema).min(1),
+    autoRun: z.boolean().optional().default(false),
+  })
+  .strict()
+  .superRefine((body, ctx) => refineGroupSource(body.group, ctx, ['group']))
+export type V2AddWorkflowGroupBody = z.input<typeof v2AddWorkflowGroupBodySchema>
+
+/** Update body. Omitted fields keep their stored values. */
+export const v2UpdateWorkflowGroupBodySchema = updateWorkflowGroupBodySchema
+  .extend({
+    newOutputColumns: z.array(v2WorkflowGroupOutputColumnSchema).optional(),
+  })
+  .strict()
+export type V2UpdateWorkflowGroupBody = z.input<typeof v2UpdateWorkflowGroupBodySchema>
+
+export const v2DeleteWorkflowGroupBodySchema = deleteWorkflowGroupBodySchema.strict()
+export type V2DeleteWorkflowGroupBody = z.input<typeof v2DeleteWorkflowGroupBodySchema>
+
+/**
+ * Create and update both mutate the group *and* the table's columns, so both
+ * are returned — otherwise a caller has to re-read the table to learn which
+ * columns it just got.
+ */
+export const v2WorkflowGroupDataSchema = z.object({
+  group: v2WorkflowGroupSchema,
+  columns: z.array(tableColumnSchema),
+})
+export type V2WorkflowGroupData = z.output<typeof v2WorkflowGroupDataSchema>
+
+/**
+ * Delete acknowledgement. Removing a group removes the columns it fed, so the
+ * surviving column list is returned rather than left for the caller to guess.
+ */
+export const v2DeleteWorkflowGroupDataSchema = z.object({
+  id: z.string(),
+  deleted: z.literal(true),
+  columns: z.array(tableColumnSchema),
+})
+export type V2DeleteWorkflowGroupData = z.output<typeof v2DeleteWorkflowGroupDataSchema>
+
+export const v2AddWorkflowGroupContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/groups',
+  params: tableIdParamsSchema,
+  body: v2AddWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowGroupDataSchema),
+  },
+})
+
+export const v2UpdateWorkflowGroupContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/tables/[tableId]/groups',
+  params: tableIdParamsSchema,
+  body: v2UpdateWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowGroupDataSchema),
+  },
+})
+
+export const v2DeleteWorkflowGroupContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/tables/[tableId]/groups',
+  params: tableIdParamsSchema,
+  body: v2DeleteWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2DeleteWorkflowGroupDataSchema),
+  },
+})
+
+/**
+ * Run-column body. Identical to the first-party shape except `filter`, which v2
+ * narrows to the typed predicate tree — the legacy `$`-operator dialect stays
+ * v1-only across the whole v2 surface.
+ */
+export const v2RunColumnBodySchema = runColumnBodyBaseSchema
+  .extend({ filter: predicateSchema.optional() })
+  .refine(...runColumnScopeMutexRefine)
+  .refine(...runColumnExcludeMutexRefine)
+export type V2RunColumnBody = z.input<typeof v2RunColumnBodySchema>
+
+/**
+ * A started run. `dispatchId` identifies the `table_run_dispatches` row the
+ * dispatcher walks; it is `null` in deployments without a background runner,
+ * where cells execute inline and no dispatch row is created.
+ */
+export const v2RunColumnDataSchema = z.object({ dispatchId: z.string().nullable() })
+export type V2RunColumnData = z.output<typeof v2RunColumnDataSchema>
+
+/**
+ * Runs one or more workflow/enrichment groups across the table or a row subset.
+ * Asynchronous: the response acknowledges the dispatch, and cell values land as
+ * the runs complete. Poll the rows endpoints for results.
+ */
+export const v2RunTableColumnContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/columns/run',
+  params: tableIdParamsSchema,
+  body: v2RunColumnBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2RunColumnDataSchema),
+  },
+})
+
+export const v2RowEnrichmentParamsSchema = tableRowParamsSchema.extend({
+  groupId: z.string().min(1),
+})
+export type V2RowEnrichmentParams = z.output<typeof v2RowEnrichmentParamsSchema>
+
+/**
+ * The single-cell case of {@link v2RunTableColumnContract}: runs one group for
+ * one row. The scope lives entirely in the path, so the body carries only the
+ * workspace.
+ */
+export const v2RunRowEnrichmentContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
+  params: v2RowEnrichmentParamsSchema,
+  body: v2WorkspaceScopedBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2RunColumnDataSchema),
+  },
+})
+
+/**
+ * Lookup body: a case-insensitive substring search across every cell, narrowed
+ * by the same predicate/sort grammar as `POST /query`. POST because the
+ * predicate tree is a structured body, not a querystring dialect.
+ */
+export const v2FindRowsBodySchema = z.object({
+  workspaceId: workspaceIdSchema,
+  q: z.string().min(1, 'q must be a non-empty search string'),
+  predicate: predicateSchema.optional(),
+  sort: sortSpecSchema.optional(),
+})
+export type V2FindRowsBody = z.input<typeof v2FindRowsBodySchema>
+
+/**
+ * One matching cell. `ordinal` is the row's 0-based index in the
+ * predicate-filtered, sorted view, so it lines up with the same page a
+ * `POST /query` with the same predicate and sort would return. `column` is the
+ * column NAME, matching how row `data` is keyed everywhere on the public wire.
+ */
+export const v2RowMatchSchema = z.object({
+  ordinal: z.number(),
+  rowId: z.string(),
+  column: z.string(),
+})
+export type V2RowMatch = z.output<typeof v2RowMatchSchema>
+
+/**
+ * Match set. `truncated` is `true` when the search hit the server-side cap and
+ * more cells match than were returned — narrow the predicate rather than
+ * paging, since matches have no cursor.
+ */
+export const v2FindRowsDataSchema = z.object({
+  matches: z.array(v2RowMatchSchema),
+  truncated: z.boolean(),
+})
+export type V2FindRowsData = z.output<typeof v2FindRowsDataSchema>
+
+export const v2FindTableRowsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/rows/find',
+  params: tableIdParamsSchema,
+  body: v2FindRowsBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FindRowsDataSchema),
+  },
+})
+
+export const v2TableImportParamsSchema = z.object({ importId: z.string().min(1) })
+export const v2TableExportParamsSchema = z.object({ exportId: z.string().min(1) })
+export const v2TableTransferWorkspaceQuerySchema = z.object({ workspaceId: workspaceIdSchema })
+
+export const v2TableImportSourceSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('upload'),
+      name: z.string().trim().min(1, 'name is required').max(255),
+      contentType: z.string().trim().min(1, 'contentType is required').max(255),
+      size: z.number().int().min(1).max(MAX_WORKSPACE_FILE_SIZE),
+    })
+    .strict(),
+  z.object({ type: z.literal('workspace_file'), fileId: z.string().min(1) }).strict(),
+])
+export type V2TableImportSource = z.input<typeof v2TableImportSourceSchema>
+
+export const v2TableImportTargetSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('new'),
+      name: tableNameSchema,
+      folderId: folderIdSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('existing'),
+      tableId: z.string().min(1),
+      mode: z.enum(['append', 'replace']),
+    })
+    .strict(),
+])
+export type V2TableImportTarget = z.input<typeof v2TableImportTargetSchema>
+
+export const v2CreateTableImportBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    source: v2TableImportSourceSchema,
+    target: v2TableImportTargetSchema,
+    mapping: csvImportMappingSchema.optional(),
+    createColumns: csvImportCreateColumnsSchema.optional(),
+    timezone: ianaTimezoneSchema.optional(),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.target.type === 'new' && body.mapping !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['mapping'],
+        message: 'mapping is only supported for an existing table target',
+      })
+    }
+    if (body.target.type === 'new' && body.createColumns !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['createColumns'],
+        message: 'createColumns is only supported for an existing table target',
+      })
+    }
+  })
+export type V2CreateTableImportBody = z.input<typeof v2CreateTableImportBodySchema>
+
+export const v2TableImportStatusSchema = z.enum([
+  'uploading',
+  'queued',
+  'processing',
+  'completed',
+  'failed',
+  'canceled',
+  'expired',
+])
+export type V2TableImportStatus = z.output<typeof v2TableImportStatusSchema>
+
+export const v2TableImportUploadSchema = z.object({
+  uploadToken: z.string().min(1),
+  partSize: z.number().int().positive(),
+  partCount: z.number().int().positive(),
+  expiresAt: z.string().datetime(),
+})
+
+export const v2TableImportSchema = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  status: v2TableImportStatusSchema,
+  source: v2TableImportSourceSchema,
+  target: v2TableImportTargetSchema,
+  tableId: z.string().nullable(),
+  rowsProcessed: z.number().int().nonnegative(),
+  error: z.string().nullable(),
+  upload: v2TableImportUploadSchema.nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  completedAt: z.string().datetime().nullable(),
+})
+export type V2TableImport = z.output<typeof v2TableImportSchema>
+
+export const v2CreateTableImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/imports',
+  body: v2CreateTableImportBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
+})
+
+export const v2GetTableImportContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/tables/imports/[importId]',
+  params: v2TableImportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
+})
+
+export const v2CancelTableImportContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/tables/imports/[importId]',
+  params: v2TableImportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  headers: v2OptionalUploadTokenHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
+})
+
+export const v2CreateTableImportPartUrlsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/imports/[importId]/parts',
+  params: v2TableImportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  body: v2PartUrlsBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2PartUrlsDataSchema) },
+})
+
+export const v2CompleteTableImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/imports/[importId]/complete',
+  params: v2TableImportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  body: v2CompleteUploadBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
+})
+
+export const v2TableExportStatusSchema = z.enum([
+  'queued',
+  'processing',
+  'completed',
+  'failed',
+  'canceled',
+])
+export type V2TableExportStatus = z.output<typeof v2TableExportStatusSchema>
+
+export const v2TableExportSchema = z.object({
+  id: z.string(),
+  tableId: z.string(),
+  workspaceId: z.string(),
+  format: z.enum(['csv', 'json']),
+  status: v2TableExportStatusSchema,
+  rowsProcessed: z.number().int().nonnegative(),
+  error: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  completedAt: z.string().datetime().nullable(),
+})
+export type V2TableExport = z.output<typeof v2TableExportSchema>
+
+export const v2CreateTableExportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/exports',
+  params: tableIdParamsSchema,
+  body: exportTableAsyncBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema) },
+})
+
+export const v2GetTableExportContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/tables/exports/[exportId]',
+  params: v2TableExportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema) },
+})
+
+export const v2CancelTableExportContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/tables/exports/[exportId]',
+  params: v2TableExportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema) },
+})
+
+export const v2TableExportDownloadDataSchema = z.object({
+  url: z.string().url(),
+  fileName: z.string(),
+  expiresAt: z.string().datetime(),
+})
+
+export const v2TableExportDownloadContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/tables/exports/[exportId]/download',
+  params: v2TableExportParamsSchema,
+  query: v2TableTransferWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableExportDownloadDataSchema) },
+})
+
+/**
+ * Cancel-runs body. Identical to the first-party shape except `filter`, which
+ * v2 narrows to the typed predicate tree.
+ */
+export const v2CancelTableRunsBodySchema = cancelTableRunsBodyBaseSchema
+  .extend({ filter: predicateSchema.optional() })
+  .superRefine((value, ctx) => {
+    for (const issue of refineCancelTableRunsScope(value)) {
+      ctx.addIssue({ code: 'custom', ...issue })
+    }
+  })
+export type V2CancelTableRunsBody = z.input<typeof v2CancelTableRunsBodySchema>
+
+/** How many in-flight cell runs the cancel actually stopped. */
+export const v2CancelTableRunsDataSchema = z.object({ cancelled: z.number() })
+export type V2CancelTableRunsData = z.output<typeof v2CancelTableRunsDataSchema>
+
+/**
+ * Stops in-flight and pending workflow/enrichment cell runs — the counterpart
+ * to `POST /columns/run`. Import and export work is canceled by deleting its
+ * resource instead.
+ */
+export const v2CancelTableRunsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/cancel-runs',
+  params: tableIdParamsSchema,
+  body: v2CancelTableRunsBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CancelTableRunsDataSchema),
   },
 })

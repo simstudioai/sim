@@ -85,7 +85,7 @@ describe('performDeleteTable', () => {
 
     const result = await performDeleteTable({ table: TABLE, userId: 'user-1' })
 
-    expect(result).toMatchObject({ success: false, errorCode: 'locked' })
+    expect(result).toMatchObject({ success: false, errorCode: 'locked', lock: 'delete' })
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 })
@@ -129,7 +129,10 @@ describe('performDeleteTableRow', () => {
   it('classifies a delete lock as locked', async () => {
     mockDeleteRow.mockRejectedValue(new TableLockedError('delete'))
 
-    expect((await performDeleteTableRow({ table: TABLE, rowId: 'row-1' })).errorCode).toBe('locked')
+    const rowResult = await performDeleteTableRow({ table: TABLE, rowId: 'row-1' })
+    expect(rowResult.errorCode).toBe('locked')
+    // The kind rides along so the route can name which flag to clear.
+    expect(rowResult.lock).toBe('delete')
   })
 
   it('classifies a missing row as not_found', async () => {

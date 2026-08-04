@@ -59,7 +59,7 @@ import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail } from '@/hooks/queries/logs'
 import { useScheduleById } from '@/hooks/queries/schedules'
-import { downloadTableExport } from '@/hooks/queries/tables'
+import { exportTable } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -331,13 +331,7 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
     case 'table':
-      return (
-        <EmbeddedTableActions
-          workspaceId={workspaceId}
-          tableId={resource.id}
-          tableName={resource.title}
-        />
-      )
+      return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
     case 'log':
       return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
     case 'scheduledtask':
@@ -495,10 +489,9 @@ const tableLogger = createLogger('EmbeddedTableActions')
 interface EmbeddedTableActionsProps {
   workspaceId: string
   tableId: string
-  tableName: string
 }
 
-function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTableActionsProps) {
+function EmbeddedTableActions({ workspaceId, tableId }: EmbeddedTableActionsProps) {
   const router = useRouter()
 
   const handleOpenTable = () => {
@@ -507,7 +500,7 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
 
   const handleExport = async () => {
     try {
-      await downloadTableExport(tableId, tableName)
+      await exportTable(workspaceId, tableId)
     } catch (err) {
       tableLogger.error('Failed to export table:', err)
     }

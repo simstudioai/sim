@@ -3,7 +3,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
-import type { StorageContext } from '../shared/types'
+import { type StorageContext, toLegacyWorkspaceFileSize } from '../shared/types'
 
 const logger = createLogger('FileMetadata')
 
@@ -49,7 +49,8 @@ export async function insertFileMetadata(
         originalName,
         displayName: originalName,
         contentType,
-        size,
+        size: toLegacyWorkspaceFileSize(size),
+        sizeBytes: size,
         deletedAt: null,
         uploadedAt: new Date(),
       })
@@ -86,7 +87,8 @@ export async function insertFileMetadata(
         originalName,
         displayName: originalName,
         contentType,
-        size,
+        size: toLegacyWorkspaceFileSize(size),
+        sizeBytes: size,
         deletedAt: null,
         uploadedAt: new Date(),
       })
@@ -142,7 +144,8 @@ export async function insertFileMetadataMany(
         originalName: row.originalName,
         displayName: row.originalName,
         contentType: row.contentType,
-        size: row.size,
+        size: toLegacyWorkspaceFileSize(row.size),
+        sizeBytes: row.size,
         deletedAt: null,
         uploadedAt: new Date(),
       }))

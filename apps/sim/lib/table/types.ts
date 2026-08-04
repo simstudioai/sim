@@ -348,14 +348,29 @@ export interface TableUpdateJobPayload {
   maxRows?: number
 }
 
+export type TableExportFormat = 'csv' | 'json'
+
 /**
  * Persisted scope of an export job (`table_jobs.payload`). `resultKey` is merged in by the worker
  * on completion — the storage key of the generated file, served to the client via a presigned URL
  * and deleted by the janitor when the terminal job is pruned.
  */
 export interface TableExportJobPayload {
-  format: 'csv' | 'json'
+  format: TableExportFormat
   resultKey?: string
+}
+
+/** Durable import descriptor stored on the existing `table_jobs` row. */
+export interface TableImportJobPayload {
+  kind: 'table_import'
+  userId: string
+  source: unknown
+  target: unknown
+  options: {
+    mapping?: unknown
+    createColumns?: string[]
+    timezone?: string
+  }
 }
 
 /**
@@ -644,6 +659,8 @@ export interface CreateTableData {
   jobType?: TableJobType
   /** Async job id stamped on the table when `jobStatus` is set. */
   jobId?: string
+  /** Type-specific payload stored on the initial async job. */
+  jobPayload?: unknown
 }
 
 export interface InsertRowData {

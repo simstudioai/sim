@@ -1,7 +1,10 @@
 import { db } from '@sim/db'
 import { folder } from '@sim/db/schema'
-import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, type Column, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { FolderApi, FolderResourceType } from '@/lib/api/contracts/folders'
+import type { V2FolderSortBy } from '@/lib/api/contracts/v2/folders'
+import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import { listOrderBy, searchFilter } from '@/lib/api/list-query'
 import type { FolderQueryScope } from '@/hooks/queries/utils/folder-keys'
 
 /**
@@ -135,21 +138,52 @@ export async function resolveRestoredFolderId(
   return (await findActiveFolder(folderId, workspaceId, resourceType)) ? folderId : null
 }
 
-/** Shared by `GET /api/folders` and the sidebar prefetch so the query never drifts between them. */
+/**
+ * Orderings for the public list's sortable fields, made total over the contract
+ * enum by `satisfies`. Each ends in `createdAt` so folders sharing a name or a
+ * `sortOrder` still come back in a stable order.
+ */
+const FOLDER_SORTS = {
+  position: [folder.sortOrder, folder.createdAt],
+  name: [folder.name, folder.createdAt],
+  createdAt: [folder.createdAt],
+  updatedAt: [folder.updatedAt, folder.createdAt],
+} satisfies Record<V2FolderSortBy, readonly Column[]>
+
+interface ListFoldersOptions {
+  /** Case-insensitive substring match on the folder name. */
+  search?: string
+  sortBy?: V2FolderSortBy
+  sortOrder?: V2SortOrder
+}
+
+/**
+ * Shared by `GET /api/folders`, the public v2 list, and the sidebar prefetch so
+ * the query never drifts between them. Search and sort are applied in the
+ * query; the in-app callers omit them and keep the default `position` ordering.
+ */
 export async function listFoldersForWorkspace(
   workspaceId: string,
   scope: FolderQueryScope,
-  resourceType: FolderResourceType
+  resourceType: FolderResourceType,
+  options?: ListFoldersOptions
 ): Promise<FolderApi[]> {
   const scopeFilter = scope === 'archived' ? isNotNull(folder.deletedAt) : isNull(folder.deletedAt)
+  const sortBy = options?.sortBy ?? 'position'
+  const sortOrder = options?.sortOrder ?? 'asc'
 
   const rows = await db
     .select()
     .from(folder)
     .where(
-      and(eq(folder.workspaceId, workspaceId), eq(folder.resourceType, resourceType), scopeFilter)
+      and(
+        eq(folder.workspaceId, workspaceId),
+        eq(folder.resourceType, resourceType),
+        scopeFilter,
+        searchFilter(folder.name, options?.search)
+      )
     )
-    .orderBy(asc(folder.sortOrder), asc(folder.createdAt))
+    .orderBy(...listOrderBy(FOLDER_SORTS[sortBy], sortOrder))
 
   return rows.map(toFolderApi)
 }

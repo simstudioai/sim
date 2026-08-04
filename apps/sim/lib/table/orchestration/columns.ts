@@ -18,7 +18,7 @@ import {
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
-import type { ColumnType, SelectOption, TableDefinition } from '@/lib/table/types'
+import type { ColumnType, SelectOption, TableDefinition, TableLockKind } from '@/lib/table/types'
 
 const logger = createLogger('TableColumnOrchestration')
 
@@ -45,12 +45,14 @@ export interface PerformUpdateTableColumnResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
+  /** Which lock rejected the write. Set only when `errorCode` is `'locked'`. */
+  lock?: TableLockKind
   table?: TableDefinition
 }
 
 function classify(error: unknown): PerformUpdateTableColumnResult {
   if (error instanceof TableLockedError) {
-    return { success: false, error: error.message, errorCode: 'locked' }
+    return { success: false, error: error.message, errorCode: 'locked', lock: error.lock }
   }
   if (error instanceof OrchestrationError) {
     return { success: false, error: error.message, errorCode: error.code }

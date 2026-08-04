@@ -6,7 +6,12 @@ import {
   skillNameSchema,
 } from '@/lib/api/contracts/skills'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2SearchSchema,
+  v2SortFields,
+} from '@/lib/api/contracts/v2/shared'
 
 /**
  * v2 skills contracts.
@@ -64,6 +69,17 @@ export const v2SkillWorkspaceQuerySchema = z.object({
 })
 export type V2SkillWorkspaceQuery = z.output<typeof v2SkillWorkspaceQuerySchema>
 
+export const v2SkillSortFields = ['name', 'createdAt', 'updatedAt'] as const
+
+export type V2SkillSortBy = (typeof v2SkillSortFields)[number]
+
+export const v2ListSkillsQuerySchema = v2SkillWorkspaceQuerySchema.extend({
+  search: v2SearchSchema,
+  ...v2SortFields(v2SkillSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+})
+
+export type V2ListSkillsQuery = z.output<typeof v2ListSkillsQuerySchema>
+
 export const v2CreateSkillBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
@@ -105,7 +121,7 @@ export type V2UpdateSkillBody = z.input<typeof v2UpdateSkillBodySchema>
 export const v2ListSkillsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/skills',
-  query: v2SkillWorkspaceQuerySchema,
+  query: v2ListSkillsQuerySchema,
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2SkillSummarySchema),

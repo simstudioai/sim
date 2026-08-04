@@ -19,12 +19,11 @@ import {
   v2CaughtOrchestrationError,
   v2Data,
   v2Error,
-  v2ErrorForOrchestration,
   v2RateLimitError,
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
-import { v2TableAccessError } from '@/app/api/v2/tables/utils'
+import { v2TableAccessError, v2TableOrchestrationError } from '@/app/api/v2/tables/utils'
 
 const logger = createLogger('V2TableColumnsAPI')
 
@@ -136,7 +135,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       request,
     })
     if (!outcome.success || !outcome.table) {
-      return v2ErrorForOrchestration(outcome.errorCode, outcome.error ?? 'Failed to update column')
+      return v2TableOrchestrationError(outcome, 'Failed to update column')
     }
 
     return v2Data({ columns: outcome.table.schema.columns.map(normalizeColumn) }, { rateLimit })

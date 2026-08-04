@@ -9,8 +9,23 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
+import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
+import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import {
+  type CursorKey,
+  encodeKeyset,
+  INVALID_CURSOR_MESSAGE,
+  type KeysetKey,
+  keysetAfter,
+  keysetColumns,
+  listOrderBy,
+  numberKey,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import {
   decrementStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
@@ -28,11 +43,10 @@ import { getServePathPrefix } from '@/lib/uploads'
 import {
   deleteFile,
   downloadFile,
-  hasCloudStorage,
   headObject,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
-import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { MAX_WORKSPACE_FILE_SIZE, toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
@@ -160,6 +174,10 @@ interface WorkspaceFileMetadataInsert {
   size: number
 }
 
+function workspaceFileSize(file: typeof workspaceFiles.$inferSelect): number {
+  return file.sizeBytes ?? file.size
+}
+
 /**
  * Attempts one active workspace-file insert and reports the row that this call
  * created. Conflict losers receive `undefined` and must inspect the active key
@@ -173,6 +191,8 @@ async function insertWorkspaceFileMetadataInTx(
     .insert(workspaceFiles)
     .values({
       ...metadata,
+      size: toLegacyWorkspaceFileSize(metadata.size),
+      sizeBytes: metadata.size,
       context: 'workspace',
       displayName: metadata.originalName,
       deletedAt: null,
@@ -252,7 +272,7 @@ function isSameWorkspaceFileRegistration(
     file.folderId === params.folderId &&
     file.context === 'workspace' &&
     file.contentType === params.contentType &&
-    file.size === params.size &&
+    workspaceFileSize(file) === params.size &&
     file.deletedAt === null
   )
 }
@@ -474,10 +494,6 @@ export async function registerUploadedWorkspaceFile(params: {
   const { workspaceId, userId, key, originalName, contentType } = params
   const normalizedOriginalName = normalizeWorkspaceFileItemName(originalName, 'File')
 
-  if (!hasCloudStorage()) {
-    throw new Error('Direct-upload registration requires cloud storage')
-  }
-
   if (parseWorkspaceFileKey(key) !== workspaceId) {
     throw new Error('Storage key does not belong to this workspace')
   }
@@ -513,7 +529,7 @@ export async function registerUploadedWorkspaceFile(params: {
       file: {
         id: existing.id,
         name: existing.originalName,
-        size: existing.size,
+        size: workspaceFileSize(existing),
         type: existing.contentType,
         url: `${pathPrefix}${encodeURIComponent(existing.key)}?context=workspace`,
         key: existing.key,
@@ -576,7 +592,7 @@ export async function registerUploadedWorkspaceFile(params: {
       file: {
         id: finalized.file.id,
         name: finalized.file.originalName,
-        size: finalized.file.size,
+        size: workspaceFileSize(finalized.file),
         type: finalized.file.contentType,
         url: `${pathPrefix}${encodeURIComponent(finalized.file.key)}?context=workspace`,
         key: finalized.file.key,
@@ -715,7 +731,7 @@ function mapWorkspaceFileRecord(
     name: file.originalName,
     key: file.key,
     path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
-    size: file.size,
+    size: workspaceFileSize(file),
     type: file.contentType,
     uploadedBy: file.userId,
     folderId: file.folderId,
@@ -775,6 +791,33 @@ export async function getWorkspaceFileByName(
   return mapSingleWorkspaceFileRecord(files[0], workspaceId)
 }
 
+/** Workspace-file rows for one scope: live, Recently Deleted, or both. */
+function workspaceFileScopeCondition(workspaceId: string, scope: WorkspaceFileScope) {
+  const base = [
+    eq(workspaceFiles.workspaceId, workspaceId),
+    eq(workspaceFiles.context, 'workspace'),
+  ]
+  if (scope === 'all') return and(...base)
+  return scope === 'archived'
+    ? and(...base, isNotNull(workspaceFiles.deletedAt))
+    : and(...base, isNull(workspaceFiles.deletedAt))
+}
+
+/** Resolves `folderPath` for a page of rows, reading the folder tree only if any row needs it. */
+async function hydrateWorkspaceFilePaths(
+  files: (typeof workspaceFiles.$inferSelect)[],
+  workspaceId: string,
+  options?: { folders?: WorkspaceFileFolderRecord[]; hydrateFolderPaths?: boolean }
+): Promise<WorkspaceFileRecord[]> {
+  const needsFolderPaths =
+    files.some((file) => file.folderId) && (options?.hydrateFolderPaths ?? true)
+  const folders = needsFolderPaths
+    ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
+    : []
+  const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
+  return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
+}
+
 /**
  * List all files for a workspace
  */
@@ -783,42 +826,110 @@ export async function listWorkspaceFiles(
   options?: ListWorkspaceFilesOptions
 ): Promise<WorkspaceFileRecord[]> {
   try {
-    const { scope = 'active', hydrateFolderPaths = true } = options ?? {}
+    const { scope = 'active' } = options ?? {}
     const files = await db
       .select()
       .from(workspaceFiles)
-      .where(
-        scope === 'all'
-          ? and(
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace')
-            )
-          : scope === 'archived'
-            ? and(
-                eq(workspaceFiles.workspaceId, workspaceId),
-                eq(workspaceFiles.context, 'workspace'),
-                sql`${workspaceFiles.deletedAt} IS NOT NULL`
-              )
-            : and(
-                eq(workspaceFiles.workspaceId, workspaceId),
-                eq(workspaceFiles.context, 'workspace'),
-                isNull(workspaceFiles.deletedAt)
-              )
-      )
+      .where(workspaceFileScopeCondition(workspaceId, scope))
       .orderBy(workspaceFiles.uploadedAt)
 
-    const needsFolderPaths = files.some((file) => file.folderId) && hydrateFolderPaths
-    const folders = needsFolderPaths
-      ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
-      : []
-    const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
-
-    return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
+    return hydrateWorkspaceFilePaths(files, workspaceId, options)
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
     if (options?.throwOnError) throw error
     return []
   }
+}
+
+/**
+ * The keysets behind {@link queryWorkspaceFiles}' sortable fields. `satisfies`
+ * makes this total over the contract enum: a new sortable field in the contract
+ * fails to compile until it has a keyset here, rather than silently falling
+ * through to an unordered scan.
+ *
+ * Every key column is `NOT NULL`, and `id` closes each keyset so a page
+ * boundary inside a run of equal names/sizes/timestamps is still stable.
+ */
+const fileId = textKey<WorkspaceFileRecord>(workspaceFiles.id, (row) => row.id)
+
+const WORKSPACE_FILE_SORTS = {
+  name: [textKey(workspaceFiles.originalName, (row) => row.name), fileId],
+  size: [
+    numberKey(
+      sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(Number),
+      (row) => row.size
+    ),
+    fileId,
+  ],
+  uploadedAt: [timestampKey(workspaceFiles.uploadedAt, (row) => row.uploadedAt), fileId],
+  updatedAt: [timestampKey(workspaceFiles.updatedAt, (row) => row.updatedAt), fileId],
+} satisfies Record<V2FileSortBy, readonly KeysetKey<WorkspaceFileRecord>[]>
+
+export interface QueryWorkspaceFilesOptions {
+  scope?: WorkspaceFileScope
+  /** Restrict to one file folder. */
+  folderId?: string
+  /** Case-insensitive substring match on the file name. */
+  search?: string
+  sortBy: V2FileSortBy
+  sortOrder: V2SortOrder
+  limit: number
+  /** Keyset values from a cursor, in the sort's key order. */
+  after?: CursorKey[]
+}
+
+export interface QueryWorkspaceFilesResult {
+  files: WorkspaceFileRecord[]
+  /** Keyset values to resume from, or `null` when this page is the last one. */
+  nextKeys: CursorKey[] | null
+}
+
+/**
+ * One filtered, sorted, bounded page of a workspace's files.
+ *
+ * Distinct from {@link listWorkspaceFiles}, which materializes the whole scope
+ * for callers that genuinely need it. Here the filter, the ordering, and the
+ * slice are all in the query: a name search must not become "read every row,
+ * then discard almost all of them in JS".
+ *
+ * Throws rather than returning a short page — a swallowed storage error here is
+ * indistinguishable from "no more results" and would silently end pagination.
+ * A cursor that does not fit the requested sort is a classified `validation`
+ * failure, so the route renders it as a 400 rather than a 500.
+ */
+export async function queryWorkspaceFiles(
+  workspaceId: string,
+  options: QueryWorkspaceFilesOptions
+): Promise<QueryWorkspaceFilesResult> {
+  const { scope = 'active', folderId, search, sortBy, sortOrder, limit, after } = options
+  const keys: readonly KeysetKey<WorkspaceFileRecord>[] = WORKSPACE_FILE_SORTS[sortBy]
+
+  let resumeAfter: SQL | undefined
+  if (after) {
+    const condition = keysetAfter(keys, after, sortOrder)
+    if (!condition) throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+    resumeAfter = condition
+  }
+
+  const conditions = [
+    workspaceFileScopeCondition(workspaceId, scope),
+    folderId ? eq(workspaceFiles.folderId, folderId) : undefined,
+    searchFilter(workspaceFiles.originalName, search),
+    resumeAfter,
+  ]
+
+  const rows = await db
+    .select()
+    .from(workspaceFiles)
+    .where(and(...conditions))
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
+    .limit(limit + 1)
+
+  const hasMore = rows.length > limit
+  const files = await hydrateWorkspaceFilePaths(rows.slice(0, limit), workspaceId)
+  const last = files.at(-1)
+
+  return { files, nextKeys: hasMore && last ? encodeKeyset(keys, last) : null }
 }
 
 /**
@@ -1152,7 +1263,7 @@ export async function updateWorkspaceFileContent(
           throw new ContentVersionConflictError(fileId)
         }
 
-        const sizeDiff = content.length - currentFile.size
+        const sizeDiff = content.length - workspaceFileSize(currentFile)
         const now = new Date()
         // `contentUpdatedAt` is the persist If-Match token, so it MUST be strictly monotonic per file — a
         // bare `new Date()` is not: cross-instance clock skew can stamp a later write with an earlier time,
@@ -1167,7 +1278,8 @@ export async function updateWorkspaceFileContent(
           .update(workspaceFiles)
           .set({
             key: uploadResult.key,
-            size: content.length,
+            size: toLegacyWorkspaceFileSize(content.length),
+            sizeBytes: content.length,
             contentType: nextContentType,
             updatedAt: now,
             contentUpdatedAt,
@@ -1253,7 +1365,7 @@ export async function updateWorkspaceFileContent(
       name: finalized.file.originalName,
       key: finalized.file.key,
       path: `${pathPrefix}${encodeURIComponent(finalized.file.key)}?context=workspace`,
-      size: finalized.file.size,
+      size: workspaceFileSize(finalized.file),
       type: finalized.file.contentType,
       uploadedBy: finalized.file.userId,
       folderId: finalized.file.folderId,

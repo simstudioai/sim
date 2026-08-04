@@ -48,7 +48,7 @@ export async function sumForkCopyBytes(
     fileSelectors.length === 0
       ? sql<number>`0`
       : sql<number>`(
-          SELECT coalesce(sum(${workspaceFiles.size}), 0)
+          SELECT coalesce(sum(coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})), 0)
           FROM ${workspaceFiles}
           WHERE ${and(
             fileSelectors.length === 1 ? fileSelectors[0] : or(...fileSelectors),

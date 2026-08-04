@@ -5,6 +5,17 @@
  */
 export const MAX_WORKSPACE_FILE_SIZE = 5 * 1024 * 1024 * 1024
 
+const MAX_POSTGRES_INTEGER = 2_147_483_647
+
+/**
+ * Keeps the legacy int4 metadata projection writable while `size_bytes` stores the exact value.
+ */
+export function toLegacyWorkspaceFileSize(size: number): number {
+  if (!Number.isSafeInteger(size) || size < 0)
+    throw new Error(`Invalid workspace file size: ${size}`)
+  return Math.min(size, MAX_POSTGRES_INTEGER)
+}
+
 /**
  * Cap on the legacy FormData upload route, which buffers the whole file in
  * worker memory. Direct-to-storage uploads use {@link MAX_WORKSPACE_FILE_SIZE}.
@@ -18,6 +29,7 @@ export type StorageContext =
   | 'mothership'
   | 'execution'
   | 'workspace'
+  | 'table-import'
   | 'profile-pictures'
   | 'og-images'
   | 'logs'

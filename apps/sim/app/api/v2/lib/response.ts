@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
+import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { asOrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import type { RateLimitResult, WorkspaceAccessError } from '@/app/api/v1/middleware'
@@ -157,6 +158,60 @@ export function decodeCursor<T = Record<string, unknown>>(cursor: string): T | n
   }
 }
 
+/**
+ * The sort a keyset cursor was minted under, as it is written into the cursor
+ * payload. Comparing the whole string is what makes a mid-pagination sort
+ * change detectable.
+ */
+export function cursorSortKey(sortBy: string, sortOrder: string): string {
+  return `${sortBy}:${sortOrder}`
+}
+
+interface SortedCursorPayload {
+  sort: string
+  keys: CursorKey[]
+}
+
+/**
+ * A keyset cursor stamped with the sort that produced it. The keys are only
+ * meaningful under that exact ordering, so the stamp travels with them.
+ */
+export function encodeSortedCursor(sort: string, keys: CursorKey[]): string {
+  return encodeCursor({ sort, keys } satisfies SortedCursorPayload)
+}
+
+export type DecodedSortedCursor =
+  | { status: 'absent' }
+  | { status: 'ok'; keys: CursorKey[] }
+  /** Malformed, or minted under a different sort — the page cannot be resumed. */
+  | { status: 'invalid' }
+
+/**
+ * Reads a keyset cursor back, refusing one that does not belong to the
+ * requested sort. Resuming a `name`-ordered cursor under `createdAt` would
+ * compare the wrong column and silently duplicate or skip rows, so a mismatch
+ * is a client error rather than a best-effort page. A cursor that isn't valid
+ * base64-JSON is rejected for the same reason: ignoring it would restart from
+ * page one while the caller believes it is paging forward.
+ *
+ * This checks the envelope only. The key VALUES are caller-controlled too, and
+ * are type-checked against the sort's keys by `keysetAfter`, which is where a
+ * bad arity or an unparseable timestamp is caught.
+ */
+export function decodeSortedCursor(cursor: string | undefined, sort: string): DecodedSortedCursor {
+  if (!cursor) return { status: 'absent' }
+  const decoded = decodeCursor<Partial<SortedCursorPayload>>(cursor)
+  if (!decoded || decoded.sort !== sort || !Array.isArray(decoded.keys)) {
+    return { status: 'invalid' }
+  }
+  return { status: 'ok', keys: decoded.keys }
+}
+
+/** The 400 for a cursor that cannot be resumed under the request's sort. */
+export function v2CursorSortError(): NextResponse {
+  return v2Error('BAD_REQUEST', INVALID_CURSOR_MESSAGE)
+}
+
 const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode> = {
   validation: 'BAD_REQUEST',
   unauthorized: 'UNAUTHORIZED',
@@ -175,10 +230,14 @@ const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode
  */
 export function v2ErrorForOrchestration(
   code: OrchestrationErrorCode | undefined,
-  message: string
+  message: string,
+  /** Structured context for the failure — e.g. which lock rejected a write. */
+  details?: unknown
 ): NextResponse {
   const v2Code = code ? V2_CODE_BY_ORCHESTRATION_ERROR[code] : 'INTERNAL_ERROR'
-  return v2Error(v2Code, v2Code === 'INTERNAL_ERROR' ? 'Internal server error' : message)
+  return v2Error(v2Code, v2Code === 'INTERNAL_ERROR' ? 'Internal server error' : message, {
+    ...(details !== undefined ? { details } : {}),
+  })
 }
 
 /**
