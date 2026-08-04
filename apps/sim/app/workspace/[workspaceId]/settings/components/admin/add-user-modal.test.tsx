@@ -21,19 +21,36 @@ const { addUserMutation, mockMutate, mockReset } = vi.hoisted(() => ({
 vi.mock('@sim/emcn', () => ({
   ChipModal: ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <div role='dialog'>{children}</div> : null,
-  ChipModalHeader: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+  ChipModalHeader: ({
+    children,
+    onClose,
+    closeDisabled,
+  }: {
+    children: ReactNode
+    onClose: () => void
+    closeDisabled?: boolean
+  }) => (
+    <header>
+      <h2>{children}</h2>
+      <button type='button' onClick={onClose} disabled={closeDisabled}>
+        Close
+      </button>
+    </header>
+  ),
   ChipModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ChipModalError: ({ children }: { children: ReactNode }) =>
     children ? <div role='alert'>{children}</div> : null,
   ChipModalFooter: ({
     onCancel,
+    cancelDisabled,
     primaryAction,
   }: {
     onCancel: () => void
+    cancelDisabled?: boolean
     primaryAction: { label: ReactNode; onClick: () => void; disabled?: boolean }
   }) => (
     <footer>
-      <button type='button' onClick={onCancel}>
+      <button type='button' onClick={onCancel} disabled={cancelDisabled}>
         Cancel
       </button>
       <button type='button' disabled={primaryAction.disabled} onClick={primaryAction.onClick}>
@@ -223,6 +240,8 @@ describe('AddUserModal', () => {
     })
 
     expect(mockMutate).toHaveBeenCalledTimes(1)
+    expect(buttonLabelled('Close').disabled).toBe(true)
+    expect(buttonLabelled('Cancel').disabled).toBe(true)
   })
 
   it('supports unverified accounts without exposing a platform-role control', async () => {

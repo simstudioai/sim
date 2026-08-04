@@ -27,6 +27,7 @@ interface AddUserModalProps {
 export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProps) {
   const addUser = useAddUser()
   const submissionInFlightRef = useRef(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -41,11 +42,12 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
     password.length > 0 && password.length < 8
       ? 'Password must be at least 8 characters'
       : undefined
+  const isSubmissionPending = isSubmitting || addUser.isPending
   const canSubmit =
     normalizedName.length > 0 &&
     isValidEmailSyntax(normalizedEmail) &&
     password.length >= 8 &&
-    !addUser.isPending
+    !isSubmissionPending
 
   const reset = () => {
     setName('')
@@ -56,7 +58,7 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
   }
 
   const handleClose = () => {
-    if (submissionInFlightRef.current || addUser.isPending) return
+    if (submissionInFlightRef.current || isSubmissionPending) return
     reset()
     onOpenChange(false)
   }
@@ -64,6 +66,7 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
   const handleAddUser = () => {
     if (!canSubmit || submissionInFlightRef.current) return
     submissionInFlightRef.current = true
+    setIsSubmitting(true)
     addUser.reset()
     addUser.mutate(
       {
@@ -80,6 +83,7 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
         },
         onSettled: () => {
           submissionInFlightRef.current = false
+          setIsSubmitting(false)
         },
       }
     )
@@ -93,7 +97,9 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
       }}
       srTitle='Add user'
     >
-      <ChipModalHeader onClose={handleClose}>Add user</ChipModalHeader>
+      <ChipModalHeader onClose={handleClose} closeDisabled={isSubmissionPending}>
+        Add user
+      </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='input'
@@ -107,7 +113,7 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
           placeholder='Canary Writer'
           maxLength={100}
           autoComplete='off'
-          disabled={addUser.isPending}
+          disabled={isSubmissionPending}
           required
         />
         <ChipModalField
@@ -121,7 +127,7 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
           error={emailError}
           placeholder='writer@synthetics.example.com'
           autoComplete='off'
-          disabled={addUser.isPending}
+          disabled={isSubmissionPending}
           required
         />
         <ChipModalField
@@ -137,7 +143,7 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
           hint='Better Auth creates a credential account with this password.'
           placeholder='At least 8 characters'
           autoComplete='new-password'
-          disabled={addUser.isPending}
+          disabled={isSubmissionPending}
           required
         />
         <ChipModalField
@@ -151,7 +157,7 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
           options={EMAIL_STATUS_OPTIONS}
           align='start'
           hint='Verified users can sign in when email verification is required.'
-          disabled={addUser.isPending}
+          disabled={isSubmissionPending}
           required
         />
         <ChipModalError>
@@ -160,9 +166,9 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
       </ChipModalBody>
       <ChipModalFooter
         onCancel={handleClose}
-        cancelDisabled={addUser.isPending}
+        cancelDisabled={isSubmissionPending}
         primaryAction={{
-          label: addUser.isPending ? 'Adding...' : 'Add user',
+          label: isSubmissionPending ? 'Adding...' : 'Add user',
           onClick: handleAddUser,
           disabled: !canSubmit,
         }}
