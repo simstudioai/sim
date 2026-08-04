@@ -48,6 +48,8 @@ const TABLE_JOB_RETENTION_HOURS = 24
 const DEPLOYMENT_OPERATION_RETENTION_DAYS = 30
 const DEPLOYMENT_OPERATION_PRUNE_BATCH_SIZE = 2000
 const DEPLOYMENT_OPERATION_PRUNE_MAX_BATCHES = 10
+const WORKFLOW_EXECUTION_MUTATION_BATCH_SIZE = 100
+const WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN = 1000
 const STATE_MUTATION_BATCH_SIZE = 1000
 const STATE_MUTATION_MAX_ROWS_PER_RUN = 10_000
 const RETENTION_DELETE_BATCH_SIZE = 2000
@@ -114,45 +116,51 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       now.getTime() - TABLE_JOB_STALE_THRESHOLD_MINUTES * 60 * 1000
     )
 
-    const staleExecutions = await db
-      .select({
-        id: workflowExecutionLogs.id,
-        executionId: workflowExecutionLogs.executionId,
-        workflowId: workflowExecutionLogs.workflowId,
-        startedAt: workflowExecutionLogs.startedAt,
-        executionDeadlineAt: workflowExecutionLogs.executionDeadlineAt,
-      })
-      .from(workflowExecutionLogs)
-      .where(
-        and(
-          eq(workflowExecutionLogs.status, 'running'),
-          or(
-            lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
-            and(
-              isNull(workflowExecutionLogs.executionDeadlineAt),
-              lt(workflowExecutionLogs.startedAt, staleThreshold)
-            )
+    let staleExecutionsFound = 0
+    let cleaned = 0
+    let failed = 0
+    let currentWorkflowBatchSize = 0
+
+    try {
+      const staleExecutionPredicate = and(
+        eq(workflowExecutionLogs.status, 'running'),
+        or(
+          lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
+          and(
+            isNull(workflowExecutionLogs.executionDeadlineAt),
+            lt(workflowExecutionLogs.startedAt, staleThreshold)
           )
         )
       )
-      .limit(100)
+      const cleanupTimestamp = sql.param(now, workflowExecutionLogs.startedAt)
+      const staleDurationMinutes = sql<number>`ROUND(
+        EXTRACT(EPOCH FROM (${cleanupTimestamp} - ${workflowExecutionLogs.startedAt})) / 60
+      )::integer`
+      const totalDurationMs = sql<number>`LEAST(
+        ${MAX_INT32},
+        ROUND(EXTRACT(EPOCH FROM (${cleanupTimestamp} - ${workflowExecutionLogs.startedAt})) * 1000)
+      )::integer`
+      let workflowRowsConsidered = 0
+      while (workflowRowsConsidered < WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
+        const limit = Math.min(
+          WORKFLOW_EXECUTION_MUTATION_BATCH_SIZE,
+          WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN - workflowRowsConsidered
+        )
+        currentWorkflowBatchSize = 0
+        const candidates = await db
+          .select({ id: workflowExecutionLogs.id })
+          .from(workflowExecutionLogs)
+          .where(staleExecutionPredicate)
+          .limit(limit)
+        currentWorkflowBatchSize = candidates.length
+        staleExecutionsFound += candidates.length
+        if (candidates.length === 0) break
 
-    logger.info(`Found ${staleExecutions.length} stale executions to clean up`)
-
-    let cleaned = 0
-    let failed = 0
-
-    for (const execution of staleExecutions) {
-      try {
-        const staleDurationMs = Date.now() - new Date(execution.startedAt).getTime()
-        const staleDurationMinutes = Math.round(staleDurationMs / 60000)
-        const totalDurationMs = Math.min(staleDurationMs, MAX_INT32)
-
-        const [updatedExecution] = await db
+        const updatedExecutions = await db
           .update(workflowExecutionLogs)
           .set({
             status: 'failed',
-            endedAt: new Date(),
+            endedAt: now,
             executionDeadlineAt: null,
             totalDurationMs,
             executionData: sql`jsonb_set(
@@ -162,45 +170,39 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 CASE
                   WHEN ${workflowExecutionLogs.executionDeadlineAt} IS NOT NULL
                     THEN ${EXECUTION_DEADLINE_ERROR}::text
-                  ELSE ${`Execution terminated: worker timeout or crash after ${staleDurationMinutes} minutes`}::text
+                  ELSE ${'Execution terminated: worker timeout or crash after '}::text
+                    || ${staleDurationMinutes}::text
+                    || ' minutes'
                 END
               )
             )`,
           })
           .where(
             and(
-              eq(workflowExecutionLogs.id, execution.id),
-              eq(workflowExecutionLogs.status, 'running'),
-              or(
-                lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
-                and(
-                  isNull(workflowExecutionLogs.executionDeadlineAt),
-                  lt(workflowExecutionLogs.startedAt, staleThreshold)
-                )
+              staleExecutionPredicate,
+              inArray(
+                workflowExecutionLogs.id,
+                candidates.map(({ id }) => id)
               )
             )
           )
           .returning({ id: workflowExecutionLogs.id })
 
-        if (!updatedExecution) {
-          logger.debug('Skipped stale execution whose state changed during cleanup', {
-            executionId: execution.executionId,
-          })
-          continue
-        }
-
-        logger.info(`Cleaned up stale execution ${execution.executionId}`, {
-          workflowId: execution.workflowId,
-          staleDurationMinutes,
-        })
-
-        cleaned++
-      } catch (error) {
-        logger.error(`Failed to clean up execution ${execution.executionId}:`, {
-          error: toError(error).message,
-        })
-        failed++
+        cleaned += updatedExecutions.length
+        workflowRowsConsidered += candidates.length
+        if (candidates.length < limit) break
       }
+
+      if (workflowRowsConsidered >= WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
+        logger.info('Deferred remaining stale workflow executions after reaching the per-run cap', {
+          maxRowsPerRun: WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN,
+        })
+      }
+    } catch (error) {
+      logger.error('Failed to clean up stale workflow executions:', {
+        error: toError(error).message,
+      })
+      failed += currentWorkflowBatchSize
     }
 
     logger.info(`Stale execution cleanup completed. Cleaned: ${cleaned}, Failed: ${failed}`)
@@ -510,7 +512,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({
       success: true,
       executions: {
-        found: staleExecutions.length,
+        found: staleExecutionsFound,
         cleaned,
         failed,
         thresholdMinutes: STALE_THRESHOLD_MINUTES,

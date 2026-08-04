@@ -49,15 +49,7 @@ describe('stale execution cleanup deadline grace', () => {
   it('waits five minutes past a workflow execution deadline in both cleanup predicates', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-03T12:10:00.000Z'))
-    queueTableRows(workflowExecutionLogs, [
-      {
-        id: 'log-1',
-        executionId: 'execution-1',
-        workflowId: 'workflow-1',
-        startedAt: new Date('2026-08-03T11:00:00.000Z'),
-        executionDeadlineAt: new Date('2026-08-03T12:00:00.000Z'),
-      },
-    ])
+    queueTableRows(workflowExecutionLogs, [{ id: 'log-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1' }])
 
     try {
@@ -84,17 +76,39 @@ describe('stale execution cleanup deadline grace', () => {
         ([table]) => table === workflowExecutionLogs
       )
       const update = dbChainMockFns.set.mock.calls[executionUpdateIndex]?.[0] as {
+        endedAt: Date
+        totalDurationMs: { toSQL: () => { sql: string; params: unknown[] } }
         executionData: { toSQL: () => { sql: string; params: unknown[] } }
       }
       const errorExpression = update.executionData.toSQL()
+      const staleDurationExpression = errorExpression.params.find(
+        (value): value is { toSQL: () => { sql: string; params: unknown[] } } =>
+          typeof value === 'object' &&
+          value !== null &&
+          'toSQL' in value &&
+          value.toSQL().sql.includes('EXTRACT(EPOCH')
+      )
+      const totalDurationExpression = update.totalDurationMs.toSQL()
+      const cleanupTimestamp = totalDurationExpression.params.find(
+        (value): value is { toSQL: () => { sql: string; params: unknown[] } } =>
+          typeof value === 'object' && value !== null && 'toSQL' in value
+      )
 
       expect(errorExpression.sql).toContain('CASE')
       expect(errorExpression.sql).toContain('IS NOT NULL')
       expect(errorExpression.params).toContain(workflowExecutionLogs.executionDeadlineAt)
       expect(errorExpression.params).toContain('Execution timed out')
       expect(errorExpression.params).toContain(
-        'Execution terminated: worker timeout or crash after 70 minutes'
+        'Execution terminated: worker timeout or crash after '
       )
+      expect(staleDurationExpression?.toSQL().sql).toContain('ROUND')
+      expect(staleDurationExpression?.toSQL().params).toContain(workflowExecutionLogs.startedAt)
+      expect(totalDurationExpression.sql).toContain('LEAST')
+      expect(totalDurationExpression.sql).toContain('ROUND')
+      expect(totalDurationExpression.params).toContain(2_147_483_647)
+      expect(totalDurationExpression.params).toContain(workflowExecutionLogs.startedAt)
+      expect(cleanupTimestamp?.toSQL().params).toEqual([new Date('2026-08-03T12:10:00.000Z')])
+      expect(update.endedAt).toEqual(new Date('2026-08-03T12:10:00.000Z'))
     } finally {
       vi.useRealTimers()
     }
@@ -191,6 +205,13 @@ describe('stale execution cleanup deadline grace', () => {
     }))
 
     for (let batch = 0; batch < 10; batch++) {
+      const workflowBatch = Array.from({ length: 100 }, (_, index) => ({
+        id: `workflow-state-${batch}-${index}`,
+      }))
+      queueTableRows(workflowExecutionLogs, workflowBatch)
+      dbChainMockFns.returning.mockResolvedValueOnce(workflowBatch)
+    }
+    for (let batch = 0; batch < 10; batch++) {
       dbChainMockFns.returning.mockResolvedValueOnce(stateBatch)
     }
     for (let batch = 0; batch < 10; batch++) {
@@ -211,6 +232,11 @@ describe('stale execution cleanup deadline grace', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
+      executions: {
+        found: 1000,
+        cleaned: 1000,
+        failed: 0,
+      },
       asyncJobs: {
         staleProcessingMarkedFailed: 10_000,
         stalePendingMarkedFailed: 10_000,
@@ -223,14 +249,98 @@ describe('stale execution cleanup deadline grace', () => {
     expect(mockDeleteFile).toHaveBeenCalledTimes(1000)
 
     const limits = dbChainMockFns.limit.mock.calls.map(([limit]) => limit)
-    expect(limits.filter((limit) => limit === 100)).toHaveLength(11)
+    expect(limits.filter((limit) => limit === 100)).toHaveLength(20)
     expect(limits.filter((limit) => limit === 1000)).toHaveLength(30)
     expect(limits.filter((limit) => limit === 2000)).toHaveLength(11)
+
+    const workflowUpdates = dbChainMockFns.update.mock.calls.filter(
+      ([table]) => table === workflowExecutionLogs
+    )
+    expect(workflowUpdates).toHaveLength(10)
 
     const returningShapes = dbChainMockFns.returning.mock.calls
       .map(([shape]) => shape)
       .filter((shape): shape is Record<string, unknown> => Boolean(shape))
     expect(returningShapes.some((shape) => 'payload' in shape)).toBe(false)
     expect(returningShapes.some((shape) => 'type' in shape && 'resultKey' in shape)).toBe(true)
+  })
+
+  it('drains more than the legacy 100-row workflow cap in one bounded run', async () => {
+    const firstBatch = Array.from({ length: 100 }, (_, index) => ({
+      id: `execution-${index}`,
+    }))
+    const secondBatch = [{ id: 'execution-100' }]
+    queueTableRows(workflowExecutionLogs, firstBatch)
+    queueTableRows(workflowExecutionLogs, secondBatch)
+    dbChainMockFns.returning.mockResolvedValueOnce(firstBatch).mockResolvedValueOnce(secondBatch)
+
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      executions: {
+        found: 101,
+        cleaned: 101,
+        failed: 0,
+      },
+    })
+    expect(
+      dbChainMockFns.update.mock.calls.filter(([table]) => table === workflowExecutionLogs)
+    ).toHaveLength(2)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(100)
+  })
+
+  it('preserves committed workflow cleanup counts when a later batch fails', async () => {
+    const firstBatch = Array.from({ length: 100 }, (_, index) => ({
+      id: `execution-${index}`,
+    }))
+    const failedBatch = Array.from({ length: 37 }, (_, index) => ({
+      id: `failed-execution-${index}`,
+    }))
+    queueTableRows(workflowExecutionLogs, firstBatch)
+    queueTableRows(workflowExecutionLogs, failedBatch)
+    dbChainMockFns.returning
+      .mockResolvedValueOnce(firstBatch)
+      .mockRejectedValueOnce(new Error('database unavailable'))
+
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      executions: {
+        found: 137,
+        cleaned: 100,
+        failed: 37,
+      },
+    })
+    expect(
+      dbChainMockFns.update.mock.calls.filter(([table]) => table === workflowExecutionLogs)
+    ).toHaveLength(2)
+    expect(dbChainMockFns.update.mock.calls.some(([table]) => table === asyncJobs)).toBe(true)
+  })
+
+  it('continues draining when an atomic race updates fewer rows than were selected', async () => {
+    const firstCandidates = Array.from({ length: 100 }, (_, index) => ({
+      id: `execution-${index}`,
+    }))
+    const firstUpdated = firstCandidates.slice(0, 99)
+    const secondBatch = [{ id: 'execution-100' }]
+    queueTableRows(workflowExecutionLogs, firstCandidates)
+    queueTableRows(workflowExecutionLogs, secondBatch)
+    dbChainMockFns.returning.mockResolvedValueOnce(firstUpdated).mockResolvedValueOnce(secondBatch)
+
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      executions: {
+        found: 101,
+        cleaned: 100,
+        failed: 0,
+      },
+    })
+    expect(
+      dbChainMockFns.update.mock.calls.filter(([table]) => table === workflowExecutionLogs)
+    ).toHaveLength(2)
   })
 })
