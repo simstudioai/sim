@@ -395,9 +395,13 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── Not a terminal-shaped operation ──────────────────────────────────────
-  // Multipart upload; `sim knowledge documents upload <path>` would need its own
-  // file-reading command rather than a generated flag surface.
+  // Multipart upload; `sim knowledge documents upload <id> <path>` needs its
+  // own file-reading command rather than a generated flag surface.
   uploadKnowledgeDocument: { hidden: true },
+  createKnowledgeDocumentUpload: { hidden: true },
+  createKnowledgeDocumentUploadPartUrls: { hidden: true },
+  completeKnowledgeDocumentUpload: { hidden: true },
+  abortKnowledgeDocumentUpload: { hidden: true },
 
   // ─── Steps of a transfer, not commands ────────────────────────────────────
   // Uploading is now a presigned multipart handshake: create the upload, ask for

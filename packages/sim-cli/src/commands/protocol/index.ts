@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { attachFileDownload } from './files-download.js'
 import { attachFileUpload } from './files-upload.js'
+import { attachKnowledgeDocumentUpload } from './knowledge-document-upload.js'
 import { attachTableImport } from './tables-import.js'
 
 function group(program: Command, name: string): Command {
@@ -16,5 +17,6 @@ export function attachProtocolCommands(program: Command): void {
   const files = group(program, 'files')
   attachFileUpload(files)
   attachFileDownload(files)
+  attachKnowledgeDocumentUpload(group(group(program, 'knowledge'), 'documents'))
   attachTableImport(group(program, 'tables'))
 }

@@ -182,6 +182,7 @@ describe('destructive operations are gated', () => {
     // kept: an upload that has not been completed owns nothing but its own
     // parts, and a cancelled import or export can simply be started again.
     'abortFileUpload',
+    'abortKnowledgeDocumentUpload',
     'cancelTableImport',
     'cancelTableExport',
   ])

@@ -136,6 +136,7 @@ sim files delete <fileId>
 sim knowledge list
 sim knowledge get <id>
 sim knowledge documents <id> [--search <text>]
+sim knowledge documents upload <id> <path> [--tag <value>...]
 sim knowledge search --query <text> --kb <id>… [--search-mode vector|hybrid]
 ```
 

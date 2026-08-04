@@ -50,6 +50,49 @@ export type AbortFileUploadResponse = {
   }
 }
 
+/** `DELETE /api/v2/knowledge/[id]/documents/uploads/[uploadId]` */
+export type AbortKnowledgeDocumentUploadParams = {
+  id: string
+  uploadId: string
+}
+
+export type AbortKnowledgeDocumentUploadQuery = {
+  workspaceId: string
+}
+
+export type AbortKnowledgeDocumentUploadHeaders = {
+  'upload-token': string
+}
+
+export type AbortKnowledgeDocumentUploadResponse = {
+  data: {
+    id: string
+    knowledgeBaseId: string
+    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+    name: string
+    contentType: string
+    size: number
+    partSize: number
+    partCount: number
+    uploadToken: string
+    expiresAt: string
+    error: string | null
+    document: {
+      id: string
+      knowledgeBaseId: string
+      filename: string
+      fileSize: number
+      mimeType: string
+      processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+      chunkCount: number
+      tokenCount: number
+      characterCount: number
+      enabled: boolean
+      createdAt: string | null
+    } | null
+  }
+}
+
 /** `POST /api/v2/tables/[tableId]/columns` */
 export type AddTableColumnParams = {
   tableId: string
@@ -355,6 +398,56 @@ export type CompleteFileUploadResponse = {
   }
 }
 
+/** `POST /api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete` */
+export type CompleteKnowledgeDocumentUploadParams = {
+  id: string
+  uploadId: string
+}
+
+export type CompleteKnowledgeDocumentUploadQuery = {
+  workspaceId: string
+}
+
+export type CompleteKnowledgeDocumentUploadBody = {
+  parts: Array<{
+    partNumber: number
+    etag?: string
+  }>
+}
+
+export type CompleteKnowledgeDocumentUploadHeaders = {
+  'upload-token': string
+}
+
+export type CompleteKnowledgeDocumentUploadResponse = {
+  data: {
+    id: string
+    knowledgeBaseId: string
+    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+    name: string
+    contentType: string
+    size: number
+    partSize: number
+    partCount: number
+    uploadToken: string
+    expiresAt: string
+    error: string | null
+    document: {
+      id: string
+      knowledgeBaseId: string
+      filename: string
+      fileSize: number
+      mimeType: string
+      processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+      chunkCount: number
+      tokenCount: number
+      characterCount: number
+      enabled: boolean
+      createdAt: string | null
+    } | null
+  }
+}
+
 /** `POST /api/v2/tables/imports/[importId]/complete` */
 export type CompleteTableImportParams = {
   importId: string
@@ -623,6 +716,87 @@ export type CreateKnowledgeBaseResponse = {
       createdAt: string
       updatedAt: string
     }
+  }
+}
+
+/** `POST /api/v2/knowledge/[id]/documents/uploads` */
+export type CreateKnowledgeDocumentUploadParams = {
+  id: string
+}
+
+export type CreateKnowledgeDocumentUploadBody = {
+  workspaceId: string
+  name: string
+  contentType: string
+  size: number
+  tag1?: string
+  tag2?: string
+  tag3?: string
+  tag4?: string
+  tag5?: string
+  tag6?: string
+  tag7?: string
+  processingOptions?: {
+    recipe?: string
+    lang?: string
+  }
+}
+
+export type CreateKnowledgeDocumentUploadResponse = {
+  data: {
+    id: string
+    knowledgeBaseId: string
+    status: 'uploading' | 'finalizing' | 'completed' | 'failed' | 'aborted' | 'expired'
+    name: string
+    contentType: string
+    size: number
+    partSize: number
+    partCount: number
+    uploadToken: string
+    expiresAt: string
+    error: string | null
+    document: {
+      id: string
+      knowledgeBaseId: string
+      filename: string
+      fileSize: number
+      mimeType: string
+      processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+      chunkCount: number
+      tokenCount: number
+      characterCount: number
+      enabled: boolean
+      createdAt: string | null
+    } | null
+  }
+}
+
+/** `POST /api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts` */
+export type CreateKnowledgeDocumentUploadPartUrlsParams = {
+  id: string
+  uploadId: string
+}
+
+export type CreateKnowledgeDocumentUploadPartUrlsQuery = {
+  workspaceId: string
+}
+
+export type CreateKnowledgeDocumentUploadPartUrlsBody = {
+  partNumbers: Array<number>
+}
+
+export type CreateKnowledgeDocumentUploadPartUrlsHeaders = {
+  'upload-token': string
+}
+
+export type CreateKnowledgeDocumentUploadPartUrlsResponse = {
+  data: {
+    parts: Array<{
+      partNumber: number
+      url: string
+      headers: Record<string, string>
+      expiresAt: string
+    }>
   }
 }
 
@@ -3939,6 +4113,16 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
     },
   },
+  abortKnowledgeDocumentUpload: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]',
+    pathParams: ['id', 'uploadId'] as const,
+    responseMode: 'json',
+    summary: 'Abort Document Upload',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+  },
   addTableColumn: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/columns',
@@ -4022,6 +4206,19 @@ export const V2_OPERATIONS = {
     pathParams: ['uploadId'] as const,
     responseMode: 'json',
     summary: 'Complete File Upload',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+    body: {
+      parts: { kind: 'array', required: true },
+    },
+  },
+  completeKnowledgeDocumentUpload: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete',
+    pathParams: ['id', 'uploadId'] as const,
+    responseMode: 'json',
+    summary: 'Complete Document Upload',
     query: {
       workspaceId: { kind: 'string', required: true },
     },
@@ -4138,6 +4335,40 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', required: true },
       description: { kind: 'string' },
       chunkingConfig: { kind: 'object', default: { maxSize: 1024, minSize: 100, overlap: 200 } },
+    },
+  },
+  createKnowledgeDocumentUpload: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[id]/documents/uploads',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'Create Document Upload',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      name: { kind: 'string', required: true },
+      contentType: { kind: 'string', required: true },
+      size: { kind: 'integer', required: true },
+      tag1: { kind: 'string' },
+      tag2: { kind: 'string' },
+      tag3: { kind: 'string' },
+      tag4: { kind: 'string' },
+      tag5: { kind: 'string' },
+      tag6: { kind: 'string' },
+      tag7: { kind: 'string' },
+      processingOptions: { kind: 'object' },
+    },
+  },
+  createKnowledgeDocumentUploadPartUrls: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts',
+    pathParams: ['id', 'uploadId'] as const,
+    responseMode: 'json',
+    summary: 'Create Document Upload Part URLs',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+    },
+    body: {
+      partNumbers: { kind: 'array', required: true },
     },
   },
   createMcpServer: {
