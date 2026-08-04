@@ -90,10 +90,8 @@ export function useWorkspaceSchedules(workspaceId?: string, options?: { enabled?
 }
 
 /**
- * Fetch a single schedule (job) by id. Used by the mothership resource viewer so
- * opening a scheduled-task artifact does a lightweight by-id read instead of the
- * whole-workspace `useWorkspaceSchedules` fetch (which contended with the chat
- * stream connection and stalled start/resume).
+ * Fetch a single workflow schedule by id — a lightweight by-id read instead of
+ * the whole-workspace `useWorkspaceSchedules` fetch.
  */
 export function useScheduleById(scheduleId?: string) {
   return useQuery({

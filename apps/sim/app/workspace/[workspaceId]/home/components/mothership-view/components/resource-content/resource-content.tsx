@@ -13,7 +13,6 @@ import {
   WorkflowX,
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/auth-client'
@@ -777,32 +776,6 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-const SCHEDULE_STATUS_LABEL: Record<string, string> = {
-  active: 'Active',
-  disabled: 'Paused',
-  completed: 'Completed',
-}
-
-function formatScheduleInstant(iso: string | null): string {
-  if (!iso) return '—'
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? '—' : format(date, "EEE, MMM d 'at' h:mm a")
-}
-
-interface ScheduledTaskFieldProps {
-  title: string
-  value: string
-}
-
-function ScheduledTaskField({ title, value }: ScheduledTaskFieldProps) {
-  return (
-    <div className='flex flex-col gap-1'>
-      <span className='text-[var(--text-muted)] text-caption'>{title}</span>
-      <span className='text-[var(--text-body)] text-small'>{value}</span>
     </div>
   )
 }

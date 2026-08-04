@@ -136,7 +136,6 @@ async function applyScheduleUpdate(
   context: string,
   options: {
     expectedLastQueuedAt?: Date | null
-    allowCompleted?: boolean
     /**
      * Set at call sites that can transition the row to `disabled`. Presence both
      * opts the site into the auto-disable email and adds a `status <> 'disabled'`
@@ -159,15 +158,10 @@ async function applyScheduleUpdate(
           ? isNull(workflowSchedule.lastQueuedAt)
           : eq(workflowSchedule.lastQueuedAt, options.expectedLastQueuedAt)
 
-    // A run that completes itself mid-execution sets status='completed'. The post-run
-    // bookkeeping that follows would otherwise write status='active' and a
-    // fresh nextRunAt straight back over it — the claim guard does not catch
-    // this, because completing the job does not touch lastQueuedAt. Terminal
-    // means terminal: only callers that explicitly opt in may move a completed
-    // row.
-    const notCompletedGuard = options.allowCompleted
-      ? undefined
-      : ne(workflowSchedule.status, 'completed')
+    // Terminal means terminal: a completed row is never moved back to active
+    // with a fresh nextRunAt. The claim guard does not cover this on its own,
+    // because reaching 'completed' does not touch lastQueuedAt.
+    const notCompletedGuard = ne(workflowSchedule.status, 'completed')
 
     /**
      * `RETURNING` yields the NEW row, so `status === 'disabled'` alone only means
