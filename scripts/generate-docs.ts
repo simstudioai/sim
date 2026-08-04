@@ -2110,6 +2110,16 @@ function extractToolInfo(
         const paramName = param.name
         const paramBlock = param.content
 
+        /**
+         * Executor-injected params are never user inputs, so they are omitted from the
+         * docs table. `realmId` is QuickBooks' credential-derived company id.
+         *
+         * These are matched by name rather than by `visibility: 'hidden'`. Filtering on
+         * visibility is the more principled rule and would also drop `cloudId`,
+         * `instanceUrl`, `apiDomain`, `authStyle` and `idToken` across the other
+         * integrations — but it rewrites 28 unrelated docs pages, so it belongs in its
+         * own change rather than riding along with a single integration.
+         */
         if (
           paramName === 'accessToken' ||
           paramName === 'realmId' ||
@@ -2969,15 +2979,12 @@ async function generateBlockDoc(blockPath: string) {
 
       const manualSections = existingContent ? extractManualContent(existingContent) : {}
 
-      const markdown = await generateMarkdownForBlock(blockConfig, displayType, existingContent)
+      const markdown = await generateMarkdownForBlock(blockConfig, displayType)
 
       let finalContent = markdown
       if (Object.keys(manualSections).length > 0) {
         finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
       }
-
-      const trailingNewlines = existingContent?.match(/\n+$/)?.[0] ?? '\n'
-      finalContent = `${finalContent.trimEnd()}${trailingNewlines}`
 
       fs.writeFileSync(outputFilePath, finalContent)
       const logType =
@@ -2991,8 +2998,7 @@ async function generateBlockDoc(blockPath: string) {
 
 async function generateMarkdownForBlock(
   blockConfig: BlockConfig,
-  displayType?: string,
-  existingContent?: string | null
+  displayType?: string
 ): Promise<string> {
   const {
     type,
@@ -3164,10 +3170,6 @@ async function generateMarkdownForBlock(
     usageInstructions = `## Usage Instructions\n\n${longDescription}\n\n`
   }
 
-  const blockInfoCardOpening = existingContent?.includes('<BlockInfoCard\n')
-    ? '<BlockInfoCard'
-    : '<BlockInfoCard '
-
   return `---
 title: ${name}
 description: ${description}
@@ -3175,7 +3177,7 @@ description: ${description}
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-${blockInfoCardOpening}
+<BlockInfoCard 
   type="${type}"
   color="${bgColor || '#F5F5F5'}"
 />

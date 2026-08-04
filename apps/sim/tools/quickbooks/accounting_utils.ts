@@ -16,7 +16,7 @@ import {
   quickBooksReference,
   requiredQuickBooksString,
   validateQuickBooksDate,
-} from '@/tools/quickbooks/utils'
+} from '@/tools/quickbooks/values'
 
 const MAX_ACCOUNTING_LINES = 100
 const JOURNAL_LINE_KEYS = new Set([
@@ -59,24 +59,28 @@ function rejectUnknownKeys(
   if (unknownKey) throw new Error(`${fieldName} contains unsupported field "${unknownKey}"`)
 }
 
-function positiveQuickBooksAmount(
+/**
+ * Line amounts may be negative — QuickBooks expresses discounts, returns, and credits that way —
+ * so only zero and non-numeric input are rejected.
+ */
+function quickBooksLineAmount(
   value: unknown,
   fieldName: string
 ): { cents: bigint; number: number } {
   if (typeof value !== 'number' && typeof value !== 'string') {
-    throw new Error(`${fieldName} must be a positive finite number`)
+    throw new Error(`${fieldName} must be a non-zero finite number`)
   }
   const normalized = typeof value === 'string' ? value.trim() : value
-  if (normalized === '') throw new Error(`${fieldName} must be a positive finite number`)
+  if (normalized === '') throw new Error(`${fieldName} must be a non-zero finite number`)
 
   let decimal: Decimal
   try {
     decimal = new Decimal(normalized)
   } catch {
-    throw new Error(`${fieldName} must be a positive finite number`)
+    throw new Error(`${fieldName} must be a non-zero finite number`)
   }
-  if (!decimal.isFinite() || decimal.lte(0)) {
-    throw new Error(`${fieldName} must be a positive finite number`)
+  if (!decimal.isFinite() || decimal.isZero()) {
+    throw new Error(`${fieldName} must be a non-zero finite number`)
   }
   if (decimal.decimalPlaces() > 2) {
     throw new Error(`${fieldName} cannot have more than two decimal places`)
@@ -145,7 +149,7 @@ export function parseQuickBooksJournalLines(
     if ((entityType === undefined) !== (line.entityId === undefined)) {
       throw new Error(`${itemName}.entityType and entityId must be supplied together`)
     }
-    const amount = positiveQuickBooksAmount(line.amount, `${itemName}.amount`)
+    const amount = quickBooksLineAmount(line.amount, `${itemName}.amount`)
     centAmounts.push(amount.cents)
     return {
       postingType,
@@ -214,7 +218,7 @@ export function parseQuickBooksDepositLines(
     const line = requireObject(rawLine, itemName)
     rejectUnknownKeys(line, DEPOSIT_LINE_KEYS, itemName)
     return {
-      amount: positiveQuickBooksAmount(line.amount, `${itemName}.amount`).number,
+      amount: quickBooksLineAmount(line.amount, `${itemName}.amount`).number,
       accountId: stringValue(line.accountId, `${itemName}.accountId`),
       description: optionalStringValue(line.description, `${itemName}.description`),
     }

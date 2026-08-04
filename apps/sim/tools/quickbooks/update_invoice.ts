@@ -60,7 +60,8 @@ export const quickbooksUpdateInvoiceTool: ToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Replacement bounded invoice lines',
+      description:
+        'Complete replacement set of invoice lines: any existing line omitted here is deleted from the invoice',
     },
     transactionDate: {
       type: 'string',

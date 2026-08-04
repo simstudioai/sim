@@ -12,9 +12,9 @@ import {
 import {
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
-  requiredQuickBooksString,
   transformQuickBooksMutationResponse,
 } from '@/tools/quickbooks/utils'
+import { requiredQuickBooksString } from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksVoidInvoiceTool: ToolConfig<
@@ -53,7 +53,7 @@ export const quickbooksVoidInvoiceTool: ToolConfig<
     confirmVoid: {
       type: 'boolean',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Explicit confirmation that the invoice should be voided',
     },
   },

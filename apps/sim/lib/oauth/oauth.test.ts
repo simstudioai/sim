@@ -1,4 +1,4 @@
-import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
+import { createMockFetch, loggerMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -86,6 +86,20 @@ function withMockFetch<T>(mockFetch: ReturnType<typeof vi.fn>, fn: () => Promise
   return fn().finally(() => {
     global.fetch = originalFetch
   })
+}
+
+/**
+ * Every `logger.error(...)` argument list recorded by the `OAuth` logger instance
+ * created in `lib/oauth/oauth.ts`.
+ */
+function oauthLoggerErrorCalls(): unknown[][] {
+  const createLogger = vi.mocked(loggerMock.createLogger)
+  return createLogger.mock.calls.flatMap((call, index) =>
+    call[0] === 'OAuth'
+      ? (createLogger.mock.results[index]?.value as { error: { mock: { calls: unknown[][] } } })
+          .error.mock.calls
+      : []
+  )
 }
 
 describe('OAuth Token Refresh', () => {
@@ -415,25 +429,59 @@ describe('OAuth Token Refresh', () => {
       expect(JSON.stringify(result)).not.toContain(refreshToken)
     })
 
-    it.concurrent('should reject oversized token refresh responses', async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            access_token: 'new_access_token',
-            padding: 'x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES),
-          })
+    it.concurrent(
+      'should log the provider error body without leaking it to the caller',
+      async () => {
+        const errorBody = 'Token has been expired or revoked.'
+        const refreshToken = 'sensitive-refresh-token'
+        const mockFetch = vi
+          .fn()
+          .mockResolvedValue(new Response(errorBody, { status: 400, statusText: 'Bad Request' }))
+
+        const result = await withMockFetch(mockFetch, () =>
+          refreshOAuthToken('google', refreshToken)
         )
+
+        expect(result).toEqual({ ok: false, message: 'Failed to refresh token: 400' })
+        expect(JSON.stringify(result)).not.toContain(errorBody)
+
+        const loggedBodies = oauthLoggerErrorCalls().map(
+          (call) => (call[1] as { errorBody?: string } | undefined)?.errorBody
+        )
+        expect(loggedBodies).toContain(errorBody)
+      }
+    )
+
+    it.concurrent('should not fail a successful refresh with an oversized body', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        Response.json({
+          access_token: 'new_access_token',
+          expires_in: 3600,
+          padding: 'x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES),
+        })
       )
 
       const result = await withMockFetch(mockFetch, () =>
         refreshOAuthToken('quickbooks', 'old_refresh_token')
       )
 
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.message).toContain('exceeds maximum size')
-        expect(result.message).not.toContain('new_access_token')
-      }
+      expect(result).toMatchObject({ ok: true, accessToken: 'new_access_token', expiresIn: 3600 })
+    })
+
+    it.concurrent('should redact credentials echoed back in a provider error body', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response(`{"error":"invalid_grant","refresh_token":"leaked-refresh-token"}`, {
+          status: 400,
+        })
+      )
+
+      await withMockFetch(mockFetch, () => refreshOAuthToken('google', 'leaked-refresh-token'))
+
+      const loggedBodies = oauthLoggerErrorCalls().map(
+        (call) => (call[1] as { errorBody?: string } | undefined)?.errorBody ?? ''
+      )
+      expect(loggedBodies.some((body) => body.includes('invalid_grant'))).toBe(true)
+      expect(loggedBodies.some((body) => body.includes('leaked-refresh-token'))).toBe(false)
     })
 
     it.concurrent('should return failure for Slack-style body errors', async () => {

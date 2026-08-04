@@ -16,9 +16,8 @@ import {
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
   parseQuickBooksJson,
-  requiredQuickBooksString,
-  validateQuickBooksPagination,
 } from '@/tools/quickbooks/utils'
+import { requiredQuickBooksString, validateQuickBooksPagination } from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 interface AttachableQueryEnvelope {

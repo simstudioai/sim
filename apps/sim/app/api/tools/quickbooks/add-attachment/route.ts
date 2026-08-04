@@ -9,14 +9,18 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
-import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { buildQuickBooksCompanyUrl, buildQuickBooksHeaders } from '@/tools/quickbooks/client'
 import {
+  assertQuickBooksAttachmentExtension,
   assertSingleQuickBooksFile,
   buildQuickBooksAttachableMetadata,
   getQuickBooksDocumentError,
   parseQuickBooksAttachableResponse,
+  QUICKBOOKS_DOCUMENT_METADATA_TIMEOUT_MS,
+  QUICKBOOKS_DOCUMENT_TRANSFER_TIMEOUT_MS,
+  QUICKBOOKS_MAX_ATTACHMENT_BYTES,
+  quickBooksDocumentSignal,
   sanitizeQuickBooksFileName,
   validateQuickBooksAttachmentFileType,
 } from '@/tools/quickbooks/documents_utils'
@@ -67,7 +71,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(metadata),
-        signal: request.signal,
+        signal: quickBooksDocumentSignal(request.signal, QUICKBOOKS_DOCUMENT_METADATA_TIMEOUT_MS),
       })
     } else {
       request.signal.throwIfAborted()
@@ -75,13 +79,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const files = processFilesToUserFiles([rawFile], requestId, logger)
       if (files.length !== 1) throw new Error('Exactly one valid file is required')
       const file = files[0]
-      assertKnownSizeWithinLimit(file.size, MAX_FILE_SIZE, 'QuickBooks attachment file')
+      assertKnownSizeWithinLimit(
+        file.size,
+        QUICKBOOKS_MAX_ATTACHMENT_BYTES,
+        'QuickBooks attachment file'
+      )
+      const resolvedName = sanitizeQuickBooksFileName(data.fileName ?? undefined, file.name)
+      assertQuickBooksAttachmentExtension(resolvedName)
       const denied = await assertToolFileAccess(file.key, authResult.userId, requestId, logger)
       if (denied) return denied
       let downloaded: Awaited<ReturnType<typeof downloadServableFileFromStorage>>
       try {
         downloaded = await downloadServableFileFromStorage(file, requestId, logger, {
-          maxBytes: MAX_FILE_SIZE,
+          maxBytes: QUICKBOOKS_MAX_ATTACHMENT_BYTES,
           signal: request.signal,
         })
       } catch (error) {
@@ -92,12 +102,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       request.signal.throwIfAborted()
       assertKnownSizeWithinLimit(
         downloaded.buffer.length,
-        MAX_FILE_SIZE,
+        QUICKBOOKS_MAX_ATTACHMENT_BYTES,
         'QuickBooks attachment file'
       )
       if (downloaded.buffer.length === 0)
         throw new Error('QuickBooks attachment file cannot be empty')
-      const resolvedName = sanitizeQuickBooksFileName(data.fileName ?? undefined, file.name)
       const storedMime = (downloaded.contentType || file.type || '')
         .split(';', 1)[0]
         .trim()
@@ -137,7 +146,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         method: 'POST',
         headers: buildQuickBooksHeaders(data.accessToken),
         body: formData,
-        signal: request.signal,
+        signal: quickBooksDocumentSignal(request.signal, QUICKBOOKS_DOCUMENT_TRANSFER_TIMEOUT_MS),
       })
     }
 

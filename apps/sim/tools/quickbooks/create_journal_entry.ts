@@ -48,7 +48,7 @@ export const quickbooksCreateJournalEntryTool: ToolConfig<
     confirmPosting: {
       type: 'boolean',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Explicit confirmation that this journal entry should be posted',
     },
     transactionDate: {

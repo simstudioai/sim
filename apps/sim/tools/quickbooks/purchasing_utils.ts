@@ -24,7 +24,7 @@ import {
   quickBooksReference,
   requiredQuickBooksString,
   validateQuickBooksDate,
-} from '@/tools/quickbooks/utils'
+} from '@/tools/quickbooks/values'
 
 const MAX_PURCHASING_LINES = 100
 const MAX_BILL_ALLOCATIONS = 100
@@ -70,17 +70,65 @@ function assertAllowedKeys(
   if (unknownKey) throw new Error(`${fieldName} contains unsupported field "${unknownKey}"`)
 }
 
+/**
+ * Parses a monetary value into a `Decimal`, rejecting non-numeric input, values carrying more than
+ * two decimal places, and magnitudes outside the range QuickBooks amounts can safely round-trip.
+ */
+function quickBooksMoneyDecimal(value: unknown, fieldName: string, requirement: string): Decimal {
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new Error(`${fieldName} must be a ${requirement}`)
+  }
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') throw new Error(`${fieldName} must be a ${requirement}`)
+
+  let decimal: Decimal
+  try {
+    decimal = new Decimal(normalized)
+  } catch {
+    throw new Error(`${fieldName} must be a ${requirement}`)
+  }
+  if (!decimal.isFinite()) throw new Error(`${fieldName} must be a ${requirement}`)
+  if (decimal.decimalPlaces() > 2) {
+    throw new Error(`${fieldName} cannot have more than two decimal places`)
+  }
+
+  const number = decimal.toNumber()
+  if (
+    !Number.isSafeInteger(decimal.times(100).toNumber()) ||
+    !Number.isFinite(number) ||
+    !new Decimal(number).equals(decimal)
+  ) {
+    throw new Error(`${fieldName} is outside the safely supported amount range`)
+  }
+  return decimal
+}
+
 function requiredPositiveNumber(value: unknown, fieldName: string): number {
+  const decimal = quickBooksMoneyDecimal(value, fieldName, 'positive finite number')
+  if (decimal.lte(0)) throw new Error(`${fieldName} must be a positive finite number`)
+  return decimal.toNumber()
+}
+
+/**
+ * Line amounts may be negative — QuickBooks expresses discounts, returns, and credits that way —
+ * so only zero and non-numeric input are rejected.
+ */
+function requiredLineAmount(value: unknown, fieldName: string): number {
+  const decimal = quickBooksMoneyDecimal(value, fieldName, 'non-zero finite number')
+  if (decimal.isZero()) throw new Error(`${fieldName} must be a non-zero finite number`)
+  return decimal.toNumber()
+}
+
+function optionalPositiveNumber(value: unknown, fieldName: string): number | undefined {
+  if (value == null || value === '') return undefined
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new Error(`${fieldName} must be a positive finite number`)
+  }
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(`${fieldName} must be a positive finite number`)
   }
   return parsed
-}
-
-function optionalPositiveNumber(value: unknown, fieldName: string): number | undefined {
-  if (value == null || value === '') return undefined
-  return requiredPositiveNumber(value, fieldName)
 }
 
 function requiredStringValue(value: unknown, fieldName: string): string {
@@ -121,13 +169,13 @@ function parseQuickBooksPurchasingLinesInternal(
       assertAllowedKeys(line, allowedKeys, itemName)
       parsedLine = {
         lineType: 'account',
-        amount: requiredPositiveNumber(line.amount, `${itemName}.amount`),
+        amount: requiredLineAmount(line.amount, `${itemName}.amount`),
         accountId: requiredStringValue(line.accountId, `${itemName}.accountId`),
         description: optionalStringValue(line.description, `${itemName}.description`),
       }
     } else if (line.lineType === 'item') {
       assertAllowedKeys(line, allowedKeys, itemName)
-      const amount = requiredPositiveNumber(line.amount, `${itemName}.amount`)
+      const amount = requiredLineAmount(line.amount, `${itemName}.amount`)
       const quantity = optionalPositiveNumber(line.quantity, `${itemName}.quantity`)
       const unitPrice = optionalPositiveNumber(line.unitPrice, `${itemName}.unitPrice`)
       if (
@@ -343,21 +391,10 @@ export function buildQuickBooksCreateBillBody(
 ): Record<string, unknown> {
   const lines = parseQuickBooksBillLines(params.lines)
   if (!lines) throw new Error('lines are required')
-  const purchaseOrderIds = [
-    ...new Set(lines.flatMap((line) => (line.purchaseOrderId ? [line.purchaseOrderId] : []))),
-  ]
   return {
     ...purchasingHeader(params),
     VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
     Line: buildValidatedQuickBooksBillLines(lines),
-    ...(purchaseOrderIds.length > 0
-      ? {
-          LinkedTxn: purchaseOrderIds.map((TxnId) => ({
-            TxnId,
-            TxnType: 'PurchaseOrder',
-          })),
-        }
-      : {}),
   }
 }
 
@@ -535,7 +572,7 @@ export function buildQuickBooksCreatePurchaseBody(
       : undefined,
     Line: buildQuickBooksPurchasingLines(params.lines),
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
-    PaymentRefNum: optionalQuickBooksString(params.paymentReference),
+    DocNumber: optionalQuickBooksString(params.paymentReference),
     PrivateNote: optionalQuickBooksString(params.privateNote),
   })
 }
@@ -552,7 +589,7 @@ export function buildQuickBooksUpdatePurchaseBody(
       ? { ...quickBooksReference(params.vendorId, 'vendorId'), type: 'Vendor' }
       : undefined,
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
-    PaymentRefNum: optionalQuickBooksString(params.paymentReference),
+    DocNumber: optionalQuickBooksString(params.paymentReference),
     PrivateNote: optionalQuickBooksString(params.privateNote),
   }) as Record<string, unknown>
   assertQuickBooksSparseUpdate(body, 4)

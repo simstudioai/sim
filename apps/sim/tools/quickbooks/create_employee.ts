@@ -14,14 +14,15 @@ import {
   addQuickBooksRequestId,
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
+  sanitizeQuickBooksEmployee,
+  transformQuickBooksMutationResponse,
+} from '@/tools/quickbooks/utils'
+import {
   optionalQuickBooksString,
   parseQuickBooksAddress,
   quickBooksEmailAddress,
   quickBooksPhoneNumber,
-  requiredQuickBooksString,
-  sanitizeQuickBooksEmployee,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
+} from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksCreateEmployeeTool: ToolConfig<
@@ -47,21 +48,22 @@ export const quickbooksCreateEmployeeTool: ToolConfig<
     },
     displayName: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Unique employee display name',
+      description:
+        'Unique employee display name. When omitted QuickBooks derives it from the supplied name components, and it is read-only when QuickBooks Payroll is enabled',
     },
     givenName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Employee given name',
+      description: 'Employee given name. At least one of givenName or familyName is required',
     },
     familyName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Employee family name',
+      description: 'Employee family name. At least one of givenName or familyName is required',
     },
     primaryEmail: {
       type: 'string',
@@ -114,17 +116,23 @@ export const quickbooksCreateEmployeeTool: ToolConfig<
       ).toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: (params) =>
-      filterUndefined({
-        DisplayName: requiredQuickBooksString(params.displayName, 'displayName'),
-        GivenName: optionalQuickBooksString(params.givenName),
-        FamilyName: optionalQuickBooksString(params.familyName),
+    body: (params) => {
+      const givenName = optionalQuickBooksString(params.givenName)
+      const familyName = optionalQuickBooksString(params.familyName)
+      if (givenName === undefined && familyName === undefined) {
+        throw new Error('At least one of givenName or familyName must be supplied')
+      }
+      return filterUndefined({
+        DisplayName: optionalQuickBooksString(params.displayName),
+        GivenName: givenName,
+        FamilyName: familyName,
         PrimaryEmailAddr: quickBooksEmailAddress(params.primaryEmail),
         PrimaryPhone: quickBooksPhoneNumber(params.primaryPhone),
         PrimaryAddr: parseQuickBooksAddress(params.primaryAddress, 'primaryAddress'),
         PrintOnCheckName: optionalQuickBooksString(params.printOnCheckName),
         BillableTime: params.billableTime,
-      }),
+      })
+    },
     retry: { enabled: false },
     maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },

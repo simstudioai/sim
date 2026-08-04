@@ -14,14 +14,16 @@ import {
   addQuickBooksRequestId,
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
+  sanitizeQuickBooksCustomer,
+  transformQuickBooksMutationResponse,
+} from '@/tools/quickbooks/utils'
+import {
   optionalQuickBooksString,
   parseQuickBooksAddress,
   quickBooksEmailAddress,
   quickBooksPhoneNumber,
   requiredQuickBooksString,
-  sanitizeQuickBooksCustomer,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
+} from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksCreateCustomerTool: ToolConfig<

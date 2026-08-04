@@ -73,7 +73,8 @@ export const quickbooksCreatePurchaseTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional payment reference number',
+      description:
+        'Optional transaction reference number, such as a check number, sent as the purchase DocNumber',
     },
     privateNote: {
       type: 'string',

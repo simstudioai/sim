@@ -1480,9 +1480,16 @@ export async function executeTool(
         if (data.domain && !contextParams.domain) {
           contextParams.domain = data.domain
         }
+        /**
+         * `realmId` selects the QuickBooks company every request is scoped to, so it
+         * is a tenancy boundary rather than an ordinary parameter. Unlike the fields
+         * above — which only fill in a missing value — this assignment is
+         * unconditional: a caller-supplied `realmId` must never be able to redirect a
+         * credential at another company's books. The only trusted source is the
+         * credential itself, and a credential without one cannot be used at all.
+         */
         if (tool?.oauth?.provider === 'quickbooks') {
           const credentialRealmId = typeof data.realmId === 'string' ? data.realmId.trim() : ''
-          contextParams.realmId = undefined
           if (!credentialRealmId) {
             throw new Error(
               'QuickBooks company identity is missing. Reconnect the QuickBooks credential.'
@@ -1963,7 +1970,14 @@ async function executeToolRequest(
   const requestId = generateRequestId()
 
   const requestParams = formatRequestParams(tool, params)
-  const maxResponseBytes = tool.request.maxResponseBytes ?? MAX_TOOL_RESPONSE_BODY_BYTES
+  /**
+   * A tool may only tighten the global response ceiling, never raise it —
+   * `MAX_TOOL_RESPONSE_BODY_BYTES` is the process-wide memory guard.
+   */
+  const maxResponseBytes = Math.min(
+    tool.request.maxResponseBytes ?? MAX_TOOL_RESPONSE_BODY_BYTES,
+    MAX_TOOL_RESPONSE_BODY_BYTES
+  )
   let privateMetadataConsumed = privateToolMetadataType === undefined
 
   try {

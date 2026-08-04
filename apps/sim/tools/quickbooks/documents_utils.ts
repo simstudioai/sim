@@ -7,7 +7,8 @@ import type {
   QuickBooksAttachmentTargetType,
   QuickBooksDocumentTransactionType,
 } from '@/tools/quickbooks/types'
-import { parseQuickBooksJson, requiredQuickBooksString } from '@/tools/quickbooks/utils'
+import { parseQuickBooksJson } from '@/tools/quickbooks/utils'
+import { requiredQuickBooksString } from '@/tools/quickbooks/values'
 
 export const QUICKBOOKS_DOCUMENT_TRANSACTIONS = {
   credit_memo: { entity: 'CreditMemo', resource: 'creditmemo' },
@@ -36,24 +37,120 @@ export const QUICKBOOKS_ATTACHMENT_TARGETS = {
   vendor_credit: { entityType: 'VendorCredit' },
 } as const satisfies Record<QuickBooksAttachmentTargetType, { entityType: string }>
 
-const QUICKBOOKS_FILE_TYPES: Record<string, readonly string[]> = {
-  ai: ['application/postscript'],
-  csv: ['text/csv'],
-  doc: ['application/msword'],
-  docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-  eps: ['application/postscript'],
-  gif: ['image/gif'],
-  jpeg: ['image/jpeg'],
-  jpg: ['image/jpeg', 'image/jpg'],
-  ods: ['application/vnd.oasis.opendocument.spreadsheet'],
-  pdf: ['application/pdf'],
-  png: ['image/png'],
-  rtf: ['text/rtf'],
-  tif: ['image/tiff'],
-  txt: ['text/plain'],
-  xls: ['application/vnd.ms-excel'],
-  xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-  xml: ['text/xml'],
+/**
+ * QuickBooks Online caps a single attachment at 20 MB.
+ * @see https://quickbooks.intuit.com/learn-support/en-us/help-article/invoicing/attachments-quickbooks-online/L8XvMBCgd_US_en_US
+ */
+export const QUICKBOOKS_MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
+
+/** Wall-clock ceiling for Intuit document calls that move no file bytes. */
+export const QUICKBOOKS_DOCUMENT_METADATA_TIMEOUT_MS = 15_000
+
+/** Wall-clock ceiling for Intuit document calls that stream attachment bytes. */
+export const QUICKBOOKS_DOCUMENT_TRANSFER_TIMEOUT_MS = 60_000
+
+/**
+ * Bounds an outbound Intuit call by both client disconnect and a wall-clock
+ * timeout so a stalled connection cannot pin a handler and its buffered file.
+ */
+export function quickBooksDocumentSignal(signal: AbortSignal, timeoutMs: number): AbortSignal {
+  return AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+}
+
+const QUICKBOOKS_OCTET_STREAM = 'application/octet-stream'
+
+interface QuickBooksFileType {
+  /** Content type sent to Intuit for this extension. */
+  canonical: string
+  /** Content types tolerated from browser-supplied stored-file metadata. */
+  accepted: readonly string[]
+}
+
+/**
+ * Extension allowlist for QuickBooks attachments. Intuit publishes accepted
+ * extensions but not MIME types, so each entry tolerates the common aliases a
+ * browser or operating system may report and normalizes them to one canonical
+ * content type before upload.
+ */
+const QUICKBOOKS_FILE_TYPES: Record<string, QuickBooksFileType> = {
+  ai: {
+    canonical: 'application/postscript',
+    accepted: ['application/postscript', 'application/illustrator', QUICKBOOKS_OCTET_STREAM],
+  },
+  csv: {
+    canonical: 'text/csv',
+    accepted: [
+      'text/csv',
+      'application/csv',
+      'text/plain',
+      'application/vnd.ms-excel',
+      QUICKBOOKS_OCTET_STREAM,
+    ],
+  },
+  doc: {
+    canonical: 'application/msword',
+    accepted: ['application/msword', 'application/vnd.ms-word', QUICKBOOKS_OCTET_STREAM],
+  },
+  docx: {
+    canonical: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    accepted: [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      QUICKBOOKS_OCTET_STREAM,
+    ],
+  },
+  eps: {
+    canonical: 'application/postscript',
+    accepted: [
+      'application/postscript',
+      'application/eps',
+      'image/eps',
+      'image/x-eps',
+      QUICKBOOKS_OCTET_STREAM,
+    ],
+  },
+  gif: { canonical: 'image/gif', accepted: ['image/gif'] },
+  jpeg: { canonical: 'image/jpeg', accepted: ['image/jpeg', 'image/jpg', 'image/pjpeg'] },
+  jpg: { canonical: 'image/jpeg', accepted: ['image/jpeg', 'image/jpg', 'image/pjpeg'] },
+  ods: {
+    canonical: 'application/vnd.oasis.opendocument.spreadsheet',
+    accepted: ['application/vnd.oasis.opendocument.spreadsheet', QUICKBOOKS_OCTET_STREAM],
+  },
+  pdf: {
+    canonical: 'application/pdf',
+    accepted: ['application/pdf', 'application/x-pdf', QUICKBOOKS_OCTET_STREAM],
+  },
+  png: { canonical: 'image/png', accepted: ['image/png', 'image/x-png'] },
+  rtf: {
+    canonical: 'text/rtf',
+    accepted: ['text/rtf', 'application/rtf', 'text/richtext', QUICKBOOKS_OCTET_STREAM],
+  },
+  tif: {
+    canonical: 'image/tiff',
+    accepted: ['image/tiff', 'image/tif', 'image/x-tiff', QUICKBOOKS_OCTET_STREAM],
+  },
+  txt: { canonical: 'text/plain', accepted: ['text/plain'] },
+  xls: {
+    canonical: 'application/vnd.ms-excel',
+    accepted: [
+      'application/vnd.ms-excel',
+      'application/excel',
+      'application/x-excel',
+      'application/x-msexcel',
+      QUICKBOOKS_OCTET_STREAM,
+    ],
+  },
+  xlsx: {
+    canonical: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    accepted: [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      QUICKBOOKS_OCTET_STREAM,
+    ],
+  },
+  xml: {
+    canonical: 'text/xml',
+    accepted: ['text/xml', 'application/xml', QUICKBOOKS_OCTET_STREAM],
+  },
 }
 
 export function getQuickBooksDocumentTransaction(type: QuickBooksDocumentTransactionType) {
@@ -78,30 +175,74 @@ export function validateQuickBooksRecipient(recipient?: string): string | undefi
   return normalized
 }
 
+const QUICKBOOKS_MAX_FILE_NAME_LENGTH = 180
+
+/**
+ * Bounds a filename without destroying its extension. Truncating the whole
+ * string cuts a long name mid-extension and leaves the file looking
+ * extensionless, which every downstream QuickBooks type check then rejects.
+ */
+function boundQuickBooksFileName(name: string): string {
+  if (name.length <= QUICKBOOKS_MAX_FILE_NAME_LENGTH) return name
+  const dotIndex = name.lastIndexOf('.')
+  if (dotIndex > 0 && dotIndex < name.length - 1) {
+    const extension = name.slice(dotIndex)
+    const base = name.slice(0, QUICKBOOKS_MAX_FILE_NAME_LENGTH - extension.length).trimEnd()
+    if (base) return `${base}${extension}`
+  }
+  return name.slice(0, QUICKBOOKS_MAX_FILE_NAME_LENGTH)
+}
+
+/**
+ * Reduces a candidate to one safe filename leaf bounded to the contract's
+ * length. Letters and digits in any script survive; path separators, control
+ * characters, and every other character collapse to underscores.
+ */
 export function sanitizeQuickBooksFileName(value: string | undefined, fallback: string): string {
   const sanitize = (candidate: string): string | undefined => {
     const leaf = candidate.trim().split(/[\\/]/).pop() ?? ''
-    const bounded = leaf
+    const cleaned = leaf
       .replace(/[\u0000-\u001f\u007f]/g, '')
-      .replace(/[^\w.() -]/g, '_')
+      .replace(/[^\p{L}\p{N}._()\- ]/gu, '_')
       .trim()
-      .slice(0, 180)
+    const bounded = boundQuickBooksFileName(cleaned)
     return bounded && bounded !== '.' && bounded !== '..' ? bounded : undefined
   }
 
   return (value ? sanitize(value) : undefined) ?? sanitize(fallback) ?? 'quickbooks-file'
 }
 
+function getQuickBooksFileExtension(fileName: string): string {
+  return fileName.split('.').pop()?.toLowerCase() ?? ''
+}
+
+/**
+ * Rejects unsupported extensions before any file bytes are read, so an
+ * unattachable file never costs a full storage download.
+ */
+export function assertQuickBooksAttachmentExtension(fileName: string): void {
+  const extension = getQuickBooksFileExtension(fileName)
+  if (!QUICKBOOKS_FILE_TYPES[extension]) {
+    throw new Error(
+      `QuickBooks does not support ${extension ? `the ${extension}` : 'an extensionless'} file type`
+    )
+  }
+}
+
+/**
+ * Validates an extension/MIME pair and returns the canonical content type that
+ * QuickBooks should record for that extension.
+ */
 export function validateQuickBooksAttachmentFileType(fileName: string, mimeType: string): string {
-  const extension = fileName.split('.').pop()?.toLowerCase() ?? ''
+  const extension = getQuickBooksFileExtension(fileName)
   const normalizedMime = mimeType.split(';', 1)[0].trim().toLowerCase()
-  const accepted = QUICKBOOKS_FILE_TYPES[extension]
-  if (!accepted || !accepted.includes(normalizedMime)) {
+  const fileType = QUICKBOOKS_FILE_TYPES[extension]
+  if (!fileType || !fileType.accepted.includes(normalizedMime)) {
     throw new Error(
       `QuickBooks does not support the ${extension || 'extensionless'} / ${normalizedMime || 'unknown'} file type combination`
     )
   }
-  return normalizedMime
+  return fileType.canonical
 }
 
 export function escapeQuickBooksQueryLiteral(value: string, fieldName: string): string {

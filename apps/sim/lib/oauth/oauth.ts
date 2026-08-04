@@ -61,6 +61,7 @@ import {
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
+import { redactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -69,6 +70,9 @@ import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
+
+/** Upper bound on how much of a provider error body is written to the log. */
+const MAX_LOGGED_ERROR_BODY_CHARS = 1000
 
 /**
  * Slack scopes requested only where the app is approved for them, gated by
@@ -1877,23 +1881,34 @@ export async function refreshOAuthToken(
       signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
     })
 
-    const responseText = await readResponseTextWithLimit(response, {
-      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
-      label: `${provider} token refresh response`,
-    })
-    let responseData: unknown
-    try {
-      responseData = JSON.parse(responseText)
-    } catch {
-      responseData = null
-    }
-    const errorCode = extractErrorCode(responseData)
-
     if (!response.ok) {
+      /**
+       * Read the failure body defensively: the cap bounds memory, and a read
+       * failure degrades to an empty diagnostic rather than replacing the real
+       * HTTP status with a stream error.
+       */
+      const errorText = await readResponseTextWithLimit(response, {
+        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+        label: `${provider} token refresh error response`,
+      }).catch(() => '')
+      let errorData: unknown = null
+      try {
+        errorData = JSON.parse(errorText)
+      } catch {
+        errorData = null
+      }
+      const errorCode = extractErrorCode(errorData)
+
+      /**
+       * `@sim/logger` performs no redaction, so the provider body is redacted and
+       * truncated here. It is deliberately kept out of the returned message, which
+       * is surfaced to users and persisted in workflow execution logs.
+       */
       logger.error('Token refresh failed:', {
         status: response.status,
         statusText: response.statusText,
         errorCode,
+        errorBody: truncate(redactSensitiveValues(errorText), MAX_LOGGED_ERROR_BODY_CHARS),
         providerId,
         tokenEndpoint: config.tokenEndpoint,
         hasClientId: !!config.clientId,
@@ -1906,6 +1921,14 @@ export async function refreshOAuthToken(
         message: `Failed to refresh token: ${response.status}${errorCode ? ` (${errorCode})` : ''}`,
       }
     }
+
+    /**
+     * Parsed uncapped on the success path. A token response is a small JSON
+     * document, and `readResponseTextWithLimit` throws rather than truncating —
+     * capping here would let an oversized body turn a successful refresh into a
+     * spurious failure.
+     */
+    const responseData: unknown = await response.json().catch(() => null)
 
     if (!responseData || typeof responseData !== 'object' || Array.isArray(responseData)) {
       logger.error('Token refresh returned an invalid response:', {

@@ -38,7 +38,17 @@ interface ErrorExtractorConfig {
   description: string
   /** Example APIs that use this pattern */
   examples?: string[]
-  /** Whether this extractor may run in the legacy provider-agnostic fallback chain. */
+  /**
+   * Whether this extractor may run in the provider-agnostic fallback chain that
+   * {@link extractErrorMessage} walks when a tool declares no `errorExtractor`.
+   *
+   * Defaults to `true`. Set it to `false` for any extractor that returns a
+   * non-empty string unconditionally — the fallback loop stops at the first
+   * non-empty result, so such an extractor hijacks the chain and relabels every
+   * other provider's errors. `quickbooks-fault` is exactly that shape: it always
+   * produces at least `"QuickBooks request failed."`. Do not delete this flag
+   * without first making the extractor return `null` for non-matching payloads.
+   */
   useInFallback?: boolean
   /** The extraction function */
   extract: ErrorExtractor

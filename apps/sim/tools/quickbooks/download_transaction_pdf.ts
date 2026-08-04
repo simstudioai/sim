@@ -52,10 +52,11 @@ export const quickbooksDownloadTransactionPdfTool: ToolConfig<
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   request: {
-    url: '/api/tools/quickbooks/download-transaction-pdf',
+    url: '/api/tools/quickbooks/download-document',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
+      documentKind: 'transaction_pdf',
       accessToken: params.accessToken,
       realmId: params.realmId,
       transactionType: params.transactionType,

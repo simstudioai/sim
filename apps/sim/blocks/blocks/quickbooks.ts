@@ -13,19 +13,19 @@ import {
   parseQuickBooksPurchasingLines,
 } from '@/tools/quickbooks/purchasing_utils'
 import {
-  parseQuickBooksInvoiceAllocations,
-  parseQuickBooksSalesLines,
-} from '@/tools/quickbooks/sales_utils'
-import type { QuickBooksReportType, QuickBooksResponse } from '@/tools/quickbooks/types'
-import {
   getQuickBooksReportTypesSupporting,
-  parseQuickBooksAddress,
   QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES,
   QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES,
   QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES,
   QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES,
   type QuickBooksReportControl,
-} from '@/tools/quickbooks/utils'
+} from '@/tools/quickbooks/reports'
+import {
+  parseQuickBooksInvoiceAllocations,
+  parseQuickBooksSalesLines,
+} from '@/tools/quickbooks/sales_utils'
+import type { QuickBooksReportType, QuickBooksResponse } from '@/tools/quickbooks/types'
+import { parseQuickBooksAddress } from '@/tools/quickbooks/values'
 
 const MASTER_DATA_OPERATION = 'quickbooks_read_master_data'
 const SALES_READ_OPERATION = 'quickbooks_read_sales_transactions'
@@ -186,6 +186,19 @@ const REPORT_TIME_SUMMARY_OPTIONS = [
   { label: 'Quarter', id: 'quarter' },
   { label: 'Year', id: 'year' },
 ] as const
+
+/**
+ * Wand config for a QuickBooks `YYYY-MM-DD` date field. `subject` names the
+ * specific date so the generated value lands in the right field.
+ */
+function dateWandConfig(subject: string) {
+  return {
+    enabled: true,
+    prompt: `Generate the ${subject} in YYYY-MM-DD format from the user description. Return ONLY the date - no explanations, no extra text.`,
+    generationType: 'timestamp' as const,
+    placeholder: 'Describe the date (e.g., "the last day of last month")...',
+  }
+}
 
 function reportControlCondition(control: QuickBooksReportControl) {
   return {
@@ -440,9 +453,19 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       title: 'QuickBooks Account',
       type: 'oauth-input',
       canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       serviceId: 'quickbooks',
       requiredScopes: getScopesForService('quickbooks'),
       placeholder: 'Select QuickBooks company',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'QuickBooks Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
     },
     {
@@ -742,6 +765,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
       mode: 'advanced',
+      wandConfig: dateWandConfig('transaction list start date'),
       condition: {
         field: 'operation',
         value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION, ACCOUNTING_READ_OPERATION],
@@ -754,6 +778,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
       mode: 'advanced',
+      wandConfig: dateWandConfig('transaction list end date'),
       condition: {
         field: 'operation',
         value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION, ACCOUNTING_READ_OPERATION],
@@ -874,6 +899,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       description:
         'Intuit recommends report periods of six months or less for performance, but longer periods remain supported.',
       mode: 'advanced',
+      wandConfig: dateWandConfig('report start date'),
       condition: reportControlCondition('startDate'),
     },
     {
@@ -883,6 +909,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       placeholder: 'YYYY-MM-DD',
       description: 'End date for range reports or as-of date for balance and aging reports.',
       mode: 'advanced',
+      wandConfig: dateWandConfig('report end or as-of date'),
       condition: reportControlCondition('endDate'),
     },
     {
@@ -1033,7 +1060,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         { label: 'Current Date', id: 'current' },
       ],
       mode: 'advanced',
-      condition: reportControlCondition('aging'),
+      condition: reportControlCondition('agingMethod'),
       value: () => 'default',
     },
     {
@@ -1042,7 +1069,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'short-input',
       placeholder: '30',
       mode: 'advanced',
-      condition: reportControlCondition('aging'),
+      condition: reportControlCondition('agingPeriod'),
     },
     {
       id: 'reportTransactionType',
@@ -1293,11 +1320,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       },
       required: {
         field: 'operation',
-        value: [
-          'quickbooks_create_customer',
-          'quickbooks_create_employee',
-          'quickbooks_create_vendor',
-        ],
+        value: ['quickbooks_create_customer', 'quickbooks_create_vendor'],
       },
     },
     {
@@ -1365,7 +1388,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a QuickBooks address JSON object using only line1, line2, city, countrySubDivisionCode, postalCode, and country. Return ONLY the JSON object.',
+          'Generate a QuickBooks address JSON object using only line1, line2, city, countrySubDivisionCode, postalCode, and country. Return ONLY the JSON object - no explanations, no extra text.',
         generationType: 'json-object',
       },
     },
@@ -1381,7 +1404,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a QuickBooks address JSON object using only line1, line2, city, countrySubDivisionCode, postalCode, and country. Return ONLY the JSON object.',
+          'Generate a QuickBooks address JSON object using only line1, line2, city, countrySubDivisionCode, postalCode, and country. Return ONLY the JSON object - no explanations, no extra text.',
         generationType: 'json-object',
       },
     },
@@ -1397,7 +1420,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a QuickBooks address JSON object using only line1, line2, city, countrySubDivisionCode, postalCode, and country. Return ONLY the JSON object.',
+          'Generate a QuickBooks address JSON object using only line1, line2, city, countrySubDivisionCode, postalCode, and country. Return ONLY the JSON object - no explanations, no extra text.',
         generationType: 'json-object',
       },
     },
@@ -1472,7 +1495,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'short-input',
       placeholder: 'QuickBooks income account ID',
       condition: { field: 'operation', value: [...ITEM_OPERATIONS] },
-      required: { field: 'operation', value: 'quickbooks_create_item' },
+      required: {
+        field: 'operation',
+        value: 'quickbooks_create_item',
+        and: { field: 'itemType', value: 'service' },
+      },
     },
     {
       id: 'description',
@@ -1510,7 +1537,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'short-input',
       placeholder: 'QuickBooks expense account ID',
       condition: { field: 'operation', value: [...ITEM_OPERATIONS] },
-      mode: 'advanced',
+      required: { field: 'operation', value: 'quickbooks_create_item' },
     },
     {
       id: 'taxable',
@@ -1596,7 +1623,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a balanced JSON array of QuickBooks journal lines. Each line needs postingType debit or credit, a positive amount, and accountId. Optional fields are description and an entityType/entityId pair. Debits and credits must total the same amount. Return ONLY the JSON array.',
+          'Generate a balanced JSON array of QuickBooks journal lines. Each line needs postingType debit or credit, a positive amount, and accountId. Optional fields are description and an entityType/entityId pair. Debits and credits must total the same amount. Return ONLY the JSON array - no explanations, no extra text.',
       },
     },
     {
@@ -1610,7 +1637,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a JSON array of QuickBooks deposit lines. Each line needs a positive amount and accountId, with optional description. Return ONLY the JSON array.',
+          'Generate a JSON array of QuickBooks deposit lines. Each line needs a positive amount and accountId, with optional description. Return ONLY the JSON array - no explanations, no extra text.',
       },
     },
     {
@@ -1725,6 +1752,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         ],
       },
       mode: 'advanced',
+      wandConfig: dateWandConfig('transaction date'),
     },
     {
       id: 'dueDate',
@@ -1741,6 +1769,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         ],
       },
       mode: 'advanced',
+      wandConfig: dateWandConfig('due date'),
     },
     {
       id: 'expirationDate',
@@ -1752,6 +1781,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
         value: ['quickbooks_create_estimate', 'quickbooks_update_estimate'],
       },
       mode: 'advanced',
+      wandConfig: dateWandConfig('estimate expiration date'),
     },
     {
       id: 'documentNumber',
@@ -1869,8 +1899,22 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a JSON array of QuickBooks invoice allocations using only invoiceId and a positive amount. Return ONLY the JSON array - no explanations, no extra text.',
+          'Generate a JSON array of QuickBooks invoice allocations using only invoiceId and a positive amount. On an update these are merged into the allocations the payment already has, so list only the invoices whose applied amount should change; any invoice already applied and not listed keeps its current amount. Return ONLY the JSON array - no explanations, no extra text.',
       },
+    },
+    {
+      id: 'unapplyOmittedInvoices',
+      title: 'Replace Invoice Allocations',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'no' },
+        { label: 'Yes', id: 'yes' },
+      ],
+      description:
+        'Yes removes every invoice not listed in the allocations from this payment, returning it to open.',
+      condition: { field: 'operation', value: 'quickbooks_update_customer_payment' },
+      mode: 'advanced',
+      value: () => 'no',
     },
     {
       id: 'paymentReference',
@@ -2159,10 +2203,10 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             departmentId: reportSupports(reportType, 'departmentId')
               ? optionalValue(params.reportDepartmentId)
               : undefined,
-            agingMethod: reportSupports(reportType, 'aging')
+            agingMethod: reportSupports(reportType, 'agingMethod')
               ? (params.reportAgingMethod ?? 'default')
               : undefined,
-            agingDays: reportSupports(reportType, 'aging')
+            agingDays: reportSupports(reportType, 'agingPeriod')
               ? parseOptionalPositiveInteger(params.reportAgingDays, 'agingDays')
               : undefined,
             transactionType:
@@ -2254,6 +2298,9 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             paymentMethodId: optionalValue(params.paymentMethodId),
             depositAccountId: optionalValue(params.depositAccountId),
             invoiceAllocations: parseQuickBooksInvoiceAllocations(params.invoiceAllocations),
+            unapplyOmittedInvoices: isCreate
+              ? undefined
+              : parseConfirmation(params.unapplyOmittedInvoices, 'unapplyOmittedInvoices'),
             requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
@@ -2374,8 +2421,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           const isCreate = operation === 'quickbooks_create_customer'
           return {
             credential: oauthCredentialValue,
-            customerId: optionalValue(params.customerId),
-            syncToken: optionalValue(params.syncToken),
+            customerId: isCreate ? undefined : optionalValue(params.customerId),
+            syncToken: isCreate ? undefined : optionalValue(params.syncToken),
             displayName: optionalValue(params.displayName),
             companyName: optionalValue(params.companyName),
             givenName: optionalValue(params.givenName),
@@ -2385,7 +2432,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             billingAddress: parseQuickBooksAddress(params.billingAddress, 'billingAddress'),
             shippingAddress: parseQuickBooksAddress(params.shippingAddress, 'shippingAddress'),
             taxable: parseTriStateBoolean(params.taxable, 'taxable'),
-            activeStatus: params.activeStatus ?? 'unchanged',
+            activeStatus: isCreate ? undefined : (params.activeStatus ?? 'unchanged'),
             requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
@@ -2406,7 +2453,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             primaryAddress: parseQuickBooksAddress(params.primaryAddress, 'primaryAddress'),
             printOnCheckName: optionalValue(params.printOnCheckName),
             billableTime: parseTriStateBoolean(params.billableTime, 'billableTime'),
-            activeStatus: params.activeStatus ?? 'unchanged',
+            activeStatus: isCreate ? undefined : (params.activeStatus ?? 'unchanged'),
             requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
@@ -2414,8 +2461,8 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           const isCreate = operation === 'quickbooks_create_vendor'
           return {
             credential: oauthCredentialValue,
-            vendorId: optionalValue(params.vendorId),
-            syncToken: optionalValue(params.syncToken),
+            vendorId: isCreate ? undefined : optionalValue(params.vendorId),
+            syncToken: isCreate ? undefined : optionalValue(params.syncToken),
             displayName: optionalValue(params.displayName),
             companyName: optionalValue(params.companyName),
             givenName: optionalValue(params.givenName),
@@ -2426,7 +2473,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             printOnCheckName: optionalValue(params.printOnCheckName),
             accountNumber: optionalValue(params.accountNumber),
             vendor1099: parseTriStateBoolean(params.vendor1099, 'vendor1099'),
-            activeStatus: params.activeStatus ?? 'unchanged',
+            activeStatus: isCreate ? undefined : (params.activeStatus ?? 'unchanged'),
             requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
@@ -2434,11 +2481,10 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
           const isCreate = operation === 'quickbooks_create_item'
           return {
             credential: oauthCredentialValue,
-            itemId: optionalValue(params.itemId),
-            syncToken: optionalValue(params.syncToken),
+            itemId: isCreate ? undefined : optionalValue(params.itemId),
+            syncToken: isCreate ? undefined : optionalValue(params.syncToken),
             name: optionalValue(params.name),
-            itemType:
-              operation === 'quickbooks_create_item' ? optionalValue(params.itemType) : undefined,
+            itemType: isCreate ? optionalValue(params.itemType) : undefined,
             incomeAccountId: optionalValue(params.incomeAccountId),
             description: optionalValue(params.description),
             unitPrice: parseOptionalNumber(params.unitPrice, 'unitPrice'),
@@ -2446,7 +2492,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
             purchaseCost: parseOptionalNumber(params.purchaseCost, 'purchaseCost'),
             expenseAccountId: optionalValue(params.expenseAccountId),
             taxable: parseTriStateBoolean(params.taxable, 'taxable'),
-            activeStatus: params.activeStatus ?? 'unchanged',
+            activeStatus: isCreate ? undefined : (params.activeStatus ?? 'unchanged'),
             requestId: isCreate ? optionalValue(params.requestId) : undefined,
           }
         }
@@ -2586,6 +2632,10 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     invoiceAllocations: {
       type: 'json',
       description: 'Bounded customer-payment allocations to invoices',
+    },
+    unapplyOmittedInvoices: {
+      type: 'boolean',
+      description: 'Replace payment allocations outright, unapplying every invoice not listed',
     },
     requestId: { type: 'string', description: 'Optional Intuit idempotency request ID' },
     confirmVoid: { type: 'boolean', description: 'Explicit confirmation for a void operation' },
@@ -2829,6 +2879,11 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
     time: {
       type: 'string',
       description: 'QuickBooks response timestamp',
+      condition: {
+        field: 'operation',
+        value: [DOWNLOAD_TRANSACTION_PDF_OPERATION, DOWNLOAD_ATTACHMENT_OPERATION],
+        not: true,
+      },
     },
   },
 }

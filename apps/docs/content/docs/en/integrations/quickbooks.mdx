@@ -5,7 +5,7 @@ description: Manage QuickBooks Online company, transactions, reports, emails, PD
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="quickbooks"
   color="#2CA01C"
 />
@@ -60,7 +60,10 @@ Get information about the connected QuickBooks Online company
 |   ↳ `CompanyStartDate` | string | Company start date |
 |   ↳ `Country` | string | Company country code |
 |   ↳ `FiscalYearStartMonth` | string | Fiscal year starting month |
-|   ↳ `DefaultTimeZone` | string | Company default time zone |
+|   ↳ `SupportedLanguages` | string | Comma-separated list of languages supported by the company |
+|   ↳ `EmployerId` | string | Employer Identification Number, when defined in company settings |
+|   ↳ `domain` | string | Originating Intuit domain |
+|   ↳ `sparse` | boolean | Whether QuickBooks returned a partial representation |
 |   ↳ `NameValue` | array | QuickBooks company settings represented as name/value entries |
 |   ↳ `MetaData` | json | CompanyInfo creation and update timestamps |
 |     ↳ `CreateTime` | string | Entity creation timestamp |
@@ -309,9 +312,9 @@ Create a non-payroll employee profile in the connected QuickBooks Online company
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `displayName` | string | Yes | Unique employee display name |
-| `givenName` | string | No | Employee given name |
-| `familyName` | string | No | Employee family name |
+| `displayName` | string | No | Unique employee display name. When omitted QuickBooks derives it from the supplied name components, and it is read-only when QuickBooks Payroll is enabled |
+| `givenName` | string | No | Employee given name. At least one of givenName or familyName is required |
+| `familyName` | string | No | Employee family name. At least one of givenName or familyName is required |
 | `primaryEmail` | string | No | Employee primary email address |
 | `primaryPhone` | string | No | Employee primary phone number |
 | `primaryAddress` | json | No | Employee primary address |
@@ -499,12 +502,12 @@ Create a Service or Non-inventory item in QuickBooks Online
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Unique item name |
 | `itemType` | string | Yes | Writable item type: service or non_inventory |
-| `incomeAccountId` | string | Yes | Income account ID used when the item is sold |
+| `incomeAccountId` | string | No | Sales of Product Income account ID recording proceeds from the sale. Required for Service items, optional for Non-inventory items and for France locales |
 | `description` | string | No | Sales description |
 | `unitPrice` | number | No | Sales price per unit |
 | `purchaseDescription` | string | No | Purchase description |
 | `purchaseCost` | number | No | Purchase cost per unit |
-| `expenseAccountId` | string | No | Expense account ID used when the item is purchased |
+| `expenseAccountId` | string | Yes | Cost of Goods Sold account ID used to pay the vendor for this item. Required for both Service and Non-inventory items, except in France locales where it is optional |
 | `taxable` | boolean | No | Whether the item is taxable |
 | `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
@@ -764,7 +767,7 @@ Sparse-update an estimate using its current sync token
 | `transactionId` | string | Yes | Estimate ID to update |
 | `syncToken` | string | Yes | Current estimate sync token |
 | `customerId` | string | No | Replacement customer ID |
-| `lines` | json | No | Replacement bounded estimate lines |
+| `lines` | json | No | Complete replacement set of estimate lines: any existing line omitted here is deleted from the estimate |
 | `transactionDate` | string | No | Replacement estimate date in YYYY-MM-DD format |
 | `expirationDate` | string | No | Replacement expiration date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Replacement estimate number |
@@ -879,7 +882,7 @@ Sparse-update an invoice using its current sync token
 | `transactionId` | string | Yes | Invoice ID to update |
 | `syncToken` | string | Yes | Current invoice sync token |
 | `customerId` | string | No | Replacement customer ID |
-| `lines` | json | No | Replacement bounded invoice lines |
+| `lines` | json | No | Complete replacement set of invoice lines: any existing line omitted here is deleted from the invoice |
 | `transactionDate` | string | No | Replacement invoice date in YYYY-MM-DD format |
 | `dueDate` | string | No | Replacement due date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Replacement invoice number |
@@ -1049,7 +1052,7 @@ Sparse-update a sales receipt using its current sync token
 | `transactionId` | string | Yes | Sales receipt ID to update |
 | `syncToken` | string | Yes | Current sales receipt sync token |
 | `customerId` | string | No | Replacement customer ID |
-| `lines` | json | No | Replacement bounded sales receipt lines |
+| `lines` | json | No | Complete replacement set of sales receipt lines: any existing line omitted here is deleted from the sales receipt |
 | `transactionDate` | string | No | Replacement receipt date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Replacement sales receipt number |
 | `privateNote` | string | No | Replacement internal note |
@@ -1173,7 +1176,8 @@ Sparse-update a customer payment using its current sync token
 | `paymentReferenceNumber` | string | No | Replacement payment reference number |
 | `paymentMethodId` | string | No | Replacement payment method ID |
 | `depositAccountId` | string | No | Replacement deposit account ID |
-| `invoiceAllocations` | json | No | Replacement bounded invoice allocations |
+| `invoiceAllocations` | json | No | Bounded invoice allocations to apply. Each entry sets the amount applied to that invoice; invoices already applied on the payment and not listed here keep their current amounts |
+| `unapplyOmittedInvoices` | boolean | No | Replace the payment allocations outright. Every invoice not listed in invoiceAllocations is UNAPPLIED and returns to open |
 
 #### Output
 
@@ -1335,7 +1339,7 @@ Sparse-update a credit memo using its current sync token
 | `transactionId` | string | Yes | Credit memo ID to update |
 | `syncToken` | string | Yes | Current credit memo sync token |
 | `customerId` | string | No | Replacement customer ID |
-| `lines` | json | No | Replacement bounded credit memo lines |
+| `lines` | json | No | Complete replacement set of credit memo lines: any existing line omitted here is deleted from the credit memo |
 | `transactionDate` | string | No | Replacement credit memo date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Replacement credit memo number |
 | `privateNote` | string | No | Replacement internal note |
@@ -1451,7 +1455,7 @@ Sparse-update a refund receipt using its current sync token
 | `transactionId` | string | Yes | Refund receipt ID to update |
 | `syncToken` | string | Yes | Current refund receipt sync token |
 | `customerId` | string | No | Replacement customer ID |
-| `lines` | json | No | Replacement bounded refund lines |
+| `lines` | json | No | Complete replacement set of refund receipt lines: any existing line omitted here is deleted from the refund receipt |
 | `transactionDate` | string | No | Replacement refund date in YYYY-MM-DD format |
 | `documentNumber` | string | No | Replacement refund receipt number |
 | `privateNote` | string | No | Replacement internal note |
@@ -2234,7 +2238,7 @@ Record a cash, check, or credit-card purchase with bounded expense lines
 | `lines` | json | Yes | Bounded account-based or item-based expense lines |
 | `vendorId` | string | No | Optional vendor payee ID |
 | `transactionDate` | string | No | Purchase date in YYYY-MM-DD format |
-| `paymentReference` | string | No | Optional payment reference number |
+| `paymentReference` | string | No | Optional transaction reference number, such as a check number, sent as the purchase DocNumber |
 | `privateNote` | string | No | Internal purchase note |
 | `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
 
@@ -2308,7 +2312,7 @@ Sparse-update purchase header fields without changing lines or payment accounts
 | `currentPaymentType` | string | Yes | Current purchase payment type, re-sent unchanged because QuickBooks requires it for sparse updates |
 | `vendorId` | string | No | Replacement vendor payee ID |
 | `transactionDate` | string | No | Replacement purchase date in YYYY-MM-DD format |
-| `paymentReference` | string | No | Replacement payment reference number |
+| `paymentReference` | string | No | Replacement transaction reference number, such as a check number, sent as the purchase DocNumber |
 | `privateNote` | string | No | Replacement internal note |
 
 #### Output
@@ -2913,3 +2917,5 @@ Download a QuickBooks file attachment through its short-lived URL
 | `mimeType` | string | Downloaded file MIME type |
 | `size` | number | Downloaded file size in bytes |
 | `attachmentId` | string | Downloaded QuickBooks attachment ID |
+
+

@@ -14,7 +14,8 @@ import type {
   QuickBooksTransaction,
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_EMAILABLE_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/types'
-import { parseQuickBooksJson, requiredQuickBooksString } from '@/tools/quickbooks/utils'
+import { parseQuickBooksJson } from '@/tools/quickbooks/utils'
+import { requiredQuickBooksString } from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksEmailTransactionTool: ToolConfig<

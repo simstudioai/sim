@@ -60,7 +60,8 @@ export const quickbooksUpdateEstimateTool: ToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Replacement bounded estimate lines',
+      description:
+        'Complete replacement set of estimate lines: any existing line omitted here is deleted from the estimate',
     },
     transactionDate: {
       type: 'string',

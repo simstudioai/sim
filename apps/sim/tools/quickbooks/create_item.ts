@@ -11,13 +11,15 @@ import {
   addQuickBooksRequestId,
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
+  transformQuickBooksMutationResponse,
+} from '@/tools/quickbooks/utils'
+import {
   optionalQuickBooksString,
   quickBooksReference,
   quickBooksWritableItemType,
   requiredQuickBooksString,
-  transformQuickBooksMutationResponse,
   validateQuickBooksOptionalNumber,
-} from '@/tools/quickbooks/utils'
+} from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksCreateItemTool: ToolConfig<
@@ -55,9 +57,10 @@ export const quickbooksCreateItemTool: ToolConfig<
     },
     incomeAccountId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Income account ID used when the item is sold',
+      description:
+        'Sales of Product Income account ID recording proceeds from the sale. Required for Service items, optional for Non-inventory items and for France locales',
     },
     description: {
       type: 'string',
@@ -85,9 +88,10 @@ export const quickbooksCreateItemTool: ToolConfig<
     },
     expenseAccountId: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Expense account ID used when the item is purchased',
+      description:
+        'Cost of Goods Sold account ID used to pay the vendor for this item. Required for both Service and Non-inventory items, except in France locales where it is optional',
     },
     taxable: {
       type: 'boolean',
@@ -118,25 +122,25 @@ export const quickbooksCreateItemTool: ToolConfig<
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => {
       const type = quickBooksWritableItemType(params.itemType)
-      const purchaseDescription = optionalQuickBooksString(params.purchaseDescription)
-      const purchaseCost = validateQuickBooksOptionalNumber(params.purchaseCost, 'purchaseCost')
-      if (
-        (purchaseDescription !== undefined || purchaseCost !== undefined) &&
-        !params.expenseAccountId?.trim()
-      ) {
-        throw new Error('expenseAccountId is required when purchase fields are supplied')
+      const incomeAccountId = optionalQuickBooksString(params.incomeAccountId)
+      if (type === 'Service' && incomeAccountId === undefined) {
+        throw new Error('incomeAccountId is required for Service items')
       }
       return filterUndefined({
         Name: requiredQuickBooksString(params.name, 'name'),
         Type: type,
-        IncomeAccountRef: quickBooksReference(params.incomeAccountId, 'incomeAccountId'),
+        IncomeAccountRef:
+          incomeAccountId === undefined
+            ? undefined
+            : quickBooksReference(incomeAccountId, 'incomeAccountId'),
         Description: optionalQuickBooksString(params.description),
         UnitPrice: validateQuickBooksOptionalNumber(params.unitPrice, 'unitPrice'),
-        PurchaseDesc: purchaseDescription,
-        PurchaseCost: purchaseCost,
-        ExpenseAccountRef: params.expenseAccountId
-          ? quickBooksReference(params.expenseAccountId, 'expenseAccountId')
-          : undefined,
+        PurchaseDesc: optionalQuickBooksString(params.purchaseDescription),
+        PurchaseCost: validateQuickBooksOptionalNumber(params.purchaseCost, 'purchaseCost'),
+        ExpenseAccountRef: quickBooksReference(
+          requiredQuickBooksString(params.expenseAccountId ?? '', 'expenseAccountId'),
+          'expenseAccountId'
+        ),
         Taxable: params.taxable,
       })
     },

@@ -73,7 +73,8 @@ export const quickbooksUpdatePurchaseTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Replacement payment reference number',
+      description:
+        'Replacement transaction reference number, such as a check number, sent as the purchase DocNumber',
     },
     privateNote: {
       type: 'string',

@@ -53,7 +53,7 @@ export const quickbooksUpdateJournalEntryTool: ToolConfig<
     confirmPosting: {
       type: 'boolean',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Explicit confirmation that this journal-entry update should be posted',
     },
     transactionDate: {

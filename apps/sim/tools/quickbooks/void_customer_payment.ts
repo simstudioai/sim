@@ -12,9 +12,9 @@ import {
 import {
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
-  requiredQuickBooksString,
   transformQuickBooksMutationResponse,
 } from '@/tools/quickbooks/utils'
+import { assertQuickBooksSparseUpdate, requiredQuickBooksString } from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksVoidCustomerPaymentTool: ToolConfig<
@@ -53,7 +53,7 @@ export const quickbooksVoidCustomerPaymentTool: ToolConfig<
     confirmVoid: {
       type: 'boolean',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Explicit confirmation that the payment should be voided',
     },
   },
@@ -74,11 +74,13 @@ export const quickbooksVoidCustomerPaymentTool: ToolConfig<
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => {
       if (params.confirmVoid !== true) throw new Error('Confirm void before voiding the payment')
-      return {
+      const body = {
         Id: requiredQuickBooksString(params.transactionId, 'transactionId'),
         SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
         sparse: true,
       }
+      assertQuickBooksSparseUpdate(body, 2)
+      return body
     },
     retry: { enabled: false },
     maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,

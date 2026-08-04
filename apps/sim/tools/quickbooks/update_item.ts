@@ -8,16 +8,18 @@ import type {
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_ITEM_PROPERTIES, QUICKBOOKS_MUTATION_OUTPUTS } from '@/tools/quickbooks/types'
 import {
-  assertQuickBooksSparseUpdate,
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
+  transformQuickBooksMutationResponse,
+} from '@/tools/quickbooks/utils'
+import {
+  assertQuickBooksSparseUpdate,
   optionalQuickBooksString,
   quickBooksActiveValue,
   quickBooksReference,
   requiredQuickBooksString,
-  transformQuickBooksMutationResponse,
   validateQuickBooksOptionalNumber,
-} from '@/tools/quickbooks/utils'
+} from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksUpdateItemTool: ToolConfig<

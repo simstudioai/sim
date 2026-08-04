@@ -11,18 +11,20 @@ import {
   QUICKBOOKS_MUTATION_OUTPUTS,
 } from '@/tools/quickbooks/types'
 import {
-  assertQuickBooksSparseUpdate,
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
+  sanitizeQuickBooksCustomer,
+  transformQuickBooksMutationResponse,
+} from '@/tools/quickbooks/utils'
+import {
+  assertQuickBooksSparseUpdate,
   optionalQuickBooksString,
   parseQuickBooksAddress,
   quickBooksActiveValue,
   quickBooksEmailAddress,
   quickBooksPhoneNumber,
   requiredQuickBooksString,
-  sanitizeQuickBooksCustomer,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
+} from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksUpdateCustomerTool: ToolConfig<

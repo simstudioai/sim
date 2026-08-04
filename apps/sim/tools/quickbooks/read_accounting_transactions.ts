@@ -7,7 +7,6 @@ import type {
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_ACCOUNTING_TRANSACTION_PROPERTIES } from '@/tools/quickbooks/types'
 import {
-  assertQuickBooksListOnlyFilters,
   buildQuickBooksAccountingQueryUrl,
   buildQuickBooksEntityUrl,
   getQuickBooksAccountingEntity,
@@ -15,6 +14,7 @@ import {
   transformQuickBooksEntityResponse,
   transformQuickBooksListResponse,
 } from '@/tools/quickbooks/utils'
+import { assertQuickBooksListOnlyFilters } from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksReadAccountingTransactionsTool: ToolConfig<

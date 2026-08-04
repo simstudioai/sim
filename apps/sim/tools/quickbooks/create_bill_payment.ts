@@ -1,7 +1,5 @@
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
-import { sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 import { buildQuickBooksCreateBillPaymentBody } from '@/tools/quickbooks/purchasing_utils'
 import type {
   QuickBooksAccount,
@@ -16,38 +14,12 @@ import {
 import {
   addQuickBooksRequestId,
   buildQuickBooksEntityUrl,
+  getQuickBooksDirectExecutionError,
   getQuickBooksToolHeaders,
   transformQuickBooksEntityResponse,
   transformQuickBooksMutationResponse,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
-
-async function getQuickBooksDirectExecutionError(
-  response: Response,
-  signal?: AbortSignal
-): Promise<Error> {
-  let data: unknown = null
-  try {
-    data = await readResponseJsonWithLimit<unknown>(response, {
-      maxBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
-      label: 'QuickBooks BillPayment error response',
-      signal,
-    })
-  } catch {
-    signal?.throwIfAborted()
-  }
-
-  const errorInfo = {
-    status: response.status,
-    statusText: response.statusText,
-    data: sanitizeQuickBooksFaultData(data),
-    headers: response.headers,
-  }
-  return Object.assign(
-    new Error(extractErrorMessage(errorInfo, ErrorExtractorId.QUICKBOOKS_FAULT)),
-    errorInfo
-  )
-}
 
 function assertCompatiblePaymentAccount(
   account: QuickBooksAccount,
@@ -172,7 +144,7 @@ export const quickbooksCreateBillPaymentTool: ToolConfig<
       }
     )
     if (!accountResponse.ok) {
-      throw await getQuickBooksDirectExecutionError(accountResponse, signal)
+      throw await getQuickBooksDirectExecutionError(accountResponse, 'BillPayment', signal)
     }
     const { item: account } = await transformQuickBooksEntityResponse<QuickBooksAccount>(
       accountResponse,
@@ -195,7 +167,7 @@ export const quickbooksCreateBillPaymentTool: ToolConfig<
       }
     )
     if (!paymentResponse.ok) {
-      throw await getQuickBooksDirectExecutionError(paymentResponse, signal)
+      throw await getQuickBooksDirectExecutionError(paymentResponse, 'BillPayment', signal)
     }
     return transformQuickBooksMutationResponse<QuickBooksPurchasingTransaction>(
       paymentResponse,

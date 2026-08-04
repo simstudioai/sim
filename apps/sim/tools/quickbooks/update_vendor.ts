@@ -8,18 +8,20 @@ import type {
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_MUTATION_OUTPUTS, QUICKBOOKS_VENDOR_PROPERTIES } from '@/tools/quickbooks/types'
 import {
-  assertQuickBooksSparseUpdate,
   buildQuickBooksEntityUrl,
   getQuickBooksToolHeaders,
+  sanitizeQuickBooksVendor,
+  transformQuickBooksMutationResponse,
+} from '@/tools/quickbooks/utils'
+import {
+  assertQuickBooksSparseUpdate,
   optionalQuickBooksString,
   parseQuickBooksAddress,
   quickBooksActiveValue,
   quickBooksEmailAddress,
   quickBooksPhoneNumber,
   requiredQuickBooksString,
-  sanitizeQuickBooksVendor,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
+} from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 export const quickbooksUpdateVendorTool: ToolConfig<

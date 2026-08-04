@@ -175,7 +175,9 @@ export interface QuickBooksCompanyInfo {
   Country?: string
   FiscalYearStartMonth?: string
   SupportedLanguages?: string
-  DefaultTimeZone?: string
+  EmployerId?: string
+  domain?: string
+  sparse?: boolean
   NameValue?: Array<{ Name?: string; Value?: string }>
   MetaData?: QuickBooksMetaData
   [key: string]: unknown
@@ -937,6 +939,12 @@ export interface QuickBooksUpdateCustomerPaymentParams
   syncToken: string
   customerId?: string
   totalAmount?: number
+  /**
+   * Replace the payment's invoice allocations outright instead of merging the
+   * supplied allocations into the ones already on the payment. Every invoice
+   * omitted from `invoiceAllocations` is unapplied.
+   */
+  unapplyOmittedInvoices?: boolean
 }
 
 export interface QuickBooksVoidTransactionParams extends QuickBooksAuthParams {
@@ -970,7 +978,7 @@ export interface QuickBooksUpdateCustomerParams
 }
 
 export interface QuickBooksCreateEmployeeParams extends QuickBooksAuthParams {
-  displayName: string
+  displayName?: string
   requestId?: string
   givenName?: string
   familyName?: string
@@ -1016,22 +1024,22 @@ export type QuickBooksWritableItemType = 'service' | 'non_inventory'
 export interface QuickBooksCreateItemParams extends QuickBooksAuthParams {
   name: string
   itemType: QuickBooksWritableItemType
-  incomeAccountId: string
+  expenseAccountId: string
+  incomeAccountId?: string
   requestId?: string
   description?: string
   unitPrice?: number
   purchaseDescription?: string
   purchaseCost?: number
-  expenseAccountId?: string
   taxable?: boolean
 }
 
 export interface QuickBooksUpdateItemParams
-  extends Omit<QuickBooksCreateItemParams, 'name' | 'itemType' | 'incomeAccountId'> {
+  extends Omit<QuickBooksCreateItemParams, 'name' | 'itemType' | 'expenseAccountId'> {
   itemId: string
   syncToken: string
   name?: string
-  incomeAccountId?: string
+  expenseAccountId?: string
   activeStatus?: QuickBooksActiveStatus
 }
 
@@ -1255,9 +1263,20 @@ export const QUICKBOOKS_COMPANY_INFO_PROPERTIES: Record<string, OutputProperty> 
     description: 'Fiscal year starting month',
     optional: true,
   },
-  DefaultTimeZone: {
+  SupportedLanguages: {
     type: 'string',
-    description: 'Company default time zone',
+    description: 'Comma-separated list of languages supported by the company',
+    optional: true,
+  },
+  EmployerId: {
+    type: 'string',
+    description: 'Employer Identification Number, when defined in company settings',
+    optional: true,
+  },
+  domain: { type: 'string', description: 'Originating Intuit domain', optional: true },
+  sparse: {
+    type: 'boolean',
+    description: 'Whether QuickBooks returned a partial representation',
     optional: true,
   },
   NameValue: {
@@ -1274,22 +1293,33 @@ export const QUICKBOOKS_COMPANY_INFO_PROPERTIES: Record<string, OutputProperty> 
   },
 }
 
+/**
+ * Pagination outputs shared by QuickBooks read tools.
+ *
+ * Every field is optional because tools that expose both a list and a by-ID
+ * read mode reuse this map for a single declared output shape, and the by-ID
+ * branch returns only the record and the response timestamp.
+ */
 export const QUICKBOOKS_LIST_OUTPUTS: Record<string, OutputProperty> = {
   startPosition: {
     type: 'number',
     description: 'One-based position of the first item in this response',
+    optional: true,
   },
   maxResults: {
     type: 'number',
     description: 'Actual number of items reported for this response',
+    optional: true,
   },
   nextStartPosition: {
     type: 'number',
     description: 'Position to use when explicitly requesting the next page',
+    optional: true,
   },
   hasMore: {
     type: 'boolean',
     description: 'Conservative indication that another page may exist',
+    optional: true,
   },
   time: {
     type: 'string',

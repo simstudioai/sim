@@ -60,7 +60,8 @@ export const quickbooksUpdateRefundReceiptTool: ToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Replacement bounded refund lines',
+      description:
+        'Complete replacement set of refund receipt lines: any existing line omitted here is deleted from the refund receipt',
     },
     transactionDate: {
       type: 'string',

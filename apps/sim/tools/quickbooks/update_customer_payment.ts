@@ -12,7 +12,9 @@ import {
 } from '@/tools/quickbooks/types'
 import {
   buildQuickBooksEntityUrl,
+  getQuickBooksDirectExecutionError,
   getQuickBooksToolHeaders,
+  transformQuickBooksEntityResponse,
   transformQuickBooksMutationResponse,
 } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -96,7 +98,15 @@ export const quickbooksUpdateCustomerPaymentTool: ToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Replacement bounded invoice allocations',
+      description:
+        'Bounded invoice allocations to apply. Each entry sets the amount applied to that invoice; invoices already applied on the payment and not listed here keep their current amounts',
+    },
+    unapplyOmittedInvoices: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Replace the payment allocations outright. Every invoice not listed in invoiceAllocations is UNAPPLIED and returns to open',
     },
   },
   oauth: {
@@ -112,6 +122,53 @@ export const quickbooksUpdateCustomerPaymentTool: ToolConfig<
     body: (params) => buildQuickBooksUpdatePaymentBody(params),
     retry: { enabled: false },
     maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
+  },
+  /**
+   * QuickBooks updates Payment lines all-or-none: an update that omits a line
+   * unapplies that invoice. Read the payment first so supplied allocations can
+   * be merged into the live line set instead of silently replacing it.
+   */
+  directExecution: async (params, signal) => {
+    const paymentId = params.paymentId?.trim()
+    if (!paymentId) throw new Error('paymentId is required')
+
+    let currentPayment: QuickBooksSalesTransaction | undefined
+    if (params.invoiceAllocations && !params.unapplyOmittedInvoices) {
+      const readResponse = await fetch(
+        buildQuickBooksEntityUrl(params.realmId, 'payment', paymentId),
+        { method: 'GET', headers: getQuickBooksToolHeaders(params.accessToken), signal }
+      )
+      if (!readResponse.ok)
+        throw await getQuickBooksDirectExecutionError(readResponse, 'Payment', signal)
+      const { item } = await transformQuickBooksEntityResponse<QuickBooksSalesTransaction>(
+        readResponse,
+        'Payment',
+        signal
+      )
+      const currentSyncToken = typeof item.SyncToken === 'string' ? item.SyncToken.trim() : ''
+      if (currentSyncToken !== params.syncToken?.trim()) {
+        throw new Error(
+          `QuickBooks payment ${paymentId} changed since sync token ${params.syncToken} was read (current sync token ${currentSyncToken}). Re-read the payment and retry.`
+        )
+      }
+      currentPayment = item
+      signal?.throwIfAborted()
+    }
+
+    const updateResponse = await fetch(buildQuickBooksEntityUrl(params.realmId, 'payment'), {
+      method: 'POST',
+      headers: getQuickBooksToolHeaders(params.accessToken, 'application/json'),
+      body: JSON.stringify(buildQuickBooksUpdatePaymentBody(params, currentPayment)),
+      signal,
+    })
+    if (!updateResponse.ok)
+      throw await getQuickBooksDirectExecutionError(updateResponse, 'Payment', signal)
+    return transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(
+      updateResponse,
+      'Payment',
+      undefined,
+      signal
+    )
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(response, 'Payment'),

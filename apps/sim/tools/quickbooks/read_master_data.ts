@@ -10,7 +10,6 @@ import type {
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_MASTER_DATA_PROPERTIES } from '@/tools/quickbooks/types'
 import {
-  assertQuickBooksListOnlyFilters,
   buildQuickBooksEntityUrl,
   buildQuickBooksMasterDataQueryUrl,
   getQuickBooksMasterDataEntity,
@@ -21,6 +20,7 @@ import {
   transformQuickBooksEntityResponse,
   transformQuickBooksListResponse,
 } from '@/tools/quickbooks/utils'
+import { assertQuickBooksListOnlyFilters } from '@/tools/quickbooks/values'
 import type { ToolConfig } from '@/tools/types'
 
 function sanitizeMasterDataRecord(

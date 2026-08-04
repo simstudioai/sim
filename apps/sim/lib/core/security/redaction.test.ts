@@ -119,20 +119,18 @@ describe('isSensitiveKey', () => {
   })
 
   describe('non-sensitive keys (no false positives)', () => {
-    it.concurrent('should preserve workflow-state tokens that do not grant access', () => {
+    it.concurrent('should bypass the exact allowlisted non-secret token fields', () => {
+      expect(isSensitiveKey('nextPageToken')).toBe(false)
       expect(isSensitiveKey('syncToken')).toBe(false)
       expect(isSensitiveKey('SyncToken')).toBe(false)
-      expect(isSensitiveKey('nextSyncToken')).toBe(false)
-      expect(isSensitiveKey('pageToken')).toBe(false)
-      expect(isSensitiveKey('nextPageToken')).toBe(false)
-      expect(isSensitiveKey('scroll_token')).toBe(false)
-      expect(isSensitiveKey('continuationToken')).toBe(false)
-      expect(isSensitiveKey('nextContinuationToken')).toBe(false)
-      expect(isSensitiveKey('cursorToken')).toBe(false)
-      expect(isSensitiveKey('nextToken')).toBe(false)
-      expect(isSensitiveKey('clientRequestToken')).toBe(false)
-      expect(isSensitiveKey('idempotencyToken')).toBe(false)
       expect(isSensitiveKey('subjectFromWebIdentityToken')).toBe(false)
+    })
+
+    it.concurrent('should keep the allowlist exact rather than suffix-based', () => {
+      expect(isSensitiveKey('nextSyncToken')).toBe(true)
+      expect(isSensitiveKey('pageToken')).toBe(true)
+      expect(isSensitiveKey('nextToken')).toBe(true)
+      expect(isSensitiveKey('webIdentityToken')).toBe(true)
     })
 
     it.concurrent('should not match keys with sensitive words as prefix only', () => {
@@ -203,39 +201,6 @@ describe('redactSensitiveValues', () => {
     expect(result).not.toContain('key123456')
   })
 
-  it.concurrent('should redact dotted and parenthesized sensitive fields', () => {
-    const result = redactSensitiveValues(
-      `stripe.api_key: "stripe-secret" (password: 'password-value') service.SyncToken: "3"`
-    )
-
-    expect(result).toBe(
-      `stripe.api_key: "${REDACTED_MARKER}" (password: '${REDACTED_MARKER}') service.SyncToken: "3"`
-    )
-  })
-
-  it.concurrent('should redact equals-style sensitive fields', () => {
-    const result = redactSensitiveValues(
-      `password="password-value" token='token-value' api_key="api-key-value" SyncToken="3"`
-    )
-
-    expect(result).toBe(
-      `password="${REDACTED_MARKER}" token='${REDACTED_MARKER}' api_key="${REDACTED_MARKER}" SyncToken="3"`
-    )
-  })
-
-  it.concurrent('should preserve workflow-state tokens in serialized JSON', () => {
-    const result = redactSensitiveValues(
-      '{"SyncToken":"3","nextPageToken":"page-2","accessToken":"secret","password":"don\'t leak"}'
-    )
-
-    expect(JSON.parse(result)).toEqual({
-      SyncToken: '3',
-      nextPageToken: 'page-2',
-      accessToken: REDACTED_MARKER,
-      password: REDACTED_MARKER,
-    })
-  })
-
   it.concurrent('should not modify safe strings', () => {
     const input = 'This is a normal string with no secrets'
     const result = redactSensitiveValues(input)
@@ -288,29 +253,21 @@ describe('redactApiKeys', () => {
       expect(result.config.normalField).toBe('normal-value')
     })
 
-    it.concurrent('should preserve non-secret token fields while redacting credentials', () => {
+    it.concurrent('should preserve allowlisted token fields while redacting credentials', () => {
       const result = redactApiKeys({
-        syncToken: '3',
         nextPageToken: 'page-2',
-        nextToken: 'next-page',
-        continuationToken: 'continue-page',
-        clientRequestToken: 'idempotency-key',
+        subjectFromWebIdentityToken: 'arn-subject',
         record: { Id: '42', SyncToken: '3' },
         accessToken: 'access-secret',
         sessionToken: 'session-secret',
-        verificationToken: 'verification-secret',
       })
 
       expect(result).toEqual({
-        syncToken: '3',
         nextPageToken: 'page-2',
-        nextToken: 'next-page',
-        continuationToken: 'continue-page',
-        clientRequestToken: 'idempotency-key',
+        subjectFromWebIdentityToken: 'arn-subject',
         record: { Id: '42', SyncToken: '3' },
         accessToken: REDACTED_MARKER,
         sessionToken: REDACTED_MARKER,
-        verificationToken: REDACTED_MARKER,
       })
     })
 

@@ -46,10 +46,11 @@ export const quickbooksDownloadAttachmentTool: ToolConfig<
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   request: {
-    url: '/api/tools/quickbooks/download-attachment',
+    url: '/api/tools/quickbooks/download-document',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
+      documentKind: 'attachment',
       accessToken: params.accessToken,
       realmId: params.realmId,
       attachmentId: params.attachmentId,

@@ -5,6 +5,8 @@ import type {
   QuickBooksCreateSalesDocumentParams,
   QuickBooksInvoiceAllocationInput,
   QuickBooksSalesLineInput,
+  QuickBooksSalesTransaction,
+  QuickBooksTransactionLine,
   QuickBooksUpdateCustomerPaymentParams,
   QuickBooksUpdateSalesDocumentParams,
 } from '@/tools/quickbooks/types'
@@ -14,7 +16,7 @@ import {
   quickBooksReference,
   requiredQuickBooksString,
   validateQuickBooksDate,
-} from '@/tools/quickbooks/utils'
+} from '@/tools/quickbooks/values'
 
 const MAX_SALES_LINES = 100
 const MAX_PAYMENT_ALLOCATIONS = 100
@@ -77,6 +79,25 @@ function optionalPositiveNumber(value: unknown, fieldName: string): number | und
   return parsed
 }
 
+/**
+ * Sales line monetary fields accept negative values: QuickBooks models
+ * `Line.Amount` and `SalesItemLineDetail.UnitPrice` as unconstrained decimals,
+ * and negative amounts are how discounts, returns and credits are expressed on
+ * a sales form. Only a zero or non-finite value is rejected.
+ */
+function requiredNonZeroNumber(value: unknown, fieldName: string): number {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(parsed) || parsed === 0) {
+    throw new Error(`${fieldName} must be a non-zero finite number`)
+  }
+  return parsed
+}
+
+function optionalNonZeroNumber(value: unknown, fieldName: string): number | undefined {
+  if (value == null || value === '') return undefined
+  return requiredNonZeroNumber(value, fieldName)
+}
+
 function requiredStringValue(value: unknown, fieldName: string): string {
   if (typeof value !== 'string') throw new Error(`${fieldName} must be a string`)
   return requiredQuickBooksString(value, fieldName)
@@ -114,9 +135,9 @@ export function parseQuickBooksSalesLines(
     }
     assertAllowedKeys(line, ITEM_LINE_KEYS, itemName)
     const description = optionalStringValue(line.description, `${itemName}.description`)
-    const amount = requiredPositiveNumber(line.amount, `${itemName}.amount`)
+    const amount = requiredNonZeroNumber(line.amount, `${itemName}.amount`)
     const quantity = optionalPositiveNumber(line.quantity, `${itemName}.quantity`)
-    const unitPrice = optionalPositiveNumber(line.unitPrice, `${itemName}.unitPrice`)
+    const unitPrice = optionalNonZeroNumber(line.unitPrice, `${itemName}.unitPrice`)
     if (
       quantity !== undefined &&
       unitPrice !== undefined &&
@@ -144,7 +165,11 @@ export function buildQuickBooksSalesLines(lines: QuickBooksSalesLineInput[]): un
   if (!validated) throw new Error('lines are required')
   return validated.map((line) => {
     if (line.lineType === 'description') {
-      return { DetailType: 'DescriptionOnly', Description: line.description }
+      return {
+        DetailType: 'DescriptionOnly',
+        Description: line.description,
+        DescriptionLineDetail: {},
+      }
     }
     return filterUndefined({
       Amount: line.amount,
@@ -200,6 +225,73 @@ function buildPaymentLines(
     Amount: allocation.amount,
     LinkedTxn: [{ TxnId: allocation.invoiceId, TxnType: 'Invoice' }],
   }))
+}
+
+function getLinkedInvoiceId(line: QuickBooksTransactionLine): string | undefined {
+  const linked = line.LinkedTxn?.find(
+    (txn) => txn.TxnType === 'Invoice' && typeof txn.TxnId === 'string' && txn.TxnId.trim()
+  )
+  return linked?.TxnId?.trim()
+}
+
+function sumPaymentLineAmounts(lines: readonly QuickBooksTransactionLine[]): Decimal {
+  return lines.reduce(
+    (sum, line) => (typeof line.Amount === 'number' ? sum.plus(line.Amount) : sum),
+    new Decimal(0)
+  )
+}
+
+/**
+ * Merge caller-supplied invoice allocations into the payment's current lines.
+ *
+ * QuickBooks requires an update to carry every `Line` the payment should keep —
+ * lines are updated all-or-none — so sending only the caller's allocations
+ * unapplies every other invoice on the payment. This preserves the existing
+ * lines in their current order (the order QuickBooks preserves), overwrites the
+ * `Amount` of each line whose linked invoice the caller named, and appends
+ * allocations for invoices the payment is not applied to yet.
+ */
+export function mergeQuickBooksPaymentLines(
+  existingLines: readonly QuickBooksTransactionLine[],
+  allocations: readonly QuickBooksInvoiceAllocationInput[],
+  effectiveTotalAmount: number | undefined
+): QuickBooksTransactionLine[] {
+  const requested = new Map<string, number>()
+  for (const allocation of allocations) {
+    if (requested.has(allocation.invoiceId)) {
+      throw new Error(`invoiceAllocations lists invoice ${allocation.invoiceId} more than once`)
+    }
+    requested.set(allocation.invoiceId, allocation.amount)
+  }
+
+  const applied = new Set<string>()
+  const merged = existingLines.map((line) => {
+    const invoiceId = getLinkedInvoiceId(line)
+    if (!invoiceId || !requested.has(invoiceId)) return line
+    if (applied.has(invoiceId)) {
+      throw new Error(
+        `Payment has multiple lines linked to invoice ${invoiceId}; allocations cannot be merged unambiguously`
+      )
+    }
+    applied.add(invoiceId)
+    return { ...line, Amount: requested.get(invoiceId) }
+  })
+
+  for (const allocation of allocations) {
+    if (applied.has(allocation.invoiceId)) continue
+    merged.push({
+      Amount: allocation.amount,
+      LinkedTxn: [{ TxnId: allocation.invoiceId, TxnType: 'Invoice' }],
+    })
+  }
+
+  if (effectiveTotalAmount === undefined) {
+    throw new Error('totalAmount is required when invoice allocations are supplied')
+  }
+  if (sumPaymentLineAmounts(merged).greaterThan(effectiveTotalAmount)) {
+    throw new Error('Invoice allocation amounts cannot exceed totalAmount')
+  }
+  return merged
 }
 
 export function buildQuickBooksCreateSalesDocumentBody(
@@ -282,14 +374,47 @@ export function buildQuickBooksCreatePaymentBody(
   })
 }
 
+function buildUpdatePaymentLines(
+  params: QuickBooksUpdateCustomerPaymentParams,
+  allocations: QuickBooksInvoiceAllocationInput[] | undefined,
+  totalAmount: number | undefined,
+  currentPayment: QuickBooksSalesTransaction | undefined
+): unknown[] | undefined {
+  if (!allocations) return undefined
+  if (params.unapplyOmittedInvoices) return buildPaymentLines(allocations, totalAmount)
+  if (!currentPayment) {
+    throw new Error(
+      'The current payment must be read before invoice allocations can be updated. Set unapplyOmittedInvoices to replace every allocation instead.'
+    )
+  }
+  return mergeQuickBooksPaymentLines(
+    currentPayment.Line ?? [],
+    allocations,
+    totalAmount ??
+      (typeof currentPayment.TotalAmt === 'number' ? currentPayment.TotalAmt : undefined)
+  )
+}
+
+/**
+ * Build the sparse Payment update body.
+ *
+ * `currentPayment` is the payment as QuickBooks currently holds it and is
+ * required whenever invoice allocations are supplied: QuickBooks updates
+ * payment lines all-or-none, so the allocations have to be merged into the
+ * live line set before they can be sent. `unapplyOmittedInvoices` opts out of
+ * the merge and replaces the line set outright, unapplying every invoice the
+ * caller did not list.
+ */
 export function buildQuickBooksUpdatePaymentBody(
-  params: QuickBooksUpdateCustomerPaymentParams
+  params: QuickBooksUpdateCustomerPaymentParams,
+  currentPayment?: QuickBooksSalesTransaction
 ): Record<string, unknown> {
   const totalAmount =
     params.totalAmount === undefined
       ? undefined
       : requiredPositiveNumber(params.totalAmount, 'totalAmount')
   const allocations = parseQuickBooksInvoiceAllocations(params.invoiceAllocations)
+  const line = buildUpdatePaymentLines(params, allocations, totalAmount, currentPayment)
   const body = filterUndefined({
     Id: requiredQuickBooksString(params.paymentId, 'paymentId'),
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
@@ -307,7 +432,7 @@ export function buildQuickBooksUpdatePaymentBody(
     DepositToAccountRef: params.depositAccountId
       ? quickBooksReference(params.depositAccountId, 'depositAccountId')
       : undefined,
-    Line: buildPaymentLines(allocations, totalAmount),
+    Line: line,
   }) as Record<string, unknown>
   assertQuickBooksSparseUpdate(body)
   return body

@@ -75,22 +75,34 @@ const attachableSchema = z
   })
   .passthrough()
 
-export const quickBooksDownloadTransactionPdfBodySchema = quickBooksAuthSchema.extend({
-  transactionType: documentTransactionTypeSchema,
-  transactionId: boundedId,
-  fileName: optionalFileName,
+const executionContextShape = {
   workspaceId: workspaceIdSchema.optional(),
   workflowId: workflowIdSchema.optional(),
   executionId: nonEmptyIdSchema.optional(),
-})
+}
 
-export const quickBooksDownloadAttachmentBodySchema = quickBooksAuthSchema.extend({
-  attachmentId: boundedId,
-  fileName: optionalFileName,
-  workspaceId: workspaceIdSchema.optional(),
-  workflowId: workflowIdSchema.optional(),
-  executionId: nonEmptyIdSchema.optional(),
-})
+/**
+ * Both QuickBooks document downloads share one route. `documentKind` selects how
+ * the bytes are obtained: an attachment resolves a short-lived Intuit URL, a
+ * transaction PDF is rendered directly by the accounting API.
+ */
+export const quickBooksDownloadDocumentBodySchema = z.discriminatedUnion('documentKind', [
+  quickBooksAuthSchema.extend({
+    documentKind: z.literal('attachment'),
+    attachmentId: boundedId,
+    fileName: optionalFileName,
+    ...executionContextShape,
+  }),
+  quickBooksAuthSchema.extend({
+    documentKind: z.literal('transaction_pdf'),
+    transactionType: documentTransactionTypeSchema,
+    transactionId: boundedId,
+    fileName: optionalFileName,
+    ...executionContextShape,
+  }),
+])
+
+export type QuickBooksDownloadDocumentBody = z.output<typeof quickBooksDownloadDocumentBodySchema>
 
 export const quickBooksAddAttachmentBodySchema = quickBooksAuthSchema
   .extend({
@@ -140,44 +152,34 @@ export const quickBooksAddAttachmentBodySchema = quickBooksAuthSchema
     }
   })
 
-export const quickBooksDownloadTransactionPdfContract = defineRouteContract({
+const quickBooksStoredFileShape = {
+  file: userFileSchema,
+  fileName: z.string().min(1).max(180),
+  size: z.number().int().positive(),
+}
+
+export const quickBooksDownloadDocumentContract = defineRouteContract({
   method: 'POST',
-  path: '/api/tools/quickbooks/download-transaction-pdf',
-  body: quickBooksDownloadTransactionPdfBodySchema,
+  path: '/api/tools/quickbooks/download-document',
+  body: quickBooksDownloadDocumentBodySchema,
   response: {
     mode: 'json',
     schema: z.union([
       z.object({
         success: z.literal(true),
         output: z.object({
-          file: userFileSchema,
-          transactionType: documentTransactionTypeSchema,
-          transactionId: boundedId,
-          fileName: z.string().min(1).max(180),
-          mimeType: z.literal('application/pdf'),
-          size: z.number().int().positive(),
+          ...quickBooksStoredFileShape,
+          attachmentId: boundedId,
+          mimeType: z.string().min(1).max(255),
         }),
       }),
-      routeErrorSchema,
-    ]),
-  },
-})
-
-export const quickBooksDownloadAttachmentContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/quickbooks/download-attachment',
-  body: quickBooksDownloadAttachmentBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.union([
       z.object({
         success: z.literal(true),
         output: z.object({
-          file: userFileSchema,
-          attachmentId: boundedId,
-          fileName: z.string().min(1).max(180),
-          mimeType: z.string().min(1).max(255),
-          size: z.number().int().positive(),
+          ...quickBooksStoredFileShape,
+          transactionType: documentTransactionTypeSchema,
+          transactionId: boundedId,
+          mimeType: z.literal('application/pdf'),
         }),
       }),
       routeErrorSchema,
