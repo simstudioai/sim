@@ -4,31 +4,10 @@
 import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetApiKeyWithBYOK, mockExecuteRequest, mockLoggerWarn } = vi.hoisted(() => ({
+const { mockGetApiKeyWithBYOK, mockExecuteRequest } = vi.hoisted(() => ({
   mockGetApiKeyWithBYOK: vi.fn(),
   mockExecuteRequest: vi.fn(),
-  mockLoggerWarn: vi.fn(),
 }))
-
-/** Overrides the global logger mock so the sanitizer's warnings are assertable. */
-vi.mock('@sim/logger', () => {
-  const createLogger = () => ({
-    info: vi.fn(),
-    warn: mockLoggerWarn,
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: () => createLogger(),
-    withMetadata: () => createLogger(),
-  })
-  return {
-    createLogger,
-    logger: createLogger(),
-    runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-    getRequestContext: () => undefined,
-  }
-})
 
 vi.mock('@/lib/api-key/byok', () => ({
   getApiKeyWithBYOK: (...args: unknown[]) => mockGetApiKeyWithBYOK(...args),
@@ -548,95 +527,6 @@ describe('executeProviderRequest — model level normalization', () => {
 
     expect(sentRequest().reasoningEffort).toBeUndefined()
     expect(sentRequest().verbosity).toBeUndefined()
-  })
-
-  /**
-   * The model can itself be a reference, so it is only known at execution time. A run whose
-   * reference resolved to a model outside Sim's catalogue must not fall back to that model's
-   * default in silence.
-   */
-  it('reports the level it drops when the resolved model does not support the field', async () => {
-    await executeProviderRequest('anthropic', {
-      model: 'claude-opus-4-6',
-      workspaceId: 'ws-1',
-      reasoningEffort: 'high',
-    })
-
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      'Model does not support this level; dropping it from the request',
-      expect.objectContaining({
-        field: 'reasoningEffort',
-        model: 'claude-opus-4-6',
-        value: 'high',
-      })
-    )
-  })
-
-  it('stays quiet when an unsupported model was never given a level', async () => {
-    await executeProviderRequest('anthropic', {
-      model: 'claude-opus-4-6',
-      workspaceId: 'ws-1',
-    })
-
-    expect(mockLoggerWarn).not.toHaveBeenCalled()
-  })
-
-  it('reports a level the model accepts but does not declare', async () => {
-    await executeProviderRequest('openai', {
-      model: 'gpt-5',
-      workspaceId: 'ws-1',
-      reasoningEffort: 'xhigh',
-    })
-
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      'Model level is not one this model declares; forwarding to the provider',
-      expect.objectContaining({ field: 'reasoningEffort', model: 'gpt-5', value: 'xhigh' })
-    )
-  })
-
-  it('stays quiet for a declared level and for the auto and none sentinels', async () => {
-    await executeProviderRequest('openai', {
-      model: 'gpt-5',
-      workspaceId: 'ws-1',
-      reasoningEffort: 'auto',
-      verbosity: 'high',
-    })
-
-    expect(mockLoggerWarn).not.toHaveBeenCalled()
-  })
-
-  /**
-   * These fields take environment and block references, so a mistyped reference resolves the
-   * secret into the level. The diagnostics must never echo it.
-   */
-  it('redacts a level that is not a catalogue level before logging it', async () => {
-    const secret = 'sk-proj-abcdef0123456789'
-
-    await executeProviderRequest('openai', {
-      model: 'gpt-5',
-      workspaceId: 'ws-1',
-      reasoningEffort: secret,
-    })
-
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ value: `[redacted ${secret.length} chars]` })
-    )
-    const loggedText = JSON.stringify(mockLoggerWarn.mock.calls)
-    expect(loggedText).not.toContain(secret)
-  })
-
-  it('keeps the auto sentinel readable in a drop diagnostic', async () => {
-    await executeProviderRequest('anthropic', {
-      model: 'claude-opus-4-6',
-      workspaceId: 'ws-1',
-      reasoningEffort: 'auto',
-    })
-
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      'Model does not support this level; dropping it from the request',
-      expect.objectContaining({ value: 'auto' })
-    )
   })
 
   /**

@@ -15,12 +15,7 @@ import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
-import {
-  getReasoningEffortValuesForModel,
-  getThinkingLevelsForModel,
-  getVerbosityValuesForModel,
-  isKnownModelId,
-} from '@/providers/models'
+import { isKnownModelId } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
 import {
   type ProviderRuntimeContext,
@@ -28,7 +23,6 @@ import {
 } from '@/providers/runtime-context'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
-  describeModelLevel,
   generateStructuredOutputInstructions,
   sumToolCosts,
   supportsPromptCaching,
@@ -59,60 +53,6 @@ function normalizeModelLevel(value: string | undefined): string | undefined {
   return normalized || undefined
 }
 
-const MODEL_LEVEL_SENTINELS = new Set(['auto', 'none'])
-
-type ModelLevelField = 'reasoningEffort' | 'verbosity' | 'thinkingLevel'
-
-/**
- * Clears a level whose resolved model does not accept the field at all.
- *
- * Dropping is the safe default — a provider that has no such parameter rejects the whole
- * request — but the discard is reported because the model can be bound to a variable or block
- * reference and is therefore only known at execution time. Without this, a run whose reference
- * resolved to a model that does not take the field would quietly fall back to that model's
- * default while the caller believed the level applied.
- */
-function dropUnsupportedLevel(
-  field: ModelLevelField,
-  model: string,
-  value: string | undefined
-): undefined {
-  if (value) {
-    logger.warn('Model does not support this level; dropping it from the request', {
-      field,
-      model,
-      value: describeModelLevel(value),
-    })
-  }
-  return undefined
-}
-
-/**
- * Logs a level that the model accepts as a field but does not list as a value.
- *
- * Deliberately does not drop the value. Sim's per-model level lists exist to populate the
- * pickers and can lag a provider that has started accepting a new level, so rejecting on them
- * would refuse values the API would have taken. Forwarding instead surfaces the provider's own
- * error, which names the field and the values it accepts — the loud failure an eval sweeping
- * levels needs, where silently substituting the model default would corrupt the results.
- */
-function warnOnUnrecognizedLevel(
-  field: ModelLevelField,
-  model: string | undefined,
-  value: string | undefined,
-  declaredValues: string[] | null
-): void {
-  if (!model || !value || MODEL_LEVEL_SENTINELS.has(value)) return
-  if (!declaredValues || declaredValues.includes(value)) return
-
-  logger.warn('Model level is not one this model declares; forwarding to the provider', {
-    field,
-    model,
-    value: describeModelLevel(value),
-    declaredValues,
-  })
-}
-
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   const sanitizedRequest = { ...request }
   const model = sanitizedRequest.model
@@ -126,60 +66,30 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   }
 
   /**
-   * A model absent from the catalogue is unknown, not known-incapable. Since the model can be
-   * bound to a reference, that is exactly how a newly released model arrives before Sim has
-   * catalogued it — so its levels are forwarded and the provider decides, rather than being
-   * discarded on the strength of a list that has not caught up. Models the catalogue does
-   * know, and every dynamic-provider id, keep the protective drop.
+   * A model absent from the catalogue is unknown, not known-incapable. The model field is an
+   * editable combobox, so a model newer than `models.ts` reaches this point routed by pattern
+   * and executing normally — discarding its levels on the strength of a list that has not
+   * caught up loses a setting the provider would have honoured. Those levels are forwarded and
+   * the provider decides. Models the catalogue does know, and every dynamic-provider id, keep
+   * the protective drop.
    */
   const isCatalogued = Boolean(model) && isKnownModelId(model)
 
   if (model && isCatalogued && !supportsReasoningEffort(model)) {
-    sanitizedRequest.reasoningEffort = dropUnsupportedLevel(
-      'reasoningEffort',
-      model,
-      sanitizedRequest.reasoningEffort
-    )
+    sanitizedRequest.reasoningEffort = undefined
   }
 
   if (model && isCatalogued && !supportsVerbosity(model)) {
-    sanitizedRequest.verbosity = dropUnsupportedLevel(
-      'verbosity',
-      model,
-      sanitizedRequest.verbosity
-    )
+    sanitizedRequest.verbosity = undefined
   }
 
   if (model && isCatalogued && !supportsThinking(model)) {
-    sanitizedRequest.thinkingLevel = dropUnsupportedLevel(
-      'thinkingLevel',
-      model,
-      sanitizedRequest.thinkingLevel
-    )
+    sanitizedRequest.thinkingLevel = undefined
   }
 
   if (model && !supportsPromptCaching(model)) {
     sanitizedRequest.promptCaching = undefined
   }
-
-  warnOnUnrecognizedLevel(
-    'reasoningEffort',
-    model,
-    sanitizedRequest.reasoningEffort,
-    model ? getReasoningEffortValuesForModel(model) : null
-  )
-  warnOnUnrecognizedLevel(
-    'verbosity',
-    model,
-    sanitizedRequest.verbosity,
-    model ? getVerbosityValuesForModel(model) : null
-  )
-  warnOnUnrecognizedLevel(
-    'thinkingLevel',
-    model,
-    sanitizedRequest.thinkingLevel,
-    model ? getThinkingLevelsForModel(model) : null
-  )
 
   return sanitizedRequest
 }
