@@ -322,6 +322,7 @@ export function AgentPeerDemo() {
 
     let raf = 0
     let played = false
+    let cancelled = false
 
     const play = () => {
       // Clear to empty only once on-screen, so the doc is never left blank if the observer never fires.
@@ -333,6 +334,7 @@ export function AgentPeerDemo() {
       let lastH = 0
       let lastA = 0
       const tick = (now: number) => {
+        if (cancelled) return // cleanup ran (unmount / Strict Mode re-run); stop rescheduling
         const t = now - start
         if (t >= RUN_MS) {
           if (lastH !== HUMAN_TOTAL) setHumanN(HUMAN_TOTAL)
@@ -367,6 +369,7 @@ export function AgentPeerDemo() {
     io.observe(el)
 
     return () => {
+      cancelled = true
       io.disconnect()
       if (raf) cancelAnimationFrame(raf)
     }
