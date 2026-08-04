@@ -271,7 +271,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
                 isMenuOpen && 'opacity-100'
               )}
             >
-              <MoreHorizontal className='size-[9px] text-[var(--text-icon)]' />
+              <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
             </button>
           </div>
         )}
@@ -1612,7 +1612,7 @@ export const Sidebar = memo(function Sidebar({
                                       {isImporting || isCreatingFolder ? (
                                         <Loader className='h-[16px] w-[16px]' animate />
                                       ) : (
-                                        <MoreHorizontal className='size-[9px]' />
+                                        <MoreHorizontal className='size-[14px]' />
                                       )}
                                     </Button>
                                   </DropdownMenuTrigger>
