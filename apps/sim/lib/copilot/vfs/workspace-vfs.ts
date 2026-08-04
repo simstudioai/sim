@@ -107,6 +107,7 @@ import { createIntegrationCredentialVisibility } from '@/lib/integrations/creden
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -804,8 +805,10 @@ export class WorkspaceVFS {
 
             // Per-viewer gating happens HERE, not in the shared builder: files
             // owned by blocks hidden for this viewer are skipped at stamp time.
-            const configuredAllowedIntegrations =
-              permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+            const configuredAllowedIntegrations = intersectIntegrationAllowlists(
+              permissionConfig?.allowedIntegrations ?? null,
+              getAllowedIntegrationsFromEnv()
+            )
             const allowedIntegrationTypes = configuredAllowedIntegrations
               ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
               : null
@@ -2361,8 +2364,10 @@ export class WorkspaceVFS {
           getPersonalAndWorkspaceEnv(userId, workspaceId),
           permissionConfigPromise,
         ])
-      const configuredAllowedIntegrations =
-        permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+      const configuredAllowedIntegrations = intersectIntegrationAllowlists(
+        permissionConfig?.allowedIntegrations ?? null,
+        getAllowedIntegrationsFromEnv()
+      )
       const credentialVisibility = createIntegrationCredentialVisibility({
         allowedIntegrationTypes: configuredAllowedIntegrations
           ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))

@@ -15,6 +15,7 @@ import {
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -51,16 +52,6 @@ function useAllowedIntegrationsFromEnv() {
   })
 }
 
-/**
- * Intersects two allowlists. If either is null (unrestricted), returns the other.
- * If both are set, returns only items present in both.
- */
-function intersectAllowlists(a: string[] | null, b: string[] | null): string[] | null {
-  if (a === null) return b
-  if (b === null) return a.map((i) => i.toLowerCase())
-  return a.map((i) => i.toLowerCase()).filter((i) => b.includes(i))
-}
-
 export function usePermissionConfig(): PermissionConfigResult {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
@@ -84,7 +75,7 @@ export function usePermissionConfig(): PermissionConfigResult {
 
   const mergedAllowedIntegrations = useMemo(() => {
     const envAllowlist = envAllowlistData?.allowedIntegrations ?? null
-    return intersectAllowlists(config.allowedIntegrations, envAllowlist)
+    return intersectIntegrationAllowlists(config.allowedIntegrations, envAllowlist)
   }, [config.allowedIntegrations, envAllowlistData])
 
   const integrationAvailability = useMemo(() => {

@@ -7,6 +7,7 @@ import {
   EnvCapabilityConfigurationError,
   type EnvCapabilityValue,
   type EnvCapabilityValues,
+  getProviderFields,
   hasEnvCapabilityValue,
   inspectCapability,
   isTruthyEnvCapabilityValue,
@@ -256,7 +257,16 @@ function fieldsToReplace(
   if (setup.definition.strategy === 'fallback' && option.providerId) {
     return providerSetupFields(setup, option.providerId)
   }
-  return getCapabilitySetupFields(setup)
+  const selectedProviderFields = new Set(
+    setup.definition.providers
+      .filter((provider) => provider.id === option.providerId)
+      .flatMap(getProviderFields)
+  )
+  const inactiveProviderFields = setup.definition.providers
+    .filter((provider) => provider.id !== option.providerId)
+    .flatMap(getProviderFields)
+    .filter((field) => !selectedProviderFields.has(field))
+  return [...new Set([...getCapabilitySetupFields(setup), ...inactiveProviderFields])]
 }
 
 function proposedCapabilitySetupValues(

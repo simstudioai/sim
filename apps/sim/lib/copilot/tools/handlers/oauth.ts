@@ -8,6 +8,7 @@ import { isServiceAccountProviderId } from '@/lib/credentials/service-account-pr
 import { isOAuthServiceAllowedByIntegrationTypes } from '@/lib/integrations/availability'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
@@ -48,8 +49,10 @@ export async function executeOAuthGetAuthLink(
       'write'
     )
     const permissionConfig = await getUserPermissionConfig(context.userId, context.workspaceId)
-    const configuredAllowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+    const configuredAllowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      getAllowedIntegrationsFromEnv()
+    )
     const allowedIntegrationTypes = configuredAllowedIntegrations
       ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
       : null

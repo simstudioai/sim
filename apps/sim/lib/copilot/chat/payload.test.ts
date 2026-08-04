@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { workflowsUtilsMock } from '@sim/testing'
+import { envFlagsMockFns, resetEnvFlagsMock, workflowsUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -146,6 +146,7 @@ import {
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     clearIntegrationToolSchemaCacheForTests()
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
     mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
@@ -234,6 +235,24 @@ describe('buildIntegrationToolSchemas', () => {
     })
 
     const toolSchemas = await buildIntegrationToolSchemas('user-deployment-filter')
+
+    expect(toolSchemas.some((tool) => tool.name === 'gmail_send')).toBe(false)
+    expect(toolSchemas.some((tool) => tool.name === 'brandfetch_search')).toBe(true)
+  })
+
+  it('intersects workspace and deployment integration allowlists', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockGetUserPermissionConfig.mockResolvedValue({
+      allowedIntegrations: ['gmail', 'brandfetch'],
+    })
+    envFlagsMockFns.getAllowedIntegrationsFromEnv.mockReturnValue(['brandfetch'])
+
+    const toolSchemas = await buildIntegrationToolSchemas(
+      'user-intersection',
+      undefined,
+      { schemaSurface: 'copilot' },
+      'workspace-1'
+    )
 
     expect(toolSchemas.some((tool) => tool.name === 'gmail_send')).toBe(false)
     expect(toolSchemas.some((tool) => tool.name === 'brandfetch_search')).toBe(true)

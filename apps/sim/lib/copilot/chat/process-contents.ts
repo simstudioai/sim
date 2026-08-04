@@ -31,6 +31,7 @@ import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { getColumnId } from '@/lib/table/column-keys'
 import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
@@ -606,8 +607,10 @@ async function processBlockMetadata(
       userId && workspaceId ? getUserPermissionConfig(userId, workspaceId) : null,
       userId ? getBlockVisibilityForCopilot(userId, workspaceId) : null,
     ])
-    const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+    const allowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      getAllowedIntegrationsFromEnv()
+    )
     if (!isIntegrationDeploymentAvailableForVisibility(blockId, visibility)) {
       logger.debug('Block unavailable for this deployment', { blockId })
       return null

@@ -6,6 +6,7 @@ import {
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { stripVersionSuffix } from '@/tools/utils'
 
@@ -24,8 +25,10 @@ export async function executeListIntegrationTools(
   const permissionConfig = context.workspaceId
     ? await getUserPermissionConfig(context.userId, context.workspaceId)
     : null
-  const allowedIntegrations =
-    permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+  const allowedIntegrations = intersectIntegrationAllowlists(
+    permissionConfig?.allowedIntegrations ?? null,
+    getAllowedIntegrationsFromEnv()
+  )
   const all = filterExposedIntegrationTools(
     getExposedIntegrationTools(),
     vis,

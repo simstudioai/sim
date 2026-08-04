@@ -147,6 +147,36 @@ describe('setup provider reconciliation', () => {
     expect(requireCapability(STORAGE_CAPABILITY, reconciled).providerId).toBe('s3')
   })
 
+  it('clears specialized S3 bucket overrides when switching to local storage', () => {
+    const result = buildCapabilitySetupTransition(
+      STORAGE_SETUP,
+      'local',
+      {},
+      {
+        AWS_REGION: 'us-east-1',
+        S3_BUCKET_NAME: 'files',
+        S3_KB_BUCKET_NAME: 'knowledge',
+        S3_CHAT_BUCKET_NAME: 'chat',
+      }
+    )
+    const reconciled = applyResult(
+      {
+        AWS_REGION: 'us-east-1',
+        S3_BUCKET_NAME: 'files',
+        S3_KB_BUCKET_NAME: 'knowledge',
+        S3_CHAT_BUCKET_NAME: 'chat',
+      },
+      result
+    )
+
+    expect(result.remove).toEqual(
+      expect.arrayContaining(['S3_KB_BUCKET_NAME', 'S3_CHAT_BUCKET_NAME'])
+    )
+    expect(reconciled).not.toHaveProperty('S3_KB_BUCKET_NAME')
+    expect(reconciled).not.toHaveProperty('S3_CHAT_BUCKET_NAME')
+    expect(requireCapability(STORAGE_CAPABILITY, reconciled).providerId).toBe('local')
+  })
+
   it('clears stale inline GCS credentials when ADC is selected', () => {
     const result = buildCapabilitySetupTransition(
       STORAGE_SETUP,

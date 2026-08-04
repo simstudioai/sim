@@ -26,6 +26,7 @@ import {
   isIntegrationDeploymentAvailableForVisibility,
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 
@@ -199,7 +200,10 @@ async function buildIntegrationToolSchemasUncached(
   if (workspaceId) {
     const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
     const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
-    allowedIntegrations = permissionConfig?.allowedIntegrations ?? allowedIntegrations
+    allowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      allowedIntegrations
+    )
   }
   const allowedIntegrationTypes = allowedIntegrations
     ? new Set(allowedIntegrations.map((integration) => integration.toLowerCase()))

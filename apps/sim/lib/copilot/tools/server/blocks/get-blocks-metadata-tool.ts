@@ -9,6 +9,7 @@ import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/env-f
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
@@ -126,8 +127,10 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       context?.userId && context?.workspaceId
         ? await getUserPermissionConfig(context.userId, context.workspaceId)
         : null
-    const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+    const allowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      getAllowedIntegrationsFromEnv()
+    )
     const visibility = overlayVisibility()
 
     const result: Record<string, CopilotBlockMetadata> = {}

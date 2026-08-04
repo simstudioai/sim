@@ -11,6 +11,7 @@ import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
 import { getAllOAuthServices } from '@/lib/oauth'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -74,8 +75,10 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
     const userEmail = userRecord.length > 0 ? userRecord[0]?.email : null
 
     const permissionConfig = workspaceId ? await getUserPermissionConfig(userId, workspaceId) : null
-    const configuredAllowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+    const configuredAllowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      getAllowedIntegrationsFromEnv()
+    )
     const allowedIntegrationTypes = configuredAllowedIntegrations
       ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
       : null
