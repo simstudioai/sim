@@ -4,8 +4,11 @@ import { type NodeProps, useReactFlow } from 'reactflow'
 import { hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
-import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
+import {
+  useCurrentWorkflow,
+  useIsBlockInActiveExecutionHandoff,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { useIsBlockActive, useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { usePanelEditorStore } from '@/stores/panel'
 
 /**
@@ -35,6 +38,8 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   const isFocused = currentBlockId === id
 
   const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  const isRunning = useIsBlockActive(id)
+  const isExecutionHighlighted = useIsBlockInActiveExecutionHandoff(id)
 
   /**
    * Nesting depth, walking the parent chain so the view can apply nested
@@ -62,7 +67,9 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       isEnabled={isEnabled}
       isLocked={isLocked}
       isFocused={isFocused}
-      isRunning={isWorkflowRunning}
+      isRunning={isRunning}
+      isWorkflowRunning={isWorkflowRunning}
+      isExecutionHighlighted={isExecutionHighlighted}
       diffStatus={diffStatus}
       nestingLevel={nestingLevel}
       canEditWorkflow={canEditWorkflow}
@@ -73,7 +80,8 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
           blockType={data.kind}
           disabled={!canEditWorkflow}
           variant='swell'
-          isRunning={isWorkflowRunning}
+          isRunning={isRunning}
+          isWorkflowRunning={isWorkflowRunning}
         />
       }
     />

@@ -14,7 +14,12 @@ function TestIcon({ className }: { className?: string }) {
   return <svg aria-hidden='true' className={className} />
 }
 
-function createView(isRunning: boolean, isEnabled = true, isLocked = false) {
+function createView(
+  isRunning: boolean,
+  isEnabled = true,
+  isLocked = false,
+  isExecutionHighlighted = false
+) {
   return (
     <ReactFlowProvider>
       <WorkflowBlockView
@@ -26,6 +31,7 @@ function createView(isRunning: boolean, isEnabled = true, isLocked = false) {
         hasRing={false}
         ringStyles=''
         isRunning={isRunning}
+        isExecutionHighlighted={isExecutionHighlighted}
         Icon={TestIcon}
         iconBgColor='var(--surface-2)'
         horizontalHandles={true}
@@ -88,6 +94,36 @@ afterEach(() => {
 })
 
 describe('WorkflowBlockView action menu', () => {
+  it('keeps an executing block visually unselected while its actions stay available', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() => root.render(createView(true)))
+    flushAnimationFrames()
+
+    const actionMenuRoot = host.querySelector<HTMLElement>('.group.relative')
+    expect(actionMenuRoot).not.toHaveAttribute('data-node-selected')
+    expect(actionMenuRoot).toHaveAttribute('data-action-menu-ready')
+  })
+
+  it('uses the selected graphite treatment for a block in the active handoff', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() => root.render(createView(true, true, false, true)))
+    flushAnimationFrames()
+
+    const actionMenuRoot = host.querySelector<HTMLElement>('.group.relative')
+    expect(actionMenuRoot).toHaveAttribute('data-node-selected')
+    expect(actionMenuRoot).toHaveAttribute('data-execution-highlighted')
+  })
+
   it('clears stale hover when execution stops and waits for a fresh pointer entry', () => {
     const host = document.createElement('div')
     document.body.appendChild(host)

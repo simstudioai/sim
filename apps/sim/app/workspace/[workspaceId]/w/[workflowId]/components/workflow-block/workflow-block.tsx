@@ -68,7 +68,10 @@ import {
   getProviderName,
   shouldSkipBlockRender,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
-import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import {
+  useBlockVisual,
+  useIsBlockInActiveExecutionHandoff,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlock } from '@/blocks/registry'
@@ -781,6 +784,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     currentWorkflow,
     activeWorkflowId,
     isEnabled,
+    isExecuting,
     isLocked,
     handleClick,
     hasRing,
@@ -789,6 +793,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
 
   const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  const isExecutionHighlighted = useIsBlockInActiveExecutionHandoff(id)
   const currentWorkflowId = (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
@@ -1402,7 +1407,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       hasRing={hasRing}
       ringStyles={ringStyles}
       runPathStatus={runPathStatus}
-      isRunning={isWorkflowRunning}
+      isRunning={isExecuting}
+      isWorkflowRunning={isWorkflowRunning}
+      isExecutionHighlighted={isExecutionHighlighted}
       Icon={config.icon}
       iconBgColor={config.bgColor}
       isIntegration={config.category === 'tools'}
@@ -1457,7 +1464,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             blockType={type}
             disabled={!canEditWorkflow}
             variant='swell'
-            isRunning={isWorkflowRunning}
+            isRunning={isExecuting}
+            isWorkflowRunning={isWorkflowRunning}
           />
         ) : undefined
       }

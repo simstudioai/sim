@@ -7,6 +7,10 @@ export { useBlockVisual } from './use-block-visual'
 export { useCanvasContextMenu } from './use-canvas-context-menu'
 export { type CurrentWorkflow, useCurrentWorkflow } from './use-current-workflow'
 export { useDynamicHandleRefresh } from './use-dynamic-handle-refresh'
+export {
+  isBlockInActiveExecutionHandoff,
+  useIsBlockInActiveExecutionHandoff,
+} from './use-execution-handoff'
 export { useNodeUtilities } from './use-node-utilities'
 export { usePreventZoom } from './use-prevent-zoom'
 export { useScrollManagement } from './use-scroll-management'

@@ -60,8 +60,12 @@ export interface SubflowNodeViewProps {
   isLocked: boolean
   /** Whether this subflow is the focused block in the editor panel. */
   isFocused: boolean
-  /** Whether the workflow is executing. Keeps the shared activity swell open. */
+  /** Whether execution controls are active for this subflow. */
   isRunning?: boolean
+  /** Whether the parent workflow is executing. Holds every subflow action swell open. */
+  isWorkflowRunning?: boolean
+  /** Whether this subflow participates in the current execution handoff. */
+  isExecutionHighlighted?: boolean
   /** Diff state when comparing workflow versions. */
   diffStatus?: DiffStatus
   /** Depth in the parent container hierarchy (drives nesting styling). */
@@ -216,6 +220,8 @@ export function SubflowNodeView({
   isLocked,
   isFocused,
   isRunning = false,
+  isWorkflowRunning = false,
+  isExecutionHighlighted = false,
   diffStatus,
   nestingLevel,
   canEditWorkflow,
@@ -304,7 +310,8 @@ export function SubflowNodeView({
   }, [cursorSourceHandle?.handleId, cursorSourceHandle?.side, id, updateNodeInternals])
 
   const isSelected = !isPreview && selected
-  const isNodeSelected = Boolean(isRunning || isFocused || isSelected || isPreviewSelected)
+  const isNodeSelected = Boolean(isFocused || isSelected || isPreviewSelected)
+  const usesSelectedVisuals = isNodeSelected || isExecutionHighlighted
   const previewRunStatus = isPreview ? data.executionStatus : undefined
   const hasStatusRing =
     diffStatus === 'new' ||
@@ -336,8 +343,8 @@ export function SubflowNodeView({
     onBlurCapture: handleActionMenuBlur,
   } = useActionMenuSwell({
     enabled: showActionMenu,
-    forceOpen: isRunning,
-    suspendInteraction: isRunning,
+    forceOpen: isExecutionHighlighted || isRunning || isWorkflowRunning,
+    suspendInteraction: isRunning || isWorkflowRunning,
     suppressNestedNodeHover: true,
   })
 
@@ -378,7 +385,8 @@ export function SubflowNodeView({
       className='group pointer-events-none relative'
       data-action-menu-ready={actionMenuContentVisible ? '' : undefined}
       data-action-menu-open={actionMenuSwellOpen ? '' : undefined}
-      data-node-selected={isNodeSelected ? '' : undefined}
+      data-node-selected={usesSelectedVisuals ? '' : undefined}
+      data-execution-highlighted={isExecutionHighlighted ? '' : undefined}
     >
       {showActionMenu && (
         <>
@@ -422,9 +430,11 @@ export function SubflowNodeView({
           cursorSwellEnabled={!isPreview}
           onCursorHandleChange={!isPreview ? onCursorHandleChange : undefined}
           radius={SUBFLOW_CORNER_RADIUS_PX}
-          hasRing={hasRing}
-          ringStyles={ringStyles}
-          isSelected={isNodeSelected}
+          hasRing={hasRing || isExecutionHighlighted}
+          ringStyles={
+            isExecutionHighlighted ? 'ring-[1.5px] ring-[var(--text-secondary)]' : ringStyles
+          }
+          isSelected={usesSelectedVisuals}
           bodyFill={data.kind === 'loop' ? 'var(--surface-3)' : undefined}
           width={width}
           height={height}

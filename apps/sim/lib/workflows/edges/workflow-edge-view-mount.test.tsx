@@ -39,7 +39,11 @@ function renderEdge(overrides: Partial<WorkflowEdgeViewProps> = {}) {
   })
 
   return {
+    host,
     path: host.querySelector<SVGPathElement>('.react-flow__edge-path'),
+    pulseLayers: host.querySelectorAll<SVGPathElement>('[data-workflow-edge-pulse-layer]'),
+    traversingPath: host.querySelector<SVGPathElement>('[data-workflow-edge-traversing]'),
+    pulseGlow: host.querySelector<SVGPathElement>('[data-workflow-edge-pulse-glow]'),
   }
 }
 
@@ -55,10 +59,66 @@ afterEach(() => {
 })
 
 describe('WorkflowEdgeView', () => {
-  it('matches active block silhouettes while the workflow is running', () => {
+  it('shows taken edges as a solid graphite path while the workflow is running', () => {
     const { path } = renderEdge({ runStatus: 'success', isWorkflowRunning: true })
 
     expect(path?.style.stroke).toBe('var(--text-secondary)')
+    expect(path?.style.strokeWidth).toBe('2')
+    expect(path?.style.opacity).toBe('1')
+  })
+
+  it('mutes edges that have not been taken during execution', () => {
+    const { host, path } = renderEdge({ isWorkflowRunning: true })
+
+    expect(path?.style.stroke).toBe('var(--workflow-edge)')
+    expect(path?.style.strokeWidth).toBe('1.5')
+    expect(path?.style.opacity).toBe('0.52')
+    expect(host.querySelector('[data-workflow-edge-state="waiting"]')).not.toBeNull()
+  })
+
+  it('moves a reduced-motion-safe signal toward the currently active target', () => {
+    const { host, pulseLayers, traversingPath, pulseGlow } = renderEdge({
+      runStatus: 'success',
+      isWorkflowRunning: true,
+      isTargetActive: true,
+    })
+
+    expect(host.querySelector('[data-workflow-edge-state="traversing"]')).not.toBeNull()
+    expect(traversingPath).not.toBeNull()
+    expect(pulseGlow).not.toBeNull()
+    expect(pulseLayers).toHaveLength(4)
+    expect(traversingPath?.classList.contains('motion-reduce:hidden')).toBe(true)
+    expect(traversingPath?.getAttribute('stroke-dasharray')).toBe('0.07 2.13')
+    expect(traversingPath?.getAttribute('stroke')).toBe('var(--white)')
+    expect(pulseGlow?.getAttribute('stroke-dasharray')).toBe('0.32 1.88')
+    expect(pulseGlow?.getAttribute('stroke-width')).toBe('6')
+    expect(traversingPath?.querySelector('animate')?.getAttribute('repeatCount')).toBe('indefinite')
+    expect(traversingPath?.querySelector('animate')?.getAttribute('from')).toBe('-0.125')
+    expect(traversingPath?.querySelector('animate')?.getAttribute('to')).toBe('-2.325')
+    expect(traversingPath?.querySelector('animate')?.getAttribute('dur')).toBe('1100ms')
+    expect(
+      Array.from(pulseLayers).map((layer) => [
+        layer.getAttribute('data-workflow-edge-pulse-layer'),
+        layer.getAttribute('stroke-dasharray'),
+        layer.getAttribute('opacity'),
+      ])
+    ).toEqual([
+      ['tail', '0.32 1.88', '0.22'],
+      ['shoulder', '0.23 1.97', '0.32'],
+      ['body', '0.15 2.05', '0.6'],
+      ['core', '0.07 2.13', '1'],
+    ])
+  })
+
+  it('settles a taken edge when its target is no longer active', () => {
+    const { host, traversingPath } = renderEdge({
+      runStatus: 'success',
+      isWorkflowRunning: true,
+      isTargetActive: false,
+    })
+
+    expect(host.querySelector('[data-workflow-edge-state="traversed"]')).not.toBeNull()
+    expect(traversingPath).toBeNull()
   })
 
   it('restores the canvas success color after execution stops', () => {
@@ -69,6 +129,25 @@ describe('WorkflowEdgeView', () => {
 
   it('keeps execution errors distinct during an active run', () => {
     const { path } = renderEdge({ runStatus: 'error', isWorkflowRunning: true })
+
+    expect(path?.style.stroke).toBe('var(--text-error)')
+  })
+
+  it('mutes an untaken error branch during execution', () => {
+    const { path } = renderEdge({
+      sourceHandle: 'error',
+      isWorkflowRunning: true,
+    })
+
+    expect(path?.style.stroke).toBe('var(--workflow-edge)')
+    expect(path?.style.opacity).toBe('0.52')
+  })
+
+  it('restores the error branch color after execution', () => {
+    const { path } = renderEdge({
+      sourceHandle: 'error',
+      isWorkflowRunning: false,
+    })
 
     expect(path?.style.stroke).toBe('var(--text-error)')
   })

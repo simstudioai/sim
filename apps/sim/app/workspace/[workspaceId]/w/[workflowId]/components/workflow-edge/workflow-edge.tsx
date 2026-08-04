@@ -2,7 +2,11 @@ import { memo, useCallback, useMemo } from 'react'
 import { type EdgeDiffStatus, WorkflowEdgeView } from '@sim/workflow-renderer'
 import { type EdgeProps, useStore } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
-import { useIsCurrentWorkflowExecuting, useLastRunEdges } from '@/stores/execution'
+import {
+  useIsBlockActive,
+  useIsCurrentWorkflowExecuting,
+  useLastRunEdges,
+} from '@/stores/execution'
 import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 
@@ -30,6 +34,7 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
   )
   const lastRunEdges = useLastRunEdges()
   const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  const isTargetActive = useIsBlockActive(target)
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
   const activeTab = usePanelStore((state) => state.activeTab)
 
@@ -94,6 +99,7 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
       runStatus={runStatus}
       isPreviewRun={Boolean(previewExecutionStatus)}
       isWorkflowRunning={isWorkflowRunning}
+      isTargetActive={isTargetActive}
       isConnectedToSelection={shouldHighlightEdge}
     />
   )
