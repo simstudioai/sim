@@ -1,5 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { SetupError } from './errors.ts'
 import { waitFor } from './probes.ts'
 import * as p from './prompter.ts'
@@ -11,8 +13,13 @@ const INSTALL_HINTS = [
 ]
 
 /** macOS GUI docker providers we know how to launch via `open -a`. */
-const ORBSTACK_APP = { name: 'OrbStack', path: '/Applications/OrbStack.app' } as const
-const DOCKER_DESKTOP_APP = { name: 'Docker', path: '/Applications/Docker.app' } as const
+const ORBSTACK_APP = { name: 'OrbStack', bundle: 'OrbStack.app' } as const
+const DOCKER_DESKTOP_APP = { name: 'Docker', bundle: 'Docker.app' } as const
+
+type DockerApp = typeof ORBSTACK_APP | typeof DOCKER_DESKTOP_APP
+
+/** Homebrew casks honour `--appdir`, so a user-local install is not unusual. */
+const APP_DIRS = ['/Applications', join(homedir(), 'Applications')]
 
 function daemonUp(): boolean {
   return spawnSync('docker', ['info'], { stdio: 'ignore' }).status === 0
@@ -37,16 +44,22 @@ function orbstackSelected(): boolean {
   return result.status === 0 && result.stdout.trim() === 'orbstack'
 }
 
+function appInstalled(app: DockerApp): boolean {
+  return APP_DIRS.some((dir) => existsSync(join(dir, app.bundle)))
+}
+
 /**
  * Which GUI app owns the `docker` CLI on this Mac. Both apps install a `docker`
  * binary, so CLI presence alone doesn't say which one to launch. An explicit
- * OrbStack selection wins; otherwise prefer whichever app is actually
- * installed, which also covers CLIs too old for `docker context show`.
+ * OrbStack selection wins, but only when OrbStack is still installed — a
+ * context or `DOCKER_HOST` left behind by an uninstall would otherwise pick an
+ * app that can never come up. Otherwise fall back to whichever app is present,
+ * which also covers CLIs too old for `docker context show`.
  */
-function macDockerApp(): typeof ORBSTACK_APP | typeof DOCKER_DESKTOP_APP {
-  if (orbstackSelected()) return ORBSTACK_APP
-  if (existsSync(DOCKER_DESKTOP_APP.path)) return DOCKER_DESKTOP_APP
-  return existsSync(ORBSTACK_APP.path) ? ORBSTACK_APP : DOCKER_DESKTOP_APP
+function macDockerApp(): DockerApp {
+  if (orbstackSelected() && appInstalled(ORBSTACK_APP)) return ORBSTACK_APP
+  if (appInstalled(DOCKER_DESKTOP_APP)) return DOCKER_DESKTOP_APP
+  return appInstalled(ORBSTACK_APP) ? ORBSTACK_APP : DOCKER_DESKTOP_APP
 }
 
 /**
