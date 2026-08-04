@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, ChipInput, Tooltip } from '@sim/emcn'
-import { Check, Clipboard, Eye, EyeOff, RefreshCw } from 'lucide-react'
+import { Check, Clipboard, Eye, EyeOff, RefreshCw } from '@sim/emcn/icons'
 import { generatePassword } from '@/lib/core/security/encryption'
 
 interface GeneratedPasswordInputProps {

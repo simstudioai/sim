@@ -512,8 +512,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     <div
       onClick={handleContainerClick}
       className={cn(
-        'relative z-10 mx-auto w-full max-w-[48rem] cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
-        isInitialView && 'shadow-sm'
+        'relative z-10 mx-auto w-full max-w-chat cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+        isInitialView && 'shadow-ambient'
       )}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -533,7 +533,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
-        className={isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]'}
+        className={isInitialView ? 'h-[56px]' : 'max-h-[200px]'}
       />
 
       <div className='flex items-center justify-between'>

@@ -2,7 +2,7 @@
 
 import { createElement, useCallback, useMemo, useRef, useState } from 'react'
 import { Button, Combobox } from '@sim/emcn'
-import { ExternalLink } from 'lucide-react'
+import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
@@ -30,7 +30,7 @@ const getProviderIcon = (providerName: OAuthProvider) => {
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
   if (!baseProviderConfig) {
-    return <ExternalLink className='size-3' />
+    return <SquareArrowUpRight className='size-3' />
   }
   return createElement(baseProviderConfig.icon, { className: 'size-3' })
 }

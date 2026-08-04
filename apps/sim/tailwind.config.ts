@@ -134,11 +134,6 @@ export default {
           950: '#0a0a0a',
         },
       },
-      fontWeight: {
-        base: 'var(--font-weight-base)',
-        medium: 'var(--font-weight-medium)',
-        semibold: 'var(--font-weight-semibold)',
-      },
       borderRadius: {
         xs: '2px',
         sm: 'calc(var(--radius) - 4px)',
@@ -152,8 +147,18 @@ export default {
         kbd: 'var(--shadow-kbd)',
         'kbd-sm': 'var(--shadow-kbd-sm)',
         card: 'var(--shadow-card)',
+        ambient: 'var(--shadow-ambient)',
       },
       dropShadow: {},
+      maxWidth: {
+        /**
+         * The home/chat reading column. The heading, input, suggested actions,
+         * transcript, and its skeleton must all share one value or the footer
+         * input visibly misaligns with the messages above it — so they read this
+         * key rather than repeating a literal.
+         */
+        chat: '44rem',
+      },
       transitionProperty: {
         width: 'width',
         left: 'left',

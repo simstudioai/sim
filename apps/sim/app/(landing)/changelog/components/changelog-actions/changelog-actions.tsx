@@ -1,7 +1,7 @@
 'use client'
 
 import { ChipLink } from '@sim/emcn'
-import { BookOpen, Rss } from 'lucide-react'
+import { BookOpen, Rss } from '@sim/emcn/icons'
 import { GithubOutlineIcon } from '@/components/icons'
 
 /**

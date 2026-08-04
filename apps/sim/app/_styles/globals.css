@@ -12,7 +12,7 @@
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
   --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
-  --sidebar-expanded-width: 248px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
+  --sidebar-expanded-width: 238px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
   --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
   --workspace-content-title-bar-inset: 0px; /* lane the content pane must leave clear; only non-zero when the pane, not the sidebar, sits under it */
   --desktop-title-bar-inset-x: 0px; /* clearance past the traffic lights; desktop overrides */
@@ -54,6 +54,14 @@
   --shadow-kbd: 0 4px 0 0 rgba(48, 48, 48, 1);
   --shadow-kbd-sm: 0 2px 0 0 rgba(48, 48, 48, 1);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+  /**
+   * The scale's around-shape entry: one layer like every other, borrowing
+   * `--shadow-subtle`'s alpha and `--shadow-medium`'s blur, with the y-offset
+   * dropped so the spread lands evenly on all four sides instead of pooling
+   * underneath. For a raised surface that floats in open space (the chat input);
+   * the directional entries above still own menus, cards, and overlays.
+   */
+  --shadow-ambient: 0 0 12px 0 rgba(0, 0, 0, 0.08);
 }
 
 /**
@@ -342,10 +350,11 @@ html.sidebar-booting .sidebar-shell-inner {
     --text-primary: #1a1a1a;
     --text-secondary: #525252;
     --text-tertiary: #5c5c5c;
-    --text-muted: #707070;
+    --text-muted: #7a7a7a;
     --text-subtle: #8c8c8c;
-    --text-body: #3b3b3b;
-    --text-icon: #525252;
+    --text-body: #434343;
+    --text-icon: #5a5a5a;
+    --text-icon-muted: #5c5c5c;
 
     --text-inverse: #ffffff;
     --text-muted-inverse: #a0a0a0;
@@ -378,11 +387,6 @@ html.sidebar-booting .sidebar-shell-inner {
 
     /* Utility */
     --white: #ffffff;
-
-    /* Font weights - lighter for light mode */
-    --font-weight-base: 420;
-    --font-weight-medium: 440;
-    --font-weight-semibold: 500;
 
     /* Landing / marketing - text (static dark-section colors) */
     --landing-text: #ececec;
@@ -501,10 +505,11 @@ html.sidebar-booting .sidebar-shell-inner {
     --text-primary: #e6e6e6;
     --text-secondary: #cccccc;
     --text-tertiary: #b3b3b3;
-    --text-muted: #787878;
+    --text-muted: #6e6e6e;
     --text-subtle: #7d7d7d;
-    --text-body: #cdcdcd;
-    --text-icon: #a0a0a0;
+    --text-body: #c1c1c1;
+    --text-icon: #969696;
+    --text-icon-muted: #949494;
 
     --text-inverse: #1b1b1b;
     --text-muted-inverse: #b3b3b3;
@@ -537,11 +542,6 @@ html.sidebar-booting .sidebar-shell-inner {
 
     /* Utility */
     --white: #ffffff;
-
-    /* Font weights - standard weights for dark mode */
-    --font-weight-base: 420;
-    --font-weight-medium: 480;
-    --font-weight-semibold: 550;
 
     /* Code editor (dark mode overrides) */
     --code-bg: #1f1f1f;
@@ -618,6 +618,8 @@ html.sidebar-booting .sidebar-shell-inner {
 
     /* Shadow scale - dark */
     --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.3);
+    /* Same 2.7x light-to-dark alpha step --shadow-overlay takes (0.11 -> 0.3). */
+    --shadow-ambient: 0 0 12px 0 rgba(0, 0, 0, 0.22);
   }
 }
 

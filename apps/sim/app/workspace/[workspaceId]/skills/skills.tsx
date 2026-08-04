@@ -2,12 +2,11 @@
 
 import { useEffect, useRef } from 'react'
 import { Chip, ChipInput, Search } from '@sim/emcn'
+import { ArrowRight, Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowRight, Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { SkillTile } from '@/app/workspace/[workspaceId]/components'
-import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
+import { IntegrationTabsHeader, SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import {
   skillIdParam,

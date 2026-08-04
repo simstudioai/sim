@@ -21,10 +21,9 @@ import {
   Label,
   useCopyToClipboard,
 } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, Check, Clipboard, Plus, Server } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Check, Clipboard, Plus, Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'

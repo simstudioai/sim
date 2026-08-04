@@ -21,9 +21,8 @@ import {
   cn,
   Loader,
 } from '@sim/emcn'
-import { Pin } from '@sim/emcn/icons'
+import { ChevronLeft, ChevronRight, Pin } from '@sim/emcn/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'

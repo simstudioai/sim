@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Plus } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'

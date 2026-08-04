@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Wrench } from '@sim/emcn/icons'
+import { ArrowRight, Plus, Wrench } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'

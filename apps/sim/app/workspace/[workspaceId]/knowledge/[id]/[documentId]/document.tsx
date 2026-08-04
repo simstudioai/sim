@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { Badge, ChipCombobox, ChipConfirmModal, Plus, Trash } from '@sim/emcn'
-import { Database } from '@sim/emcn/icons'
+import { ChevronDown, ChevronUp, Database, FileText, Pencil, TagIcon } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
-import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { ChunkData } from '@/lib/knowledge/types'
@@ -547,7 +546,7 @@ export function Document({
                 ...(userPermissions.canEdit
                   ? [
                       { label: 'Rename', icon: Pencil, onClick: handleStartDocRename },
-                      { label: 'Tags', icon: Tag, onClick: handleShowTags },
+                      { label: 'Tags', icon: TagIcon, onClick: handleShowTags },
                       { label: 'Delete', icon: Trash, onClick: handleShowDeleteDoc },
                     ]
                   : []),

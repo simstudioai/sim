@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useMemo } from 'react'
 import { Combobox, type ComboboxOptionGroup, cn } from '@sim/emcn'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { Repeat, Split } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import {
   type FlattenOutputsBlockInput,
@@ -264,9 +264,9 @@ export function OutputSelect({
       if (blockConfig?.icon) {
         blockIcon = blockConfig.icon
       } else if (firstOutput.blockType === 'loop') {
-        blockIcon = RepeatIcon
+        blockIcon = Repeat
       } else if (firstOutput.blockType === 'parallel') {
-        blockIcon = SplitIcon
+        blockIcon = Split
       }
 
       return {

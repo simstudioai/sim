@@ -22,7 +22,7 @@ export function ViewInvitationsMenuItem({ onOpen }: ViewInvitationsMenuItemProps
   }
 
   return (
-    <Chip leftIcon={Mail} onClick={onOpen} fullWidth flush className='select-none'>
+    <Chip leftIcon={Mail} onClick={onOpen} fullWidth className='select-none'>
       View invitations
     </Chip>
   )

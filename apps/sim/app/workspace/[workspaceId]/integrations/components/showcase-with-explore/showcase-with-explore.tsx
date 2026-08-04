@@ -1,7 +1,7 @@
 'use client'
 
 import { Chip } from '@sim/emcn'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
 import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
@@ -36,7 +36,7 @@ export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
           storeCuratedPrompt(prompt)
           router.push(`/workspace/${workspaceId}/home`)
         }}
-        className='absolute right-0 bottom-0 mx-0'
+        className='absolute right-0 bottom-0'
       >
         Explore in chat
       </Chip>

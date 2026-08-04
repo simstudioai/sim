@@ -339,8 +339,9 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       )
     case 'log':
       return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
+    /* No "open in" action — the scheduled-tasks page was removed, so there is
+       nowhere to route to. The resource itself still renders inline. */
     case 'scheduledtask':
-      return <EmbeddedScheduledTaskActions workspaceId={workspaceId} />
     case 'folder':
     case 'generic':
     case 'browser':
@@ -875,36 +876,6 @@ function EmbeddedScheduledTask({ scheduleId }: EmbeddedScheduledTaskProps) {
         </div>
       )}
     </div>
-  )
-}
-
-interface EmbeddedScheduledTaskActionsProps {
-  workspaceId: string
-}
-
-function EmbeddedScheduledTaskActions({ workspaceId }: EmbeddedScheduledTaskActionsProps) {
-  const router = useRouter()
-
-  const handleOpenScheduledTasks = () => {
-    router.push(`/workspace/${workspaceId}/scheduled-tasks`)
-  }
-
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={handleOpenScheduledTasks}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open in scheduled tasks'
-        >
-          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>Open in scheduled tasks</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
   )
 }
 

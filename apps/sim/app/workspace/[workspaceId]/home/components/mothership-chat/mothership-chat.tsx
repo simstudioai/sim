@@ -111,14 +111,14 @@ const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
       'mt-[var(--workspace-content-title-bar-inset)] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-2 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
-    sizer: 'relative mx-auto w-full max-w-[48rem]',
+    sizer: 'relative mx-auto w-full max-w-chat',
     rowGap: 'pb-6',
     userRow: 'flex flex-col items-end gap-[6px] pt-3',
     attachmentWidth: 'max-w-[70%]',
     userBubble: 'max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
     assistantRow: 'group/msg',
     footer: 'flex-shrink-0 px-[24px] pb-[16px]',
-    footerInner: 'mx-auto max-w-[48rem]',
+    footerInner: 'mx-auto max-w-chat',
   },
   'copilot-view': {
     scrollContainer:

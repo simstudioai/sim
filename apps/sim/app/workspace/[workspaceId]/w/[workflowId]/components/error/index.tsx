@@ -2,8 +2,8 @@
 
 import { Component, type ReactNode, useEffect } from 'react'
 import { Button } from '@sim/emcn'
+import { RefreshCw } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { RefreshCw } from 'lucide-react'
 import { ReactFlowProvider } from 'reactflow'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'

@@ -180,7 +180,6 @@
     "js-yaml": "4.3.0",
     "jszip": "3.10.1",
     "lru-cache": "11.3.6",
-    "lucide-react": "^0.511.0",
     "mammoth": "^1.9.0",
     "mermaid": "11.15.0",
     "micromatch": "4.0.8",

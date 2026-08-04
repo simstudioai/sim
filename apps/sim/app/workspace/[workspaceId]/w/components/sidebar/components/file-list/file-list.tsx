@@ -2,7 +2,7 @@
 
 import { memo, useMemo, useState } from 'react'
 import { cn } from '@sim/emcn'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
@@ -84,7 +84,7 @@ const FileFolderNodeItem = memo(function FileFolderNodeItem({
             </>
           )}
         </svg>
-        <span className='min-w-0 flex-1 truncate text-left font-base text-[var(--text-body)]'>
+        <span className='min-w-0 flex-1 truncate text-left text-[var(--text-body)]'>
           {node.name}
         </span>
       </button>
@@ -128,9 +128,7 @@ const FileFolderNodeItem = memo(function FileFolderNodeItem({
                   <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
                   <path d='M14 2v4a2 2 0 0 0 2 2h4' />
                 </svg>
-                <span className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>
-                  {file.name}
-                </span>
+                <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{file.name}</span>
               </Link>
             )
           })}
@@ -203,9 +201,7 @@ export const FileList = memo(function FileList({
               <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
               <path d='M14 2v4a2 2 0 0 0 2 2h4' />
             </svg>
-            <span className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>
-              {file.name}
-            </span>
+            <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{file.name}</span>
           </Link>
         )
       })}

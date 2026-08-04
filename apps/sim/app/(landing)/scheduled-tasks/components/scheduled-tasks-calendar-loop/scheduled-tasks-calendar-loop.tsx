@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { Chip, chipContentGap, chipPrimaryFillTokens, cn } from '@sim/emcn'
-import { Calendar, Plus } from '@sim/emcn/icons'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, Plus } from '@sim/emcn/icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
 import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
@@ -175,11 +174,11 @@ function ScheduledTasksCalendarPane({ stampedCount }: ScheduledTasksCalendarPane
       </div>
 
       <div className='flex items-center justify-between border-[var(--border)] border-b px-4 py-2.5'>
-        <div className='flex items-center'>
+        <div className='flex items-center gap-1'>
           <Chip tabIndex={-1}>Today</Chip>
           <span className='px-2 text-[var(--text-body)] text-sm'>{MONTH_LABEL}</span>
         </div>
-        <div className='flex items-center'>
+        <div className='flex items-center gap-1'>
           <Chip leftIcon={ChevronLeft} aria-label='Previous' tabIndex={-1} />
           <Chip leftIcon={ChevronRight} aria-label='Next' tabIndex={-1} />
           <Chip tabIndex={-1}>Month</Chip>

@@ -1,9 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { posToDOMRect } from '@tiptap/core'
-import { PluginKey } from '@tiptap/pm/state'
-import type { Editor } from '@tiptap/react'
-import { useEditorState } from '@tiptap/react'
-import { BubbleMenu } from '@tiptap/react/menus'
 import {
   Bold,
   Check,
@@ -19,7 +14,12 @@ import {
   Strikethrough,
   TextQuote,
   Unlink,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import { posToDOMRect } from '@tiptap/core'
+import { PluginKey } from '@tiptap/pm/state'
+import type { Editor } from '@tiptap/react'
+import { useEditorState } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
 import { applyLink, LinkUrlInput } from './link-editing'
 import { ToolbarButton, ToolbarDivider } from './toolbar-button'
 

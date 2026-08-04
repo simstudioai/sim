@@ -17,10 +17,10 @@ import {
   Textarea,
   Tooltip,
 } from '@sim/emcn'
+import { Check, TriangleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
-import { AlertTriangle, Check } from 'lucide-react'
 import { GeneratedPasswordInput } from '@/components/ui'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
@@ -320,7 +320,7 @@ export function ChatDeploy({
       >
         {errors.general && (
           <div className='flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--text-error)_20%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-3 py-2 text-[var(--text-error)] text-small'>
-            <AlertTriangle className='size-4 flex-shrink-0' />
+            <TriangleAlert className='size-4 flex-shrink-0' />
             <span>{errors.general}</span>
           </div>
         )}

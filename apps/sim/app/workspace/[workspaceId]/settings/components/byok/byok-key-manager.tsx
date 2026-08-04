@@ -13,9 +13,9 @@ import {
   ChipModalHeader,
   cn,
 } from '@sim/emcn'
+import { Eye, EyeOff, Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff, Search } from 'lucide-react'
 import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
@@ -309,10 +309,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
       <div className='flex flex-col gap-4.5'>
         {showSearch && (
           <div className={CHIP_FIELD_SHELL}>
-            <Search
-              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-              strokeWidth={2}
-            />
+            <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
             <input
               aria-label='Search providers'
               placeholder='Search providers...'
@@ -430,7 +427,8 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               />
               <Button
                 variant='quiet'
-                className='size-[18px] shrink-0 rounded-sm p-0'
+                size='icon'
+                className='shrink-0'
                 onClick={() => setShowApiKey(!showApiKey)}
                 aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
               >

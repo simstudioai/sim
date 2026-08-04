@@ -12,8 +12,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Pencil, SquareArrowUpRight } from '@sim/emcn/icons'
-import { Folder, MoreHorizontal, Plus } from 'lucide-react'
+import { Folder, MoreHorizontal, Pencil, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
@@ -123,7 +122,6 @@ interface CollapsedSidebarMenuProps {
   hover: ReturnType<typeof useHoverMenu>
   ariaLabel?: string
   children: React.ReactNode
-  className?: string
   primaryAction?: {
     label: string
     onSelect: () => void
@@ -164,7 +162,7 @@ interface CollapsedWorkflowFlyoutItemProps {
 
 const EDIT_ROW_CLASS = cn(
   chipVariants({ active: true, fullWidth: true }),
-  'mx-0 min-w-0 cursor-default select-none text-small'
+  'min-w-0 cursor-default select-none text-small'
 )
 
 export function CollapsedSidebarMenu({
@@ -172,11 +170,10 @@ export function CollapsedSidebarMenu({
   hover,
   ariaLabel,
   children,
-  className,
   primaryAction,
 }: CollapsedSidebarMenuProps) {
   return (
-    <div className={cn('flex flex-col px-2', className)}>
+    <div className='flex flex-col px-2'>
       <DropdownMenu
         open={hover.isOpen}
         onOpenChange={(open) => {

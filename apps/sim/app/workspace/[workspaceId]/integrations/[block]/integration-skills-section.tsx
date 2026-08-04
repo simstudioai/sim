@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Chip, toast } from '@sim/emcn'
-import { Check, Plus } from 'lucide-react'
+import { Check, Plus } from '@sim/emcn/icons'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
@@ -33,11 +33,11 @@ function SkillRow({ skill, added, pending, disabled, onAdd }: SkillRowProps) {
         <span className='truncate text-[12px] text-[var(--text-muted)]'>{skill.description}</span>
       </div>
       {added ? (
-        <Chip leftIcon={Check} disabled flush>
+        <Chip leftIcon={Check} disabled>
           Added
         </Chip>
       ) : (
-        <Chip variant='primary' leftIcon={Plus} onClick={onAdd} disabled={disabled} flush>
+        <Chip variant='primary' leftIcon={Plus} onClick={onAdd} disabled={disabled}>
           {pending ? 'Adding...' : 'Add'}
         </Chip>
       )}

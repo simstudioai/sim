@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { ChipTag } from '@sim/emcn'
-import { ArrowRight, Plus } from 'lucide-react'
+import { ArrowRight, Plus } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'

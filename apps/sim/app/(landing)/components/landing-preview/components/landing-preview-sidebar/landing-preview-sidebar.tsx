@@ -58,9 +58,7 @@ function NavItem({
     return (
       <div className='pointer-events-none mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2'>
         <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='truncate text-[13px] text-[var(--text-body)]' style={{ fontWeight: 450 }}>
-          {label}
-        </span>
+        <span className='truncate text-[13px] text-[var(--text-body)]'>{label}</span>
       </div>
     )
   }
@@ -75,9 +73,7 @@ function NavItem({
       )}
     >
       <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate text-[13px] text-[var(--text-body)]' style={{ fontWeight: 450 }}>
-        {label}
-      </span>
+      <span className='truncate text-[13px] text-[var(--text-body)]'>{label}</span>
     </button>
   )
 }
@@ -133,12 +129,7 @@ export function LandingPreviewSidebar({
           )}
         >
           <Home className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          <span
-            className='truncate text-[13px] text-[var(--text-body)]'
-            style={{ fontWeight: 450 }}
-          >
-            Home
-          </span>
+          <span className='truncate text-[13px] text-[var(--text-body)]'>Home</span>
         </button>
         <NavItem icon={Search} label='Search' />
       </div>
@@ -182,10 +173,7 @@ export function LandingPreviewSidebar({
                   )}
                 >
                   <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                  <div
-                    className='min-w-0 flex-1 truncate text-left text-[13px] text-[var(--text-body)]'
-                    style={{ fontWeight: 450 }}
-                  >
+                  <div className='min-w-0 flex-1 truncate text-left text-[13px] text-[var(--text-body)]'>
                     {workflow.name}
                   </div>
                 </button>

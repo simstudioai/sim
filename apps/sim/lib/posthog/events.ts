@@ -596,11 +596,6 @@ export interface PostHogEventMap {
     connected_provider_count: number
   }
 
-  suggested_actions_shuffled: {
-    workspace_id: string
-    connected_provider_count: number
-  }
-
   suggested_actions_toggled: {
     workspace_id: string
     expanded: boolean

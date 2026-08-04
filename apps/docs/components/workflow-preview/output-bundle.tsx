@@ -1,7 +1,7 @@
 'use client'
 
 import { Badge } from '@sim/emcn'
-import { ChevronDown, Clipboard, Download, Search } from 'lucide-react'
+import { ChevronDown, Clipboard, Download, Search } from '@sim/emcn/icons'
 import { resolveIcon } from '@/components/workflow-preview/block-icons'
 
 type ValueType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'

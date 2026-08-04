@@ -1501,7 +1501,7 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
             <Button
               type='button'
               variant='quiet'
-              className='size-[18px] rounded-sm p-0'
+              size='icon'
               onClick={() => void handleSave()}
               disabled={!canSave}
               aria-label='Save'
@@ -1871,7 +1871,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           <path d='M8 6.5v3' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
           <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
         </svg>
-        <span className='font-[500] text-amber-800 text-sm leading-5 dark:text-amber-300'>
+        <span className='font-medium text-amber-800 text-sm leading-5 dark:text-amber-300'>
           Usage Limit Reached
         </span>
       </div>
@@ -1881,13 +1881,13 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
       {canManageBilling ? (
         <a
           href={settingsPath}
-          className='mt-2 inline-flex items-center gap-1 font-[500] text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
+          className='mt-2 inline-flex items-center gap-1 font-medium text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
         >
           {buttonLabel}
           <ArrowRight className='size-3' />
         </a>
       ) : (
-        <p className='mt-2 font-[500] text-amber-700 text-small dark:text-amber-300'>
+        <p className='mt-2 font-medium text-amber-700 text-small dark:text-amber-300'>
           {unavailableMessage}
         </p>
       )}

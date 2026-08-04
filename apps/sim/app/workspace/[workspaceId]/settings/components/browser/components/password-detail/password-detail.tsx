@@ -176,7 +176,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
                         <Button
                           type='button'
                           variant='quiet'
-                          className='size-[18px] rounded-sm p-0'
+                          size='icon'
                           disabled={!canReveal || busy}
                           onClick={() => void toggleReveal()}
                           aria-label={revealed ? 'Hide password' : 'Show password'}
@@ -197,7 +197,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
                         <Button
                           type='button'
                           variant='quiet'
-                          className='size-[18px] rounded-sm p-0'
+                          size='icon'
                           disabled={!canReveal || busy}
                           onClick={() => void copy()}
                           aria-label='Copy password'

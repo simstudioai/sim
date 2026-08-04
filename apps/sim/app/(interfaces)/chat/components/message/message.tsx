@@ -2,7 +2,7 @@
 
 import { memo, useState } from 'react'
 import { Button, cn, Duplicate, Tooltip } from '@sim/emcn'
-import { Check, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
+import { Check, File as FileIcon, FileText, ImageUp as ImageIcon } from '@sim/emcn/icons'
 import {
   AgentStreamThinkingChrome,
   AgentStreamToolCallsChrome,
@@ -288,7 +288,7 @@ export const ClientChatMessage = memo(
                           }}
                         >
                           {isCopied ? (
-                            <Check className='size-3' strokeWidth={2} />
+                            <Check className='size-3' />
                           ) : (
                             <Duplicate className='size-3' />
                           )}

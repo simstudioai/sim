@@ -29,8 +29,6 @@ interface ChipDatePickerBaseProps {
   disabled?: boolean
   /** Stretch the trigger to fill its container (mirrors `Chip`'s `fullWidth`). */
   fullWidth?: boolean
-  /** Removes the default `mx-0.5` cluster margin (mirrors `Chip`'s `flush`). */
-  flush?: boolean
   /** Forwarded class for the trigger button. */
   className?: string
 }
@@ -87,7 +85,6 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
       align = 'start',
       disabled,
       fullWidth,
-      flush,
       className,
     } = props
 
@@ -108,8 +105,8 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
             disabled={disabled}
             className={cn(
               variant === 'ghost'
-                ? chipVariants({ fullWidth, flush })
-                : cn(chipVariants({ variant: 'filled', fullWidth, flush }), TRIGGER_BORDER_CLASS),
+                ? chipVariants({ fullWidth })
+                : cn(chipVariants({ variant: 'filled', fullWidth }), TRIGGER_BORDER_CLASS),
               className
             )}
           >

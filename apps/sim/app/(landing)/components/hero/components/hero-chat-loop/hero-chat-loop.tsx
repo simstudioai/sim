@@ -5,14 +5,14 @@ import { cn, Tooltip } from '@sim/emcn'
 import {
   ArrowRight,
   ArrowUp,
-  Copy,
+  Duplicate,
   Mic,
   Paperclip,
   Plus,
   Slash,
   ThumbsDown,
   ThumbsUp,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
 import { ThinkingLoader } from '@/components/ui'
 import { HERO_TOOLTIP_OFFSET } from '@/app/(landing)/components/hero/components/hero-platform-loop/sidebar-hotspots'
 
@@ -167,7 +167,7 @@ export function HeroChatLoop({ phase, fading }: HeroChatLoopProps) {
               </div>
             </div>
             <div className='flex items-center gap-3 text-[var(--text-icon)]'>
-              <Copy className='size-[14px]' />
+              <Duplicate className='size-[14px]' />
               <ThumbsUp className='size-[14px]' />
               <ThumbsDown className='size-[14px]' />
             </div>

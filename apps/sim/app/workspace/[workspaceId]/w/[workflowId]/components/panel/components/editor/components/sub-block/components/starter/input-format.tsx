@@ -17,8 +17,7 @@ import {
   languages,
   Tooltip,
 } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
-import { ArrowLeftRight, Plus } from 'lucide-react'
+import { ArrowLeftRight, Plus, Trash } from '@sim/emcn/icons'
 import Editor from 'react-simple-code-editor'
 import {
   createDefaultInputFormatField,

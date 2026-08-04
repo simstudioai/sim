@@ -8,11 +8,11 @@ import {
   DropdownMenuTrigger,
   useCopyToClipboard,
 } from '@sim/emcn'
+import { Check, ChevronDown, Code, Duplicate, Eye, Wrap } from '@sim/emcn/icons'
 import type { JSONContent } from '@tiptap/core'
 import { CodeBlock } from '@tiptap/extension-code-block'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { Check, ChevronDown, Code, Copy, Eye, WrapText } from 'lucide-react'
 import { looksLikeMermaid, MermaidDiagram } from '../mermaid-diagram'
 import { detectLanguage } from './detect-language'
 import { useEditorEditable } from './use-editor-editable'
@@ -155,7 +155,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
                   type='button'
                   aria-label='Code language'
                   className={cn(
-                    chipVariants({ variant: 'default', flush: true }),
+                    chipVariants({ variant: 'default' }),
                     'h-[24px] gap-1 px-1.5 text-[var(--text-muted)] data-[state=open]:bg-[var(--surface-active)] data-[state=open]:text-[var(--text-body)]'
                   )}
                 >
@@ -193,7 +193,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
               wrap && 'bg-[var(--surface-active)] text-[var(--text-body)]'
             )}
           >
-            <WrapText />
+            <Wrap />
           </button>
         )}
         <button
@@ -203,7 +203,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
           onClick={() => copy(text)}
           className={CONTROL_CLASS}
         >
-          {copied ? <Check /> : <Copy />}
+          {copied ? <Check /> : <Duplicate />}
         </button>
       </div>
       <pre className={cn('code-editor-theme pr-20', showDiagram && 'hidden')} data-wrap={wrap}>

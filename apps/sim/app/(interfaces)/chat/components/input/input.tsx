@@ -3,9 +3,9 @@
 import type React from 'react'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Badge, Button, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
+import { ArrowUp, Mic, Paperclip, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { ArrowUp, Mic, Paperclip, X } from 'lucide-react'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { VoiceInput } from '@/app/(interfaces)/chat/components/input/voice-input'
 
@@ -280,7 +280,7 @@ export const ChatInput: React.FC<{
                       disabled={isStreaming || attachedFiles.length >= 15}
                       className='size-[28px] rounded-full p-0'
                     >
-                      <Paperclip className='size-[16px]' strokeWidth={2} />
+                      <Paperclip className='size-[16px]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>
@@ -313,7 +313,7 @@ export const ChatInput: React.FC<{
                         disabled={isStreaming}
                         className='size-[28px] rounded-full p-0'
                       >
-                        <Mic className='size-[16px]' strokeWidth={2} />
+                        <Mic className='size-[16px]' />
                       </Button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top'>
@@ -344,7 +344,7 @@ export const ChatInput: React.FC<{
                     disabled={!canSubmit}
                     className='size-[28px] rounded-full p-0'
                   >
-                    <ArrowUp className='block size-[16px]' strokeWidth={2.25} />
+                    <ArrowUp className='block size-[16px]' />
                   </Button>
                 )}
               </div>

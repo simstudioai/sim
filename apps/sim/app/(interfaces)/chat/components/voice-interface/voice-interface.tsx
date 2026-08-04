@@ -2,8 +2,8 @@
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { Button, cn } from '@sim/emcn'
+import { Mic, MicOff, Phone } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { Mic, MicOff, Phone } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { requestJson } from '@/lib/api/client/request'
 import { speechTokenContract } from '@/lib/api/contracts/media/speech'

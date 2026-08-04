@@ -143,11 +143,11 @@ export const MemoizedFileItem = memo(
         <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
           <File className='size-[14px] text-[var(--text-icon)]' />
         </div>
-        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 font-base text-[var(--text-body)]'>
+        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
           <span className='truncate'>{name}</span>
         </span>
         {folderPath && folderPath.length > 0 && (
-          <span className='ml-auto flex min-w-0 pl-2 font-base text-[var(--text-subtle)] text-small'>
+          <span className='ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small'>
             {folderPath.length > 1 && (
               <>
                 <span className='min-w-0 truncate [flex-shrink:9999]'>

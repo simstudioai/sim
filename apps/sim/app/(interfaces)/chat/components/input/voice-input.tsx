@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback } from 'react'
+import { Mic } from '@sim/emcn/icons'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
-import { Mic } from 'lucide-react'
 
 interface VoiceInputProps {
   onVoiceStart: () => void
@@ -35,7 +35,7 @@ export function VoiceInput({
         }`}
         title='Start voice conversation'
       >
-        <Mic size={16} className='md:h-5 md:w-5' />
+        <Mic className='size-[16px] md:size-5' />
       </button>
     )
   }
@@ -57,7 +57,7 @@ export function VoiceInput({
             whileTap={{ scale: 0.95 }}
             title='Start voice conversation'
           >
-            <Mic size={32} />
+            <Mic className='size-[32px]' />
           </m.button>
         </LazyMotion>
       </div>
@@ -80,8 +80,8 @@ export function VoiceInput({
           whileTap={{ scale: 0.95 }}
           title='Start voice conversation'
         >
-          <Mic size={16} className='md:hidden' />
-          <Mic size={18} className='hidden md:block' />
+          <Mic className='size-[16px] md:hidden' />
+          <Mic className='hidden size-[18px] md:block' />
         </m.button>
       </LazyMotion>
     </div>
