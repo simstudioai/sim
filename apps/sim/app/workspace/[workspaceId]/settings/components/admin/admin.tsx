@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
+import { AddUserModal } from '@/app/workspace/[workspaceId]/settings/components/admin/add-user-modal'
 import {
   adminParsers,
   adminUrlKeys,
@@ -72,6 +73,7 @@ export function Admin() {
   const [banReason, setBanReason] = useState('')
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null)
   const [impersonationGuardError, setImpersonationGuardError] = useState<string | null>(null)
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false)
 
   const {
     data: usersData,
@@ -370,7 +372,12 @@ export function Admin() {
       <div className='h-px bg-[var(--border)]' />
 
       <div className='flex flex-col gap-3'>
-        <p className='font-medium text-[var(--text-muted)] text-small'>User Management</p>
+        <div className='flex items-center justify-between gap-3'>
+          <p className='font-medium text-[var(--text-muted)] text-small'>User Management</p>
+          <Button variant='primary' onClick={() => setIsAddUserOpen(true)}>
+            Add user
+          </Button>
+        </div>
         <div className='flex gap-2'>
           <ChipInput
             icon={Search}
@@ -457,6 +464,14 @@ export function Admin() {
           )
         )}
       </div>
+      <AddUserModal
+        open={isAddUserOpen}
+        onOpenChange={setIsAddUserOpen}
+        onCreated={(user) => {
+          setSearchInput(user.email)
+          setAdminParams({ q: user.email, offset: null })
+        }}
+      />
     </SettingsPanel>
   )
 }
