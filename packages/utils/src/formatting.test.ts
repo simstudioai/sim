@@ -68,6 +68,10 @@ describe('formatAbsoluteDate', () => {
     expect(result).toMatch(/May/)
     expect(result).toMatch(/2023/)
   })
+
+  it('returns the original input for an unparseable date', () => {
+    expect(formatAbsoluteDate('not-a-date')).toBe('not-a-date')
+  })
 })
 
 describe('formatTime', () => {
@@ -99,9 +103,10 @@ describe('formatCompactTimestamp', () => {
     expect(result).toMatch(/^\d{2}-\d{2} \d{2}:\d{2}$/)
   })
 
-  it('returns a formatted string even for invalid dates (no throw)', () => {
+  it('returns the original input for invalid dates instead of a NaN string', () => {
     const result = formatCompactTimestamp('not-a-date')
-    expect(typeof result).toBe('string')
+    expect(result).toBe('not-a-date')
+    expect(result).not.toContain('NaN')
   })
 })
 

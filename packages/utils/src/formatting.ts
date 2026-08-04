@@ -104,6 +104,11 @@ export function formatDate(date: Date): string {
  */
 export function formatAbsoluteDate(dateString: string): string {
   const date = new Date(dateString)
+  // An unparseable string yields an Invalid Date whose formatters return
+  // "Invalid Date"; fall back to the original input instead.
+  if (Number.isNaN(date.getTime())) {
+    return dateString
+  }
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -150,6 +155,11 @@ export function formatTimeWithSeconds(date: Date, includeTimezone = true): strin
 export function formatCompactTimestamp(iso: string): string {
   try {
     const d = new Date(iso)
+    // Invalid dates do not throw; their getters return NaN, so the catch
+    // below never fires. Guard explicitly and fall back to the input string.
+    if (Number.isNaN(d.getTime())) {
+      return iso
+    }
     const mm = String(d.getMonth() + 1).padStart(2, '0')
     const dd = String(d.getDate()).padStart(2, '0')
     const hh = String(d.getHours()).padStart(2, '0')
