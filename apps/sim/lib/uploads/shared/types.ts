@@ -22,6 +22,9 @@ export function toLegacyWorkspaceFileSize(size: number): number {
  */
 export const MAX_WORKSPACE_FORMDATA_FILE_SIZE = 100 * 1024 * 1024
 
+/** Maximum size accepted by the knowledge-document parsing pipeline. */
+export const MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE = 100 * 1024 * 1024
+
 export type StorageContext =
   | 'knowledge-base'
   | 'chat'

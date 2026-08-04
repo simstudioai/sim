@@ -29,6 +29,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Uploa
       uploadId: parsed.data.params.uploadId,
       workspaceId,
       userId: user,
+      purpose: 'workspace_file',
       uploadToken: parsed.data.headers['upload-token'],
     })
     const parts = await createUploadPartUrls({

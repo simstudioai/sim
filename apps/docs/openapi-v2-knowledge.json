@@ -781,6 +781,179 @@
         ]
       }
     },
+    "/api/v2/knowledge/{id}/documents/uploads": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/KnowledgeBaseId"
+        }
+      ],
+      "post": {
+        "operationId": "createKnowledgeDocumentUpload",
+        "summary": "Create Document Upload",
+        "description": "Create a stateless multipart upload session for a knowledge document. Write access, billing, usage, file type, file size, and workspace storage are checked before provider storage is allocated. The signed upload token binds the caller, workspace, knowledge base, filename, content type, byte size, provider, and knowledge-document purpose. Files may be up to 100 MB.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/knowledge/{id}/documents/uploads\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"workspaceId\":\"YOUR_WORKSPACE_ID\",\"name\":\"guide.pdf\",\"contentType\":\"application/pdf\",\"size\":248913}'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Metadata for the document that will be uploaded through signed part URLs.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentUploadBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The multipart upload session and its signed control-plane token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentUploadEnvelope"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "402": { "$ref": "#/components/responses/UsageLimitExceeded" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "415": { "$ref": "#/components/responses/UnsupportedMediaType" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents/uploads/{uploadId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/KnowledgeBaseId" },
+        { "$ref": "#/components/parameters/UploadId" },
+        { "$ref": "#/components/parameters/UploadTokenHeader" }
+      ],
+      "delete": {
+        "operationId": "abortKnowledgeDocumentUpload",
+        "summary": "Abort Document Upload",
+        "description": "Abort an incomplete knowledge-document upload and discard its provider parts. Aborting an already aborted session is safe.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [{ "$ref": "#/components/parameters/WorkspaceIdQuery" }],
+        "responses": {
+          "200": {
+            "description": "The aborted upload session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentUploadEnvelope"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents/uploads/{uploadId}/parts": {
+      "parameters": [
+        { "$ref": "#/components/parameters/KnowledgeBaseId" },
+        { "$ref": "#/components/parameters/UploadId" },
+        { "$ref": "#/components/parameters/UploadTokenHeader" }
+      ],
+      "post": {
+        "operationId": "createKnowledgeDocumentUploadPartUrls",
+        "summary": "Create Document Upload Part URLs",
+        "description": "Issue short-lived signed PUT URLs for up to 100 part numbers. PUT each byte range directly to the returned URL with the returned headers.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [{ "$ref": "#/components/parameters/WorkspaceIdQuery" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePartUrlsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed URLs for the requested parts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartUrlsEnvelope"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents/uploads/{uploadId}/complete": {
+      "parameters": [
+        { "$ref": "#/components/parameters/KnowledgeBaseId" },
+        { "$ref": "#/components/parameters/UploadId" },
+        { "$ref": "#/components/parameters/UploadTokenHeader" }
+      ],
+      "post": {
+        "operationId": "completeKnowledgeDocumentUpload",
+        "summary": "Complete Document Upload",
+        "description": "Verify and assemble all parts, record knowledge-base storage ownership, create the knowledge document, and queue asynchronous processing. Repeating the same completion is idempotent and returns the same document. It never registers a general workspace file.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [{ "$ref": "#/components/parameters/WorkspaceIdQuery" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteUploadBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The completed upload and queued knowledge document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentUploadEnvelope"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "402": { "$ref": "#/components/responses/UsageLimitExceeded" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
     "/api/v2/knowledge/{id}/documents/{documentId}": {
       "parameters": [
         {
@@ -956,6 +1129,17 @@
           "example": "b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"
         }
       },
+      "UploadId": {
+        "name": "uploadId",
+        "in": "path",
+        "required": true,
+        "description": "The upload session identifier returned when the upload was created.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "example": "upload_01K0M9J4W6K4J3T73Q8W2NYR9P"
+        }
+      },
       "WorkspaceIdQuery": {
         "name": "workspaceId",
         "in": "query",
@@ -965,6 +1149,16 @@
           "type": "string",
           "minLength": 1,
           "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+        }
+      },
+      "UploadTokenHeader": {
+        "name": "upload-token",
+        "in": "header",
+        "required": true,
+        "description": "The signed token returned when this upload was created. It is bound to the caller and all upload metadata.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -1228,6 +1422,196 @@
           },
           "chunkingConfig": {
             "$ref": "#/components/schemas/ChunkingConfigInput"
+          }
+        }
+      },
+      "CreateDocumentUploadBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["workspaceId", "name", "contentType", "size"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Filename recorded on the knowledge document."
+          },
+          "contentType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Supported MIME type for the document."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 104857600,
+            "description": "Exact file size in bytes."
+          }
+        }
+      },
+      "DocumentUpload": {
+        "type": "object",
+        "required": [
+          "id",
+          "knowledgeBaseId",
+          "status",
+          "name",
+          "contentType",
+          "size",
+          "partSize",
+          "partCount",
+          "uploadToken",
+          "expiresAt",
+          "error",
+          "document"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Upload session identifier."
+          },
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "Knowledge base that will own the document."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["uploading", "finalizing", "completed", "failed", "aborted", "expired"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "partSize": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "partCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uploadToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Signed token required for part URLs, completion, and abort."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "type": ["string", "null"]
+          },
+          "document": {
+            "oneOf": [{ "$ref": "#/components/schemas/DocumentSummary" }, { "type": "null" }],
+            "description": "The queued document after completion; null while uploading or after abort."
+          }
+        }
+      },
+      "DocumentUploadEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DocumentUpload"
+          }
+        }
+      },
+      "CreatePartUrlsBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["partNumbers"],
+        "properties": {
+          "partNumbers": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      },
+      "UploadPartUrl": {
+        "type": "object",
+        "required": ["partNumber", "url", "headers", "expiresAt"],
+        "properties": {
+          "partNumber": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PartUrlsEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["parts"],
+            "properties": {
+              "parts": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "$ref": "#/components/schemas/UploadPartUrl"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CompleteUploadBody": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["parts"],
+        "properties": {
+          "parts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 640,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["partNumber"],
+              "properties": {
+                "partNumber": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "etag": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
           }
         }
       },

@@ -8,6 +8,7 @@ const {
   mockCreateDocumentRecords,
   mockCreateSingleDocument,
   mockDeleteDocument,
+  mockGetDocumentByUploadId,
   mockMarkDocumentAsFailedTimeout,
   mockProcessDocumentAsync,
   mockProcessDocumentsWithQueue,
@@ -19,6 +20,7 @@ const {
   mockCreateDocumentRecords: vi.fn(),
   mockCreateSingleDocument: vi.fn(),
   mockDeleteDocument: vi.fn(),
+  mockGetDocumentByUploadId: vi.fn(),
   mockMarkDocumentAsFailedTimeout: vi.fn(),
   mockProcessDocumentAsync: vi.fn(),
   mockProcessDocumentsWithQueue: vi.fn(),
@@ -43,6 +45,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   createDocumentRecords: mockCreateDocumentRecords,
   createSingleDocument: mockCreateSingleDocument,
   deleteDocument: mockDeleteDocument,
+  getDocumentByUploadId: mockGetDocumentByUploadId,
   markDocumentAsFailedTimeout: mockMarkDocumentAsFailedTimeout,
   processDocumentAsync: mockProcessDocumentAsync,
   processDocumentsWithQueue: mockProcessDocumentsWithQueue,
@@ -74,6 +77,7 @@ describe('performUploadKnowledgeDocument', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCreateSingleDocument.mockResolvedValue({ id: 'doc-1', filename: 'report.pdf' })
+    mockGetDocumentByUploadId.mockResolvedValue(null)
     mockProcessDocumentsWithQueue.mockResolvedValue(undefined)
     mockProcessDocumentAsync.mockResolvedValue(undefined)
   })
@@ -154,6 +158,71 @@ describe('performUploadKnowledgeDocument', () => {
       (await performUploadKnowledgeDocument({ ...ACTOR, knowledgeBase: KB, document: FILE }))
         .errorCode
     ).toBe('forbidden')
+  })
+
+  it('returns the document already bound to a stateless upload id without duplicating work', async () => {
+    const existing = {
+      id: 'upload-1',
+      knowledgeBaseId: 'kb-1',
+      filename: FILE.filename,
+      fileUrl: FILE.fileUrl,
+      fileSize: FILE.fileSize,
+      mimeType: FILE.mimeType,
+      chunkCount: 0,
+      tokenCount: 0,
+      characterCount: 0,
+      enabled: true,
+      uploadedAt: new Date(),
+    }
+    mockGetDocumentByUploadId.mockResolvedValue(existing)
+
+    const outcome = await performUploadKnowledgeDocument({
+      ...ACTOR,
+      knowledgeBase: KB,
+      document: FILE,
+      documentId: 'upload-1',
+      startProcessing: 'queue',
+    })
+
+    expect(outcome).toMatchObject({ success: true, created: false, document: existing })
+    expect(mockCreateSingleDocument).not.toHaveBeenCalled()
+    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('converges on the existing document when concurrent completions race to insert', async () => {
+    const existing = {
+      id: 'upload-1',
+      knowledgeBaseId: 'kb-1',
+      ...FILE,
+      chunkCount: 0,
+      tokenCount: 0,
+      characterCount: 0,
+      enabled: true,
+      uploadedAt: new Date(),
+      processingStatus: 'pending',
+    }
+    mockGetDocumentByUploadId.mockResolvedValueOnce(null).mockResolvedValueOnce(existing)
+    mockCreateSingleDocument.mockRejectedValue(new Error('duplicate key'))
+
+    const outcome = await performUploadKnowledgeDocument({
+      ...ACTOR,
+      knowledgeBase: KB,
+      document: FILE,
+      documentId: 'upload-1',
+      startProcessing: 'queue',
+    })
+
+    expect(outcome).toMatchObject({ success: true, created: false, document: existing })
+    expect(mockCreateSingleDocument).toHaveBeenCalledWith(
+      FILE,
+      'kb-1',
+      'req-1',
+      'user-1',
+      'upload-1'
+    )
+    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 })
 
