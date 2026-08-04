@@ -204,7 +204,6 @@ describe('AddUserModal', () => {
         name: 'Canary Writer',
         email: 'writer@synthetics.example.com',
         password: 'canary-password',
-        role: 'user',
         emailVerified: true,
       },
       { onSuccess: expect.any(Function) }
@@ -213,15 +212,14 @@ describe('AddUserModal', () => {
     expect(onCreated).toHaveBeenCalledWith(CREATED_USER)
   })
 
-  it('supports platform-admin and unverified accounts', async () => {
+  it('supports unverified accounts without exposing a platform-role control', async () => {
     mockMutate.mockImplementation(
       (_input: AddUserInput, options: { onSuccess: (user: AdminUser) => void }) => {
-        options.onSuccess({ ...CREATED_USER, role: 'admin' })
+        options.onSuccess(CREATED_USER)
       }
     )
     await renderModal()
     await fillRequiredFields()
-    await changeField('Platform role', 'admin')
     await changeField('Email status', 'unverified')
 
     await act(async () => {
@@ -230,10 +228,10 @@ describe('AddUserModal', () => {
       await Promise.resolve()
     })
 
-    expect(mockMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ role: 'admin', emailVerified: false }),
-      { onSuccess: expect.any(Function) }
-    )
+    expect(container.querySelector('[aria-label="Platform role"]')).toBeNull()
+    expect(mockMutate).toHaveBeenCalledWith(expect.objectContaining({ emailVerified: false }), {
+      onSuccess: expect.any(Function),
+    })
   })
 
   it('shows Better Auth failures without closing the modal', async () => {

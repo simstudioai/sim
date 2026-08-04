@@ -42,7 +42,6 @@ describe('addUser', () => {
         name: '  Canary Writer  ',
         email: '  Writer@Synthetics.Example.com ',
         password: 'canary-password',
-        role: 'user',
         emailVerified: true,
       })
     ).resolves.toEqual({
@@ -73,7 +72,6 @@ describe('addUser', () => {
         name: 'Canary Writer',
         email: 'writer@synthetics.example.com',
         password: 'canary-password',
-        role: 'user',
         emailVerified: true,
       })
     ).rejects.toThrow('A user with that email already exists')
@@ -87,7 +85,6 @@ describe('addUser', () => {
         name: 'Canary Writer',
         email: 'writer@synthetics.example.com',
         password: 'canary-password',
-        role: 'user',
         emailVerified: true,
       })
     ).rejects.toThrow('Better Auth did not return the created user')

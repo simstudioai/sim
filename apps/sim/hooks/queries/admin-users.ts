@@ -28,7 +28,6 @@ export interface AddUserInput {
   name: string
   email: string
   password: string
-  role: 'user' | 'admin'
   emailVerified: boolean
 }
 
@@ -59,14 +58,13 @@ export async function addUser({
   name,
   email,
   password,
-  role,
   emailVerified,
 }: AddUserInput): Promise<AdminUser> {
   const { data, error } = await client.admin.createUser({
     name: name.trim(),
     email: email.trim().toLowerCase(),
     password,
-    role,
+    role: 'user',
     data: { emailVerified },
   })
   if (error) throw new Error(error.message ?? 'Failed to add user')

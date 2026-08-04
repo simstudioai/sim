@@ -11,12 +11,7 @@ import {
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isValidEmailSyntax } from '@sim/utils/string'
-import { type AddUserInput, type AdminUser, useAddUser } from '@/hooks/queries/admin-users'
-
-const ROLE_OPTIONS = [
-  { value: 'user', label: 'User' },
-  { value: 'admin', label: 'Platform admin' },
-] as const
+import { type AdminUser, useAddUser } from '@/hooks/queries/admin-users'
 
 const EMAIL_STATUS_OPTIONS = [
   { value: 'verified', label: 'Verified' },
@@ -34,7 +29,6 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<AddUserInput['role']>('user')
   const [emailVerified, setEmailVerified] = useState(true)
 
   const normalizedName = name.trim()
@@ -56,7 +50,6 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
     setName('')
     setEmail('')
     setPassword('')
-    setRole('user')
     setEmailVerified(true)
     addUser.reset()
   }
@@ -75,7 +68,6 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
         name: normalizedName,
         email: normalizedEmail,
         password,
-        role,
         emailVerified,
       },
       {
@@ -140,19 +132,6 @@ export function AddUserModal({ open, onOpenChange, onCreated }: AddUserModalProp
           hint='Better Auth creates a credential account with this password.'
           placeholder='At least 8 characters'
           autoComplete='new-password'
-          disabled={addUser.isPending}
-          required
-        />
-        <ChipModalField
-          type='dropdown'
-          title='Platform role'
-          value={role}
-          onChange={(value) => {
-            setRole(value as AddUserInput['role'])
-            addUser.reset()
-          }}
-          options={ROLE_OPTIONS}
-          align='start'
           disabled={addUser.isPending}
           required
         />
