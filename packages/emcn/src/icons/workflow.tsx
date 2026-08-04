@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 /**
- * Workflow icon component - two nested concentric rounded squares conveying a workflow
+ * Workflow icon component - two nodes joined by an elbow connector
  * @param props - SVG properties including className, fill, etc.
  */
 export function Workflow(props: SVGProps<SVGSVGElement>) {
@@ -19,8 +19,9 @@ export function Workflow(props: SVGProps<SVGSVGElement>) {
       aria-hidden='true'
       {...props}
     >
-      <rect x='1.25' y='0.75' width='18' height='18' rx='4' />
-      <rect x='6.25' y='5.75' width='8' height='8' rx='2' />
+      <rect x='0.75' y='0.75' width='7.5' height='7.5' rx='2' />
+      <rect x='12.25' y='11.25' width='7.5' height='7.5' rx='2' />
+      <path d='M8.25 4.5H14C15.1 4.5 16 5.4 16 6.5V11.25' />
     </svg>
   )
 }

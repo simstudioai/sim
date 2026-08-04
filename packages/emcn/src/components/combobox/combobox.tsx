@@ -15,8 +15,7 @@ import {
   useState,
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown, Search } from 'lucide-react'
-import { Loader } from '../../icons'
+import { Check, ChevronDown, Loader, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'

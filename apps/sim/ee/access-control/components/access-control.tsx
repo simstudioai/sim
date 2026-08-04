@@ -12,9 +12,9 @@ import {
   ChipTag,
   Label,
 } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { isEnterprise } from '@/lib/billing/plan-helpers'

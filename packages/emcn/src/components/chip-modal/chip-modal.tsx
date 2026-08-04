@@ -39,8 +39,7 @@
 'use client'
 
 import * as React from 'react'
-import { X } from 'lucide-react'
-import { Loader } from '../../icons'
+import { Loader, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import { Chip, type ChipProps } from '../chip/chip'
@@ -887,10 +886,10 @@ export interface ChipModalFooterAction {
  * Escape hatch for the left-docked footer cluster: renders the given node in
  * place of a declarative action Chip. Reserve it for chip-chrome controls
  * (`ChipDatePicker`, `ChipTimePicker`, `ChipDropdown`, ...) so the footer
- * stays visually canonical — pass `flush` to the control so it sits on the
- * cluster's `gap-2` rhythm like the footer's own Chips. The primary action
- * stays declarative by design; only `secondaryActions` accepts custom
- * controls.
+ * stays visually canonical — the cluster's `gap-2` alone sets the rhythm, as
+ * it does for the footer's own Chips, so the control must carry no outer
+ * margin. The primary action stays declarative by design; only
+ * `secondaryActions` accepts custom controls.
  */
 export interface ChipModalFooterCustomAction {
   /** Chip-chrome control rendered verbatim in the slot. */
@@ -989,7 +988,7 @@ function ChipModalFooterShell({
 function renderFooterSlotAction(action: ChipModalFooterSlotAction): React.ReactNode {
   if ('custom' in action) return action.custom
   return (
-    <Chip variant={action.variant} flush onClick={action.onClick} disabled={action.disabled}>
+    <Chip variant={action.variant} onClick={action.onClick} disabled={action.disabled}>
       {action.label}
     </Chip>
   )
@@ -1048,7 +1047,6 @@ function ChipModalFooter({
   const primaryChip = (
     <Chip
       variant={primaryAction.variant ?? 'primary'}
-      flush
       onClick={primaryAction.onClick}
       disabled={primaryAction.disabled}
       className={cn(showsDisabledTooltip && 'pointer-events-none')}
@@ -1070,7 +1068,7 @@ function ChipModalFooter({
       }
     >
       {hideCancel ? null : (
-        <Chip flush onClick={onCancel} disabled={cancelDisabled}>
+        <Chip onClick={onCancel} disabled={cancelDisabled}>
           Cancel
         </Chip>
       )}
@@ -1307,12 +1305,11 @@ function ChipConfirmModal({
         {children}
       </ChipModalBody>
       <ChipModalFooterShell>
-        <Chip flush onClick={dismiss} disabled={confirm.pending}>
+        <Chip onClick={dismiss} disabled={confirm.pending}>
           {dismissLabel}
         </Chip>
         <Chip
           variant={confirm.variant ?? 'destructive'}
-          flush
           onClick={confirm.onClick}
           disabled={confirm.disabled || confirm.pending}
         >

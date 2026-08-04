@@ -20,8 +20,8 @@ import {
   handleKeyboardActivation,
   Info,
 } from '@sim/emcn'
+import { ChevronDown, Search } from '@sim/emcn/icons'
 import clsx from 'clsx'
-import { ChevronDown, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'

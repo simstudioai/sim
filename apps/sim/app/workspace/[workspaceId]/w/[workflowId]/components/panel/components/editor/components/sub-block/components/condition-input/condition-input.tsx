@@ -11,9 +11,8 @@ import {
   Textarea,
   Tooltip,
 } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
 import { isElseConditionTitle } from '@/lib/workflows/conditions'

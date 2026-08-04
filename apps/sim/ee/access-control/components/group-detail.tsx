@@ -22,11 +22,10 @@ import {
   Switch,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
-import { ChevronDown, Plus } from 'lucide-react'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
@@ -120,19 +119,16 @@ function matchesStatusFilter(filter: StatusFilter, enabled: boolean) {
 interface StatusFilterChipProps {
   value: StatusFilter
   onChange: (value: StatusFilter) => void
-  /** Set when the chip is the last control in its row, so it sits flush to the edge. */
-  flush?: boolean
 }
 
 /** The All/Enabled/Disabled narrowing control shared by the three list tabs. */
-function StatusFilterChip({ value, onChange, flush }: StatusFilterChipProps) {
+function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
   return (
     <ChipDropdown
       value={value}
       onChange={(next) => onChange(next as StatusFilter)}
       options={STATUS_FILTER_OPTIONS}
       matchTriggerWidth={false}
-      flush={flush}
       className='w-[140px] flex-shrink-0'
     />
   )
@@ -151,8 +147,6 @@ interface AuthModeFieldProps {
  * disables together with the toggle that owns it. The left padding lines both
  * children up with the parent's label text — row gutter (8) + checkbox (16) +
  * gap (8) = 32 — so the field reads as subordinate rather than as a sibling row.
- * The dropdown is `flush` so its own `mx-0.5` doesn't push it 2px past the
- * caption above it.
  */
 function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFieldProps) {
   const labelId = useId()
@@ -164,7 +158,6 @@ function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFi
       </span>
       <ChipDropdown
         multiple
-        flush
         showAllOption={false}
         id={triggerId}
         // Both ids: `aria-labelledby` replaces the content-derived name, so
@@ -1710,7 +1703,6 @@ export function GroupDetail({
                 onChange={(next) => void setStatusFilter(next)}
               />
               <Chip
-                flush
                 onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
                 disabled={filteredProviders.length === 0}
               >
@@ -1754,7 +1746,6 @@ export function GroupDetail({
               <StatusFilterChip
                 value={statusFilter}
                 onChange={(next) => void setStatusFilter(next)}
-                flush
               />
             </div>
             {filteredCoreBlocks.length === 0 && filteredToolBlocks.length === 0 && (
@@ -1766,10 +1757,7 @@ export function GroupDetail({
               <SettingsSection
                 label='Core Blocks'
                 action={
-                  <Chip
-                    flush
-                    onClick={() => setBlocksAllowed(filteredCoreBlocks, !coreBlocksAllAllowed)}
-                  >
+                  <Chip onClick={() => setBlocksAllowed(filteredCoreBlocks, !coreBlocksAllAllowed)}>
                     {coreBlocksAllAllowed ? 'Deselect All' : 'Select All'}
                   </Chip>
                 }
@@ -1821,10 +1809,7 @@ export function GroupDetail({
                   </Info>
                 }
                 action={
-                  <Chip
-                    flush
-                    onClick={() => setBlocksAllowed(filteredToolBlocks, !toolBlocksAllAllowed)}
-                  >
+                  <Chip onClick={() => setBlocksAllowed(filteredToolBlocks, !toolBlocksAllAllowed)}>
                     {toolBlocksAllAllowed ? 'Deselect All' : 'Select All'}
                   </Chip>
                 }
@@ -1871,7 +1856,6 @@ export function GroupDetail({
                     ),
                   }))
                 }
-                flush
                 disabled={filteredPlatformFeatures.length === 0}
               >
                 {platformAllVisible ? 'Deselect All' : 'Select All'}

@@ -1,12 +1,4 @@
-import {
-  ClipboardList,
-  Download,
-  File,
-  Search,
-  Server,
-  TrashOutline,
-  Upload,
-} from '@sim/emcn/icons'
+import { ClipboardList, Download, File, Search, Server, Trash, Upload } from '@sim/emcn/icons'
 import { SftpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -352,7 +344,7 @@ export const SftpBlockMeta = {
       tags: ['files', 'sync', 'sftp'],
     },
     {
-      icon: TrashOutline,
+      icon: Trash,
       title: 'Archive and delete old SFTP files',
       prompt:
         'Build a workflow that runs nightly, lists an SFTP directory, downloads files older than a threshold to archive them, and then deletes the originals from the remote server.',

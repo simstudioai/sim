@@ -176,7 +176,7 @@ export function ComparisonTable({
                   disabled={cta.disabled}
                   aria-label={`${cta.label} — ${col.name}`}
                   className={cn(
-                    chipVariants({ variant: cta.variant, fullWidth: true, flush: true }),
+                    chipVariants({ variant: cta.variant, fullWidth: true }),
                     'mt-2 w-full justify-center'
                   )}
                 >

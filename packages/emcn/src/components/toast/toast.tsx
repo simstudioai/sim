@@ -339,7 +339,7 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
               onClick={dismiss}
               aria-label='Dismiss notification'
               title='Dismiss'
-              className='size-[18px] rounded-sm p-0'
+              size='icon'
             >
               <X className='size-[16px]' />
             </Button>
@@ -358,7 +358,6 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
         {t.action ? (
           <Chip
             fullWidth
-            flush
             onClick={() => {
               t.action!.onClick()
               dismiss()

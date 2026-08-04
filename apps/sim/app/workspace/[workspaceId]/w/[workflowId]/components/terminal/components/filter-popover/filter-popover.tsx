@@ -11,8 +11,8 @@ import {
   PopoverSection,
   PopoverTrigger,
 } from '@sim/emcn'
+import { ListFilter } from '@sim/emcn/icons'
 import clsx from 'clsx'
-import { Filter } from 'lucide-react'
 import type {
   BlockInfo,
   TerminalFilters,
@@ -53,7 +53,9 @@ export const FilterPopover = memo(function FilterPopover({
           onClick={(e) => e.stopPropagation()}
           aria-label='Filters'
         >
-          <Filter className={clsx('size-3', hasActiveFilters && 'text-[var(--brand-secondary)]')} />
+          <ListFilter
+            className={clsx('size-3', hasActiveFilters && 'text-[var(--brand-secondary)]')}
+          />
         </Button>
       </PopoverTrigger>
       <PopoverContent

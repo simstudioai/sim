@@ -115,7 +115,7 @@ export const XlsxPreview = memo(function XlsxPreview({
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
       <div className='flex shrink-0 items-center border-[var(--border)] border-b bg-[var(--surface-1)] px-2 py-1'>
-        <div className='flex items-center overflow-x-auto'>
+        <div className='flex items-center gap-1 overflow-x-auto'>
           {sheetNames.map((name, i) => (
             <Chip
               key={name}

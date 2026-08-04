@@ -27,7 +27,7 @@
 
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Popover, PopoverAnchor, PopoverContent } from '../popover/popover'
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { Combobox, type ComboboxOptionGroup } from '@sim/emcn'
-import { Plus, XIcon } from 'lucide-react'
+import { Plus, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { AgentSkillsIcon } from '@/components/icons'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
@@ -183,7 +183,7 @@ export function SkillInput({
                         className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                         aria-label='Remove skill'
                       >
-                        <XIcon className='size-[13px]' />
+                        <X className='size-[13px]' />
                       </button>
                     )}
                   </div>

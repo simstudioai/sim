@@ -2,9 +2,8 @@
 
 import { useState } from 'react'
 import { ChipConfirmModal, toast } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, Plus, TriangleAlert } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { AlertTriangle, Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
@@ -550,7 +549,7 @@ export function Forks() {
         }}
       >
         <div className='flex items-start gap-1.5 px-2 text-[var(--text-secondary)] text-caption'>
-          <AlertTriangle className='mt-[1px] size-[14px] shrink-0' />
+          <TriangleAlert className='mt-[1px] size-[14px] shrink-0' />
           <span>
             This cannot be undone — the saved mappings and sync history for this pair are deleted,
             and forking again creates a brand-new workspace.
@@ -576,7 +575,7 @@ export function Forks() {
         }}
       >
         <div className='flex items-start gap-1.5 px-2 text-[var(--text-secondary)] text-caption'>
-          <AlertTriangle className='mt-[1px] size-[14px] shrink-0' />
+          <TriangleAlert className='mt-[1px] size-[14px] shrink-0' />
           <span>
             Resources copied into this workspace during syncs may remain afterward — rollback
             restores workflows to their prior versions but does not remove copied resources.

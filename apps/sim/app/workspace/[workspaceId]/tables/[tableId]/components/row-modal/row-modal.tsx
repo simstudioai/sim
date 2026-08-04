@@ -269,7 +269,6 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
             today={todayLocalCalendarDate(timeZone)}
             onChange={(day) => onChange(localPartsToDateValue(day, parts.time, timeZone))}
             placeholder='Select date'
-            flush
             className='flex-1'
           />
           <ChipTimePicker
@@ -280,7 +279,6 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
               )
             }
             placeholder='Add time'
-            flush
             className='w-[110px]'
           />
         </div>

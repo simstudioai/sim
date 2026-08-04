@@ -2,12 +2,12 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Button, Combobox, cn } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { randomFloat } from '@sim/utils/random'
 import { useQueryClient } from '@tanstack/react-query'
-import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Progress } from '@/components/ui/progress'
 import { isApiClientError } from '@/lib/api/client/errors'

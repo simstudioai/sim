@@ -8,10 +8,9 @@ import {
   useState,
 } from 'react'
 import { Button, cn, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
-import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'

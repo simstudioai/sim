@@ -227,7 +227,7 @@ export function ChipSelect({
           disabled={disabled}
           aria-label={ariaLabel}
           className={cn(
-            chipVariants({ variant: 'filled', flush: true, fullWidth }),
+            chipVariants({ variant: 'filled', fullWidth }),
             TRIGGER_BORDER_CLASS,
             fullWidth ? 'w-full justify-between' : 'w-fit max-w-[240px]',
             className

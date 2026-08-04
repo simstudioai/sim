@@ -15,8 +15,7 @@ import {
   Label,
   languages,
 } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
-import { Plus, X } from 'lucide-react'
+import { Plus, Trash, X } from '@sim/emcn/icons'
 import Editor from 'react-simple-code-editor'
 import { useShallow } from 'zustand/react/shallow'
 import { validateName } from '@/lib/core/utils/validation'
