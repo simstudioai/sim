@@ -325,7 +325,7 @@ export function WorkflowPreview({
           >
             <div className='relative min-w-0 flex-1'>
               <div className='pointer-events-none absolute top-0 right-0 left-0 z-10 flex items-center justify-between px-4 py-3'>
-                <span className='text-[13px] text-[var(--text-muted)]'>{workflow.name}</span>
+                <span className='text-[var(--text-muted)] text-small'>{workflow.name}</span>
                 <button
                   ref={closeButtonRef}
                   type='button'
@@ -360,7 +360,7 @@ export function WorkflowPreview({
                   tools={selectedBlock.tools}
                 />
               ) : (
-                <div className='flex h-full items-center justify-center px-6 text-center text-[13px] text-[var(--text-muted)]'>
+                <div className='flex h-full items-center justify-center px-6 text-center text-[var(--text-muted)] text-small'>
                   Select a block to see its full configuration
                 </div>
               )}
