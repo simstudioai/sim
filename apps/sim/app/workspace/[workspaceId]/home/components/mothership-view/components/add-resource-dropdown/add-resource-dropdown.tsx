@@ -42,7 +42,6 @@ import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
-import { useWorkspaceSchedules } from '@/hooks/queries/schedules'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
@@ -172,9 +171,6 @@ export function useAvailableResources(
     { enabled }
   )
   const { data: tasks, isPending: tasksPending } = useMothershipChats(workspaceId, { enabled })
-  const { data: schedules, isPending: schedulesPending } = useWorkspaceSchedules(workspaceId, {
-    enabled,
-  })
   const { data: logsData, isPending: logsPending } = useLogsList(
     workspaceId,
     LOG_DROPDOWN_FILTERS,
@@ -201,7 +197,6 @@ export function useAvailableResources(
       foldersPending ||
       fileFoldersPending ||
       tasksPending ||
-      schedulesPending ||
       logsPending)
 
   const groups = useMemo(() => {
@@ -312,7 +307,6 @@ export function useAvailableResources(
     files,
     knowledgeBases,
     tasks,
-    schedules,
     logs,
     excludeTypes,
   ])
