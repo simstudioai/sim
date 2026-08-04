@@ -80,6 +80,7 @@ export const deploymentOperationSummarySchema = z.object({
   version: z.number().int().positive(),
   action: z.enum(DEPLOYMENT_OPERATION_ACTIONS),
   status: deploymentOperationStatusSchema,
+  isCurrent: z.boolean().optional().default(true),
   readiness: deploymentReadinessSchema,
   requestedAt: z.string(),
   activatedAt: z.string().nullable().optional(),

@@ -36,6 +36,9 @@ export const environmentUtilsMockFns = {
   mockGetPersonalAndWorkspaceEnv: vi
     .fn()
     .mockImplementation(async () => emptyPersonalAndWorkspaceEnv()),
+  mockGetEffectiveEnvironmentSnapshot: vi
+    .fn()
+    .mockImplementation(async () => emptyPersonalAndWorkspaceEnv()),
   mockUpsertPersonalEnvVars: vi.fn().mockResolvedValue({ added: [], updated: [] }),
   mockUpsertWorkspaceEnvVars: vi.fn().mockResolvedValue([]),
   mockGetEffectiveDecryptedEnv: vi.fn().mockResolvedValue({}),
@@ -50,6 +53,9 @@ export function resetEnvironmentUtilsMock(): void {
     .mockReset()
     .mockResolvedValue({ variableNames: [], count: 0 })
   environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+    .mockReset()
+    .mockImplementation(async () => emptyPersonalAndWorkspaceEnv())
+  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
     .mockReset()
     .mockImplementation(async () => emptyPersonalAndWorkspaceEnv())
   environmentUtilsMockFns.mockUpsertPersonalEnvVars
@@ -73,6 +79,7 @@ export const environmentUtilsMock = {
     environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache,
   getEnvironmentVariableKeys: environmentUtilsMockFns.mockGetEnvironmentVariableKeys,
   getPersonalAndWorkspaceEnv: environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv,
+  getEffectiveEnvironmentSnapshot: environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot,
   upsertPersonalEnvVars: environmentUtilsMockFns.mockUpsertPersonalEnvVars,
   upsertWorkspaceEnvVars: environmentUtilsMockFns.mockUpsertWorkspaceEnvVars,
   getEffectiveDecryptedEnv: environmentUtilsMockFns.mockGetEffectiveDecryptedEnv,

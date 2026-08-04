@@ -8,6 +8,7 @@ import {
   ChipInput,
   ChipLink,
   ChipTextarea,
+  cn,
   Send,
   toast,
 } from '@sim/emcn'
@@ -15,6 +16,7 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { resolveCredentialDisplay } from '@/lib/integrations'
 import {
@@ -27,10 +29,15 @@ import {
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
+  RESOURCE_TILE_BASE,
+  RESOURCE_TILE_PLAIN,
+} from '@/app/workspace/[workspaceId]/components/resource-tile'
+import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   useCreateCredentialDraft,
   useDeleteWorkspaceCredential,
@@ -204,16 +211,19 @@ export function ConnectedCredentialDetail({
         >
           Disconnect
         </Chip>
-        <Chip onClick={form.save} disabled={!form.isDirty || form.isSaving}>
-          {form.isSaving ? 'Saving...' : 'Save'}
-        </Chip>
+        <SaveDiscardChips
+          dirty={form.isDirty}
+          saving={form.isSaving}
+          onSave={form.save}
+          onDiscard={form.discard}
+        />
       </>
     ) : null
 
   if (credentialsLoading && !credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>
+        <SettingsEmptyState variant='inline'>Loading…</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
@@ -221,7 +231,7 @@ export function ConnectedCredentialDetail({
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Credential not found.</p>
+        <SettingsEmptyState variant='inline'>Credential not found.</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
@@ -237,7 +247,7 @@ export function ConnectedCredentialDetail({
             display?.icon ? (
               <IntegrationTile blockType={integrationBlockType} icon={display.icon} />
             ) : (
-              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+              <div className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}>
                 <span className='font-medium text-[var(--text-tertiary)] text-small'>
                   {resolveProviderLabel(credential.providerId).slice(0, 1) || '?'}
                 </span>

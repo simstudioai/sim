@@ -289,13 +289,31 @@ Group findings by severity:
 
 After reporting, fix every **critical** and **warning** issue. Apply **suggestions** where they don't add unnecessary complexity.
 
+### Regenerate Derived Artifacts
+
+Several files are generated from tool and block definitions. Editing a tool or block WITHOUT regenerating them fails CI, so run these before pushing:
+
+```bash
+bun run tool-metadata:generate       # repo root — apps/sim/tools/generated/*
+cd apps/sim && bun run generate-docs # docs .mdx + lib/integrations/integrations.json + docs icons
+```
+
+- **`tool-metadata:generate`** — required whenever a tool's `outputs`, `params`, or descriptions change. CI enforces this with `bun run tool-metadata:check`, which fails with *"Generated tool metadata is stale"*. This is the easiest gate to miss, because nothing in the tool file hints that a generated artifact mirrors it.
+- **`generate-docs`** — required whenever block metadata changes (`bgColor`, `name`, `description`, operations, outputs). Regenerates the integration `.mdx`, `integrations.json`, and the docs copy of `components/icons.tsx`.
+
+**Always diff the regen output before committing.** These generators rewrite every file they own, so they will also sweep in unrelated drift that accumulated on the base branch — pages losing sections, unrelated icons appearing. Keep only the hunks belonging to the integration under validation and `git checkout --` the rest, otherwise an unrelated doc regression rides along in the PR. Verify no page was silently dropped by comparing the directory listing before and after.
+
+If an icon changed, `apps/sim/components/icons.tsx` is the source of truth and `apps/docs/components/icons.tsx` is its generated mirror — they must end up byte-identical for that component.
+
 ### Validation Output
 
 After fixing, confirm:
 1. `bun run lint` passes with no fixes needed
-2. TypeScript compiles clean (no type errors)
-3. Re-read all modified files to verify fixes are correct
-4. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
+2. TypeScript compiles clean (no type errors) — check the error list is empty for the files you touched; pre-existing unrelated errors in a worktree usually mean workspace packages resolve to the main checkout
+3. The integration's tests pass, and any test you added actually fails without its fix (revert it once and watch it go red)
+4. Derived artifacts regenerated and their diffs reviewed (see above)
+5. Re-read all modified files to verify fixes are correct
+6. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary
 
@@ -316,5 +334,8 @@ After fixing, confirm:
 - [ ] Validated `{Service}BlockMeta` exported with at least 7 templates
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
+- [ ] Ran `bun run tool-metadata:generate` if any tool outputs/params changed, and confirmed `bun run tool-metadata:check` passes
+- [ ] Ran `bun run generate-docs` if any block metadata changed, and reverted unrelated drift the generator swept in
 - [ ] Ran `bun run lint` after fixes
 - [ ] Verified TypeScript compiles clean
+- [ ] Verified added tests fail without their fix

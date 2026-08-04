@@ -1,6 +1,7 @@
 import { toError } from '@sim/utils/errors'
 import { type Attributes, Client, type ConnectConfig, type SFTPWrapper } from 'ssh2'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import { readNodeStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 
 const S_IFMT = 0o170000
 const S_IFDIR = 0o040000
@@ -170,6 +171,36 @@ export function getSftp(client: Client): Promise<SFTPWrapper> {
       }
     })
   })
+}
+
+/** Maximum bytes a route will buffer from a remote SFTP file. */
+export const MAX_SFTP_READ_BYTES = 50 * 1024 * 1024
+
+/**
+ * Reads a remote file into memory, enforcing the cap on the bytes actually
+ * received rather than on the `stat()` size the remote server reports.
+ * A caller-supplied SSH server can understate the size in its `SSH_FXP_STAT`
+ * reply and then stream unbounded data, so the stream is destroyed as soon as
+ * the running total exceeds `maxBytes`. Rejects with a `PayloadSizeLimitError`.
+ */
+export function readSftpFileCapped(
+  sftp: SFTPWrapper,
+  remotePath: string,
+  maxBytes: number,
+  label: string
+): Promise<Buffer> {
+  const stream = sftp.createReadStream(remotePath)
+
+  /**
+   * Closing the SSH client rejects every still-pending SFTP request with
+   * "No response from server", which lands as a late `error` on a stream the
+   * limiter has already detached from once it destroyed it. An `error` event
+   * with no listener is an uncaught exception, so keep one attached for the
+   * stream's whole life; the limiter's own handler still settles the promise.
+   */
+  stream.on('error', () => {})
+
+  return readNodeStreamToBufferWithLimit(stream, { maxBytes, label })
 }
 
 /**

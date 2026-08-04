@@ -8,6 +8,10 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,
+  FunctionalOutputsUnavailableError,
+} from '@/lib/logs/execution/functional-outputs'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/enqueue-execution'
 import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
 import { v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
@@ -112,6 +116,9 @@ export const GET = withRouteHandler(
         blockOutputs: null,
       })
     } catch (error) {
+      if (error instanceof FunctionalOutputsUnavailableError) {
+        return v2Error('CONFLICT', FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE)
+      }
       logger.error('Failed to fetch execution status', {
         workflowId,
         executionId,

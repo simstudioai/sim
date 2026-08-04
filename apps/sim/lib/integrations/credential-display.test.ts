@@ -70,6 +70,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'trello-service-account': ['trello'],
   'wealthbox-service-account': ['wealthbox'],
   'webflow-service-account': ['webflow'],
+  'zoho-desk-service-account': ['zoho-desk'],
   'zoom-service-account': ['zoom'],
 }
 

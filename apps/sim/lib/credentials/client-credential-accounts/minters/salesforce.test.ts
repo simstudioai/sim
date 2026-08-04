@@ -78,6 +78,7 @@ describe('mintSalesforceServiceAccountToken', () => {
           name: 'Integration User',
           preferred_username: 'integration@yourorg.com',
           organization_id: '00Dxx0000000001EAA',
+          user_id: '005xx000001Sv6DAAS',
         })
       )
 
@@ -90,16 +91,19 @@ describe('mintSalesforceServiceAccountToken', () => {
       grantedScopes: ['api'],
       identity: {
         displayName: 'Integration User',
+        principal: {
+          kind: 'user',
+          id: '005xx000001Sv6DAAS',
+          label: 'integration@yourorg.com',
+        },
         auditMetadata: {
           salesforceMyDomainHost: HOST,
           salesforceOrgId: '00Dxx0000000001EAA',
-          salesforceRunAsUsername: 'integration@yourorg.com',
         },
         storedMetadata: {
           myDomainHost: HOST,
           instanceUrl: INSTANCE_URL,
           orgId: '00Dxx0000000001EAA',
-          runAsUsername: 'integration@yourorg.com',
           grantedScopes: 'api',
         },
       },
@@ -259,7 +263,7 @@ describe('mintSalesforceServiceAccountToken', () => {
     })
   })
 
-  it('falls back to a host-derived identity when the userinfo call fails', async () => {
+  it('marks the principal as lookup_failed when the userinfo call throws', async () => {
     mockFetch
       .mockResolvedValueOnce(
         jsonResponse(200, { access_token: 'sf-access', instance_url: INSTANCE_URL })
@@ -271,9 +275,28 @@ describe('mintSalesforceServiceAccountToken', () => {
     expect(result.accessToken).toBe('sf-access')
     expect(result.identity).toEqual({
       displayName: `Salesforce ${HOST}`,
+      principal: { kind: 'lookup_failed', reason: 'provider_unavailable (HTTP 502)' },
       auditMetadata: { salesforceMyDomainHost: HOST },
       storedMetadata: { myDomainHost: HOST, instanceUrl: INSTANCE_URL },
     })
+  })
+
+  it('marks the principal as lookup_failed when userinfo omits user_id', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse(200, { access_token: 'sf-access', instance_url: INSTANCE_URL })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { name: 'Integration User' }))
+
+    const result = await mintSalesforceServiceAccountToken(FIELDS)
+
+    expect(result.identity?.principal).toEqual({
+      kind: 'lookup_failed',
+      reason: 'response missing user_id',
+    })
+    // Only the principal degrades — a name that did come back still beats the
+    // host fallback, so the credential does not lose its label.
+    expect(result.identity?.displayName).toBe('Integration User')
   })
 
   it('ignores a non-Salesforce instance_url and falls back to the validated host', async () => {

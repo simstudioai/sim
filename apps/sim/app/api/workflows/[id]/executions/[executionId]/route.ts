@@ -3,11 +3,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,
+  FunctionalOutputsUnavailableError,
+} from '@/lib/logs/execution/functional-outputs'
 import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 
 const logger = createLogger('WorkflowExecutionStatusAPI')
-
 export const GET = withRouteHandler(
   async (
     request: NextRequest,
@@ -23,17 +26,24 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: access.error.message }, { status: access.error.status })
     }
 
-    const status = await getWorkflowExecutionStatus({
-      workflowId,
-      executionId,
-      includeOutput,
-      selectedOutputs,
-    })
+    let status
+    try {
+      status = await getWorkflowExecutionStatus({
+        workflowId,
+        executionId,
+        includeOutput,
+        selectedOutputs,
+      })
+    } catch (error) {
+      if (error instanceof FunctionalOutputsUnavailableError) {
+        return NextResponse.json({ error: FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE }, { status: 409 })
+      }
+      throw error
+    }
 
     if (!status) {
       return NextResponse.json({ error: 'Execution not found' }, { status: 404 })
     }
-
     logger.debug('Fetched execution status', {
       workflowId,
       executionId,

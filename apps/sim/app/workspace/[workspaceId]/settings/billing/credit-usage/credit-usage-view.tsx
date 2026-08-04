@@ -151,7 +151,7 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
   return (
     <SettingsPanel
       back={{
-        text: 'Billing',
+        text: 'Subscription',
         icon: ArrowLeft,
         onSelect: () => router.push(backHref),
       }}

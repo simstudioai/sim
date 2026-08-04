@@ -93,6 +93,7 @@ export const PUT = withRouteHandler(
         clientId: body.clientId,
         clientSecret: body.clientSecret,
         orgId: body.orgId,
+        dataCenter: body.dataCenter,
         request,
       })
       if (!result.success) {

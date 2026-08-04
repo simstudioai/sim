@@ -65,3 +65,17 @@ export function getFolderPath(
 
   return path
 }
+
+/**
+ * Ancestor folder names, root-first — `undefined` at the workspace root. Search
+ * rows key their memo comparison on this, so the empty case must be `undefined`
+ * rather than an empty array.
+ */
+export function getFolderPathNames(
+  folders: Record<string, WorkflowFolder>,
+  folderId: string | null | undefined
+): string[] | undefined {
+  if (!folderId) return undefined
+  const names = getFolderPath(folders, folderId).map((folder) => folder.name)
+  return names.length > 0 ? names : undefined
+}

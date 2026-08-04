@@ -13,12 +13,17 @@ import {
 import { Calendar } from '@sim/emcn/icons'
 import { format } from 'date-fns'
 import { useParams } from 'next/navigation'
+import {
+  DEFAULT_SECRET_MOUNT_POLICY,
+  type SecretMountPolicy,
+} from '@/lib/copilot/secret-mount-policy'
 import { wallClockNow, zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import {
   PromptEditor,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import { RecurrenceSection } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-modal/recurrence-section'
+import { SecretAccessSection } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-modal/secret-access-section'
 import type { CalendarSlot } from '@/app/workspace/[workspaceId]/scheduled-tasks/hooks/use-calendar'
 import {
   DEFAULT_RECURRENCE,
@@ -69,7 +74,7 @@ function defaultLaunch(
 }
 
 /** The data a task create or edit captures. */
-export interface TaskDraft {
+export interface TaskDraft extends SecretMountPolicy {
   prompt: string
   /** Resources the prompt `@`-mentions / skills it `/`-invokes, when any. */
   contexts?: ChatContext[]
@@ -80,7 +85,7 @@ export interface TaskDraft {
 }
 
 /** Pre-filled fields shared by the edit and duplicate flows. */
-export interface TaskPrefill {
+export interface TaskPrefill extends SecretMountPolicy {
   prompt: string
   /** Stored `@`-mention contexts, re-registered so they carry over. */
   contexts?: ChatContext[]
@@ -223,6 +228,10 @@ function TaskModalContent({
   const [recurrence, setRecurrence] = useState<Recurrence>(
     () => source?.recurrence ?? DEFAULT_RECURRENCE
   )
+  const [secretPolicy, setSecretPolicy] = useState<SecretMountPolicy>(() => ({
+    secretScope: source?.secretScope ?? DEFAULT_SECRET_MOUNT_POLICY.secretScope,
+    mountedSecrets: source?.mountedSecrets ?? DEFAULT_SECRET_MOUNT_POLICY.mountedSecrets,
+  }))
   const launchEditedRef = useRef(false)
   /**
    * Synchronous mirror of `submitting` that gates {@link handleSubmit}. The
@@ -286,6 +295,7 @@ function TaskModalContent({
         launchTime,
         timezone,
         recurrence,
+        ...secretPolicy,
       })
     )
       .then(() => true)
@@ -331,6 +341,7 @@ function TaskModalContent({
         />
       </ChipModalPromptBody>
       <RecurrenceSection recurrence={recurrence} onChange={setRecurrence} launchDate={launchDate} />
+      <SecretAccessSection workspaceId={workspaceId} {...secretPolicy} onChange={setSecretPolicy} />
       <ChipModalFooter
         onCancel={close}
         cancelDisabled={submitting}

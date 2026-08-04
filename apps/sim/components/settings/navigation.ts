@@ -2,7 +2,6 @@ import type { ComponentType } from 'react'
 import {
   ClipboardList,
   Clock,
-  Cursor,
   Database,
   HexSimple,
   Key,
@@ -16,6 +15,7 @@ import {
   Settings,
   ShieldCheck,
   Shuffle,
+  Sprout,
   TerminalWindow,
   TrashOutline,
   Upload,
@@ -24,6 +24,7 @@ import {
   Wrench,
 } from '@sim/emcn/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
+import { Globe } from 'lucide-react'
 import { CodeIcon, McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
@@ -73,6 +74,7 @@ export type WorkspaceSettingsSection =
   | 'recently-deleted'
   | 'forks'
   | 'custom-blocks'
+  | 'self-host'
 
 export type SettingsSection =
   | AccountSettingsSection
@@ -119,15 +121,9 @@ export type UnifiedSettingsSection =
   | 'data-drains'
   | 'mothership'
   | 'recently-deleted'
+  | 'self-host'
 
-export type UnifiedNavigationSection =
-  | 'account'
-  | 'subscription'
-  | 'tools'
-  | 'system'
-  | 'desktop'
-  | 'enterprise'
-  | 'superuser'
+export type UnifiedNavigationSection = 'account' | 'workspace' | 'organization' | 'platform'
 
 /**
  * A bridge surface the desktop shell must expose for a section to be worth
@@ -142,11 +138,18 @@ export interface UnifiedSettingsNavigationItem {
   description: string
   icon: ComponentType<{ className?: string }>
   section: UnifiedNavigationSection
+  order: number
   hideWhenBillingDisabled?: boolean
   requiresTeam?: boolean
   requiresEnterprise?: boolean
   requiresMax?: boolean
   requiresHosted?: boolean
+  /**
+   * The inverse of {@link UnifiedSettingsNavigationItem.requiresHosted}: the
+   * section exists only on a self-hosted deployment and is absent on Sim Cloud,
+   * where the same surface is reached from the managed service instead.
+   */
+  requiresSelfHosted?: boolean
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
   requiresAdminRole?: boolean
@@ -384,6 +387,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'general',
       description: 'Manage your profile, appearance, and preferences.',
       group: 'account',
+      order: 0,
     },
     planes: {
       account: { id: 'general', group: 'account', order: 0 },
@@ -396,17 +400,19 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'desktop',
       description: 'Manage notifications, startup, local folders, and updates.',
-      group: 'desktop',
+      group: 'account',
+      order: 2,
       requiresDesktopSurface: 'settings',
     },
   },
   {
     label: 'Browser',
-    icon: Cursor,
+    icon: Globe,
     unified: {
       id: 'browser',
       description: 'Control the browser Chat drives and the data it keeps.',
-      group: 'desktop',
+      group: 'account',
+      order: 3,
       requiresDesktopSurface: 'browser',
     },
   },
@@ -416,18 +422,20 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'terminal',
       description: 'Control the shells Chat runs commands in.',
-      group: 'desktop',
+      group: 'account',
+      order: 4,
       requiresDesktopSurface: 'terminal',
     },
   },
   {
-    label: 'Access control',
+    label: 'Permission groups',
     icon: ShieldCheck,
     docsLink: 'https://docs.sim.ai/platform/enterprise/access-control',
     unified: {
       id: 'access-control',
       description: 'Manage permission groups across your organization.',
-      group: 'enterprise',
+      group: 'organization',
+      order: 3,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.accessControl,
@@ -443,7 +451,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'audit-logs',
       description: 'Review activity and changes across your organization.',
-      group: 'enterprise',
+      group: 'organization',
+      order: 4,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.auditLogs,
@@ -453,25 +462,27 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Workspace Forks',
+    label: 'Workspace forks',
     icon: Shuffle,
     docsLink: 'https://docs.sim.ai/platform/enterprise/forks',
     unified: {
       id: 'forks',
       description: 'Fork this workspace and sync changes with its parent.',
-      group: 'enterprise',
+      group: 'organization',
+      order: 2,
     },
     planes: {
       workspace: { id: 'forks', group: 'enterprise', order: 10 },
     },
   },
   {
-    label: 'Billing',
+    label: 'Subscription',
     icon: ClipboardList,
     unified: {
       id: 'billing',
       description: 'Manage your plan, pricing, and invoices.',
-      group: 'subscription',
+      group: 'account',
+      order: 1,
       hideWhenBillingDisabled: true,
     },
     planes: {
@@ -501,19 +512,21 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'teammates',
       description: 'Manage your teammates in this workspace.',
-      group: 'subscription',
+      group: 'workspace',
+      order: 0,
     },
     planes: {
       workspace: { id: 'teammates', group: 'workspace', order: 0 },
     },
   },
   {
-    label: 'Organization',
+    label: 'Members',
     icon: Users,
     unified: {
       id: 'organization',
       description: "Manage your organization's members and seats.",
-      group: 'subscription',
+      group: 'organization',
+      order: 0,
       hideWhenBillingDisabled: true,
       requiresHosted: true,
       requiresTeam: true,
@@ -521,7 +534,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     planes: {
       organization: {
         id: 'members',
-        label: 'Members',
         description: 'Manage organization members, roles, and seats.',
         group: 'organization',
         order: 0,
@@ -534,7 +546,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'secrets',
       description: 'Store environment variables for your workflows.',
-      group: 'account',
+      group: 'workspace',
+      order: 1,
     },
     planes: {
       workspace: { id: 'secrets', group: 'workspace', order: 1 },
@@ -546,7 +559,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'custom-tools',
       description: 'Create and manage custom tools for your agents.',
-      group: 'tools',
+      group: 'workspace',
+      order: 3,
     },
     planes: {
       workspace: { id: 'custom-tools', group: 'tools', order: 4 },
@@ -557,8 +571,9 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     icon: McpIcon,
     unified: {
       id: 'mcp',
-      description: 'Connect MCP servers and use their tools in workflows.',
-      group: 'tools',
+      description: 'Connect external MCP servers and use their tools in this workspace.',
+      group: 'workspace',
+      order: 2,
     },
     planes: {
       workspace: { id: 'mcp', group: 'tools', order: 5 },
@@ -570,7 +585,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'apikeys',
       description: 'Create and manage API keys for the Sim API.',
-      group: 'system',
+      group: 'workspace',
+      order: 7,
     },
     planes: {
       account: {
@@ -592,8 +608,9 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     icon: Server,
     unified: {
       id: 'workflow-mcp-servers',
-      description: 'Expose your workflows as tools on an MCP server.',
-      group: 'system',
+      description: 'Expose workflows from this workspace as tools on an MCP server.',
+      group: 'workspace',
+      order: 6,
     },
     planes: {
       workspace: { id: 'workflow-mcp-servers', group: 'tools', order: 6 },
@@ -605,7 +622,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'byok',
       description: 'Bring your own model-provider API keys.',
-      group: 'system',
+      group: 'workspace',
+      order: 4,
       requiresHosted: true,
     },
     planes: {
@@ -619,7 +637,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'sandboxes',
       description: 'Install Python or npm packages for Function blocks to import.',
-      group: 'system',
+      group: 'workspace',
+      order: 8,
       requiresMax: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sandboxes,
       showWhenLocked: true,
@@ -641,12 +660,13 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Sim mailer',
+    label: 'Sim Mailer',
     icon: Send,
     unified: {
       id: 'inbox',
       description: 'Trigger and process workflows from incoming email.',
-      group: 'system',
+      group: 'workspace',
+      order: 5,
       requiresMax: true,
       requiresHosted: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.inbox,
@@ -662,10 +682,25 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'recently-deleted',
       description: 'Restore items deleted in the last 30 days.',
-      group: 'system',
+      group: 'workspace',
+      order: 9,
     },
     planes: {
       workspace: { id: 'recently-deleted', group: 'system', order: 9 },
+    },
+  },
+  {
+    label: 'Self hosting',
+    icon: Sprout,
+    unified: {
+      id: 'self-host',
+      description: 'Manage this deployment from the Sim managed service.',
+      group: 'platform',
+      order: 2,
+      requiresSelfHosted: true,
+    },
+    planes: {
+      workspace: { id: 'self-host', group: 'system', order: 12 },
     },
   },
   {
@@ -675,7 +710,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'sso',
       description: 'Configure single sign-on for your organization.',
-      group: 'enterprise',
+      group: 'organization',
+      order: 6,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sso,
@@ -691,7 +727,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'sessions',
       description: 'Limit session lifetimes and sign out members org-wide.',
-      group: 'enterprise',
+      group: 'organization',
+      order: 7,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sessionPolicies,
@@ -708,7 +745,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'data-retention',
       description:
         'Control data retention windows and PII redaction. Workspaces without an override inherit the organization defaults.',
-      group: 'enterprise',
+      group: 'organization',
+      order: 8,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataRetention,
@@ -724,7 +762,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'data-drains',
       description: 'Stream your logs and events to external destinations.',
-      group: 'enterprise',
+      group: 'organization',
+      order: 9,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataDrains,
@@ -734,13 +773,14 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Whitelabeling',
+    label: 'White-labeling',
     icon: Palette,
     docsLink: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
     unified: {
       id: 'whitelabeling',
       description: 'Customize your workspace branding and appearance.',
-      group: 'enterprise',
+      group: 'organization',
+      order: 5,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.whitelabeling,
@@ -756,7 +796,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'custom-blocks',
       description: 'Publish workflows as reusable blocks for your organization.',
-      group: 'enterprise',
+      group: 'organization',
+      order: 1,
       requiresHosted: true,
       requiresEnterprise: true,
       allowNonOrgAdmin: true,
@@ -772,7 +813,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'admin',
       description: 'Superuser administration and workspace tools.',
-      group: 'superuser',
+      group: 'platform',
+      order: 0,
       requiresAdminRole: true,
     },
     planes: {
@@ -785,7 +827,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     unified: {
       id: 'mothership',
       description: 'Internal Sim operations and license management.',
-      group: 'superuser',
+      group: 'platform',
+      order: 1,
       requiresAdminRole: true,
     },
     planes: {
@@ -801,6 +844,9 @@ export function buildUnifiedSettingsNavigation(): UnifiedSettingsNavigationItem[
     // `selfHostedOverride` short-circuit would otherwise reveal the tab on a
     // deployment that has the entitlement but no provider to run what it builds.
     if (unified.id === 'sandboxes' && !isSandboxExecutionAvailable()) return []
+    // Dropped here so the sidebar, the route's `parseSection` gate, and section
+    // metadata all agree that the section does not exist on Sim Cloud.
+    if (unified.requiresSelfHosted && isHosted) return []
     const { group, ...item } = unified
     return [
       {
@@ -976,6 +1022,7 @@ const WORKSPACE_MUTATION_PERMISSION: Record<WorkspaceSettingsSection, Permission
   'recently-deleted': 'write',
   forks: 'admin',
   'custom-blocks': 'admin',
+  'self-host': 'admin',
 }
 
 export interface WorkspaceMutationCapabilities {
@@ -1008,6 +1055,8 @@ export function resolveWorkspaceNavigation({
     if (item.id === 'custom-blocks' && !entitlements.customBlocks) return []
     // Removed, not locked: a missing provider is not something an upgrade fixes.
     if (item.id === 'sandboxes' && !isSandboxExecutionAvailable()) return []
+    // Absent on Sim Cloud, where the managed service owns these settings.
+    if (item.id === 'self-host' && isHosted) return []
 
     const lockedBy = LOCKABLE_WORKSPACE_SECTIONS[item.id]
     const locked = lockedBy !== undefined && !entitlements[lockedBy]

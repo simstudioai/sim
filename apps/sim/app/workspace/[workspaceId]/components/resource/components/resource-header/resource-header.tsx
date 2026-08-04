@@ -31,7 +31,8 @@ import {
 } from '@sim/emcn'
 import { ArrowUpLeft } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
+import { HEADER_ACTION_CLUSTER, TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
+import { orderHeaderActions } from '@/components/settings/settings-header'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 
 export interface DropdownOption {
@@ -77,6 +78,13 @@ export interface BreadcrumbItem {
  * a selected/toggle state with `active` (e.g. the Logs/Dashboard view toggle).
  */
 export interface ResourceAction {
+  /**
+   * Stable render identity, and the action's slot in the row. `'delete'` and
+   * `'discard'` are ordered by {@link orderHeaderActions} rather than by where the
+   * caller listed them; any other id is just a key. Falls back to `text`, which
+   * remounts the chip whenever the label flips (Delete → Deleting...).
+   */
+  id?: string
   icon?: ComponentType<{ className?: string }>
   text: string
   variant?: 'primary' | 'destructive'
@@ -202,11 +210,11 @@ export const ResourceHeader = memo(function ResourceHeader({
           )}
         </div>
         {(aside || (actions && actions.length > 0)) && (
-          <div className='flex shrink-0 items-center'>
+          <div className={cn(HEADER_ACTION_CLUSTER, 'shrink-0')}>
             {aside}
-            {actions?.map((action) => (
+            {orderHeaderActions(actions).map(({ action }) => (
               <Chip
-                key={action.text}
+                key={action.id ?? action.text}
                 variant={action.variant}
                 active={action.active}
                 leftIcon={action.icon}

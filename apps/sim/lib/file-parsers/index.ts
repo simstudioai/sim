@@ -2,6 +2,7 @@ import { existsSync } from 'fs'
 import path from 'path'
 import { createLogger } from '@sim/logger'
 import type { FileParseResult, FileParser, SupportedFileType } from '@/lib/file-parsers/types'
+import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('FileParser')
 
@@ -168,6 +169,11 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
  * @param buffer Buffer containing the file data
  * @param extension File extension without the dot (e.g., 'pdf', 'csv')
  * @returns Parsed content and metadata
+ *
+ * The zip-bomb guard runs here for every extension, not just the OOXML ones:
+ * the extension is an attacker-controlled routing hint, and the guard no-ops
+ * for buffers that are not ZIP archives. Individual parsers still call it so a
+ * direct `parser.parseBuffer` caller is covered too.
  */
 export async function parseBuffer(buffer: Buffer, extension: string): Promise<FileParseResult> {
   try {
@@ -178,6 +184,8 @@ export async function parseBuffer(buffer: Buffer, extension: string): Promise<Fi
     if (!extension) {
       throw new Error('No file extension provided')
     }
+
+    assertOoxmlArchiveWithinLimits(buffer)
 
     const normalizedExtension = extension.toLowerCase()
     logger.info('Attempting to parse buffer with extension:', normalizedExtension)

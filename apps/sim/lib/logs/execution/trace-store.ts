@@ -1,7 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
+import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
+import type { TraceSpan } from '@/lib/logs/types'
+import {
+  isResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('TraceStore')
 
@@ -13,23 +20,23 @@ export const TRACE_STORE_REF_KEY = 'traceStoreRef'
 
 /**
  * The only metadata kept inline on the slim row (everything else lives in the
- * externalized object). These two describe trace presence/count and uniquely
- * survive object expiry — so a reader can still report "trace data expired (N
- * spans)" after retention without an object fetch. All other fields
+ * externalized object). Trace presence/count survives object expiry for log
+ * diagnostics, while correlation preserves the server-issued binding used to
+ * authenticate terminal Copilot workflow-tool executions. All other fields
  * (environment, trigger, tokens, models, truncation flags, and of course the
- * heavy payloads) are in the stored object and recovered on materialize, so
- * keeping them inline too would just be duplication.
+ * heavy payloads) are recovered from the stored object.
  */
-const INLINE_MARKER_KEYS = ['hasTraceSpans', 'traceSpanCount'] as const
+const INLINE_MARKER_KEYS = ['hasTraceSpans', 'traceSpanCount', 'correlation'] as const
 
 /**
  * Read-path context. Resolves an externalized payload by storage key, authorized
  * via the (already-authorized) workspace — no owner needed.
  */
-interface TraceStoreReadContext {
+export interface TraceStoreReadContext {
   workspaceId: string | null
   workflowId: string | null
   executionId: string
+  userId?: string
 }
 
 /**
@@ -67,6 +74,14 @@ export function stripSpanCosts(spans: unknown): void {
     if ('cost' in record) record.cost = undefined
     if (Array.isArray(record.children)) stripSpanCosts(record.children)
   }
+}
+
+/** Creates a persistence-owned span tree with per-span cost fields removed. */
+export function copyTraceSpansWithoutCosts(spans?: TraceSpan[]): TraceSpan[] | undefined {
+  return spans?.map(({ cost: _cost, children, ...span }) => ({
+    ...span,
+    ...(children ? { children: copyTraceSpansWithoutCosts(children) } : {}),
+  }))
 }
 
 /**
@@ -176,4 +191,106 @@ export async function materializeExecutionData(
     })
     return markers
   }
+}
+
+const LOG_DISPLAY_CONTENT_KEYS = [
+  'finalOutput',
+  'workflowInput',
+  'blockInput',
+  'blockExecutions',
+  'error',
+  'errorDetails',
+  'completionFailure',
+  'message',
+] as const
+
+const LOG_DISPLAY_PROJECTION_SPAN_ID = 'secret-safe-log-display-projection'
+
+/**
+ * Materializes trusted execution data and returns its log-facing projection.
+ * Functional readers must continue using {@link materializeExecutionData}.
+ */
+export async function materializeExecutionDataForDisplay(
+  executionData: Record<string, unknown> | null | undefined,
+  context: TraceStoreReadContext
+): Promise<Record<string, unknown>> {
+  const materialized = await materializeExecutionData(executionData, context)
+  return projectExecutionDataForDisplay(materialized, context)
+}
+
+/**
+ * Projects execution-log content with the encrypted provenance saved by the
+ * trusted executor. Missing or malformed provenance deliberately yields a
+ * structural-only log instead of returning content that cannot be proven safe.
+ */
+export async function projectExecutionDataForDisplay(
+  executionData: Record<string, unknown>,
+  context: TraceStoreReadContext
+): Promise<Record<string, unknown>> {
+  const executionState =
+    executionData.executionState &&
+    typeof executionData.executionState === 'object' &&
+    !Array.isArray(executionData.executionState)
+      ? (executionData.executionState as Record<string, unknown>)
+      : undefined
+  const provenance = executionState?.resolvedSecretTraceProvenance
+  let registry: ResolvedSecretTraceRegistry | undefined
+
+  if (isResolvedSecretTraceProvenanceV1(provenance)) {
+    registry = new ResolvedSecretTraceRegistry([], provenance.scope)
+    await registry.importProvenance(provenance, { trusted: true })
+  }
+
+  const envelope: Record<string, unknown> = {}
+  for (const key of LOG_DISPLAY_CONTENT_KEYS) {
+    if (Object.hasOwn(executionData, key)) envelope[key] = executionData[key]
+  }
+
+  const now = new Date().toISOString()
+  const syntheticSpan: TraceSpan = {
+    id: LOG_DISPLAY_PROJECTION_SPAN_ID,
+    name: 'Log Display Projection',
+    type: 'display',
+    duration: 0,
+    startTime: now,
+    endTime: now,
+    output: envelope,
+  }
+  const sourceTraceSpans = Array.isArray(executionData.traceSpans)
+    ? (executionData.traceSpans as TraceSpan[])
+    : []
+  const projectedSpans = await projectTraceSpansForSecrets([syntheticSpan, ...sourceTraceSpans], {
+    registry,
+    allowLargeValueWrites: false,
+    store: {
+      workspaceId: context.workspaceId ?? undefined,
+      workflowId: context.workflowId ?? undefined,
+      executionId: context.executionId,
+      userId: context.userId,
+      trackReference: false,
+    },
+  })
+
+  const displayData = omit(executionData, [
+    ...LOG_DISPLAY_CONTENT_KEYS,
+    'executionState',
+    'traceSpans',
+  ]) as Record<string, unknown>
+
+  const projectedEnvelope = projectedSpans.find(
+    (span) => span.id === LOG_DISPLAY_PROJECTION_SPAN_ID
+  )?.output
+  if (projectedEnvelope) {
+    for (const key of LOG_DISPLAY_CONTENT_KEYS) {
+      if (Object.hasOwn(projectedEnvelope, key)) displayData[key] = projectedEnvelope[key]
+    }
+  }
+
+  if (Array.isArray(executionData.traceSpans)) {
+    displayData.traceSpans = projectedSpans.filter(
+      (span) => span.id !== LOG_DISPLAY_PROJECTION_SPAN_ID
+    )
+  }
+
+  return displayData
 }

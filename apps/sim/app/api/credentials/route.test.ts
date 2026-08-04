@@ -3,12 +3,14 @@
  *
  * @vitest-environment node
  */
+import { credential } from '@sim/db/schema'
 import {
   auditMock,
   authMockFns,
   createMockRequest,
   dbChainMockFns,
   posthogServerMock,
+  queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,9 +54,65 @@ vi.mock('@/lib/credentials/service-account-secret', () => ({
   ServiceAccountSecretError: class ServiceAccountSecretError extends Error {},
 }))
 
-import { POST } from '@/app/api/credentials/route'
+import { GET, POST } from '@/app/api/credentials/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
+
+describe('GET /api/credentials', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'user-1', name: 'Test User', email: 'test@example.com' },
+    })
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: false,
+    })
+  })
+
+  it('reports an owned personal secret as raw-view admin without a membership row', async () => {
+    queueTableRows(credential, [
+      {
+        id: 'credential-1',
+        workspaceId: WORKSPACE_ID,
+        type: 'env_personal',
+        displayName: 'MY_API_KEY',
+        description: null,
+        providerId: null,
+        accountId: null,
+        envKey: 'MY_API_KEY',
+        envOwnerUserId: 'user-1',
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+        memberRole: null,
+      },
+    ])
+
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        `http://localhost:3000/api/credentials?workspaceId=${WORKSPACE_ID}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.credentials).toEqual([
+      expect.objectContaining({
+        id: 'credential-1',
+        type: 'env_personal',
+        envKey: 'MY_API_KEY',
+        envOwnerUserId: 'user-1',
+        role: 'admin',
+      }),
+    ])
+  })
+})
 
 describe('POST /api/credentials', () => {
   beforeEach(() => {
@@ -82,7 +140,8 @@ describe('POST /api/credentials', () => {
         providerId: 'zoom-service-account',
         encryptedServiceAccountKey: 'encrypted-blob',
         displayName: 'Zoom account acct_123',
-        auditMetadata: { zoomAccountId: 'acct_123' },
+        auditMetadata: { principalKind: 'tenant', principalId: 'acct_123' },
+        principal: { kind: 'tenant', id: 'acct_123' },
       })
 
       const req = createMockRequest('POST', {

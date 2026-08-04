@@ -13,6 +13,10 @@ import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/component
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
@@ -198,24 +202,50 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
             {showsWorkspaceKeys && !searchTerm.trim() ? (
               <SettingsSection label='Workspace'>
                 {workspaceKeys.length === 0 ? (
-                  <div className='text-[var(--text-muted)] text-sm'>No workspace API keys yet</div>
+                  <SettingsEmptyState variant='inline'>
+                    No workspace API keys yet
+                  </SettingsEmptyState>
                 ) : (
-                  <div className='flex flex-col gap-2'>
+                  <div className={RESOURCE_LIST_STACK}>
                     {workspaceKeys.map((key) => (
-                      <div key={key.id} className='flex items-center justify-between gap-3'>
-                        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                          <div className='flex items-center gap-1.5'>
-                            <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
-                              {key.name}
-                            </span>
-                            <span className='text-[var(--text-secondary)] text-sm'>
-                              (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
-                            </span>
-                          </div>
-                          <p className='truncate text-[var(--text-muted)] text-caption'>
-                            {key.displayKey}
-                          </p>
-                        </div>
+                      <SettingsResourceRow
+                        key={key.id}
+                        title={key.name}
+                        description={key.displayKey}
+                        badge={
+                          <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+                            {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                          </span>
+                        }
+                        trailing={
+                          <ApiKeyRowMenu
+                            keyName={key.name}
+                            onDelete={() => {
+                              setDeleteKey(key)
+                              setShowDeleteDialog(true)
+                            }}
+                            canDelete={canManageWorkspaceKeys}
+                          />
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </SettingsSection>
+            ) : showsWorkspaceKeys && filteredWorkspaceKeys.length > 0 ? (
+              <SettingsSection label='Workspace'>
+                <div className={RESOURCE_LIST_STACK}>
+                  {filteredWorkspaceKeys.map(({ key }) => (
+                    <SettingsResourceRow
+                      key={key.id}
+                      title={key.name}
+                      description={key.displayKey}
+                      badge={
+                        <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+                          {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                        </span>
+                      }
+                      trailing={
                         <ApiKeyRowMenu
                           keyName={key.name}
                           onDelete={() => {
@@ -224,38 +254,8 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                           }}
                           canDelete={canManageWorkspaceKeys}
                         />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </SettingsSection>
-            ) : showsWorkspaceKeys && filteredWorkspaceKeys.length > 0 ? (
-              <SettingsSection label='Workspace'>
-                <div className='flex flex-col gap-2'>
-                  {filteredWorkspaceKeys.map(({ key }) => (
-                    <div key={key.id} className='flex items-center justify-between gap-3'>
-                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <div className='flex items-center gap-1.5'>
-                          <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
-                            {key.name}
-                          </span>
-                          <span className='text-[var(--text-secondary)] text-sm'>
-                            (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
-                          </span>
-                        </div>
-                        <p className='truncate text-[var(--text-muted)] text-caption'>
-                          {key.displayKey}
-                        </p>
-                      </div>
-                      <ApiKeyRowMenu
-                        keyName={key.name}
-                        onDelete={() => {
-                          setDeleteKey(key)
-                          setShowDeleteDialog(true)
-                        }}
-                        canDelete={canManageWorkspaceKeys}
-                      />
-                    </div>
+                      }
+                    />
                   ))}
                 </div>
               </SettingsSection>
@@ -263,38 +263,34 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
 
             {showsPersonalKeys && (!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
               <SettingsSection label='Personal'>
-                <div className='flex flex-col gap-2'>
+                <div className={RESOURCE_LIST_STACK}>
                   {filteredPersonalKeys.map(({ key }) => {
                     const isConflict = conflictNames.has(key.name)
                     return (
-                      <div key={key.id} className='flex flex-col gap-2'>
-                        <div className='flex items-center justify-between gap-3'>
-                          <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                            <div className='flex items-center gap-1.5'>
-                              <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
-                                {key.name}
-                              </span>
-                              <span className='text-[var(--text-secondary)] text-sm'>
-                                (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
-                              </span>
-                            </div>
-                            <p className='truncate text-[var(--text-muted)] text-caption'>
-                              {key.displayKey}
-                            </p>
-                          </div>
-                          <ApiKeyRowMenu
-                            keyName={key.name}
-                            onDelete={() => {
-                              setDeleteKey(key)
-                              setShowDeleteDialog(true)
-                            }}
-                          />
-                        </div>
+                      <div key={key.id} className='flex flex-col'>
+                        <SettingsResourceRow
+                          title={key.name}
+                          description={key.displayKey}
+                          badge={
+                            <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+                              {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                            </span>
+                          }
+                          trailing={
+                            <ApiKeyRowMenu
+                              keyName={key.name}
+                              onDelete={() => {
+                                setDeleteKey(key)
+                                setShowDeleteDialog(true)
+                              }}
+                            />
+                          }
+                        />
                         {isConflict && (
-                          <div className='text-[var(--text-error)] text-small leading-tight'>
+                          <p className='text-[var(--text-error)] text-caption leading-tight'>
                             Workspace API key with the same name overrides this. Rename your
                             personal key to use it.
-                          </div>
+                          </p>
                         )}
                       </div>
                     )

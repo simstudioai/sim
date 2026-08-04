@@ -57,6 +57,8 @@ function draftToCreateBody(draft: TaskDraft, workspaceId: string): CreateSchedul
     maxRuns: fields.maxRuns,
     endsAt: fields.endsAt,
     contexts: draft.contexts,
+    secretScope: draft.secretScope,
+    mountedSecrets: draft.mountedSecrets,
   }
 }
 
@@ -78,6 +80,8 @@ function draftToUpdateBody(draft: TaskDraft): Omit<UpdateScheduleBody, 'action'>
     maxRuns: fields.maxRuns ?? null,
     endsAt: fields.endsAt ?? null,
     contexts: draft.contexts ?? [],
+    secretScope: draft.secretScope,
+    mountedSecrets: draft.mountedSecrets,
   }
 }
 
@@ -212,6 +216,8 @@ export function useScheduledTasks({
         launchTime,
         timezone: schedule.timezone,
         recurrence,
+        secretScope: schedule.secretScope,
+        mountedSecrets: schedule.mountedSecrets,
       }
     },
     [schedules]

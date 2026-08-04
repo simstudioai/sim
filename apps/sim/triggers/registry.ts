@@ -461,6 +461,7 @@ import {
   zendeskTicketStatusChangedTrigger,
   zendeskWebhookTrigger,
 } from '@/triggers/zendesk'
+import { zohoDeskWebhookTrigger } from '@/triggers/zoho_desk'
 import {
   zoomMeetingEndedTrigger,
   zoomMeetingStartedTrigger,
@@ -867,4 +868,5 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   sentry_metric_alert: sentryMetricAlertTrigger,
   twilio_sms_received: twilioSmsReceivedTrigger,
   twilio_sms_status: twilioSmsStatusTrigger,
+  zoho_desk: zohoDeskWebhookTrigger,
 }

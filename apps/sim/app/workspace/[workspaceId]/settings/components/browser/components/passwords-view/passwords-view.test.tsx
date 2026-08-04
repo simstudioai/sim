@@ -175,11 +175,14 @@ async function click(button: HTMLButtonElement) {
   })
 }
 
-/** Cards are buttons outside the header; each shows a site and a username. */
-const cards = () =>
-  [...container.querySelectorAll('main > button, main div button')].filter(
+/** Each card's hit area — a stretched overlay button owned by `SettingsResourceRow`. */
+const cardButtons = () =>
+  [...container.querySelectorAll('main button[aria-label^="Open "]')].filter(
     (node) => !node.closest('header')
-  )
+  ) as HTMLButtonElement[]
+
+/** The row wrapping each hit area; it carries the visible site and username. */
+const cards = () => cardButtons().map((button) => button.parentElement as HTMLElement)
 
 const bridge = () => mockBridge.current as ReturnType<typeof createBridge>
 
@@ -220,7 +223,7 @@ describe('PasswordsView', () => {
   it('opens the detail page for the card that was clicked', async () => {
     await render()
 
-    await click(cards()[1] as HTMLButtonElement)
+    await click(cardButtons()[1])
 
     expect(container.querySelector('[aria-label="Password detail"]')?.textContent).toBe(
       'https://fubo.tv'

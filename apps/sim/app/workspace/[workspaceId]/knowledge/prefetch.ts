@@ -2,11 +2,13 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { FolderApi } from '@/lib/api/contracts/folders'
 import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
+import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 /**
- * Prefetches the workspace's knowledge-bases list AND its knowledge-base folder tree under
+ * Prefetches the workspace's knowledge-bases list AND its knowledge-base folder tree — plus
+ * the pinned ids and members {@link prefetchResourceListChrome} covers — under
  * the same query keys the client `useKnowledgeBasesQuery` / `useFolders` hooks use (scope
  * `active`), so the list paints populated on first render.
  *
@@ -43,5 +45,6 @@ export async function prefetchKnowledgeBases(
       },
       staleTime: FOLDER_LIST_STALE_TIME,
     }),
+    prefetchResourceListChrome(queryClient, workspaceId, 'knowledge_base'),
   ])
 }

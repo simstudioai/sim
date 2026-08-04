@@ -259,6 +259,13 @@ export const rosterWorkspaceAccessSchema = z.object({
   workspaceId: z.string(),
   workspaceName: z.string(),
   permission: workspacePermissionSchema,
+  /**
+   * Why this role is fixed, when it is. Carried so the roster can disable the
+   * controls the workspace-permissions route refuses, the way the teammates list
+   * already does — without them it offers an edit that can only fail.
+   */
+  roleSource: z.enum(['owner', 'explicit', 'org-admin']),
+  isBilledAccount: z.boolean(),
 })
 
 export const rosterMemberSchema = z.object({

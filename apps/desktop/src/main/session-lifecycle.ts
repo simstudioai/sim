@@ -262,11 +262,15 @@ export async function tearDownSession(
   // browser-profile clear is: failing to clear something is bad, failing to
   // sign out is worse.
   await revokeSession().catch((error) => logger.error('Session revoke failed', { error }))
-  await clearHandoffState()
+  await Promise.resolve(clearHandoffState()).catch((error) =>
+    logger.error('Local account-state teardown failed', { error })
+  )
   await clearBrowserProfile().catch((error) =>
     logger.error('Browser profile teardown failed', { error })
   )
-  await session.clearStorageData({ storages: [...CLEARED_STORAGES] })
+  await session
+    .clearStorageData({ storages: [...CLEARED_STORAGES] })
+    .catch((error) => logger.error('App partition teardown failed', { error }))
 }
 
 export interface SessionLifecycleDeps {

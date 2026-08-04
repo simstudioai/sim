@@ -51,7 +51,7 @@ export function LogoMark({ children }: LogoMarkProps) {
     >
       <span
         className={cn(
-          'relative z-10 transition-opacity duration-100 ease-[cubic-bezier(0.23,1,0.32,1)]',
+          'relative z-10 transition-opacity duration-100 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
           hovered && 'opacity-0'
         )}
       >
