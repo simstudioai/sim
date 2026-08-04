@@ -13,8 +13,12 @@
  * owns the Pi block.
  */
 
-/** Exact first-party Pi versions mirrored from bun.lock — image builds run npm independently. */
-export const PI_NPM = [
+/** Bun version mirrored from the root packageManager field. */
+export const PI_BUN_VERSION = '1.3.14'
+
+/** Exact global package versions mirrored from package.json and bun.lock. */
+export const PI_GLOBAL_NPM_PACKAGES = [
+  `bun@${PI_BUN_VERSION}`,
   '@earendil-works/pi-coding-agent@0.80.10',
   '@earendil-works/pi-agent-core@0.80.10',
   '@earendil-works/pi-ai@0.80.10',
@@ -50,6 +54,9 @@ export const PI_NODE_MAJOR = 22
 /** Fails the build loudly if the installed Node is older than Pi supports. */
 export const PI_NODE_VERSION_ASSERT =
   'node -e "const [major, minor] = process.versions.node.split(\'.\').map(Number); if (major < 22 || (major === 22 && minor < 19)) process.exit(1)"'
+
+/** Fails the build loudly if the sandbox does not contain the repository's Bun version. */
+export const PI_BUN_VERSION_ASSERT = `test "$(bun --version)" = "${PI_BUN_VERSION}"`
 
 /**
  * The review tools run `python3 /workspace/sim-review-tools.py`

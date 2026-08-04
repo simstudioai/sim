@@ -8,13 +8,18 @@ import {
   type AgentStreamToolTerminalStatus,
   settleRunningToolCallList,
 } from '@/components/agent-stream/tool-call-lifecycle'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
 import { useExecutionStore } from '@/stores/execution'
-import { consolePersistence, loadConsoleData } from '@/stores/terminal/console/storage'
+import {
+  CONSOLE_STORAGE_VERSION,
+  consolePersistence,
+  loadConsoleData,
+} from '@/stores/terminal/console/storage'
 import type {
   ConsoleEntry,
   ConsoleEntryLocation,
@@ -310,10 +315,12 @@ const notifyBlockError = ({
 
     toast.error(displayName, {
       description: errorMessage,
-      action: {
-        label: 'Fix in Chat',
-        onClick: () => sendMothershipMessage(copilotMessage),
-      },
+      action: isChatEnabled
+        ? {
+            label: 'Fix in Chat',
+            onClick: () => sendMothershipMessage(copilotMessage),
+          }
+        : undefined,
     })
   } catch (notificationError) {
     logger.error('Failed to create block error notification', {
@@ -641,6 +648,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             updatedEntry.agentStreamThinking = update.agentStreamThinking
           }
 
+          if (update.clearAgentStreamThinking) {
+            updatedEntry.agentStreamThinking = undefined
+          }
+
           if (update.agentStreamToolCalls !== undefined) {
             updatedEntry.agentStreamToolCalls = update.agentStreamToolCalls
           }
@@ -849,6 +860,7 @@ if (typeof window !== 'undefined') {
   consolePersistence.bind(() => {
     const state = useTerminalConsoleStore.getState()
     return {
+      storageVersion: CONSOLE_STORAGE_VERSION,
       workflowEntries: state.workflowEntries,
       isOpen: state.isOpen,
     }

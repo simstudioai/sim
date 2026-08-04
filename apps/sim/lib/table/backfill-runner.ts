@@ -7,6 +7,10 @@ import { and, asc, count, eq, gt, inArray } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import {
+  type FunctionalExecutionDataSource,
+  getFunctionalBlockOutput,
+} from '@/lib/logs/execution/functional-outputs'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { appendTableEvent } from '@/lib/table/events'
 import {
@@ -47,27 +51,6 @@ export interface TableBackfillPayload {
   actorUserId?: string | null
 }
 
-/** Minimal shape of a trace span we care about for backfill. */
-interface BackfillTraceSpan {
-  blockId?: string
-  output?: Record<string, unknown>
-  children?: BackfillTraceSpan[]
-}
-
-/** DFS the trace tree for the first span matching `blockId`. */
-function findSpanByBlockId(
-  spans: BackfillTraceSpan[] | undefined,
-  blockId: string
-): BackfillTraceSpan | undefined {
-  if (!spans) return undefined
-  for (const span of spans) {
-    if (span.blockId === blockId) return span
-    const child = findSpanByBlockId(span.children, blockId)
-    if (child) return child
-  }
-  return undefined
-}
-
 /** One keyset page of completed (rowId, executionId) pairs for the group, ordered by rowId. */
 async function selectCompletedExecPage(
   tableId: string,
@@ -94,8 +77,8 @@ async function selectCompletedExecPage(
 }
 
 /**
- * Backfills one page of rows: pulls each target output's value out of the rows' saved trace
- * spans (materialized from object storage with bounded concurrency) and writes it into row data.
+ * Backfills one page of rows: pulls each target output from the saved raw execution state
+ * (materialized from object storage with bounded concurrency) and writes it into row data.
  * Returns the number of rows updated.
  */
 async function processBackfillPage(opts: {
@@ -136,17 +119,14 @@ async function processBackfillPage(opts: {
     .from(workflowExecutionLogs)
     .where(inArray(workflowExecutionLogs.executionId, executionIds))
 
-  const logByExecutionId = new Map<string, { traceSpans?: BackfillTraceSpan[] }>()
+  const logByExecutionId = new Map<string, FunctionalExecutionDataSource>()
   // Heavy execution data may live in object storage; resolve pointers (bounded concurrency).
   await mapWithConcurrency(logs, MATERIALIZE_CONCURRENCY, async (log) => {
     const executionData = await materializeExecutionData(
       log.executionData as Record<string, unknown> | null,
       { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
     )
-    logByExecutionId.set(
-      log.executionId,
-      (executionData as { traceSpans?: BackfillTraceSpan[] }) ?? {}
-    )
+    logByExecutionId.set(log.executionId, (executionData as FunctionalExecutionDataSource) ?? {})
   })
 
   const updates: Array<{ rowId: string; data: RowData }> = []
@@ -160,9 +140,9 @@ async function processBackfillPage(opts: {
     let mutated = false
     for (const out of outputs) {
       if (!overwrite && (r.data as RowData)[out.columnName] !== undefined) continue
-      const span = findSpanByBlockId(log.traceSpans, out.blockId)
-      if (!span?.output) continue
-      const picked = pluckByPath(span.output, out.path)
+      const functionalOutput = getFunctionalBlockOutput(log, out.blockId)
+      if (functionalOutput === undefined) continue
+      const picked = pluckByPath(functionalOutput, out.path)
       if (picked === undefined) continue
       dataPatch[out.columnName] = picked as RowData[string]
       mutated = true

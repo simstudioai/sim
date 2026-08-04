@@ -1,0 +1,94 @@
+name: CodeQL
+
+# Advanced setup, replacing the repo-settings "default setup".
+#
+# Default setup pinned every scan to a 4-vCPU GitHub-hosted runner with no
+# cancel-in-progress, which put PR scans at 30-125 min and re-ran them on every
+# push (PR #6183 burned six overlapping runs). None of that is configurable from
+# the settings UI, so the config moves into the repo.
+#
+# Before enabling this, disable default setup or the two will both run:
+#   gh api -X PATCH repos/:owner/:repo/code-scanning/default-setup -f state=not-configured
+#
+# The runs-on expression is the same CI_PROVIDER escape hatch as ci.yml and must
+# change together with it.
+
+on:
+  # Pushes to main are infrequent (merges only), so a full scan per push is
+  # affordable and is what GitHub recommends pairing with the PR trigger:
+  # "Scanning code when someone pushes a change, and whenever a pull request is
+  # created, prevents developers from introducing new vulnerabilities."
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, staging]
+    # `ready_for_review` is not a default activity type, so it has to be listed
+    # alongside the defaults it replaces. Without it, a PR opened as a draft and
+    # then marked ready is skipped by the job-level draft guard and never
+    # rescanned until the next push.
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.js'
+      - '**/*.jsx'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '.github/workflows/**'
+      - '.github/actions/**'
+      - '.github/codeql/**'
+  schedule:
+    # Safety net behind the push trigger, and the thing that keeps the
+    # default-branch alert view fresh when main is quiet. Only fires once this
+    # file is on the default branch — schedule events ignore other branches.
+    - cron: '17 8 * * *'
+  workflow_dispatch:
+
+# Scheduled main scans must run to completion — only PR pushes supersede.
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    if: github.event.pull_request.draft != true
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # One entry covers both JS and TS — `javascript`, `typescript` and
+        # `javascript-typescript` all resolve to the same extractor
+        # (github/codeql-action src/languages/builtin.json), so the three
+        # entries default setup listed were one analysis, not three.
+        # `javascript-typescript` is the documented spelling. Python dropped:
+        # 7 files in the tree.
+        language: [javascript-typescript, actions]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@18420e3271f74589575af831a523c833acda327f # codeql-bundle-v2.26.2
+        with:
+          languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@18420e3271f74589575af831a523c833acda327f # codeql-bundle-v2.26.2
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        with:
+          category: /language:${{ matrix.language }}

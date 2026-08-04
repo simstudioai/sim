@@ -4,6 +4,15 @@
 
 import type { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { suspendBrowserScope, suspendTerminalScope } = vi.hoisted(() => ({
+  suspendBrowserScope: vi.fn(async () => true),
+  suspendTerminalScope: vi.fn(async () => true),
+}))
+
+vi.mock('@/lib/browser-agent/transport', () => ({ suspendBrowserScope }))
+vi.mock('@/lib/terminal/transport', () => ({ suspendTerminalScope }))
+
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-events'
 
@@ -250,6 +259,8 @@ describe('handleMothershipChatStatusEvent', () => {
     expect(queryClient.removeQueries).toHaveBeenCalledWith({
       queryKey: mothershipChatKeys.detail('chat-1'),
     })
+    expect(suspendBrowserScope).toHaveBeenCalledWith('chat-1')
+    expect(suspendTerminalScope).toHaveBeenCalledWith('chat-1')
   })
 
   it('invalidates the task list and detail for started task events', () => {

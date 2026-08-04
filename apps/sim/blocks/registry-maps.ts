@@ -338,6 +338,7 @@ import { YouTubeBlock, YouTubeBlockMeta } from '@/blocks/blocks/youtube'
 import { ZendeskBlock, ZendeskBlockMeta } from '@/blocks/blocks/zendesk'
 import { ZepBlock, ZepBlockMeta } from '@/blocks/blocks/zep'
 import { ZeroBounceBlock, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce'
+import { ZohoDeskBlock, ZohoDeskBlockMeta } from '@/blocks/blocks/zoho-desk'
 import { ZoomBlock, ZoomBlockMeta } from '@/blocks/blocks/zoom'
 import { ZoomInfoBlock, ZoomInfoBlockMeta } from '@/blocks/blocks/zoominfo'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -657,6 +658,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   youtube: YouTubeBlock,
   zendesk: ZendeskBlock,
   zep: ZepBlock,
+  zoho_desk: ZohoDeskBlock,
   zoom: ZoomBlock,
   zoominfo: ZoomInfoBlock,
 }
@@ -922,6 +924,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   zendesk: ZendeskBlockMeta,
   zep: ZepBlockMeta,
   zerobounce: ZeroBounceBlockMeta,
+  zoho_desk: ZohoDeskBlockMeta,
   zoom: ZoomBlockMeta,
   zoominfo: ZoomInfoBlockMeta,
 }

@@ -8,7 +8,7 @@ import { getSession } from '@/lib/auth'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -112,11 +112,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               rows as any[],
               MATERIALIZE_CONCURRENCY,
               (r) =>
-                materializeExecutionData(r.executionData as Record<string, unknown> | null, {
-                  workspaceId: params.workspaceId,
-                  workflowId: r.workflowId,
-                  executionId: r.executionId,
-                })
+                materializeExecutionDataForDisplay(
+                  r.executionData as Record<string, unknown> | null,
+                  {
+                    workspaceId: params.workspaceId,
+                    workflowId: r.workflowId,
+                    executionId: r.executionId,
+                    userId: session.user.id,
+                  }
+                )
             )
 
             for (let j = 0; j < rows.length; j++) {

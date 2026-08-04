@@ -50,7 +50,7 @@ import {
 } from '@/lib/knowledge/tags/service'
 import { StorageService } from '@/lib/uploads'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
+import { executeKnowledgeSearch } from '@/app/api/knowledge/search/utils'
 import {
   checkDocumentWriteAccess,
   checkKnowledgeBaseAccess,
@@ -221,7 +221,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          if (!args.query) {
+          if (!args.query?.trim()) {
             return {
               success: false,
               message: 'Query text is required for query operation',
@@ -264,13 +264,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             await generateSearchEmbedding(args.query, kb.embeddingModel, kb.workspaceId)
           const queryVector = JSON.stringify(queryEmbedding)
 
-          const strategy = getQueryStrategy(1, topK)
-
-          const results = await handleVectorOnlySearch({
+          const results = await executeKnowledgeSearch({
             knowledgeBaseIds: [args.knowledgeBaseId],
             topK,
+            searchMode: 'vector',
+            query: args.query,
             queryVector,
-            distanceThreshold: strategy.distanceThreshold,
           })
 
           await recordSearchEmbeddingUsage({
@@ -350,6 +349,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const kbWorkspaceId: string = targetKb.workspaceId
           const billingAttribution = requireKnowledgeBillingAttribution(context, kbWorkspaceId)
+
+          // Gate the payer before accepting indexing work, same as the upload routes.
+          const usage = await checkAttributedUsageLimits(billingAttribution)
+          if (usage.isExceeded) {
+            return {
+              success: false,
+              message:
+                usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            }
+          }
+
           const added: Array<{ documentId: string; filename: string }> = []
           const failedFiles: string[] = []
 

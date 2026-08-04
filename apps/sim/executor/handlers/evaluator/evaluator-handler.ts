@@ -1,4 +1,10 @@
 import { createLogger } from '@sim/logger'
+import {
+  type AutoRoutingResult,
+  addAutoRoutingCost,
+  resolveAutoModel,
+  SIM_AUTO_SYSTEM_PREAMBLE,
+} from '@/lib/model-router/resolve'
 import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
@@ -7,6 +13,7 @@ import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executo
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
+import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -34,19 +41,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
       bedrockAccessKeyId: inputs.bedrockAccessKeyId,
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
-    }
-
-    await validateModelProvider(ctx.userId, ctx.workspaceId, evaluatorConfig.model, ctx)
-
-    const providerId = getProviderFromModel(evaluatorConfig.model)
-
-    let finalApiKey: string | undefined = evaluatorConfig.apiKey
-    if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
-      finalApiKey = await resolveVertexCredential(
-        evaluatorConfig.vertexCredential,
-        ctx.userId,
-        'vertex-evaluator'
-      )
     }
 
     const processedContent = this.processContent(inputs.content)
@@ -105,12 +99,56 @@ export class EvaluatorBlockHandler implements BlockHandler {
         'Evaluate the content and provide scores for each metric as JSON.'
     }
 
+    let model = evaluatorConfig.model
+    let autoRouting: AutoRoutingResult | null = null
+    if (isAutoModel(model)) {
+      autoRouting = await resolveAutoModel({
+        ctx,
+        blockId: block.id,
+        signals: {
+          systemPrompt: systemPromptObj.systemPrompt,
+          lastMessage: processedContent,
+          messageCount: 1,
+          toolNames: [],
+          mediaKind: 'none',
+          hasResponseFormat: true,
+          approxInputTokens: Math.ceil(
+            (systemPromptObj.systemPrompt.length + processedContent.length) / 4
+          ),
+        },
+        fallbackModel: EVALUATOR.DEFAULT_MODEL,
+      })
+      model = autoRouting.model
+      systemPromptObj.systemPrompt = [SIM_AUTO_SYSTEM_PREAMBLE, systemPromptObj.systemPrompt]
+        .filter(Boolean)
+        .join('\n\n')
+      logger.info('Resolved sim-auto model for evaluator', {
+        blockId: block.id,
+        model,
+        tier: autoRouting.tier,
+        decidedBy: autoRouting.decidedBy,
+      })
+    }
+
+    await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
+    const providerId = getProviderFromModel(model)
+
+    let finalApiKey: string | undefined = evaluatorConfig.apiKey
+    if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
+      finalApiKey = await resolveVertexCredential({
+        credentialId: evaluatorConfig.vertexCredential,
+        actingUserId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        callerLabel: 'vertex-evaluator',
+      })
+    }
+
     try {
       const url = buildAPIUrl('/api/providers', ctx.userId ? { userId: ctx.userId } : {})
 
       const providerRequest: Record<string, any> = {
         provider: providerId,
-        model: evaluatorConfig.model,
+        model,
         systemPrompt: systemPromptObj.systemPrompt,
         responseFormat: systemPromptObj.responseFormat,
         context: stringifyJSON([
@@ -155,11 +193,14 @@ export class EvaluatorBlockHandler implements BlockHandler {
       const outputTokens =
         result.tokens?.output || result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION
 
-      const cost = resolveProxiedModelCost(result.cost)
+      const cost = addAutoRoutingCost(
+        resolveProxiedModelCost(result.cost),
+        autoRouting?.billableRoutingCost ?? 0
+      )
 
       return {
         content: inputs.content,
-        model: result.model,
+        model: autoRouting ? SIM_AUTO_MODEL_ID : result.model,
         tokens: {
           input: inputTokens,
           output: outputTokens,
@@ -169,6 +210,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
           input: cost.input,
           output: cost.output,
           total: cost.total,
+          ...(cost.routing === undefined ? {} : { routing: cost.routing }),
         },
         ...metricScores,
       }

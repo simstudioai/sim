@@ -2477,7 +2477,19 @@ import {
   mailgunListMessagesTool,
   mailgunSendMessageTool,
 } from '@/tools/mailgun'
-import { managedAgentRunSessionTool } from '@/tools/managed_agent'
+import {
+  managedAgentArchiveSessionTool,
+  managedAgentCreateSessionTool,
+  managedAgentDeleteSessionTool,
+  managedAgentGetSessionTool,
+  managedAgentInterruptSessionTool,
+  managedAgentListEventsTool,
+  managedAgentRespondCustomToolTool,
+  managedAgentRespondToolConfirmationTool,
+  managedAgentRunSessionTool,
+  managedAgentSendMessageTool,
+  managedAgentUpdateSessionTool,
+} from '@/tools/managed_agent'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -4702,6 +4714,18 @@ import {
 } from '@/tools/zep'
 import { zerobounceGetCreditsTool, zerobounceVerifyEmailTool } from '@/tools/zerobounce'
 import {
+  zohoDeskAddCommentTool,
+  zohoDeskGetAttachmentTool,
+  zohoDeskGetContactTool,
+  zohoDeskGetThreadTool,
+  zohoDeskGetTicketTool,
+  zohoDeskListCommentsTool,
+  zohoDeskListOrganizationsTool,
+  zohoDeskListThreadsTool,
+  zohoDeskListTicketsTool,
+  zohoDeskUpdateTicketTool,
+} from '@/tools/zoho_desk'
+import {
   zoomCreateMeetingTool,
   zoomDeleteMeetingTool,
   zoomDeleteRecordingTool,
@@ -5165,10 +5189,10 @@ export const tools: Record<string, ToolConfig> = {
   linq_update_chat: linqUpdateChatTool,
   linq_update_contact_card: linqUpdateContactCardTool,
   linq_update_webhook_subscription: linqUpdateWebhookSubscriptionTool,
+  logfire_get_token_info: logfireGetTokenInfoTool,
+  logfire_get_trace: logfireGetTraceTool,
   logfire_query: logfireQueryTool,
   logfire_search_records: logfireSearchRecordsTool,
-  logfire_get_trace: logfireGetTraceTool,
-  logfire_get_token_info: logfireGetTokenInfoTool,
   logs_query: logsQueryTool,
   logs_query_runs: logsQueryRunsTool,
   logs_get: logsGetTool,
@@ -5511,7 +5535,17 @@ export const tools: Record<string, ToolConfig> = {
   mailgun_add_list_member: mailgunAddListMemberTool,
   mailgun_list_domains: mailgunListDomainsTool,
   mailgun_get_domain: mailgunGetDomainTool,
+  managed_agent_archive_session: managedAgentArchiveSessionTool,
+  managed_agent_create_session: managedAgentCreateSessionTool,
+  managed_agent_delete_session: managedAgentDeleteSessionTool,
+  managed_agent_get_session: managedAgentGetSessionTool,
+  managed_agent_interrupt_session: managedAgentInterruptSessionTool,
+  managed_agent_list_events: managedAgentListEventsTool,
+  managed_agent_respond_custom_tool: managedAgentRespondCustomToolTool,
+  managed_agent_respond_tool_confirmation: managedAgentRespondToolConfirmationTool,
   managed_agent_run_session: managedAgentRunSessionTool,
+  managed_agent_send_message: managedAgentSendMessageTool,
+  managed_agent_update_session: managedAgentUpdateSessionTool,
   sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,
@@ -8899,6 +8933,16 @@ export const tools: Record<string, ToolConfig> = {
   zendesk_delete_organization: zendeskDeleteOrganizationTool,
   zendesk_search: zendeskSearchTool,
   zendesk_search_count: zendeskSearchCountTool,
+  zoho_desk_list_tickets: zohoDeskListTicketsTool,
+  zoho_desk_get_ticket: zohoDeskGetTicketTool,
+  zoho_desk_update_ticket: zohoDeskUpdateTicketTool,
+  zoho_desk_list_comments: zohoDeskListCommentsTool,
+  zoho_desk_add_comment: zohoDeskAddCommentTool,
+  zoho_desk_list_threads: zohoDeskListThreadsTool,
+  zoho_desk_get_thread: zohoDeskGetThreadTool,
+  zoho_desk_get_contact: zohoDeskGetContactTool,
+  zoho_desk_list_organizations: zohoDeskListOrganizationsTool,
+  zoho_desk_get_attachment: zohoDeskGetAttachmentTool,
   intercom_create_contact: intercomCreateContactTool,
   intercom_create_contact_v2: intercomCreateContactV2Tool,
   intercom_get_contact: intercomGetContactTool,

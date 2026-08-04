@@ -37,10 +37,19 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   getProviderFromModel: mockGetProviderFromModel,
 }))
 
-import { type AutoRoutingSignals, resolveAutoModel } from '@/lib/model-router/resolve'
+import {
+  type AutoRoutingSignals,
+  addAutoRoutingCost,
+  resolveAutoModel,
+} from '@/lib/model-router/resolve'
 import type { ExecutionContext } from '@/executor/types'
 
 const ctx = {
@@ -69,6 +78,23 @@ function routerResponse(body: unknown, ok = true, status = 200) {
   return { ok, status, json: () => Promise.resolve(body) }
 }
 
+describe('addAutoRoutingCost', () => {
+  it('adds a billable routing call to a settled provider cost', () => {
+    expect(addAutoRoutingCost({ input: 0.001, output: 0.002, total: 0.003 }, 0.0005)).toEqual({
+      input: 0.001,
+      output: 0.002,
+      routing: 0.0005,
+      total: 0.0035,
+    })
+  })
+
+  it('leaves provider cost unchanged when routing was not billable', () => {
+    const cost = { input: 0.001, output: 0.002, total: 0.003 }
+
+    expect(addAutoRoutingCost(cost, 0)).toBe(cost)
+  })
+})
+
 describe('resolveAutoModel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -78,10 +104,22 @@ describe('resolveAutoModel', () => {
   })
 
   /** The full pool, exactly as specified: media kind → tier → model. */
-  const POOL_CASES: Array<{ mediaKind: AutoRoutingSignals['mediaKind']; byTier: string[] }> = [
-    { mediaKind: 'none', byTier: ['fireworks/glm-5.2', 'fireworks/glm-5.2', 'fireworks/kimi-k3'] },
-    { mediaKind: 'image', byTier: ['gemini-3.6-flash', 'fireworks/kimi-k3', 'fireworks/kimi-k3'] },
-    { mediaKind: 'file', byTier: ['gemini-3.6-flash', 'claude-sonnet-5', 'gpt-5.6-sol'] },
+  const POOL_CASES: Array<{
+    mediaKind: AutoRoutingSignals['mediaKind']
+    byTier: string[]
+  }> = [
+    {
+      mediaKind: 'none',
+      byTier: ['fireworks/glm-5.2', 'fireworks/glm-5.2', 'fireworks/kimi-k3'],
+    },
+    {
+      mediaKind: 'image',
+      byTier: ['gemini-3.6-flash', 'fireworks/kimi-k3', 'fireworks/kimi-k3'],
+    },
+    {
+      mediaKind: 'file',
+      byTier: ['gemini-3.6-flash', 'claude-sonnet-5', 'gpt-5.6-sol'],
+    },
   ]
 
   for (const { mediaKind, byTier } of POOL_CASES) {
@@ -148,7 +186,11 @@ describe('resolveAutoModel', () => {
     const result = await resolveAutoModel({
       ctx,
       blockId: 'b1',
-      signals: makeSignals({ approxInputTokens: 20, toolNames: [], hasResponseFormat: false }),
+      signals: makeSignals({
+        approxInputTokens: 20,
+        toolNames: [],
+        hasResponseFormat: false,
+      }),
       fallbackModel: 'claude-sonnet-5',
     })
 

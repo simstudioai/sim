@@ -38,8 +38,9 @@ import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
-import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
+import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -92,6 +93,7 @@ import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import {
   useDeleteMothershipChat,
   useDeleteMothershipChats,
@@ -110,12 +112,22 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
+import type { WorkflowFolder } from '@/stores/folders/types'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
+
+/**
+ * Stable identity for the chat list's "no data" case. With Chat disabled the
+ * query never runs, so a `= []` default would mint a new array every render and
+ * invalidate every memo downstream of it.
+ */
+const EMPTY_CHATS: MothershipChatMetadata[] = []
+/** Stable identity while a folder list loads, so the search-row memos don't churn. */
+const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
 
 const SLACK_COMMUNITY_URL =
   'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA'
@@ -538,7 +550,17 @@ export const Sidebar = memo(function Sidebar({
   })
 
   useFolders(workspaceId)
-  const { data: folderMap = {} } = useFolderMap(workspaceId)
+  const { data: folderMap = EMPTY_FOLDER_MAP } = useFolderMap(workspaceId)
+  // Tables and knowledge bases keep their folders in the generic folder tree,
+  // keyed by resource type, so each needs its own map to resolve a path.
+  const { data: tableFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
+    permissionConfig.hideTablesTab ? undefined : workspaceId,
+    'table'
+  )
+  const { data: knowledgeBaseFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
+    permissionConfig.hideKnowledgeBaseTab ? undefined : workspaceId,
+    'knowledge_base'
+  )
   const updateWorkflowMutation = useUpdateWorkflow()
 
   const folderTree = useMemo(
@@ -712,18 +734,13 @@ export const Sidebar = memo(function Sidebar({
 
   const searchModalWorkflows = useMemo(
     () =>
-      regularWorkflows.map((workflow) => {
-        const folderPath = workflow.folderId
-          ? getFolderPath(folderMap, workflow.folderId).map((folder) => folder.name)
-          : []
-        return {
-          id: workflow.id,
-          name: workflow.name,
-          href: `/workspace/${workspaceId}/w/${workflow.id}`,
-          folderPath: folderPath.length > 0 ? folderPath : undefined,
-          isCurrent: workflow.id === workflowId,
-        }
-      }),
+      regularWorkflows.map((workflow) => ({
+        id: workflow.id,
+        name: workflow.name,
+        href: `/workspace/${workspaceId}/w/${workflow.id}`,
+        folderPath: getFolderPathNames(folderMap, workflow.folderId),
+        isCurrent: workflow.id === workflowId,
+      })),
     [regularWorkflows, folderMap, workspaceId, workflowId]
   )
 
@@ -743,9 +760,13 @@ export const Sidebar = memo(function Sidebar({
       [
         {
           id: 'home',
-          label: 'New chat',
-          icon: Home,
-          href: `/workspace/${workspaceId}/home`,
+          label: isChatEnabled ? 'New chat' : 'New workflow',
+          icon: isChatEnabled ? Home : Plus,
+          href: isChatEnabled ? `/workspace/${workspaceId}/home` : undefined,
+          onClick: isChatEnabled ? undefined : createWorkflow,
+          // Creation navigates optimistically, so a read-only member would land
+          // on a workflow the server declined to create.
+          hidden: !isChatEnabled && !permissionsLoading && !canEdit,
         },
         {
           id: 'integrations',
@@ -758,7 +779,7 @@ export const Sidebar = memo(function Sidebar({
           hidden: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, permissionConfig.hideIntegrationsTab]
+    [workspaceId, createWorkflow, canEdit, permissionsLoading, permissionConfig.hideIntegrationsTab]
   )
 
   const workspaceNavItems = useMemo(
@@ -810,18 +831,23 @@ export const Sidebar = memo(function Sidebar({
     [navigateToSettings, setSidebarWidth]
   )
 
-  const { data: fetchedChats = [], isLoading: chatsLoading } = useMothershipChats(workspaceId)
+  const { data: fetchedChats = EMPTY_CHATS, isLoading: chatsLoading } = useMothershipChats(
+    workspaceId,
+    { enabled: isChatEnabled }
+  )
 
   useMothershipChatEvents(workspaceId)
 
+  /**
+   * Stays empty when Chat is disabled, which also drops the command palette's
+   * Chats group — `SearchGroups` renders nothing for an empty list.
+   */
   const chats = useMemo(
     () =>
-      fetchedChats
-        ? fetchedChats.map((t) => ({
-            ...t,
-            href: `/workspace/${workspaceId}/chat/${t.id}`,
-          }))
-        : [],
+      fetchedChats.map((t) => ({
+        ...t,
+        href: `/workspace/${workspaceId}/chat/${t.id}`,
+      })),
     [fetchedChats, workspaceId]
   )
 
@@ -837,8 +863,9 @@ export const Sidebar = memo(function Sidebar({
             id: t.id,
             name: t.name,
             href: `/workspace/${workspaceId}/tables/${t.id}`,
+            folderPath: getFolderPathNames(tableFolderMap, t.folderId),
           })),
-    [fetchedTables, workspaceId, permissionConfig.hideTablesTab]
+    [fetchedTables, tableFolderMap, workspaceId, permissionConfig.hideTablesTab]
   )
 
   const searchModalFiles = useMemo(
@@ -862,8 +889,14 @@ export const Sidebar = memo(function Sidebar({
             id: kb.id,
             name: kb.name,
             href: `/workspace/${workspaceId}/knowledge/${kb.id}`,
+            folderPath: getFolderPathNames(knowledgeBaseFolderMap, kb.folderId),
           })),
-    [fetchedKnowledgeBases, workspaceId, permissionConfig.hideKnowledgeBaseTab]
+    [
+      fetchedKnowledgeBases,
+      knowledgeBaseFolderMap,
+      workspaceId,
+      permissionConfig.hideKnowledgeBaseTab,
+    ]
   )
 
   const chatIds = useMemo(() => chats.map((t) => t.id), [chats])
@@ -1273,7 +1306,7 @@ export const Sidebar = memo(function Sidebar({
       />
       <div className='relative h-full'>
         <aside
-          className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)]'
+          className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)] [&_.group.cursor-pointer]:duration-0'
           data-collapsed={isCollapsed || undefined}
           aria-label='Workspace sidebar'
           onClick={handleSidebarClick}
@@ -1402,126 +1435,130 @@ export const Sidebar = memo(function Sidebar({
                   )}
                 >
                   <div ref={scrollContentRef} className='flex flex-col'>
-                    <SidebarSection
-                      title='Chats'
-                      railCollapsed={isCollapsed}
-                      className='chats-section flex-shrink-0'
-                    >
-                      {isCollapsed ? (
-                        <CollapsedSidebarMenu
-                          icon={chatsCollapsedIcon}
-                          hover={chatsHover}
-                          ariaLabel='Chats'
-                        >
-                          {chatsLoading ? (
-                            <DropdownMenuItem disabled>
-                              <Loader className='h-[14px] w-[14px]' animate />
-                              Loading...
-                            </DropdownMenuItem>
-                          ) : chats.length === 0 ? (
-                            <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
-                          ) : (
-                            chats.map((chat) => (
-                              <CollapsedChatFlyoutItem
-                                key={chat.id}
-                                chat={chat}
-                                isCurrentRoute={pathname === chat.href}
-                                isMenuOpen={menuOpenChatId === chat.id}
-                                isEditing={chat.id === chatFlyoutRename.editingId}
-                                editValue={chatFlyoutRename.value}
-                                inputRef={chatFlyoutRename.inputRef}
-                                isRenaming={chatFlyoutRename.isSaving}
-                                onEditValueChange={chatFlyoutRename.setValue}
-                                onEditKeyDown={chatFlyoutRename.handleKeyDown}
-                                onEditBlur={handleChatRenameBlur}
-                                onContextMenu={handleChatContextMenu}
-                                onMorePointerDown={handleChatMorePointerDown}
-                                onMoreClick={handleChatMoreClick}
-                              />
-                            ))
-                          )}
-                        </CollapsedSidebarMenu>
-                      ) : (
-                        <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                          {chatsLoading ? (
-                            <SidebarItemSkeleton />
-                          ) : (
-                            <>
-                              {chats.length === 0 ? (
-                                <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
-                                  No chats yet
-                                </div>
-                              ) : null}
-                              {/* `selectChatOnly` populates `selectedChats` on every click, so
-                                  a single entry just means "last clicked" — already conveyed by
-                                  `isCurrentRoute`. Highlight from selection only for explicit
-                                  multi-selection (size > 1), otherwise it lingers after navigating
-                                  away from a chat. */}
-                              {chats.slice(0, visibleChatCount).map((chat) => {
-                                const isCurrentRoute = pathname === chat.href
-                                const isRenaming = chatFlyoutRename.editingId === chat.id
-                                const isSelected =
-                                  chat.id !== 'new' &&
-                                  hasChatMultiSelection &&
-                                  selectedChats.has(chat.id)
+                    {isChatEnabled && (
+                      <SidebarSection
+                        title='Chats'
+                        railCollapsed={isCollapsed}
+                        className='chats-section flex-shrink-0'
+                      >
+                        {isCollapsed ? (
+                          <CollapsedSidebarMenu
+                            icon={chatsCollapsedIcon}
+                            hover={chatsHover}
+                            ariaLabel='Chats'
+                          >
+                            {chatsLoading ? (
+                              <DropdownMenuItem disabled>
+                                <Loader className='size-[14px]' animate />
+                                Loading...
+                              </DropdownMenuItem>
+                            ) : chats.length === 0 ? (
+                              <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
+                            ) : (
+                              chats.map((chat) => (
+                                <CollapsedChatFlyoutItem
+                                  key={chat.id}
+                                  chat={chat}
+                                  isCurrentRoute={pathname === chat.href}
+                                  isMenuOpen={menuOpenChatId === chat.id}
+                                  isEditing={chat.id === chatFlyoutRename.editingId}
+                                  editValue={chatFlyoutRename.value}
+                                  inputRef={chatFlyoutRename.inputRef}
+                                  isRenaming={chatFlyoutRename.isSaving}
+                                  onEditValueChange={chatFlyoutRename.setValue}
+                                  onEditKeyDown={chatFlyoutRename.handleKeyDown}
+                                  onEditBlur={handleChatRenameBlur}
+                                  onContextMenu={handleChatContextMenu}
+                                  onMorePointerDown={handleChatMorePointerDown}
+                                  onMoreClick={handleChatMoreClick}
+                                />
+                              ))
+                            )}
+                          </CollapsedSidebarMenu>
+                        ) : (
+                          <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+                            {chatsLoading ? (
+                              <SidebarItemSkeleton />
+                            ) : (
+                              <>
+                                {chats.length === 0 ? (
+                                  <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
+                                    No chats yet
+                                  </div>
+                                ) : null}
+                                {/* `selectChatOnly` populates `selectedChats` on every click, so
+                                    a single entry just means "last clicked" — already conveyed by
+                                    `isCurrentRoute`. Highlight from selection only for explicit
+                                    multi-selection (size > 1), otherwise it lingers after navigating
+                                    away from a chat. */}
+                                {chats.slice(0, visibleChatCount).map((chat) => {
+                                  const isCurrentRoute = pathname === chat.href
+                                  const isRenaming = chatFlyoutRename.editingId === chat.id
+                                  const isSelected =
+                                    chat.id !== 'new' &&
+                                    hasChatMultiSelection &&
+                                    selectedChats.has(chat.id)
 
-                                if (isRenaming) {
-                                  return (
-                                    <div
-                                      key={chat.id}
-                                      className={chipVariants({ active: true, fullWidth: true })}
-                                    >
-                                      <input
-                                        ref={chatFlyoutRename.inputRef}
-                                        value={chatFlyoutRename.value}
-                                        onChange={(e) => chatFlyoutRename.setValue(e.target.value)}
-                                        onKeyDown={chatFlyoutRename.handleKeyDown}
-                                        onBlur={handleChatRenameBlur}
-                                        className='min-w-0 flex-1 border-none bg-transparent text-[14px] text-[var(--text-body)] outline-none'
-                                      />
-                                    </div>
-                                  )
-                                }
-
-                                return (
-                                  <SidebarChatItem
-                                    key={chat.id}
-                                    chat={chat}
-                                    isCurrentRoute={isCurrentRoute}
-                                    isSelected={isSelected}
-                                    isActive={!!chat.isActive}
-                                    isUnread={!!chat.isUnread}
-                                    isPinned={!!chat.isPinned}
-                                    isMenuOpen={menuOpenChatId === chat.id}
-                                    showCollapsedTooltips={showCollapsedTooltips}
-                                    onMultiSelectClick={handleChatClick}
-                                    onContextMenu={handleChatContextMenu}
-                                    onMorePointerDown={handleChatMorePointerDown}
-                                    onMoreClick={handleChatMoreClick}
-                                  />
-                                )
-                              })}
-                              {chats.length > 5 && (
-                                <button
-                                  type='button'
-                                  onClick={
-                                    chats.length > visibleChatCount
-                                      ? handleSeeMoreChats
-                                      : handleSeeLessChats
+                                  if (isRenaming) {
+                                    return (
+                                      <div
+                                        key={chat.id}
+                                        className={chipVariants({ active: true, fullWidth: true })}
+                                      >
+                                        <input
+                                          ref={chatFlyoutRename.inputRef}
+                                          value={chatFlyoutRename.value}
+                                          onChange={(e) =>
+                                            chatFlyoutRename.setValue(e.target.value)
+                                          }
+                                          onKeyDown={chatFlyoutRename.handleKeyDown}
+                                          onBlur={handleChatRenameBlur}
+                                          className='min-w-0 flex-1 border-none bg-transparent text-[14px] text-[var(--text-body)] outline-none'
+                                        />
+                                      </div>
+                                    )
                                   }
-                                  className={cn(
-                                    chipVariants({ fullWidth: true }),
-                                    'text-[var(--text-muted)] text-small'
-                                  )}
-                                >
-                                  {chats.length > visibleChatCount ? 'See more' : 'See less'}
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </SidebarSection>
+
+                                  return (
+                                    <SidebarChatItem
+                                      key={chat.id}
+                                      chat={chat}
+                                      isCurrentRoute={isCurrentRoute}
+                                      isSelected={isSelected}
+                                      isActive={!!chat.isActive}
+                                      isUnread={!!chat.isUnread}
+                                      isPinned={!!chat.isPinned}
+                                      isMenuOpen={menuOpenChatId === chat.id}
+                                      showCollapsedTooltips={showCollapsedTooltips}
+                                      onMultiSelectClick={handleChatClick}
+                                      onContextMenu={handleChatContextMenu}
+                                      onMorePointerDown={handleChatMorePointerDown}
+                                      onMoreClick={handleChatMoreClick}
+                                    />
+                                  )
+                                })}
+                                {chats.length > 5 && (
+                                  <button
+                                    type='button'
+                                    onClick={
+                                      chats.length > visibleChatCount
+                                        ? handleSeeMoreChats
+                                        : handleSeeLessChats
+                                    }
+                                    className={cn(
+                                      chipVariants({ fullWidth: true }),
+                                      'text-[var(--text-muted)] text-small'
+                                    )}
+                                  >
+                                    {chats.length > visibleChatCount ? 'See more' : 'See less'}
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </SidebarSection>
+                    )}
 
                     <SidebarSection
                       title='Workspace'

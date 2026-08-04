@@ -91,6 +91,44 @@ describe('createStreamingResponse', () => {
     clearLargeValueCacheForTests()
   })
 
+  it('forwards raw execution state to terminal logging', async () => {
+    const safeComplete = vi.fn().mockResolvedValue(undefined)
+    const executionState = {
+      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+    }
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      executionId: 'execution-1',
+      streamConfig: {
+        selectedOutputs: [],
+        includeFileBase64: false,
+      },
+      executeFn: async () =>
+        ({
+          success: true,
+          status: 'completed',
+          output: { result: 'raw-secret-value' },
+          logs: [],
+          metadata: { duration: 1 },
+          executionState,
+          _streamingMetadata: {
+            loggingSession: { safeComplete },
+            processedInput: { input: 'raw-runtime-value' },
+          },
+        }) as any,
+    })
+
+    await readSSEStream(stream)
+
+    expect(safeComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        finalOutput: { result: 'raw-secret-value' },
+        workflowInput: { input: 'raw-runtime-value' },
+        executionState,
+      })
+    )
+  })
+
   it('extracts block-level selected outputs from JSON content payloads', async () => {
     const output = { content: JSON.stringify({ answer: 'ok' }) }
     const stream = await createStreamingResponse({

@@ -52,8 +52,51 @@ describe('normalizePiEvent', () => {
     ).toEqual({ type: 'usage', inputTokens: 3, outputTokens: 2 })
   })
 
+  it('maps a settled agent failure to an error', () => {
+    expect(
+      normalizePiEvent({
+        type: 'agent_end',
+        willRetry: false,
+        messages: [
+          {
+            role: 'assistant',
+            stopReason: 'error',
+            errorMessage: 'Invalid API key',
+          },
+        ],
+      })
+    ).toEqual({ type: 'error', message: 'Invalid API key' })
+    expect(
+      normalizePiEvent({
+        type: 'agent_end',
+        messages: [{ role: 'assistant', stopReason: 'aborted' }],
+      })
+    ).toEqual({ type: 'error', message: 'Pi request aborted' })
+  })
+
+  it('does not fail an attempt that Pi will retry', () => {
+    expect(
+      normalizePiEvent({
+        type: 'agent_end',
+        willRetry: true,
+        messages: [
+          {
+            role: 'assistant',
+            stopReason: 'error',
+            errorMessage: 'Provider overloaded',
+          },
+        ],
+      })
+    ).toEqual({ type: 'other' })
+  })
+
   it('maps agent_end to final and error to error', () => {
-    expect(normalizePiEvent({ type: 'agent_end' })).toEqual({ type: 'final' })
+    expect(
+      normalizePiEvent({
+        type: 'agent_end',
+        messages: [{ role: 'assistant', stopReason: 'stop' }],
+      })
+    ).toEqual({ type: 'final' })
     expect(normalizePiEvent({ type: 'error', error: 'boom' })).toEqual({
       type: 'error',
       message: 'boom',

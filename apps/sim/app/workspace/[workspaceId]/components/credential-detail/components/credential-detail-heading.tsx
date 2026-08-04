@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 
 interface CredentialDetailHeadingProps {
   /** Leading visual (icon tile or brand tile). */
@@ -8,8 +9,9 @@ interface CredentialDetailHeadingProps {
 }
 
 /**
- * Header row shared by credential detail surfaces: a leading visual beside a
- * title over a muted subtitle.
+ * Header row shared by credential detail surfaces. A thin alias over the static
+ * {@link SettingsResourceRow} — the heading and the list row the user arrived
+ * from are the same object, so they must not drift.
  */
 export function CredentialDetailHeading({
   leading,
@@ -17,14 +19,14 @@ export function CredentialDetailHeading({
   subtitle,
 }: CredentialDetailHeadingProps) {
   return (
-    <div className='flex items-center gap-2.5'>
-      {leading}
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <span className='truncate text-[14px] text-[var(--text-body)]'>{title}</span>
-        {subtitle ? (
-          <span className='truncate text-[12px] text-[var(--text-muted)]'>{subtitle}</span>
-        ) : null}
-      </div>
-    </div>
+    <SettingsResourceRow
+      // A heading is not a list row: no bleed, no row padding.
+      flush
+      iconVariant='custom'
+      icon={leading}
+      title={title}
+      // `''` rendered nothing before; the row only skips a nullish description.
+      description={subtitle || undefined}
+    />
   )
 }

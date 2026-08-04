@@ -1,5 +1,6 @@
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
+import { isPermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -57,7 +58,7 @@ interface BuildPayloadParams {
     timezone?: string
   }
   desktopLocalFilesystem?: boolean
-  browserCapable?: boolean
+  browser?: boolean
   terminalCapable?: boolean
   terminals?: Array<{
     id: string
@@ -333,10 +334,25 @@ export async function buildCopilotRequestPayload(
   const effectiveMode = mode === 'agent' ? 'build' : mode
   const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
-  // Track uploaded files in the DB and build context tags instead of base64 inlining
+  // Track uploaded files in the DB and build context tags instead of base64 inlining.
+  // Tracking writes `workspace_files` rows, so it needs the same write grant the
+  // upload routes that issue these keys already require — reaching the chat
+  // endpoint with `read` must not confer a file-write capability.
   const uploadContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
+  // `userPermission` is typed `string` for legacy reasons, so narrow it before
+  // comparing — an unrecognized value must fail the gate, not rank below it.
+  const canWriteWorkspaceFiles =
+    isPermissionType(params.userPermission) && permissionSatisfies(params.userPermission, 'write')
   if (chatId && params.workspaceId && fileAttachments && fileAttachments.length > 0) {
-    for (const f of fileAttachments) {
+    if (!canWriteWorkspaceFiles) {
+      logger.warn('Dropping chat file attachments without workspace write access', {
+        chatId,
+        workspaceId: params.workspaceId,
+        attachmentCount: fileAttachments.length,
+      })
+    }
+    const trackableAttachments = canWriteWorkspaceFiles ? fileAttachments : []
+    for (const f of trackableAttachments) {
       const filename = (f.filename ?? f.name ?? 'file') as string
       const mediaType = (f.media_type ?? f.mimeType ?? 'application/octet-stream') as string
       try {
@@ -447,24 +463,21 @@ export async function buildCopilotRequestPayload(
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
     ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-    ...(params.desktopLocalFilesystem || params.browserCapable || params.terminalCapable
+    ...(params.desktopLocalFilesystem || params.browser || params.terminalCapable
       ? {
           desktopCapabilities: {
             ...(params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
-            ...(params.browserCapable ? { browser: true } : {}),
+            ...(params.browser ? { browser: true } : {}),
             ...(params.terminalCapable ? { terminal: true } : {}),
             ...(params.terminalCapable && params.terminals?.length
               ? { terminals: params.terminals }
               : {}),
-            ...(params.browserCapable && params.browserSessions?.length
+            ...(params.browser && params.browserSessions?.length
               ? { browserSessions: params.browserSessions }
               : {}),
           },
         }
       : {}),
-    // Compatibility with mothership deployments that predate the unified
-    // desktop capability object.
-    ...(params.browserCapable ? { browserCapable: true } : {}),
     isHosted,
   }
 }

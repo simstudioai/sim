@@ -19,6 +19,7 @@ import type {
   LocalToolCallStatus,
   OrchestratorResult,
 } from '@/lib/copilot/request/types'
+import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome | 'interrupted'
 
@@ -78,6 +79,39 @@ interface PersistedMessageContext {
   blockType?: string
   skillId?: string
   serverId?: string
+  /**
+   * Source names for `file_selection` / `table_selection` chips. Persisted
+   * because the rendered chip reads them — the label carries a location suffix
+   * (`notes.md:12-40`), so the file icon cannot derive an extension from it.
+   *
+   * The rest of a selection's payload (`text`, `rowIds`, `columnIds`, line
+   * numbers) is deliberately NOT persisted: it exists to resolve the selection
+   * server-side when the message is sent, is never read when re-rendering a past
+   * message, and would put a selection-sized blob in every stored message.
+   */
+  fileName?: string
+  tableName?: string
+  tabId?: string
+  terminalId?: string
+  selection?: BrowserTextSelection | TerminalTextSelection
+}
+
+function copyTextSelection(
+  selection: BrowserTextSelection | TerminalTextSelection | undefined
+): BrowserTextSelection | TerminalTextSelection | undefined {
+  if (!selection) return undefined
+  if ('startLine' in selection) {
+    return {
+      text: selection.text,
+      startLine: selection.startLine,
+      endLine: selection.endLine,
+    }
+  }
+  return {
+    text: selection.text,
+    ...(selection.url ? { url: selection.url } : {}),
+    ...(selection.title ? { title: selection.title } : {}),
+  }
 }
 
 export interface PersistedMessage {
@@ -359,6 +393,11 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
       ...(c.blockType ? { blockType: c.blockType } : {}),
       ...(c.skillId ? { skillId: c.skillId } : {}),
       ...(c.serverId ? { serverId: c.serverId } : {}),
+      ...(c.fileName ? { fileName: c.fileName } : {}),
+      ...(c.tableName ? { tableName: c.tableName } : {}),
+      ...(c.tabId ? { tabId: c.tabId } : {}),
+      ...(c.terminalId ? { terminalId: c.terminalId } : {}),
+      ...(c.selection ? { selection: copyTextSelection(c.selection) } : {}),
     }))
   }
 
@@ -680,6 +719,11 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
       ...(c.blockType ? { blockType: c.blockType } : {}),
       ...(c.skillId ? { skillId: c.skillId } : {}),
       ...(c.serverId ? { serverId: c.serverId } : {}),
+      ...(c.fileName ? { fileName: c.fileName } : {}),
+      ...(c.tableName ? { tableName: c.tableName } : {}),
+      ...(c.tabId ? { tabId: c.tabId } : {}),
+      ...(c.terminalId ? { terminalId: c.terminalId } : {}),
+      ...(c.selection ? { selection: copyTextSelection(c.selection) } : {}),
     }))
   }
 

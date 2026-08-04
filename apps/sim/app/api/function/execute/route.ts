@@ -17,6 +17,7 @@ import {
   writeWorkspaceFileByPath,
 } from '@/lib/copilot/vfs/resource-writer'
 import { isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
+import { setRecordValue } from '@/lib/core/utils/records'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
@@ -36,6 +37,12 @@ import {
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import {
+  PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
+  RESOLVED_SECRET_NAMES_FIELD,
+  RESOLVED_SECRET_NAMES_METADATA_V1,
+  requestsPrivateToolMetadata,
+} from '@/lib/execution/private-tool-metadata'
+import {
   executeInSandbox,
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
@@ -49,6 +56,7 @@ import { getWorkflowById } from '@/lib/workflows/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import { formatLiteralForCode } from '@/executor/utils/code-formatting'
+import { createCodeEnvVarPattern } from '@/executor/utils/code-secret-references'
 import {
   createEnvVarPattern,
   createReferencePattern,
@@ -65,6 +73,8 @@ const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
 const MAX_SANDBOX_OUTPUT_FILES = 20
 const MAX_SANDBOX_OUTPUT_BYTES = 50 * 1024 * 1024
+const MAX_PRIVATE_RESOLVED_SECRET_NAMES = 10_000
+const MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES = 1024 * 1024
 
 /** Matches valid JS identifier names (letters, digits, underscore; no leading digit). */
 const SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/
@@ -571,7 +581,7 @@ function scopeEnvironmentVariables(
   const scoped: Record<string, string> = {}
   const missing: string[] = []
   for (const name of allowed) {
-    if (name in envVars) scoped[name] = envVars[name]
+    if (Object.hasOwn(envVars, name)) setRecordValue(scoped, name, envVars[name])
     else missing.push(name)
   }
   if (missing.length > 0) {
@@ -586,7 +596,8 @@ function resolveEnvironmentVariables(
   code: string,
   params: Record<string, any>,
   envVars: Record<string, string>,
-  contextVariables: Record<string, any>
+  contextVariables: Record<string, any>,
+  onResolvedSecret?: (name: string) => void
 ): string {
   let resolvedCode = code
 
@@ -598,19 +609,19 @@ function resolveEnvironmentVariables(
   const resolverVars: Record<string, string> = {}
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
-      resolverVars[key] = String(value)
+      setRecordValue(resolverVars, key, String(value))
     }
   })
   Object.entries(envVars).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
-      resolverVars[key] = value
+      setRecordValue(resolverVars, key, value)
     }
   })
 
   while ((match = regex.exec(code)) !== null) {
     const varName = match[1].trim()
 
-    if (!(varName in resolverVars)) {
+    if (!Object.hasOwn(resolverVars, varName)) {
       continue
     }
 
@@ -627,6 +638,9 @@ function resolveEnvironmentVariables(
 
     const safeVarName = `__var_${varName.replace(/[^a-zA-Z0-9_]/g, '_')}`
     contextVariables[safeVarName] = varValue
+    if (Object.hasOwn(envVars, varName) && envVars[varName] === varValue) {
+      onResolvedSecret?.(varName)
+    }
     resolvedCode =
       resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
   }
@@ -704,13 +718,20 @@ function resolveCodeVariables(
   blockNameMapping: Record<string, string> = {},
   blockOutputSchemas: Record<string, OutputSchema> = {},
   workflowVariables: Record<string, unknown> = {},
-  language = 'javascript'
+  language = 'javascript',
+  onResolvedSecret?: (name: string) => void
 ): { resolvedCode: string; contextVariables: Record<string, unknown> } {
   let resolvedCode = code
   const contextVariables: Record<string, unknown> = {}
 
   resolvedCode = resolveWorkflowVariables(resolvedCode, workflowVariables, contextVariables)
-  resolvedCode = resolveEnvironmentVariables(resolvedCode, params, envVars, contextVariables)
+  resolvedCode = resolveEnvironmentVariables(
+    resolvedCode,
+    params,
+    envVars,
+    contextVariables,
+    onResolvedSecret
+  )
   resolvedCode = resolveTagVariables(
     resolvedCode,
     blockData,
@@ -796,6 +817,8 @@ interface FunctionRouteExecutionContext {
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   requestId: string
+  resolvedSecretNames: Set<string>
+  includePrivateResolvedSecretNames: boolean
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -931,7 +954,7 @@ async function functionJsonResponse<T>(
   context: FunctionRouteExecutionContext,
   init?: ResponseInit
 ) {
-  return NextResponse.json(
+  const response = NextResponse.json(
     await compactFunctionRouteBody(
       {
         ...body,
@@ -942,6 +965,52 @@ async function functionJsonResponse<T>(
     ),
     init
   )
+  return appendResolvedSecretNames(response, context)
+}
+
+function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): string[] | null {
+  if (context.resolvedSecretNames.size > MAX_PRIVATE_RESOLVED_SECRET_NAMES) return null
+
+  const names = Array.from(context.resolvedSecretNames).sort()
+  let bytes = 0
+  for (const name of names) {
+    bytes += Buffer.byteLength(name, 'utf8')
+    if (bytes > MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES) return null
+  }
+  return names
+}
+
+async function appendResolvedSecretNames(
+  response: NextResponse,
+  context: FunctionRouteExecutionContext
+): Promise<NextResponse> {
+  const names = context.includePrivateResolvedSecretNames
+    ? getPrivateResolvedSecretNames(context)
+    : null
+  return appendPrivateResolvedSecretNames(response, names)
+}
+
+async function appendPrivateResolvedSecretNames(
+  response: NextResponse,
+  names: string[] | null
+): Promise<NextResponse> {
+  if (!names) return response
+
+  try {
+    const body = (await response.clone().json()) as Record<string, unknown>
+    const headers = new Headers(response.headers)
+    headers.delete('content-length')
+    headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, RESOLVED_SECRET_NAMES_METADATA_V1)
+    return NextResponse.json(
+      {
+        ...body,
+        [RESOLVED_SECRET_NAMES_FIELD]: names,
+      },
+      { status: response.status, statusText: response.statusText, headers }
+    )
+  } catch {
+    return response
+  }
 }
 
 /**
@@ -1411,6 +1480,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   let resolvedCode = '' // Store resolved code for error reporting
   let sourceCodeForErrors: string | undefined
   let routeContext: FunctionRouteExecutionContext | undefined
+  let includePrivateResolvedSecretNames = false
 
   try {
     const auth = await checkInternalAuth(req)
@@ -1419,8 +1489,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
+    includePrivateResolvedSecretNames = requestsPrivateToolMetadata(
+      req.headers,
+      RESOLVED_SECRET_NAMES_METADATA_V1
+    )
+
     const parsed = await parseRequest(functionExecuteContract, req, {})
-    if (!parsed.success) return parsed.response
+    if (!parsed.success) {
+      return appendPrivateResolvedSecretNames(
+        parsed.response,
+        includePrivateResolvedSecretNames ? [] : null
+      )
+    }
     const { body } = parsed.data
 
     const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')
@@ -1473,12 +1553,15 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       .map((file) => file.sandboxPath)
       .filter((path): path is string => Boolean(path))
     if (outputSandboxPaths.length > MAX_SANDBOX_OUTPUT_FILES) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Too many sandbox output files requested (${outputSandboxPaths.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
-        },
-        { status: 400 }
+      return appendPrivateResolvedSecretNames(
+        NextResponse.json(
+          {
+            success: false,
+            error: `Too many sandbox output files requested (${outputSandboxPaths.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
+          },
+          { status: 400 }
+        ),
+        includePrivateResolvedSecretNames ? [] : null
       )
     }
 
@@ -1504,6 +1587,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       allowLargeValueWorkflowScope,
       userId: auth.userId,
       requestId,
+      resolvedSecretNames: new Set<string>(),
+      includePrivateResolvedSecretNames,
     }
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
@@ -1512,7 +1597,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     if (lang === CodeLanguage.Shell) {
       // For shell, env vars are injected as OS env vars via shellEnvs.
       // Replace {{VAR}} placeholders with $VAR so the shell can access them natively.
-      resolvedCode = code.replace(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g, '$$$1')
+      resolvedCode = code.replace(createCodeEnvVarPattern(lang), (_match, name) => {
+        if (Object.hasOwn(envVars, name)) {
+          routeContext?.resolvedSecretNames.add(name)
+        }
+        return `$${name}`
+      })
       // Carry pre-resolved block output variables (e.g. __blockRef_N) so they can be
       // injected as shell env vars below. The executor replaces block references in the
       // code with these names, so the values must be present at runtime.
@@ -1526,7 +1616,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         blockNameMapping,
         blockOutputSchemas,
         workflowVariables,
-        lang
+        lang,
+        (name) => routeContext?.resolvedSecretNames.add(name)
       )
       resolvedCode = codeResolution.resolvedCode
       // Merge pre-resolved block output variables from the executor. These take precedence
@@ -1625,7 +1716,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           stdout: shellStdout,
           executionTime,
         })
-        if (fileExportResponse) return fileExportResponse
+        if (fileExportResponse) {
+          return appendResolvedSecretNames(fileExportResponse, routeContext)
+        }
       }
 
       return functionJsonResponse(
@@ -1794,7 +1887,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
             stdout,
             executionTime,
           })
-          if (fileExportResponse) return fileExportResponse
+          if (fileExportResponse) {
+            return appendResolvedSecretNames(fileExportResponse, routeContext)
+          }
         }
 
         return functionJsonResponse(
@@ -1884,7 +1979,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           stdout,
           executionTime,
         })
-        if (fileExportResponse) return fileExportResponse
+        if (fileExportResponse) {
+          return appendResolvedSecretNames(fileExportResponse, routeContext)
+        }
       }
 
       return functionJsonResponse(
@@ -2043,17 +2140,20 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           { status: error.statusCode }
         )
       }
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.message,
-          output: {
-            result: null,
-            stdout: cleanStdout(stdout),
-            executionTime,
+      return appendPrivateResolvedSecretNames(
+        NextResponse.json(
+          {
+            success: false,
+            error: error.message,
+            output: {
+              result: null,
+              stdout: cleanStdout(stdout),
+              executionTime,
+            },
           },
-        },
-        { status: error.statusCode }
+          { status: error.statusCode }
+        ),
+        includePrivateResolvedSecretNames ? [] : null
       )
     }
 
@@ -2072,7 +2172,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
       return routeContext
         ? functionJsonResponse(killResponse, routeContext, { status: 500 })
-        : NextResponse.json(killResponse, { status: 500 })
+        : appendPrivateResolvedSecretNames(
+            NextResponse.json(killResponse, { status: 500 }),
+            includePrivateResolvedSecretNames ? [] : null
+          )
     }
 
     logger.error(`[${requestId}] Function execution failed`, {
@@ -2120,6 +2223,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return functionJsonResponse(errorResponse, routeContext, { status: 500 })
     }
 
-    return NextResponse.json(errorResponse, { status: 500 })
+    return appendPrivateResolvedSecretNames(
+      NextResponse.json(errorResponse, { status: 500 }),
+      includePrivateResolvedSecretNames ? [] : null
+    )
   }
 })

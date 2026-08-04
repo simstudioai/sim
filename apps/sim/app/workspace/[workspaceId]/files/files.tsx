@@ -61,10 +61,14 @@ import {
   Resource,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import type {
+  MoveOptionNode,
+  SortableResource,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import {
   parseMoveOptionValue,
   ROOT_MOVE_OPTION_VALUE,
+  sortResources,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
@@ -77,8 +81,11 @@ import {
   isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { FileDocAvatars } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-avatars'
+import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
 import {
   filesFilterParsers,
   filesFilterUrlKeys,
@@ -86,6 +93,12 @@ import {
   filesSortParams,
   filesUrlKeys,
 } from '@/app/workspace/[workspaceId]/files/search-params'
+import {
+  DEFAULT_UNTITLED_NAME,
+  deriveMarkdownFileName,
+  isUntitledName,
+  uniqueMarkdownName,
+} from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
@@ -115,7 +128,17 @@ type FileResourceItem =
   | { kind: 'file'; id: string; file: WorkspaceFileRecord }
   | { kind: 'folder'; id: string; folder: WorkspaceFileFolderApi }
 
+/** One row of the merged folder+file list, before it becomes a `ResourceRow`. */
+type FileListEntry =
+  | { kind: 'folder'; folder: WorkspaceFileFolderApi }
+  | { kind: 'file'; file: WorkspaceFileRecord }
+
 const logger = createLogger('Files')
+
+const FOLDER_ICON = <Folder className='size-[14px]' />
+
+/** Folders' value in the `type` column — also their sort key when that column is active. */
+const FOLDER_TYPE_LABEL = 'Folder' as const
 
 /**
  * Debounce window for `search` URL writes and filtering; the input itself stays
@@ -208,6 +231,11 @@ export function Files() {
   const canEdit = userPermissions.canEdit === true
   const { config: permissionConfig } = usePermissionConfig()
 
+  // Joined for the live file tree: a `workspace-files-changed` broadcast invalidates the
+  // browser. "Who's in this file" comes from the file-doc room (see FileDocRoomProvider),
+  // not from who's browsing the Files section.
+  useWorkspaceFilesRoom(workspaceId)
+
   useEffect(() => {
     if (permissionConfig.hideFilesTab) {
       router.replace(`/workspace/${workspaceId}`)
@@ -284,13 +312,13 @@ export function Files() {
   )
   const debouncedSearchTerm = useDebounce(urlSearchTerm, FILES_SEARCH_DEBOUNCE_MS)
 
-  /**
-   * `sort`/`dir` are nullable in the URL because "no active sort" is distinct
-   * from an explicit updated/desc selection: with no sort, files fall back to
-   * updated/desc but folders to name/asc, while an explicit sort orders both
-   * sections by the chosen column.
-   */
-  const { activeSort, onSort, onClear } = useUrlSort(filesSortParams, filesFilterUrlKeys)
+  const {
+    sort: sortColumn,
+    dir: sortDirection,
+    activeSort,
+    onSort,
+    onClear,
+  } = useUrlSort(filesSortParams, filesFilterUrlKeys)
 
   const setTypeFilter = useCallback(
     (next: string[]) => setFileFilters({ type: next }),
@@ -358,6 +386,34 @@ export function Files() {
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
 
+  /**
+   * While a file is still untitled, name it after the leading heading the user types in its editor. The
+   * editor reports the heading text (debounced); here we re-check the file is still untitled, derive a
+   * unique `.md` name among its folder siblings, and rename. A no-op once the file has a real name.
+   */
+  const handleDeriveTitleFromHeading = useCallback(
+    (headingText: string) => {
+      const currentFile = selectedFileRef.current
+      if (!currentFile || !isUntitledName(currentFile.name)) return
+      const derived = deriveMarkdownFileName(headingText)
+      if (!derived) return
+      const siblingNames = new Set(
+        filesRef.current
+          .filter(
+            (f) =>
+              (f.folderId ?? null) === (currentFile.folderId ?? null) && f.id !== currentFile.id
+          )
+          .map((f) => f.name)
+      )
+      const name = uniqueMarkdownName(derived, siblingNames)
+      if (name === currentFile.name) return
+      renameFile
+        .mutateAsync({ workspaceId, fileId: currentFile.id, name })
+        .catch((err) => logger.error('Failed to auto-name file from heading:', err))
+    },
+    [workspaceId]
+  )
+
   const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
   const shareModal = shareFile ? (
     <ShareModal
@@ -421,29 +477,10 @@ export function Files() {
   const visibleFolders = useMemo(() => {
     const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
     const needle = debouncedSearchTerm.trim().toLowerCase()
-    const searched = needle
+    return needle
       ? siblings.filter((folder) => folder.name.toLowerCase().includes(needle))
       : siblings
-    const col = activeSort?.column ?? 'name'
-    const dir = activeSort?.direction ?? 'asc'
-    return [...searched].sort((a, b) => {
-      // Pinned folders float to the top of every sort/direction — pinning is a
-      // user-declared priority, not another sort key to be inverted by `desc`.
-      const aPinned = pinnedFolderIds.has(a.id)
-      const bPinned = pinnedFolderIds.has(b.id)
-      if (aPinned !== bPinned) return aPinned ? -1 : 1
-
-      let cmp = 0
-      if (col === 'updated') {
-        cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-      } else if (col === 'created') {
-        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      } else {
-        cmp = a.name.localeCompare(b.name)
-      }
-      return dir === 'asc' ? cmp : -cmp
-    })
-  }, [folders, currentFolderId, debouncedSearchTerm, activeSort, pinnedFolderIds])
+  }, [folders, currentFolderId, debouncedSearchTerm])
 
   const filteredFiles = useMemo(() => {
     const needle = debouncedSearchTerm.trim().toLowerCase()
@@ -478,104 +515,129 @@ export function Files() {
       result = result.filter((f) => uploadedByFilter.includes(f.uploadedBy))
     }
 
-    const col = activeSort?.column ?? 'updated'
-    const dir = activeSort?.direction ?? 'desc'
-    return [...result].sort((a, b) => {
-      // Pinned files float to the top of every sort/direction — pinning is a
-      // user-declared priority, not another sort key to be inverted by `desc`.
-      const aPinned = pinnedFileIds.has(a.id)
-      const bPinned = pinnedFileIds.has(b.id)
-      if (aPinned !== bPinned) return aPinned ? -1 : 1
+    return result
+  }, [files, currentFolderId, debouncedSearchTerm, typeFilter, sizeFilter, uploadedByFilter])
 
-      let cmp = 0
-      switch (col) {
-        case 'name':
-          cmp = a.name.localeCompare(b.name)
-          break
-        case 'size':
-          cmp = a.size - b.size
-          break
-        case 'type':
-          cmp = formatFileType(a.type, a.name).localeCompare(formatFileType(b.type, b.name))
-          break
-        case 'created':
-          cmp = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()
-          break
-        case 'updated':
-          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-          break
-        case 'owner':
-          cmp = (membersById.get(a.uploadedBy)?.name ?? '').localeCompare(
-            membersById.get(b.uploadedBy)?.name ?? ''
-          )
-          break
-      }
-      return dir === 'asc' ? cmp : -cmp
-    })
+  /**
+   * Folders and files sort as ONE list — a folder never outranks a file it ties with, so a
+   * pinned file reaches the top of the list rather than the top of the file section.
+   *
+   * Decorate-sort: each row's key + pinned flag is computed ONCE (O(N)) so the comparator
+   * never re-runs Date parsing, `formatFileType`, or member lookups per comparison. Every
+   * Files column has a folder equivalent (folders carry a size roll-up and sort as type
+   * "Folder"), so no entry needs a null key here.
+   */
+  const sortedEntries = useMemo(() => {
+    const entries: SortableResource<FileListEntry>[] = []
+
+    for (const folder of visibleFolders) {
+      entries.push({
+        item: { kind: 'folder', folder },
+        pinned: pinnedFolderIds.has(folder.id),
+        name: folder.name,
+        key:
+          sortColumn === 'size'
+            ? (folderSizeMap.get(folder.id) ?? 0)
+            : sortColumn === 'type'
+              ? FOLDER_TYPE_LABEL
+              : sortColumn === 'created'
+                ? new Date(folder.createdAt).getTime()
+                : sortColumn === 'updated'
+                  ? new Date(folder.updatedAt).getTime()
+                  : sortColumn === 'owner'
+                    ? (membersById.get(folder.userId)?.name ?? null)
+                    : folder.name,
+      })
+    }
+
+    for (const file of filteredFiles) {
+      entries.push({
+        item: { kind: 'file', file },
+        pinned: pinnedFileIds.has(file.id),
+        name: file.name,
+        key:
+          sortColumn === 'size'
+            ? file.size
+            : sortColumn === 'type'
+              ? formatFileType(file.type, file.name)
+              : sortColumn === 'created'
+                ? new Date(file.uploadedAt).getTime()
+                : sortColumn === 'updated'
+                  ? new Date(file.updatedAt).getTime()
+                  : sortColumn === 'owner'
+                    ? (membersById.get(file.uploadedBy)?.name ?? null)
+                    : file.name,
+      })
+    }
+
+    return sortResources(entries, sortDirection)
   }, [
-    files,
-    currentFolderId,
-    debouncedSearchTerm,
-    typeFilter,
-    sizeFilter,
-    uploadedByFilter,
-    activeSort,
+    visibleFolders,
+    filteredFiles,
+    sortColumn,
+    sortDirection,
     membersById,
+    folderSizeMap,
+    pinnedFolderIds,
     pinnedFileIds,
   ])
 
-  const baseRows: ResourceRow[] = useMemo(() => {
-    const folderRows = visibleFolders.map((folder) => ({
-      id: folderRowId(folder.id),
-      cells: {
-        name: {
-          icon: <Folder className='size-[14px]' />,
-          label: folder.name,
-          pinned: pinnedFolderIds.has(folder.id),
-        },
-        size: {
-          label:
-            (folderSizeMap.get(folder.id) ?? 0) > 0
-              ? formatFileSize(folderSizeMap.get(folder.id)!, { includeBytes: true })
-              : EMPTY_CELL_PLACEHOLDER,
-        },
-        type: {
-          icon: <Folder className='size-[14px]' />,
-          label: 'Folder',
-        },
-        created: timeCell(folder.createdAt),
-        owner: ownerCell(folder.userId, membersById),
-        updated: timeCell(folder.updatedAt),
-      },
-    }))
+  const baseRows: ResourceRow[] = useMemo(
+    () =>
+      sortedEntries.map(({ item, pinned }): ResourceRow => {
+        if (item.kind === 'folder') {
+          const { folder } = item
+          const totalSize = folderSizeMap.get(folder.id) ?? 0
+          return {
+            id: folderRowId(folder.id),
+            cells: {
+              name: {
+                icon: FOLDER_ICON,
+                label: folder.name,
+                pinned,
+              },
+              size: {
+                label:
+                  totalSize > 0
+                    ? formatFileSize(totalSize, { includeBytes: true })
+                    : EMPTY_CELL_PLACEHOLDER,
+              },
+              type: {
+                icon: FOLDER_ICON,
+                label: FOLDER_TYPE_LABEL,
+              },
+              created: timeCell(folder.createdAt),
+              owner: ownerCell(folder.userId, membersById),
+              updated: timeCell(folder.updatedAt),
+            },
+          }
+        }
 
-    const fileRows = filteredFiles.map((file) => {
-      const Icon = getDocumentIcon(file.type || '', file.name)
-      const row: ResourceRow = {
-        id: fileRowId(file.id),
-        cells: {
-          name: {
-            icon: <Icon className='size-[14px]' />,
-            label: file.name,
-            pinned: pinnedFileIds.has(file.id),
+        const { file } = item
+        const Icon = getDocumentIcon(file.type || '', file.name)
+        return {
+          id: fileRowId(file.id),
+          cells: {
+            name: {
+              icon: <Icon className='size-[14px]' />,
+              label: file.name,
+              pinned,
+            },
+            size: {
+              label: formatFileSize(file.size, { includeBytes: true }),
+            },
+            type: {
+              icon: <Icon className='size-[14px]' />,
+              label: formatFileType(file.type, file.name),
+            },
+            created: timeCell(file.uploadedAt),
+            owner: ownerCell(file.uploadedBy, membersById),
+            updated: timeCell(file.updatedAt),
           },
-          size: {
-            label: formatFileSize(file.size, { includeBytes: true }),
-          },
-          type: {
-            icon: <Icon className='size-[14px]' />,
-            label: formatFileType(file.type, file.name),
-          },
-          created: timeCell(file.uploadedAt),
-          owner: ownerCell(file.uploadedBy, membersById),
-          updated: timeCell(file.updatedAt),
-        },
-      }
-      return row
-    })
-
-    return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, membersById, folderSizeMap, pinnedFolderIds, pinnedFileIds])
+        }
+      }),
+    [sortedEntries, membersById, folderSizeMap]
+  )
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
@@ -1248,12 +1310,7 @@ export function Files() {
       const existingNames = new Set(
         filesRef.current.filter((f) => (f.folderId ?? null) === currentFolderId).map((f) => f.name)
       )
-      let name = 'untitled.md'
-      let counter = 1
-      while (existingNames.has(name)) {
-        name = `untitled (${counter}).md`
-        counter++
-      }
+      const name = uniqueMarkdownName(DEFAULT_UNTITLED_NAME, existingNames)
 
       const mimeType = getMimeTypeFromExtension('md')
       const blob = new Blob([''], { type: mimeType })
@@ -1594,6 +1651,7 @@ export function Files() {
               onSelect: handleShareSelected,
             },
             {
+              id: 'delete',
               text: 'Delete',
               icon: Trash,
               onSelect: handleDeleteSelected,
@@ -1781,10 +1839,18 @@ export function Files() {
   )
 
   const contextMenuMoveOptions = useMemo((): MoveOptionNode[] => {
+    // Index children by parent ONCE (the same pattern used for folder sizes + descendant maps above),
+    // so building the tree is O(N) instead of a full `folders.filter` scan at every node (O(N²)).
+    const childrenByParent = new Map<string | null, typeof folders>()
+    for (const f of folders) {
+      const key = f.parentId ?? null
+      const arr = childrenByParent.get(key)
+      if (arr) arr.push(f)
+      else childrenByParent.set(key, [f])
+    }
     const buildSubtree = (parentId: string | null): MoveOptionNode[] =>
-      folders
+      (childrenByParent.get(parentId) ?? [])
         .filter((f) => {
-          if ((f.parentId ?? null) !== parentId) return false
           if (selectedFolderIds.includes(f.id)) return false
           return selectedFolderIds.every(
             (sid) => !descendantFolderIdsByFolderId.get(sid)?.has(f.id)
@@ -1979,35 +2045,43 @@ export function Files() {
   if (selectedFile) {
     return (
       <>
-        <Resource>
-          <Resource.Header
-            icon={FilesIcon}
-            breadcrumbs={fileDetailBreadcrumbs}
-            actions={fileActions}
-          />
-          <FileViewer
-            key={selectedFile.id}
-            file={selectedFile}
-            workspaceId={workspaceId}
-            canEdit={canEdit}
-            previewMode={previewMode}
-            autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
-            onDirtyChange={setIsDirty}
-            onSaveStatusChange={handleSaveStatusChange}
-            saveRef={saveRef}
-            discardRef={discardRef}
-          />
+        {/* The room provider scopes "who's in this file" presence to the open document: the
+            editor (inside FileViewer) publishes the server-authenticated roster and the
+            header's FileDocAvatars reads it — both must be descendants. */}
+        <FileDocRoomProvider>
+          <Resource>
+            <Resource.Header
+              icon={FilesIcon}
+              breadcrumbs={fileDetailBreadcrumbs}
+              actions={fileActions}
+              aside={<FileDocAvatars />}
+            />
+            <FileViewer
+              key={selectedFile.id}
+              file={selectedFile}
+              workspaceId={workspaceId}
+              canEdit={canEdit}
+              previewMode={previewMode}
+              autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
+              onDirtyChange={setIsDirty}
+              onSaveStatusChange={handleSaveStatusChange}
+              saveRef={saveRef}
+              discardRef={discardRef}
+              collaborative
+              onDeriveTitleFromHeading={handleDeriveTitleFromHeading}
+            />
 
-          <ChipConfirmModal
-            open={showUnsavedChangesAlert}
-            onOpenChange={setShowUnsavedChangesAlert}
-            srTitle='Unsaved Changes'
-            title='Unsaved Changes'
-            text='You have unsaved changes. Are you sure you want to discard them?'
-            dismissLabel='Keep editing'
-            confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
-          />
-        </Resource>
+            <ChipConfirmModal
+              open={showUnsavedChangesAlert}
+              onOpenChange={setShowUnsavedChangesAlert}
+              srTitle='Unsaved Changes'
+              title='Unsaved Changes'
+              text='You have unsaved changes. Are you sure you want to discard them?'
+              dismissLabel='Keep editing'
+              confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
+            />
+          </Resource>
+        </FileDocRoomProvider>
 
         <DeleteConfirmModal
           open={showDeleteConfirm}

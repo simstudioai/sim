@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
-  type AsyncCompletionData,
   type AsyncConfirmationStatus,
 } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
@@ -17,6 +17,7 @@ import {
   CompletionReportError,
   reportClientToolCompletion as reportCompletion,
 } from '@/lib/copilot/tools/client/completion'
+import { getWorkflowToolCompletionMessage } from '@/lib/copilot/tools/workflow-tools'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { SSEEventHandlerError, SSEStreamInterruptedError } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -36,8 +37,7 @@ const PENDING_COMPLETION_STORAGE_PREFIX = 'sim:copilot:run-tool-completion:'
 
 interface PendingCompletionReport {
   status: AsyncConfirmationStatus
-  message?: string
-  data?: AsyncCompletionData
+  executionId?: string
 }
 
 function resolveWorkflowInput(params: Record<string, unknown>): unknown {
@@ -141,8 +141,11 @@ export async function bindRunToolToExecution(
       await reportCompletion(
         toolCallId,
         pendingCompletion.status,
-        pendingCompletion.message,
-        pendingCompletion.data
+        getWorkflowToolCompletionMessage(pendingCompletion.status),
+        pendingCompletion.status === MothershipStreamV1ToolOutcome.cancelled
+          ? { reason: 'user_cancelled', cancelledByUser: true }
+          : undefined,
+        pendingCompletion.executionId ?? pointer.executionId
       )
       clearPendingCompletionReport(toolCallId)
     } catch (error) {
@@ -160,12 +163,9 @@ export async function bindRunToolToExecution(
     await reportCompletion(
       toolCallId,
       ASYNC_TOOL_CONFIRMATION_STATUS.background,
-      'Client recovered an existing workflow execution; continuing in background.',
-      {
-        workflowId,
-        executionId: pointer.executionId,
-        lastEventId: pointer.lastEventId,
-      }
+      getWorkflowToolCompletionMessage(ASYNC_TOOL_CONFIRMATION_STATUS.background),
+      undefined,
+      pointer.executionId
     )
   } catch (error) {
     logger.warn('[RunTool] Failed to report recovered execution as background', {
@@ -186,8 +186,8 @@ export async function bindRunToolToExecution(
  * Mirrors staging's RunWorkflowClientTool.handleAccept():
  * 1. Execute via executeWorkflowWithFullLogging
  * 2. Update client tool state directly (success/error)
- * 3. Report completion to server via /api/copilot/confirm (Redis),
- *    where the server-side handler picks it up and tells Go
+ * 3. Report a structural completion notification; the server restores the
+ *    bound execution result from its log before resuming Copilot
  */
 export function executeRunToolOnClient(
   toolCallId: string,
@@ -246,15 +246,19 @@ export async function reportManualRunToolStop(
     manuallyStoppedToolCallIds.add(toolCallId)
   }
 
+  const executionId =
+    useExecutionStore.getState().getCurrentExecutionId(workflowId) ??
+    (await loadExecutionPointer(workflowId).catch(() => null))?.executionId
+
   await reportCompletion(
     toolCallId,
     MothershipStreamV1ToolOutcome.cancelled,
-    'Workflow execution was stopped manually by the user.',
+    getWorkflowToolCompletionMessage(MothershipStreamV1ToolOutcome.cancelled),
     {
       reason: 'user_cancelled',
       cancelledByUser: true,
-      workflowId,
-    }
+    },
+    executionId
   )
 }
 
@@ -347,7 +351,6 @@ async function doExecuteRunTool(
   const executionId = generateId()
   setCurrentExecutionId(targetWorkflowId, executionId)
   saveExecutionPointer({ workflowId: targetWorkflowId, executionId, lastEventId: 0 })
-  const executionStartTime = new Date().toISOString()
   const releaseVisibleExecutionForBackground = () => {
     const { setCurrentExecutionId: clearExecId, setActiveBlocks } = useExecutionStore.getState()
     if (activeRunToolByWorkflowId.get(targetWorkflowId) === toolCallId) {
@@ -360,12 +363,15 @@ async function doExecuteRunTool(
 
   const onPageHide = () => {
     if (manuallyStoppedToolCallIds.has(toolCallId)) return
+    const activeExecutionId =
+      useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) ?? executionId
     navigator.sendBeacon(
       COPILOT_CONFIRM_API_PATH,
       new Blob(
         [
           JSON.stringify({
             toolCallId,
+            executionId: activeExecutionId,
             status: 'background',
             message: 'Client disconnected, execution continuing server-side',
           }),
@@ -397,6 +403,7 @@ async function doExecuteRunTool(
       workflowId: targetWorkflowId,
       workflowInput,
       executionId,
+      copilotToolCallId: toolCallId,
       overrideTriggerType: 'copilot',
       triggerBlockId,
       useDraftState,
@@ -406,28 +413,16 @@ async function doExecuteRunTool(
       preserveExecutionOnTerminal: true,
     })
 
+    const completedExecutionId =
+      useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) ?? executionId
+
     // Determine success (same logic as staging's RunWorkflowClientTool)
-    let succeeded = true
-    let errorMessage: string | undefined
-    try {
-      if (result && typeof result === 'object' && 'success' in (result as any)) {
-        succeeded = Boolean((result as any).success)
-        if (!succeeded) {
-          errorMessage = (result as any)?.error || (result as any)?.output?.error
-        }
-      } else if (
-        result &&
-        typeof result === 'object' &&
-        'execution' in (result as any) &&
-        (result as any).execution
-      ) {
-        succeeded = Boolean((result as any).execution.success)
-        if (!succeeded) {
-          errorMessage =
-            (result as any).execution?.error || (result as any).execution?.output?.error
-        }
-      }
-    } catch {}
+    const succeeded =
+      isPlainRecord(result) && Object.hasOwn(result, 'success')
+        ? Boolean(result.success)
+        : isPlainRecord(result) && isPlainRecord(result.execution)
+          ? Boolean(result.execution.success)
+          : true
 
     if (manuallyStoppedToolCallIds.has(toolCallId)) {
       logger.info('[RunTool] Skipping generic completion — already manually stopped', {
@@ -438,31 +433,30 @@ async function doExecuteRunTool(
       logger.info('[RunTool] Workflow execution succeeded', { toolCallId, toolName })
       const pendingCompletion = {
         status: MothershipStreamV1ToolOutcome.success,
-        message: `Workflow execution completed. Started at: ${executionStartTime}`,
-        data: buildResultData(result),
+        executionId: completedExecutionId,
       }
       savePendingCompletionReport(toolCallId, pendingCompletion)
       await reportCompletion(
         toolCallId,
         pendingCompletion.status,
-        pendingCompletion.message,
-        pendingCompletion.data
+        getWorkflowToolCompletionMessage(pendingCompletion.status),
+        undefined,
+        pendingCompletion.executionId
       )
       clearPendingCompletionReport(toolCallId)
     } else {
-      const msg = errorMessage || 'Workflow execution failed'
-      logger.error('[RunTool] Workflow execution failed', { toolCallId, toolName, error: msg })
+      logger.error('[RunTool] Workflow execution failed', { toolCallId, toolName })
       const pendingCompletion = {
         status: MothershipStreamV1ToolOutcome.error,
-        message: msg,
-        data: buildResultData(result),
+        executionId: completedExecutionId,
       }
       savePendingCompletionReport(toolCallId, pendingCompletion)
       await reportCompletion(
         toolCallId,
         pendingCompletion.status,
-        pendingCompletion.message,
-        pendingCompletion.data
+        getWorkflowToolCompletionMessage(pendingCompletion.status),
+        undefined,
+        pendingCompletion.executionId
       )
       clearPendingCompletionReport(toolCallId)
     }
@@ -489,7 +483,9 @@ async function doExecuteRunTool(
         await reportCompletion(
           toolCallId,
           ASYNC_TOOL_CONFIRMATION_STATUS.background,
-          'Client lost local stream processing; workflow execution may still be continuing server-side.'
+          getWorkflowToolCompletionMessage(ASYNC_TOOL_CONFIRMATION_STATUS.background),
+          undefined,
+          err.executionId ?? executionId
         )
         return
       }
@@ -504,7 +500,15 @@ async function doExecuteRunTool(
         return
       }
       logger.error('[RunTool] Workflow execution threw', { toolCallId, toolName, error: msg })
-      await reportCompletion(toolCallId, MothershipStreamV1ToolOutcome.error, msg)
+      const failedExecutionId =
+        useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) ?? executionId
+      await reportCompletion(
+        toolCallId,
+        MothershipStreamV1ToolOutcome.error,
+        getWorkflowToolCompletionMessage(MothershipStreamV1ToolOutcome.error),
+        undefined,
+        failedExecutionId
+      )
     }
   } finally {
     if (typeof window !== 'undefined') {
@@ -528,35 +532,4 @@ async function doExecuteRunTool(
       setActiveBlocks(targetWorkflowId, new Set())
     }
   }
-}
-
-/**
- * Extract a structured result payload from the raw execution result
- * for the LLM to see the actual workflow output.
- */
-function buildResultData(result: unknown): Record<string, unknown> | undefined {
-  if (!result || typeof result !== 'object') return undefined
-
-  const r = result as Record<string, unknown>
-
-  if ('success' in r) {
-    return {
-      success: r.success,
-      output: r.output,
-      logs: r.logs,
-      error: r.error,
-    }
-  }
-
-  if ('execution' in r && r.execution && typeof r.execution === 'object') {
-    const exec = r.execution as Record<string, unknown>
-    return {
-      success: exec.success,
-      output: exec.output,
-      logs: exec.logs,
-      error: exec.error,
-    }
-  }
-
-  return undefined
 }

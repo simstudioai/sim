@@ -141,15 +141,22 @@ function buildAppendPreview(existingContent: string, incomingContent: string): s
  * before Redis holds `existingContent`, which would make append previews look like
  * full-file replacement until the intent landed.
  */
+/** The base content a copilot append/patch edit is computed against, to compose the streamed preview. */
+export interface WorkspaceFilePreviewBase {
+  text: string
+}
+
 export async function loadWorkspaceFileTextForPreview(
   workspaceId: string,
   fileId: string
-): Promise<string | undefined> {
+): Promise<WorkspaceFilePreviewBase | undefined> {
   try {
     const record = await getWorkspaceFile(workspaceId, fileId)
     if (!record) return undefined
     const buffer = await fetchWorkspaceFileBuffer(record)
-    return buffer.toString('utf-8')
+    return {
+      text: buffer.toString('utf-8'),
+    }
   } catch (error) {
     logger.warn('Failed to load workspace file text for preview', {
       workspaceId,
@@ -175,10 +182,15 @@ export function buildFilePreviewText({
   }
 
   if (operation === 'append') {
-    if (existingContent !== undefined) {
-      return buildAppendPreview(existingContent, streamedContent)
+    // Fail closed (like `patch`/`update` below) when the base file content has not loaded yet: a base-less
+    // `append` preview is just the streamed fragment, and a collaborative editor applying it as the full
+    // body would reconcile the seeded doc down to that fragment (a wipe). Skipping the preview until the
+    // base is available costs only a brief render delay; the final durable `edit_content` write is
+    // authoritative. An empty file has `existingContent === ''` (defined), so it is unaffected.
+    if (existingContent === undefined) {
+      return undefined
     }
-    return streamedContent
+    return buildAppendPreview(existingContent, streamedContent)
   }
 
   if (existingContent === undefined) {

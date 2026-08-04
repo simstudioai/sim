@@ -12,6 +12,7 @@ import {
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
 import { canonicalWorkspaceFilePath, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
@@ -504,6 +505,15 @@ export async function executeMaterializeFile(
       error: `Unsupported materialize_file operation "${operation}". Use "save", "import", or "extract". For CSV/TSV/JSON → use the table subagent; for documents → use the knowledge subagent.`,
     }
   }
+
+  // Every operation writes: save/extract create files, import creates a workflow.
+  // The handler-map path has no central permission gate.
+  try {
+    await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error, 'Workspace write access required') }
+  }
+
   const succeeded: string[] = []
   const failed: Array<{ fileName: string; error: string }> = []
   const resources: NonNullable<ToolCallResult['resources']> = []

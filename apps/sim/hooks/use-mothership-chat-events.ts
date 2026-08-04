@@ -3,6 +3,8 @@ import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
 const logger = createLogger('MothershipChatEvents')
@@ -106,6 +108,10 @@ export function handleMothershipChatStatusEvent(
   queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
   if (!payload.chatId) return
   if (payload.type === 'deleted') {
+    // A task may be deleted from another window, browser, or device. Stop its
+    // local native resources here too; relying only on this renderer's delete
+    // mutation would leave pages and PTYs running indefinitely.
+    void suspendDesktopChatScopes(payload.chatId)
     queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
     return
   }
@@ -125,12 +131,16 @@ export function handleMothershipChatStatusEvent(
 /**
  * Subscribes to chat status SSE events and invalidates chat caches on changes.
  * The SSE event name remains `task_status` for wire compatibility.
+ *
+ * No-ops when Chat is disabled — this is mounted from the persistent sidebar, so
+ * without the guard every session would hold an open connection to an endpoint
+ * that cannot serve it.
  */
 export function useMothershipChatEvents(workspaceId: string | undefined) {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    if (!workspaceId) return
+    if (!workspaceId || !isChatEnabled) return
 
     const eventSource = new EventSource(
       `/api/mothership/events?workspaceId=${encodeURIComponent(workspaceId)}`

@@ -56,6 +56,7 @@ interface Teammate {
   invitationId?: string
   token?: string
   roleSource?: WorkspaceRoleSource
+  isBilledAccount?: boolean
 }
 
 /**
@@ -138,6 +139,7 @@ export function Teammates() {
       isPending: false,
       userId: member.userId,
       roleSource: member.roleSource,
+      isBilledAccount: member.isBilledAccount,
     }))
 
     const pending: Teammate[] = (invitations ?? []).map((invitation) => ({
@@ -214,7 +216,9 @@ export function Teammates() {
               roleControl={(() => {
                 const lockReason = teammate.isPending
                   ? null
-                  : workspaceRoleLockReason(teammate.roleSource)
+                  : workspaceRoleLockReason(teammate.roleSource, {
+                      isBilledAccount: teammate.isBilledAccount,
+                    })
                 return (
                   <RoleLockTooltip reason={lockReason}>
                     <ChipDropdown

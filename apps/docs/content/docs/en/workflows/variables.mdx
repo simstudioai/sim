@@ -74,9 +74,9 @@ Each run starts fresh from the values defined in the panel. A change made during
 
 ## Environment variables
 
-Environment variables store sensitive values like API keys, tokens, and configuration that should never appear in logs or on the canvas. Create them under **Settings → Secrets** by adding a key-value pair.
+Environment variables let you keep sensitive values like API keys and tokens out of your saved workflow configuration. Create them under **Settings → Secrets** by adding a key-value pair.
 
-Reference them with double curly braces in any block field, including Agent system prompts and Function block code. The value is substituted before the block runs, and API keys are redacted in logs.
+Reference them with double curly braces in any block field, including Agent system prompts and Function block code. The value is substituted before the block runs. When a saved secret is successfully substituted through `{{KEY}}`, exact occurrences of that value are masked in the live block-log display and stored execution trace without changing the runtime value. See [Execution log protection](/platform/credentials#execution-log-protection) for the exact scope and limitations.
 
 ```
 {{API_KEY}}

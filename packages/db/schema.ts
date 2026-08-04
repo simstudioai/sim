@@ -31,6 +31,16 @@ export const tsvector = customType<{
   },
 })
 
+/** Raw binary column. Postgres `bytea` ↔ Node `Buffer` (the pg driver handles the encoding). */
+export const bytea = customType<{
+  data: Buffer
+  driverData: Buffer
+}>({
+  dataType() {
+    return 'bytea'
+  },
+})
+
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -501,6 +511,12 @@ export const executionLargeValues = pgTable(
     tombstoneCleanupIdx: index('execution_large_values_tombstone_cleanup_idx')
       .on(table.workspaceId, table.deletedAt, table.key)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+    /**
+     * Backs the `ON DELETE SET NULL` referential trigger, which runs
+     * `UPDATE ... WHERE workflow_id = $1` once per deleted workflow row and
+     * would otherwise sequentially scan this table each time.
+     */
+    workflowIdIdx: index('execution_large_values_workflow_id_idx').on(table.workflowId),
   })
 )
 
@@ -521,6 +537,8 @@ export const executionLargeValueReferences = pgTable(
     workspaceExecutionSourceIdx: index(
       'execution_large_value_references_workspace_execution_source_idx'
     ).on(table.workspaceId, table.executionId, table.source),
+    /** Backs the `ON DELETE SET NULL` referential trigger — see `executionLargeValues`. */
+    workflowIdIdx: index('execution_large_value_references_workflow_id_idx').on(table.workflowId),
   })
 )
 
@@ -738,6 +756,8 @@ export const workflowSchedule = pgTable(
     sourceWorkspaceId: text('source_workspace_id').references(() => workspace.id, {
       onDelete: 'cascade',
     }),
+    secretScope: text('secret_scope').notNull().default('all'),
+    mountedSecrets: jsonb('mounted_secrets').$type<string[]>().notNull().default([]),
     jobHistory: jsonb('job_history').$type<Array<{ timestamp: string; summary: string }>>(),
     /** `@`-mentioned resources / `/`-invoked skills captured with the prompt, resolved into the agent run at fire time. */
     contexts: jsonb('contexts').$type<Array<Record<string, unknown>>>(),
@@ -1577,6 +1597,8 @@ export const workspace = pgTable(
     inboxEnabled: boolean('inbox_enabled').notNull().default(false),
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
+    inboxSecretScope: text('inbox_secret_scope').notNull().default('all'),
+    inboxMountedSecrets: jsonb('inbox_mounted_secrets').$type<string[]>().notNull().default([]),
     archivedAt: timestamp('archived_at'),
     organizationAssignedAt: timestamp('organization_assigned_at'),
     forkedFromWorkspaceId: text('forked_from_workspace_id').references(
@@ -1896,6 +1918,17 @@ export const workspaceFiles = pgTable(
     deletedAt: timestamp('deleted_at'),
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    /**
+     * Content-scoped version: advances ONLY when the file's CONTENT changes (upload / content
+     * overwrite), never on metadata writes (rename, move, soft-delete, restore). It is the
+     * optimistic-concurrency validator the collaborative-document persist guards on (RFC 7232 `If-Match`
+     * semantics: validate the representation, not the row) — so a rename can't make a racing live-doc
+     * persist see a stale token, reconcile stale durable content, and clobber in-flight edits. NOT NULL
+     * with a `now()` default: Postgres applies this as a fast-default (no table rewrite), existing rows
+     * get a stable timestamp that — like every metadata write — never advances it, and every insert path
+     * is covered without per-call plumbing. Only a content write (upload / overwrite) advances it.
+     */
+    contentUpdatedAt: timestamp('content_updated_at').notNull().defaultNow(),
   },
   (table) => ({
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
@@ -1931,6 +1964,26 @@ export const workspaceFiles = pgTable(
       .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
+
+/**
+ * Cached collaborative-document state for a workspace markdown file: the last-persisted Yjs binary and
+ * a hash of the markdown it was derived from. On a cold room open the seed loads this binary directly
+ * (the Hocuspocus load-document pattern) rather than re-converting markdown → Yjs — which avoids the
+ * "recreate the CRDT from a non-binary format" anti-pattern (fresh client ids / content duplication on
+ * reconnect) and the server-side headless-editor conversion. The row is STALE, and the seed re-converts
+ * from markdown, when `sourceHash` no longer matches the file's current markdown (edited externally by a
+ * copilot write or a direct save). One row per file; dropped by FK cascade when the file is deleted.
+ */
+export const workspaceFileCollabState = pgTable('workspace_file_collab_state', {
+  fileId: text('file_id')
+    .primaryKey()
+    .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
+  /** `Y.encodeStateAsUpdate` of the collaborative doc at last persist — apply with `Y.applyUpdate`. */
+  docState: bytea('doc_state').notNull(),
+  /** sha256 (hex) of the markdown `docState` was derived from — the freshness tag for cold-start. */
+  sourceHash: text('source_hash').notNull(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
 
 /**
  * Public share links for workspace resources. Polymorphic on `resourceType` so a
@@ -3321,6 +3374,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'knowledge-base',
   'voice-input',
   'enrichment',
+  'voice-output',
 ])
 
 export const usageLog = pgTable(

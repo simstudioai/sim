@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { listWorkspacesContract, type WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import { getUserProfile } from '@/lib/users/queries'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
@@ -80,14 +81,18 @@ export async function prefetchWorkspaceSidebar(
       },
       staleTime: WORKFLOW_LIST_STALE_TIME,
     }),
-    queryClient.prefetchQuery({
-      queryKey: mothershipChatKeys.list(workspaceId, 'active'),
-      queryFn: async () => {
-        const data = await listMothershipChats(userId, workspaceId)
-        return data.map(mapChat)
-      },
-      staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
-    }),
+    ...(isChatEnabled
+      ? [
+          queryClient.prefetchQuery({
+            queryKey: mothershipChatKeys.list(workspaceId, 'active'),
+            queryFn: async () => {
+              const data = await listMothershipChats(userId, workspaceId)
+              return data.map(mapChat)
+            },
+            staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
+          }),
+        ]
+      : []),
     queryClient.prefetchQuery({
       queryKey: folderKeys.list(workspaceId, 'active', 'workflow'),
       queryFn: async () => {

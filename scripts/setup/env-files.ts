@@ -34,6 +34,9 @@ export const SECRET_KEYS = [
   'ENCRYPTION_KEY',
   'INTERNAL_API_SECRET',
   'API_ENCRYPTION_KEY',
+  // Authenticates the scheduler against the background job endpoints. Without
+  // it the cron service exits and no scheduled work runs, so setup generates it.
+  'CRON_SECRET',
 ] as const
 
 const PLACEHOLDER_VALUES = new Set([

@@ -150,6 +150,17 @@ const genericWebhookBlockConfig = {
   ],
 }
 
+const mothershipBlockConfig = {
+  type: 'mothership',
+  name: 'Sim Chat',
+  outputs: {},
+  subBlocks: [
+    { id: 'prompt', type: 'long-input' },
+    { id: 'secretScope', type: 'dropdown', hideFromCopilot: true },
+    { id: 'mountedSecrets', type: 'dropdown', hideFromCopilot: true },
+  ],
+}
+
 // Block whose tool selector throws — should fall back to scanning access tools (video_falai).
 const throwSelectorBlockConfig = {
   type: 'throw_selector_block',
@@ -204,6 +215,7 @@ const blockConfigsByType: Record<string, unknown> = {
   throw_gate_block: throwGateBlockConfig,
   throw_selector_block: throwSelectorBlockConfig,
   generic_webhook: genericWebhookBlockConfig,
+  mothership: mothershipBlockConfig,
 }
 
 vi.mock('@/blocks/registry', () => ({
@@ -231,6 +243,11 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   getHostedModels: mockGetHostedModels,
 }))
 
@@ -356,6 +373,17 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.webhookUrlDisplay).toBeUndefined()
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]?.error).toContain('read-only')
+  })
+
+  it('rejects server-only Sim Chat secret-mount policy inputs', () => {
+    const result = validateInputsForBlock(
+      'mothership',
+      { prompt: 'Keep this', secretScope: 'all', mountedSecrets: ['API_KEY'] },
+      'chat-1'
+    )
+
+    expect(result.validInputs).toEqual({ prompt: 'Keep this' })
+    expect(result.errors.map((error) => error.field)).toEqual(['secretScope', 'mountedSecrets'])
   })
 
   it('accepts known agent model ids', () => {

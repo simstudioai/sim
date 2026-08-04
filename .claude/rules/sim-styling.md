@@ -8,9 +8,13 @@ paths:
 
 ## Tailwind
 
-1. **No inline styles** - Use Tailwind classes
+1. **No inline styles** - Use Tailwind classes. Exception: a genuinely dynamic
+   value (a hashed avatar colour, a brand tile background) that cannot be a class.
 2. **No duplicate dark classes** - Skip `dark:` when value matches light mode
-3. **Exact values** - `text-[14px]`, `h-[26px]`
+3. **Exact values over approximations** - `h-[26px]`, not `h-6`. But **type size is
+   always a named token** (`text-sm`, `text-caption`) — never `text-[14px]`, which
+   sets font-size only and inherits a different line-height. See
+   `sim-settings-pages.md` for the scale.
 4. **Transitions** - `transition-colors` for interactive states
 
 ## Conditional Classes

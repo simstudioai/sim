@@ -9,7 +9,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -22,6 +22,7 @@ import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
+import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   deleteFile,
@@ -31,6 +32,7 @@ import {
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -71,6 +73,13 @@ export interface WorkspaceFileRecord {
   deletedAt?: Date | null
   uploadedAt: Date
   updatedAt: Date
+  /**
+   * Content-scoped version (see the `content_updated_at` column): advances only on content writes, never
+   * on metadata. The collab persist's optimistic-concurrency validator. Optional on the DTO because
+   * display/mothership constructors don't carry it — the real DB mapper (the only source seed/persist
+   * read) always populates it from the NOT NULL column.
+   */
+  contentUpdatedAt?: Date | null
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
   /** Public share state, attached at the API boundary. `null` when never shared. */
@@ -163,6 +172,8 @@ async function insertWorkspaceFileMetadataInTx(
       deletedAt: null,
       uploadedAt: new Date(),
       updatedAt: new Date(),
+      // Creation IS the first content write, so stamp the content version too (metadata writes never do).
+      contentUpdatedAt: new Date(),
     })
     .onConflictDoNothing()
     .returning()
@@ -378,6 +389,11 @@ export async function uploadWorkspaceFile(
       const pathPrefix = getServePathPrefix()
       const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=workspace`
 
+      // Fan out the live-tree signal for the direct-upload paths (multipart
+      // fallback, copilot create, /api/files/upload, v1 files) — the presigned
+      // path already notifies from its register route.
+      await notifyWorkspaceFilesChanged(workspaceId)
+
       return {
         id: fileId,
         name: uniqueName,
@@ -575,10 +591,89 @@ const MAX_CHAT_DISPLAY_NAME_RETRIES = 1000
 export const CHAT_DISPLAY_NAME_INDEX = 'workspace_files_chat_display_name_unique'
 
 /**
+ * Raised when a caller-supplied storage key may not be bound to a chat upload —
+ * it addresses another workspace, or it already has a `workspace_files` record
+ * the caller does not own as an active chat upload.
+ */
+export class WorkspaceFileKeyOwnershipError extends Error {
+  readonly code = 'KEY_NOT_OWNED' as const
+  constructor(key: string) {
+    super(`Storage key is not available for a chat attachment: ${key}`)
+  }
+}
+
+type ClaimableChatUploadRow = { kind: 'update'; id: string } | { kind: 'insert' }
+
+/**
+ * Decide how `trackChatUpload` may bind `s3Key`, or reject the key outright.
+ *
+ * Only two outcomes are safe. Either the caller already owns an active
+ * chat-upload row for the key (re-linking their own upload to a chat), or the
+ * key has no `workspace_files` record whatsoever and a fresh binding can be
+ * minted. Anything else — another member's row, a `context='workspace'` file,
+ * or a soft-deleted record whose object is still readable through the binding —
+ * belongs to somebody else's file and must not be touched.
+ *
+ * Soft-deleted rows count: the active-key unique index is partial on
+ * `deleted_at IS NULL`, so inserting over an archived row would succeed and
+ * hand the caller read access to the archived file's bytes.
+ *
+ * An upload also binds to exactly one chat: a row already linked to a different
+ * chat is not claimable, matching the 409 the sibling `local-files/stage` route
+ * returns for the same case. Re-sending the key within its own chat still works.
+ */
+async function resolveClaimableChatUploadRow(
+  workspaceId: string,
+  userId: string,
+  chatId: string,
+  s3Key: string
+): Promise<ClaimableChatUploadRow> {
+  const rows = await db
+    .select({
+      id: workspaceFiles.id,
+      userId: workspaceFiles.userId,
+      workspaceId: workspaceFiles.workspaceId,
+      context: workspaceFiles.context,
+      chatId: workspaceFiles.chatId,
+      deletedAt: workspaceFiles.deletedAt,
+    })
+    .from(workspaceFiles)
+    .where(eq(workspaceFiles.key, s3Key))
+
+  if (rows.length === 0) {
+    return { kind: 'insert' }
+  }
+
+  const owned = rows.find(
+    (row) =>
+      row.userId === userId &&
+      row.workspaceId === workspaceId &&
+      row.context === 'mothership' &&
+      row.deletedAt === null &&
+      (row.chatId === null || row.chatId === chatId)
+  )
+
+  if (!owned) {
+    throw new WorkspaceFileKeyOwnershipError(s3Key)
+  }
+
+  return { kind: 'update', id: owned.id }
+}
+
+/**
  * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
  * Links the existing workspaceFiles metadata record (created by the storage service
  * during upload) to the chat by setting chatId and context='mothership'.
  * Falls back to inserting a new record if none exists for the key.
+ *
+ * `s3Key` reaches this function from client-supplied request bodies, and
+ * `workspace_files.key` is the trusted binding every file authorization check
+ * resolves the owning workspace from. So the key is treated as untrusted here:
+ * it must address the target workspace, it may only re-link a chat-upload row
+ * the caller already owns, and minting a brand-new binding requires the key to
+ * have no prior record at all. Without those invariants a member could hand in
+ * another member's key and re-parent their file (hiding it from the workspace
+ * Files listing, or destroying it through the chat-delete FK cascade).
  *
  * Allocates a collision-free `displayName` (the partial unique index on
  * (chat_id, display_name) WHERE context='mothership' enforces this) and returns it
@@ -594,27 +689,72 @@ export async function trackChatUpload(
   size: number,
   messageId?: string
 ): Promise<{ displayName: string }> {
+  if (parseWorkspaceFileKey(s3Key) !== workspaceId) {
+    throw new WorkspaceFileKeyOwnershipError(s3Key)
+  }
+
+  const claimable = await resolveClaimableChatUploadRow(workspaceId, userId, chatId, s3Key)
+
+  if (claimable.kind === 'insert' && hasCloudStorage()) {
+    // Hygiene only — the format and no-prior-record guards above already carry
+    // authorization, and a binding to a nonexistent object grants nothing
+    // readable. So reject only on a definitive not-found (`null`); a provider
+    // 5xx/throttle throws, and failing the attachment on that would drop a
+    // legitimate >50MB multipart upload (the sole path reaching this branch).
+    let head: Awaited<ReturnType<typeof headObject>> = null
+    try {
+      head = await headObject(s3Key, 'workspace')
+    } catch (error) {
+      logger.warn('Chat upload existence probe failed; proceeding on the ownership guards', {
+        key: s3Key,
+        error: getErrorMessage(error),
+      })
+      head = { size }
+    }
+    if (!head) {
+      throw new WorkspaceFileKeyOwnershipError(s3Key)
+    }
+  }
+
   for (let n = 1; n <= MAX_CHAT_DISPLAY_NAME_RETRIES; n++) {
     const candidate = suffixedName(fileName, n)
     try {
-      const updated = await db
-        .update(workspaceFiles)
-        .set({
-          chatId,
-          messageId: messageId ?? null,
-          context: 'mothership',
-          displayName: candidate,
-        })
-        .where(
-          and(
-            eq(workspaceFiles.key, s3Key),
-            eq(workspaceFiles.workspaceId, workspaceId),
-            isNull(workspaceFiles.deletedAt)
+      if (claimable.kind === 'update') {
+        const updated = await db
+          .update(workspaceFiles)
+          .set({
+            chatId,
+            messageId: messageId ?? null,
+            context: 'mothership',
+            displayName: candidate,
+          })
+          .where(
+            and(
+              eq(workspaceFiles.id, claimable.id),
+              eq(workspaceFiles.userId, userId),
+              eq(workspaceFiles.workspaceId, workspaceId),
+              eq(workspaceFiles.context, 'mothership'),
+              isNull(workspaceFiles.deletedAt),
+              // Compare-and-swap on the chat binding: an upload belongs to one
+              // chat. Two overlapping requests both observe `chat_id IS NULL`,
+              // but only the first satisfies this predicate — the loser matches
+              // zero rows and fails closed instead of stealing the binding and
+              // its delete-cascade lifecycle.
+              or(isNull(workspaceFiles.chatId), eq(workspaceFiles.chatId, chatId))
+            )
           )
-        )
-        .returning({ id: workspaceFiles.id })
+          .returning({ id: workspaceFiles.id })
 
-      if (updated.length > 0) {
+        if (updated.length === 0) {
+          // The ownership lookup is a separate statement, so re-assert every
+          // predicate here — this UPDATE is the atomic check. A concurrent
+          // `materialize_file` flips the same row to context='workspace' and
+          // clears chatId; matching on id alone would drag that saved file back
+          // into chat scope, hiding it from the Files listing and re-exposing it
+          // to the chat-delete cascade.
+          throw new WorkspaceFileKeyOwnershipError(s3Key)
+        }
+
         logger.info(
           `Linked existing file record to chat: ${fileName} (display: ${candidate}) for chat ${chatId}`
         )
@@ -694,6 +834,7 @@ function mapWorkspaceFileRecord(
     deletedAt: file.deletedAt,
     uploadedAt: file.uploadedAt,
     updatedAt: file.updatedAt,
+    contentUpdatedAt: file.contentUpdatedAt,
   }
 }
 
@@ -905,12 +1046,18 @@ export async function resolveWorkspaceFileReference(
 }
 
 /**
- * Get a specific workspace file
+ * Get a specific workspace file.
+ *
+ * By default a DB error is logged and swallowed to `null` — for most callers "couldn't load it"
+ * and "doesn't exist" are handled the same way. Pass `{ throwOnError: true }` when the caller must
+ * distinguish a genuinely-absent file (`null`) from a transient read failure (throws): the
+ * collaborative-doc seed builder relies on this so a DB blip never looks like an empty file and gets
+ * seeded as blank content over the real document.
  */
 export async function getWorkspaceFile(
   workspaceId: string,
   fileId: string,
-  options?: { includeDeleted?: boolean }
+  options?: { includeDeleted?: boolean; throwOnError?: boolean }
 ): Promise<WorkspaceFileRecord | null> {
   try {
     const { includeDeleted = false } = options ?? {}
@@ -938,6 +1085,7 @@ export async function getWorkspaceFile(
     return mapSingleWorkspaceFileRecord(files[0], workspaceId)
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
+    if (options?.throwOnError) throw error
     return null
   }
 }
@@ -1003,6 +1151,18 @@ export async function fetchWorkspaceFileBuffer(
 }
 
 /**
+ * Thrown by {@link updateWorkspaceFileContent} when its `expectedUpdatedAt` optimistic-concurrency
+ * guard fails — the file changed out-of-band since the caller read it. Callers catch this to reconcile
+ * (re-read + merge) rather than overwrite. Not a failure: the durable file is left untouched.
+ */
+export class ContentVersionConflictError extends Error {
+  constructor(readonly fileId: string) {
+    super(`Workspace file ${fileId} changed since it was read (optimistic-concurrency conflict)`)
+    this.name = 'ContentVersionConflictError'
+  }
+}
+
+/**
  * Updates a workspace file through a versioned object swap. Blob I/O completes
  * before the short metadata-and-ledger transaction.
  */
@@ -1011,7 +1171,26 @@ export async function updateWorkspaceFileContent(
   fileId: string,
   userId: string,
   content: Buffer,
-  contentType?: string
+  contentType?: string,
+  options?: {
+    /**
+     * Whether to stream this write into any open collaborative editor as a live CRDT merge. Defaults
+     * to `true`, so EVERY external write path (copilot tools, the file tool, the content route) reaches
+     * an open editor through this one chokepoint — no per-writer wiring to forget. Pass `false` only
+     * for a write that must NOT touch the live doc: the relay's own project-to-markdown persist (which
+     * would otherwise merge the doc back into itself in a loop), and empty-shell creates whose real
+     * content arrives via a subsequent write.
+     */
+    syncLiveDoc?: boolean
+    /**
+     * Optimistic-concurrency guard (RFC 7232 `If-Match` semantics). When set, the write commits only
+     * if the file's `updatedAt` still equals this value — nothing else wrote in between; otherwise it
+     * throws {@link ContentVersionConflictError} without clobbering. Checked against the
+     * `SELECT … FOR UPDATE`-locked row, so it is atomic with the write. Used by the collab persist so
+     * projecting the live doc back to markdown can never silently overwrite an out-of-band edit.
+     */
+    expectedUpdatedAt?: Date
+  }
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
@@ -1070,14 +1249,39 @@ export async function updateWorkspaceFileContent(
           throw new Error('File not found')
         }
 
+        // Optimistic-concurrency guard: the row is `FOR UPDATE`-locked, so comparing its committed
+        // CONTENT version to the caller's expected value and then writing is atomic — a racing writer
+        // blocks here until this transaction resolves. Compare `contentUpdatedAt` (which advances only on
+        // content writes), NOT `updatedAt` (which a rename/move also bumps): guarding on `updatedAt` let a
+        // metadata bump masquerade as an out-of-band CONTENT change, so a racing live-doc persist would
+        // reconcile stale durable content and clobber in-flight edits. Coalesce to `updatedAt` for rows
+        // predating the column. A mismatch means the CONTENT changed out-of-band; abort rather than clobber.
+        if (
+          options?.expectedUpdatedAt &&
+          currentFile.contentUpdatedAt.getTime() !== options.expectedUpdatedAt.getTime()
+        ) {
+          throw new ContentVersionConflictError(fileId)
+        }
+
         const sizeDiff = content.length - currentFile.size
+        const now = new Date()
+        // `contentUpdatedAt` is the persist If-Match token, so it MUST be strictly monotonic per file — a
+        // bare `new Date()` is not: cross-instance clock skew can stamp a later write with an earlier time,
+        // breaking the version ordering the whole optimistic-concurrency scheme relies on (stuck If-Match,
+        // wrong reconcile). We hold this row's FOR UPDATE lock, so `currentFile.contentUpdatedAt` is the
+        // latest committed value; stamp strictly after it. (Also removes same-millisecond collisions.)
+        // `updatedAt` stays plain wall-clock — it is display/sort only, never the concurrency token.
+        const contentUpdatedAt = new Date(
+          Math.max(now.getTime(), currentFile.contentUpdatedAt.getTime() + 1)
+        )
         const [updatedFile] = await tx
           .update(workspaceFiles)
           .set({
             key: uploadResult.key,
             size: content.length,
             contentType: nextContentType,
-            updatedAt: new Date(),
+            updatedAt: now,
+            contentUpdatedAt,
           })
           .where(
             and(
@@ -1130,6 +1334,24 @@ export async function updateWorkspaceFileContent(
       await cleanupWorkspaceStorageObject(finalized.oldKey, 'version replacement')
     }
 
+    // Stream this write into any open collaborative editor as a CRDT merge, so a copilot/tool edit
+    // shows up live instead of the file silently changing underneath the reader. Gated to markdown (the
+    // only format the collaborative editor renders) and best-effort (a no-op when nobody has the file
+    // open; never throws). This is the single chokepoint every external writer shares — the relay's own
+    // persist and empty-shell creates pass `syncLiveDoc: false` to stay out of it.
+    if (
+      options?.syncLiveDoc !== false &&
+      isMarkdownFile({ type: nextContentType, name: finalized.file.originalName })
+    ) {
+      // Pass the new CONTENT version this write produced, so the relay records that its live doc now
+      // incorporates this durable version — the collab persist's optimistic-concurrency guard then won't
+      // treat this (already-merged) write as an out-of-band conflict. Must be the SAME field the CAS
+      // guards on (`contentUpdatedAt`), not `updatedAt`, or the relay's token wouldn't match the CAS.
+      await mergeEditIntoLiveFileDoc(fileId, content.toString('utf-8'), {
+        version: finalized.file.contentUpdatedAt.getTime(),
+      })
+    }
+
     const pathPrefix = getServePathPrefix()
     const currentFolderPath =
       finalized.file.folderId === fileRecord.folderId ? fileRecord.folderPath : null
@@ -1150,8 +1372,13 @@ export async function updateWorkspaceFileContent(
       deletedAt: finalized.file.deletedAt,
       uploadedAt: finalized.file.uploadedAt,
       updatedAt: finalized.file.updatedAt,
+      contentUpdatedAt: finalized.file.contentUpdatedAt,
     }
   } catch (error) {
+    // Preserve the typed conflict so callers can catch it and reconcile — it's an expected outcome of
+    // the optimistic-concurrency guard, not a failure to wrap. The orphan upload was already cleaned up
+    // by the inner finalization catch before it propagated here.
+    if (error instanceof ContentVersionConflictError) throw error
     logger.error(`Failed to update workspace file content ${fileId}:`, error)
     throw new Error(`Failed to update file content: ${getErrorMessage(error, 'Unknown error')}`)
   }

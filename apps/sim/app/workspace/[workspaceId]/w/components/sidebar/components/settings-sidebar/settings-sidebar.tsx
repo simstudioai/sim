@@ -244,7 +244,7 @@ export function SettingsSidebar({
 
   const handleBack = useCallback(() => {
     requestLeave(() => {
-      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
+      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}`))
     })
   }, [requestLeave, router, popSettingsReturnUrl, workspaceId])
 
@@ -321,7 +321,9 @@ export function SettingsSidebar({
             .map(({ key, title }) => ({
               key,
               title,
-              items: navigationItems.filter((item) => item.section === key),
+              items: navigationItems
+                .filter((item) => item.section === key)
+                .sort((left, right) => left.order - right.order),
             }))
             .filter(({ items }) => items.length > 0)
             .map(({ key, title, items: sectionItems }, index) => (

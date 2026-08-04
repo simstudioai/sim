@@ -9,6 +9,7 @@ import {
 import { BlockType } from '@/executor/constants'
 import { ExecutionState } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -114,6 +115,27 @@ function createResolver(
 }
 
 describe('VariableResolver function block inputs', () => {
+  it('records a secret reached through workflow-variable indirection', async () => {
+    const { ctx, resolver } = createResolver()
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'resolved-secret', encryptedValue: 'ciphertext' },
+    ])
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'indirect', type: 'string', value: '{{TOKEN}}' },
+    }
+    ctx.environmentVariables = { TOKEN: 'resolved-secret' }
+    ctx.resolvedSecretTraceRegistry = registry
+
+    const result = await resolver.resolveInputs(ctx, 'function', {
+      value: '<variable.indirect>',
+    })
+
+    expect(result.value).toBe('resolved-secret')
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'resolved-secret', replacement: '{{TOKEN}}' },
+    ])
+  })
+
   it('returns empty inputs when params are missing', async () => {
     const { block, ctx, resolver } = createResolver()
 
@@ -1317,5 +1339,52 @@ describe('VariableResolver function context overflow offload', () => {
 
     expect(mockStoreLargeValue).not.toHaveBeenCalled()
     expect(result.resolvedInputs.code).toBe('return globals()["__blockRef_0"]')
+  })
+})
+
+/**
+ * The agent block's Reasoning Effort and Verbosity fields are editable comboboxes, so a
+ * workflow can bind them to a reference instead of picking a level. These lock in that the
+ * generic input resolution actually reaches those two fields.
+ */
+describe('VariableResolver agent model levels', () => {
+  it('resolves block, workflow-variable, and env references in reasoning effort and verbosity', async () => {
+    const producer = createBlock('producer', 'Producer', BlockType.API)
+    const agent = createBlock('agent', 'Agent', BlockType.AGENT, {
+      model: 'gpt-5',
+      reasoningEffort: '<Producer.result>',
+      verbosity: '<variable.Detail>',
+      thinkingLevel: '{{THINKING}}',
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [producer, agent],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', { result: 'high' })
+    const ctx = {
+      blockStates: state.getBlockStates(),
+      blockLogs: [],
+      environmentVariables: { THINKING: 'medium' },
+      workflowVariables: { 'var-1': { id: 'var-1', name: 'Detail', type: 'string', value: 'low' } },
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+      completedLoops: new Set(),
+      metadata: {},
+    } as unknown as ExecutionContext
+
+    const resolver = new VariableResolver(workflow, { THINKING: 'medium' }, state)
+    const result = await resolver.resolveInputs(ctx, 'agent', agent.config.params, agent)
+
+    expect(result.reasoningEffort).toBe('high')
+    expect(result.verbosity).toBe('low')
+    expect(result.thinkingLevel).toBe('medium')
+    expect(result.model).toBe('gpt-5')
   })
 })

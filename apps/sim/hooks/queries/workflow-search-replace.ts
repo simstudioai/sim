@@ -28,13 +28,19 @@ import type {
   WorkflowSearchMatch,
   WorkflowSearchReplacementOption,
 } from '@/lib/workflows/search-replace/types'
+import { useFolderMap } from '@/hooks/queries/folders'
 import { fetchKnowledgeBase, fetchKnowledgeBases } from '@/hooks/queries/kb/knowledge'
 import {
   fetchOAuthCredentialDetail,
   fetchOAuthCredentials,
 } from '@/hooks/queries/oauth/oauth-credentials'
+import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
 import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
 import type { SelectorKey, SelectorOption } from '@/hooks/selectors/types'
+import type { WorkflowFolder } from '@/stores/folders/types'
+
+/** Stable identity while a folder list loads, so `select` isn't re-keyed on it. */
+const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
 
 export interface WorkflowSearchResolvedResource {
   matchRawValue: string
@@ -452,6 +458,10 @@ export function useWorkflowSearchKnowledgeReplacementOptions(
   matches: WorkflowSearchMatch[],
   workspaceId?: string
 ) {
+  const { data: knowledgeBaseFolders = EMPTY_FOLDER_MAP } = useFolderMap(
+    workspaceId,
+    'knowledge_base'
+  )
   const knowledgeGroups = useMemo(
     () => uniqueResourceOptionGroups(matches, 'knowledge-base'),
     [matches]
@@ -466,15 +476,22 @@ export function useWorkflowSearchKnowledgeReplacementOptions(
         enabled: Boolean(workspaceId && knowledgeGroups.length > 0),
         staleTime: WORKFLOW_SEARCH_KNOWLEDGE_REPLACEMENT_STALE_TIME,
         placeholderData: (previous: KnowledgeBaseData[] | undefined) => previous,
-        select: (knowledgeBases: KnowledgeBaseData[]): WorkflowSearchReplacementOption[] =>
-          knowledgeGroups.flatMap((match) =>
+        select: (knowledgeBases: KnowledgeBaseData[]): WorkflowSearchReplacementOption[] => {
+          const duplicateNames = collectDuplicateNames(knowledgeBases.map((kb) => kb.name))
+          return knowledgeGroups.flatMap((match) =>
             knowledgeBases.map((knowledgeBase) => ({
               kind: 'knowledge-base',
               value: knowledgeBase.id,
-              label: knowledgeBase.name,
+              label: disambiguateLabelByFolder(
+                knowledgeBase.name,
+                knowledgeBase.folderId,
+                knowledgeBaseFolders,
+                duplicateNames
+              ),
               resourceGroupKey: match.resource?.resourceGroupKey,
             }))
-          ),
+          )
+        },
       },
     ],
   })
@@ -485,6 +502,7 @@ export function useWorkflowSearchTableReplacementOptions(
   workspaceId?: string
 ) {
   const tableGroups = useMemo(() => uniqueResourceOptionGroups(matches, 'table'), [matches])
+  const { data: tableFolders = EMPTY_FOLDER_MAP } = useFolderMap(workspaceId, 'table')
 
   return useQueries({
     queries: [
@@ -497,15 +515,23 @@ export function useWorkflowSearchTableReplacementOptions(
           }),
         enabled: Boolean(workspaceId && tableGroups.length > 0),
         staleTime: WORKFLOW_SEARCH_TABLE_REPLACEMENT_STALE_TIME,
-        select: (response: ListTablesResponse): WorkflowSearchReplacementOption[] =>
-          tableGroups.flatMap((match) =>
-            response.data.tables.map((table) => ({
+        select: (response: ListTablesResponse): WorkflowSearchReplacementOption[] => {
+          const tables = response.data.tables
+          const duplicateNames = collectDuplicateNames(tables.map((table) => table.name))
+          return tableGroups.flatMap((match) =>
+            tables.map((table) => ({
               kind: 'table',
               value: table.id,
-              label: table.name,
+              label: disambiguateLabelByFolder(
+                table.name,
+                table.folderId,
+                tableFolders,
+                duplicateNames
+              ),
               resourceGroupKey: match.resource?.resourceGroupKey,
             }))
-          ),
+          )
+        },
       },
     ],
   })

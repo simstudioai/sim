@@ -85,6 +85,7 @@ export type OAuthProvider =
   | 'spotify'
   | 'calcom'
   | 'docusign'
+  | 'zoho-desk'
 
 export type OAuthService =
   | 'google'
@@ -141,6 +142,7 @@ export type OAuthService =
   | 'docusign'
   | 'github'
   | 'monday'
+  | 'zoho-desk'
 
 export interface OAuthProviderConfig {
   name: string

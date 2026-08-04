@@ -8,6 +8,7 @@ import {
   ORGANIZATION_SETTINGS_ITEMS,
   ORGANIZATION_SETTINGS_PATH_ALIASES,
   parseSettingsPathSection,
+  SELFHOST_SETTINGS_ITEMS,
 } from '@/components/settings/navigation'
 
 describe('standalone settings section resolution', () => {
@@ -31,5 +32,15 @@ describe('standalone settings section resolution', () => {
         aliases: ORGANIZATION_SETTINGS_PATH_ALIASES,
       })
     ).toBe('audit-logs')
+  })
+
+  it('keeps Subscription active for the self-host billing route', () => {
+    expect(
+      parseSettingsPathSection({
+        path: '/selfhost/settings/billing',
+        items: SELFHOST_SETTINGS_ITEMS,
+        defaultSection: 'general',
+      })
+    ).toBe('billing')
   })
 })

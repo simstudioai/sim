@@ -74,8 +74,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: vi.fn(),
 }))
 vi.mock('@/app/api/knowledge/search/utils', () => ({
-  getQueryStrategy: vi.fn(),
-  handleVectorOnlySearch: vi.fn(),
+  executeKnowledgeSearch: vi.fn(),
 }))
 vi.mock('@/app/api/knowledge/utils', () => ({
   checkDocumentWriteAccess: vi.fn(),
@@ -83,7 +82,11 @@ vi.mock('@/app/api/knowledge/utils', () => ({
   checkKnowledgeBaseWriteAccess: mockCheckKnowledgeBaseWriteAccess,
 }))
 
+import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
+import { createSingleDocument } from '@/lib/knowledge/documents/service'
+import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',
@@ -173,4 +176,59 @@ describe('knowledge base connector Copilot operations', () => {
       expect(mockSerializeBillingAttributionHeader).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
     }
   )
+})
+
+describe('knowledge base add_file usage gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockCheckKnowledgeBaseWriteAccess.mockResolvedValue({
+      hasAccess: true,
+      knowledgeBase: { id: 'knowledge-base-1', workspaceId: 'workspace-paid', name: 'Paid KB' },
+    })
+    vi.mocked(getKnowledgeBaseById).mockResolvedValue({
+      id: 'knowledge-base-1',
+      workspaceId: 'workspace-paid',
+    } as Awaited<ReturnType<typeof getKnowledgeBaseById>>)
+  })
+
+  function addFile() {
+    return knowledgeBaseServerTool.execute(
+      {
+        operation: 'add_file',
+        args: { knowledgeBaseId: 'knowledge-base-1', filePaths: ['files/report.pdf'] },
+      },
+      {
+        userId: 'external-admin',
+        workspaceId: 'workspace-paid',
+        billingAttribution: BILLING_ATTRIBUTION,
+      }
+    )
+  }
+
+  it('refuses to index when the payer is over its usage limit', async () => {
+    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({
+      isExceeded: true,
+      message: 'Usage limit exceeded.',
+    } as Awaited<ReturnType<typeof checkAttributedUsageLimits>>)
+
+    const result = await addFile()
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('Usage limit exceeded')
+    // The gate must precede any indexing work, matching the upload routes.
+    expect(resolveWorkspaceFileReference).not.toHaveBeenCalled()
+    expect(createSingleDocument).not.toHaveBeenCalled()
+  })
+
+  it('gates on the knowledge base workspace payer, not the caller', async () => {
+    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({
+      isExceeded: false,
+    } as Awaited<ReturnType<typeof checkAttributedUsageLimits>>)
+    vi.mocked(resolveWorkspaceFileReference).mockResolvedValue(null)
+
+    await addFile()
+
+    expect(checkAttributedUsageLimits).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
+  })
 })

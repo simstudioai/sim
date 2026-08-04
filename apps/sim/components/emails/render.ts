@@ -15,6 +15,7 @@ import {
   LimitThresholdEmail,
   PaymentFailedEmail,
   PlanWelcomeEmail,
+  UsageLimitReachedEmail,
   UsageThresholdEmail,
 } from '@/components/emails/billing'
 import {
@@ -23,9 +24,11 @@ import {
   WorkspaceAddedEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
+import { ScheduleDisabledEmail } from '@/components/emails/notifications'
 import { HelpConfirmationEmail } from '@/components/emails/support'
 import type { UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { ScheduleDisableReason } from '@/lib/workflows/schedules/disable-reasons'
 
 export { getEmailSubject, getLimitEmailSubject } from './subjects'
 
@@ -134,6 +137,28 @@ export async function renderUsageThresholdEmail(params: {
       ctaLink: params.ctaLink,
     })
   )
+}
+
+export async function renderUsageLimitReachedEmail(params: {
+  userName?: string
+  planName: string
+  scope: 'user' | 'organization'
+  currentUsage: number
+  limit: number
+  ctaLink: string
+}): Promise<string> {
+  return await render(UsageLimitReachedEmail(params))
+}
+
+export async function renderScheduleDisabledEmail(params: {
+  recipientName?: string
+  kind: 'workflow' | 'job'
+  resourceName?: string
+  reason: ScheduleDisableReason
+  failedCount?: number
+  manageLink?: string
+}): Promise<string> {
+  return await render(ScheduleDisabledEmail(params))
 }
 
 export async function renderFreeTierUpgradeEmail(params: {

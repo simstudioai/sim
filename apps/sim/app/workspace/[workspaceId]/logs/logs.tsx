@@ -33,6 +33,7 @@ import type {
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { formatDateShort } from '@/lib/core/utils/date-display'
 import {
   getEndDateFromTimeRange,
   getStartDateFromTimeRange,
@@ -71,8 +72,6 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import {
-  fetchLogDetail,
-  logKeys,
   prefetchLogDetail,
   useCancelExecution,
   useDashboardStats,
@@ -89,9 +88,7 @@ import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
 import {
   DELETED_WORKFLOW_LABEL,
-  extractRetryInput,
   formatDate,
-  formatDateShort,
   getDisplayStatus,
   type LogStatus,
   parseDuration,
@@ -573,17 +570,11 @@ export default function Logs() {
   const retryLog = useCallback(
     async (log: WorkflowLogRow | null) => {
       const workflowId = log?.workflow?.id || log?.workflowId
-      const logId = log?.id
-      if (!workflowId || !logId) return
+      const executionId = log?.executionId
+      if (!workflowId || !executionId) return
 
       try {
-        const detailLog = await queryClient.fetchQuery({
-          queryKey: logKeys.detail(workspaceId, logId),
-          queryFn: ({ signal }) => fetchLogDetail(logId, workspaceId, signal),
-          staleTime: 30 * 1000,
-        })
-        const input = extractRetryInput(detailLog)
-        await retryExecution.mutateAsync({ workflowId, input })
+        await retryExecution.mutateAsync({ workflowId, executionId })
         toast.success('Retry started')
       } catch {
         toast.error('Failed to retry execution')

@@ -2,12 +2,12 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   batchPresignedUploadBodyContract,
-  uploadTypeSchema,
+  batchPresignedUploadTypeSchema,
+  batchPresignedUploadTypes,
 } from '@/lib/api/contracts/storage-transfer'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { StorageContext } from '@/lib/uploads/config'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
 import {
   generateBatchPresignedUploadUrls,
@@ -20,8 +20,13 @@ import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('BatchPresignedUploadAPI')
 
-const VALID_UPLOAD_TYPES = ['knowledge-base', 'chat', 'copilot', 'profile-pictures'] as const
-
+/**
+ * Mints presigned upload URLs for knowledge-base ingest, the only context this
+ * endpoint can authorize. Every request must name a workspace the caller has
+ * write access to; other storage contexts are rejected rather than presigned,
+ * because a presigned PUT is a write grant into a bucket served from a trusted
+ * origin.
+ */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
@@ -52,59 +57,46 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'type query parameter is required' }, { status: 400 })
     }
 
-    const uploadTypeResult = uploadTypeSchema.safeParse(uploadTypeParam)
+    const uploadTypeResult = batchPresignedUploadTypeSchema.safeParse(uploadTypeParam)
     if (!uploadTypeResult.success) {
       return NextResponse.json(
-        { error: `Invalid type parameter. Must be one of: ${VALID_UPLOAD_TYPES.join(', ')}` },
+        {
+          error: `Invalid type parameter. Must be one of: ${batchPresignedUploadTypes.join(', ')}`,
+        },
         { status: 400 }
       )
     }
 
-    const uploadType = uploadTypeResult.data as StorageContext
-
+    const uploadType = uploadTypeResult.data
     const sessionUserId = session.user.id
 
-    let knowledgeBaseWorkspaceId: string | null = null
-    if (uploadType === 'knowledge-base') {
-      for (const file of files) {
-        const fileValidationError = validateFileType(file.fileName, file.contentType)
-        if (fileValidationError) {
-          return NextResponse.json(
-            {
-              error: fileValidationError.message,
-              code: fileValidationError.code,
-              supportedTypes: fileValidationError.supportedTypes,
-            },
-            { status: 400 }
-          )
-        }
-      }
-
-      knowledgeBaseWorkspaceId = request.nextUrl.searchParams.get('workspaceId')
-      if (!knowledgeBaseWorkspaceId?.trim()) {
+    for (const file of files) {
+      const fileValidationError = validateFileType(file.fileName, file.contentType)
+      if (fileValidationError) {
         return NextResponse.json(
-          { error: 'workspaceId query parameter is required for knowledge-base uploads' },
+          {
+            error: fileValidationError.message,
+            code: fileValidationError.code,
+            supportedTypes: fileValidationError.supportedTypes,
+          },
           { status: 400 }
         )
       }
-
-      const permission = await getUserEntityPermissions(
-        sessionUserId,
-        'workspace',
-        knowledgeBaseWorkspaceId
-      )
-      if (permission !== 'write' && permission !== 'admin') {
-        return NextResponse.json(
-          { error: 'Write or Admin access required for knowledge-base uploads' },
-          { status: 403 }
-        )
-      }
     }
 
-    if (uploadType === 'copilot' && !sessionUserId?.trim()) {
+    const workspaceId = request.nextUrl.searchParams.get('workspaceId')
+    if (!workspaceId?.trim()) {
       return NextResponse.json(
-        { error: 'Authenticated user session is required for copilot uploads' },
+        { error: 'workspaceId query parameter is required for knowledge-base uploads' },
         { status: 400 }
+      )
+    }
+
+    const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
+    if (permission !== 'write' && permission !== 'admin') {
+      return NextResponse.json(
+        { error: 'Write or Admin access required for knowledge-base uploads' },
+        { status: 403 }
       )
     }
 
@@ -149,19 +141,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       `Generated ${files.length} presigned URLs in ${duration}ms (avg ${Math.round(duration / files.length)}ms per file)`
     )
 
-    if (uploadType === 'knowledge-base' && knowledgeBaseWorkspaceId) {
-      const ownerWorkspaceId = knowledgeBaseWorkspaceId
-      await recordKnowledgeBaseFileOwnershipMany(
-        presignedUrls.map((urlResponse, index) => ({
-          key: urlResponse.key,
-          userId: sessionUserId,
-          workspaceId: ownerWorkspaceId,
-          originalName: files[index].fileName,
-          contentType: files[index].contentType,
-          size: files[index].fileSize,
-        }))
-      )
-    }
+    await recordKnowledgeBaseFileOwnershipMany(
+      presignedUrls.map((urlResponse, index) => ({
+        key: urlResponse.key,
+        userId: sessionUserId,
+        workspaceId,
+        originalName: files[index].fileName,
+        contentType: files[index].contentType,
+        size: files[index].fileSize,
+      }))
+    )
 
     const storagePrefix = getServeStoragePrefix()
 

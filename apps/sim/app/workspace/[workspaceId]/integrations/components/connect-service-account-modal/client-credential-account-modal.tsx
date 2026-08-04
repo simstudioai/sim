@@ -35,7 +35,10 @@ function messageForClientCredentialError(
   descriptor: ClientCredentialAccountDescriptor
 ): string {
   if (isApiClientError(err) && err.code) {
-    const fieldLabels = descriptor.fields.map((field) => field.label).join(', ')
+    const fieldLabels = descriptor.fields
+      .filter((field) => !field.optional)
+      .map((field) => field.label)
+      .join(', ')
     switch (err.code) {
       case 'invalid_credentials':
         return `We couldn't authenticate with those credentials. Check that the ${fieldLabels} all belong to the same ${descriptor.serviceLabel} app and that the app is authorized.`
@@ -92,6 +95,7 @@ export function ClientCredentialAccountModal({
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [orgId, setOrgId] = useState('')
+  const [dataCenter, setDataCenter] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -104,6 +108,7 @@ export function ClientCredentialAccountModal({
     setClientId('')
     setClientSecret('')
     setOrgId('')
+    setDataCenter('')
     setDisplayName(initialDisplayName ?? '')
     setDescription(initialDescription ?? '')
     setError(null)
@@ -112,10 +117,12 @@ export function ClientCredentialAccountModal({
   const clientIdField = descriptor.fields.find((field) => field.id === 'clientId')
   const clientSecretField = descriptor.fields.find((field) => field.id === 'clientSecret')
   const orgIdField = descriptor.fields.find((field) => field.id === 'orgId')
+  const dataCenterField = descriptor.fields.find((field) => field.id === 'dataCenter')
 
   const trimmedClientId = clientId.trim()
   const trimmedClientSecret = clientSecret.trim()
   const trimmedOrgId = orgId.trim()
+  const trimmedDataCenter = dataCenter.trim()
   const isPending = createCredential.isPending || updateCredential.isPending
   const isDisabled = !trimmedClientId || !trimmedClientSecret || !trimmedOrgId || isPending
 
@@ -136,6 +143,7 @@ export function ClientCredentialAccountModal({
         clientId: trimmedClientId,
         clientSecret: trimmedClientSecret,
         orgId: trimmedOrgId,
+        dataCenter: trimmedDataCenter || undefined,
       }
       if (credentialId) {
         await updateCredential.mutateAsync({
@@ -224,6 +232,21 @@ export function ClientCredentialAccountModal({
             autoComplete='off'
             required
             hint={hintFor(orgIdField, trimmedOrgId)}
+          />
+        )}
+
+        {dataCenterField && (
+          <ChipModalField
+            type='input'
+            title={dataCenterField.label}
+            value={dataCenter}
+            onChange={(value) => {
+              setDataCenter(value)
+              if (error) setError(null)
+            }}
+            placeholder={dataCenterField.placeholder}
+            autoComplete='off'
+            hint={hintFor(dataCenterField, trimmedDataCenter) ?? dataCenterField.hintMessage}
           />
         )}
 

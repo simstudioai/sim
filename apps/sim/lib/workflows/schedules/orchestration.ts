@@ -6,6 +6,10 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import type { ScheduleContext } from '@/lib/api/contracts/schedules'
+import {
+  normalizeSecretMountPolicy,
+  type SecretMountScope,
+} from '@/lib/copilot/secret-mount-policy'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   computeNextRunAt,
@@ -15,7 +19,7 @@ import {
 
 const logger = createLogger('ScheduleOrchestration')
 
-type ScheduleErrorCode = 'not_found' | 'validation' | 'internal'
+type ScheduleErrorCode = 'not_found' | 'forbidden' | 'validation' | 'internal'
 
 interface ActorMetadata {
   actorName?: string | null
@@ -39,6 +43,8 @@ export interface PerformCreateJobParams extends ActorMetadata {
   endsAt?: string | null
   /** `@`-mentioned resources / `/`-invoked skills captured with the prompt. */
   contexts?: ScheduleContext[] | null
+  secretScope?: SecretMountScope
+  mountedSecrets?: string[]
   sourceChatId?: string | null
   sourceTaskName?: string | null
 }
@@ -68,6 +74,8 @@ export interface PerformUpdateJobParams extends ActorMetadata {
   maxRuns?: number | null
   endsAt?: string | null
   contexts?: ScheduleContext[] | null
+  secretScope?: SecretMountScope
+  mountedSecrets?: string[]
 }
 
 export interface PerformExcludeOccurrenceParams extends ActorMetadata {
@@ -192,6 +200,7 @@ export async function performCreateJob(
   try {
     const id = generateId()
     const now = new Date()
+    const secretMountPolicy = normalizeSecretMountPolicy(params)
     await db.insert(workflowSchedule).values({
       id,
       workflowId: null,
@@ -217,6 +226,8 @@ export async function performCreateJob(
       sourceTaskName: params.sourceTaskName || null,
       sourceUserId: params.userId,
       sourceWorkspaceId: params.workspaceId,
+      secretScope: secretMountPolicy.secretScope,
+      mountedSecrets: secretMountPolicy.mountedSecrets,
     })
 
     const [schedule] = await db
@@ -284,6 +295,27 @@ export async function performUpdateJob(
     if (!job)
       return { success: false, error: `Job not found: ${params.jobId}`, errorCode: 'not_found' }
 
+    const hasCreatorOnlyUpdate =
+      params.title !== undefined ||
+      params.prompt !== undefined ||
+      params.cronExpression !== undefined ||
+      params.time !== undefined ||
+      params.timezone !== undefined ||
+      params.lifecycle !== undefined ||
+      params.successCondition !== undefined ||
+      params.maxRuns !== undefined ||
+      params.endsAt !== undefined ||
+      params.contexts !== undefined ||
+      params.secretScope !== undefined ||
+      params.mountedSecrets !== undefined
+    if (hasCreatorOnlyUpdate && job.sourceUserId !== params.userId) {
+      return {
+        success: false,
+        error: 'Only the task creator can edit this task',
+        errorCode: 'forbidden',
+      }
+    }
+
     const updates: Partial<typeof workflowSchedule.$inferInsert> = { updatedAt: new Date() }
     if (params.title !== undefined) updates.jobTitle = params.title.trim()
     if (params.prompt !== undefined) updates.prompt = params.prompt.trim()
@@ -312,6 +344,14 @@ export async function performUpdateJob(
     if (params.successCondition !== undefined) updates.successCondition = params.successCondition
     if (params.maxRuns !== undefined) updates.maxRuns = params.maxRuns
     if (params.contexts !== undefined) updates.contexts = params.contexts
+    if (params.secretScope !== undefined || params.mountedSecrets !== undefined) {
+      const secretMountPolicy = normalizeSecretMountPolicy({
+        secretScope: params.secretScope ?? job.secretScope,
+        mountedSecrets: params.mountedSecrets ?? job.mountedSecrets,
+      })
+      updates.secretScope = secretMountPolicy.secretScope
+      updates.mountedSecrets = secretMountPolicy.mountedSecrets
+    }
     const effectiveStatus = updates.status ?? job.status
 
     let endsAt: Date | null = job.endsAt

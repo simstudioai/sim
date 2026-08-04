@@ -120,20 +120,63 @@ export function splitMarkdownBlocks(body: string): string[] {
  * vs ~1270ms at 61KB — and byte-identical, because each block is parsed with the same tokenizers.
  * Documents whose constructs span blocks ({@link NON_CHUNKABLE}) parse whole, and any failure falls
  * back to a single whole-document parse, so correctness never depends on the splitter.
+ *
+ * Runs of blank lines take the fast chunked path too: the chunker parses each block stripped of the
+ * blank lines between them, which drops the empty paragraphs `@tiptap/markdown` reconstructs from a
+ * blank run — exactly what {@link stripEmptyParagraphs} does to the whole-parse output anyway. A blank
+ * run between blocks is insignificant in markdown, so collapsing it is the intended normalization (see
+ * {@link stripEmptyParagraphs}), and both parse paths converge on the same empty-paragraph-free result.
  */
 export function parseMarkdownToDoc(body: string): JSONContent {
   const manager = markdownManager()
-  if (NON_CHUNKABLE.test(body)) return manager.parse(body)
-  try {
-    const content: JSONContent[] = []
-    for (const block of splitMarkdownBlocks(body)) {
-      // `MarkdownManager.parse` always returns a doc node with a `content` array; spread its blocks.
-      content.push(...(manager.parse(block).content ?? []))
+  // Normalize line endings up front so {@link NON_CHUNKABLE}'s `\n`-anchored tests see the same `\n`
+  // the chunker and parser do — a classic `\r`-only body would otherwise slip past the reference-def /
+  // block-HTML guard and be chunked, shattering a construct that must parse whole.
+  const normalized = body.replace(/\r\n?/g, '\n')
+  let doc: JSONContent
+  if (NON_CHUNKABLE.test(normalized)) {
+    doc = manager.parse(normalized)
+  } else {
+    try {
+      const content: JSONContent[] = []
+      for (const block of splitMarkdownBlocks(normalized)) {
+        // `MarkdownManager.parse` always returns a doc node with a `content` array; spread its blocks.
+        content.push(...(manager.parse(block).content ?? []))
+      }
+      doc = { type: 'doc', content }
+    } catch {
+      doc = manager.parse(normalized)
     }
-    return { type: 'doc', content }
-  } catch {
-    return manager.parse(body)
   }
+  return stripEmptyParagraphs(doc)
+}
+
+/** An empty paragraph node — the shape a blank line reconstructs to (no content, or `content: []`). */
+function isEmptyParagraph(node: JSONContent): boolean {
+  return node.type === 'paragraph' && !node.content?.length
+}
+
+/**
+ * Drop ALL top-level empty paragraphs from a parsed doc — leading, interior, and trailing. In markdown
+ * a run of blank lines between blocks is insignificant (CommonMark collapses it), so `@tiptap/markdown`
+ * reconstructing each blank as an empty paragraph node is not fidelity: it makes the editor render the
+ * file differently from every standard renderer (GitHub, the download, our own static preview), and a
+ * pathological blank run (an agent/paste artifact) explodes into thousands of empty nodes that persist
+ * forever and reflow the doc on open. Collapsing them here keeps normal single-blank-line block spacing
+ * while removing the spurious gaps, and stays idempotent so the round-trip-safety probe still passes: a
+ * doc parsed this way has no empty paragraphs, so re-serializing it never re-emits an interior blank run
+ * (the serializer is intentionally left alone — a blank line inside a fenced code block IS significant),
+ * and a second parse is a fixed point. Only TOP-LEVEL paragraphs are touched, so blank lines that carry
+ * meaning inside a construct (e.g. a loose list) are left to the block parser. TipTap re-adds its own
+ * trailing filler paragraph on `setContent`, so the editor still has a place to type.
+ */
+function stripEmptyParagraphs(doc: JSONContent): JSONContent {
+  const content = doc.content
+  if (!content || content.length === 0) return doc
+  // The dominant (chunked) parse already emits no top-level empty paragraphs, so scan before allocating:
+  // return the doc untouched — no array copy — unless there is actually something to strip.
+  if (!content.some(isEmptyParagraph)) return doc
+  return { ...doc, content: content.filter((node) => !isEmptyParagraph(node)) }
 }
 
 /**
@@ -142,8 +185,19 @@ export function parseMarkdownToDoc(body: string): JSONContent {
  * normalization the live editor applies, keeping the output identical to `editor.getMarkdown()`.
  */
 export function serializeMarkdownBody(body: string): string {
+  return serializeDocToMarkdown(parseMarkdownToDoc(body))
+}
+
+/**
+ * Serialize a ProseMirror document (as TipTap {@link JSONContent}) to the editor's canonical
+ * markdown. Loaded via `setContent` so it passes through the same schema normalization the live
+ * editor applies — output identical to `editor.getMarkdown()`. The server-side collab-doc converter
+ * uses this to project a Yjs doc back to markdown through the exact client engine (parity by
+ * construction), so it must stay the single serialize path (do not inline `getMarkdown` elsewhere).
+ */
+export function serializeDocToMarkdown(doc: JSONContent): string {
   const editor = parserEditor()
-  editor.commands.setContent(parseMarkdownToDoc(body), { contentType: 'json' })
+  editor.commands.setContent(doc, { contentType: 'json' })
   return editor.getMarkdown()
 }
 

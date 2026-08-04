@@ -22,6 +22,7 @@ import {
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { columnTypeById } from '@/lib/table/column-types'
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   accessError,
   checkAccess,
@@ -62,6 +63,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     }
 
     const updatedTable = await addTableColumn(tableId, validated.column, requestId)
+    signalTableSchemaChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -295,6 +297,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     if (!updatedTable) {
       return NextResponse.json({ error: 'No updates specified' }, { status: 400 })
     }
+    signalTableSchemaChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -364,6 +367,7 @@ export const DELETE = withRouteHandler(
         { tableId, columnName: validated.columnName },
         requestId
       )
+      signalTableSchemaChanged(tableId)
 
       return NextResponse.json({
         success: true,

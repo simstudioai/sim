@@ -2,6 +2,7 @@ import type { ComponentType, SVGProps } from 'react'
 import { cn, Tooltip } from '@sim/emcn'
 
 interface ToolbarButtonProps {
+  /** Any SVG icon component, e.g. from `@sim/emcn/icons`. */
   icon: ComponentType<SVGProps<SVGSVGElement>>
   label: string
   shortcut?: string

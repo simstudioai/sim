@@ -2,7 +2,6 @@
 
 import { type ComponentType, useCallback, useMemo, useRef } from 'react'
 import {
-  ArrowRight,
   ChevronDown,
   ChipInput,
   chipVariants,
@@ -12,7 +11,6 @@ import {
   DropdownMenuTrigger,
   Search,
 } from '@sim/emcn'
-import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
@@ -34,17 +32,13 @@ import {
   integrationsParsers,
   integrationsUrlKeys,
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 /** Slugs surfaced in the pinned Featured section, in display order. */
 const FEATURED_SLUGS = ['slack', 'gmail', 'jira', 'github', 'google-sheets', 'hubspot'] as const
-
-const LINK_ROW_CLASSES =
-  'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-const LINK_ROW_TITLE_CLASSES = 'truncate text-[14px] text-[var(--text-body)]'
-const LINK_ROW_SUBTITLE_CLASSES = 'truncate text-[12px] text-[var(--text-muted)]'
-const LINK_ROW_ARROW_CLASSES = 'size-4 flex-shrink-0 text-[var(--text-icon)]'
 
 const FEATURED_INTEGRATIONS: readonly Integration[] = (() => {
   const bySlug = new Map(INTEGRATIONS.map((i) => [i.slug, i]))
@@ -85,14 +79,15 @@ function IntegrationItem({
   icon: Icon,
 }: IntegrationItemProps) {
   return (
-    <Link href={`/workspace/${workspaceId}/integrations/${slug}`} className={LINK_ROW_CLASSES}>
-      <IntegrationTile blockType={blockType} icon={Icon} />
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <span className={LINK_ROW_TITLE_CLASSES}>{name}</span>
-        {description && <span className={LINK_ROW_SUBTITLE_CLASSES}>{description}</span>}
-      </div>
-      <ArrowRight className={LINK_ROW_ARROW_CLASSES} />
-    </Link>
+    <SettingsResourceRow
+      iconVariant='custom'
+      icon={<IntegrationTile blockType={blockType} icon={Icon} />}
+      title={name}
+      description={description || undefined}
+      href={`/workspace/${workspaceId}/integrations/${slug}`}
+      clickLabel={`Open ${name}`}
+      navigable
+    />
   )
 }
 
@@ -122,14 +117,15 @@ interface ConnectedItemProps {
 
 function ConnectedItem({ href, blockType, name, description, icon: Icon }: ConnectedItemProps) {
   return (
-    <Link href={href} className={LINK_ROW_CLASSES}>
-      <IntegrationTile blockType={blockType} icon={Icon} />
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <span className={LINK_ROW_TITLE_CLASSES}>{name}</span>
-        <span className={LINK_ROW_SUBTITLE_CLASSES}>{description}</span>
-      </div>
-      <ArrowRight className={LINK_ROW_ARROW_CLASSES} />
-    </Link>
+    <SettingsResourceRow
+      iconVariant='custom'
+      icon={<IntegrationTile blockType={blockType} icon={Icon} />}
+      title={name}
+      description={description}
+      href={href}
+      clickLabel={`Open ${name}`}
+      navigable
+    />
   )
 }
 
@@ -361,11 +357,11 @@ export function Integrations() {
             ))}
 
             {showNoResults && (
-              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+              <SettingsEmptyState variant='inline'>
                 {urlSearchTerm.trim()
                   ? `No integrations found matching “${urlSearchTerm}”`
                   : 'No integrations in this category'}
-              </div>
+              </SettingsEmptyState>
             )}
           </div>
         </div>

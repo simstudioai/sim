@@ -27,10 +27,10 @@ export interface DefaultedSortParams<C extends string> {
 
 /**
  * Nullable sort params for lists where "no active sort" is behaviorally
- * distinct from explicitly sorting by the fallback column (e.g. files: with no
- * sort, files order by updated/desc but folders by name/asc). The params carry
- * no defaults, so an explicit selection always persists in the URL and
- * clearing writes `null` to strip both.
+ * distinct from explicitly sorting by the fallback column (e.g. document
+ * chunks: with no sort the query omits `sortBy` entirely and the server's own
+ * order applies). The params carry no defaults, so an explicit selection always
+ * persists in the URL and clearing writes `null` to strip both.
  */
 export interface NullableSortParams<C extends string> {
   columns: readonly C[]

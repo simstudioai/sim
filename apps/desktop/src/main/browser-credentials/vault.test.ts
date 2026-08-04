@@ -139,6 +139,67 @@ describe('CredentialVault', () => {
     expect((await vault.readForFill(id, 'https://example.com'))?.password).toBe('changed')
   })
 
+  it('serializes overlapping imports so every write sees the previous result', async () => {
+    const vault = new CredentialVault(vaultPath, encryption())
+    const candidates = Array.from({ length: 12 }, (_, index) => ({
+      origin: `https://site-${index}.test`,
+      username: `user-${index}`,
+      password: `password-${index}`,
+    }))
+
+    await Promise.all(
+      candidates.map((candidate) => vault.importCredentials([candidate], 'keep-existing'))
+    )
+
+    expect(await vault.list()).toHaveLength(candidates.length)
+  })
+
+  it('serializes import, delete, and clear mutations in call order', async () => {
+    const vault = new CredentialVault(vaultPath, encryption())
+    await vault.importCredentials(CANDIDATES, 'keep-existing')
+    const deletedId = (await vault.list()).find((entry) => entry.username === 'ada')?.id ?? ''
+
+    const importBeforeDelete = vault.importCredentials(
+      [{ origin: 'https://third.test', username: 'lin', password: 'third' }],
+      'keep-existing'
+    )
+    const deleteAfterImport = vault.delete(deletedId)
+    await Promise.all([importBeforeDelete, deleteAfterImport])
+
+    expect((await vault.list()).map((entry) => entry.username)).toEqual(['grace', 'lin'])
+
+    const importBeforeClear = vault.importCredentials(
+      [{ origin: 'https://fourth.test', username: 'margaret', password: 'fourth' }],
+      'keep-existing'
+    )
+    const clearAfterImport = vault.clear()
+    await Promise.all([importBeforeClear, clearAfterImport])
+    expect(await vault.list()).toEqual([])
+
+    const clearBeforeImport = vault.clear()
+    const importAfterClear = vault.importCredentials(
+      [{ origin: 'https://fifth.test', username: 'katherine', password: 'fifth' }],
+      'keep-existing'
+    )
+    await Promise.all([clearBeforeImport, importAfterClear])
+    expect((await vault.list()).map((entry) => entry.username)).toEqual(['katherine'])
+  })
+
+  it('continues queued mutations after an earlier mutation fails', async () => {
+    const provider = encryption()
+    provider.encryptString.mockImplementationOnce(() => {
+      throw new Error('encryption failed')
+    })
+    const vault = new CredentialVault(vaultPath, provider)
+
+    const failed = vault.importCredentials([CANDIDATES[0]], 'keep-existing')
+    const queued = vault.importCredentials([CANDIDATES[1]], 'keep-existing')
+
+    await expect(failed).rejects.toThrow('encryption failed')
+    await expect(queued).resolves.toEqual({ added: 1, updated: 0, skipped: 0 })
+    expect((await vault.list()).map((entry) => entry.username)).toEqual(['grace'])
+  })
+
   it('skips candidates with no usable origin or an empty password', async () => {
     const vault = new CredentialVault(vaultPath, encryption())
 

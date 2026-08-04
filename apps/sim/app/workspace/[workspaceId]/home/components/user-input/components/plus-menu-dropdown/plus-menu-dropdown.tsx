@@ -12,13 +12,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Workflow } from '@sim/emcn/icons'
 import {
-  buildFileFolderTree,
-  buildWorkflowFolderTree,
-  FileFolderTreeItems,
+  FOLDERED_RESOURCE_TYPES,
+  ResourceTreeSections,
   useAvailableResources,
-  WorkflowFolderTreeItems,
+  useResourceTreeSections,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
@@ -72,7 +70,11 @@ export const PlusMenuDropdown = React.memo(
     const contentRef = useRef<HTMLDivElement>(null)
 
     // Gated so an idle chat surface never fetches the workspace lists.
-    const { groups: availableResources, isHydrating } = useAvailableResources(workspaceId, {
+    const {
+      groups: availableResources,
+      structureFolders,
+      isHydrating,
+    } = useAvailableResources(workspaceId, {
       enabled: open || !!warm,
     })
 
@@ -102,17 +104,10 @@ export const PlusMenuDropdown = React.memo(
         : attachable.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
     }, [isMention, availableResources])
 
-    const workflowTree = useMemo(() => {
-      const workflowGroup = visibleResources.find((g) => g.type === 'workflow')
-      const folderGroup = visibleResources.find((g) => g.type === 'folder')
-      return buildWorkflowFolderTree(workflowGroup?.items ?? [], folderGroup?.items ?? [])
-    }, [visibleResources])
-
-    const fileFolderTree = useMemo(() => {
-      const fileGroup = visibleResources.find((g) => g.type === 'file')
-      const fileFolderGroup = visibleResources.find((g) => g.type === 'filefolder')
-      return buildFileFolderTree(fileGroup?.items ?? [], fileFolderGroup?.items ?? [])
-    }, [visibleResources])
+    const treeSections = useResourceTreeSections({
+      groups: visibleResources,
+      structureFolders,
+    })
 
     const filteredItems = useMemo(() => {
       const rawQuery = isMention ? (mentionQuery ?? '') : search
@@ -310,39 +305,13 @@ export const PlusMenuDropdown = React.memo(
             {/* Always-mounted; swapping this subtree with filtered results makes Radix's
                   menu FocusScope steal focus from the search input back to the content root. */}
             <div hidden={filteredItems !== null}>
-              {workflowTree.length > 0 && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Workflow className='size-[14px]' />
-                    <span>Workflows</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
-                    <WorkflowFolderTreeItems nodes={workflowTree} onSelect={handleSelect} />
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
-              {fileFolderTree.length > 0 && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    {(() => {
-                      const Icon = getResourceConfig('file').icon
-                      return <Icon className='size-[14px]' />
-                    })()}
-                    <span>Files</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
-                    <FileFolderTreeItems nodes={fileFolderTree} onSelect={handleSelect} />
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
+              <ResourceTreeSections
+                sections={treeSections}
+                onSelect={handleSelect}
+                subContentClassName='max-w-[min(300px,calc(100vw-32px))]'
+              />
               {visibleResources
-                .filter(
-                  ({ type }) =>
-                    type !== 'workflow' &&
-                    type !== 'folder' &&
-                    type !== 'file' &&
-                    type !== 'filefolder'
-                )
+                .filter(({ type }) => !FOLDERED_RESOURCE_TYPES.has(type))
                 .map(({ type, items }) => {
                   if (items.length === 0) return null
                   const config = getResourceConfig(type)

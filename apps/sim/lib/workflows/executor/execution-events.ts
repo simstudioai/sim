@@ -1,9 +1,10 @@
+import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import type {
+  BlockCompletionCallbackData,
   ChildWorkflowContext,
   IterationContext,
   ParentIteration,
 } from '@/executor/execution/types'
-import type { BlockLog } from '@/executor/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export type ExecutionEventType =
@@ -48,6 +49,15 @@ interface BaseExecutionEvent {
   eventId?: number
 }
 
+export interface ExecutionEventDisplayData {
+  input?: unknown
+  output?: unknown
+  error?: string
+  text?: string
+  chunk?: string
+  clearLiveDisplay?: true
+}
+
 /**
  * Execution started event
  */
@@ -72,7 +82,7 @@ interface ExecutionCompletedEvent extends BaseExecutionEvent {
     startTime: string
     endTime: string
     /** Authoritative per-block terminal states from the server's blockLogs. */
-    finalBlockLogs?: BlockLog[]
+    finalBlockLogs?: SecretSafeBlockLog[]
   }
 }
 
@@ -88,7 +98,7 @@ interface ExecutionPausedEvent extends BaseExecutionEvent {
     startTime: string
     endTime: string
     /** Authoritative per-block terminal states from the server's blockLogs. */
-    finalBlockLogs?: BlockLog[]
+    finalBlockLogs?: SecretSafeBlockLog[]
   }
 }
 
@@ -100,9 +110,10 @@ interface ExecutionErrorEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     error: string
+    display?: ExecutionEventDisplayData
     duration: number
     /** Authoritative per-block terminal states from the server's blockLogs. */
-    finalBlockLogs?: BlockLog[]
+    finalBlockLogs?: SecretSafeBlockLog[]
   }
 }
 
@@ -112,7 +123,7 @@ interface ExecutionCancelledEvent extends BaseExecutionEvent {
   data: {
     duration: number
     /** Authoritative per-block terminal states from the server's blockLogs. */
-    finalBlockLogs?: BlockLog[]
+    finalBlockLogs?: SecretSafeBlockLog[]
   }
 }
 
@@ -149,6 +160,7 @@ interface BlockCompletedEvent extends BaseExecutionEvent {
     blockType: string
     input?: any
     output: any
+    display?: ExecutionEventDisplayData
     durationMs: number
     startedAt: string
     executionOrder: number
@@ -177,6 +189,7 @@ interface BlockErrorEvent extends BaseExecutionEvent {
     blockType: string
     input?: any
     error: string
+    display?: ExecutionEventDisplayData
     durationMs: number
     startedAt: string
     executionOrder: number
@@ -224,6 +237,7 @@ interface StreamChunkEvent extends BaseExecutionEvent {
   data: {
     blockId: string
     chunk: string
+    display?: ExecutionEventDisplayData
   }
 }
 
@@ -263,6 +277,7 @@ interface StreamThinkingEvent extends BaseExecutionEvent {
   data: {
     blockId: string
     text: string
+    display?: ExecutionEventDisplayData
   }
 }
 
@@ -394,19 +409,11 @@ export function createExecutionCallbacks(options: {
     blockId: string,
     blockName: string,
     blockType: string,
-    callbackData: {
-      input?: unknown
-      output: any
-      executionTime: number
-      startedAt: string
-      executionOrder: number
-      endedAt: string
-      childWorkflowInstanceId?: string
-    },
+    callbackData: BlockCompletionCallbackData,
     iterationContext?: IterationContext,
     childWorkflowContext?: ChildWorkflowContext
   ) => {
-    const hasError = callbackData.output?.error
+    const callbackError = callbackData.output?.error
     const iterationData = iterationContext
       ? {
           iterationCurrent: iterationContext.iterationCurrent,
@@ -428,8 +435,7 @@ export function createExecutionCallbacks(options: {
     const instanceData = callbackData.childWorkflowInstanceId
       ? { childWorkflowInstanceId: callbackData.childWorkflowInstanceId }
       : {}
-
-    if (hasError) {
+    if (callbackError) {
       await sendBufferedEvent({
         type: 'block:error',
         timestamp: new Date().toISOString(),
@@ -440,7 +446,7 @@ export function createExecutionCallbacks(options: {
           blockName,
           blockType,
           input: callbackData.input,
-          error: callbackData.output.error,
+          error: callbackError,
           durationMs: callbackData.executionTime || 0,
           startedAt: callbackData.startedAt,
           executionOrder: callbackData.executionOrder,

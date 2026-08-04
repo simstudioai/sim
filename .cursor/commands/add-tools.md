@@ -290,6 +290,17 @@ export const tools = {
 }
 ```
 
+3. Regenerate the tool metadata artifacts:
+
+```bash
+bun run tool-metadata:generate
+```
+
+Client code reads a tool's `params`/`outputs` from generated metadata rather than
+importing the registry, so a tool you add, change or remove is invisible to the UI until
+these are regenerated — and CI fails on stale artifacts. Commit the result. See
+`.agents/skills/tool-registry-boundary/SKILL.md`.
+
 ## Wiring Tools into the Block (Required)
 
 After registering in `tools/registry.ts`, you MUST also update the block definition at `apps/sim/blocks/blocks/{service}.ts`. This is not optional — tools are only usable from the UI if they are wired into the block.
@@ -437,6 +448,7 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 - [ ] Types file has all interfaces
 - [ ] Index.ts exports all tools and re-exports types (`export * from './types'`)
 - [ ] Tools registered in `tools/registry.ts`
+- [ ] `bun run tool-metadata:generate` run and the regenerated artifacts committed
 - [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs
 
 ## Final Validation (Required)

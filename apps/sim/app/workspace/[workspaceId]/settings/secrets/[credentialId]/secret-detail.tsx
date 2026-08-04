@@ -3,18 +3,20 @@
 import { useState } from 'react'
 import { Chip, ChipCopyInput, ChipLink, Send } from '@sim/emcn'
 import { ArrowLeft, Key } from '@sim/emcn/icons'
+import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
+import { ResourceTile } from '@/app/workspace/[workspaceId]/components'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
   CredentialDetailLayout,
   CredentialMembersSection,
-  DetailIconTile,
   DetailSection,
   UnsavedChangesModal,
   useUnsavedChangesGuard,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { useSecretValue } from '@/app/workspace/[workspaceId]/settings/components/secrets/hooks/use-secret-value'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 
 interface SecretDetailProps {
@@ -51,9 +53,12 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
           </Chip>
         )}
         {canEditValue && (
-          <Chip onClick={valueField.save} disabled={!valueField.isDirty || valueField.isSaving}>
-            {valueField.isSaving ? 'Saving...' : 'Save'}
-          </Chip>
+          <SaveDiscardChips
+            dirty={valueField.isDirty}
+            saving={valueField.isSaving}
+            onSave={valueField.save}
+            onDiscard={valueField.discard}
+          />
         )}
       </>
     ) : null
@@ -61,7 +66,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   if (isPending && !credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>
+        <SettingsEmptyState variant='inline'>Loading…</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
@@ -69,7 +74,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Secret not found.</p>
+        <SettingsEmptyState variant='inline'>Secret not found.</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
@@ -78,7 +83,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
     <>
       <CredentialDetailLayout back={back} actions={actions}>
         <CredentialDetailHeading
-          leading={<DetailIconTile icon={Key} />}
+          leading={<ResourceTile icon={Key} />}
           title={credential.envKey || credential.displayName}
           subtitle={
             isPersonal

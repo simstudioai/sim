@@ -11,7 +11,13 @@ import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
-import { buildAuthCrossLink, POST_AUTH_REDIRECT_STORAGE_KEY } from '@/app/(auth)/auth-redirect'
+import {
+  buildAuthCrossLink,
+  DEFAULT_POST_AUTH_ROUTE,
+  POST_AUTH_REDIRECT_STORAGE_KEY,
+  resolvePostSignupDestination,
+  VERIFY_FROM_SIGNUP_ROUTE,
+} from '@/app/(auth)/auth-redirect'
 import {
   AuthDivider,
   AuthField,
@@ -86,6 +92,8 @@ interface SignupFormProps {
   microsoftAvailable: boolean
   isProduction: boolean
   emailSignupEnabled: boolean
+  /** Server-derived: verification is enabled AND a mail provider is configured. */
+  emailVerificationEnabled: boolean
 }
 
 function SignupFormContent({
@@ -94,6 +102,7 @@ function SignupFormContent({
   microsoftAvailable,
   isProduction,
   emailSignupEnabled,
+  emailVerificationEnabled,
 }: SignupFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -343,18 +352,29 @@ function SignupFormContent({
         logger.error('Failed to refresh session after signup:', sessionError)
       }
 
+      const destination = resolvePostSignupDestination({ emailVerificationEnabled, redirectUrl })
+
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem('verificationEmail', emailValue)
-        if (redirectUrl) {
-          sessionStorage.setItem(POST_AUTH_REDIRECT_STORAGE_KEY, redirectUrl)
-        } else {
-          // Clear any leftover from an earlier signup in this tab — otherwise a
-          // signup with no callbackUrl inherits the previous CLI/invite destination.
-          sessionStorage.removeItem(POST_AUTH_REDIRECT_STORAGE_KEY)
+        // Clear any leftover from an earlier signup in this tab — otherwise a
+        // signup with no callbackUrl inherits the previous CLI/invite destination.
+        sessionStorage.removeItem('verificationEmail')
+        sessionStorage.removeItem(POST_AUTH_REDIRECT_STORAGE_KEY)
+
+        if (destination.kind === 'verify') {
+          sessionStorage.setItem('verificationEmail', emailValue)
+          if (redirectUrl) sessionStorage.setItem(POST_AUTH_REDIRECT_STORAGE_KEY, redirectUrl)
         }
       }
 
-      router.push('/verify?fromSignup=true')
+      if (destination.kind === 'verify') {
+        router.push(VERIFY_FROM_SIGNUP_ROUTE)
+      } else if (destination.kind === 'redirect') {
+        // Full navigation, matching the verify hop: the destination (invite, CLI
+        // handoff) is server-rendered and must see the fresh session cookie.
+        window.location.href = destination.url
+      } else {
+        router.push(DEFAULT_POST_AUTH_ROUTE)
+      }
     } catch (error) {
       logger.error('Signup error:', error)
       setIsLoading(false)
@@ -488,6 +508,7 @@ export default function SignupPage({
   microsoftAvailable,
   isProduction,
   emailSignupEnabled,
+  emailVerificationEnabled,
 }: SignupFormProps) {
   return (
     <Suspense
@@ -499,6 +520,7 @@ export default function SignupPage({
         microsoftAvailable={microsoftAvailable}
         isProduction={isProduction}
         emailSignupEnabled={emailSignupEnabled}
+        emailVerificationEnabled={emailVerificationEnabled}
       />
     </Suspense>
   )

@@ -573,12 +573,14 @@ export function serializeBlockSchema(
   const customBlock = isCustomBlockType(block.type)
   const hosted = options?.hosted ?? isHosted
   const visibleSubBlocks = block.subBlocks.filter(
-    (sb) => !isSubBlockHidden(sb, { hosted }) && !(customBlock && sb.hidden)
+    (sb) => !sb.hideFromCopilot && !isSubBlockHidden(sb, { hosted }) && !(customBlock && sb.hidden)
   )
   const visibleIds = new Set(visibleSubBlocks.map((sb) => sb.id))
   const hiddenIds = new Set(
     block.subBlocks
-      .filter((sb) => isSubBlockHidden(sb, { hosted }) || (customBlock && sb.hidden))
+      .filter(
+        (sb) => sb.hideFromCopilot || isSubBlockHidden(sb, { hosted }) || (customBlock && sb.hidden)
+      )
       .map((sb) => sb.id)
       .filter((id) => !visibleIds.has(id))
   )

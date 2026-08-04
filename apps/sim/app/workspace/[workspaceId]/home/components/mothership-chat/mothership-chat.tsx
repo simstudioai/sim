@@ -64,7 +64,12 @@ interface MothershipChatProps {
   userId?: string
   chatId?: string
   onContextAdd?: (context: ChatContext) => void
-  onContextRemove?: (context: ChatContext) => void
+  /**
+   * Receives the input's context list AFTER the removal, so the owner can tell
+   * whether another chip still references the removed chip's resource. Matches
+   * `ChatSurfaceContextValue`, which this forwards to.
+   */
+  onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   draftScopeKey?: string
   layout?: 'mothership-view' | 'copilot-view'

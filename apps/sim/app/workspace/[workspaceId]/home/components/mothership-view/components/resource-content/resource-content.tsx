@@ -34,6 +34,7 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
@@ -78,6 +79,7 @@ const LOADING_SKELETON = (
 
 interface ResourceContentProps {
   workspaceId: string
+  desktopScopeId: string
   resource: MothershipResource
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
@@ -95,6 +97,8 @@ interface ResourceContentProps {
    * ever rendered when active.
    */
   visible?: boolean
+  /** Registers the active browser's targeted renderer-overlay handshake. */
+  onBrowserOverlayControllerChange?: (controller: BrowserPanelOverlayController | null) => void
 }
 
 /**
@@ -150,6 +154,7 @@ function useAgentFileEditLock(isStreamingToFile: boolean, isAgentResponding: boo
 
 export const ResourceContent = memo(function ResourceContent({
   workspaceId,
+  desktopScopeId,
   resource,
   previewMode,
   previewSession,
@@ -159,6 +164,7 @@ export const ResourceContent = memo(function ResourceContent({
   tableViewsEnabled,
   onNotFound,
   visible = true,
+  onBrowserOverlayControllerChange,
 }: ResourceContentProps) {
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
@@ -250,6 +256,7 @@ export const ResourceContent = memo(function ResourceContent({
           }
           isAgentEditing={isAgentEditing}
           streamIsIncremental={streamIsIncremental}
+          streamOperation={previewSession?.operation}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -298,10 +305,17 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'browser':
-      return <BrowserSession key={resource.id} visible={visible} />
+      return (
+        <BrowserSession
+          key={resource.id}
+          scopeId={desktopScopeId}
+          visible={visible}
+          onOverlayControllerChange={onBrowserOverlayControllerChange}
+        />
+      )
 
     case 'terminal':
-      return <TerminalSession key={resource.id} visible={visible} />
+      return <TerminalSession key={resource.id} scopeId={desktopScopeId} visible={visible} />
 
     default:
       return null
@@ -664,6 +678,7 @@ interface EmbeddedFileProps {
   streamingContent?: string
   isAgentEditing?: boolean
   streamIsIncremental?: boolean
+  streamOperation?: string
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -676,6 +691,7 @@ function EmbeddedFile({
   streamingContent,
   isAgentEditing,
   streamIsIncremental,
+  streamOperation,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: EmbeddedFileProps) {
@@ -719,8 +735,10 @@ function EmbeddedFile({
         streamingContent={streamingContent}
         isAgentEditing={isAgentEditing}
         streamIsIncremental={streamIsIncremental}
+        streamOperation={streamOperation}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
+        collaborative
       />
     </div>
   )

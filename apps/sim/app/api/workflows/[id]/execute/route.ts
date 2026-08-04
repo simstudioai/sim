@@ -19,6 +19,14 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import { isWorkflowToolExecutionClaimable } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  claimWorkflowToolExecution,
+  getAsyncToolCall,
+  getRunSegment,
+  releaseWorkflowToolExecutionClaim,
+} from '@/lib/copilot/async-runs/repository'
+import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
@@ -48,6 +56,7 @@ import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
+  setExecutionMeta,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
 import { processInputFileFields } from '@/lib/execution/files'
@@ -58,6 +67,12 @@ import {
 import { containsLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { type PreprocessExecutionSuccess, preprocessExecution } from '@/lib/execution/preprocessing'
+import {
+  PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+  requestsPrivateToolMetadata,
+} from '@/lib/execution/private-tool-metadata'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import {
   MAX_MCP_WORKFLOW_RESPONSE_BYTES,
@@ -114,12 +129,18 @@ import {
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
+  BlockCompletionCallbackData,
   ChildWorkflowContext,
   ExecutionMetadata,
   IterationContext,
   SerializableExecutionState,
 } from '@/executor/execution/types'
-import type { BlockLog, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import type {
+  BlockLog,
+  ExecutionResult,
+  NormalizedBlockOutput,
+  StreamingExecution,
+} from '@/executor/types'
 import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
@@ -132,6 +153,52 @@ const WORKFLOW_EXECUTION_JOB_ID_PREFIX = 'workflow-execution:'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+async function isValidCopilotWorkflowToolBinding(params: {
+  toolCallId: string
+  userId: string
+  workflowId: string
+}): Promise<boolean> {
+  const toolCall = await getAsyncToolCall(params.toolCallId)
+  if (
+    !toolCall ||
+    !isWorkflowToolName(toolCall.toolName) ||
+    !isWorkflowToolExecutionClaimable(toolCall.status, toolCall.permissionDecision)
+  ) {
+    return false
+  }
+
+  const run = await getRunSegment(toolCall.runId)
+  return (
+    run?.userId === params.userId &&
+    resolveWorkflowToolTargetId(toolCall.args, run.workflowId) === params.workflowId
+  )
+}
+
+function createExecutionJsonResponse(
+  body: Record<string, unknown>,
+  init: ResponseInit | undefined,
+  includePrivateProvenance: boolean,
+  result?: ExecutionResult
+): NextResponse {
+  if (!includePrivateProvenance) {
+    return NextResponse.json(body, init)
+  }
+
+  const headers = new Headers(init?.headers)
+  headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
+  return NextResponse.json(
+    {
+      ...body,
+      [RESOLVED_SECRET_PROVENANCE_FIELD]: result?.executionState?.resolvedSecretTraceProvenance ?? {
+        version: 1,
+        complete: false,
+        entries: [],
+      },
+    },
+    { ...init, headers }
+  )
+}
 
 async function compactRoutePayload<T>(
   value: T,
@@ -556,6 +623,8 @@ async function handleExecutePost(
   let executionId = ''
   let executionIdClaim: ExecutionIdClaim | null = null
   let executionIdClaimCommitted = false
+  let workflowToolClaimAcquired = false
+  let copilotToolCallId: string | undefined
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
@@ -573,6 +642,10 @@ async function handleExecutePost(
 
     const isMcpBridgeRequest =
       auth.authType === AuthType.INTERNAL_JWT && req.headers.get(MCP_TOOL_BRIDGE_HEADER) === 'true'
+    const includePrivateTraceProvenance =
+      auth.success &&
+      auth.authType === AuthType.INTERNAL_JWT &&
+      requestsPrivateToolMetadata(req.headers, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
     const useMcpBridgeAuthenticatedUserAsActor =
       isMcpBridgeRequest && req.headers.get(MCP_TOOL_BRIDGE_ACTOR_HEADER) === 'authenticated-user'
 
@@ -682,19 +755,26 @@ async function handleExecutePost(
       includeToolCalls: requestedIncludeToolCalls,
       useDraftState,
       input: validatedInput,
+      inputFromExecutionId,
       isClientSession = false,
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
       deploymentVersionId: admittedDeploymentVersionId,
       executionId: rawBodyExecutionId,
+      copilotToolCallId: parsedCopilotToolCallId,
       triggerBlockId: parsedTriggerBlockId,
       startBlockId,
       stopAfterBlockId,
       runFromBlock: rawRunFromBlock,
       parentWorkspaceId,
     } = validation.data
+    copilotToolCallId = parsedCopilotToolCallId
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
+    const streamHeader = req.headers.get('X-Stream-Response') === 'true'
+    const enableSSE = streamHeader || streamParam === true
+    const executionModeHeader = req.headers.get('X-Execution-Mode')
+    const isAsyncMode = executionModeHeader === 'async'
     if (admittedDeploymentVersionId && !isMcpBridgeRequest) {
       return NextResponse.json(
         { error: 'deploymentVersionId is reserved for internal MCP execution' },
@@ -726,6 +806,34 @@ async function handleExecutePost(
     if (isPublicApiAccess && isClientSession) {
       return NextResponse.json(
         { error: 'Public API callers cannot set isClientSession' },
+        { status: 400 }
+      )
+    }
+
+    if (inputFromExecutionId && (isPublicApiAccess || auth.authType !== AuthType.SESSION)) {
+      return NextResponse.json(
+        { error: 'Stored execution input can only be reused by an authenticated session' },
+        { status: 403 }
+      )
+    }
+
+    if (inputFromExecutionId && validatedInput !== undefined) {
+      return NextResponse.json(
+        { error: 'Provide either input or inputFromExecutionId, not both' },
+        { status: 400 }
+      )
+    }
+
+    if (
+      copilotToolCallId &&
+      (auth.authType !== AuthType.SESSION ||
+        !isClientSession ||
+        triggerType !== 'copilot' ||
+        !enableSSE ||
+        isAsyncMode)
+    ) {
+      return NextResponse.json(
+        { error: 'Copilot tool execution binding is invalid for this request' },
         { status: 400 }
       )
     }
@@ -776,14 +884,7 @@ async function handleExecutePost(
         )
       }
 
-      if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {
-        // Public API callers cannot inject arbitrary block state via sourceSnapshot.
-        // They must use executionId to resume from a server-stored execution state.
-        resolvedRunFromBlock = {
-          startBlockId: rawRunFromBlock.startBlockId,
-          sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
-        }
-      } else if (rawRunFromBlock.executionId) {
+      if (rawRunFromBlock.executionId) {
         const { getExecutionStateForWorkflow, getLatestExecutionStateWithExecutionId } =
           await import('@/lib/workflows/executor/execution-state')
         const sourceExecution =
@@ -795,17 +896,32 @@ async function handleExecutePost(
               }
         const snapshot = sourceExecution?.state
         if (!snapshot) {
-          return NextResponse.json(
-            {
-              error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first.`,
-            },
-            { status: 400 }
-          )
+          if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {
+            resolvedRunFromBlock = {
+              startBlockId: rawRunFromBlock.startBlockId,
+              sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
+            }
+          } else {
+            return NextResponse.json(
+              {
+                error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first.`,
+              },
+              { status: 400 }
+            )
+          }
+        } else {
+          resolvedRunFromBlock = {
+            startBlockId: rawRunFromBlock.startBlockId,
+            sourceSnapshot: snapshot,
+            sourceExecutionId: sourceExecution.executionId,
+          }
         }
+      } else if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {
+        // Public API callers cannot inject arbitrary block state via sourceSnapshot.
+        // They must use executionId to resume from a server-stored execution state.
         resolvedRunFromBlock = {
           startBlockId: rawRunFromBlock.startBlockId,
-          sourceSnapshot: snapshot,
-          sourceExecutionId: sourceExecution.executionId,
+          sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
         }
       } else {
         return NextResponse.json(
@@ -817,7 +933,7 @@ async function handleExecutePost(
 
     // For API key and internal JWT auth, the entire body is the input (except for our control fields)
     // For session auth, the input is explicitly provided in the input field
-    const input = isMcpBridgeRequest
+    let input = isMcpBridgeRequest
       ? validatedInput
       : isPublicApiAccess ||
           auth.authType === AuthType.API_KEY ||
@@ -828,6 +944,7 @@ async function handleExecutePost(
               triggerType,
               stream,
               useDraftState,
+              inputFromExecutionId: _inputFromExecutionId,
               includeFileBase64,
               base64MaxBytes,
               workflowStateOverride,
@@ -835,6 +952,7 @@ async function handleExecutePost(
               triggerBlockId: _triggerBlockId,
               stopAfterBlockId: _stopAfterBlockId,
               runFromBlock: _runFromBlock,
+              copilotToolCallId: _copilotToolCallId,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               parentWorkspaceId: _parentWorkspaceId,
               ...rest
@@ -851,10 +969,6 @@ async function handleExecutePost(
     const shouldUseDraftState = isPublicApiAccess
       ? false
       : (useDraftState ?? auth.authType === AuthType.SESSION)
-    const streamHeader = req.headers.get('X-Stream-Response') === 'true'
-    const enableSSE = streamHeader || streamParam === true
-    const executionModeHeader = req.headers.get('X-Execution-Mode')
-    const isAsyncMode = executionModeHeader === 'async'
     const requiresWriteExecutionAccess = Boolean(
       useDraftState || workflowStateOverride || rawRunFromBlock
     )
@@ -962,6 +1076,34 @@ async function handleExecutePost(
       )
     }
 
+    if (
+      copilotToolCallId &&
+      !(await isValidCopilotWorkflowToolBinding({
+        toolCallId: copilotToolCallId,
+        userId,
+        workflowId,
+      }))
+    ) {
+      return NextResponse.json(
+        { error: 'Copilot workflow tool binding was not found' },
+        { status: 403 }
+      )
+    }
+
+    if (inputFromExecutionId) {
+      const { getExecutionInputForWorkflow } = await import(
+        '@/lib/workflows/executor/execution-state'
+      )
+      const sourceExecution = await getExecutionInputForWorkflow(inputFromExecutionId, workflowId)
+      if (!sourceExecution.found) {
+        return NextResponse.json(
+          { error: 'Source workflow execution was not found' },
+          { status: 404 }
+        )
+      }
+      input = sourceExecution.input
+    }
+
     const upstreamBillingAttribution =
       auth.authType === AuthType.INTERNAL_JWT && workflowAuthorization.workflow?.workspaceId
         ? requireBillingAttributionHeader(req.headers, {
@@ -1015,12 +1157,33 @@ async function handleExecutePost(
       )
     }
 
+    if (copilotToolCallId) {
+      const boundToolCall = await claimWorkflowToolExecution(copilotToolCallId, executionId)
+      if (!boundToolCall) {
+        return NextResponse.json(
+          { error: 'Copilot workflow tool is already bound to another execution' },
+          { status: 409 }
+        )
+      }
+      workflowToolClaimAcquired = true
+    }
+
     const loggingSession = new LoggingSession(
       workflowId,
       executionId,
       loggingTriggerType,
       requestId
     )
+    if (copilotToolCallId) {
+      loggingSession.setTrustedExecutionCorrelation({
+        executionId,
+        requestId,
+        source: 'workflow',
+        workflowId,
+        triggerType,
+        copilotToolCallId,
+      })
+    }
 
     /** The pre-fetched record avoids a redundant initial workflow lookup. */
     const preprocessResult = await preprocessExecution({
@@ -1287,7 +1450,7 @@ async function handleExecutePost(
             workflowResponseCompaction
           )
 
-          return NextResponse.json(
+          return createExecutionJsonResponse(
             {
               success: false,
               output: compactResultOutput,
@@ -1300,7 +1463,9 @@ async function handleExecutePost(
                   }
                 : undefined,
             },
-            { status: 408 }
+            { status: 408 },
+            includePrivateTraceProvenance,
+            result
           )
         }
 
@@ -1367,7 +1532,12 @@ async function handleExecutePost(
             : undefined,
         }
 
-        return NextResponse.json(filteredResult)
+        return createExecutionJsonResponse(
+          filteredResult,
+          undefined,
+          includePrivateTraceProvenance,
+          result
+        )
       } catch (error: unknown) {
         const errorMessage = getErrorMessage(error, 'Unknown error')
 
@@ -1405,7 +1575,7 @@ async function handleExecutePost(
             throw compactError
           }
         }
-        return NextResponse.json(
+        return createExecutionJsonResponse(
           {
             success: false,
             output: compactErrorOutput,
@@ -1418,7 +1588,9 @@ async function handleExecutePost(
                 }
               : undefined,
           },
-          { status }
+          { status },
+          includePrivateTraceProvenance,
+          executionResult
         )
       } finally {
         requestAbort.cleanup()
@@ -1566,6 +1738,13 @@ async function handleExecutePost(
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         let finalMetaStatus: 'complete' | 'error' | 'cancelled' | null = null
+        let postExecutionAwaited = false
+
+        const awaitBoundCopilotPostExecution = async () => {
+          if (!copilotToolCallId || postExecutionAwaited) return
+          await loggingSession.waitForPostExecution()
+          postExecutionAwaited = true
+        }
 
         registerManualExecutionAborter(executionId, timeoutController.abort)
         isManualAbortRegistered = true
@@ -1577,6 +1756,7 @@ async function handleExecutePost(
         ) => {
           const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
           let eventToSend = event
+          let terminalBufferWriteFailed = false
           if (isBuffered) {
             try {
               const entry = terminalStatus
@@ -1598,6 +1778,7 @@ async function handleExecutePost(
                 terminal: Boolean(terminalStatus),
                 error: toError(e).message,
               })
+              terminalBufferWriteFailed = Boolean(terminalStatus)
               terminalEventPublished ||= Boolean(terminalStatus)
             }
           }
@@ -1606,6 +1787,22 @@ async function handleExecutePost(
               controller.enqueue(encodeSSEEvent(eventToSend))
             } catch {
               isStreamClosed = true
+            }
+          }
+          if (terminalBufferWriteFailed && terminalStatus) {
+            // Without this the reconnect route polls an `active` stream until its
+            // deadline. The meta write is a plain HSET, so it bypasses the byte budget
+            // that rejected the event. Runs after the live enqueue because Redis is the
+            // likely reason we are here at all, and a slow best-effort durability write
+            // must not delay the primary delivery path.
+            const metaPersisted = await setExecutionMeta(executionId, {
+              status: terminalStatus,
+            })
+            if (!metaPersisted) {
+              reqLogger.error(
+                'Failed to record terminal execution meta after buffer write failure',
+                { executionId, status: terminalStatus }
+              )
             }
           }
         }
@@ -1663,7 +1860,7 @@ async function handleExecutePost(
             blockId: string,
             blockName: string,
             blockType: string,
-            callbackData: any,
+            callbackData: BlockCompletionCallbackData,
             iterationContext?: IterationContext,
             childWorkflowContext?: ChildWorkflowContext
           ) => {
@@ -1686,7 +1883,13 @@ async function handleExecutePost(
                 preserveRoot: true,
               }),
             }
-            const hasError = compactCallbackData.output?.error
+            const callbackError = compactCallbackData.output?.error
+            const hasError = typeof callbackError === 'string' && callbackError.length > 0
+            const display = await loggingSession.projectDisplayContent({
+              input: compactCallbackData.input,
+              output: compactCallbackData.output,
+              ...(hasError ? { error: callbackError } : {}),
+            })
             const childWorkflowData = childWorkflowContext
               ? {
                   childWorkflowBlockId: childWorkflowContext.parentBlockId,
@@ -1703,7 +1906,7 @@ async function handleExecutePost(
                 blockId,
                 blockName,
                 blockType,
-                error: compactCallbackData.output.error,
+                error: display.error,
               })
               await sendEvent({
                 type: 'block:error',
@@ -1715,7 +1918,12 @@ async function handleExecutePost(
                   blockName,
                   blockType,
                   input: compactCallbackData.input,
-                  error: compactCallbackData.output.error,
+                  error: callbackError,
+                  display: {
+                    ...(Object.hasOwn(display, 'input') ? { input: display.input } : {}),
+                    ...(display.error !== undefined ? { error: display.error } : {}),
+                    ...(display.clearLiveDisplay ? { clearLiveDisplay: true as const } : {}),
+                  },
                   durationMs: compactCallbackData.executionTime || 0,
                   startedAt: compactCallbackData.startedAt,
                   executionOrder: compactCallbackData.executionOrder,
@@ -1750,6 +1958,11 @@ async function handleExecutePost(
                   blockType,
                   input: compactCallbackData.input,
                   output: compactCallbackData.output,
+                  display: {
+                    ...(Object.hasOwn(display, 'input') ? { input: display.input } : {}),
+                    ...(Object.hasOwn(display, 'output') ? { output: display.output } : {}),
+                    ...(display.clearLiveDisplay ? { clearLiveDisplay: true as const } : {}),
+                  },
                   durationMs: compactCallbackData.executionTime || 0,
                   startedAt: compactCallbackData.startedAt,
                   executionOrder: compactCallbackData.executionOrder,
@@ -1786,6 +1999,7 @@ async function handleExecutePost(
               workflowId,
               sendEvent,
               forwardAnswerText: answerTextFromSink,
+              projectDisplay: (field, value) => loggingSession.projectLiveDisplayText(field, value),
             })
 
             const reader = streamingExec.stream.getReader()
@@ -1807,12 +2021,13 @@ async function handleExecutePost(
                 if (answerTextFromSink) continue
 
                 const chunk = decoder.decode(value, { stream: true })
+                const display = await loggingSession.projectLiveDisplayText('chunk', chunk)
                 await sendEvent({
                   type: 'stream:chunk',
                   timestamp: new Date().toISOString(),
                   executionId,
                   workflowId,
-                  data: { blockId, chunk },
+                  data: { blockId, chunk, display },
                 })
               }
 
@@ -1923,6 +2138,8 @@ async function handleExecutePost(
             runFromBlock: resolvedRunFromBlock,
           })
 
+          await awaitBoundCopilotPostExecution()
+
           await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
 
           /**
@@ -1931,7 +2148,10 @@ async function handleExecutePost(
            * object storage, so doing it twice would double the latency and storage
            * load on the happy path.
            */
-          const compactedBlockLogs = await compactBlockLogs(result.logs, {
+          const displayBlockLogs = await loggingSession.projectBlockLogsForDisplay(
+            result.logs ?? []
+          )
+          const compactedBlockLogs = await compactBlockLogs(displayBlockLogs, {
             workspaceId,
             workflowId,
             executionId,
@@ -1947,6 +2167,9 @@ async function handleExecutePost(
               })
 
               await loggingSession.markAsFailed(timeoutErrorMessage)
+              const timeoutDisplay = await loggingSession.projectDisplayContent({
+                error: timeoutErrorMessage,
+              })
 
               finalMetaStatus = 'error'
               await sendEvent(
@@ -1957,6 +2180,11 @@ async function handleExecutePost(
                   workflowId,
                   data: {
                     error: timeoutErrorMessage,
+                    display: {
+                      ...(timeoutDisplay.error !== undefined
+                        ? { error: timeoutDisplay.error }
+                        : {}),
+                    },
                     duration: result.metadata?.duration || 0,
                     finalBlockLogs: compactedBlockLogs,
                   },
@@ -2050,6 +2278,7 @@ async function handleExecutePost(
             )
           }
         } catch (error: unknown) {
+          await awaitBoundCopilotPostExecution()
           const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
           const errorMessage = isTimeout
             ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
@@ -2061,13 +2290,16 @@ async function handleExecutePost(
           let compactErrorLogs: BlockLog[] | undefined
           try {
             compactErrorLogs = executionResult?.logs
-              ? await compactBlockLogs(executionResult.logs, {
-                  workspaceId,
-                  workflowId,
-                  executionId,
-                  userId: actorUserId,
-                  requireDurable: true,
-                })
+              ? await compactBlockLogs(
+                  await loggingSession.projectBlockLogsForDisplay(executionResult.logs),
+                  {
+                    workspaceId,
+                    workflowId,
+                    executionId,
+                    userId: actorUserId,
+                    requireDurable: true,
+                  }
+                )
               : undefined
           } catch (compactionError) {
             reqLogger.warn('Failed to compact SSE error logs, omitting oversized error details', {
@@ -2076,6 +2308,10 @@ async function handleExecutePost(
           }
 
           finalMetaStatus = 'error'
+          const terminalError = executionResult?.error || errorMessage
+          const terminalDisplay = await loggingSession.projectDisplayContent({
+            error: terminalError,
+          })
           await sendEvent(
             {
               type: 'execution:error',
@@ -2083,7 +2319,10 @@ async function handleExecutePost(
               executionId,
               workflowId,
               data: {
-                error: executionResult?.error || errorMessage,
+                error: terminalError,
+                display: {
+                  ...(terminalDisplay.error !== undefined ? { error: terminalDisplay.error } : {}),
+                },
                 duration: executionResult?.metadata?.duration || 0,
                 finalBlockLogs: compactErrorLogs,
               },
@@ -2168,6 +2407,18 @@ async function handleExecutePost(
         reqLogger.warn('Unable to verify execution ID ownership; retaining claim', {
           error: toError(error).message,
           executionId,
+        })
+      }
+    }
+
+    if (copilotToolCallId && workflowToolClaimAcquired && !executionIdClaimCommitted) {
+      try {
+        await releaseWorkflowToolExecutionClaim(copilotToolCallId, executionId)
+      } catch (error) {
+        reqLogger.warn('Failed to release pre-start Copilot workflow tool claim', {
+          error: toError(error).message,
+          executionId,
+          copilotToolCallId,
         })
       }
     }

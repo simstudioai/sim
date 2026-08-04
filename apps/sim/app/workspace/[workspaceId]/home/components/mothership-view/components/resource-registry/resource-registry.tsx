@@ -5,10 +5,10 @@ import { cn } from '@sim/emcn'
 import {
   Calendar,
   Connections,
-  Cursor,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
+  Globe,
   Library,
   Table as TableIcon,
   Task,
@@ -21,7 +21,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
+import { getBareIconStyle, type StyleableIcon } from '@/blocks/brand-icon-style'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { scheduleKeys } from '@/hooks/queries/schedules'
@@ -216,11 +216,11 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   browser: {
     type: 'browser',
     label: 'Browser',
-    icon: Cursor,
+    icon: Globe,
     renderTabIcon: (_resource, className) => (
-      <Cursor className={cn(className, 'text-[var(--text-icon)]')} />
+      <Globe className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Cursor} />,
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Globe} />,
   },
   terminal: {
     type: 'terminal',

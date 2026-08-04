@@ -24,6 +24,10 @@ export default {
     '../../packages/workflow-renderer/src/**/*.{js,ts,jsx,tsx}',
     '!./app/node_modules/**',
     '!**/node_modules/**',
+    // Tests are not production styling sources. Keeping them out also avoids
+    // Tailwind's watcher trying to stat a stale path while a test is replaced.
+    '!./**/*.test.{js,ts,jsx,tsx,mdx}',
+    '!./**/*.spec.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {

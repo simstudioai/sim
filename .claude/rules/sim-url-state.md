@@ -179,7 +179,7 @@ const { sort, dir, activeSort, onSort, onClear } = useUrlSort(thingsSortParams, 
 Two modes, chosen by whether you pass a default:
 
 - **Defaulted (the common case)** — pass the list's existing default sort; it must match exactly. A clean URL means the default ordering; explicitly selecting the default collapses back to a clean URL (`clearOnDefault`), and "clear sort" writes the defaults back. `useUrlSort` derives `activeSort: null` for the default state.
-- **Nullable** — omit the default when "no active sort" is behaviorally distinct from explicitly sorting by the fallback column (e.g. files: with no sort, files order by updated/desc but folders by name/asc). The params carry no defaults, explicit selections always persist in the URL, and "clear sort" strips both params (`useUrlSort` writes `null`s).
+- **Nullable** — omit the default when "no active sort" is behaviorally distinct from explicitly sorting by the fallback column (e.g. document chunks: with no sort the query omits `sortBy` entirely and the server's own order applies). The params carry no defaults, explicit selections always persist in the URL, and "clear sort" strips both params (`useUrlSort` writes `null`s).
 
 Sort params live alongside — not inside — the feature's grouped filter parser map (one definition per param; `useUrlSort` owns its own `useQueryStates`, and nuqs keeps hooks on the same keys in sync). Both params carry the shared filter options (`{ history: 'replace', clearOnDefault: true }`). Free-form user-defined columns (e.g. `tables/[tableId]`) can't use `parseAsStringLiteral` and stay hand-rolled with `parseAsString` — reuse the shared `SORT_DIRECTIONS` there.
 

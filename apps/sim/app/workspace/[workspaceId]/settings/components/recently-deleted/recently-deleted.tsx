@@ -9,6 +9,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
@@ -21,7 +22,10 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
@@ -226,7 +230,12 @@ export function RecentlyDeleted() {
   const tableFoldersQuery = useFolders(workspaceId, { scope: 'archived', resourceType: 'table' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
   const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived')
-  const chatsQuery = useMothershipChats(workspaceId, { scope: 'archived' })
+  // Restoring a chat navigates to a route that 404s with Chat off, and this
+  // query's loading/error state feeds the whole panel's.
+  const chatsQuery = useMothershipChats(workspaceId, {
+    scope: 'archived',
+    enabled: isChatEnabled,
+  })
 
   const restoreWorkflow = useRestoreWorkflow()
   const restoreFolder = useRestoreFolder()
@@ -389,7 +398,11 @@ export function RecentlyDeleted() {
           cmp = a.deletedAt.getTime() - b.deletedAt.getTime()
           break
       }
-      return sortDirection === 'asc' ? cmp : -cmp
+      if (cmp !== 0) return sortDirection === 'asc' ? cmp : -cmp
+      // Ties fall back to A→Z regardless of direction, matching the foldered
+      // resource lists — otherwise rows tied on type or deletion time land in
+      // the arbitrary order the resource families were collected in.
+      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
     })
 
     const itemIds = new Set(items.map((item) => item.id))
@@ -520,11 +533,9 @@ export function RecentlyDeleted() {
       />
 
       {error ? (
-        <div className='flex h-full flex-col items-center justify-center gap-2'>
-          <p className='text-[var(--text-error)] text-sm leading-tight'>
-            {toError(error).message || 'Failed to load deleted items'}
-          </p>
-        </div>
+        <SettingsEmptyState tone='error'>
+          {toError(error).message || 'Failed to load deleted items'}
+        </SettingsEmptyState>
       ) : isLoading ? null : filtered.length === 0 ? (
         showNoResults ? (
           <SettingsEmptyState variant='inline'>
@@ -534,7 +545,7 @@ export function RecentlyDeleted() {
           <SettingsEmptyState>No deleted items</SettingsEmptyState>
         )
       ) : (
-        <div className='flex flex-col gap-2'>
+        <div className={RESOURCE_LIST_STACK}>
           {filtered.map((resource) => {
             const isRestoring = restoringIds.has(resource.id)
             const isRestored = restoredItems.has(resource.id)
@@ -555,22 +566,24 @@ export function RecentlyDeleted() {
                     Deleted {formatDate(resource.deletedAt)}
                   </>
                 }
+                badge={
+                  canRestore && isRestored ? (
+                    <span className='text-[var(--text-muted)] text-caption'>
+                      {PAUSED_AUTOMATION_TYPES.has(resource.type)
+                        ? 'Restored \u00b7 schedules and webhooks stay paused'
+                        : 'Restored'}
+                    </span>
+                  ) : undefined
+                }
                 trailing={
                   !canRestore ? null : isRestoring ? (
                     <Chip variant='primary' disabled>
                       Restoring...
                     </Chip>
                   ) : isRestored ? (
-                    <div className='flex items-center gap-2'>
-                      <span className='text-[var(--text-muted)] text-small'>
-                        {PAUSED_AUTOMATION_TYPES.has(resource.type)
-                          ? 'Restored \u00b7 schedules and webhooks stay paused'
-                          : 'Restored'}
-                      </span>
-                      <Chip variant='primary' onClick={() => handleView(resource)}>
-                        View
-                      </Chip>
-                    </div>
+                    <Chip variant='primary' onClick={() => handleView(resource)}>
+                      View
+                    </Chip>
                   ) : (
                     <Chip variant='primary' onClick={() => void handleRestore(resource)}>
                       Restore
