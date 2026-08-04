@@ -15,6 +15,7 @@ import {
   SIM_AUTO_SYSTEM_PREAMBLE,
 } from '@/lib/model-router/resolve'
 import {
+  isGeneratedDocumentSourceType,
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
   processFilesToUserFiles,
   type RawFileInput,
@@ -984,8 +985,9 @@ export class AgentBlockHandler implements BlockHandler {
           inlineMaxBytes
         )
         const oversized = Number.isFinite(missingFile.size) && missingFile.size > inlineMaxBytes
-        const reason =
-          getProviderFileStrategy(providerId) === 'inline'
+        const reason = isGeneratedDocumentSourceType(missingFile.type)
+          ? `a generated document cannot use the large-file path for provider "${providerId}"`
+          : getProviderFileStrategy(providerId) === 'inline'
             ? `provider "${providerId}" has no large-file upload path`
             : 'this deployment has no cloud file storage for the large-file upload path'
         throw new Error(

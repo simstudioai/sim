@@ -237,11 +237,17 @@ export function formatAttachmentSizes(
   limitBytes: number
 ): { size: string; limit: string } {
   const divisor = limitBytes % MEBIBYTE === 0 ? MEBIBYTE : 1_000_000
-  const render = (value: number) => {
-    const scaled = value / divisor
+  /**
+   * The size rounds up and the ceiling rounds down, so an over-limit file can never render as
+   * the same number as the limit it broke. Rounding both to the nearest hundredth instead let a
+   * file one byte over a 20 MiB cap print as "20.00MB exceeds the 20MB limit" — a sentence that
+   * tells the user to shrink to a size they are already under.
+   */
+  const render = (value: number, round: (n: number) => number) => {
+    const scaled = round((value / divisor) * 100) / 100
     return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2)
   }
-  return { size: render(bytes), limit: render(limitBytes) }
+  return { size: render(bytes, Math.ceil), limit: render(limitBytes, Math.floor) }
 }
 
 export function inferAttachmentMimeType(file: UserFile): string {

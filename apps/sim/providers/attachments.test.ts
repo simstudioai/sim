@@ -302,15 +302,31 @@ describe('attachment limit formatting', () => {
     expect(formatAttachmentSizes(0, 10 * 1024 * 1024).limit).toBe('10')
   })
 
-  /** The size and the ceiling share a unit, so the sentence can never contradict itself. */
+  /**
+   * Exercises `limit + 1` for every ceiling in the registry, which is the only input that can
+   * expose this: rounding both figures to the nearest hundredth rendered a file one byte over a
+   * 20 MiB cap as "20.00MB exceeds the 20MB limit". The previous version of this test asserted
+   * a file 0.03MB over and an openai file *under* the limit, so it passed while that was live.
+   */
   it('never renders an over-limit file as equal to the limit', () => {
+    const ceilings = [
+      50 * 1024 * 1024,
+      25 * 1024 * 1024,
+      20 * 1024 * 1024,
+      10 * 1024 * 1024,
+      6 * 1024 * 1024,
+      50_000_000,
+    ]
+    for (const limit of ceilings) {
+      const justOver = formatAttachmentSizes(limit + 1, limit)
+      expect(justOver.size).not.toBe(justOver.limit)
+    }
+  })
+
+  it('keeps a comfortably over-limit size readable', () => {
     const groq = formatAttachmentSizes(21_000_000, 20 * 1024 * 1024)
     expect(groq.limit).toBe('20')
     expect(groq.size).toBe('20.03')
-
-    const openai = formatAttachmentSizes(9_591_617, 50_000_000)
-    expect(openai.limit).toBe('50')
-    expect(openai.size).toBe('9.59')
   })
 })
 
