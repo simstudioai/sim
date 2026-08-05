@@ -36,6 +36,11 @@ import {
   effectiveDependentValue,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 import {
+  forkDyingTriggerUrls,
+  forkTriggerChoices,
+  forkTriggerPathOwners,
+} from '@/ee/workspace-forking/components/fork-sync/trigger-choices'
+import {
   type ForkDirection,
   useForkDiff,
   useForkMapping,
@@ -180,7 +185,10 @@ export interface ForkSyncController {
   workflowChanges: ForkWorkflowChange[]
   /** Names of target workflows this sync archives, for the confirm modal. */
   archivedWorkflowNames: string[]
-  /** Public trigger URLs this sync would stop serving in the target (warn before overwriting). */
+  /**
+   * Public trigger URLs the CURRENT picks leave unserved. Derived from the retiring set and the
+   * live adoption choices, so the heads-up, the overwrite confirm and the rows always agree.
+   */
   triggerUrlChanges: ForkTriggerUrlChange[]
   /** Arriving triggers whose URL is a choice: keep a retiring one, or mint a new one. */
   triggerMappings: ForkTriggerMapping[]
@@ -190,6 +198,13 @@ export interface ForkSyncController {
    */
   triggerAdoptions: Readonly<Record<string, string>>
   setTriggerAdoption: (sourceBlockId: string, path: string) => void
+  /** Paths another trigger row has already claimed, so this row can disable them. */
+  triggerPathOwnersFor: (sourceBlockId: string) => ReadonlyMap<string, string>
+  /**
+   * The path a row will actually serve, resolved the same way the server resolves it. Never
+   * reports a path another row claimed first, so the row's displayed URL is its real outcome.
+   */
+  triggerChoiceFor: (sourceBlockId: string) => string
   /** Names of deployed SOURCE workflows marked "Exclude from sync" - never sent. */
   excludedSourceWorkflows: string[]
   /** Names of mapped TARGET workflows marked "Exclude from sync" - never replaced or archived. */
@@ -319,6 +334,10 @@ export function useForkSync(params: {
   const triggerMappings = useMemo(
     () => diff.data?.triggerMappings ?? [],
     [diff.data?.triggerMappings]
+  )
+  const retiringTriggerUrls = useMemo(
+    () => diff.data?.retiringTriggerUrls ?? [],
+    [diff.data?.retiringTriggerUrls]
   )
 
   // Keys the backend offers as copy candidates, so the entry rows show a "Copy instead"
@@ -782,6 +801,24 @@ export function useForkSync(params: {
     setTriggerAdoptions((prev) => ({ ...prev, [sourceBlockId]: path }))
   }
 
+  /** Live choices, resolved exactly as the server will resolve them (first claim wins a path). */
+  const chosenTriggerPaths = useMemo(
+    () => forkTriggerChoices(triggerMappings, triggerAdoptions),
+    [triggerMappings, triggerAdoptions]
+  )
+
+  const triggerUrlChanges = useMemo(
+    () => forkDyingTriggerUrls(retiringTriggerUrls, chosenTriggerPaths),
+    [retiringTriggerUrls, chosenTriggerPaths]
+  )
+
+  const triggerPathOwnersFor = (sourceBlockId: string): ReadonlyMap<string, string> =>
+    forkTriggerPathOwners(triggerMappings, chosenTriggerPaths, sourceBlockId)
+
+  /** The path a row will actually serve, or '' for a new URL - never a claim another row won. */
+  const triggerChoiceFor = (sourceBlockId: string): string =>
+    chosenTriggerPaths.get(sourceBlockId) ?? ''
+
   const discard = () => {
     setTargets({})
     setReconfig({})
@@ -965,10 +1002,12 @@ export function useForkSync(params: {
     dependentClears,
     workflowChanges,
     archivedWorkflowNames,
-    triggerUrlChanges: diff.data?.triggerUrlChanges ?? [],
+    triggerUrlChanges,
     triggerMappings,
     triggerAdoptions,
     setTriggerAdoption,
+    triggerPathOwnersFor,
+    triggerChoiceFor,
     excludedSourceWorkflows: diff.data?.excludedSourceWorkflows ?? [],
     excludedTargetWorkflows: diff.data?.excludedTargetWorkflows ?? [],
     mcpReauthCount: diff.data?.mcpReauthServerIds.length ?? 0,

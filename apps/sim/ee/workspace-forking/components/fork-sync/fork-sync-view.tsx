@@ -598,10 +598,10 @@ function TriggerMappingRow({ controller, mapping }: TriggerMappingRowProps) {
   // A trigger that already serves a URL keeps it, so the row states the URL and offers no
   // control. Only a trigger the sync would give a NEW URL has something to decide.
   const decidable = mapping.ownPath === null && mapping.adoptablePaths.length > 0
-  const chosen =
-    mapping.sourceBlockId in controller.triggerAdoptions
-      ? controller.triggerAdoptions[mapping.sourceBlockId]
-      : (mapping.defaultAdoptPath ?? '')
+  const pathOwners = controller.triggerPathOwnersFor(mapping.sourceBlockId)
+  // The RESOLVED choice, not the raw pick: a path another row claimed first is awarded once, so
+  // displaying the raw pick would promise a URL this row is not going to get.
+  const chosen = controller.triggerChoiceFor(mapping.sourceBlockId)
   const resultingPath = mapping.ownPath ?? (chosen === '' ? null : chosen)
 
   return (
@@ -625,13 +625,23 @@ function TriggerMappingRow({ controller, mapping }: TriggerMappingRowProps) {
                 // The full URL lives under the row and follows the selection, so an option only
                 // has to name the CHOICE. Several retiring URLs is the one case that needs a
                 // disambiguator, and the path tail is what distinguishes them.
-                ...mapping.adoptablePaths.map((path) => ({
-                  label:
+                //
+                // A URL another trigger already took is disabled and says who took it: two blocks
+                // cannot serve one path, and the resolver awards it to the first slot - so
+                // allowing the pick would leave this row reading "Keeps this URL" while the sync
+                // silently minted it a new one.
+                ...mapping.adoptablePaths.map((path) => {
+                  const owner = pathOwners.get(path)
+                  const base =
                     mapping.adoptablePaths.length === 1
                       ? 'Keep existing URL'
-                      : `Keep …${path.slice(-12)}`,
-                  value: path,
-                })),
+                      : `Keep …${path.slice(-12)}`
+                  return {
+                    label: owner ? `${base} · taken by ${owner}` : base,
+                    value: path,
+                    disabled: owner !== undefined,
+                  }
+                }),
                 { label: 'Generate new URL', value: NEW_TRIGGER_URL_VALUE },
               ]}
               value={chosen === '' ? NEW_TRIGGER_URL_VALUE : chosen}
