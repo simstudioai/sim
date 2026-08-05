@@ -86,6 +86,13 @@ function assertUsableResponse(response: OpenAI.Responses.Response, providerLabel
   }
 }
 
+/**
+ * Transport failures annotated once already. The error-body read is annotated where the
+ * phase is known, then rethrown through an outer catch that would otherwise append a
+ * second, wrong phase to the same message.
+ */
+const annotatedTransportFailures = new WeakSet<Error>()
+
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
 type ToolChoice = PreparedTools['toolChoice']
 
@@ -288,16 +295,91 @@ export async function executeResponsesProviderRequest(
   })
 
   /**
+   * Names the request phase an opaque transport failure died in.
+   *
+   * Bun raises only `TimeoutError: The operation timed out.`, which cannot distinguish
+   * "never answered" from "answered, but the body never arrived" — opposite owners,
+   * opposite fixes. undici splits these as `UND_ERR_HEADERS_TIMEOUT` vs
+   * `UND_ERR_BODY_TIMEOUT`; this records the equivalent for a runtime that reports
+   * neither.
+   *
+   * The phase rides the error message because that reaches the block's trace span, which
+   * survives when a task has stopped shipping logs; `x-request-id` is the only handle the
+   * provider can trace the call by. Self-describing API errors are left untouched.
+   */
+  const annotateTransportFailure = (
+    error: unknown,
+    phase: 'awaiting-response-headers' | 'reading-response-body',
+    startedAt: number,
+    detail?: Record<string, string | number | null>
+  ): unknown => {
+    if (!(error instanceof Error)) return error
+    if (error.name !== 'TimeoutError' && error.name !== 'AbortError') return error
+    if (annotatedTransportFailures.has(error)) return error
+
+    const elapsedMs = Date.now() - startedAt
+    const fields = Object.entries(detail ?? {})
+      .filter(([, value]) => value !== null && value !== undefined)
+      .map(([key, value]) => `${key}=${value}`)
+    const context = [`phase=${phase}`, `elapsedMs=${elapsedMs}`, ...fields].join(' ')
+
+    logger.error(`${config.providerLabel} request failed in transport`, {
+      phase,
+      elapsedMs,
+      errorName: error.name,
+      model: config.modelName,
+      workflowId: request.workflowId,
+      blockId: request.blockId,
+      executionId: request.executionId,
+      ...detail,
+    })
+
+    /**
+     * A new Error rather than a mutation: the runtime raises these as `DOMException`,
+     * whose `message` is a readonly getter, so assigning to it throws a `TypeError` and
+     * destroys the very failure being reported. `name` is copied and the original hangs
+     * off `cause` so the classification survives the `ProviderError` wrapping below,
+     * which overwrites `name`.
+     */
+    const annotated = new Error(`${error.message} [${context}]`, { cause: error })
+    annotated.name = error.name
+    annotatedTransportFailures.add(annotated)
+    return annotated
+  }
+
+  /**
+   * The response-side facts worth carrying on a transport failure. `x-request-id` is the
+   * only handle the provider can trace a failed call by.
+   */
+  const describeResponse = (response: Response): Record<string, string | number | null> => ({
+    status: response.status,
+    requestId: response.headers.get('x-request-id'),
+    contentLength: response.headers.get('content-length'),
+    contentEncoding: response.headers.get('content-encoding'),
+  })
+
+  /**
    * A non-JSON body is usually a gateway or CDN error page and reaches the user-facing
    * block error, so it is bounded and falls back to `statusText`. A structured provider
    * message is returned untruncated on purpose: the reasoning-summary strip-and-retry
    * fallback matches on its text.
    *
-   * A failed body read is deliberately not caught: a deadline or a cancellation here must
-   * stay distinguishable from an error response that simply carried no body.
+   * A failed body read is annotated rather than swallowed: a deadline or a cancellation
+   * here must stay distinguishable from an error response that simply carried no body.
+   * The headers already arrived, so this is the body phase even though the status is 4xx.
    */
-  const parseErrorResponse = async (response: Response): Promise<string> => {
-    const text = await response.text()
+  const parseErrorResponse = async (response: Response, startedAt: number): Promise<string> => {
+    let text: string
+    try {
+      text = await response.text()
+    } catch (error) {
+      throw annotateTransportFailure(
+        error,
+        'reading-response-body',
+        startedAt,
+        describeResponse(response)
+      )
+    }
     try {
       const payload = JSON.parse(text)
       if (payload?.error?.message) return payload.error.message
@@ -330,6 +412,7 @@ export async function executeResponsesProviderRequest(
 
   const fetchResponsesWithSummaryFallback = async (
     requestedBody: Record<string, unknown>,
+    startedAt: number,
     abortSignal = request.abortSignal
   ): Promise<Response> => {
     const body = reasoningSummariesUnavailable
@@ -343,7 +426,7 @@ export async function executeResponsesProviderRequest(
     })
     if (response.ok) return response
 
-    const message = await parseErrorResponse(response)
+    const message = await parseErrorResponse(response, startedAt)
     const strippedBody = isReasoningSummaryVerificationError(response.status, message)
       ? stripReasoningSummary(body)
       : null
@@ -363,63 +446,12 @@ export async function executeResponsesProviderRequest(
       signal: abortSignal,
     })
     if (!retryResponse.ok) {
-      const retryMessage = await parseErrorResponse(retryResponse)
+      const retryMessage = await parseErrorResponse(retryResponse, startedAt)
       throw new Error(
         `${config.providerLabel} API error (${retryResponse.status}): ${retryMessage}`
       )
     }
     return retryResponse
-  }
-
-  /**
-   * Names the request phase an opaque transport failure died in.
-   *
-   * Bun raises only `TimeoutError: The operation timed out.`, which cannot distinguish
-   * "never answered" from "answered, but the body never arrived" — opposite owners,
-   * opposite fixes. undici splits these as `UND_ERR_HEADERS_TIMEOUT` vs
-   * `UND_ERR_BODY_TIMEOUT`; this records the equivalent for a runtime that reports
-   * neither.
-   *
-   * The phase rides the error message because that reaches the block's trace span, which
-   * survives when a task has stopped shipping logs; `x-request-id` is the only handle the
-   * provider can trace the call by. Self-describing API errors are left untouched.
-   */
-  const annotateTransportFailure = (
-    error: unknown,
-    phase: 'awaiting-response-headers' | 'reading-response-body',
-    startedAt: number,
-    detail?: Record<string, string | number | null>
-  ): unknown => {
-    if (!(error instanceof Error)) return error
-    if (error.name !== 'TimeoutError' && error.name !== 'AbortError') return error
-
-    const elapsedMs = Date.now() - startedAt
-    const fields = Object.entries(detail ?? {})
-      .filter(([, value]) => value !== null && value !== undefined)
-      .map(([key, value]) => `${key}=${value}`)
-    const context = [`phase=${phase}`, `elapsedMs=${elapsedMs}`, ...fields].join(' ')
-
-    logger.error(`${config.providerLabel} request failed in transport`, {
-      phase,
-      elapsedMs,
-      errorName: error.name,
-      model: config.modelName,
-      workflowId: request.workflowId,
-      blockId: request.blockId,
-      executionId: request.executionId,
-      ...detail,
-    })
-
-    /**
-     * A new Error rather than a mutation: the runtime raises these as `DOMException`,
-     * whose `message` is a readonly getter, so assigning to it throws a `TypeError` and
-     * destroys the very failure being reported. `name` is copied and the original hangs
-     * off `cause` so the classification survives the `ProviderError` wrapping below,
-     * which overwrites `name`.
-     */
-    const annotated = new Error(`${error.message} [${context}]`, { cause: error })
-    annotated.name = error.name
-    return annotated
   }
 
   const postResponses = async (
@@ -429,18 +461,12 @@ export async function executeResponsesProviderRequest(
 
     let response: Response
     try {
-      response = await fetchResponsesWithSummaryFallback(body)
+      response = await fetchResponsesWithSummaryFallback(body, startedAt)
     } catch (error) {
       throw annotateTransportFailure(error, 'awaiting-response-headers', startedAt)
     }
 
-    const responseMeta = {
-      status: response.status,
-      ttfbMs: Date.now() - startedAt,
-      requestId: response.headers.get('x-request-id'),
-      contentLength: response.headers.get('content-length'),
-      contentEncoding: response.headers.get('content-encoding'),
-    }
+    const responseMeta = { ...describeResponse(response), ttfbMs: Date.now() - startedAt }
 
     let parsed: OpenAI.Responses.Response
     try {
@@ -492,7 +518,11 @@ export async function executeResponsesProviderRequest(
             initialToolChoice: responsesToolChoice,
             forcedTools: preparedTools?.forcedTools,
             createStream: (input, overrides, abortSignal) =>
-              fetchResponsesWithSummaryFallback(createRequestBody(input, overrides), abortSignal),
+              fetchResponsesWithSummaryFallback(
+                createRequestBody(input, overrides),
+                Date.now(),
+                abortSignal
+              ),
             logger,
             timeSegments,
             onComplete: (result) => {
@@ -516,7 +546,8 @@ export async function executeResponsesProviderRequest(
       logger.info(`Using streaming response for ${config.providerLabel} request`)
 
       const streamResponse = await fetchResponsesWithSummaryFallback(
-        createRequestBody(initialInput, { stream: true })
+        createRequestBody(initialInput, { stream: true }),
+        Date.now()
       )
 
       const streamingResult = createStreamingExecution({

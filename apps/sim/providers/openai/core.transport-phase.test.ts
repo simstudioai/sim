@@ -190,7 +190,12 @@ describe('OpenAI transport phase annotation', () => {
     const error = await run(vi.fn().mockResolvedValue(unreadable)).catch((e) => e)
 
     expect(error.message).toContain('The operation timed out.')
-    expect(error.message).not.toContain('502')
+    expect(error.message).not.toContain('API error')
+    // The headers already arrived, so this is the body phase despite the 4xx/5xx status.
+    expect(error.message).toContain('phase=reading-response-body')
+    expect(error.message).toContain('status=502')
+    // Annotated exactly once: the outer catch must not append a second, wrong phase.
+    expect(error.message.match(/phase=/g)).toHaveLength(1)
   })
 
   it('leaves a healthy response entirely unaffected', async () => {
