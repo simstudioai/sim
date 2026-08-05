@@ -3,7 +3,14 @@ import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
-import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
+import {
+  hasPersistedBlockStates,
+  recoverLegacyWorkflowInputForDisplay,
+} from '@/lib/logs/execution/legacy-workflow-input'
+import {
+  projectTraceSpansForSecrets,
+  projectWorkflowBoundarySpansForSecrets,
+} from '@/lib/logs/execution/trace-secret-projection'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
   isResolvedSecretTraceProvenanceV1,
@@ -193,9 +200,21 @@ export async function materializeExecutionData(
   }
 }
 
-const LOG_DISPLAY_CONTENT_KEYS = [
+/**
+ * Workflow-boundary content: the inbound trigger payload, captured before any
+ * secret is resolved. It structurally cannot hold a Sim-resolved secret, so it
+ * stays readable when provenance is missing. `finalOutput` is deliberately not
+ * here - it sits downstream of every block and can carry a resolved secret, so
+ * it fails closed with the rest of the execution content.
+ */
+const LOG_DISPLAY_BOUNDARY_KEYS = ['workflowInput'] as const
+
+/**
+ * Content that can hold a resolved secret. Only rendered when the run carries
+ * provable provenance for the secrets it resolved.
+ */
+const LOG_DISPLAY_GATED_KEYS = [
   'finalOutput',
-  'workflowInput',
   'blockInput',
   'blockExecutions',
   'error',
@@ -204,7 +223,63 @@ const LOG_DISPLAY_CONTENT_KEYS = [
   'message',
 ] as const
 
+const LOG_DISPLAY_CONTENT_KEYS = [...LOG_DISPLAY_BOUNDARY_KEYS, ...LOG_DISPLAY_GATED_KEYS] as const
+
 const LOG_DISPLAY_PROJECTION_SPAN_ID = 'secret-safe-log-display-projection'
+const LOG_DISPLAY_BOUNDARY_SPAN_ID = 'secret-safe-log-display-boundary'
+
+/**
+ * Trigger types whose `workflowInput` is NOT an inbound payload.
+ *
+ * A nested execution is handed its input by the PARENT run:
+ * `workflow-handler.ts` passes `workflowInput: childWorkflowInput`, assembled
+ * from `inputs.inputMapping` / `inputs.input` - already-resolved parent block
+ * outputs. So for these runs the boundary premise ("captured before any secret
+ * was resolved") does not hold, and `workflowInput` stays gated with the rest
+ * of the execution content.
+ *
+ * Deliberately a denylist, not an allowlist: webhook runs record the PROVIDER
+ * as the trigger type (`zoho_desk`, `slack`, ...), so an allowlist of known
+ * inbound types would fail closed on the exact population this exemption
+ * exists to serve. The nested set is small and enumerated in-repo
+ * (`CORE_TRIGGER_TYPES`), so a denylist is the bounded side.
+ */
+const NESTED_EXECUTION_TRIGGER_TYPES = new Set(['workflow', 'custom_block'])
+
+function isNestedExecution(executionData: Record<string, unknown>): boolean {
+  const trigger = executionData.trigger
+  if (!trigger || typeof trigger !== 'object' || Array.isArray(trigger)) return false
+  const type = (trigger as Record<string, unknown>).type
+  return typeof type === 'string' && NESTED_EXECUTION_TRIGGER_TYPES.has(type)
+}
+
+/**
+ * Wraps display content in a span so it passes through the same secret
+ * projection the executor's trace spans do.
+ */
+function createDisplayEnvelopeSpan(id: string, envelope: Record<string, unknown>): TraceSpan {
+  const now = new Date().toISOString()
+  return {
+    id,
+    name: 'Log Display Projection',
+    type: 'display',
+    duration: 0,
+    startTime: now,
+    endTime: now,
+    output: envelope,
+  }
+}
+
+function copyProjectedEnvelope(
+  projected: unknown,
+  keys: readonly string[],
+  target: Record<string, unknown>
+): void {
+  if (!projected || typeof projected !== 'object') return
+  for (const key of keys) {
+    if (Object.hasOwn(projected, key)) target[key] = (projected as Record<string, unknown>)[key]
+  }
+}
 
 /**
  * Materializes trusted execution data and returns its log-facing projection.
@@ -220,8 +295,10 @@ export async function materializeExecutionDataForDisplay(
 
 /**
  * Projects execution-log content with the encrypted provenance saved by the
- * trusted executor. Missing or malformed provenance deliberately yields a
- * structural-only log instead of returning content that cannot be proven safe.
+ * trusted executor. Missing or malformed provenance deliberately yields
+ * structural-only content instead of returning content that cannot be proven
+ * safe. The one exception is `workflowInput`, captured before any secret is
+ * resolved - see {@link projectWorkflowBoundarySpansForSecrets}.
  */
 export async function projectExecutionDataForDisplay(
   executionData: Record<string, unknown>,
@@ -241,35 +318,71 @@ export async function projectExecutionDataForDisplay(
     await registry.importProvenance(provenance, { trusted: true })
   }
 
-  const envelope: Record<string, unknown> = {}
-  for (const key of LOG_DISPLAY_CONTENT_KEYS) {
-    if (Object.hasOwn(executionData, key)) envelope[key] = executionData[key]
+  /**
+   * A nested run's input came from its parent's resolved outputs, so it gets no
+   * boundary exemption - every content key is gated for it.
+   */
+  const nested = isNestedExecution(executionData)
+  const gatedKeys: readonly string[] = nested ? LOG_DISPLAY_CONTENT_KEYS : LOG_DISPLAY_GATED_KEYS
+  const boundaryKeys: readonly string[] = nested ? [] : LOG_DISPLAY_BOUNDARY_KEYS
+
+  const gatedEnvelope: Record<string, unknown> = {}
+  for (const key of gatedKeys) {
+    if (Object.hasOwn(executionData, key)) gatedEnvelope[key] = executionData[key]
   }
 
-  const now = new Date().toISOString()
-  const syntheticSpan: TraceSpan = {
-    id: LOG_DISPLAY_PROJECTION_SPAN_ID,
-    name: 'Log Display Projection',
-    type: 'display',
-    duration: 0,
-    startTime: now,
-    endTime: now,
-    output: envelope,
+  const boundaryEnvelope: Record<string, unknown> = {}
+  for (const key of boundaryKeys) {
+    if (Object.hasOwn(executionData, key)) boundaryEnvelope[key] = executionData[key]
+  }
+  /**
+   * Legacy recovery sources from block state, which is gated content, so it is
+   * restricted to executions that predate provenance stamping. Every terminal
+   * completion path now stamps `resolvedSecretTraceProvenance` - an incomplete
+   * registry still exports a present `{complete: false, entries: []}` - so an
+   * absent key identifies a pre-stamping run, without dating the row. Runs
+   * written after stamping keep only their persisted `workflowInput`.
+   *
+   * The block-state requirement closes the one gap in that signal: a run that
+   * fails before the registry is installed also lands with no key. Such a run
+   * never reached the executor, so requiring block states excludes it here
+   * rather than relying on the recovery happening to find nothing.
+   */
+  if (
+    !nested &&
+    provenance === undefined &&
+    boundaryEnvelope.workflowInput === undefined &&
+    hasPersistedBlockStates(executionData)
+  ) {
+    const recovered = recoverLegacyWorkflowInputForDisplay(executionData)
+    if (recovered !== undefined) boundaryEnvelope.workflowInput = recovered
+  }
+
+  const store = {
+    workspaceId: context.workspaceId ?? undefined,
+    workflowId: context.workflowId ?? undefined,
+    executionId: context.executionId,
+    userId: context.userId,
+    trackReference: false,
   }
   const sourceTraceSpans = Array.isArray(executionData.traceSpans)
     ? (executionData.traceSpans as TraceSpan[])
     : []
-  const projectedSpans = await projectTraceSpansForSecrets([syntheticSpan, ...sourceTraceSpans], {
-    registry,
-    allowLargeValueWrites: false,
-    store: {
-      workspaceId: context.workspaceId ?? undefined,
-      workflowId: context.workflowId ?? undefined,
-      executionId: context.executionId,
-      userId: context.userId,
-      trackReference: false,
-    },
-  })
+  const [projectedSpans, projectedBoundarySpans] = await Promise.all([
+    projectTraceSpansForSecrets(
+      [
+        createDisplayEnvelopeSpan(LOG_DISPLAY_PROJECTION_SPAN_ID, gatedEnvelope),
+        ...sourceTraceSpans,
+      ],
+      { registry, allowLargeValueWrites: false, store }
+    ),
+    Object.keys(boundaryEnvelope).length === 0
+      ? []
+      : projectWorkflowBoundarySpansForSecrets(
+          [createDisplayEnvelopeSpan(LOG_DISPLAY_BOUNDARY_SPAN_ID, boundaryEnvelope)],
+          { registry, allowLargeValueWrites: false, store }
+        ),
+  ])
 
   const displayData = omit(executionData, [
     ...LOG_DISPLAY_CONTENT_KEYS,
@@ -277,14 +390,16 @@ export async function projectExecutionDataForDisplay(
     'traceSpans',
   ]) as Record<string, unknown>
 
-  const projectedEnvelope = projectedSpans.find(
-    (span) => span.id === LOG_DISPLAY_PROJECTION_SPAN_ID
-  )?.output
-  if (projectedEnvelope) {
-    for (const key of LOG_DISPLAY_CONTENT_KEYS) {
-      if (Object.hasOwn(projectedEnvelope, key)) displayData[key] = projectedEnvelope[key]
-    }
-  }
+  copyProjectedEnvelope(
+    projectedSpans.find((span) => span.id === LOG_DISPLAY_PROJECTION_SPAN_ID)?.output,
+    gatedKeys,
+    displayData
+  )
+  copyProjectedEnvelope(
+    projectedBoundarySpans.find((span) => span.id === LOG_DISPLAY_BOUNDARY_SPAN_ID)?.output,
+    boundaryKeys,
+    displayData
+  )
 
   if (Array.isArray(executionData.traceSpans)) {
     displayData.traceSpans = projectedSpans.filter(

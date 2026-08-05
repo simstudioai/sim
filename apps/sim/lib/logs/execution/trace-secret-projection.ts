@@ -1521,6 +1521,37 @@ export async function enforceTraceSpanSecretInvariant(
 }
 
 /**
+ * Projects workflow-boundary spans - content captured before the executor
+ * resolves any secret, so it structurally cannot be a resolved-secret sink.
+ * Collapsing it to structure whenever provenance is unavailable leaves the log
+ * with nothing readable at all. With a complete registry this is identical to
+ * {@link projectTraceSpansForSecrets}; with absent or incomplete provenance the
+ * content is retained through the same clone used for a complete registry that
+ * holds no secrets. Anything downstream of block execution - including the
+ * workflow's final output - must not be routed here.
+ *
+ * That clone bounds span STRUCTURE (node count and depth) but not the payload
+ * inside `output`, which it keeps by reference. A caller must therefore only
+ * route content here that it is willing to return verbatim - the same exposure
+ * the no-secrets path already carries for every span it clones.
+ */
+export async function projectWorkflowBoundarySpansForSecrets(
+  traceSpans: TraceSpan[],
+  options: ProjectTraceSpansForSecretsOptions
+): Promise<TraceSpan[]> {
+  if (options.registry?.isComplete()) return projectTraceSpansForSecrets(traceSpans, options)
+
+  try {
+    return cloneTraceSpansForProjection(traceSpans)
+  } catch {
+    logger.warn(
+      'Workflow-boundary projection exceeded structural limits; retaining structural spans only'
+    )
+    return structuralOnlyTraceSpans(traceSpans)
+  }
+}
+
+/**
  * Produces the only Secrets-feature-safe representation of execution TraceSpans.
  * Runtime logs and outputs remain untouched; only schema-defined trace content is copied.
  */

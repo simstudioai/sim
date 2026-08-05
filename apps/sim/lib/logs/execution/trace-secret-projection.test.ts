@@ -17,6 +17,7 @@ vi.mock('@/lib/execution/payloads/store', () => ({
 import {
   enforceTraceSpanSecretInvariant,
   projectTraceSpansForSecrets,
+  projectWorkflowBoundarySpansForSecrets,
 } from '@/lib/logs/execution/trace-secret-projection'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
@@ -1107,5 +1108,58 @@ describe('projectTraceSpansForSecrets', () => {
     expect(projectedDepth).toBe(100)
     expect(cursor).not.toHaveProperty('output')
     expect(cursor?.children).toEqual([])
+  })
+})
+
+describe('projectWorkflowBoundarySpansForSecrets', () => {
+  it('retains boundary content when provenance is absent', async () => {
+    const [result] = await projectWorkflowBoundarySpansForSecrets(
+      [createSpan({ output: { workflowInput: { channel: 'C123' } } })],
+      { store: STORE }
+    )
+
+    expect(result.output).toEqual({ workflowInput: { channel: 'C123' } })
+  })
+
+  it('retains boundary content when provenance is incomplete', async () => {
+    const [result] = await projectWorkflowBoundarySpansForSecrets(
+      [createSpan({ output: { workflowInput: { channel: 'C123' } } })],
+      { registry: createRegistry([], false), store: STORE }
+    )
+
+    expect(result.output).toEqual({ workflowInput: { channel: 'C123' } })
+  })
+
+  it('redacts resolved secrets when provenance is complete', async () => {
+    const [result] = await projectWorkflowBoundarySpansForSecrets(
+      [createSpan({ output: { workflowInput: { key: 'raw-secret' } } })],
+      {
+        registry: createRegistry([{ plaintext: 'raw-secret', replacement: '{{API_SECRET}}' }]),
+        store: STORE,
+      }
+    )
+
+    expect(result.output).toEqual({ workflowInput: { key: '{{API_SECRET}}' } })
+  })
+})
+
+describe('projectWorkflowBoundarySpansForSecrets structural fallback', () => {
+  it('falls back to structure when the bounded clone exceeds projection limits', async () => {
+    let source = createSpan({ id: 'depth-150', output: { workflowInput: { channel: 'C123' } } })
+    for (let depth = 149; depth >= 0; depth -= 1) {
+      source = createSpan({ id: `depth-${depth}`, children: [source] })
+    }
+
+    const [result] = await projectWorkflowBoundarySpansForSecrets([source], { store: STORE })
+
+    let projectedDepth = 0
+    let cursor: TraceSpan | undefined = result
+    while (cursor?.children?.[0]) {
+      expect(cursor).not.toHaveProperty('output')
+      projectedDepth += 1
+      cursor = cursor.children[0]
+    }
+    expect(projectedDepth).toBe(100)
+    expect(cursor).not.toHaveProperty('output')
   })
 })

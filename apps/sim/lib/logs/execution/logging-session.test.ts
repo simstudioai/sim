@@ -157,6 +157,28 @@ describe('LoggingSession terminal provenance', () => {
     )
   })
 
+  it('stamps provenance on finalization when no registry was installed explicitly', async () => {
+    startWorkflowExecutionMock.mockResolvedValue({})
+    loadWorkflowStateForExecutionMock.mockResolvedValue({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+    })
+    const session = new LoggingSession('workflow-1', 'execution-implicit-registry', 'webhook')
+
+    await session.start({ userId: 'user-1', workspaceId: 'workspace-1' })
+    await session.completeWithError({ error: { message: 'failed' } })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executionState: expect.objectContaining({
+          resolvedSecretTraceProvenance: expect.objectContaining({ version: 1 }),
+        }),
+      })
+    )
+  })
+
   it.each(['cancellation', 'pause'] as const)(
     'preserves raw execution state on %s finalization',
     async (finalization) => {
