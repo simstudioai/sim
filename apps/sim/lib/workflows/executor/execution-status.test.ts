@@ -30,7 +30,6 @@ describe('getWorkflowExecutionStatus queue projection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    queueTableRows(schemaMock.workflowExecutionLogs, [])
   })
 
   it('projects a queued workflow job as an execution resource', async () => {
@@ -57,8 +56,9 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     expect(mockGetJob).toHaveBeenCalledWith('workflow-execution:execution-1')
   })
 
-  it('uses the resume execution ID when the queued work is a resume attempt', async () => {
-    mockGetJob.mockResolvedValueOnce(null).mockResolvedValueOnce({
+  it('uses the resume entry ID when the queued work is a resume attempt', async () => {
+    queueTableRows(schemaMock.resumeQueue, [{ id: 'resume-entry-1' }])
+    mockGetJob.mockResolvedValueOnce({
       status: 'processing',
       createdAt: new Date('2026-08-05T12:00:00.000Z'),
       startedAt: new Date('2026-08-05T12:00:01.000Z'),
@@ -73,17 +73,56 @@ describe('getWorkflowExecutionStatus queue projection', () => {
       status: 'running',
       startedAt: '2026-08-05T12:00:01.000Z',
     })
-    expect(mockGetJob).toHaveBeenNthCalledWith(2, 'resume-execution:execution-1')
+    expect(mockGetJob).toHaveBeenCalledWith('resume-execution:resume-entry-1')
+  })
+
+  it('projects an active resume ahead of the existing paused log', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        status: 'paused',
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [{ id: 'resume-entry-1' }])
+    mockGetJob.mockResolvedValueOnce({
+      status: 'pending',
+      createdAt: new Date('2026-08-05T12:00:00.000Z'),
+      metadata: { workflowId: 'workflow-1' },
+    })
+
+    const status = await getWorkflowExecutionStatus(input)
+
+    expect(status).toMatchObject({
+      executionId: 'execution-1',
+      status: 'queued',
+      paused: null,
+    })
+  })
+
+  it('returns completed queue output when requested', async () => {
+    mockGetJob.mockResolvedValueOnce({
+      status: 'completed',
+      createdAt: new Date('2026-08-05T12:00:00.000Z'),
+      completedAt: new Date('2026-08-05T12:00:05.000Z'),
+      output: { output: { answer: 42 } },
+      metadata: { workflowId: 'workflow-1' },
+    })
+
+    const status = await getWorkflowExecutionStatus({ ...input, includeOutput: true })
+
+    expect(status).toMatchObject({
+      status: 'completed',
+      finalOutput: { answer: 42 },
+    })
   })
 
   it('does not expose a queue record belonging to another workflow', async () => {
-    mockGetJob
-      .mockResolvedValueOnce({
-        status: 'pending',
-        createdAt: new Date('2026-08-05T12:00:00.000Z'),
-        metadata: { workflowId: 'workflow-2' },
-      })
-      .mockResolvedValueOnce(null)
+    mockGetJob.mockResolvedValueOnce({
+      status: 'pending',
+      createdAt: new Date('2026-08-05T12:00:00.000Z'),
+      metadata: { workflowId: 'workflow-2' },
+    })
 
     await expect(getWorkflowExecutionStatus(input)).resolves.toBeNull()
   })

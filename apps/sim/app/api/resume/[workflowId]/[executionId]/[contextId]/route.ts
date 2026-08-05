@@ -327,7 +327,7 @@ export const POST = withRouteHandler(
         try {
           const jobQueue = await getJobQueue()
           queueJobId = await jobQueue.enqueue('resume-execution', resumePayload, {
-            jobId: `${RESUME_EXECUTION_JOB_ID_PREFIX}${enqueueResult.resumeExecutionId}`,
+            jobId: `${RESUME_EXECUTION_JOB_ID_PREFIX}${enqueueResult.resumeEntryId}`,
             metadata: { workflowId, workspaceId: workflow.workspaceId, userId },
           })
           logger.info('Enqueued async resume execution', {

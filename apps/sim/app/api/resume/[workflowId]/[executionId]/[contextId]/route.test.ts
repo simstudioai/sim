@@ -269,7 +269,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
       'resume-execution',
       expect.objectContaining({ resumeExecutionId: 'resume-execution-1' }),
       expect.objectContaining({
-        jobId: 'resume-execution:resume-execution-1',
+        jobId: 'resume-execution:resume-entry-1',
         metadata: expect.objectContaining({ workflowId: WORKFLOW_ID }),
       })
     )

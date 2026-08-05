@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
-import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
+import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
+import type { Job } from '@/lib/core/async-jobs/types'
 import {
   collectFunctionalBlockOutputs,
   type FunctionalExecutionDataSource,
@@ -86,6 +87,38 @@ function extractError(executionData: unknown): string | null {
   return null
 }
 
+function extractJobFinalOutput(output: unknown): unknown | null {
+  if (!output || typeof output !== 'object' || !('output' in output)) return null
+  return (output as Record<string, unknown>).output ?? null
+}
+
+function projectQueueJob(
+  job: Job,
+  input: Pick<GetWorkflowExecutionStatusInput, 'executionId' | 'includeOutput' | 'workflowId'>
+): WorkflowExecutionStatusResponse {
+  const status: WorkflowExecutionStatusResponse['status'] =
+    job.status === 'pending' ? 'queued' : job.status === 'processing' ? 'running' : job.status
+  const startedAt = job.startedAt ?? job.createdAt
+  const endedAt = job.completedAt ?? null
+
+  return {
+    executionId: input.executionId,
+    workflowId: input.workflowId,
+    status,
+    trigger: job.metadata.correlation?.triggerType ?? 'api',
+    level: status === 'failed' ? 'error' : 'info',
+    startedAt: startedAt.toISOString(),
+    endedAt: endedAt?.toISOString() ?? null,
+    totalDurationMs: endedAt ? endedAt.getTime() - startedAt.getTime() : null,
+    paused: null,
+    cost: null,
+    error: status === 'failed' ? (job.error ?? 'Execution failed') : null,
+    finalOutput:
+      input.includeOutput && status === 'completed' ? extractJobFinalOutput(job.output) : null,
+    blockOutputs: null,
+  }
+}
+
 export interface GetWorkflowExecutionStatusInput {
   workflowId: string
   executionId: string
@@ -121,41 +154,33 @@ export async function getWorkflowExecutionStatus(
     )
     .limit(1)
 
-  if (!logRow) {
-    const jobQueue = await getJobQueue()
-    const jobIds = [
-      `${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`,
-      `${RESUME_EXECUTION_JOB_ID_PREFIX}${executionId}`,
-    ]
+  const [activeResume] = await db
+    .select({ id: resumeQueue.id })
+    .from(resumeQueue)
+    .where(
+      and(
+        eq(resumeQueue.parentExecutionId, executionId),
+        eq(resumeQueue.newExecutionId, executionId),
+        eq(resumeQueue.status, 'claimed')
+      )
+    )
+    .limit(1)
 
-    for (const jobId of jobIds) {
+  const queueJobIds = [
+    ...(activeResume ? [`${RESUME_EXECUTION_JOB_ID_PREFIX}${activeResume.id}`] : []),
+    ...(!logRow ? [`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`] : []),
+  ]
+
+  if (queueJobIds.length > 0) {
+    const jobQueue = await getJobQueue()
+    for (const jobId of queueJobIds) {
       const job = await jobQueue.getJob(jobId)
       if (!job || job.metadata.workflowId !== workflowId) continue
-
-      const status: WorkflowExecutionStatusResponse['status'] =
-        job.status === 'pending' ? 'queued' : job.status === 'processing' ? 'running' : job.status
-      const startedAt = job.startedAt ?? job.createdAt
-      const endedAt = job.completedAt ?? null
-
-      return {
-        executionId,
-        workflowId,
-        status,
-        trigger: job.metadata.correlation?.triggerType ?? 'api',
-        level: status === 'failed' ? 'error' : 'info',
-        startedAt: startedAt.toISOString(),
-        endedAt: endedAt?.toISOString() ?? null,
-        totalDurationMs: endedAt ? endedAt.getTime() - startedAt.getTime() : null,
-        paused: null,
-        cost: null,
-        error: status === 'failed' ? (job.error ?? 'Execution failed') : null,
-        finalOutput: null,
-        blockOutputs: null,
-      }
+      return projectQueueJob(job, { executionId, includeOutput, workflowId })
     }
-
-    return null
   }
+
+  if (!logRow) return null
 
   const [pausedRow] = await db
     .select({
