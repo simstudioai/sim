@@ -1,18 +1,18 @@
 ---
 title: Tables
-description: Create, query, and manage workspace tables from Mothership.
+description: Create, query, and manage workspace tables from Chat.
 ---
 
 import { Image } from '@/components/ui/image'
 import { FAQ } from '@/components/ui/faq'
 
-<Image src="/static/mothership/table-example.png" alt="Mothership resource panel showing the pipeline_deals table with company, deal_owner, stage, and amount columns, alongside a chat summary of total pipeline value and breakdown by stage" width={900} height={500} />
+<Image src="/static/mothership/table-example.png" alt="Chat resource panel showing the pipeline_deals table with company, deal_owner, stage, and amount columns, alongside a chat summary of total pipeline value and breakdown by stage" width={900} height={500} />
 
 Create a table from a description or a CSV, query it in plain language, add or update rows, and export the results — all through conversation. Tables open in the resource panel as soon as they're created or referenced.
 
 ## Creating Tables
 
-Describe the schema and Mothership creates the table:
+Describe the schema and Sim creates the table:
 
 - "Create a leads table with columns for name, email, company, status, and created date"
 - "Create a table that matches the structure of this CSV [attach file]"
@@ -31,7 +31,7 @@ Ask questions about table contents in plain language:
 - "How many prospects have an ICP score above 0.75 and haven't been contacted in the past 30 days?"
 - "What's the conversion rate from 'contacted' to 'meeting booked' in the pipeline table this month?"
 
-Mothership translates the question into a structured query and returns the results.
+Sim translates the question into a structured query and returns the results.
 
 ## Adding and Updating Rows
 
@@ -51,10 +51,10 @@ Export a full table or a filtered subset as a CSV. The file is saved to your wor
 
 ## Using Tables in Workflows
 
-Tables created in Mothership are immediately available in workflows via the [Table tool](/integrations/table). Reference a table by name — no additional configuration needed.
+Tables created in Chat are immediately available in workflows via the [Table tool](/integrations/table). Reference a table by name — no additional configuration needed.
 
 <FAQ items={[
-  { question: "Can Mothership join or combine data from multiple tables?", answer: "Yes. Describe the relationship and what you want — Mothership will query both tables and combine the results." },
-  { question: "Is there a row limit?", answer: "There is no hard row limit set by Mothership. Performance for very large tables may vary." },
-  { question: "Can I use a table created in Mothership as a workflow data source?", answer: "Yes. All workspace tables are accessible to the Table block in any workflow." },
+  { question: "Can Sim join or combine data from multiple tables?", answer: "Yes. Describe the relationship and what you want — Sim will query both tables and combine the results." },
+  { question: "Is there a row limit?", answer: "There is no hard row limit set by Sim. Performance for very large tables may vary." },
+  { question: "Can I use a table created in Chat as a workflow data source?", answer: "Yes. All workspace tables are accessible to the Table block in any workflow." },
 ]} />

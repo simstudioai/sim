@@ -18,7 +18,7 @@ interface VideoProps {
 
 export function Video({
   src,
-  className = 'w-full rounded-xl border border-[var(--border)] overflow-hidden outline-none focus:outline-none',
+  className = 'w-full',
   autoPlay = true,
   loop = true,
   muted = true,
@@ -70,8 +70,9 @@ export function Video({
       width={width}
       height={height}
       className={cn(
-        className,
-        enableLightbox && 'cursor-pointer transition-opacity group-hover:opacity-[0.97]'
+        'overflow-hidden rounded-xl border border-[var(--border)] outline-none focus:outline-none',
+        enableLightbox && 'cursor-pointer transition-opacity group-hover:opacity-[0.97]',
+        className
       )}
       src={isInView ? getAssetUrl(src) : undefined}
     />
