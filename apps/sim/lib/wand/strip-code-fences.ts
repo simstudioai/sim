@@ -68,11 +68,15 @@ export function shouldStripCodeFences(generationType?: string): boolean {
  * Falls back to the original text if stripping would leave nothing.
  */
 export function stripCodeFences(text: string): string {
-  if (!text.trimStart().startsWith('```')) return text
-
   const lines = text.split('\n')
   const openingFence = lines.findIndex((line) => FENCE_LINE.test(line))
   if (openingFence === -1) return text
+
+  // Anything non-blank ahead of the first fence means the response does not open
+  // with one, so the backticks belong to the content.
+  for (let index = 0; index < openingFence; index++) {
+    if (lines[index].trim() !== '') return text
+  }
 
   let closingFence = -1
   for (let index = lines.length - 1; index > openingFence; index--) {
