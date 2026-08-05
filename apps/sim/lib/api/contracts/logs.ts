@@ -161,7 +161,7 @@ const toolCallSchema = z
   })
   .passthrough()
 
-type TraceSpan = {
+export type LogTraceSpan = {
   id: string
   name: string
   type: string
@@ -176,10 +176,10 @@ type TraceSpan = {
   tokens?: number | { total?: number; input?: number; output?: number }
   relativeStartMs?: number
   toolCalls?: Array<z.output<typeof toolCallSchema>>
-  children?: TraceSpan[]
+  children?: LogTraceSpan[]
 }
 
-const traceSpanSchema: z.ZodType<TraceSpan> = z.lazy(() =>
+export const traceSpanSchema: z.ZodType<LogTraceSpan> = z.lazy(() =>
   z
     .object({
       id: z.string(),
@@ -212,11 +212,13 @@ const traceSpanSchema: z.ZodType<TraceSpan> = z.lazy(() =>
     .passthrough()
 )
 
+export const traceSpansSchema = z.array(traceSpanSchema)
+
 const executionDataDetailSchema = z
   .object({
     totalDuration: z.number().nullable().optional(),
     enhanced: z.literal(true).optional(),
-    traceSpans: z.array(traceSpanSchema).optional(),
+    traceSpans: traceSpansSchema.optional(),
     blockExecutions: z.array(blockExecutionSchema).optional(),
     finalOutput: z.unknown().optional(),
     workflowInput: z.unknown().optional(),
