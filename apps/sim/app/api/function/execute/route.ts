@@ -52,6 +52,8 @@ import { containsLargeValueRef, isLargeValueRef } from '@/lib/execution/payloads
 import {
   MAX_FUNCTION_INLINE_BYTES,
   MAX_INLINE_MATERIALIZATION_BYTES,
+} from '@/lib/execution/payloads/limits'
+import {
   readUserFileContent,
   unavailableLargeValueError,
 } from '@/lib/execution/payloads/materialization.server'

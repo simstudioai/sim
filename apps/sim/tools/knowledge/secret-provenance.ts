@@ -4,7 +4,7 @@ import {
   knowledgeDocumentFilenameSelectionKey,
   knowledgeDocumentTagNameSelectionKey,
   knowledgeDocumentTagValueSelectionKey,
-} from '@/lib/knowledge/secret-provenance'
+} from '@/lib/knowledge/secret-provenance-selection'
 import { inferDocumentFileInfo } from '@/tools/knowledge/types'
 import { parseDocumentTags } from '@/tools/shared/tags'
 

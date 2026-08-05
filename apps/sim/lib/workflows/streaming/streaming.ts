@@ -12,10 +12,10 @@ import {
   getInlineJsonByteLength,
   materializeInlineExecutionValue,
 } from '@/lib/execution/payloads/inline-materialization.server'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import {
   assertInlineMaterializationSize,
   type ExecutionMaterializationContext,
-  MAX_INLINE_MATERIALIZATION_BYTES,
 } from '@/lib/execution/payloads/materialization.server'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'

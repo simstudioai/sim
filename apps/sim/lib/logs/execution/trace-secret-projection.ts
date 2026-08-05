@@ -14,7 +14,7 @@ import {
 import {
   MAX_DURABLE_LARGE_VALUE_BYTES,
   MAX_INLINE_MATERIALIZATION_BYTES,
-} from '@/lib/execution/payloads/materialization.server'
+} from '@/lib/execution/payloads/limits'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
 import type { ToolCall, TraceSpan } from '@/lib/logs/types'
