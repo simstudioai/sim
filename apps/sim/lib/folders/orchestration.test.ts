@@ -23,6 +23,7 @@ const {
   mockRestoreFolderChildren,
   mockRestoreFolderRows,
   mockWouldCreateFolderCycle,
+  mockLoadActiveFolderPathIndex,
   resourceConfig,
 } = vi.hoisted(() => ({
   mockArchiveFolderCascade: vi.fn(),
@@ -35,6 +36,7 @@ const {
   mockRestoreFolderChildren: vi.fn(),
   mockRestoreFolderRows: vi.fn(),
   mockWouldCreateFolderCycle: vi.fn(),
+  mockLoadActiveFolderPathIndex: vi.fn(),
   resourceConfig: { current: {} as Record<string, unknown> },
 }))
 
@@ -58,13 +60,24 @@ vi.mock('@/lib/folders/config', () => ({
 
 vi.mock('@/lib/folders/naming', () => ({ deduplicateFolderName: mockDeduplicateFolderName }))
 
-vi.mock('@/lib/folders/queries', () => ({ wouldCreateFolderCycle: mockWouldCreateFolderCycle }))
+vi.mock('@/lib/folders/queries', () => ({
+  wouldCreateFolderCycle: mockWouldCreateFolderCycle,
+  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
+}))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
 }))
 
-import { createFolder, deleteFolder, restoreFolder, updateFolder } from '@/lib/folders/lifecycle'
+import {
+  createFolder,
+  createFolderAtPath,
+  deleteFolder,
+  deleteFolderByPath,
+  relocateFolderByPath,
+  restoreFolder,
+  updateFolder,
+} from '@/lib/folders/orchestration'
 
 const CHILD_TABLE = { name: 'child_table' }
 
@@ -124,6 +137,11 @@ beforeEach(() => {
   resetDbChainMock()
   setConfig()
   mockWouldCreateFolderCycle.mockResolvedValue(false)
+  mockLoadActiveFolderPathIndex.mockResolvedValue({
+    rowById: new Map(),
+    pathById: new Map(),
+    idByPath: new Map(),
+  })
   mockDeduplicateFolderName.mockImplementation(
     async (_tx: unknown, _ws: string, _parent: string | null, name: string) => name
   )
@@ -309,6 +327,87 @@ describe('createFolder', () => {
       error: 'Internal server error',
       errorCode: 'internal',
     })
+  })
+})
+
+describe('path-owned folder mutations', () => {
+  it('creates only the addressed leaf under an existing canonical parent path', async () => {
+    const parent = folderRow({ id: 'parent-1', name: 'Reports' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['parent-1', parent]]),
+      pathById: new Map([['parent-1', '/Reports']]),
+      idByPath: new Map([['/Reports', 'parent-1']]),
+    })
+    queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      folderRow({ id: 'folder-2', name: 'Q1', parentId: 'parent-1', sortOrder: -1 }),
+    ])
+
+    const result = await createFolderAtPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/Reports/Q1',
+    })
+
+    expect(result).toMatchObject({ success: true, path: '/Reports/Q1' })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Q1', parentId: 'parent-1' })
+    )
+  })
+
+  it('rejects relocating a folder beneath its own descendant before writing', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'Reports' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['folder-1', source]]),
+      pathById: new Map([['folder-1', '/Reports']]),
+      idByPath: new Map([['/Reports', 'folder-1']]),
+    })
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/Reports',
+      destinationPath: '/Reports/Archive',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('requires recursive deletion when the path has descendant folders', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'Reports' })
+    const child = folderRow({ id: 'folder-2', name: 'Q1', parentId: 'folder-1' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([
+        ['folder-1', source],
+        ['folder-2', child],
+      ]),
+      pathById: new Map([
+        ['folder-1', '/Reports'],
+        ['folder-2', '/Reports/Q1'],
+      ]),
+      idByPath: new Map([
+        ['/Reports', 'folder-1'],
+        ['/Reports/Q1', 'folder-2'],
+      ]),
+    })
+
+    const result = await deleteFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/Reports',
+      recursive: false,
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Folder is not empty',
+      errorCode: 'conflict',
+    })
+    expect(mockArchiveFolderCascade).not.toHaveBeenCalled()
   })
 })
 

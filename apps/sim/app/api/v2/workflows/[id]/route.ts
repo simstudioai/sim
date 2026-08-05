@@ -2,11 +2,9 @@ import { db } from '@sim/db'
 import { workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
-  assertFolderInWorkspace,
   assertFolderMutable,
   assertWorkflowMutable,
   FolderLockedError,
-  FolderNotFoundError,
   getActiveWorkflowRecord,
   WorkflowLockedError,
 } from '@sim/platform-authz/workflow'
@@ -23,9 +21,12 @@ import {
 } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { withFolderTreeLock } from '@/lib/folders/locks'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { folderPathForId, resolveFolderPathId } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
@@ -70,6 +71,8 @@ export const GET = withRouteHandler(
       const access = await resolveWorkspaceAccess(rateLimit, userId, workflowData.workspaceId)
       if (access) return v2Error('NOT_FOUND', 'Workflow not found')
 
+      const folderIndex = await loadActiveFolderPathIndex(workflowData.workspaceId, 'workflow')
+
       const blockRows = await db
         .select({
           id: workflowBlocks.id,
@@ -88,7 +91,7 @@ export const GET = withRouteHandler(
         id: workflowData.id,
         name: workflowData.name,
         description: workflowData.description,
-        folderId: workflowData.folderId,
+        folderPath: folderPathForId(folderIndex, workflowData.folderId),
         workspaceId: workflowData.workspaceId,
         isDeployed: workflowData.isDeployed,
         deployedAt: workflowData.deployedAt?.toISOString() ?? null,
@@ -129,7 +132,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     if (!parsed.success) return parsed.response
 
     const { id } = parsed.data.params
-    const { name, description, folderId } = parsed.data.body
+    const { name, description, folderPath } = parsed.data.body
 
     const workflowData = await getActiveWorkflowRecord(id)
     if (!workflowData?.workspaceId) return v2Error('NOT_FOUND', 'Workflow not found')
@@ -143,27 +146,31 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
     )
     if (access) return v2Error('NOT_FOUND', 'Workflow not found')
 
-    /**
-     * Ownership before lock state: `assertFolderMutable` walks the folder's
-     * ancestor chain without filtering on workspace, so checking it first would
-     * let a caller distinguish a locked folder in someone else's workspace
-     * (423) from one that simply does not exist (400).
-     */
-    if (folderId) await assertFolderInWorkspace(folderId, workflowData.workspaceId)
-    await assertWorkflowMutable(id)
-    if (folderId !== undefined) await assertFolderMutable(folderId)
+    const mutation = await withFolderTreeLock(workflowData.workspaceId, 'workflow', async (tx) => {
+      const index = await loadActiveFolderPathIndex(workflowData.workspaceId!, 'workflow', tx)
+      const folderId = folderPath === undefined ? undefined : resolveFolderPathId(index, folderPath)
+      if (folderPath !== undefined && folderId === undefined) return { found: false as const }
 
-    const result = await performUpdateWorkflow({
-      workflowId: id,
-      userId,
-      workspaceId: workflowData.workspaceId,
-      currentName: workflowData.name,
-      currentFolderId: workflowData.folderId,
-      name,
-      description,
-      folderId,
-      requestId,
+      await assertWorkflowMutable(id)
+      if (folderId !== undefined) await assertFolderMutable(folderId)
+
+      const result = await performUpdateWorkflow({
+        workflowId: id,
+        userId,
+        workspaceId: workflowData.workspaceId!,
+        currentName: workflowData.name,
+        currentFolderId: workflowData.folderId,
+        name,
+        description,
+        folderId,
+        requestId,
+      })
+      return { found: true as const, index, result }
     })
+    if (!mutation.found) {
+      return v2Error('NOT_FOUND', 'Folder not found')
+    }
+    const { index: folderIndex, result } = mutation
 
     if (!result.success || !result.workflow) {
       return v2ErrorForOrchestration(result.errorCode, result.error ?? 'Failed to update workflow')
@@ -178,7 +185,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       id: updated.id,
       name: updated.name,
       description: updated.description,
-      folderId: updated.folderId,
+      folderPath: folderPathForId(folderIndex, updated.folderId),
       workspaceId: updated.workspaceId ?? workflowData.workspaceId,
       isDeployed: workflowData.isDeployed,
       deployedAt: workflowData.deployedAt?.toISOString() ?? null,
@@ -190,7 +197,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
 
     return v2Data(item, { rateLimit })
   } catch (error) {
-    if (error instanceof FolderNotFoundError) return v2Error('BAD_REQUEST', error.message)
     if (error instanceof WorkflowLockedError || error instanceof FolderLockedError) {
       return v2Error('LOCKED', error.message)
     }
@@ -202,7 +208,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
   }
 })
 
-/** DELETE /api/v2/workflows/[id] — Archive a workflow into Recently Deleted. */
 export const DELETE = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
   const requestId = generateId().slice(0, 8)
 

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { folderIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   addWorkflowGroupBodySchema,
   cancelTableRunsBodyBaseSchema,
@@ -38,8 +38,14 @@ import {
   v1ListTablesQuerySchema,
 } from '@/lib/api/contracts/v1/tables'
 import {
+  v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
+  v2DeleteFolderQuerySchema,
+  v2FolderPathSchema,
+  v2FolderSchema,
+  v2ListFoldersQuerySchema,
+  v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
@@ -110,8 +116,8 @@ export const v2ApiTableSchema = z.object({
   schema: z.object({ columns: z.array(tableColumnSchema) }),
   rowCount: z.number(),
   maxRows: z.number(),
-  /** Owning folder, or `null` when the table sits at the workspace root. */
-  folderId: z.string().nullable(),
+  /** Canonical containing-folder path; `/` means the workspace root. */
+  folderPath: v2FolderPathSchema,
   /**
    * Governance flags, read-only on the public API. They are enforced on every
    * write (a locked verb returns 423), but flipping them is a first-party admin
@@ -143,7 +149,6 @@ export type V2ApiRow = z.output<typeof v2ApiRowSchema>
 export const v2TableDataSchema = z.object({ table: v2ApiTableSchema })
 export type V2TableData = z.output<typeof v2TableDataSchema>
 
-/** Archive confirmation — the id of the table that was archived. */
 export const v2DeleteTableDataSchema = z.object({ id: z.string() })
 export type V2DeleteTableData = z.output<typeof v2DeleteTableDataSchema>
 
@@ -210,20 +215,27 @@ export type V2TableSortBy = (typeof v2TableSortFields)[number]
  * `v1ListTablesQuerySchema` — the single-table read/delete routes reuse that
  * schema and have no list params.
  */
-export const v2ListTablesQuerySchema = v1ListTablesQuerySchema.extend({
-  /** Restrict to one table folder. */
-  folderId: z.string().min(1, 'folderId cannot be empty').optional(),
-  search: v2SearchSchema,
-  ...v2SortFields(v2TableSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
-  limit: z.coerce
-    .number()
-    .optional()
-    .default(100)
-    .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000)),
-  cursor: z.string().min(1).optional(),
-})
+export const v2ListTablesQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    folderPath: v2FolderPathSchema.optional(),
+    search: v2SearchSchema,
+    ...v2SortFields(v2TableSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
+    limit: z.coerce
+      .number()
+      .optional()
+      .default(100)
+      .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000)),
+    cursor: z.string().min(1).optional(),
+  })
+  .strict()
 
 export type V2ListTablesQuery = z.output<typeof v2ListTablesQuerySchema>
+
+export const v2CreateTableBodySchema = v1CreateTableBodySchema
+  .omit({ folderId: true })
+  .extend({ folderPath: v2FolderPathSchema.optional() })
+  .strict()
 
 /**
  * Table list. `listTables` returns every table in the workspace (a small,
@@ -246,7 +258,7 @@ export const v2ListTablesContract = defineRouteContract({
 export const v2CreateTableContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables',
-  body: v1CreateTableBodySchema,
+  body: v2CreateTableBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2TableDataSchema),
@@ -266,8 +278,8 @@ export const v2GetTableContract = defineRouteContract({
 
 /**
  * Table update. Every field is optional but at least one must be present:
- * `name` renames and `folderId` moves the table (explicit `null` moves it to
- * the workspace root; omission leaves the placement untouched).
+ * `name` renames and `folderPath` moves the table. Omission leaves placement
+ * untouched; `/` moves it to the workspace root.
  *
  * `locks` is deliberately **not** accepted here, which is why this body is
  * declared rather than reusing the first-party `updateTableBodySchema`. The
@@ -281,11 +293,11 @@ export const v2UpdateTableBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
     name: tableNameSchema.optional(),
-    folderId: folderIdSchema.nullable().optional(),
+    folderPath: v2FolderPathSchema.optional(),
   })
   .strict()
   .superRefine((body, ctx) => {
-    if (body.name === undefined && body.folderId === undefined) {
+    if (body.name === undefined && body.folderPath === undefined) {
       ctx.addIssue({
         code: 'custom',
         message: 'Provide a new name or folder',
@@ -305,6 +317,42 @@ export const v2UpdateTableContract = defineRouteContract({
   },
 })
 export type V2UpdateTableBody = z.input<typeof v2UpdateTableBodySchema>
+
+export const v2TableFolderDataSchema = z.object({ folder: v2FolderSchema })
+
+export const v2DeleteTableFolderDataSchema = z.object({
+  path: v2FolderPathSchema,
+  deleted: z.literal(true),
+  deletedItems: z.object({ folders: z.number().int(), tables: z.number().int() }),
+})
+
+export const v2ListTableFoldersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/tables/folders',
+  query: v2ListFoldersQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema) },
+})
+
+export const v2CreateTableFolderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/folders',
+  body: v2CreateFolderBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableFolderDataSchema) },
+})
+
+export const v2RelocateTableFolderContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/tables/folders',
+  body: v2RelocateFolderBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2TableFolderDataSchema) },
+})
+
+export const v2DeleteTableFolderContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/tables/folders',
+  query: v2DeleteFolderQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2DeleteTableFolderDataSchema) },
+})
 
 export const v2DeleteTableContract = defineRouteContract({
   method: 'DELETE',
@@ -542,22 +590,6 @@ export const v2UpsertTableRowContract = defineRouteContract({
  */
 export const v2WorkspaceScopedBodySchema = z.object({ workspaceId: workspaceIdSchema })
 export type V2WorkspaceScopedBody = z.input<typeof v2WorkspaceScopedBodySchema>
-
-/**
- * Un-archives a table archived by `DELETE /api/v2/tables/[tableId]`. Resolves
- * the table with archived rows included, so it is the one table endpoint whose
- * target is expected NOT to be active.
- */
-export const v2RestoreTableContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/v2/tables/[tableId]/restore',
-  params: tableIdParamsSchema,
-  body: v2WorkspaceScopedBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2TableDataSchema),
-  },
-})
 
 /**
  * A saved view: a named preset of `{ filter, sort, column layout }` over a
@@ -953,7 +985,7 @@ export const v2TableImportTargetSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('new'),
       name: tableNameSchema,
-      folderId: folderIdSchema.optional(),
+      folderPath: v2FolderPathSchema.optional(),
     })
     .strict(),
   z

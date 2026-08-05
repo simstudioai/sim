@@ -55,29 +55,36 @@ interface CapturedFolderValues {
 function createMockTransaction(mockData: {
   selectResults?: Array<Array<{ [key: string]: unknown }>>
   insertResult?: Array<{ id: string; [key: string]: unknown }>
+  insertError?: Error
   onInsertValues?: (values: CapturedFolderValues) => void
 }) {
-  const { selectResults = [[], []], insertResult = [], onInsertValues } = mockData
+  const { selectResults = [[], []], insertResult = [], insertError, onInsertValues } = mockData
   return async (callback: (tx: unknown) => Promise<unknown>) => {
     const where = vi.fn()
     for (const result of selectResults) {
-      where.mockReturnValueOnce(result)
+      const withLimit = result as typeof result & { limit: ReturnType<typeof vi.fn> }
+      withLimit.limit = vi.fn().mockReturnValue(result)
+      where.mockReturnValueOnce(withLimit)
     }
     where.mockReturnValue([])
 
     const tx = {
+      execute: vi.fn(),
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where,
         }),
       }),
-      insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockImplementation((values: CapturedFolderValues) => {
-          onInsertValues?.(values)
-          return {
-            returning: vi.fn().mockReturnValue(insertResult),
-          }
-        }),
+      insert: vi.fn().mockImplementation(() => {
+        if (insertError) throw insertError
+        return {
+          values: vi.fn().mockImplementation((values: CapturedFolderValues) => {
+            onInsertValues?.(values)
+            return {
+              returning: vi.fn().mockReturnValue(insertResult),
+            }
+          }),
+        }
       }),
     }
     return await callback(tx)
@@ -160,6 +167,7 @@ describe('Folders API Route', () => {
     mockInsert.mockReturnValue({ values: mockValues })
     mockValues.mockReturnValue({ returning: mockReturning })
     mockReturning.mockReturnValue([mockFolders[0]])
+    mockTransaction.mockImplementation(createMockTransaction({}))
 
     mockGetUserEntityPermissions.mockResolvedValue('admin')
   })
@@ -363,7 +371,7 @@ describe('Folders API Route', () => {
 
       mockTransaction.mockImplementationOnce(
         createMockTransaction({
-          selectResults: [[], []],
+          selectResults: [[{ workspaceId: 'workspace-123', archivedAt: null }], [], []],
           insertResult: [{ ...mockFolders[1] }],
         })
       )
@@ -530,9 +538,9 @@ describe('Folders API Route', () => {
     it('should handle database errors gracefully', async () => {
       mockAuthenticatedUser()
 
-      mockInsert.mockImplementationOnce(() => {
-        throw new Error('Database insert failed')
-      })
+      mockTransaction.mockImplementationOnce(
+        createMockTransaction({ insertError: new Error('Database insert failed') })
+      )
 
       const req = createMockRequest('POST', {
         name: 'Test Folder',

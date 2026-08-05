@@ -9,6 +9,8 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { withFolderTreeLock } from '@/lib/folders/locks'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import {
   performDeleteKnowledgeBase,
   performUpdateKnowledgeBase,
@@ -16,6 +18,7 @@ import {
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { formatKnowledgeBase, resolveKnowledgeBase } from '@/app/api/v1/knowledge/utils'
 import { checkRateLimit, type RateLimitResult } from '@/app/api/v1/middleware'
+import { folderPathForId, resolveFolderPathId } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2Data,
@@ -85,7 +88,20 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Knowle
     )
     if (result instanceof NextResponse) return result
 
-    return v2Data({ knowledgeBase: formatKnowledgeBase(result.kb) }, { rateLimit })
+    const folderIndex = await loadActiveFolderPathIndex(
+      parsed.data.query.workspaceId,
+      'knowledge_base'
+    )
+
+    return v2Data(
+      {
+        knowledgeBase: {
+          ...formatKnowledgeBase(result.kb),
+          folderPath: folderPathForId(folderIndex, result.kb.folderId),
+        },
+      },
+      { rateLimit }
+    )
   } catch (error) {
     logger.error(`[${requestId}] Error getting knowledge base`, {
       error: getErrorMessage(error, 'Unknown error'),
@@ -113,25 +129,44 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
     if (!parsed.success) return parsed.response
 
     const { id } = parsed.data.params
-    const { workspaceId, name, description, chunkingConfig } = parsed.data.body
+    const { workspaceId, name, description, chunkingConfig, folderPath } = parsed.data.body
 
     const result = await resolveKnowledgeBaseScoped(id, workspaceId, userId, rateLimit, 'write')
     if (result instanceof NextResponse) return result
 
-    const outcome = await performUpdateKnowledgeBase({
-      knowledgeBaseId: id,
-      workspaceId,
-      userId,
-      source: 'api',
-      updates: { name, description, chunkingConfig },
-      requestId,
-      request,
+    const mutation = await withFolderTreeLock(workspaceId, 'knowledge_base', async (tx) => {
+      const index = await loadActiveFolderPathIndex(workspaceId, 'knowledge_base', tx)
+      const folderId = folderPath === undefined ? undefined : resolveFolderPathId(index, folderPath)
+      if (folderPath !== undefined && folderId === undefined) return { found: false as const }
+
+      const outcome = await performUpdateKnowledgeBase({
+        knowledgeBaseId: id,
+        workspaceId,
+        userId,
+        source: 'api',
+        updates: { name, description, chunkingConfig, folderId },
+        requestId,
+        request,
+      })
+      return { found: true as const, index, outcome }
     })
+    if (!mutation.found) {
+      return v2Error('NOT_FOUND', 'Folder not found')
+    }
+    const { index: folderIndex, outcome } = mutation
     if (!outcome.success) {
       return v2ErrorForOrchestration(outcome.errorCode, outcome.error)
     }
 
-    return v2Data({ knowledgeBase: formatKnowledgeBase(outcome.knowledgeBase) }, { rateLimit })
+    return v2Data(
+      {
+        knowledgeBase: {
+          ...formatKnowledgeBase(outcome.knowledgeBase),
+          folderPath: folderPathForId(folderIndex, outcome.knowledgeBase.folderId),
+        },
+      },
+      { rateLimit }
+    )
   } catch (error) {
     logger.error(`[${requestId}] Error updating knowledge base`, {
       error: getErrorMessage(error, 'Unknown error'),

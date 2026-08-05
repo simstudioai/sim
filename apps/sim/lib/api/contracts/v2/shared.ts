@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/lib/folders/paths'
 
 /**
  * Shared building blocks for the v2 API contract surface.
@@ -40,7 +42,7 @@ import { z } from 'zod'
  *   `sortOrder` *column* on workflows and folders) — it is spelled differently
  *   from the `sortOrder` *param* on purpose.
  * - **Filters** — resource-specific and enumerated, reusing the names already
- *   on the surface (`scope`, `folderId`, `deployedOnly`, `type`, `providerId`,
+ *   on the surface (`scope`, `folderPath`, `deployedOnly`, `type`, `providerId`,
  *   `resourceType`). No generic filter expression.
  *
  * Every one of these is pushed into SQL. No v2 list fetches a full result set
@@ -91,6 +93,79 @@ export const v2SearchSchema = z
 export const v2SortOrderSchema = z.enum(['asc', 'desc'])
 
 export type V2SortOrder = z.output<typeof v2SortOrderSchema>
+
+function canonicalFolderPathSchema(parser: (path: string) => string[]) {
+  return z.string().superRefine((path, ctx) => {
+    try {
+      parser(path)
+    } catch (error) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          error instanceof FolderPathError ? error.message : 'Path must be a canonical folder path',
+      })
+    }
+  })
+}
+
+/** Canonical slash-prefixed folder path. `/` is the workspace root. */
+export const v2FolderPathSchema = canonicalFolderPathSchema(parseFolderPath)
+export type V2FolderPath = z.output<typeof v2FolderPathSchema>
+
+/** Canonical path that identifies a real folder rather than the virtual root. */
+export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(requireNonRootFolderPath)
+
+export const v2FolderSchema = z.object({
+  name: z.string(),
+  path: v2NonRootFolderPathSchema,
+  parentPath: v2FolderPathSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type V2Folder = z.output<typeof v2FolderSchema>
+
+export const v2FolderSortFields = ['name', 'createdAt', 'updatedAt'] as const
+
+export const v2ListFoldersQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    parentPath: v2FolderPathSchema.optional(),
+    search: v2SearchSchema,
+    ...v2SortFields(v2FolderSortFields, { sortBy: 'name', sortOrder: 'asc' }),
+  })
+  .strict()
+
+export const v2CreateFolderBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    path: v2NonRootFolderPathSchema,
+  })
+  .strict()
+
+export const v2RelocateFolderBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    path: v2NonRootFolderPathSchema,
+    destinationPath: v2NonRootFolderPathSchema,
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.path === body.destinationPath) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['destinationPath'],
+        message: 'destinationPath must differ from path',
+      })
+    }
+  })
+
+export const v2DeleteFolderQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    path: v2NonRootFolderPathSchema,
+    recursive: z.stringbool(),
+  })
+  .strict()
 
 /**
  * The `sortBy` + `sortOrder` pair for one resource. `fields` is the closed set

@@ -21,20 +21,16 @@ const {
   mockResolveWorkspaceAccess,
   mockPerformCreateWorkflow,
   mockAssertFolderMutable,
-  mockAssertFolderInWorkspace,
+  mockLoadActiveFolderPathIndex,
   FolderLockedErrorMock,
-  FolderNotFoundErrorMock,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
   mockPerformCreateWorkflow: vi.fn(),
   mockAssertFolderMutable: vi.fn(),
-  mockAssertFolderInWorkspace: vi.fn(),
+  mockLoadActiveFolderPathIndex: vi.fn(),
   FolderLockedErrorMock: class FolderLockedError extends Error {
     status = 423
-  },
-  FolderNotFoundErrorMock: class FolderNotFoundError extends Error {
-    status = 400
   },
 }))
 
@@ -49,9 +45,11 @@ vi.mock('@/lib/workflows/orchestration', () => ({
 
 vi.mock('@sim/platform-authz/workflow', () => ({
   assertFolderMutable: mockAssertFolderMutable,
-  assertFolderInWorkspace: mockAssertFolderInWorkspace,
   FolderLockedError: FolderLockedErrorMock,
-  FolderNotFoundError: FolderNotFoundErrorMock,
+}))
+
+vi.mock('@/lib/folders/queries', () => ({
+  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
 }))
 
 vi.mock('@/app/api/v2/lib/gate', () => ({
@@ -111,6 +109,11 @@ describe('GET /api/v2/workflows', () => {
     resetDbChainMock()
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map(),
+      pathById: new Map(),
+      idByPath: new Map(),
+    })
   })
 
   it('narrows the query with a case-insensitive substring match on the name', async () => {
@@ -139,6 +142,19 @@ describe('GET /api/v2/workflows', () => {
     await callList(`workspaceId=${WS}`)
 
     expect(lastConditions().some((c) => c.type === 'ilike')).toBe(false)
+  })
+
+  it('treats folderPath=/ as root-only while omission lists every folder', async () => {
+    queueTableRows(schemaMock.workflow, [buildRow()])
+
+    await callList(`workspaceId=${WS}&folderPath=%2F`)
+
+    expect(
+      lastConditions().some(
+        (condition) =>
+          condition.type === 'isNull' && condition.column === schemaMock.workflow.folderId
+      )
+    ).toBe(true)
   })
 
   it('400s on a sort field outside the enum instead of letting it reach the query', async () => {
@@ -284,7 +300,11 @@ describe('POST /api/v2/workflows', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockAssertFolderMutable.mockResolvedValue(undefined)
-    mockAssertFolderInWorkspace.mockResolvedValue(undefined)
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['fld-1', { id: 'fld-1', name: 'Locked', parentId: null }]]),
+      pathById: new Map([['fld-1', '/Locked']]),
+      idByPath: new Map([['/Locked', 'fld-1']]),
+    })
     mockPerformCreateWorkflow.mockResolvedValue({ success: true, workflow: CREATED })
   })
 
@@ -338,44 +358,34 @@ describe('POST /api/v2/workflows', () => {
 
   it('423s when the destination folder is locked', async () => {
     mockAssertFolderMutable.mockRejectedValue(new FolderLockedErrorMock('Folder is locked'))
-    const res = await callPost({ ...VALID_BODY, folderId: 'fld-1' })
+    const res = await callPost({ ...VALID_BODY, folderPath: '/Locked' })
     expect(res.status).toBe(423)
     expect((await res.json()).error.code).toBe('LOCKED')
     expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
   })
 
-  it('400s a folder outside the workspace without ever reading its lock state', async () => {
-    mockAssertFolderInWorkspace.mockRejectedValue(
-      new FolderNotFoundErrorMock('Target folder not found')
-    )
-    const res = await callPost({ ...VALID_BODY, folderId: 'fld-other-workspace' })
+  it('404s a path outside the workspace without ever reading its lock state', async () => {
+    const res = await callPost({ ...VALID_BODY, folderPath: '/Elsewhere' })
 
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    // Containment runs first, so a locked foreign folder cannot be told apart
-    // from a nonexistent one by its status code.
+    expect(res.status).toBe(404)
+    expect((await res.json()).error.code).toBe('NOT_FOUND')
     expect(mockAssertFolderMutable).not.toHaveBeenCalled()
     expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
   })
 
-  it('checks folder containment before mutability', async () => {
-    const order: string[] = []
-    mockAssertFolderInWorkspace.mockImplementation(async () => {
-      order.push('containment')
-    })
-    mockAssertFolderMutable.mockImplementation(async () => {
-      order.push('mutability')
-    })
+  it('resolves the canonical path before checking mutability', async () => {
+    await callPost({ ...VALID_BODY, folderPath: '/Locked' })
 
-    await callPost({ ...VALID_BODY, folderId: 'fld-1' })
-
-    expect(order).toEqual(['containment', 'mutability'])
-    expect(mockAssertFolderInWorkspace).toHaveBeenCalledWith('fld-1', 'workspace-1')
+    expect(mockLoadActiveFolderPathIndex).toHaveBeenCalledWith(
+      'workspace-1',
+      'workflow',
+      expect.any(Object)
+    )
+    expect(mockAssertFolderMutable).toHaveBeenCalledWith('fld-1')
   })
 
   it('skips the containment check when no folder is supplied', async () => {
     await callPost(VALID_BODY)
-    expect(mockAssertFolderInWorkspace).not.toHaveBeenCalled()
     expect(mockAssertFolderMutable).toHaveBeenCalledWith(null)
   })
 
@@ -400,7 +410,7 @@ describe('POST /api/v2/workflows', () => {
         id: 'wf-1',
         name: 'Support Agent',
         description: 'Handles tickets',
-        folderId: null,
+        folderPath: '/',
         workspaceId: 'workspace-1',
         isDeployed: false,
         deployedAt: null,
@@ -417,7 +427,7 @@ describe('POST /api/v2/workflows', () => {
         workspaceId: 'workspace-1',
         name: 'Support Agent',
         description: 'Handles tickets',
-        folderId: undefined,
+        folderId: null,
       })
     )
   })

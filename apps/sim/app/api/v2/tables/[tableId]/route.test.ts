@@ -19,7 +19,7 @@ const {
   mockPerformUpdateTableLocks,
   mockRecordAudit,
   mockGetTableById,
-  mockFindActiveFolder,
+  mockLoadActiveFolderPathIndex,
   mockGateError,
   mockSignalSchemaChanged,
 } = vi.hoisted(() => ({
@@ -32,7 +32,7 @@ const {
   mockPerformUpdateTableLocks: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockGetTableById: vi.fn(),
-  mockFindActiveFolder: vi.fn(),
+  mockLoadActiveFolderPathIndex: vi.fn(),
   mockGateError: vi.fn(),
   mockSignalSchemaChanged: vi.fn(),
 }))
@@ -66,7 +66,9 @@ vi.mock('@/lib/table', () => ({
 vi.mock('@/lib/table/events', () => ({
   signalTableSchemaChanged: mockSignalSchemaChanged,
 }))
-vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mockFindActiveFolder }))
+vi.mock('@/lib/folders/queries', () => ({
+  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
+}))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: vi.fn().mockResolvedValue({ organizationId: 'org-1' }),
 }))
@@ -138,7 +140,11 @@ beforeEach(() => {
   mockResolveWorkspaceScope.mockResolvedValue(null)
   mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
   mockGetTableById.mockResolvedValue(UPDATED_TABLE)
-  mockFindActiveFolder.mockResolvedValue({ id: 'folder-1' })
+  mockLoadActiveFolderPathIndex.mockResolvedValue({
+    rowById: new Map([['folder-1', { id: 'folder-1', name: 'Reports', parentId: null }]]),
+    pathById: new Map([['folder-1', '/Reports']]),
+    idByPath: new Map([['/Reports', 'folder-1']]),
+  })
   mockGateError.mockResolvedValue(null)
 })
 
@@ -186,7 +192,7 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
         schema: { columns: [] },
         rowCount: 0,
         maxRows: 1000,
-        folderId: null,
+        folderPath: '/',
         locks: UNLOCKED,
         job: null,
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -228,19 +234,17 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
   it('moves the table only after confirming the folder belongs to the workspace', async () => {
     mockPerformMoveTableToFolder.mockResolvedValue({ success: true })
 
-    const res = await callPatch({ workspaceId: 'ws-1', folderId: 'folder-1' })
+    const res = await callPatch({ workspaceId: 'ws-1', folderPath: '/Reports' })
 
     expect(res.status).toBe(200)
-    expect(mockFindActiveFolder).toHaveBeenCalledWith('folder-1', 'ws-1', 'table')
+    expect(mockLoadActiveFolderPathIndex).toHaveBeenCalledWith('ws-1', 'table', expect.any(Object))
     expect(mockPerformMoveTableToFolder).toHaveBeenCalledWith(
       expect.objectContaining({ table: TABLE, folderId: 'folder-1', userId: 'user-1' })
     )
   })
 
   it('404s a folder from outside the workspace without attempting the move', async () => {
-    mockFindActiveFolder.mockResolvedValue(null)
-
-    const res = await callPatch({ workspaceId: 'ws-1', folderId: 'folder-elsewhere' })
+    const res = await callPatch({ workspaceId: 'ws-1', folderPath: '/Elsewhere' })
 
     expect(res.status).toBe(404)
     expect(mockPerformMoveTableToFolder).not.toHaveBeenCalled()
@@ -249,12 +253,10 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
   it('rejects a bad folder without applying the rename that came with it', async () => {
     // The three operations are separate transactions, so validation has to run
     // before the first write — otherwise a rejected PATCH still renames.
-    mockFindActiveFolder.mockResolvedValue(null)
-
     const res = await callPatch({
       workspaceId: 'ws-1',
       name: 'Renamed',
-      folderId: 'folder-elsewhere',
+      folderPath: '/Elsewhere',
     })
 
     expect(res.status).toBe(404)
@@ -274,7 +276,7 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
       error: 'gone',
     })
 
-    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed', folderId: 'folder-1' })
+    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed', folderPath: '/Reports' })
 
     expect(res.status).toBe(404)
     expect((await res.json()).error.details).toEqual({ applied: ['name'] })
@@ -288,7 +290,7 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
       error: 'taken',
     })
 
-    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed', folderId: 'folder-1' })
+    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed', folderPath: '/Reports' })
 
     expect(res.status).toBe(409)
     expect((await res.json()).error.details).toBeUndefined()
@@ -305,7 +307,7 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
       error: 'gone',
     })
 
-    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed', folderId: 'folder-1' })
+    const res = await callPatch({ workspaceId: 'ws-1', name: 'Renamed', folderPath: '/Reports' })
 
     expect(res.status).toBe(404)
     expect(mockPerformRenameTable).toHaveBeenCalled()
@@ -369,7 +371,9 @@ describe('PATCH /api/v2/tables/[tableId]', () => {
   it('omits applied details when the failure happened before any write', async () => {
     mockGetTableById.mockRejectedValue(new Error('connection reset'))
 
-    const res = await callPatch({ workspaceId: 'ws-1', folderId: 'nope' })
+    mockLoadActiveFolderPathIndex.mockRejectedValue(new Error('connection reset'))
+
+    const res = await callPatch({ workspaceId: 'ws-1', folderPath: '/Nope' })
 
     // Absence is meaningful: nothing is live, so a retry is safe.
     expect((await res.json()).error.details).toBeUndefined()

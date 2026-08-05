@@ -3,15 +3,17 @@ import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { type V2LogListItem, v2ListLogsContract } from '@/lib/api/contracts/v2/logs'
 import { parseRequest } from '@/lib/api/server'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { resolveFolderPathId } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   decodeCursor,
@@ -55,10 +57,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const access = await resolveWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
+    const folderPaths = params.folderPaths?.split(',').filter(Boolean)
+    const folderIndex = folderPaths
+      ? await loadActiveFolderPathIndex(params.workspaceId, 'workflow')
+      : null
+    const resolvedFolderIds = folderPaths?.map((path) => resolveFolderPathId(folderIndex!, path))
+    if (resolvedFolderIds?.some((folderId) => folderId === undefined)) {
+      return v2Error('NOT_FOUND', 'Folder not found')
+    }
+    const nonRootFolderIds = resolvedFolderIds?.filter(
+      (folderId): folderId is string => typeof folderId === 'string'
+    )
+    const includesRoot = resolvedFolderIds?.includes(null) ?? false
+
     const filters = {
       workspaceId: params.workspaceId,
       workflowIds: params.workflowIds?.split(',').filter(Boolean),
-      folderIds: params.folderIds?.split(',').filter(Boolean),
+      folderIds: nonRootFolderIds,
       triggers: params.triggers?.split(',').filter(Boolean),
       level: params.level,
       startDate: params.startDate ? new Date(params.startDate) : undefined,
@@ -76,6 +91,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const conditions = buildLogFilters(filters)
+    const rootFolderCondition = folderPaths
+      ? or(
+          includesRoot ? isNull(workflow.folderId) : undefined,
+          nonRootFolderIds && nonRootFolderIds.length > 0
+            ? inArray(workflow.folderId, nonRootFolderIds)
+            : undefined
+        )
+      : undefined
     const orderBy = getOrderBy(params.order)
 
     const rows = await db
@@ -95,10 +118,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         executionData: params.details === 'full' ? workflowExecutionLogs.executionData : sql`null`,
         workflowName: workflow.name,
         workflowDescription: workflow.description,
+        workflowArchivedAt: workflow.archivedAt,
       })
       .from(workflowExecutionLogs)
       .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-      .where(conditions)
+      .where(and(conditions, rootFolderCondition))
       .orderBy(...orderBy)
       .limit(params.limit + 1)
 
@@ -131,7 +155,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           id: log.workflowId,
           name: log.workflowName || 'Deleted Workflow',
           description: log.workflowDescription,
-          deleted: !log.workflowName,
+          deleted: !log.workflowName || log.workflowArchivedAt !== null,
         }
       }
       return item

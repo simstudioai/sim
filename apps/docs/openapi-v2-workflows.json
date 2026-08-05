@@ -51,13 +51,12 @@
             "$ref": "#/components/parameters/WorkspaceId"
           },
           {
-            "name": "folderId",
+            "name": "folderPath",
             "in": "query",
             "required": false,
             "description": "Filter results to only include workflows within this folder.",
             "schema": {
-              "type": "string",
-              "example": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
+              "type": "string"
             }
           },
           {
@@ -96,7 +95,11 @@
             "in": "query",
             "required": false,
             "description": "Case-insensitive substring match against the workflow `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
-            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
           },
           {
             "name": "sortBy",
@@ -114,7 +117,11 @@
             "in": "query",
             "required": false,
             "description": "Sort direction. The cursor is a keyset over the active sort, so it carries the sort it was minted under. Replaying a cursor after changing `sortBy` or `sortOrder` returns `400`; restart pagination without a cursor instead.",
-            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
           }
         ],
         "responses": {
@@ -150,24 +157,6 @@
                       "description": "Opaque cursor for fetching the next page. `null` when there are no more results."
                     }
                   }
-                },
-                "example": {
-                  "data": [
-                    {
-                      "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-                      "name": "Customer Support Agent",
-                      "description": "Routes incoming support tickets and drafts responses",
-                      "folderId": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91",
-                      "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                      "isDeployed": true,
-                      "deployedAt": "2026-06-12T10:30:00.000Z",
-                      "runCount": 142,
-                      "lastRunAt": "2026-06-20T14:15:22.000Z",
-                      "createdAt": "2026-01-10T09:00:00.000Z",
-                      "updatedAt": "2026-06-18T16:45:00.000Z"
-                    }
-                  ],
-                  "nextCursor": "eyJzb3J0T3JkZXIiOjAsImNyZWF0ZWRBdCI6IjIwMjYtMDEtMTBUMDk6MDA6MDAuMDAwWiIsImlkIjoiM2IxZjdjOTIifQ=="
                 }
               }
             }
@@ -208,24 +197,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateWorkflowBody"
-              },
-              "examples": {
-                "minimal": {
-                  "summary": "At the workspace root",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "name": "Customer Support Agent"
-                  }
-                },
-                "inFolder": {
-                  "summary": "Inside a folder, with a description",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "name": "Customer Support Agent",
-                    "description": "Routes incoming support tickets and drafts responses",
-                    "folderId": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
-                  }
-                }
               }
             }
           }
@@ -253,21 +224,6 @@
                     "data": {
                       "$ref": "#/components/schemas/WorkflowListItem"
                     }
-                  }
-                },
-                "example": {
-                  "data": {
-                    "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-                    "name": "Customer Support Agent",
-                    "description": "Routes incoming support tickets and drafts responses",
-                    "folderId": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91",
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "isDeployed": false,
-                    "deployedAt": null,
-                    "runCount": 0,
-                    "lastRunAt": null,
-                    "createdAt": "2026-06-29T21:30:00.000Z",
-                    "updatedAt": "2026-06-29T21:30:00.000Z"
                   }
                 }
               }
@@ -347,36 +303,6 @@
                       "$ref": "#/components/schemas/WorkflowDetail"
                     }
                   }
-                },
-                "example": {
-                  "data": {
-                    "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-                    "name": "Customer Support Agent",
-                    "description": "Routes incoming support tickets and drafts responses",
-                    "folderId": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91",
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "isDeployed": true,
-                    "deployedAt": "2026-06-12T10:30:00.000Z",
-                    "runCount": 142,
-                    "lastRunAt": "2026-06-20T14:15:22.000Z",
-                    "variables": {
-                      "8d2c1f0a-3b4e-4c5d-9a6f-1e2d3c4b5a60": {
-                        "id": "8d2c1f0a-3b4e-4c5d-9a6f-1e2d3c4b5a60",
-                        "name": "supportEmail",
-                        "type": "string",
-                        "value": "support@example.com"
-                      }
-                    },
-                    "inputs": [
-                      {
-                        "name": "ticketBody",
-                        "type": "string",
-                        "description": "The raw text of the incoming support ticket."
-                      }
-                    ],
-                    "createdAt": "2026-01-10T09:00:00.000Z",
-                    "updatedAt": "2026-06-18T16:45:00.000Z"
-                  }
                 }
               }
             }
@@ -419,20 +345,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateWorkflowBody"
-              },
-              "examples": {
-                "rename": {
-                  "summary": "Rename",
-                  "value": {
-                    "name": "Customer Support Agent v2"
-                  }
-                },
-                "moveToRoot": {
-                  "summary": "Move out of its folder to the workspace root",
-                  "value": {
-                    "folderId": null
-                  }
-                }
               }
             }
           }
@@ -460,21 +372,6 @@
                     "data": {
                       "$ref": "#/components/schemas/WorkflowListItem"
                     }
-                  }
-                },
-                "example": {
-                  "data": {
-                    "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-                    "name": "Customer Support Agent v2",
-                    "description": "Routes incoming support tickets and drafts responses",
-                    "folderId": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91",
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "isDeployed": false,
-                    "deployedAt": null,
-                    "runCount": 0,
-                    "lastRunAt": null,
-                    "createdAt": "2026-06-29T21:30:00.000Z",
-                    "updatedAt": "2026-06-30T08:12:00.000Z"
                   }
                 }
               }
@@ -513,7 +410,7 @@
       "delete": {
         "operationId": "deleteWorkflowV2",
         "summary": "Delete Workflow",
-        "description": "Archive a workflow. The workflow moves to Recently Deleted rather than being dropped, so its execution logs stay attributable, and it stops being returned by the list and detail endpoints. The last remaining workflow in a workspace cannot be deleted (400).",
+        "description": "Delete a workflow. It stops being returned by list and detail endpoints while its execution logs remain attributable. The last remaining workflow in a workspace cannot be deleted (400).",
         "tags": ["Workflows"],
         "x-codeSamples": [
           {
@@ -530,7 +427,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The workflow was archived.",
+            "description": "The workflow was deleted.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimitLimit"
@@ -551,12 +448,6 @@
                     "data": {
                       "$ref": "#/components/schemas/DeleteWorkflowResult"
                     }
-                  }
-                },
-                "example": {
-                  "data": {
-                    "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-                    "deleted": true
                   }
                 }
               }
@@ -1178,9 +1069,6 @@
               }
             }
           },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
@@ -1193,12 +1081,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
           "409": {
             "description": "A workflow with the same name already exists and deduplication failed.",
             "content": {
@@ -1209,8 +1091,17 @@
               }
             }
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       }
@@ -1431,12 +1322,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
           "409": {
             "description": "The `X-Execution-Id` was already used.",
             "content": {
@@ -1449,6 +1334,12 @@
           },
           "413": {
             "description": "Request body exceeds the 10 MB limit."
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           },
           "503": {
             "description": "Execution infrastructure temporarily unavailable.",
@@ -1766,6 +1657,398 @@
           }
         }
       }
+    },
+    "/api/v2/workflows/folders": {
+      "get": {
+        "operationId": "listWorkflowsFolders",
+        "summary": "List Folders",
+        "description": "List active folders for this resource. Omit `parentPath` for the full tree, or pass a canonical path (including `/`) for immediate children only.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          },
+          {
+            "name": "parentPath",
+            "in": "query",
+            "required": false,
+            "description": "Canonical parent path. `/` lists root folders; omit for every folder.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Name search.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Sort field.",
+            "schema": {
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"],
+              "default": "name"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folders.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/WorkflowsFolder"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": ["string", "null"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWorkflowsFolder",
+        "summary": "Create Folder",
+        "description": "Create exactly one folder leaf. Its parent path must already exist.",
+        "tags": ["Workflows"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "path"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Canonical non-root folder path."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["folder"],
+                      "properties": {
+                        "folder": {
+                          "$ref": "#/components/schemas/WorkflowsFolder"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "relocateWorkflowsFolder",
+        "summary": "Rename or Move Folder",
+        "description": "Rename, move, or rename and move a folder. Descendant paths change with the folder.",
+        "tags": ["Workflows"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "path", "destinationPath"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Current canonical non-root path."
+                  },
+                  "destinationPath": {
+                    "type": "string",
+                    "description": "New canonical non-root path."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["folder"],
+                      "properties": {
+                        "folder": {
+                          "$ref": "#/components/schemas/WorkflowsFolder"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWorkflowsFolder",
+        "summary": "Delete Folder",
+        "description": "Delete a folder. With `recursive=false`, the folder must be empty. With `recursive=true`, its descendant folders and resources are deleted too.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "description": "Canonical non-root folder path.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": true,
+            "description": "Whether to delete the subtree.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deletion result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["path", "deleted", "deletedItems"],
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "deleted": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "deletedItems": {
+                          "type": "object",
+                          "required": ["folders", "workflows"],
+                          "properties": {
+                            "folders": {
+                              "type": "integer"
+                            },
+                            "workflows": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1880,7 +2163,7 @@
           "id",
           "name",
           "description",
-          "folderId",
+          "folderPath",
           "workspaceId",
           "isDeployed",
           "deployedAt",
@@ -1906,11 +2189,10 @@
             "description": "Optional description of what the workflow does. `null` when unset.",
             "example": "Routes incoming support tickets and drafts responses"
           },
-          "folderId": {
+          "folderPath": {
             "type": "string",
-            "nullable": true,
-            "description": "The folder this workflow belongs to. `null` when at the workspace root.",
-            "example": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "example": "/Engineering"
           },
           "workspaceId": {
             "type": "string",
@@ -1984,7 +2266,7 @@
           "id",
           "name",
           "description",
-          "folderId",
+          "folderPath",
           "workspaceId",
           "isDeployed",
           "deployedAt",
@@ -2131,7 +2413,7 @@
           },
           "workflow": {
             "type": "object",
-            "required": ["id", "name", "description", "workspaceId", "folderId"],
+            "required": ["id", "name", "description", "workspaceId", "folderPath"],
             "properties": {
               "id": {
                 "type": "string"
@@ -2145,8 +2427,9 @@
               "workspaceId": {
                 "type": ["string", "null"]
               },
-              "folderId": {
-                "type": ["string", "null"]
+              "folderPath": {
+                "type": "string",
+                "description": "Canonical containing-folder path. `/` is the workspace root."
               }
             }
           },
@@ -2165,10 +2448,10 @@
             "type": "string",
             "minLength": 1
           },
-          "folderId": {
+          "folderPath": {
             "type": "string",
             "minLength": 1,
-            "description": "Target folder; must belong to the workspace and be unlocked."
+            "description": "Canonical containing-folder path. `/` is the workspace root."
           },
           "name": {
             "type": "string",
@@ -2203,7 +2486,7 @@
           "name",
           "description",
           "workspaceId",
-          "folderId",
+          "folderPath",
           "createdAt",
           "updatedAt"
         ],
@@ -2221,8 +2504,9 @@
           "workspaceId": {
             "type": "string"
           },
-          "folderId": {
-            "type": ["string", "null"]
+          "folderPath": {
+            "type": "string",
+            "description": "Canonical containing-folder path. `/` is the workspace root."
           },
           "createdAt": {
             "type": "string",
@@ -2331,12 +2615,11 @@
             "description": "Optional description of what the workflow does.",
             "example": "Routes incoming support tickets and drafts responses"
           },
-          "folderId": {
+          "folderPath": {
             "type": "string",
             "minLength": 1,
-            "nullable": true,
-            "description": "Folder to create the workflow in. Omit or send `null` to create it at the workspace root.",
-            "example": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "example": "/Engineering"
           }
         }
       },
@@ -2360,29 +2643,28 @@
             "description": "New description. Send `null` to clear it.",
             "example": "Routes incoming support tickets and drafts responses"
           },
-          "folderId": {
+          "folderPath": {
             "type": "string",
             "minLength": 1,
-            "nullable": true,
-            "description": "Destination folder. Send `null` to move the workflow to the workspace root.",
-            "example": "8a4c2e6b-0d1f-4b3a-9c5e-7f2d8b4a6c91"
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "example": "/Engineering"
           }
         }
       },
       "DeleteWorkflowResult": {
         "type": "object",
-        "description": "Acknowledgement that a workflow was archived.",
+        "description": "Acknowledgement that a workflow was deleted.",
         "required": ["id", "deleted"],
         "properties": {
           "id": {
             "type": "string",
-            "description": "The archived workflow's identifier.",
+            "description": "The deleted workflow's identifier.",
             "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
           },
           "deleted": {
             "type": "boolean",
             "enum": [true],
-            "description": "Always `true` on a successful archive."
+            "description": "Always `true` on a successful delete."
           }
         }
       },
@@ -2481,6 +2763,36 @@
             "type": "object",
             "additionalProperties": true,
             "description": "The deployed workflow graph snapshot (blocks, edges, loops, parallels). This is the state that executes while the version is active, and the state a rollback restores."
+          }
+        }
+      },
+      "WorkflowsFolder": {
+        "type": "object",
+        "required": ["name", "path", "parentPath", "locked", "createdAt", "updatedAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Folder name."
+          },
+          "path": {
+            "type": "string",
+            "description": "Canonical folder path. This is the public folder identifier."
+          },
+          "parentPath": {
+            "type": "string",
+            "description": "Canonical parent path; `/` is the root."
+          },
+          "locked": {
+            "type": "boolean",
+            "description": "Whether this workflow folder is locked."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

@@ -101,25 +101,24 @@ describe('POST /api/v2/files/move', () => {
     const res = await callMove({
       workspaceId: WS,
       fileIds: ['wf_1', 'wf_2'],
-      targetFolderId: 'fold_1',
+      targetFolderPath: '/Reports',
     })
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body.data).toEqual({ movedItems: { files: 2, folders: 0 } })
+    expect(body.data).toEqual({ movedItems: { files: 2 } })
     expect(mockPerformMove).toHaveBeenCalledWith({
       workspaceId: WS,
       userId: 'user-1',
       fileIds: ['wf_1', 'wf_2'],
-      folderIds: [],
-      targetFolderId: 'fold_1',
+      targetFolderPath: '/Reports',
     })
   })
 
-  it('treats an omitted targetFolderId as the workspace root', async () => {
-    await callMove({ workspaceId: WS, folderIds: ['fold_2'] })
+  it('treats an omitted targetFolderPath as the workspace root', async () => {
+    await callMove({ workspaceId: WS, fileIds: ['wf_1'] })
     expect(mockPerformMove).toHaveBeenCalledWith(
-      expect.objectContaining({ folderIds: ['fold_2'], targetFolderId: null })
+      expect.objectContaining({ fileIds: ['wf_1'], targetFolderPath: '/' })
     )
   })
 
@@ -130,7 +129,11 @@ describe('POST /api/v2/files/move', () => {
       errorCode: 'conflict',
     })
 
-    const res = await callMove({ workspaceId: WS, fileIds: ['wf_1'], targetFolderId: 'fold_1' })
+    const res = await callMove({
+      workspaceId: WS,
+      fileIds: ['wf_1'],
+      targetFolderPath: '/Reports',
+    })
     const body = await res.json()
 
     expect(res.status).toBe(409)

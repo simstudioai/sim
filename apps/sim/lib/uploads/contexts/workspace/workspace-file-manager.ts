@@ -1019,7 +1019,8 @@ const WORKSPACE_FILE_SORTS = {
 export interface QueryWorkspaceFilesOptions {
   scope?: WorkspaceFileScope
   /** Restrict to one file folder. */
-  folderId?: string
+  /** `undefined` lists every folder, `null` lists only root files. */
+  folderId?: string | null
   /** Case-insensitive substring match on the file name. */
   search?: string
   sortBy: V2FileSortBy
@@ -1064,7 +1065,11 @@ export async function queryWorkspaceFiles(
 
   const conditions = [
     workspaceFileScopeCondition(workspaceId, scope),
-    folderId ? eq(workspaceFiles.folderId, folderId) : undefined,
+    folderId === undefined
+      ? undefined
+      : folderId === null
+        ? isNull(workspaceFiles.folderId)
+        : eq(workspaceFiles.folderId, folderId),
     searchFilter(workspaceFiles.originalName, search),
     resumeAfter,
   ]

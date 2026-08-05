@@ -10,6 +10,7 @@ import {
   MAX_IMPORT_BODY_BYTES,
 } from '@/lib/workflows/operations/import-workflow'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { folderPathForId, withResolvedFolderPathMutation } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   type V2ErrorCode,
@@ -64,25 +65,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, folderId, name, description } = parsed.data.body
+    const { workspaceId, folderPath, name, description } = parsed.data.body
 
     logger.info(`[${requestId}] Importing workflow into workspace ${workspaceId}`, {
       userId,
-      folderId,
+      folderPath,
     })
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
 
-    const result = await importWorkflowIntoWorkspace({
+    const mutation = await withResolvedFolderPathMutation({
       workspaceId,
-      folderId,
-      name,
-      description,
-      workflow: parsed.data.body.workflow,
-      userId,
-      requestId,
+      resourceType: 'workflow',
+      path: folderPath ?? '/',
+      mutate: (folderId) =>
+        importWorkflowIntoWorkspace({
+          workspaceId,
+          folderId: folderId ?? undefined,
+          name,
+          description,
+          workflow: parsed.data.body.workflow,
+          userId,
+          requestId,
+        }),
     })
+    if (!mutation.found) return v2Error('NOT_FOUND', 'Folder not found')
+    const result = mutation.value
 
     if (!result.success) {
       return v2Error(ERROR_CODE_BY_STATUS[result.status] ?? 'INTERNAL_ERROR', result.error, {
@@ -97,7 +106,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         name: result.workflow.name,
         description: result.workflow.description,
         workspaceId: result.workflow.workspaceId,
-        folderId: result.workflow.folderId,
+        folderPath: folderPathForId(mutation.index, result.workflow.folderId),
         createdAt: result.workflow.createdAt.toISOString(),
         updatedAt: result.workflow.updatedAt.toISOString(),
       },

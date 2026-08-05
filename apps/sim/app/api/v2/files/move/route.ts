@@ -23,9 +23,9 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /**
- * POST /api/v2/files/move — Move files and/or folders into a folder.
+ * POST /api/v2/files/move — Move files into a folder.
  *
- * `targetFolderId: null` (or an omitted field) moves the selection to the
+ * An omitted `targetFolderPath` moves the selection to the
  * workspace root. The whole selection moves under one advisory lock, so a name
  * collision at the destination fails the request as `CONFLICT` rather than
  * partially applying.
@@ -48,7 +48,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, fileIds, folderIds, targetFolderId } = parsed.data.body
+    const { workspaceId, fileIds, targetFolderPath } = parsed.data.body
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
@@ -57,8 +57,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workspaceId,
       userId,
       fileIds,
-      folderIds,
-      targetFolderId: targetFolderId ?? null,
+      targetFolderPath: targetFolderPath ?? '/',
     })
 
     if (!result.success || !result.movedItems) {
@@ -68,7 +67,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    return v2Data({ movedItems: result.movedItems }, { rateLimit })
+    return v2Data({ movedItems: { files: result.movedItems.files } }, { rateLimit })
   } catch (error) {
     logger.error('Error moving file items', { error: getErrorMessage(error, 'Unknown error') })
     return v2Error('INTERNAL_ERROR', 'Internal server error')

@@ -9,9 +9,9 @@ import { v2GetAuditLogContract } from '@/lib/api/contracts/v2/audit-logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
-import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/app/api/v1/audit-logs/query'
 import { checkRateLimit } from '@/app/api/v1/middleware'
+import { formatV2AuditLogEntry } from '@/app/api/v2/audit-logs/format'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
 
@@ -69,7 +69,7 @@ export const GET = withRouteHandler(
 
       if (!log) return v2Error('NOT_FOUND', 'Audit log not found')
 
-      return v2Data(formatAuditLogEntry(log), { rateLimit })
+      return v2Data(formatV2AuditLogEntry(log), { rateLimit })
     } catch (error) {
       logger.error(`[${requestId}] Audit log detail fetch error`, {
         error: getErrorMessage(error, 'Unknown error'),

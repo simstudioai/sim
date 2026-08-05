@@ -69,6 +69,7 @@ import {
   useRenameTable,
   useTablesList,
 } from '@/hooks/queries/tables'
+import { getCanonicalFolderPath } from '@/hooks/queries/utils/folder-tree'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
@@ -886,7 +887,7 @@ export function Tables() {
         try {
           await importCsv.mutateAsync({
             workspaceId,
-            folderId: currentFolderId,
+            folderPath: getCanonicalFolderPath(currentFolderId, folderById),
             file,
             onCreated: (createdImportId) => {
               importId = createdImportId

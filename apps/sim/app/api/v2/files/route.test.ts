@@ -1,7 +1,5 @@
 /**
  * @vitest-environment node
- *
- * Public v2 files list: gate ordering and the `scope` split that makes Recently Deleted reachable.
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,12 +10,14 @@ const {
   mockQueryWorkspaceFiles,
   mockResolveWorkspaceAccess,
   mockV2ApiGateError,
+  mockLoadActiveFolderPathIndex,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockPerformCreateWorkspaceFile: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
   mockQueryWorkspaceFiles: vi.fn(),
   mockV2ApiGateError: vi.fn().mockResolvedValue(null),
+  mockLoadActiveFolderPathIndex: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -31,6 +31,10 @@ vi.mock('@/app/api/v2/lib/gate', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   queryWorkspaceFiles: mockQueryWorkspaceFiles,
+}))
+
+vi.mock('@/lib/folders/queries', () => ({
+  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
 }))
 
 vi.mock('@/lib/workspace-files/orchestration', () => ({
@@ -82,7 +86,6 @@ function buildRecord(overrides: Record<string, unknown> = {}) {
 
 /** What the route forwards for a bare `?workspaceId=` list. */
 const DEFAULT_LIST_ARGS = {
-  scope: 'active',
   folderId: undefined,
   search: undefined,
   sortBy: 'uploadedAt',
@@ -108,6 +111,14 @@ describe('GET /api/v2/files', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockQueryWorkspaceFiles.mockResolvedValue({ files: [buildRecord()], nextKeys: null })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['fold_1', { id: 'fold_1', name: 'Reports', parentId: null }]]),
+      pathById: new Map([['fold_1', '/Reports']]),
+      idByPath: new Map([
+        ['/Reports', 'fold_1'],
+        ['/Fixtures', 'fold_1'],
+      ]),
+    })
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
@@ -171,8 +182,7 @@ describe('GET /api/v2/files', () => {
         size: 1024,
         type: 'text/csv',
         key: 'workspace/ws/1-x-data.csv',
-        folderId: FOLDER_ID,
-        folderPath: 'Reports/Q1',
+        folderPath: '/Reports/Q1',
         uploadedBy: 'user-1',
         uploadedAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-02T00:00:00.000Z',
@@ -181,26 +191,17 @@ describe('GET /api/v2/files', () => {
     expect(mockQueryWorkspaceFiles).toHaveBeenCalledWith(WS, DEFAULT_LIST_ARGS)
   })
 
-  it('defaults to the active scope and passes archived through', async () => {
+  it('lists active files only and rejects the removed archived scope', async () => {
     await callList(`workspaceId=${WS}`)
     expect(mockQueryWorkspaceFiles).toHaveBeenCalledWith(WS, DEFAULT_LIST_ARGS)
 
-    const archived = buildRecord({ id: 'wf_gone', name: 'gone.csv' })
-    mockQueryWorkspaceFiles.mockResolvedValue({ files: [archived], nextKeys: null })
-
     const res = await callList(`workspaceId=${WS}&scope=archived`)
-    const body = await res.json()
-
-    expect(mockQueryWorkspaceFiles).toHaveBeenLastCalledWith(WS, {
-      ...DEFAULT_LIST_ARGS,
-      scope: 'archived',
-    })
-    expect(body.data.map((f: { id: string }) => f.id)).toEqual(['wf_gone'])
+    expect(res.status).toBe(400)
   })
 
   it('forwards search, folder, and sort into the query rather than filtering the result', async () => {
     await callList(
-      `workspaceId=${WS}&search=report&folderId=${FOLDER_ID}&sortBy=name&sortOrder=desc`
+      `workspaceId=${WS}&search=report&folderPath=${encodeURIComponent('/Reports')}&sortBy=name&sortOrder=desc`
     )
 
     expect(mockQueryWorkspaceFiles).toHaveBeenCalledWith(WS, {
@@ -209,6 +210,15 @@ describe('GET /api/v2/files', () => {
       search: 'report',
       sortBy: 'name',
       sortOrder: 'desc',
+    })
+  })
+
+  it('treats folderPath=/ as root-only while omission lists every folder', async () => {
+    await callList(`workspaceId=${WS}&folderPath=%2F`)
+
+    expect(mockQueryWorkspaceFiles).toHaveBeenCalledWith(WS, {
+      ...DEFAULT_LIST_ARGS,
+      folderId: null,
     })
   })
 
@@ -322,7 +332,7 @@ describe('POST /api/v2/files', () => {
       userId: 'user-1',
       name: 'untitled.md',
       contentType: 'text/markdown',
-      folderId: undefined,
+      folderId: null,
       content: Buffer.alloc(0),
       exactName: true,
       request,
@@ -344,7 +354,7 @@ describe('POST /api/v2/files', () => {
       workspaceId: WS,
       name: 'seed.bin',
       contentType: 'application/octet-stream',
-      folderId: FOLDER_ID,
+      folderPath: '/Fixtures',
       content: Buffer.from([1, 2, 3]).toString('base64'),
       encoding: 'base64',
     })
