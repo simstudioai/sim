@@ -271,7 +271,6 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       condition: { field: 'operation', value: 'instagram_publish_carousel' },
       mode: 'basic',
       multiple: true,
-      hideFromCopilot: true,
       required: { field: 'operation', value: 'instagram_publish_carousel' },
     },
     {
