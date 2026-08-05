@@ -10,6 +10,7 @@ import type {
   PredicateNode,
   SortSpec,
   TablePredicate,
+  TablePredicateInput,
 } from '@/lib/table/types'
 
 /**
@@ -113,7 +114,7 @@ function validateLeaf(leaf: Predicate, typeByName: Map<string, ColumnType> | nul
  * dual-grammar boundaries where the predicate may be NAME- or ID-keyed, so a
  * column-existence check against either keying would be wrong.
  */
-export function validatePredicateShape(predicate: TablePredicate): void {
+export function validatePredicateShape(predicate: TablePredicateInput): void {
   validateNode(predicate, null)
 }
 
@@ -123,7 +124,7 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> |
   // a raw TypeError. Fail with a clean, actionable message instead.
   if (typeof node !== 'object' || node === null) {
     throw new TableQueryValidationError(
-      'Filter must be a predicate object ({ all | any: [...] }).',
+      'Filter must be a predicate condition ({ field, op, value }) or group ({ all | any: [...] }).',
       'INVALID_FILTER'
     )
   }
@@ -179,7 +180,7 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> |
     )
     throw new TableQueryValidationError(
       looksLegacy
-        ? 'Filter uses the legacy operator-object grammar. Use a predicate tree instead: { all: [{ field, op, value }] } (or "any" for OR), with bare operators like eq/gte/contains/in.'
+        ? 'Filter uses the legacy operator-object grammar. Use a predicate condition instead: { field, op, value }, or an "all"/"any" group for multiple conditions, with bare operators like eq/gte/contains/in.'
         : 'A filter node must be a group ({ all | any: [...] }) or a condition ({ field, op, value }).',
       'INVALID_FILTER'
     )
@@ -192,7 +193,10 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> |
  * exists, no equality/containment op targets a `json` column, `in`/`nin` carry a
  * non-empty array. Throws {@link TableQueryValidationError} (`INVALID_FILTER`).
  */
-export function validatePredicate(predicate: TablePredicate, columns: ColumnDefinition[]): void {
+export function validatePredicate(
+  predicate: TablePredicateInput,
+  columns: ColumnDefinition[]
+): void {
   validateNode(predicate, buildTypeByName(columns))
 }
 

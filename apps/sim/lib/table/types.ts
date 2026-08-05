@@ -538,6 +538,8 @@ export interface Predicate {
  */
 export type PredicateNode = Predicate | TablePredicate
 export type TablePredicate = { all: PredicateNode[] } | { any: PredicateNode[] }
+/** Accepted v2 filter input: either one bare condition or an explicit logical group. */
+export type TablePredicateInput = PredicateNode
 
 /** v2 sort specification: an ordered list of `{ field, direction }`. */
 export type SortSpec = Array<{ field: string; direction: SortDirection }>

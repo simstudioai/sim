@@ -33,6 +33,7 @@ import {
   TABLE_LIMITS,
 } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
+import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
@@ -510,21 +511,30 @@ const predicateTreeSchema: z.ZodType<TablePredicate> = z.lazy(() =>
 )
 const predicateGroupSchema = predicateTreeSchema
 
+const predicateBoundarySchema = z.unknown().superRefine((value, ctx) => {
+  const problem = predicateTreeTooLarge(value)
+  if (problem) ctx.addIssue({ code: 'custom', message: problem })
+})
+
 /**
- * The boundary predicate schema: depth/size guard first, then the recursive
- * structural parse. The guard is only applied at the top level — every nested
- * group is strictly shallower, so re-checking inside the recursion would be
- * redundant work on the hot path.
+ * The canonical grouped predicate schema for dual-grammar boundaries. Keeping
+ * its root group-only prevents a legacy filter with columns named `field`,
+ * `op`, and `value` from being reinterpreted as a v2 predicate.
  */
-export const predicateSchema = z
-  .unknown()
-  .superRefine((value, ctx) => {
-    const problem = predicateTreeTooLarge(value)
-    if (problem) ctx.addIssue({ code: 'custom', message: problem })
-  })
+export const predicateSchema = predicateBoundarySchema
   // double-cast-allowed: the pipe's inferred input is `unknown`, and letting TS
   // widen the recursive lazy union through it makes typecheck OOM
   .pipe(predicateTreeSchema) as unknown as z.ZodType<TablePredicate>
+
+/**
+ * The v2-only input schema accepts either a root leaf or a logical group and
+ * always outputs the canonical grouped shape. The depth/size guard runs before
+ * recursive parsing so pathological input returns a validation error, not a
+ * stack overflow.
+ */
+export const predicateInputSchema = predicateBoundarySchema
+  .pipe(predicateNodeSchema)
+  .transform(normalizeTablePredicate) as z.ZodType<TablePredicate, PredicateNode>
 
 /** v2 sort wire format: an ordered list of `{ field, direction }`. */
 export const sortSpecSchema: z.ZodType<SortSpec> = z
@@ -871,7 +881,7 @@ export const listTableRowsContract = defineRouteContract({
  */
 export const rowQueryBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  predicate: predicateSchema.optional(),
+  predicate: predicateInputSchema.optional(),
   sort: sortSpecSchema.optional(),
   // Omitted limit returns the ENTIRE matching result, failing fast (400) when
   // it exceeds the response byte budget. An explicit limit caps the page row
@@ -1770,7 +1780,7 @@ export const tableViewConfigSchema = tableMetadataSchema.extend({
   // The v2 predicate/sort grammar — same wire as the query routes, so a saved
   // view gets the same strictness and depth bounds as a live filter, and its
   // config can later feed the v2 surfaces without conversion.
-  filter: predicateSchema.nullable().optional(),
+  filter: predicateInputSchema.nullable().optional(),
   sort: sortSpecSchema.nullable().optional(),
 }) satisfies z.ZodType<TableViewConfig>
 
