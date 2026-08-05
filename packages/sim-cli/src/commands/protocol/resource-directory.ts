@@ -15,6 +15,7 @@ import {
 import { SimApiError, type SimClient, type V2Page } from '../../http/client.js'
 import { type Column, printList, text, timestamp } from '../../output/render.js'
 import { DEFAULT_LIMIT } from '../../runtime/options.js'
+import { renderResult } from '../../runtime/result.js'
 
 type FolderListOperation =
   | 'listFileFolders'
@@ -43,14 +44,30 @@ interface DirectoryEntry {
 }
 
 type ResourceDirectoryConfig =
-  | { kind: 'file'; resources: 'listFiles'; folders: 'listFileFolders' }
+  | {
+      kind: 'file'
+      resources: 'listFiles'
+      folders: 'listFileFolders'
+      createFolder: 'createFileFolder'
+    }
   | {
       kind: 'knowledge'
       resources: 'listKnowledgeBases'
       folders: 'listKnowledgeFolders'
+      createFolder: 'createKnowledgeFolder'
     }
-  | { kind: 'table'; resources: 'listTables'; folders: 'listTableFolders' }
-  | { kind: 'workflow'; resources: 'listWorkflows'; folders: 'listWorkflowFolders' }
+  | {
+      kind: 'table'
+      resources: 'listTables'
+      folders: 'listTableFolders'
+      createFolder: 'createTableFolder'
+    }
+  | {
+      kind: 'workflow'
+      resources: 'listWorkflows'
+      folders: 'listWorkflowFolders'
+      createFolder: 'createWorkflowFolder'
+    }
 
 interface ListOptions {
   folder: string
@@ -141,7 +158,10 @@ function entriesFor(
   )
 }
 
-export function attachResourceList(group: Command, config: ResourceDirectoryConfig): void {
+export function attachResourceDirectoryCommands(
+  group: Command,
+  config: ResourceDirectoryConfig
+): void {
   group
     .command('ls')
     .description(`List ${config.kind} resources and child folders together`)
@@ -167,5 +187,18 @@ export function attachResourceList(group: Command, config: ResourceDirectoryConf
       ])
       const entries = entriesFor(config, folders, resources)
       printList(profile.output, entries.slice(0, limit), COLUMNS)
+    })
+
+  group
+    .command('mkdir <path>')
+    .description(`Create a ${config.kind} directory at a canonical path`)
+    .action(async (path: string, _options: Record<string, never>, command: Command) => {
+      const { client, profile } = clientFrom(command)
+      const operation = V2_OPERATIONS[config.createFolder]
+      const result = await client.request<{ data?: unknown }>(operation.path, {
+        method: operation.method,
+        body: { workspaceId: client.requireWorkspace(), path },
+      })
+      renderResult(config.createFolder, profile.output, result.data ?? result, {})
     })
 }

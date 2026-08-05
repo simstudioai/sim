@@ -34,11 +34,12 @@ beforeEach(() => {
   output.format = 'json'
 })
 
-describe('resource ls', () => {
-  it('is available for every folder-backed resource', () => {
+describe('resource directory', () => {
+  it('makes ls and mkdir available for every folder-backed resource', () => {
     for (const resource of ['files', 'knowledge', 'tables', 'workflows']) {
       const group = program().commands.find((command) => command.name() === resource)
       expect(group?.commands.some((command) => command.name() === 'ls')).toBe(true)
+      expect(group?.commands.some((command) => command.name() === 'mkdir')).toBe(true)
     }
   })
 
@@ -123,5 +124,27 @@ describe('resource ls', () => {
         updatedAt: '2026-08-03T00:00:00.000Z',
       },
     ])
+  })
+
+  it('creates a folder through the generated resource operation', async () => {
+    mockRequest.mockResolvedValue({
+      data: {
+        folder: {
+          name: 'Quarterly',
+          path: '/Reports/Quarterly',
+          parentPath: '/Reports',
+          createdAt: '2026-08-04T00:00:00.000Z',
+          updatedAt: '2026-08-04T00:00:00.000Z',
+        },
+      },
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await program().parseAsync(['node', 'sim', 'table', 'mkdir', '/Reports/Quarterly'])
+
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/folders', {
+      method: 'POST',
+      body: { workspaceId: 'ws_local', path: '/Reports/Quarterly' },
+    })
   })
 })

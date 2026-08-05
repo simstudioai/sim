@@ -161,14 +161,16 @@ Each folder-backed resource has the same path commands:
 
 ```bash
 sim tables folders ls --parent /Reports
+sim tables mkdir /Reports/Quarterly
 sim tables folders create /Reports/Quarterly
 sim tables folders mv /Reports/Quarterly /Archive/Quarterly
 sim tables folders delete /Archive/Quarterly --recursive false --yes
 ```
 
-Replace `tables` with `files`, `workflows`, or `knowledge`. Paths are canonical,
-start with `/`, and use `/` for root. A slash that belongs to a folder name is
-percent-encoded as `%2F` rather than treated as a separator.
+`mkdir` is the concise form of `folders create`. Replace `tables` with `files`,
+`workflows`, or `knowledge`. Paths are canonical, start with `/`, and use `/` for
+root. A slash that belongs to a folder name is percent-encoded as `%2F` rather
+than treated as a separator.
 
 ### List inputs
 
