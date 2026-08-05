@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import { type V2LogListItem, v2ListLogsContract } from '@/lib/api/contracts/v2/logs'
 import { parseRequest } from '@/lib/api/server'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -179,8 +180,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             if (params.includeFinalOutput && execData.finalOutput) {
               item.finalOutput = execData.finalOutput
             }
-            if (params.includeTraceSpans && execData.traceSpans) {
-              item.traceSpans = execData.traceSpans
+            if (params.includeTraceSpans) {
+              item.traceSpans = traceSpansSchema.parse(execData.traceSpans ?? [])
             }
           }
           return item
