@@ -14762,19 +14762,39 @@
       "operationCount": 47,
       "triggers": [
         {
-          "id": "quickbooks_customer_events",
-          "name": "QuickBooks Customer Events",
-          "description": "Trigger when selected Customer events occur in QuickBooks"
-        },
-        {
           "id": "quickbooks_invoice_events",
           "name": "QuickBooks Invoice Events",
           "description": "Trigger when selected Invoice events occur in QuickBooks"
         },
         {
+          "id": "quickbooks_customer_events",
+          "name": "QuickBooks Customer Events",
+          "description": "Trigger when selected Customer events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_estimate_events",
+          "name": "QuickBooks Estimate Events",
+          "description": "Trigger when selected Estimate events occur in QuickBooks"
+        },
+        {
           "id": "quickbooks_payment_events",
           "name": "QuickBooks Payment Events",
           "description": "Trigger when selected Payment events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_credit_memo_events",
+          "name": "QuickBooks Credit Memo Events",
+          "description": "Trigger when selected Credit Memo events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_refund_receipt_events",
+          "name": "QuickBooks Refund Receipt Events",
+          "description": "Trigger when selected Refund Receipt events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_sales_receipt_events",
+          "name": "QuickBooks Sales Receipt Events",
+          "description": "Trigger when selected Sales Receipt events occur in QuickBooks"
         },
         {
           "id": "quickbooks_vendor_events",
@@ -14795,9 +14815,99 @@
           "id": "quickbooks_purchase_order_events",
           "name": "QuickBooks Purchase Order Events",
           "description": "Trigger when selected Purchase Order events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_purchase_events",
+          "name": "QuickBooks Purchase Events",
+          "description": "Trigger when selected Purchase events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_vendor_credit_events",
+          "name": "QuickBooks Vendor Credit Events",
+          "description": "Trigger when selected Vendor Credit events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_deposit_events",
+          "name": "QuickBooks Deposit Events",
+          "description": "Trigger when selected Deposit events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_journal_entry_events",
+          "name": "QuickBooks Journal Entry Events",
+          "description": "Trigger when selected Journal Entry events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_transfer_events",
+          "name": "QuickBooks Transfer Events",
+          "description": "Trigger when selected Transfer events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_item_events",
+          "name": "QuickBooks Item Events",
+          "description": "Trigger when selected Item events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_employee_events",
+          "name": "QuickBooks Employee Events",
+          "description": "Trigger when selected Employee events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_time_activity_events",
+          "name": "QuickBooks Time Activity Events",
+          "description": "Trigger when selected Time Activity events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_account_events",
+          "name": "QuickBooks Account Events",
+          "description": "Trigger when selected Account events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_budget_events",
+          "name": "QuickBooks Budget Events",
+          "description": "Trigger when selected Budget events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_class_events",
+          "name": "QuickBooks Class Events",
+          "description": "Trigger when selected Class events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_currency_events",
+          "name": "QuickBooks Currency Events",
+          "description": "Trigger when selected Currency events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_department_events",
+          "name": "QuickBooks Department Events",
+          "description": "Trigger when selected Department events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_journal_code_events",
+          "name": "QuickBooks Journal Code Events",
+          "description": "Trigger when selected Journal Code events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_payment_method_events",
+          "name": "QuickBooks Payment Method Events",
+          "description": "Trigger when selected Payment Method events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_preferences_updated",
+          "name": "QuickBooks Preferences Updated",
+          "description": "Trigger when QuickBooks Preferences are updated"
+        },
+        {
+          "id": "quickbooks_tax_agency_events",
+          "name": "QuickBooks Tax Agency Events",
+          "description": "Trigger when selected Tax Agency events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_term_events",
+          "name": "QuickBooks Term Events",
+          "description": "Trigger when selected Term events occur in QuickBooks"
         }
       ],
-      "triggerCount": 7,
+      "triggerCount": 29,
       "authType": "oauth",
       "oauthServiceId": "quickbooks",
       "category": "tools",
