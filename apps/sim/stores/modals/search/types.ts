@@ -22,6 +22,7 @@ export interface SearchBlockItem {
 export interface SearchToolOperationItem {
   id: string
   name: string
+  serviceName: string
   searchValue: string
   icon: ComponentType<{ className?: string }>
   bgColor: string
@@ -60,15 +61,14 @@ export const SEARCH_SECTIONS = [
   'actions',
   'connectedAccounts',
   'integrations',
-  'blocks',
-  'tools',
   'triggers',
-  // Resource groups follow the sidebar's top-down order.
   'chats',
+  'workflows',
   'tables',
   'files',
   'knowledgeBases',
-  'workflows',
+  'blocks',
+  'tools',
   'toolOperations',
   'workspaces',
   'docs',

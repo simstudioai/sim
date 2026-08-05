@@ -1,61 +1,17 @@
 'use client'
 
-import type { ComponentType, KeyboardEvent, MouseEvent, PointerEvent } from 'react'
+import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { ChipTag, cn } from '@sim/emcn'
-import { File, Pin, Workflow } from '@sim/emcn/icons'
+import { File, Workflow } from '@sim/emcn/icons'
 import { getMappedWorkflowTypeAccent } from '@sim/workflow-renderer'
 import { Command } from 'cmdk'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 
-interface ResultAdornmentProps {
+interface ResultMetaProps {
   meta?: string
-  pinned?: boolean
-  onTogglePin?: () => void
-}
-
-function stopRowSelection(event: PointerEvent<HTMLButtonElement>) {
-  event.preventDefault()
-  event.stopPropagation()
-}
-
-function stopEnterRowSelection(event: KeyboardEvent<HTMLButtonElement>) {
-  if (event.key === 'Enter') event.stopPropagation()
-}
-
-interface PinButtonProps {
-  pinned?: boolean
-  onTogglePin: () => void
-  hasOtherRightContent: boolean
-}
-
-function PinButton({ pinned, onTogglePin, hasOtherRightContent }: PinButtonProps) {
-  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    onTogglePin()
-  }
-
-  return (
-    <button
-      type='button'
-      aria-label={pinned ? 'Remove from favorites' : 'Add to favorites'}
-      aria-pressed={pinned}
-      className={cn(
-        'flex-shrink-0 pl-1 opacity-0 group-hover:opacity-100 group-aria-selected:opacity-100',
-        pinned ? 'text-[var(--text-body)] opacity-100' : 'text-[var(--text-icon)]',
-        !hasOtherRightContent && 'ml-auto'
-      )}
-      onKeyDown={stopEnterRowSelection}
-      onPointerDown={stopRowSelection}
-      onPointerUp={stopRowSelection}
-      onClick={handleClick}
-    >
-      <Pin className='size-[12px]' />
-    </button>
-  )
 }
 
 interface ItemMetaProps {
@@ -65,6 +21,33 @@ interface ItemMetaProps {
 function ItemMeta({ meta }: ItemMetaProps) {
   return (
     <span className='ml-auto flex-shrink-0 pl-2 text-[var(--text-subtle)] text-small'>{meta}</span>
+  )
+}
+
+interface ShortcutHintProps {
+  shortcut: string
+}
+
+const WORKSPACE_COLOR_REGEX = /^#[\da-f]{6}$/i
+
+function ShortcutHint({ shortcut }: ShortcutHintProps) {
+  const commandIndex = shortcut.indexOf('⌘')
+  const slots =
+    commandIndex === -1
+      ? ['', '', shortcut]
+      : [shortcut.slice(0, commandIndex), '⌘', shortcut.slice(commandIndex + 1)]
+
+  return (
+    <span
+      aria-label={`Keyboard shortcut ${shortcut}`}
+      className='ml-auto grid w-10 flex-shrink-0 grid-cols-3 text-center text-[var(--text-subtle)] text-small'
+    >
+      {slots.map((slot, index) => (
+        <span key={`${index}-${slot}`} aria-hidden='true'>
+          {slot}
+        </span>
+      ))}
+    </span>
   )
 }
 
@@ -78,8 +61,6 @@ export const MemoizedCommandItem = memo(
     workflowType,
     label,
     meta,
-    pinned,
-    onTogglePin,
   }: CommandItemProps) {
     const workflowAccent = workflowType ? getMappedWorkflowTypeAccent(workflowType) : null
 
@@ -110,13 +91,6 @@ export const MemoizedCommandItem = memo(
         )}
         <span className='truncate text-[var(--text-body)]'>{label}</span>
         {meta && <ItemMeta meta={meta} />}
-        {onTogglePin && (
-          <PinButton
-            pinned={pinned}
-            onTogglePin={onTogglePin}
-            hasOtherRightContent={Boolean(meta)}
-          />
-        )}
       </Command.Item>
     )
   },
@@ -127,8 +101,7 @@ export const MemoizedCommandItem = memo(
     prev.showColoredIcon === next.showColoredIcon &&
     prev.workflowType === next.workflowType &&
     prev.label === next.label &&
-    prev.meta === next.meta &&
-    prev.pinned === next.pinned
+    prev.meta === next.meta
 )
 
 export const MemoizedActionItem = memo(
@@ -139,33 +112,18 @@ export const MemoizedActionItem = memo(
     name,
     shortcut,
     meta,
-    pinned,
-    onTogglePin,
   }: {
     value: string
     onSelect: () => void
     icon: ComponentType<{ className?: string }>
     name: string
     shortcut?: string
-  } & ResultAdornmentProps) {
+  } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         <span className='truncate text-[var(--text-body)]'>{name}</span>
-        {meta ? (
-          <ItemMeta meta={meta} />
-        ) : shortcut ? (
-          <span className='ml-auto flex-shrink-0 text-[var(--text-subtle)] text-small'>
-            {shortcut}
-          </span>
-        ) : null}
-        {onTogglePin && (
-          <PinButton
-            pinned={pinned}
-            onTogglePin={onTogglePin}
-            hasOtherRightContent={Boolean(meta || shortcut)}
-          />
-        )}
+        {meta ? <ItemMeta meta={meta} /> : shortcut ? <ShortcutHint shortcut={shortcut} /> : null}
       </Command.Item>
     )
   },
@@ -174,8 +132,7 @@ export const MemoizedActionItem = memo(
     prev.icon === next.icon &&
     prev.name === next.name &&
     prev.shortcut === next.shortcut &&
-    prev.meta === next.meta &&
-    prev.pinned === next.pinned
+    prev.meta === next.meta
 )
 
 export const MemoizedWorkflowItem = memo(
@@ -186,15 +143,13 @@ export const MemoizedWorkflowItem = memo(
     folderPath,
     isCurrent,
     meta,
-    pinned,
-    onTogglePin,
   }: {
     value: string
     onSelect: () => void
     name: string
     folderPath?: string[]
     isCurrent?: boolean
-  } & ResultAdornmentProps) {
+  } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
@@ -219,13 +174,6 @@ export const MemoizedWorkflowItem = memo(
             <span className='min-w-0 truncate'>{folderPath[folderPath.length - 1]}</span>
           </span>
         ) : null}
-        {onTogglePin && (
-          <PinButton
-            pinned={pinned}
-            onTogglePin={onTogglePin}
-            hasOtherRightContent={Boolean(meta || folderPath?.length)}
-          />
-        )}
       </Command.Item>
     )
   },
@@ -234,7 +182,6 @@ export const MemoizedWorkflowItem = memo(
     prev.name === next.name &&
     prev.isCurrent === next.isCurrent &&
     prev.meta === next.meta &&
-    prev.pinned === next.pinned &&
     (prev.folderPath === next.folderPath ||
       (prev.folderPath?.length === next.folderPath?.length &&
         (prev.folderPath ?? []).every((segment, i) => segment === next.folderPath?.[i])))
@@ -247,14 +194,12 @@ export const MemoizedFileItem = memo(
     name,
     folderPath,
     meta,
-    pinned,
-    onTogglePin,
   }: {
     value: string
     onSelect: () => void
     name: string
     folderPath?: string[]
-  } & ResultAdornmentProps) {
+  } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
@@ -278,13 +223,6 @@ export const MemoizedFileItem = memo(
             <span className='min-w-0 truncate'>{folderPath[folderPath.length - 1]}</span>
           </span>
         ) : null}
-        {onTogglePin && (
-          <PinButton
-            pinned={pinned}
-            onTogglePin={onTogglePin}
-            hasOtherRightContent={Boolean(meta || folderPath?.length)}
-          />
-        )}
       </Command.Item>
     )
   },
@@ -292,7 +230,6 @@ export const MemoizedFileItem = memo(
     prev.value === next.value &&
     prev.name === next.name &&
     prev.meta === next.meta &&
-    prev.pinned === next.pinned &&
     (prev.folderPath === next.folderPath ||
       (prev.folderPath?.length === next.folderPath?.length &&
         (prev.folderPath ?? []).every((segment, i) => segment === next.folderPath?.[i])))
@@ -304,32 +241,19 @@ export const MemoizedTaskItem = memo(
     onSelect,
     name,
     meta,
-    pinned,
-    onTogglePin,
   }: {
     value: string
     onSelect: () => void
     name: string
-  } & ResultAdornmentProps) {
+  } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <span className='truncate text-[var(--text-body)]'>{name}</span>
         {meta && <ItemMeta meta={meta} />}
-        {onTogglePin && (
-          <PinButton
-            pinned={pinned}
-            onTogglePin={onTogglePin}
-            hasOtherRightContent={Boolean(meta)}
-          />
-        )}
       </Command.Item>
     )
   },
-  (prev, next) =>
-    prev.value === next.value &&
-    prev.name === next.name &&
-    prev.meta === next.meta &&
-    prev.pinned === next.pinned
+  (prev, next) => prev.value === next.value && prev.name === next.name && prev.meta === next.meta
 )
 
 export const MemoizedWorkspaceItem = memo(
@@ -338,29 +262,46 @@ export const MemoizedWorkspaceItem = memo(
     onSelect,
     name,
     isCurrent,
+    logoUrl,
+    color,
     meta,
-    pinned,
-    onTogglePin,
   }: {
     value: string
     onSelect: () => void
     name: string
     isCurrent?: boolean
-  } & ResultAdornmentProps) {
+    logoUrl?: string | null
+    color?: string
+  } & ResultMetaProps) {
+    const backgroundColor =
+      color && WORKSPACE_COLOR_REGEX.test(color) ? color : 'var(--brand-accent)'
+
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
+        {logoUrl ? (
+          <img
+            data-slot='workspace-icon'
+            src={logoUrl}
+            alt=''
+            className='size-[16px] flex-shrink-0 rounded-sm object-cover'
+          />
+        ) : (
+          <span
+            data-slot='workspace-icon'
+            aria-hidden='true'
+            className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm font-medium text-[9px] text-white leading-none'
+          >
+            <svg className='absolute inset-0 size-full' viewBox='0 0 16 16'>
+              <rect width='16' height='16' rx='2' fill={backgroundColor} />
+            </svg>
+            <span className='relative'>{name.charAt(0).toUpperCase() || 'W'}</span>
+          </span>
+        )}
         <span className='flex min-w-0 text-[var(--text-body)]'>
           <span className='truncate'>{name}</span>
           {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
         </span>
         {meta && <ItemMeta meta={meta} />}
-        {onTogglePin && (
-          <PinButton
-            pinned={pinned}
-            onTogglePin={onTogglePin}
-            hasOtherRightContent={Boolean(meta)}
-          />
-        )}
       </Command.Item>
     )
   },
@@ -368,8 +309,9 @@ export const MemoizedWorkspaceItem = memo(
     prev.value === next.value &&
     prev.name === next.name &&
     prev.isCurrent === next.isCurrent &&
-    prev.meta === next.meta &&
-    prev.pinned === next.pinned
+    prev.logoUrl === next.logoUrl &&
+    prev.color === next.color &&
+    prev.meta === next.meta
 )
 
 export const MemoizedPageItem = memo(
@@ -380,33 +322,18 @@ export const MemoizedPageItem = memo(
     name,
     shortcut,
     meta,
-    pinned,
-    onTogglePin,
   }: {
     value: string
     onSelect: () => void
     icon: ComponentType<{ className?: string }>
     name: string
     shortcut?: string
-  } & ResultAdornmentProps) {
+  } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         <span className='truncate text-[var(--text-body)]'>{name}</span>
-        {meta ? (
-          <ItemMeta meta={meta} />
-        ) : shortcut ? (
-          <span className='ml-auto flex-shrink-0 text-[var(--text-subtle)] text-small'>
-            {shortcut}
-          </span>
-        ) : null}
-        {onTogglePin && (
-          <PinButton
-            pinned={pinned}
-            onTogglePin={onTogglePin}
-            hasOtherRightContent={Boolean(meta || shortcut)}
-          />
-        )}
+        {meta ? <ItemMeta meta={meta} /> : shortcut ? <ShortcutHint shortcut={shortcut} /> : null}
       </Command.Item>
     )
   },
@@ -415,8 +342,7 @@ export const MemoizedPageItem = memo(
     prev.icon === next.icon &&
     prev.name === next.name &&
     prev.shortcut === next.shortcut &&
-    prev.meta === next.meta &&
-    prev.pinned === next.pinned
+    prev.meta === next.meta
 )
 
 export const MemoizedIconItem = memo(
@@ -426,26 +352,17 @@ export const MemoizedIconItem = memo(
     name,
     icon: Icon,
     meta,
-    pinned,
-    onTogglePin,
   }: {
     value: string
     onSelect: () => void
     name: string
     icon: ComponentType<{ className?: string }>
-  } & ResultAdornmentProps) {
+  } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         <span className='truncate text-[var(--text-body)]'>{name}</span>
         {meta && <ItemMeta meta={meta} />}
-        {onTogglePin && (
-          <PinButton
-            pinned={pinned}
-            onTogglePin={onTogglePin}
-            hasOtherRightContent={Boolean(meta)}
-          />
-        )}
       </Command.Item>
     )
   },
@@ -453,6 +370,5 @@ export const MemoizedIconItem = memo(
     prev.value === next.value &&
     prev.name === next.name &&
     prev.icon === next.icon &&
-    prev.meta === next.meta &&
-    prev.pinned === next.pinned
+    prev.meta === next.meta
 )

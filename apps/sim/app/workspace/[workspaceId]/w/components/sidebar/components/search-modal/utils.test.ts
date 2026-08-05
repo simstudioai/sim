@@ -6,8 +6,9 @@ import {
   filterAndCap,
   filterAndSort,
   fuzzyMatch,
-  getGlobalTopMatches,
-  getSectionNameMatches,
+  getActionGroupLabel,
+  getGlobalSearchResults,
+  getToolOperationLabel,
   MAX_RESULTS_PER_GROUP,
   type SearchEntry,
   scoreActions,
@@ -15,7 +16,33 @@ import {
   scoreSectionItems,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 
-describe('getGlobalTopMatches', () => {
+describe('getActionGroupLabel', () => {
+  const action = {
+    id: 'test-action',
+    name: 'Test action',
+    icon: () => null,
+    run: () => {},
+  }
+
+  it('separates workflow actions from platform actions', () => {
+    expect(getActionGroupLabel({ ...action, context: 'workflow' })).toBe('Workflow')
+    expect(getActionGroupLabel({ ...action, context: 'global' })).toBe('Platform')
+    expect(getActionGroupLabel({ ...action, context: 'integrations' })).toBe('Platform')
+  })
+
+  it('lets an action group label surface actions whose names do not match', () => {
+    const workflowAction = {
+      ...action,
+      name: 'Fit canvas to view',
+      context: 'workflow' as const,
+    }
+
+    expect(scoreActions([workflowAction], 'workflow', 50, 'Workflow')).toHaveLength(1)
+    expect(scoreActions([workflowAction], 'platform', 50, 'Workflow')).toHaveLength(0)
+  })
+})
+
+describe('getGlobalSearchResults', () => {
   it('merge-ranks results across every visible section', () => {
     const action: SearchEntry = {
       section: 'actions',
@@ -39,7 +66,7 @@ describe('getGlobalTopMatches', () => {
       item: { id: 'chat-1', name: 'New chat', href: '/chat-1' },
     }
 
-    const matches = getGlobalTopMatches(
+    const matches = getGlobalSearchResults(
       { actions: [action], workflows: [workflow], chats: [chat] },
       ['actions', 'workflows', 'chats']
     )
@@ -62,7 +89,7 @@ describe('getGlobalTopMatches', () => {
 
     expect(actionMatch.score).toBe(chatMatch.score)
     expect(
-      getGlobalTopMatches(
+      getGlobalSearchResults(
         {
           actions: [{ section: 'actions', ...actionMatch }],
           chats: [{ section: 'chats', ...chatMatch }],
@@ -72,31 +99,86 @@ describe('getGlobalTopMatches', () => {
     ).toEqual(['new-chat-action', 'new-chat-result'])
   })
 
-  it('keeps only the five highest-scoring entries', () => {
+  it('keeps every matching entry in score order', () => {
     const workflows: SearchEntry[] = Array.from({ length: 8 }, (_, index) => ({
       section: 'workflows',
       score: index,
       item: { id: `workflow-${index}`, name: `Workflow ${index}`, href: `/workflow-${index}` },
     }))
 
-    expect(getGlobalTopMatches({ workflows }, ['workflows']).map((entry) => entry.item.id)).toEqual(
-      ['workflow-7', 'workflow-6', 'workflow-5', 'workflow-4', 'workflow-3']
-    )
+    expect(
+      getGlobalSearchResults({ workflows }, ['workflows']).map((entry) => entry.item.id)
+    ).toEqual([
+      'workflow-7',
+      'workflow-6',
+      'workflow-5',
+      'workflow-4',
+      'workflow-3',
+      'workflow-2',
+      'workflow-1',
+      'workflow-0',
+    ])
+  })
+
+  it('places selected docs after selected tool operations without changing the result set', () => {
+    const Icon = () => null
+    const tool: SearchEntry = {
+      section: 'tools',
+      score: 100,
+      item: { id: 'whatsapp', name: 'WhatsApp', icon: Icon, bgColor: '#25D366', type: 'whatsapp' },
+    }
+    const docs: SearchEntry = {
+      section: 'docs',
+      score: 90,
+      item: { id: 'docs-whatsapp', name: 'WhatsApp', icon: Icon, href: '/whatsapp' },
+    }
+    const operation: SearchEntry = {
+      section: 'toolOperations',
+      score: 80,
+      item: {
+        id: 'whatsapp_upload_media',
+        name: 'Upload Media',
+        serviceName: 'WhatsApp',
+        searchValue: 'WhatsApp Upload Media',
+        icon: Icon,
+        bgColor: '#25D366',
+        blockType: 'whatsapp',
+        operationId: 'upload_media',
+      },
+    }
+
+    expect(
+      getGlobalSearchResults({ tools: [tool], docs: [docs], toolOperations: [operation] }, [
+        'tools',
+        'docs',
+        'toolOperations',
+      ]).map((entry) => entry.item.id)
+    ).toEqual(['whatsapp', 'whatsapp_upload_media', 'docs-whatsapp'])
   })
 })
 
-describe('getSectionNameMatches', () => {
-  const sections = ['actions', 'workflows', 'workspaces', 'chats', 'pages'] as const
+describe('getToolOperationLabel', () => {
+  const Icon = () => null
+  const operation = {
+    id: 'whatsapp_send_message',
+    name: 'Send Message',
+    serviceName: 'WhatsApp',
+    searchValue: 'WhatsApp Send Message',
+    icon: Icon,
+    bgColor: '#25D366',
+    blockType: 'whatsapp',
+    operationId: 'send_message',
+  }
 
-  it('promotes exact and partial section-name matches', () => {
-    expect(getSectionNameMatches(sections, 'Workspaces')).toEqual(['workspaces'])
-    expect(getSectionNameMatches(sections, 'chat')).toEqual(['chats'])
-    expect(getSectionNameMatches(sections, 'work')).toEqual(['workflows', 'workspaces'])
+  it('adds the integration breadcrumb when the integration name matched', () => {
+    expect(getToolOperationLabel(operation, 'WhatsApp')).toBe('WhatsApp · Send Message')
+    expect(getToolOperationLabel(operation, 'whats send')).toBe('WhatsApp · Send Message')
   })
 
-  it('does not change section priority for non-section or empty queries', () => {
-    expect(getSectionNameMatches(sections, 'settings')).toEqual([])
-    expect(getSectionNameMatches(sections, '')).toEqual([])
+  it('keeps the bare operation name for direct operation-name matches', () => {
+    expect(getToolOperationLabel(operation, 'Send Message')).toBe('Send Message')
+    expect(getToolOperationLabel(operation, 'message')).toBe('Send Message')
+    expect(getToolOperationLabel(operation, '')).toBe('Send Message')
   })
 })
 

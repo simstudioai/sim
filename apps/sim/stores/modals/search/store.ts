@@ -180,6 +180,7 @@ export const useSearchModalStore = create<SearchModalState>()(
             return {
               id: op.id,
               name: op.operationName,
+              serviceName: op.serviceName,
               searchValue: `${op.serviceName} ${op.operationName}${aliasesStr}`,
               icon: op.icon,
               bgColor: op.bgColor,

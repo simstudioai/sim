@@ -14,7 +14,6 @@ import {
   Key,
   Play,
   Plus,
-  Search,
   Send,
   Settings,
   Table,
@@ -30,8 +29,13 @@ import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { captureEvent } from '@/lib/posthog/client'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import {
+  CommandFadedList,
+  CommandSearch,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/command-chrome'
 import { SearchEntryGroup } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/search-groups'
 import type {
+  ActionGroupLabel,
   ActionItem,
   FileItem,
   IntegrationSearchItem,
@@ -44,13 +48,12 @@ import type {
   WorkspaceItem,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import {
-  getGlobalTopMatches,
-  getSectionNameMatches,
+  getActionGroupLabel,
+  getGlobalSearchResults,
   MAX_RESULTS_PER_GROUP,
   SECTION_LABELS,
   scoreActions,
   scoreSectionItems,
-  searchEntryKey,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import {
   CMDK_ITEM_GAP_CLASS,
@@ -59,7 +62,6 @@ import {
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useSearchFavoritesStore } from '@/stores/modals/search/favorites/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type {
   SearchBlockItem,
@@ -122,9 +124,6 @@ export function SearchModal({
     () => SEARCH_SECTIONS.filter((section) => !sections || sections.includes(section)),
     [sections]
   )
-  const favoriteKeys = useSearchFavoritesStore((state) => state.favorites)
-  const toggleFavorite = useSearchFavoritesStore((state) => state.toggleFavorite)
-  const favoriteSet = useMemo(() => new Set(favoriteKeys), [favoriteKeys])
 
   const openHelpModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('open-help-modal'))
@@ -172,7 +171,7 @@ export function SearchModal({
           name: 'Logs',
           icon: Library,
           href: `/workspace/${workspaceId}/logs`,
-          shortcut: '⌘⇧L',
+          shortcut: '⇧⌘L',
         },
         {
           id: 'secrets',
@@ -265,7 +264,7 @@ export function SearchModal({
       name: 'Fit workflow to view',
       keywords: 'zoom center recenter canvas reset',
       icon: Scan,
-      shortcut: '⌘⇧F',
+      shortcut: '⇧⌘F',
       context: 'workflow',
       run: () => invokeCommand('fit-to-view'),
     })
@@ -581,10 +580,7 @@ export function SearchModal({
     ) => {
       if (!visibleSections.has(section)) return []
       return query
-        ? scoreSectionItems(section, items, toValue, deferredSearch, toExtra).slice(
-            0,
-            MAX_RESULTS_PER_GROUP
-          )
+        ? scoreSectionItems(section, items, toValue, deferredSearch, toExtra, MAX_RESULTS_PER_GROUP)
         : items.map((item) => ({ item, score: 0 }))
     }
     const availableActions = actions.filter(
@@ -593,10 +589,21 @@ export function SearchModal({
         (action.context === 'workflow' && isOnWorkflowPage) ||
         (action.context === 'integrations' && isOnIntegrationsPage)
     )
+    const rankActionGroup = (items: ActionItem[], groupLabel: ActionGroupLabel) =>
+      query
+        ? scoreActions(items, deferredSearch, MAX_RESULTS_PER_GROUP, groupLabel)
+        : items.map((item) => ({ item, score: 0 }))
     const rankedActions = visibleSections.has('actions')
-      ? query
-        ? scoreActions(availableActions, deferredSearch)
-        : availableActions.map((item) => ({ item, score: 0 }))
+      ? [
+          ...rankActionGroup(
+            availableActions.filter((action) => getActionGroupLabel(action) === 'Workflow'),
+            'Workflow'
+          ),
+          ...rankActionGroup(
+            availableActions.filter((action) => getActionGroupLabel(action) === 'Platform'),
+            'Platform'
+          ),
+        ]
       : []
     const availableBlocks = isOnWorkflowPage
       ? blocks.filter(
@@ -608,8 +615,9 @@ export function SearchModal({
           (tool) => !tool.sourceWorkflowId || tool.sourceWorkflowId !== currentWorkflowId
         )
       : []
-    const rankedIntegrations =
-      isOnIntegrationsPage && query ? rank('integrations', integrations, (item) => item.name) : []
+    const rankedIntegrations = isOnIntegrationsPage
+      ? rank('integrations', integrations, (item) => item.name)
+      : []
 
     return {
       actions: rankedActions.map(({ item, score }) => ({ section: 'actions', item, score })),
@@ -711,44 +719,34 @@ export function SearchModal({
     pages,
   ])
 
-  const { matchingSectionGroups, remainingSectionGroups } = useMemo(() => {
-    const matchingSections = getSectionNameMatches(displaySections, deferredSearch)
-    const matchingSet = new Set<SearchSection>(matchingSections)
-    const toGroup = (section: SearchSection) => ({
-      section,
-      entries: entriesBySection[section],
-    })
-    return {
-      matchingSectionGroups: matchingSections.map(toGroup),
-      remainingSectionGroups: displaySections
-        .filter((section) => !matchingSet.has(section))
-        .map(toGroup),
-    }
-  }, [deferredSearch, displaySections, entriesBySection])
-
-  const globalTopMatches = useMemo(
-    () => (deferredSearch.trim() ? getGlobalTopMatches(entriesBySection, displaySections) : []),
-    [deferredSearch, entriesBySection, displaySections]
+  const isSearching = Boolean(deferredSearch.trim())
+  const searchResults = useMemo(
+    () => (isSearching ? getGlobalSearchResults(entriesBySection, displaySections) : []),
+    [displaySections, entriesBySection, isSearching]
   )
+  const sectionGroups = useMemo(
+    () =>
+      displaySections.flatMap((section) => {
+        const entries = entriesBySection[section]
+        if (section !== 'actions') {
+          return [{ key: section, heading: SECTION_LABELS[section], entries }]
+        }
 
-  const favoriteEntries = useMemo((): SearchEntry[] => {
-    const entriesByKey = new Map<string, SearchEntry>()
-    for (const section of displaySections) {
-      for (const entry of entriesBySection[section]) {
-        entriesByKey.set(searchEntryKey(entry), entry)
-      }
-    }
-    const entries: SearchEntry[] = []
-    for (const key of favoriteKeys) {
-      const entry = entriesByKey.get(key)
-      if (entry) entries.push(entry)
-    }
-    return deferredSearch.trim() ? entries.slice(0, MAX_RESULTS_PER_GROUP) : entries
-  }, [favoriteKeys, displaySections, entriesBySection, deferredSearch])
+        const platformEntries = entries.filter(
+          (entry) => entry.section === 'actions' && getActionGroupLabel(entry.item) === 'Platform'
+        )
+        const workflowEntries = entries.filter(
+          (entry) => entry.section === 'actions' && getActionGroupLabel(entry.item) === 'Workflow'
+        )
 
-  const handleToggleFavorite = useCallback(
-    (entry: SearchEntry) => toggleFavorite(searchEntryKey(entry)),
-    [toggleFavorite]
+        return [
+          ...(isOnWorkflowPage
+            ? [{ key: 'workflow-actions', heading: 'Workflow', entries: workflowEntries }]
+            : []),
+          { key: 'platform-actions', heading: 'Platform', entries: platformEntries },
+        ]
+      }),
+    [displaySections, entriesBySection, isOnWorkflowPage]
   )
 
   const entryHandlers = useMemo(
@@ -817,69 +815,49 @@ export function SearchModal({
         }}
       >
         <div className='overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
-          <Command label='Search' shouldFilter={false}>
-            <div className='mx-2 mt-2 flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-              <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-              <Command.Input
+          <Command label='Search' shouldFilter={false} loop>
+            <div className='relative'>
+              <CommandFadedList
+                fade='palette'
+                className={cn(
+                  'scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[448px] [clip-path:inset(3px_round_13px)]',
+                  CMDK_ITEM_GAP_CLASS,
+                  CMDK_SECTION_GAP_CLASS
+                )}
+              >
+                <Command.Empty className='flex items-center justify-center px-4 py-6 text-[var(--text-subtle)] text-sm'>
+                  No results found.
+                </Command.Empty>
+
+                {isSearching ? (
+                  <SearchEntryGroup
+                    variant='results'
+                    search={deferredSearch}
+                    entries={searchResults}
+                    handlers={entryHandlers}
+                  />
+                ) : (
+                  sectionGroups.map(({ key, heading, entries }) => (
+                    <SearchEntryGroup
+                      key={key}
+                      variant='section'
+                      heading={heading}
+                      entries={entries}
+                      handlers={entryHandlers}
+                    />
+                  ))
+                )}
+              </CommandFadedList>
+              <CommandSearch
                 ref={inputRef}
+                surface='palette'
+                cycleResultsOnTab
                 autoFocus
+                aria-label='Search anything'
                 onValueChange={handleSearchChange}
                 placeholder='Search anything...'
-                className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
               />
             </div>
-            <Command.List
-              className={cn(
-                'scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col',
-                CMDK_ITEM_GAP_CLASS,
-                CMDK_SECTION_GAP_CLASS
-              )}
-            >
-              <Command.Empty className='flex items-center justify-center px-4 py-6 text-[var(--text-subtle)] text-sm'>
-                No results found.
-              </Command.Empty>
-
-              {globalTopMatches.length > 0 && (
-                <SearchEntryGroup
-                  variant='topMatch'
-                  entries={globalTopMatches}
-                  handlers={entryHandlers}
-                  favorites={favoriteSet}
-                  onToggleFavorite={handleToggleFavorite}
-                />
-              )}
-              {matchingSectionGroups.map(({ section, entries }) => (
-                <SearchEntryGroup
-                  key={section}
-                  variant='section'
-                  heading={SECTION_LABELS[section]}
-                  entries={entries}
-                  handlers={entryHandlers}
-                  favorites={favoriteSet}
-                  onToggleFavorite={handleToggleFavorite}
-                />
-              ))}
-              {favoriteEntries.length > 0 && (
-                <SearchEntryGroup
-                  variant='favorites'
-                  entries={favoriteEntries}
-                  handlers={entryHandlers}
-                  favorites={favoriteSet}
-                  onToggleFavorite={handleToggleFavorite}
-                />
-              )}
-              {remainingSectionGroups.map(({ section, entries }) => (
-                <SearchEntryGroup
-                  key={section}
-                  variant='section'
-                  heading={SECTION_LABELS[section]}
-                  entries={entries}
-                  handlers={entryHandlers}
-                  favorites={favoriteSet}
-                  onToggleFavorite={handleToggleFavorite}
-                />
-              ))}
-            </Command.List>
           </Command>
         </div>
       </div>

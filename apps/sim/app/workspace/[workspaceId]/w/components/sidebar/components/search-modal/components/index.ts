@@ -1,3 +1,4 @@
+export { CommandFadedList, CommandSearch } from './command-chrome'
 export {
   MemoizedCommandItem,
   MemoizedFileItem,

@@ -771,6 +771,8 @@ export const Sidebar = memo(function Sidebar({
         name: workspace.name,
         href: `/workspace/${workspace.id}/w`,
         isCurrent: workspace.id === workspaceId,
+        logoUrl: workspace.logoUrl,
+        color: workspace.color,
       })),
     [workspaces, workspaceId]
   )
@@ -1297,7 +1299,8 @@ export const Sidebar = memo(function Sidebar({
       {
         id: 'open-search',
         handler: () => {
-          openSearchModal()
+          const searchModal = useSearchModalStore.getState()
+          searchModal.setOpen(!searchModal.isOpen)
         },
       },
       {

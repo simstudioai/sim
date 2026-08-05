@@ -37,6 +37,8 @@ export interface WorkspaceItem {
   name: string
   href: string
   isCurrent?: boolean
+  logoUrl?: string | null
+  color?: string
 }
 
 export interface PageItem {
@@ -69,6 +71,13 @@ export interface ActionItem {
   shortcut?: string
   context: ActionContext
   run: () => void
+}
+
+export type ActionGroupLabel = 'Platform' | 'Workflow'
+
+/** Presentation group for an action without changing its stable result identity. */
+export function getActionGroupLabel(action: ActionItem): ActionGroupLabel {
+  return action.context === 'workflow' ? 'Workflow' : 'Platform'
 }
 
 export interface SearchModalProps {
@@ -106,14 +115,10 @@ export interface CommandItemProps {
   label: string
   /** Right-aligned source section shown in aggregate result groups. */
   meta?: string
-  /** Whether this result is pinned. */
-  pinned?: boolean
-  /** Toggles this result's pinned state. */
-  onTogglePin?: () => void
 }
 
 export const SECTION_LABELS: Record<SearchSection, string> = {
-  actions: 'Actions',
+  actions: 'Platform',
   connectedAccounts: 'Connected',
   integrations: 'Integrations',
   blocks: 'Blocks',
@@ -129,8 +134,6 @@ export const SECTION_LABELS: Record<SearchSection, string> = {
   docs: 'Docs',
   pages: 'Pages',
 }
-
-export const TOP_MATCH_COUNT = 5
 
 export type SearchEntry =
   | { section: 'actions'; score: number; item: ActionItem }
@@ -163,18 +166,13 @@ export interface SearchEntryHandlers {
   onSelectPage: (item: PageItem) => void
 }
 
-/** Stable, section-qualified identity used by the persisted favorites store. */
-export function searchEntryKey(entry: SearchEntry): string {
-  return `${entry.section}:${entry.item.id}`
-}
-
-/** Merge-ranks visible sections into the five highest-scoring results. */
-export function getGlobalTopMatches(
+/** Merge-ranks every match from the visible sections into one flat result list. */
+export function getGlobalSearchResults(
   entriesBySection: Partial<Record<SearchSection, readonly SearchEntry[]>>,
   sections: readonly SearchSection[]
 ): SearchEntry[] {
   const sectionOrder = new Map(sections.map((section, index) => [section, index]))
-  const topMatches: Array<{ entry: SearchEntry; originalIndex: number }> = []
+  const rankedMatches: Array<{ entry: SearchEntry; originalIndex: number }> = []
   let originalIndex = 0
 
   const compare = (
@@ -188,30 +186,25 @@ export function getGlobalTopMatches(
 
   for (const section of sections) {
     for (const entry of entriesBySection[section] ?? []) {
-      const candidate = { entry, originalIndex }
+      rankedMatches.push({ entry, originalIndex })
       originalIndex += 1
-      const insertionIndex = topMatches.findIndex((current) => compare(candidate, current) < 0)
-      if (insertionIndex === -1) {
-        if (topMatches.length < TOP_MATCH_COUNT) topMatches.push(candidate)
-        continue
-      }
-      topMatches.splice(insertionIndex, 0, candidate)
-      if (topMatches.length > TOP_MATCH_COUNT) topMatches.pop()
     }
   }
 
-  return topMatches.map(({ entry }) => entry)
-}
+  rankedMatches.sort(compare)
+  const matches = rankedMatches.map(({ entry }) => entry)
+  const integrationDetails = [
+    ...matches.filter((entry) => entry.section === 'toolOperations'),
+    ...matches.filter((entry) => entry.section === 'docs'),
+  ]
+  let integrationDetailIndex = 0
 
-/** Returns visible sections whose heading matches the query, strongest first. */
-export function getSectionNameMatches(
-  sections: readonly SearchSection[],
-  search: string
-): SearchSection[] {
-  if (!search.trim()) return []
-  return scoreAndSort([...sections], (section) => SECTION_LABELS[section], search).map(
-    ({ item }) => item
-  )
+  return matches.map((entry) => {
+    if (entry.section !== 'toolOperations' && entry.section !== 'docs') return entry
+    const orderedEntry = integrationDetails[integrationDetailIndex]
+    integrationDetailIndex += 1
+    return orderedEntry
+  })
 }
 
 export const GROUP_HEADING_CLASSNAME =
@@ -368,11 +361,12 @@ const NAME_MATCH_TIER = 1_000_000
  * an exact name hit isn't diluted by a long secondary string ("Agent" beats
  * "Pi Coding Agent" for the query "agent").
  */
-function scoreItem(name: string, extra: string | undefined, search: string): FuzzyResult {
+function scoreItem(name: string, search: string, getExtra?: () => string | undefined): FuzzyResult {
   const byName = fuzzyMatch(name, search)
   if (byName.matched) {
     return { matched: true, score: byName.score + NAME_MATCH_TIER, positions: byName.positions }
   }
+  const extra = getExtra?.()
   if (!extra) return NO_MATCH
   const byExtra = fuzzyMatch(extra, search)
   return byExtra.matched ? byExtra : NO_MATCH
@@ -388,27 +382,51 @@ export function scoreAndSort<T>(
   const query = search.trim()
   const scored: Array<{ item: T; score: number }> = []
   for (const item of items) {
-    const { matched, score } = scoreItem(toValue(item), toExtra?.(item), query)
+    const { matched, score } = scoreItem(
+      toValue(item),
+      query,
+      toExtra ? () => toExtra(item) : undefined
+    )
     if (matched) scored.push({ item, score })
   }
   scored.sort((a, b) => b.score - a.score)
   return scored
 }
 
+function matchesIntegrationQuery(integrationName: string, search: string): boolean {
+  const query = search.trim()
+  if (!query) return false
+
+  return query.split(/\s+/).some((term) => fuzzyMatch(integrationName, term).matched)
+}
+
+/** Adds integration context only when it, rather than the operation name, matched the query. */
+export function getToolOperationLabel(operation: SearchToolOperationItem, search: string): string {
+  const query = search.trim()
+  if (!query || fuzzyMatch(operation.name, query).matched) return operation.name
+
+  return matchesIntegrationQuery(operation.serviceName, query)
+    ? `${operation.serviceName} · ${operation.name}`
+    : operation.name
+}
+
 /**
  * Scores normal item matches first, then fills a matched section with its
  * remaining rows in natural order.
  */
-export function scoreSectionItems<T>(
-  section: SearchSection,
+function scoreItemsForSection<T>(
+  sectionLabel: string,
   items: T[],
   toValue: (item: T) => string,
   search: string,
-  toExtra?: (item: T) => string | undefined
+  toExtra?: (item: T) => string | undefined,
+  maxResults = Number.POSITIVE_INFINITY
 ): Array<{ item: T; score: number }> {
   const rankedItems = scoreAndSort(items, toValue, search, toExtra)
-  const sectionMatch = fuzzyMatch(SECTION_LABELS[section], search.trim())
-  if (!sectionMatch.matched) return rankedItems
+  const sectionMatch = fuzzyMatch(sectionLabel, search.trim())
+  if (!sectionMatch.matched || rankedItems.length >= maxResults) {
+    return rankedItems.slice(0, maxResults)
+  }
 
   const matchedItems = new Set(rankedItems.map(({ item }) => item))
   const lowestItemScore = rankedItems.at(-1)?.score
@@ -417,25 +435,39 @@ export function scoreSectionItems<T>(
       ? sectionMatch.score
       : Math.min(sectionMatch.score, lowestItemScore - 1)
 
-  return [
-    ...rankedItems,
-    ...items
-      .filter((item) => !matchedItems.has(item))
-      .map((item) => ({ item, score: fallbackScore })),
-  ]
+  const results = [...rankedItems]
+  for (const item of items) {
+    if (!matchedItems.has(item)) results.push({ item, score: fallbackScore })
+    if (results.length >= maxResults) break
+  }
+  return results
+}
+
+export function scoreSectionItems<T>(
+  section: SearchSection,
+  items: T[],
+  toValue: (item: T) => string,
+  search: string,
+  toExtra?: (item: T) => string | undefined,
+  maxResults = Number.POSITIVE_INFINITY
+): Array<{ item: T; score: number }> {
+  return scoreItemsForSection(SECTION_LABELS[section], items, toValue, search, toExtra, maxResults)
 }
 
 /** Scores actions by visible name before falling back to their keywords. */
 export function scoreActions(
   actions: ActionItem[],
-  search: string
+  search: string,
+  maxResults = Number.POSITIVE_INFINITY,
+  groupLabel: ActionGroupLabel = 'Platform'
 ): Array<{ item: ActionItem; score: number }> {
-  return scoreSectionItems(
-    'actions',
+  return scoreItemsForSection(
+    groupLabel,
     actions,
     (action) => action.name,
     search,
-    (action) => `${action.name} ${action.keywords ?? ''}`
+    (action) => `${action.name} ${action.keywords ?? ''}`,
+    maxResults
   )
 }
 

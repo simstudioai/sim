@@ -51,34 +51,29 @@ describe('MemoizedActionItem', () => {
     }
   })
 
-  it('toggles its pin without selecting the enclosing command row', () => {
-    const onSelect = vi.fn()
-    const onTogglePin = vi.fn()
-
+  it('centers the command glyph in a fixed three-slot shortcut hint', () => {
     act(() => {
       root.render(
         <Command>
           <Command.List>
             <MemoizedActionItem
-              value='open-settings'
-              onSelect={onSelect}
+              value='run-workflow'
+              onSelect={vi.fn()}
               icon={TestIcon}
-              name='Open settings'
-              onTogglePin={onTogglePin}
+              name='Run workflow'
+              shortcut='⌘↵'
             />
           </Command.List>
         </Command>
       )
     })
 
-    const pinButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Add to favorites"]'
-    )
-    expect(pinButton).not.toBeNull()
-
-    act(() => pinButton?.click())
-
-    expect(onTogglePin).toHaveBeenCalledTimes(1)
-    expect(onSelect).not.toHaveBeenCalled()
+    const shortcut = container.querySelector('[aria-label="Keyboard shortcut ⌘↵"]')
+    expect(Array.from(shortcut?.children ?? []).map((slot) => slot.textContent)).toEqual([
+      '',
+      '⌘',
+      '↵',
+    ])
+    expect(container.querySelector('button[aria-label*="favorites"]')).toBeNull()
   })
 })

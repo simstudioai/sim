@@ -28,8 +28,9 @@ import type {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import {
   GROUP_HEADING_CLASSNAME,
+  getActionGroupLabel,
+  getToolOperationLabel,
   SECTION_LABELS,
-  searchEntryKey,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import type {
   SearchBlockItem,
@@ -46,7 +47,7 @@ export const ActionsGroup = memo(function ActionsGroup({
 }) {
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Actions' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading='Platform' className={GROUP_HEADING_CLASSNAME}>
       {items.map((action) => (
         <MemoizedActionItem
           key={action.id}
@@ -252,6 +253,8 @@ export const WorkspacesGroup = memo(function WorkspacesGroup({
           onSelect={() => onSelect(workspace)}
           name={workspace.name}
           isCurrent={workspace.isCurrent}
+          logoUrl={workspace.logoUrl}
+          color={workspace.color}
         />
       ))}
     </Command.Group>
@@ -377,8 +380,7 @@ function createIconGroup(
 interface RenderEntryOptions {
   keyPrefix: string
   meta?: string
-  pinned: boolean
-  onTogglePin: () => void
+  search: string
 }
 
 function renderSearchEntry(
@@ -389,8 +391,6 @@ function renderSearchEntry(
   const key = `${options.keyPrefix}${entry.section}-${entry.item.id}`
   const rowProps = {
     meta: options.meta,
-    pinned: options.pinned,
-    onTogglePin: options.onTogglePin,
   }
 
   switch (entry.section) {
@@ -536,7 +536,7 @@ function renderSearchEntry(
           icon={entry.item.icon}
           bgColor={entry.item.bgColor}
           showColoredIcon
-          label={entry.item.name}
+          label={getToolOperationLabel(entry.item, options.search)}
           {...rowProps}
         />
       )
@@ -548,6 +548,8 @@ function renderSearchEntry(
           onSelect={() => handlers.onSelectWorkspace(entry.item)}
           name={entry.item.name}
           isCurrent={entry.item.isCurrent}
+          logoUrl={entry.item.logoUrl}
+          color={entry.item.color}
           {...rowProps}
         />
       )
@@ -580,40 +582,44 @@ function renderSearchEntry(
 }
 
 interface SearchEntryGroupProps {
-  variant: 'section' | 'topMatch' | 'favorites'
+  variant: 'section' | 'results'
   heading?: string
+  search?: string
   entries: SearchEntry[]
   handlers: SearchEntryHandlers
-  favorites: ReadonlySet<string>
-  onToggleFavorite: (entry: SearchEntry) => void
 }
 
 /** Renders ordinary and aggregate rows with their existing section chrome. */
 export const SearchEntryGroup = memo(function SearchEntryGroup({
   variant,
   heading,
+  search = '',
   entries,
   handlers,
-  favorites,
-  onToggleFavorite,
 }: SearchEntryGroupProps) {
   if (entries.length === 0) return null
 
-  const aggregate = variant !== 'section'
-  const groupHeading =
-    variant === 'topMatch' ? 'Top Match' : variant === 'favorites' ? 'Favorites' : heading
-  const keyPrefix = aggregate ? `${variant}-` : ''
+  const keyPrefix = variant === 'results' ? 'results-' : ''
+  const renderedEntries = entries.map((entry) =>
+    renderSearchEntry(entry, handlers, {
+      keyPrefix,
+      meta:
+        variant === 'results'
+          ? entry.section === 'actions'
+            ? getActionGroupLabel(entry.item)
+            : SECTION_LABELS[entry.section]
+          : undefined,
+      search,
+    })
+  )
+
+  if (variant === 'results') {
+    return <Command.Group className={GROUP_HEADING_CLASSNAME}>{renderedEntries}</Command.Group>
+  }
 
   return (
-    <Command.Group heading={groupHeading} className={GROUP_HEADING_CLASSNAME}>
-      {entries.map((entry) =>
-        renderSearchEntry(entry, handlers, {
-          keyPrefix,
-          meta: aggregate ? SECTION_LABELS[entry.section] : undefined,
-          pinned: favorites.has(searchEntryKey(entry)),
-          onTogglePin: () => onToggleFavorite(entry),
-        })
-      )}
+    <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
+      {renderedEntries}
     </Command.Group>
   )
 })
