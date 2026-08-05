@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { filterUndefined } from '@sim/utils/object'
@@ -152,9 +152,14 @@ export function useWand({
    * Mirrors {@link historyEpoch} for the in-flight request to read on completion.
    * A request that started before a reset must not append its turn to the fresh
    * history — its prompt and reply belong to the superseded context.
+   *
+   * Synced in a layout effect, not a passive one: passive effects flush in a later
+   * task, so a request settling between the reset's commit and that flush would
+   * still read the old epoch and append anyway. Layout effects run synchronously
+   * during commit, before any promise continuation can observe the ref.
    */
   const historyEpochRef = useRef(historyEpoch)
-  useEffect(() => {
+  useLayoutEffect(() => {
     historyEpochRef.current = historyEpoch
   }, [historyEpoch])
 

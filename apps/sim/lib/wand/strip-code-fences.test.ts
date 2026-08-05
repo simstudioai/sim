@@ -40,6 +40,11 @@ describe('stripCodeFences', () => {
     expect(stripCodeFences(fenced)).toBe('const md = `\n```\nhello\n```\n`;\nreturn md;')
   })
 
+  it('keeps every line when a body with nested fences is truncated mid-response', () => {
+    const truncated = '```javascript\nconst md = `\n```\nhello\n`;\nreturn md;'
+    expect(stripCodeFences(truncated)).toBe('const md = `\n```\nhello\n`;\nreturn md;')
+  })
+
   it('preserves a fenced docstring inside a Python body', () => {
     const fenced = '```python\ntemplate = """\n```sql\nSELECT 1\n```\n"""\nreturn template\n```'
     expect(stripCodeFences(fenced)).toBe(

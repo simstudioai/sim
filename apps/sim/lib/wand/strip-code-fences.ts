@@ -57,13 +57,16 @@ export function shouldStripCodeFences(generationType?: string): boolean {
  * a false positive here would corrupt working code, which is far worse than
  * leaving a rare unwrapped response for the user to fix.
  *
- * Only the outermost delimiters are removed: everything between the first and
- * last fence line is kept verbatim, including any fence lines inside it. A
- * generated body may legitimately contain line-leading backticks (code that
- * builds a markdown string), and pairing delimiters off would silently discard
- * the lines between them. The cost is that a model which answers with several
- * fenced blocks and prose between them keeps that prose — visibly wrong output
- * the user can re-roll, rather than code quietly missing a chunk.
+ * Only two lines can ever be removed: the opening fence, and the final line when
+ * it is also a fence. An interior fence line is always treated as content, because
+ * a generated body may legitimately contain line-leading backticks (code that
+ * builds a markdown string) and there is no way to tell that apart from a
+ * delimiter. Scanning for the *last* fence anywhere would truncate such a body
+ * whenever the response is cut off before its closing fence.
+ *
+ * The cost is that a model which answers with several fenced blocks and prose
+ * between them keeps that prose — visibly wrong output the user can re-roll,
+ * rather than code quietly missing a chunk.
  *
  * Falls back to the original text if stripping would leave nothing.
  */
@@ -78,22 +81,16 @@ export function stripCodeFences(text: string): string {
     if (lines[index].trim() !== '') return text
   }
 
-  let closingFence = -1
-  for (let index = lines.length - 1; index > openingFence; index--) {
-    if (FENCE_LINE.test(lines[index])) {
-      closingFence = index
-      break
-    }
-  }
-
-  // An unclosed fence (a truncated response) keeps everything after the opener.
-  const inner =
-    closingFence === -1
-      ? lines.slice(openingFence + 1)
-      : lines.slice(openingFence + 1, closingFence)
+  const inner = lines.slice(openingFence + 1)
 
   // Trim blank lines only — leading whitespace on a kept line is indentation,
   // which is load-bearing in Python.
+  while (inner.length > 0 && inner[inner.length - 1].trim() === '') inner.pop()
+
+  // Only the very last line may close the wrapper. A truncated response simply
+  // has no closer, and every line after the opener survives.
+  if (inner.length > 0 && FENCE_LINE.test(inner[inner.length - 1])) inner.pop()
+
   while (inner.length > 0 && inner[0].trim() === '') inner.shift()
   while (inner.length > 0 && inner[inner.length - 1].trim() === '') inner.pop()
 
