@@ -680,6 +680,85 @@
         }
       }
     },
+    "/api/v2/files/{fileId}/metadata": {
+      "get": {
+        "operationId": "getFile",
+        "summary": "Get File Metadata",
+        "description": "Return one workspace file's metadata without downloading its content. Lookups are workspace-scoped: a file that belongs to another workspace returns `404`.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/files/{fileId}/metadata?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file metadata.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                    "name": "data.csv",
+                    "size": 1024,
+                    "type": "text/csv",
+                    "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
+                    "folderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
+                    "folderPath": "Reports/Q1",
+                    "uploadedBy": "user_abc123",
+                    "uploadedAt": "2026-01-15T10:30:00Z",
+                    "updatedAt": "2026-01-15T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v2/audit-logs": {
       "get": {
         "operationId": "listAuditLogs",

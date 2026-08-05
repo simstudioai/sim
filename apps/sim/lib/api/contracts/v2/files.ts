@@ -424,6 +424,17 @@ export const v2DownloadFileContract = defineRouteContract({
   },
 })
 
+export const v2GetFileContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/[fileId]/metadata',
+  params: v2FileParamsSchema,
+  query: v2FileWorkspaceQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FileSchema),
+  },
+})
+
 export const v2RenameFileContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/[fileId]',
