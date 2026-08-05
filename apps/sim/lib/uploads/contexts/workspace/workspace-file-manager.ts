@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { imageSize } from 'image-size'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -889,6 +890,23 @@ export async function updateWorkspaceFileDimensions(
 }
 
 /**
+ * Best-effort intrinsic dimensions of an image buffer (reads headers only, no full decode). Returns null
+ * for non-images and unparseable bytes — callers then store null and let the lazy client backfill fill it.
+ */
+function measureImageDimensions(
+  content: Buffer,
+  contentType: string
+): { width: number; height: number } | null {
+  if (!contentType.startsWith('image/')) return null
+  try {
+    const { width, height } = imageSize(content)
+    return width && height ? { width, height } : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Look up a single active workspace file by its original name.
  * Returns the record if found, or null if no matching file exists.
  * Throws on DB errors so callers can distinguish "not found" from "lookup failed."
@@ -1234,6 +1252,10 @@ export async function updateWorkspaceFileContent(
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   const nextContentType = contentType || fileRecord.type
   const nextStorageKey = generateWorkspaceFileKey(workspaceId, fileRecord.name)
+  // Re-derive intrinsic dimensions from the NEW bytes so the row never carries the previous image's size
+  // — and so a late fire-and-forget backfill PATCH for the OLD image (guarded on `width IS NULL`) can't
+  // resurrect stale dimensions, since these stay non-null for an image.
+  const nextDimensions = measureImageDimensions(content, nextContentType)
 
   try {
     const metadata: Record<string, string> = {
@@ -1312,11 +1334,10 @@ export async function updateWorkspaceFileContent(
             key: uploadResult.key,
             size: content.length,
             contentType: nextContentType,
-            // Content is being replaced, so any stored intrinsic dimensions no longer describe it. Clear
-            // them (they re-backfill on next view via the `width IS NULL` path) so the editor never
-            // reserves a stale aspect ratio for the new bytes.
-            width: null,
-            height: null,
+            // Replaced content gets its OWN intrinsic dimensions (or null for a non-image), so the editor
+            // never reserves the previous image's aspect ratio and a late stale backfill can't apply.
+            width: nextDimensions?.width ?? null,
+            height: nextDimensions?.height ?? null,
             updatedAt: now,
             contentUpdatedAt,
           })
