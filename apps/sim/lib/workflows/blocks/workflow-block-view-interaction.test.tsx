@@ -5,6 +5,7 @@ import { act } from 'react'
 import {
   getWorkflowTypeAccent,
   getWorkflowTypeRole,
+  hasWorkflowTypeRole,
   WorkflowBlockView,
   WorkflowTypeIcon,
   WorkflowTypeTag,
@@ -189,6 +190,12 @@ describe('WorkflowTypeTag colors', () => {
     expect(getWorkflowTypeRole('a2a')).toBe('neutral')
     expect(getWorkflowTypeRole('image_generator_v2')).toBe('generative')
     expect(getWorkflowTypeRole('knowledge')).toBe('knowledge')
+    expect(getWorkflowTypeRole('start_trigger')).toBe('flow')
+    expect(getWorkflowTypeRole('schedule')).toBe('flow')
+    expect(getWorkflowTypeRole('generic_webhook')).toBe('interface')
+    expect(getWorkflowTypeRole('imap')).toBe('interface')
+    expect(getWorkflowTypeRole('rss')).toBe('knowledge')
+    expect(getWorkflowTypeRole('sim_workspace_event')).toBe('interface')
 
     expect(getWorkflowTypeAccent('agent')).toEqual({ variant: 'workflow', tone: 'inverse' })
     expect(getWorkflowTypeAccent('api')).toEqual({ variant: 'workflow', tone: 'blue' })
@@ -201,6 +208,15 @@ describe('WorkflowTypeTag colors', () => {
       tone: 'purple',
     })
     expect(getWorkflowTypeAccent('knowledge')).toEqual({ variant: 'workflow', tone: 'content' })
+  })
+
+  it('distinguishes semantic workflow types from branded providers', () => {
+    expect(hasWorkflowTypeRole('start_trigger')).toBe(true)
+    expect(hasWorkflowTypeRole('schedule')).toBe(true)
+    expect(hasWorkflowTypeRole('generic_webhook')).toBe(true)
+    expect(hasWorkflowTypeRole('table')).toBe(true)
+    expect(hasWorkflowTypeRole('circleback')).toBe(false)
+    expect(hasWorkflowTypeRole('airtable')).toBe(false)
   })
 
   it('renders compact workflow icons with their canonical fill and ink', () => {
