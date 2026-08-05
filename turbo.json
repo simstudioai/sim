@@ -38,16 +38,7 @@
     },
     "type-check": {
       "dependsOn": ["transit"],
-      "outputs": [],
-      "inputs": [
-        "**/*.ts",
-        "**/*.tsx",
-        "**/*.mts",
-        "**/*.cts",
-        "**/*.mdx",
-        "tsconfig*.json",
-        "package.json"
-      ]
+      "outputs": []
     }
   }
 }
