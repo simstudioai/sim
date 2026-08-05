@@ -10,7 +10,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
-import { imageSize } from 'image-size'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -863,11 +862,12 @@ async function mapSingleWorkspaceFileRecord(
 }
 
 /**
- * Backfill an image file's intrinsic pixel dimensions (a pure rendering hint used to reserve layout
- * space before the image loads). Idempotent by construction: the `width IS NULL` guard makes it a no-op
- * once populated, so concurrent first-view reporters converge on a single write with no churn. Does NOT
- * touch `updatedAt` — dimensions are not content and must not cache-bust the served image bytes. Returns
- * whether a row was actually written (false when already populated, deleted, or absent).
+ * Store an image file's intrinsic pixel dimensions (a pure rendering hint used to reserve layout space
+ * before the image loads). The client reports the browser's own EXIF-corrected `naturalWidth/Height`, and
+ * only when it differs from what's stored, so this overwrites rather than backfilling once — a stale
+ * value (e.g. left over after the file's content was replaced) self-corrects on the next view instead of
+ * sticking behind a `width IS NULL` guard. Does NOT touch `updatedAt` — dimensions are not content and
+ * must not cache-bust the served image bytes. Returns whether a live row was written.
  */
 export async function updateWorkspaceFileDimensions(
   workspaceId: string,
@@ -881,29 +881,11 @@ export async function updateWorkspaceFileDimensions(
       and(
         eq(workspaceFiles.id, fileId),
         eq(workspaceFiles.workspaceId, workspaceId),
-        isNull(workspaceFiles.deletedAt),
-        isNull(workspaceFiles.width)
+        isNull(workspaceFiles.deletedAt)
       )
     )
     .returning({ id: workspaceFiles.id })
   return updated.length > 0
-}
-
-/**
- * Best-effort intrinsic dimensions of an image buffer (reads headers only, no full decode). Returns null
- * for non-images and unparseable bytes — callers then store null and let the lazy client backfill fill it.
- */
-function measureImageDimensions(
-  content: Buffer,
-  contentType: string
-): { width: number; height: number } | null {
-  if (!contentType.startsWith('image/')) return null
-  try {
-    const { width, height } = imageSize(content)
-    return width && height ? { width, height } : null
-  } catch {
-    return null
-  }
 }
 
 /**
@@ -1252,10 +1234,6 @@ export async function updateWorkspaceFileContent(
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   const nextContentType = contentType || fileRecord.type
   const nextStorageKey = generateWorkspaceFileKey(workspaceId, fileRecord.name)
-  // Re-derive intrinsic dimensions from the NEW bytes so the row never carries the previous image's size
-  // — and so a late fire-and-forget backfill PATCH for the OLD image (guarded on `width IS NULL`) can't
-  // resurrect stale dimensions, since these stay non-null for an image.
-  const nextDimensions = measureImageDimensions(content, nextContentType)
 
   try {
     const metadata: Record<string, string> = {
@@ -1334,10 +1312,6 @@ export async function updateWorkspaceFileContent(
             key: uploadResult.key,
             size: content.length,
             contentType: nextContentType,
-            // Replaced content gets its OWN intrinsic dimensions (or null for a non-image), so the editor
-            // never reserves the previous image's aspect ratio and a late stale backfill can't apply.
-            width: nextDimensions?.width ?? null,
-            height: nextDimensions?.height ?? null,
             updatedAt: now,
             contentUpdatedAt,
           })

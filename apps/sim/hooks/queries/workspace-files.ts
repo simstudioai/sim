@@ -128,11 +128,12 @@ export function useWorkspaceFiles(
 
 /**
  * Back the file content source's image-dimension capability with workspace file metadata. Reads intrinsic
- * dimensions straight from the already-loaded active file list (synchronous, so a stored image reserves
- * its box on the first render), and lazily backfills them once per image on first measurement. The
- * backfill is fire-and-forget and idempotent: the optimistic cache patch makes a second measurement of
- * the same file a no-op locally, and the server ignores an already-populated row — so it never storms,
- * never blocks render, and never touches the collaborative document.
+ * dimensions synchronously from the already-loaded active file list (so a stored image reserves its box on
+ * the first render), and persists the browser's measured dimensions when they're absent or disagree with
+ * what's stored — an overwrite, so a stale value (left over after a content swap, or a non-EXIF-corrected
+ * one) self-corrects rather than sticking. The write is fire-and-forget and de-duped (an exact-match cache
+ * check plus mismatch-only reporting from the caller), so it never storms, never blocks render, and never
+ * touches the collaborative document.
  */
 export function useWorkspaceImageDimensionsAdapter(workspaceId: string): ImageDimensionsSource {
   const queryClient = useQueryClient()
@@ -149,13 +150,15 @@ export function useWorkspaceImageDimensionsAdapter(workspaceId: string): ImageDi
       },
       reportImageDimensions: (src, dimensions) => {
         const record = findRecord(src)
-        // Skip when the file isn't ours to key (external/unlisted) or its dimensions are already stored.
-        if (!record || (record.width != null && record.height != null)) return
-        // Populate the cache so this and sibling views reserve space immediately and a concurrent
-        // measurement of the same file short-circuits above. Kept even if the PATCH fails (a 403 for a
-        // read-only member, or a transient error): the measurement is the real image size, correct
-        // regardless of whether the write landed, so siblings should still reserve from it — a later list
-        // refetch reconciles with the server.
+        // Skip when the file isn't one we can key (external/unlisted), or the cache already holds exactly
+        // these dimensions. We do NOT skip merely because SOME dimensions are stored — they may be stale
+        // (post content-swap / EXIF), and the caller only reports the browser's authoritative measurement
+        // on a real mismatch, so we overwrite to self-correct.
+        if (!record || (record.width === dimensions.width && record.height === dimensions.height))
+          return
+        // Populate the cache so this and sibling views reserve space immediately. Kept even if the PATCH
+        // fails (a 403 for a read-only member, or a transient error): the measurement is the real displayed
+        // size, correct regardless of whether the write landed — a later list refetch reconciles.
         queryClient.setQueryData<WorkspaceFileRecord[]>(listKey, (previous) =>
           previous?.map((entry) => (entry.id === record.id ? { ...entry, ...dimensions } : entry))
         )

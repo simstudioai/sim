@@ -94,7 +94,10 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
     () => source.getImageDimensions?.(attrs.src) ?? null,
     [source, attrs.src]
   )
-  const intrinsicDimensions = storedDimensions ?? measuredDimensions
+  // The browser's post-load measurement is authoritative — EXIF-corrected, and correct even when the
+  // stored value is stale (e.g. left over after the file's content was replaced) — so it wins once
+  // available; stored metadata only reserves the box pre-load. Equal in the common case, so no shift.
+  const intrinsicDimensions = measuredDimensions ?? storedDimensions
   const displayWidth =
     dragWidth !== null
       ? `${dragWidth}px`
@@ -134,11 +137,17 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
         setFailed(false)
         const { naturalWidth, naturalHeight } = event.currentTarget
         if (naturalWidth <= 0 || naturalHeight <= 0) return
-        // Guard on the memoized `storedDimensions` the render actually uses — NOT a fresh cache read: the
-        // memo is non-reactive, so a fresh read could see a sibling's backfill the render hasn't picked up
-        // and skip measuring, leaving THIS view unreserved. When the render isn't reserving yet, hold the
-        // box locally and persist (the report is idempotent, de-duped downstream).
-        if (storedDimensions) return
+        // The browser's measurement is authoritative. Reserve from it and persist whenever the stored
+        // metadata is absent or disagrees (EXIF-rotated, or stale after a content swap), so a wrong value
+        // self-corrects instead of sticking. Compare the memoized `storedDimensions` the render uses, NOT
+        // a fresh cache read — the memo is non-reactive, and this keeps the guard consistent with render.
+        if (
+          storedDimensions &&
+          storedDimensions.width === naturalWidth &&
+          storedDimensions.height === naturalHeight
+        ) {
+          return
+        }
         setMeasuredDimensions({ width: naturalWidth, height: naturalHeight })
         source.reportImageDimensions?.(attrs.src, { width: naturalWidth, height: naturalHeight })
       }}
