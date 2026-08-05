@@ -94,4 +94,19 @@ describe('InstagramBlock', () => {
       buildParams({ operation: 'instagram_get_account_insights', period: 'week' })
     ).toThrow('Instagram account insights period must be day or lifetime')
   })
+
+  it('maps the provider-local insight field to the tool metrics parameter', () => {
+    const metricsSubBlock = InstagramBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'insightMetrics'
+    )
+
+    expect(metricsSubBlock?.type).toBe('short-input')
+    expect(InstagramBlock.subBlocks.some((subBlock) => subBlock.id === 'metrics')).toBe(false)
+    expect(
+      buildParams({
+        operation: 'instagram_get_media_insights',
+        insightMetrics: 'reach,views',
+      })
+    ).toMatchObject({ metrics: 'reach,views', insightMetrics: undefined })
+  })
 })

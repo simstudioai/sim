@@ -45,7 +45,7 @@ const OPERATION_PARAM_KEYS: Record<string, readonly string[]> = {
   instagram_send_text_message: ['igUserId', 'recipientId', 'message'],
   instagram_get_account_insights: [
     'igUserId',
-    'metrics',
+    'insightMetrics',
     'period',
     'since',
     'until',
@@ -53,7 +53,7 @@ const OPERATION_PARAM_KEYS: Record<string, readonly string[]> = {
     'breakdown',
     'timeframe',
   ],
-  instagram_get_media_insights: ['mediaId', 'metrics'],
+  instagram_get_media_insights: ['mediaId', 'insightMetrics'],
 }
 
 const INSTAGRAM_TOOL_IDS = new Set(Object.keys(OPERATION_PARAM_KEYS))
@@ -64,6 +64,7 @@ const INSTAGRAM_OPERATION_INPUT_KEYS = new Set([
   'media',
   'carouselMedia',
   ...Object.values(OPERATION_PARAM_KEYS).flat(),
+  'metrics',
 ])
 
 const NUMERIC_PARAM_KEYS = new Set(['limit', 'thumbOffset'])
@@ -479,7 +480,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       required: { field: 'operation', value: 'instagram_send_text_message' },
     },
     {
-      id: 'metrics',
+      id: 'insightMetrics',
       title: 'Metrics',
       type: 'short-input',
       placeholder: 'Comma-separated metrics (e.g. reach,views,likes)',
@@ -715,7 +716,9 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
           const value = params[key]
           if (value === undefined || value === null || value === '') continue
 
-          if (NUMERIC_PARAM_KEYS.has(key)) {
+          if (key === 'insightMetrics') {
+            result.metrics = value
+          } else if (NUMERIC_PARAM_KEYS.has(key)) {
             result[key] = Number(value)
           } else if (BOOLEAN_PARAM_KEYS.has(key)) {
             result[key] = value === true || value === 'true'
@@ -777,7 +780,7 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
     conversationId: { type: 'string', description: 'DM conversation ID' },
     messageId: { type: 'string', description: 'DM message ID' },
     recipientId: { type: 'string', description: 'DM recipient Instagram-scoped ID' },
-    metrics: { type: 'string', description: 'Comma-separated insight metrics' },
+    insightMetrics: { type: 'string', description: 'Comma-separated insight metrics' },
     period: { type: 'string', description: 'Account insight period: day or lifetime' },
     since: { type: 'string', description: 'Account insights range start' },
     until: { type: 'string', description: 'Account insights range end' },
