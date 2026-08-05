@@ -38,7 +38,7 @@ import {
   filterSecretNamesByMountPolicy,
   type SecretMountPolicy,
 } from '@/lib/copilot/secret-mount-policy'
-import { HIDE_SIM_SANDBOX_INPUTS } from '@/lib/copilot/sim-sandbox-projection'
+import { RESTRICTED_SIM_SANDBOX_INPUTS } from '@/lib/copilot/sim-sandbox-projection'
 import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
@@ -166,7 +166,7 @@ const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
  * (see {@link isStaticFileHidden}).
  */
 let staticComponentFiles: Map<string, string> | null = null
-let staticFunctionSchemaWithoutSimSandboxes: string | null = null
+let staticFunctionSchemaWithRestrictedSimSandboxes: string | null = null
 
 /**
  * Owning block for each `components/integrations/**` file, recorded at build
@@ -363,9 +363,9 @@ function getStaticComponentFiles(): Map<string, string> {
     const path = `components/blocks/${block.type}.json`
     files.set(path, serializeBlockSchema(block, { toolConfigs }))
     if (block.type === 'function') {
-      staticFunctionSchemaWithoutSimSandboxes = serializeBlockSchema(block, {
+      staticFunctionSchemaWithRestrictedSimSandboxes = serializeBlockSchema(block, {
         toolConfigs,
-        hiddenInputIds: new Set(['sandboxId']),
+        restrictedInputs: RESTRICTED_SIM_SANDBOX_INPUTS,
       })
     }
   }
@@ -572,9 +572,6 @@ export class WorkspaceVFS {
   >()
   private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
   private _workspaceId = ''
-  // Defaults to hidden so partial/failed materialization cannot leak a gated
-  // Function input. Set from the live Sim entitlement before the VFS is used.
-  private _simSandboxEntitled = false
   /**
    * Types of the org's CURRENT custom blocks (enabled + disabled — a disabled block
    * still resolves/renders). Populated by {@link materializeCustomBlocks}; used to
@@ -817,8 +814,6 @@ export class WorkspaceVFS {
               // prompt prefix), so nothing is destructured from this one.
               timed('tasks', this.materializeTasks(workspaceId, userId)),
             ])
-            this._simSandboxEntitled = sandboxEntitled
-
             const workspaceMdData: WorkspaceMdData = {
               workspace: wsRow,
               members,
@@ -853,7 +848,7 @@ export class WorkspaceVFS {
               if (isStaticFileHidden(path, blockVisibility, allowedIntegrationTypes)) continue
               const projectedContent =
                 path === 'components/blocks/function.json' && !sandboxEntitled
-                  ? (staticFunctionSchemaWithoutSimSandboxes ?? content)
+                  ? (staticFunctionSchemaWithRestrictedSimSandboxes ?? content)
                   : content
               this.files.set(path, projectedContent)
             }
@@ -1546,15 +1541,12 @@ export class WorkspaceVFS {
           // workflow; it still exists and must be readable, so emit an
           // empty-but-valid state.json rather than a 404.
           const sanitized = normalized
-            ? sanitizeForCopilot(
-                {
-                  blocks: normalized.blocks,
-                  edges: normalized.edges,
-                  loops: normalized.loops,
-                  parallels: normalized.parallels,
-                } as any,
-                this._simSandboxEntitled ? undefined : HIDE_SIM_SANDBOX_INPUTS
-              )
+            ? sanitizeForCopilot({
+                blocks: normalized.blocks,
+                edges: normalized.edges,
+                loops: normalized.loops,
+                parallels: normalized.parallels,
+              } as any)
             : sanitizeForCopilot({ blocks: {}, edges: [], loops: {}, parallels: {} } as any)
           return JSON.stringify(sanitized, null, 2)
         })

@@ -3,7 +3,6 @@
  */
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { HIDE_SIM_SANDBOX_INPUTS } from '@/lib/copilot/sim-sandbox-projection'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
@@ -165,7 +164,7 @@ describe('sanitizeForCopilot server-only block inputs', () => {
 })
 
 describe('sanitizeForCopilot product-gated block inputs', () => {
-  it('can hide a persisted Function sandbox selection without hiding ordinary inputs', () => {
+  it('retains a persisted Function sandbox selection for model-visible read access', () => {
     const state = makeSingleBlockWorkflow('function-1', {
       type: 'function',
       name: 'Function 1',
@@ -177,13 +176,10 @@ describe('sanitizeForCopilot product-gated block inputs', () => {
       },
     })
 
-    expect(sanitizeForCopilot(state).blocks['function-1'].inputs).toHaveProperty(
-      'sandboxId',
-      'sandbox-1'
-    )
-    expect(sanitizeForCopilot(state, HIDE_SIM_SANDBOX_INPUTS).blocks['function-1'].inputs).toEqual({
+    expect(sanitizeForCopilot(state).blocks['function-1'].inputs).toEqual({
       code: 'return 1',
       language: 'javascript',
+      sandboxId: 'sandbox-1',
     })
   })
 })

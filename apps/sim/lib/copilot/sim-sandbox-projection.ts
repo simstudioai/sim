@@ -1,8 +1,15 @@
-import type { CopilotSanitizationOptions } from '@/lib/workflows/sanitization/json-sanitizer'
+import { SIM_SANDBOXES_ENTITLEMENT } from '@/lib/copilot/entitlements'
 
-export const HIDE_SIM_SANDBOX_INPUTS: CopilotSanitizationOptions = {
-  hiddenInputIdsByBlockType: new Map([['function', new Set(['sandboxId'])]]),
-}
+export const RESTRICTED_SIM_SANDBOX_INPUTS = new Map([
+  [
+    'sandboxId',
+    {
+      requiredEntitlement: SIM_SANDBOXES_ENTITLEMENT,
+      reason:
+        'Selecting or clearing a Sim sandbox requires an active Max or Enterprise plan. Preserve any existing selection unless the user upgrades.',
+    },
+  ],
+])
 
 /** Whether an edit_workflow operation tries to set or clear Function sandboxId. */
 export function operationsReferenceSimSandbox(

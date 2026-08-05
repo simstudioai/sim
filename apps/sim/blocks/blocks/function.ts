@@ -164,7 +164,8 @@ try {
     timeout: { type: 'number', description: 'Execution timeout' },
     sandboxId: {
       type: 'string',
-      description: 'Sim sandbox providing dependencies, system packages, and managed CLIs',
+      description:
+        'Sim sandbox providing dependencies, system packages, and managed CLIs. Selecting or clearing it requires an active Max or Enterprise plan.',
     },
     secretScope: { type: 'string', description: 'Secret access mode: all or selected' },
     mountedSecrets: {
