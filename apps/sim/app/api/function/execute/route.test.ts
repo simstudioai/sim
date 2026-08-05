@@ -291,6 +291,116 @@ describe('Function Execute API Route', () => {
       )
     })
 
+    it.each([
+      { language: 'javascript', code: 'return 42' },
+      { language: 'python', code: '__sim_result__ = 42' },
+    ])(
+      'runs trusted Mothership $language in the selected Function-based Sim sandbox',
+      async ({ language, code }) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+        hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
+          success: true,
+          userId: 'user-123',
+          authType: 'internal_jwt',
+          sandboxProfile: 'mothership',
+        })
+
+        const response = await POST(
+          createMockRequest('POST', {
+            code,
+            language,
+            workspaceId: 'workspace-1',
+            sandboxId: 'sandbox-1',
+          })
+        )
+
+        expect(response.status).toBe(200)
+        const request = mockExecuteInSandbox.mock.calls.at(-1)?.[0]
+        expect(request).toMatchObject({
+          language,
+          workspaceId: 'workspace-1',
+          sandboxId: 'sandbox-1',
+        })
+        expect(request).not.toHaveProperty('sandboxKind')
+      }
+    )
+
+    it('runs trusted Mothership Shell in the selected Sim sandbox', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+        sandboxProfile: 'mothership',
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'kubectl version --client',
+          language: 'shell',
+          workspaceId: 'workspace-1',
+          sandboxId: 'sandbox-1',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      const request = mockExecuteShellInSandbox.mock.calls.at(-1)?.[0]
+      expect(request).toMatchObject({
+        workspaceId: 'workspace-1',
+        sandboxId: 'sandbox-1',
+      })
+      expect(request).not.toHaveProperty('sandboxKind')
+    })
+
+    it('does not treat the Mothership base as a fallback for a selected Sim sandbox', async () => {
+      envFlagsMock.isMothershipSandboxEnabled = true
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+        sandboxProfile: 'mothership',
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return 42',
+          language: 'javascript',
+          workspaceId: 'workspace-1',
+          sandboxId: 'sandbox-1',
+        })
+      )
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'The Function code sandbox is not configured',
+      })
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+    })
+
+    it('forces import-free JavaScript into the remote runtime when a Sim sandbox is selected', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return 42',
+          language: 'javascript',
+          workspaceId: 'workspace-1',
+          sandboxId: 'sandbox-1',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockExecuteInSandbox).toHaveBeenCalledWith(
+        expect.objectContaining({
+          language: 'javascript',
+          workspaceId: 'workspace-1',
+          sandboxId: 'sandbox-1',
+        })
+      )
+      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+    })
+
     it('should prevent VM escape via constructor chain', async () => {
       mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: undefined, stdout: '' })
 

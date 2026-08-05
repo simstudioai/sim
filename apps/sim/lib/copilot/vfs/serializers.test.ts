@@ -13,6 +13,7 @@ import {
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
+  serializeSandbox,
   serializeTableMeta,
   serializeWorkflowMeta,
 } from './serializers'
@@ -121,6 +122,69 @@ describe('VFS metadata serializers', () => {
 
     expect(metadata).not.toHaveProperty('description')
     expect(JSON.stringify(metadata)).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
+  })
+
+  it('serializes the complete Sim sandbox discovery resource', () => {
+    const serialized = JSON.parse(
+      serializeSandbox(
+        {
+          id: 'sandbox-1',
+          name: 'Data Tools',
+          language: 'python',
+          dependencies: ['pandas'],
+          systemPackages: ['graphviz'],
+          cliTools: ['kubectl@1.36.3-r1'],
+          buildStatus: 'ready',
+          errorCode: null,
+          errorMessage: null,
+          errorDetail: null,
+          builtAt: '2026-08-04T12:00:00.000Z',
+          createdAt: '2026-08-04T11:00:00.000Z',
+          updatedAt: '2026-08-04T12:00:00.000Z',
+        },
+        'prebuilt'
+      )
+    )
+
+    expect(serialized).toMatchObject({
+      id: 'sandbox-1',
+      strategy: 'prebuilt',
+      buildStatus: 'ready',
+      dependencies: ['pandas'],
+      systemPackages: ['graphviz'],
+      cliTools: ['kubectl@1.36.3-r1'],
+    })
+  })
+})
+
+describe('entitlement-projected block schemas', () => {
+  it('removes a gated input from both subBlocks and inputs', () => {
+    const block = {
+      type: 'function',
+      name: 'Function',
+      description: 'Run code',
+      category: 'blocks',
+      bgColor: '#000000',
+      icon: () => null,
+      subBlocks: [
+        { id: 'code', title: 'Code', type: 'long-input' },
+        { id: 'sandboxId', title: 'Sandbox', type: 'combobox' },
+      ],
+      tools: { access: [] },
+      inputs: {
+        code: { type: 'string' },
+        sandboxId: { type: 'string' },
+      },
+      outputs: {},
+    } as unknown as BlockConfig
+
+    const schema = JSON.parse(
+      serializeBlockSchema(block, { hiddenInputIds: new Set(['sandboxId']) })
+    )
+
+    expect(schema.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual(['code'])
+    expect(schema.inputs).toHaveProperty('code')
+    expect(schema.inputs).not.toHaveProperty('sandboxId')
   })
 })
 

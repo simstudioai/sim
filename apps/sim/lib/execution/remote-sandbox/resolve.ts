@@ -174,8 +174,9 @@ function touchImage(specHash: string, provider: string): void {
  * throws with the reason, because the alternative is a baffling
  * `ModuleNotFoundError` inside the user's code.
  *
- * Deliberately not plan-gated: the gate covers creating and editing sandboxes,
- * so a workspace that downgrades keeps executing the ones it already has.
+ * Deliberately not plan-gated here: authoring and new Copilot selection are
+ * gated at their boundaries, while a workspace that downgrades keeps executing
+ * sandboxes already attached to Function blocks.
  */
 export async function resolveWorkspaceSandbox(args: {
   kind: SandboxKind

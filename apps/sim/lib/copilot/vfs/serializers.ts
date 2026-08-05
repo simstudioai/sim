@@ -1,4 +1,5 @@
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
+import type { Sandbox } from '@/lib/api/contracts/sandboxes'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
@@ -82,6 +83,8 @@ export interface ComponentSerializationOptions {
   hosted?: boolean
   toolConfigs?: ReadonlyMap<string, ToolConfig>
   ownerBlockType?: string
+  /** Product-gated inputs removed from both subBlocks and the input schema. */
+  hiddenInputIds?: ReadonlySet<string>
 }
 
 /**
@@ -584,14 +587,23 @@ export function serializeBlockSchema(
   // treat `hidden` as hidden for them so those never reach the agent's schema.
   const customBlock = isCustomBlockType(block.type)
   const hosted = options?.hosted ?? isHosted
+  const explicitlyHidden = options?.hiddenInputIds ?? new Set<string>()
   const visibleSubBlocks = block.subBlocks.filter(
-    (sb) => !sb.hideFromCopilot && !isSubBlockHidden(sb, { hosted }) && !(customBlock && sb.hidden)
+    (sb) =>
+      !explicitlyHidden.has(sb.id) &&
+      !sb.hideFromCopilot &&
+      !isSubBlockHidden(sb, { hosted }) &&
+      !(customBlock && sb.hidden)
   )
   const visibleIds = new Set(visibleSubBlocks.map((sb) => sb.id))
   const hiddenIds = new Set(
     block.subBlocks
       .filter(
-        (sb) => sb.hideFromCopilot || isSubBlockHidden(sb, { hosted }) || (customBlock && sb.hidden)
+        (sb) =>
+          explicitlyHidden.has(sb.id) ||
+          sb.hideFromCopilot ||
+          isSubBlockHidden(sb, { hosted }) ||
+          (customBlock && sb.hidden)
       )
       .map((sb) => sb.id)
       .filter((id) => !visibleIds.has(id))
@@ -959,6 +971,30 @@ export function serializeSkill(s: {
       description: s.description,
       content: s.content,
       createdAt: s.createdAt.toISOString(),
+    },
+    null,
+    2
+  )
+}
+
+/** Serialize a Sim sandbox for VFS agent/sandboxes/{name}.json. */
+export function serializeSandbox(sandbox: Sandbox, strategy: 'prebuilt' | 'runtime'): string {
+  return JSON.stringify(
+    {
+      id: sandbox.id,
+      name: sandbox.name,
+      language: sandbox.language,
+      dependencies: sandbox.dependencies,
+      systemPackages: sandbox.systemPackages,
+      cliTools: sandbox.cliTools,
+      strategy,
+      buildStatus: sandbox.buildStatus,
+      errorCode: sandbox.errorCode,
+      errorMessage: sandbox.errorMessage,
+      errorDetail: sandbox.errorDetail,
+      builtAt: sandbox.builtAt,
+      createdAt: sandbox.createdAt,
+      updatedAt: sandbox.updatedAt,
     },
     null,
     2

@@ -23,6 +23,7 @@ const {
   mockGetSandboxWorkspaceFilePath,
   mockListWorkspaceFileFolders,
   mockMaterializeCopilotCodeSecrets,
+  mockHasWorkspaceSandboxAccess,
 } = vi.hoisted(() => ({
   mockIsFeatureEnabled: vi.fn(),
   mockGetTableById: vi.fn(),
@@ -40,6 +41,7 @@ const {
   mockGetSandboxWorkspaceFilePath: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
   mockMaterializeCopilotCodeSecrets: vi.fn(),
+  mockHasWorkspaceSandboxAccess: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mockIsFeatureEnabled }))
@@ -77,6 +79,12 @@ vi.mock('@/lib/copilot/tools/secret-mount-materializer.server', () => ({
   CopilotCodeSecretAccessError: class CopilotCodeSecretAccessError extends Error {},
   materializeCopilotCodeSecrets: mockMaterializeCopilotCodeSecrets,
 }))
+vi.mock('@/lib/billing/core/subscription', () => ({
+  hasWorkspaceSandboxAccess: mockHasWorkspaceSandboxAccess,
+}))
+vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', () => ({
+  MAX_PLAN_REQUIRED: 'Sim sandboxes require an active Max or Enterprise plan.',
+}))
 
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { executeFunctionExecute } from '@/lib/copilot/tools/handlers/function-execute'
@@ -106,6 +114,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({ success: true })
     mockMaterializeCopilotCodeSecrets.mockResolvedValue({ envVars: {}, catalogEntries: [] })
+    mockHasWorkspaceSandboxAccess.mockResolvedValue(true)
     encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
   })
 
@@ -267,6 +276,32 @@ describe('executeFunctionExecute trace-secret provenance', () => {
       }
     )
     expect(mockExecuteTool.mock.calls[0]?.[1]).not.toHaveProperty('sandboxProfile')
+  })
+
+  it('passes an entitled Sim sandbox selection through to the shared function executor', async () => {
+    await executeFunctionExecute(
+      { code: 'import pandas', language: 'python', sandboxId: ' sandbox-1 ' },
+      { ...context, workflowId: '', sandboxProfile: 'mothership' }
+    )
+
+    expect(mockHasWorkspaceSandboxAccess).toHaveBeenCalledWith('ws_1')
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({ sandboxId: 'sandbox-1' }),
+      expect.objectContaining({ internalSandboxProfile: 'mothership' })
+    )
+  })
+
+  it('rejects a Sim sandbox selection when the workspace is not entitled', async () => {
+    mockHasWorkspaceSandboxAccess.mockResolvedValue(false)
+
+    await expect(
+      executeFunctionExecute(
+        { code: 'return 1', sandboxId: 'sandbox-1' },
+        { ...context, workflowId: '', sandboxProfile: 'mothership' }
+      )
+    ).rejects.toThrow('Max or Enterprise')
+    expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
   it('returns the raw runtime result when provenance import fails', async () => {
