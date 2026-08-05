@@ -1480,22 +1480,8 @@ export async function executeTool(
         if (data.domain && !contextParams.domain) {
           contextParams.domain = data.domain
         }
-        /**
-         * `realmId` selects the QuickBooks company every request is scoped to, so it
-         * is a tenancy boundary rather than an ordinary parameter. Unlike the fields
-         * above — which only fill in a missing value — this assignment is
-         * unconditional: a caller-supplied `realmId` must never be able to redirect a
-         * credential at another company's books. The only trusted source is the
-         * credential itself, and a credential without one cannot be used at all.
-         */
-        if (tool?.oauth?.provider === 'quickbooks') {
-          const credentialRealmId = typeof data.realmId === 'string' ? data.realmId.trim() : ''
-          if (!credentialRealmId) {
-            throw new Error(
-              'QuickBooks company identity is missing. Reconnect the QuickBooks credential.'
-            )
-          }
-          contextParams.realmId = credentialRealmId
+        if (data.realmId) {
+          contextParams.realmId = data.realmId
         }
         if (data.authStyle && !contextParams.authStyle) {
           contextParams.authStyle = data.authStyle

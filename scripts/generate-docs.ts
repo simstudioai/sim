@@ -2110,22 +2110,7 @@ function extractToolInfo(
         const paramName = param.name
         const paramBlock = param.content
 
-        /**
-         * Executor-injected params are never user inputs, so they are omitted from the
-         * docs table. `realmId` is QuickBooks' credential-derived company id.
-         *
-         * These are matched by name rather than by `visibility: 'hidden'`. Filtering on
-         * visibility is the more principled rule and would also drop `cloudId`,
-         * `instanceUrl`, `apiDomain`, `authStyle` and `idToken` across the other
-         * integrations — but it rewrites 28 unrelated docs pages, so it belongs in its
-         * own change rather than riding along with a single integration.
-         */
-        if (
-          paramName === 'accessToken' ||
-          paramName === 'realmId' ||
-          paramName === 'params' ||
-          paramName === 'tools'
-        ) {
+        if (paramName === 'accessToken' || paramName === 'params' || paramName === 'tools') {
           continue
         }
 
