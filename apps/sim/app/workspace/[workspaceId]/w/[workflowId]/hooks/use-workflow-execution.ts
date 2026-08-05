@@ -17,8 +17,8 @@ import {
 import { requestJson } from '@/lib/api/client/request'
 import {
   cancelWorkflowExecutionContract,
-  type WorkflowStateContractInput,
   workflowLogContract,
+  workflowStateSchema,
 } from '@/lib/api/contracts/workflows'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -1972,12 +1972,12 @@ export function useWorkflowExecution() {
         },
         {} as typeof mergedStates
       )
-      const workflowStateOverride: WorkflowStateContractInput = {
+      const workflowStateOverride = workflowStateSchema.parse({
         blocks: executableStates,
         edges: workflowEdges,
         loops: latestWorkflowState.loops,
         parallels: latestWorkflowState.parallels,
-      }
+      })
 
       // Extract mock payload for trigger blocks
       let workflowInput: any

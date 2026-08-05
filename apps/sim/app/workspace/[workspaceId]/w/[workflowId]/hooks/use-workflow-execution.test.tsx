@@ -120,6 +120,7 @@ vi.mock('@/lib/api/client/request', () => ({
 vi.mock('@/lib/api/contracts/workflows', () => ({
   cancelWorkflowExecutionContract: {},
   workflowLogContract: {},
+  workflowStateSchema: { parse: (value: unknown) => value },
 }))
 
 vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
