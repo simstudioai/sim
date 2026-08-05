@@ -21,12 +21,16 @@ import {
   Info,
 } from '@sim/emcn'
 import { ChevronDown, Search } from '@sim/emcn/icons'
+import { WorkflowTypeIcon } from '@sim/workflow-renderer'
 import clsx from 'clsx'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { ToolbarItemContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
+import {
+  type DragItemInfo,
+  ToolbarItemContextMenu,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
 import { useToolbarItemInteractions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
@@ -53,6 +57,7 @@ interface BlockItem {
   config?: BlockConfig
   icon?: ComponentType<{ className?: string }>
   bgColor?: string
+  workflowType?: string
   docsLink?: string
 }
 
@@ -63,7 +68,7 @@ interface ToolbarItemProps {
     e: React.DragEvent<HTMLElement>,
     type: string,
     enableTriggerMode: boolean,
-    dragItemInfo?: { name: string; bgColor: string; iconElement: HTMLElement | null }
+    dragItemInfo?: DragItemInfo
   ) => void
   onClick: (type: string, enableTriggerMode: boolean) => void
   onContextMenu: (e: React.MouseEvent, type: string, isTrigger: boolean, docsLink?: string) => void
@@ -83,11 +88,11 @@ const ToolbarItem = memo(function ToolbarItem({
 
   const handleDragStart = useCallback(
     (e: React.DragEvent<HTMLElement>) => {
-      const iconElement = e.currentTarget.querySelector('.toolbar-item-icon')
+      const iconContainer = e.currentTarget.querySelector<HTMLElement>('[data-toolbar-item-icon]')
       onDragStart(e, item.type, isTriggerCapable, {
         name: item.name,
         bgColor: item.bgColor ?? '#666666',
-        iconElement: iconElement as HTMLElement | null,
+        iconContainer,
       })
     },
     [item.type, item.name, item.bgColor, isTriggerCapable, onDragStart]
@@ -129,21 +134,26 @@ const ToolbarItem = memo(function ToolbarItem({
       )}
       onKeyDown={handleKeyDown}
     >
-      <div
-        className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-        style={{ background: item.bgColor }}
-      >
-        {Icon && (
-          <Icon
-            className={clsx(
-              'toolbar-item-icon transition-transform duration-200',
-              getTileIconColorClass(item.bgColor),
-              'group-hover:scale-110',
-              'size-[10px]'
-            )}
-          />
-        )}
-      </div>
+      {item.workflowType && Icon ? (
+        <WorkflowTypeIcon type={item.workflowType} Icon={Icon} data-toolbar-item-icon='' />
+      ) : (
+        <div
+          data-toolbar-item-icon=''
+          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
+          style={{ background: item.bgColor }}
+        >
+          {Icon && (
+            <Icon
+              className={clsx(
+                'transition-transform duration-200',
+                getTileIconColorClass(item.bgColor),
+                'group-hover:scale-110',
+                'size-[10px]'
+              )}
+            />
+          )}
+        </div>
+      )}
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{item.name}</span>
     </div>
   )
@@ -236,6 +246,7 @@ function ensureBlockCaches() {
     config: block,
     icon: block.icon,
     bgColor: block.bgColor,
+    workflowType: block.type,
   }))
 
   regularBlockItems.push({
@@ -243,6 +254,7 @@ function ensureBlockCaches() {
     type: LoopTool.type,
     icon: LoopTool.icon,
     bgColor: LoopTool.bgColor,
+    workflowType: LoopTool.type,
     docsLink: LoopTool.docsLink,
   })
 
@@ -251,6 +263,7 @@ function ensureBlockCaches() {
     type: ParallelTool.type,
     icon: ParallelTool.icon,
     bgColor: ParallelTool.bgColor,
+    workflowType: ParallelTool.type,
     docsLink: ParallelTool.docsLink,
   })
 

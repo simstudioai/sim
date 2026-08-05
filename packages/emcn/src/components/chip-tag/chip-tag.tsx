@@ -46,10 +46,10 @@ import { cn } from '../../lib/cn'
  *   redundant cue rather than the sole carrier of the information — but do not
  *   reuse either pairing anywhere the label stands alone.
  *
- *   `neutral` is the only tone that is not a solid fill — an unmapped block
- *   type reads as a white, outlined slot rather than as one more colour in the
- *   set. Every other tone is fill-only, so it is also the only one whose edge
- *   depends on the ring rather than on the fill itself.
+ *   `neutral` is the only tone that is not a solid fill — neutral/system blocks
+ *   and unmapped block types read as white, outlined slots rather than as one
+ *   more colour in the set. Every other tone is fill-only, so it is also the
+ *   only one whose edge depends on the ring rather than on the fill itself.
  * - `brand` — a provider-owned integration colour supplied through
  *   `brandColor`. Pair with `brandForeground` so both the icon and label use
  *   the same contrast rule as integration tiles elsewhere in the product.
@@ -82,6 +82,8 @@ const chipTagVariants = cva(
         blue: '',
         green: '',
         yellow: '',
+        purple: '',
+        cyan: '',
       },
       brandForeground: {
         light: '',
@@ -97,10 +99,10 @@ const chipTagVariants = cva(
       {
         variant: 'workflow',
         tone: 'neutral',
-        /* The only outlined tone. An unmapped block type reads as an empty
-           slot rather than a colour, so the fill is plain white and an inset
-           ring — not a border — carries the edge, keeping the tag the same
-           size as every filled sibling. */
+        /* The only outlined tone. Neutral/system and unmapped block types read
+           as empty slots rather than a colour, so the fill is plain white and
+           an inset ring — not a border — carries the edge, keeping the tag the
+           same size as every filled sibling. */
         className: 'bg-[#FFFFFF] text-[#1A1A1A] shadow-[inset_0_0_0_1px_#C3C3C3]',
       },
       { variant: 'workflow', tone: 'inverse', className: 'bg-[#3B3B3B] text-[#F8F8F8]' },
@@ -109,6 +111,8 @@ const chipTagVariants = cva(
       { variant: 'workflow', tone: 'blue', className: 'bg-[#0062FF] text-[#F8F8F8]' },
       { variant: 'workflow', tone: 'green', className: 'bg-[#188F00] text-[#F8F8F8]' },
       { variant: 'workflow', tone: 'yellow', className: 'bg-[#FFEF08] text-[#1A1A1A]' },
+      { variant: 'workflow', tone: 'purple', className: 'bg-[#AA00FF] text-[#F8F8F8]' },
+      { variant: 'workflow', tone: 'cyan', className: 'bg-[#00BBD0] text-[#1A1A1A]' },
       { variant: 'brand', brandForeground: 'light', className: 'text-[#FFFFFF]' },
       { variant: 'brand', brandForeground: 'dark', className: 'text-[#000000]' },
     ],

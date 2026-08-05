@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
-import { getWorkflowTypeAccent, WorkflowBlockView, WorkflowTypeTag } from '@sim/workflow-renderer'
+import {
+  getWorkflowTypeAccent,
+  getWorkflowTypeRole,
+  WorkflowBlockView,
+  WorkflowTypeIcon,
+  WorkflowTypeTag,
+} from '@sim/workflow-renderer'
 import { createRoot, type Root } from 'react-dom/client'
 import { ReactFlowProvider } from 'reactflow'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -172,14 +178,55 @@ describe('WorkflowBlockView action menu', () => {
   })
 })
 
-describe('WorkflowTypeTag integration colors', () => {
-  it('keeps the selected Sim-native accents', () => {
+describe('WorkflowTypeTag colors', () => {
+  it('maps core blocks through semantic workflow roles', () => {
+    expect(getWorkflowTypeRole('agent')).toBe('agentic')
+    expect(getWorkflowTypeRole('api')).toBe('interface')
+    expect(getWorkflowTypeRole('condition')).toBe('logic')
+    expect(getWorkflowTypeRole('credential')).toBe('state')
+    expect(getWorkflowTypeRole('router_v2')).toBe('flow')
+    expect(getWorkflowTypeRole('table')).toBe('records')
+    expect(getWorkflowTypeRole('a2a')).toBe('neutral')
+    expect(getWorkflowTypeRole('image_generator_v2')).toBe('generative')
+    expect(getWorkflowTypeRole('knowledge')).toBe('knowledge')
+
     expect(getWorkflowTypeAccent('agent')).toEqual({ variant: 'workflow', tone: 'inverse' })
     expect(getWorkflowTypeAccent('api')).toEqual({ variant: 'workflow', tone: 'blue' })
-    expect(getWorkflowTypeAccent('loop')).toEqual({ variant: 'solid', tone: 'neutral' })
-    expect(getWorkflowTypeAccent('parallel')).toEqual({ variant: 'workflow', tone: 'yellow' })
-    expect(getWorkflowTypeAccent('router')).toEqual({ variant: 'workflow', tone: 'orange' })
-    expect(getWorkflowTypeAccent('router_v2')).toEqual({ variant: 'workflow', tone: 'orange' })
+    expect(getWorkflowTypeAccent('loop')).toEqual({ variant: 'workflow', tone: 'ash' })
+    expect(getWorkflowTypeAccent('parallel')).toEqual({ variant: 'workflow', tone: 'ash' })
+    expect(getWorkflowTypeAccent('router')).toEqual({ variant: 'workflow', tone: 'ash' })
+    expect(getWorkflowTypeAccent('condition')).toEqual({ variant: 'workflow', tone: 'orange' })
+    expect(getWorkflowTypeAccent('image_generator_v2')).toEqual({
+      variant: 'workflow',
+      tone: 'purple',
+    })
+    expect(getWorkflowTypeAccent('knowledge')).toEqual({ variant: 'workflow', tone: 'cyan' })
+  })
+
+  it('renders compact workflow icons with their canonical fill and ink', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() =>
+      root.render(
+        <>
+          <WorkflowTypeIcon type='knowledge' Icon={TestIcon} />
+          <WorkflowTypeIcon type='image_generator_v2' Icon={TestIcon} />
+        </>
+      )
+    )
+
+    expect(host.querySelector('[data-workflow-type-icon="knowledge"]')).toHaveClass(
+      'bg-[#00BBD0]',
+      'text-[#1A1A1A]'
+    )
+    expect(host.querySelector('[data-workflow-type-icon="image_generator_v2"]')).toHaveClass(
+      'bg-[#AA00FF]',
+      'text-[#F8F8F8]'
+    )
   })
 
   it('uses the provider background with a contrasting shared icon and label color', () => {

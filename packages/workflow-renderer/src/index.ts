@@ -43,8 +43,12 @@ export {
   getErrorSourceHandleStyle,
   getNearestBranchCursorHandleId,
   getWorkflowTypeAccent,
+  getWorkflowTypeRole,
   WorkflowBlockView,
   type WorkflowBlockViewProps,
+  WorkflowTypeIcon,
+  type WorkflowTypeIconProps,
+  type WorkflowTypeRole,
   WorkflowTypeTag,
   type WorkflowTypeTagProps,
 } from './workflow-block/workflow-block-view'
