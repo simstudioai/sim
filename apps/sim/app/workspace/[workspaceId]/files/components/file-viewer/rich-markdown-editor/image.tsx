@@ -134,10 +134,11 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
         setFailed(false)
         const { naturalWidth, naturalHeight } = event.currentTarget
         if (naturalWidth <= 0 || naturalHeight <= 0) return
-        // Already reserved from stored metadata (possibly just backfilled by a sibling view) — done.
-        if (source.getImageDimensions?.(attrs.src)) return
-        // Hold the box for this first-ever view, and persist so later views reserve before load. The
-        // report is idempotent and de-duped downstream (stored-check + server `width IS NULL`).
+        // Guard on the memoized `storedDimensions` the render actually uses — NOT a fresh cache read: the
+        // memo is non-reactive, so a fresh read could see a sibling's backfill the render hasn't picked up
+        // and skip measuring, leaving THIS view unreserved. When the render isn't reserving yet, hold the
+        // box locally and persist (the report is idempotent, de-duped downstream).
+        if (storedDimensions) return
         setMeasuredDimensions({ width: naturalWidth, height: naturalHeight })
         source.reportImageDimensions?.(attrs.src, { width: naturalWidth, height: naturalHeight })
       }}

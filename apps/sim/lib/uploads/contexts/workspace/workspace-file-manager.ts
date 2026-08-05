@@ -1312,6 +1312,11 @@ export async function updateWorkspaceFileContent(
             key: uploadResult.key,
             size: content.length,
             contentType: nextContentType,
+            // Content is being replaced, so any stored intrinsic dimensions no longer describe it. Clear
+            // them (they re-backfill on next view via the `width IS NULL` path) so the editor never
+            // reserves a stale aspect ratio for the new bytes.
+            width: null,
+            height: null,
             updatedAt: now,
             contentUpdatedAt,
           })

@@ -151,17 +151,18 @@ export function useWorkspaceImageDimensionsAdapter(workspaceId: string): ImageDi
         const record = findRecord(src)
         // Skip when the file isn't ours to key (external/unlisted) or its dimensions are already stored.
         if (!record || (record.width != null && record.height != null)) return
-        const patch = (width: number | null, height: number | null) =>
-          queryClient.setQueryData<WorkspaceFileRecord[]>(listKey, (previous) =>
-            previous?.map((entry) => (entry.id === record.id ? { ...entry, width, height } : entry))
-          )
-        // Optimistically populate the cache so this and sibling views reserve space immediately and a
-        // concurrent measurement of the same file short-circuits above.
-        patch(dimensions.width, dimensions.height)
+        // Populate the cache so this and sibling views reserve space immediately and a concurrent
+        // measurement of the same file short-circuits above. Kept even if the PATCH fails (a 403 for a
+        // read-only member, or a transient error): the measurement is the real image size, correct
+        // regardless of whether the write landed, so siblings should still reserve from it — a later list
+        // refetch reconciles with the server.
+        queryClient.setQueryData<WorkspaceFileRecord[]>(listKey, (previous) =>
+          previous?.map((entry) => (entry.id === record.id ? { ...entry, ...dimensions } : entry))
+        )
         void requestJson(updateWorkspaceFileDimensionsContract, {
           params: { id: workspaceId, fileId: record.id },
           body: dimensions,
-        }).catch(() => patch(null, null))
+        }).catch(() => {})
       },
     }
   }, [queryClient, workspaceId])

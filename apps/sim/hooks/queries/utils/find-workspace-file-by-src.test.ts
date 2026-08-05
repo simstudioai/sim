@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { findWorkspaceFileBySrc } from './find-workspace-file-by-src'
+import { findWorkspaceFileBySrc } from '@/hooks/queries/utils/find-workspace-file-by-src'
 
 function record(over: Partial<WorkspaceFileRecord>): WorkspaceFileRecord {
   return { id: 'wf_x', key: 'workspace/ws1/x.png', ...over } as WorkspaceFileRecord
