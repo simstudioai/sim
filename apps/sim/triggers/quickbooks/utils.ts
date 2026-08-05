@@ -260,6 +260,10 @@ export const quickBooksTriggerOptions = QUICKBOOKS_TRIGGER_DEFINITIONS.map((defi
   group: definition.group,
 }))
 
+export function quickBooksEventTypesSubBlockId(triggerId: string): string {
+  return `eventTypes_${triggerId}`
+}
+
 export const QUICKBOOKS_WEBHOOK_HEADERS = {
   'Content-Type': 'application/json',
   'intuit-signature': '<base64-hmac-sha256>',
@@ -276,7 +280,8 @@ export function parseQuickBooksWebhookType(type: string): {
   entity: string
 } | null {
   const match = /^qbo\.([a-z]+)\.([a-z]+)\.v1$/.exec(type)
-  return match ? { entity: match[1], action: match[2] } : null
+  if (!match) return null
+  return { entity: match[1], action: match[2] === 'void' ? 'voided' : match[2] }
 }
 
 export function isQuickBooksEventMatch(
@@ -326,7 +331,7 @@ export function buildQuickBooksTriggerSubBlocks(triggerId: string): SubBlockConf
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
     {
-      id: 'eventTypes',
+      id: quickBooksEventTypesSubBlockId(triggerId),
       title: 'Event Types',
       type: 'dropdown',
       multiSelect: true,

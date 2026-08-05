@@ -4,6 +4,7 @@ import { getTrigger } from '@/triggers'
 import {
   isQuickBooksEventMatch,
   QUICKBOOKS_TRIGGER_DEFINITIONS,
+  quickBooksEventTypesSubBlockId,
   quickBooksTriggerOptions,
 } from '@/triggers/quickbooks/utils'
 
@@ -32,11 +33,14 @@ describe('QuickBooks triggers', () => {
     ).toHaveLength(1)
     for (const definition of QUICKBOOKS_TRIGGER_DEFINITIONS) {
       const trigger = getTrigger(definition.id)
-      const eventTypes = trigger.subBlocks.find((subBlock) => subBlock.id === 'eventTypes')
+      const eventTypes = trigger.subBlocks.find(
+        (subBlock) => subBlock.id === quickBooksEventTypesSubBlockId(definition.id)
+      )
       if (definition.id === 'quickbooks_preferences_updated') {
         expect(eventTypes).toBeUndefined()
       } else {
         expect(eventTypes?.options?.map((option) => option.id)).toEqual(definition.actions)
+        expect(eventTypes?.multiSelect).toBe(true)
       }
       const instructions = trigger.subBlocks.find((subBlock) =>
         subBlock.id.startsWith('triggerInstructions')
@@ -47,15 +51,22 @@ describe('QuickBooks triggers', () => {
       }
       expect(trigger.outputs).toEqual(getTrigger('quickbooks_invoice_events').outputs)
     }
+
+    const eventTypeIds = QuickBooksBlock.subBlocks
+      .map((subBlock) => subBlock.id)
+      .filter((id) => id.startsWith('eventTypes_quickbooks_'))
+    expect(eventTypeIds).toHaveLength(28)
+    expect(new Set(eventTypeIds).size).toBe(eventTypeIds.length)
   })
 
   it('matches all 101 supported combinations and rejects unsupported actions', () => {
     for (const definition of QUICKBOOKS_TRIGGER_DEFINITIONS) {
       for (const action of definition.actions) {
+        const providerAction = action === 'voided' ? 'void' : action
         expect(
           isQuickBooksEventMatch(
             definition.id,
-            `qbo.${definition.entity}.${action}.v1`,
+            `qbo.${definition.entity}.${providerAction}.v1`,
             definition.actions
           )
         ).toBe(true)

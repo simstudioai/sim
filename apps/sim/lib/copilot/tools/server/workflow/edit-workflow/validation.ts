@@ -297,7 +297,8 @@ export function validateValueForSubBlockType(
           : subBlockConfig.options
       if (options && Array.isArray(options)) {
         const validIds = options.map((opt) => opt.id)
-        if (!validIds.includes(value)) {
+        const values = subBlockConfig.multiSelect && Array.isArray(value) ? value : [value]
+        if (values.some((item) => !validIds.includes(item))) {
           return {
             valid: false,
             error: {

@@ -53,8 +53,14 @@ export const quickBooksHandler: WebhookProviderHandler = {
     const event = asRecord(body)
     const triggerId = typeof providerConfig.triggerId === 'string' ? providerConfig.triggerId : ''
     const eventType = typeof event?.type === 'string' ? event.type : ''
-    const { isQuickBooksEventMatch } = await import('@/triggers/quickbooks/utils')
-    return isQuickBooksEventMatch(triggerId, eventType, providerConfig.eventTypes)
+    const { isQuickBooksEventMatch, quickBooksEventTypesSubBlockId } = await import(
+      '@/triggers/quickbooks/utils'
+    )
+    return isQuickBooksEventMatch(
+      triggerId,
+      eventType,
+      providerConfig[quickBooksEventTypesSubBlockId(triggerId)]
+    )
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {

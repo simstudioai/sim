@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import { quickBooksHandler, verifyQuickBooksSignature } from '@/lib/webhooks/providers/quickbooks'
-import { isQuickBooksEventMatch } from '@/triggers/quickbooks/utils'
+import { isQuickBooksEventMatch, quickBooksEventTypesSubBlockId } from '@/triggers/quickbooks/utils'
 
 const event = {
   specversion: '1.0',
@@ -31,6 +31,28 @@ describe('QuickBooks webhook provider', () => {
     ).toBe(true)
     expect(isQuickBooksEventMatch('quickbooks_invoice_events', event.type, ['created'])).toBe(false)
     expect(isQuickBooksEventMatch('quickbooks_bill_events', event.type, ['updated'])).toBe(false)
+  })
+
+  it('normalizes Intuit void events to the configured voided action', async () => {
+    for (const entity of ['invoice', 'payment']) {
+      const voidEvent = { ...event, type: `qbo.${entity}.void.v1` }
+      expect(
+        isQuickBooksEventMatch(`quickbooks_${entity}_events`, voidEvent.type, ['voided'])
+      ).toBe(true)
+
+      const result = await quickBooksHandler.formatInput!({
+        body: voidEvent,
+        webhook: {},
+        workflow: { id: 'workflow-1', userId: 'user-1' },
+        headers: {},
+        requestId: `request-${entity}`,
+      })
+      expect(result.input).toMatchObject({
+        eventType: `qbo.${entity}.void.v1`,
+        entityType: entity,
+        action: 'voided',
+      })
+    }
   })
 
   it('formats only the common verified event fields', async () => {
@@ -66,7 +88,7 @@ describe('QuickBooks webhook provider', () => {
       requestId: 'request-5',
       providerConfig: {
         triggerId: 'quickbooks_invoice_events',
-        eventTypes: ['updated'],
+        [quickBooksEventTypesSubBlockId('quickbooks_invoice_events')]: ['updated'],
       },
       webhook: {},
       workflow: {},
