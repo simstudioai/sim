@@ -29,7 +29,7 @@ export const v2UsageSummaryQuerySchema = z.object({
 
 /**
  * Current-billing-period usage summary. `bySourceCredits` is the source-aware
- * breakdown (workflow, copilot, knowledge-base, …) of the account's ledger for
+ * breakdown (workflow, sim-chat, knowledge-base, …) of the account's ledger for
  * the period, so a monitor can watch one source's consumption directly instead
  * of estimating it by subtraction.
  */

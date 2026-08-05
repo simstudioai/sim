@@ -3,12 +3,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getUsageLogsContract } from '@/lib/api/contracts/user'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import {
-  getUsageCreditsByLogId,
-  getUserUsageLogs,
-  type UsageLogSource,
-} from '@/lib/billing/core/usage-log'
+import { getUsageCreditsByLogId, getUserUsageLogs } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import {
+  aggregateBillingUsageBySource,
+  toBillingUsageLogSource,
+  toInternalUsageLogSources,
+} from '@/lib/billing/usage-sources'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
 
@@ -33,7 +34,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const dateRange = resolveDateRange(period, startDate, endDate)
 
   const filter = {
-    source: source as UsageLogSource | undefined,
+    source: source ? toInternalUsageLogSources(source) : undefined,
     workspaceId,
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
@@ -49,17 +50,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const logs = result.logs.map((log) => ({
     id: log.id,
     createdAt: log.createdAt,
-    source: log.source,
+    source: toBillingUsageLogSource(log.source),
     workflowName: log.workflowName ?? null,
     creditCost: creditsByLogId[log.id] ?? 0,
     hasCost: log.cost > 0,
   }))
 
   const bySourceCredits = Object.fromEntries(
-    Object.entries(result.summary.bySource).map(([sourceKey, cost]) => [
-      sourceKey,
-      dollarsToCredits(cost),
-    ])
+    Object.entries(aggregateBillingUsageBySource(result.summary.bySource)).map(
+      ([sourceKey, cost]) => [sourceKey, dollarsToCredits(cost)]
+    )
   )
 
   logger.debug('Retrieved usage logs', {

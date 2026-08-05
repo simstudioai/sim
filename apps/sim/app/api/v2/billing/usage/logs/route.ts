@@ -3,11 +3,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { v2ListUsageLogsContract } from '@/lib/api/contracts/v2/billing'
 import { parseRequest } from '@/lib/api/server'
-import {
-  getUsageCreditsByLogId,
-  getUserUsageLogs,
-  type UsageLogSource,
-} from '@/lib/billing/core/usage-log'
+import { getUsageCreditsByLogId, getUserUsageLogs } from '@/lib/billing/core/usage-log'
+import { toBillingUsageLogSource, toInternalUsageLogSources } from '@/lib/billing/usage-sources'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
@@ -59,7 +56,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const dateRange = resolveDateRange(period, startDate, endDate)
     const filter = {
-      source: source as UsageLogSource | undefined,
+      source: source ? toInternalUsageLogSources(source) : undefined,
       workspaceId: workspaceFilter.workspaceId,
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
@@ -73,7 +70,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const items = result.logs.map((log) => ({
       id: log.id,
       createdAt: log.createdAt,
-      source: log.source,
+      source: toBillingUsageLogSource(log.source),
       workflowName: log.workflowName ?? null,
       creditCost: creditsByLogId[log.id] ?? 0,
     }))

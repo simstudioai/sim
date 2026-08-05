@@ -7,6 +7,7 @@ import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { deriveBillingContext, getUserUsageLogs } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { aggregateBillingUsageBySource } from '@/lib/billing/usage-sources'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkRateLimit } from '@/app/api/v1/middleware'
@@ -22,7 +23,7 @@ export const revalidate = 0
 /**
  * GET /api/v2/billing/usage — Current-billing-period usage summary with the
  * per-source credit breakdown, for external monitoring (e.g. alerting on
- * Copilot consumption before an overage). Credits only — dollar costs and
+ * Sim Chat consumption before an overage). Credits only — dollar costs and
  * rate-limit internals are not part of this surface.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -65,10 +66,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     ])
 
     const bySourceCredits = Object.fromEntries(
-      Object.entries(ledger.summary.bySource).map(([source, cost]) => [
-        source,
-        dollarsToCredits(cost),
-      ])
+      Object.entries(aggregateBillingUsageBySource(ledger.summary.bySource)).map(
+        ([source, cost]) => [source, dollarsToCredits(cost)]
+      )
     )
 
     const data: V2UsageSummaryData = {

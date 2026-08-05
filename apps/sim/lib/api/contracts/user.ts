@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { BILLING_USAGE_LOG_SOURCES } from '@/lib/billing/usage-sources'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 
 export const userProfileSchema = z.object({
@@ -268,18 +269,8 @@ export type UnsubscribeActionResponse = ContractJsonResponse<typeof unsubscribeP
 export type UnsubscribeBody = z.input<typeof unsubscribeBodySchema>
 export type UnsubscribeType = NonNullable<UnsubscribeBody['type']>
 
-export const usageLogSourceSchema = z.enum([
-  'workflow',
-  'wand',
-  'copilot',
-  'workspace-chat',
-  'mcp_copilot',
-  'mothership_block',
-  'knowledge-base',
-  'voice-input',
-  'enrichment',
-  'voice-output',
-])
+/** Billing-facing sources collapse both internal chat ledgers into `sim-chat`. */
+export const usageLogSourceSchema = z.enum(BILLING_USAGE_LOG_SOURCES)
 
 export const usageLogPeriodSchema = z.enum(['1d', '7d', '30d', 'all', 'custom'])
 

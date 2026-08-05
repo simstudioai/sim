@@ -1018,7 +1018,7 @@
       "get": {
         "operationId": "getUsageSummary",
         "summary": "Get Usage Summary",
-        "description": "Current-billing-period usage with the per-source credit breakdown (`workflow`, `copilot`, `knowledge-base`, …) — monitor one source's consumption directly instead of estimating it by subtraction. All values are credits (1,000 credits = $5); dollar costs are not part of this surface.",
+        "description": "Current-billing-period usage with the per-source credit breakdown (`workflow`, `sim-chat`, `knowledge-base`, …) — monitor one source's consumption directly instead of estimating it by subtraction. Sim Chat combines the internal Copilot and workspace-chat ledgers. All values are credits (1,000 credits = $5); dollar costs are not part of this surface.",
         "tags": ["Usage"],
         "security": [
           {
@@ -1098,7 +1098,7 @@
                     "totalCredits": 512,
                     "bySourceCredits": {
                       "workflow": 380,
-                      "copilot": 120,
+                      "sim-chat": 120,
                       "knowledge-base": 12
                     },
                     "limitCredits": 20000,
@@ -1140,9 +1140,20 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "workflow",
+                "wand",
+                "sim-chat",
+                "mcp_copilot",
+                "mothership_block",
+                "knowledge-base",
+                "voice-input",
+                "enrichment",
+                "voice-output"
+              ]
             },
-            "description": "Restrict to one usage source (e.g. `workflow`, `copilot`)."
+            "description": "Restrict to one usage source (e.g. `workflow`, `sim-chat`). `sim-chat` includes both the internal Copilot and workspace-chat ledgers."
           },
           {
             "name": "workspaceId",
@@ -1225,7 +1236,18 @@
                             "format": "date-time"
                           },
                           "source": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "workflow",
+                              "wand",
+                              "sim-chat",
+                              "mcp_copilot",
+                              "mothership_block",
+                              "knowledge-base",
+                              "voice-input",
+                              "enrichment",
+                              "voice-output"
+                            ]
                           },
                           "workflowName": {
                             "type": ["string", "null"],
@@ -1249,7 +1271,7 @@
                     {
                       "id": "log_1",
                       "createdAt": "2026-07-29T18:04:11.000Z",
-                      "source": "copilot",
+                      "source": "sim-chat",
                       "workflowName": null,
                       "creditCost": 12
                     }

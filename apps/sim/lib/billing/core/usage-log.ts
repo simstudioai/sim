@@ -9,6 +9,7 @@ import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
@@ -21,22 +22,12 @@ export type UsageLogCategory = 'model' | 'fixed' | 'tool'
 /**
  * Usage log source types
  */
-export type UsageLogSource =
-  | 'workflow'
-  | 'wand'
-  | 'copilot'
-  | 'workspace-chat'
-  | 'mcp_copilot'
-  | 'mothership_block'
-  | 'knowledge-base'
-  | 'voice-input'
-  | 'enrichment'
-  | 'voice-output'
+export type UsageLogSource = InternalUsageLogSource
 
 /**
- * usage_log sources that make up the "copilot" cost breakdown shown in billing
- * summaries: the copilot agent, mothership/workspace chat, MCP copilot, and
- * mothership blocks. Mirrors the source set billed via /api/billing/update-cost.
+ * Internal usage_log sources that make up the Sim Chat-family cost breakdown
+ * used by legacy billing summaries. Mirrors the source set billed via
+ * /api/billing/update-cost.
  */
 export const COPILOT_USAGE_SOURCES: UsageLogSource[] = [
   'copilot',
@@ -616,7 +607,7 @@ export async function recordCumulativeUsage(
 }
 
 interface UsageLogFilter {
-  source?: UsageLogSource
+  source?: UsageLogSource | UsageLogSource[]
   workspaceId?: string
   startDate?: Date
   endDate?: Date
@@ -624,7 +615,13 @@ interface UsageLogFilter {
 
 function buildUsageLogConditions(userId: string, filter: UsageLogFilter) {
   const conditions = [eq(usageLog.userId, userId)]
-  if (filter.source) conditions.push(eq(usageLog.source, filter.source))
+  if (filter.source) {
+    conditions.push(
+      Array.isArray(filter.source)
+        ? inArray(usageLog.source, filter.source)
+        : eq(usageLog.source, filter.source)
+    )
+  }
   if (filter.workspaceId) conditions.push(eq(usageLog.workspaceId, filter.workspaceId))
   if (filter.startDate) conditions.push(gte(usageLog.createdAt, filter.startDate))
   if (filter.endDate) conditions.push(lte(usageLog.createdAt, filter.endDate))
@@ -659,7 +656,7 @@ export async function getUsageCreditsByLogId(
  */
 export interface GetUsageLogsOptions {
   /** Filter by source */
-  source?: UsageLogSource
+  source?: UsageLogSource | UsageLogSource[]
   /** Filter by workspace */
   workspaceId?: string
   /** Start date (inclusive) */
@@ -712,7 +709,7 @@ export interface UsageLogsResult {
   /** `{ totalCost: 0, bySource: {} }` when `includeSummary` is `false`. */
   summary: {
     totalCost: number
-    bySource: Record<string, number>
+    bySource: Partial<Record<UsageLogSource, number>>
   }
   pagination: {
     nextCursor?: string

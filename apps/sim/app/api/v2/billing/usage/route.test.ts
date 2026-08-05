@@ -73,7 +73,10 @@ describe('GET /api/v2/billing/usage', () => {
     })
     mockGetUserUsageLogs.mockResolvedValue({
       logs: [],
-      summary: { totalCost: 2.5, bySource: { workflow: 1.9, copilot: 0.6 } },
+      summary: {
+        totalCost: 2.5,
+        bySource: { workflow: 1.9, copilot: 0.4, 'workspace-chat': 0.2 },
+      },
       pagination: { hasMore: false },
     })
   })
@@ -85,7 +88,7 @@ describe('GET /api/v2/billing/usage', () => {
     expect(body.data).toEqual({
       period: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
       totalCredits: 500,
-      bySourceCredits: { workflow: 380, copilot: 120 },
+      bySourceCredits: { workflow: 380, 'sim-chat': 120 },
       limitCredits: 20000,
       plan: 'pro',
     })
