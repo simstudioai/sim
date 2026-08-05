@@ -864,15 +864,19 @@ async function mapSingleWorkspaceFileRecord(
 /**
  * Store an image file's intrinsic pixel dimensions (a pure rendering hint used to reserve layout space
  * before the image loads). The client reports the browser's own EXIF-corrected `naturalWidth/Height`, and
- * only when it differs from what's stored, so this overwrites rather than backfilling once — a stale
- * value (e.g. left over after the file's content was replaced) self-corrects on the next view instead of
- * sticking behind a `width IS NULL` guard. Does NOT touch `updatedAt` — dimensions are not content and
- * must not cache-bust the served image bytes. Returns whether a live row was written.
+ * only when it differs from what's stored, so this overwrites rather than backfilling once — a stale value
+ * self-corrects on the next view instead of sticking behind a `width IS NULL` guard.
+ *
+ * `key` is a content-version guard: the write commits only if the row still has the storage key the
+ * client measured. The key is regenerated on every content replacement, so an in-flight write measured
+ * against superseded bytes is rejected here rather than persisting the old aspect ratio for new content.
+ * Does NOT touch `updatedAt` — dimensions are not content and must not cache-bust the served image bytes.
+ * Returns whether a live row was written.
  */
 export async function updateWorkspaceFileDimensions(
   workspaceId: string,
   fileId: string,
-  dimensions: { width: number; height: number }
+  dimensions: { key: string; width: number; height: number }
 ): Promise<boolean> {
   const updated = await db
     .update(workspaceFiles)
@@ -881,6 +885,7 @@ export async function updateWorkspaceFileDimensions(
       and(
         eq(workspaceFiles.id, fileId),
         eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.key, dimensions.key),
         isNull(workspaceFiles.deletedAt)
       )
     )

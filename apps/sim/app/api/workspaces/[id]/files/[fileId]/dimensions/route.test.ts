@@ -16,6 +16,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 const WS = '7727ef3f-8cf6-4686-b063-2bb006a10785'
 const FILE = 'wf_abc123'
+const KEY = 'workspace/7727ef3f/screenshot.png'
 
 import { PATCH } from '@/app/api/workspaces/[id]/files/[fileId]/dimensions/route'
 
@@ -37,11 +38,12 @@ describe('PATCH /api/workspaces/[id]/files/[fileId]/dimensions', () => {
     mockUpdateWorkspaceFileDimensions.mockResolvedValue(true)
   })
 
-  it('stores dimensions for a writer', async () => {
-    const res = await PATCH(buildRequest({ width: 1600, height: 900 }), routeContext)
+  it('stores dimensions for a writer, keyed to the content version', async () => {
+    const res = await PATCH(buildRequest({ key: KEY, width: 1600, height: 900 }), routeContext)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ success: true })
     expect(mockUpdateWorkspaceFileDimensions).toHaveBeenCalledWith(WS, FILE, {
+      key: KEY,
       width: 1600,
       height: 900,
     })
@@ -49,31 +51,32 @@ describe('PATCH /api/workspaces/[id]/files/[fileId]/dimensions', () => {
 
   it('allows an admin', async () => {
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
-    const res = await PATCH(buildRequest({ width: 10, height: 20 }), routeContext)
+    const res = await PATCH(buildRequest({ key: KEY, width: 10, height: 20 }), routeContext)
     expect(res.status).toBe(200)
     expect(mockUpdateWorkspaceFileDimensions).toHaveBeenCalledOnce()
   })
 
   it('rejects an unauthenticated caller before touching the DB', async () => {
     authMockFns.mockGetSession.mockResolvedValue(null)
-    const res = await PATCH(buildRequest({ width: 10, height: 10 }), routeContext)
+    const res = await PATCH(buildRequest({ key: KEY, width: 10, height: 10 }), routeContext)
     expect(res.status).toBe(401)
     expect(mockUpdateWorkspaceFileDimensions).not.toHaveBeenCalled()
   })
 
   it('rejects a read-only member (backfill requires write)', async () => {
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
-    const res = await PATCH(buildRequest({ width: 10, height: 10 }), routeContext)
+    const res = await PATCH(buildRequest({ key: KEY, width: 10, height: 10 }), routeContext)
     expect(res.status).toBe(403)
     expect(mockUpdateWorkspaceFileDimensions).not.toHaveBeenCalled()
   })
 
-  it('rejects non-positive / non-integer dimensions', async () => {
+  it('rejects a missing key or non-positive / non-integer dimensions', async () => {
     for (const body of [
-      { width: 0, height: 10 },
-      { width: 10, height: -5 },
-      { width: 10.5, height: 10 },
-      { width: 10 },
+      { width: 10, height: 10 }, // missing key
+      { key: KEY, width: 0, height: 10 },
+      { key: KEY, width: 10, height: -5 },
+      { key: KEY, width: 10.5, height: 10 },
+      { key: KEY, width: 10 },
     ]) {
       const res = await PATCH(buildRequest(body), routeContext)
       expect(res.status).toBe(400)

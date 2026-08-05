@@ -27,7 +27,7 @@ export const PATCH = withRouteHandler(
     const parsed = await parseRequest(updateWorkspaceFileDimensionsContract, request, context)
     if (!parsed.success) return parsed.response
     const { id: workspaceId, fileId } = parsed.data.params
-    const { width, height } = parsed.data.body
+    const { key, width, height } = parsed.data.body
 
     const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (permission !== 'admin' && permission !== 'write') {
@@ -35,7 +35,7 @@ export const PATCH = withRouteHandler(
     }
 
     try {
-      await updateWorkspaceFileDimensions(workspaceId, fileId, { width, height })
+      await updateWorkspaceFileDimensions(workspaceId, fileId, { key, width, height })
       return NextResponse.json({ success: true as const })
     } catch (error) {
       logger.error('Failed to backfill workspace file dimensions', {

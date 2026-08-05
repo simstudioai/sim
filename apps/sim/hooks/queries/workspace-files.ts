@@ -164,7 +164,9 @@ export function useWorkspaceImageDimensionsAdapter(workspaceId: string): ImageDi
         )
         void requestJson(updateWorkspaceFileDimensionsContract, {
           params: { id: workspaceId, fileId: record.id },
-          body: dimensions,
+          // Send the key we measured against; the server rejects the write if the row's content (key) has
+          // since changed, so a stale in-flight PATCH for replaced bytes can't persist the old size.
+          body: { key: record.key, ...dimensions },
         }).catch(() => {})
       },
     }

@@ -60,6 +60,12 @@ export const updateWorkspaceFileContentBodySchema = z.object({
 const IMAGE_DIMENSION_MAX = 100_000
 
 export const updateWorkspaceFileDimensionsBodySchema = z.object({
+  /**
+   * The storage key the client measured. The write commits only if the row still has this key — a
+   * content-version guard: the key changes on every content replacement, so a stale in-flight write for
+   * superseded bytes is rejected rather than persisting the old aspect ratio.
+   */
+  key: z.string().min(1, 'key is required'),
   width: z.number().int().positive().max(IMAGE_DIMENSION_MAX),
   height: z.number().int().positive().max(IMAGE_DIMENSION_MAX),
 })
