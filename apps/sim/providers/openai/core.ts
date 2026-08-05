@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import type OpenAI from 'openai'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -38,6 +39,14 @@ import {
   type ResponsesToolCall,
   toResponsesToolChoice,
 } from './utils'
+
+/**
+ * How long the response body may stall after headers arrive before the attempt is
+ * abandoned. Generous: the body is tens of KB and follows immediately on a healthy
+ * call, so this only fires on the stall, well inside the runtime's own ~300s socket
+ * wall (which is variable, unnamed, and cannot be retried against).
+ */
+const RESPONSE_BODY_BUDGET_MS = 60_000
 
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
 type ToolChoice = PreparedTools['toolChoice']
@@ -85,6 +94,12 @@ export async function executeResponsesProviderRequest(
 
   logger.info(`Preparing ${config.providerLabel} request`, {
     model: request.model,
+    // Correlation ids: without these a provider call cannot be tied back to the
+    // execution that issued it, which leaves a stalled request indistinguishable
+    // from one that was never made.
+    workflowId: request.workflowId,
+    blockId: request.blockId,
+    executionId: request.executionId,
     hasSystemPrompt: !!request.systemPrompt,
     hasMessages: !!request.messages?.length,
     hasTools: !!request.tools?.length,
@@ -237,14 +252,18 @@ export async function executeResponsesProviderRequest(
     ...overrides,
   })
 
+  /**
+   * A non-JSON body here is usually a gateway/CDN HTML page, and this string reaches the
+   * user-facing block error and the trace span — so it is bounded rather than pasted in
+   * whole. Falls back to `statusText` when the body carries nothing useful.
+   */
   const parseErrorResponse = async (response: Response): Promise<string> => {
-    const text = await response.text()
+    const text = await response.text().catch(() => '')
     try {
       const payload = JSON.parse(text)
-      return payload?.error?.message || text
-    } catch {
-      return text
-    }
+      if (payload?.error?.message) return payload.error.message
+    } catch {}
+    return truncate(text.trim(), 500) || response.statusText || `HTTP ${response.status}`
   }
 
   /**
@@ -313,11 +332,123 @@ export async function executeResponsesProviderRequest(
     return retryResponse
   }
 
+  /**
+   * Annotates an opaque transport failure with the request phase it died in.
+   *
+   * A model call that stalls surfaces only the runtime's own message — Bun's
+   * `TimeoutError: The operation timed out.` — which is indistinguishable between
+   * "the request was never answered" and "the response arrived but its body never
+   * completed". Those have opposite causes and opposite fixes, and the difference
+   * is only observable from inside the call.
+   *
+   * The phase is folded into the error message rather than logged alone because
+   * the message reaches the block's trace span, and the trace persists even when a
+   * task has stopped shipping logs. Errors that already describe themselves (an
+   * API error carrying a status and provider message) are left untouched; only
+   * `TimeoutError`/`AbortError`, which name nothing, are annotated.
+   */
+  const annotateTransportFailure = (
+    error: unknown,
+    phase: 'awaiting-response-headers' | 'reading-response-body',
+    startedAt: number,
+    detail?: Record<string, string | number | null>
+  ): unknown => {
+    if (!(error instanceof Error)) return error
+    if (error.name !== 'TimeoutError' && error.name !== 'AbortError') return error
+
+    const elapsedMs = Date.now() - startedAt
+    const fields = Object.entries(detail ?? {})
+      .filter(([, value]) => value !== null && value !== undefined)
+      .map(([key, value]) => `${key}=${value}`)
+    const context = [`phase=${phase}`, `elapsedMs=${elapsedMs}`, ...fields].join(' ')
+
+    logger.error(`${config.providerLabel} request failed in transport`, {
+      phase,
+      elapsedMs,
+      errorName: error.name,
+      model: config.modelName,
+      workflowId: request.workflowId,
+      blockId: request.blockId,
+      executionId: request.executionId,
+      ...detail,
+    })
+
+    /**
+     * A new Error rather than a mutation: the runtime raises these as `DOMException`,
+     * whose `message` is a readonly getter, so assigning to it throws a `TypeError` and
+     * destroys the very failure being reported.
+     *
+     * `name` is copied and the original hangs off `cause` so the classification survives
+     * — this error is rewrapped in a `ProviderError` further up, which overwrites `name`,
+     * and the agent handler reads the cause to recognise a transport timeout.
+     */
+    const annotated = new Error(`${error.message} [${context}]`, { cause: error })
+    annotated.name = error.name
+    return annotated
+  }
+
   const postResponses = async (
     body: Record<string, unknown>
   ): Promise<OpenAI.Responses.Response> => {
-    const response = await fetchResponsesWithSummaryFallback(body)
-    return response.json()
+    const startedAt = Date.now()
+
+    /**
+     * Bounds the body read only — never time-to-headers.
+     *
+     * `/v1/responses` withholds its 200 until generation is finished, so the whole
+     * think time lands in the headers phase and the body then transfers in about a
+     * millisecond (measured: a 14.5s call spent 14545ms to headers and 1ms on the body).
+     * Leaving headers unbounded therefore costs nothing and keeps slow reasoning models
+     * working, while a stalled body — the documented failure where the 200 arrives and
+     * the bytes never follow — is caught here instead of by the runtime's own ~300s
+     * socket wall, which is variable, unnamed, and fires far too late to be useful.
+     *
+     * The failure is surfaced, not retried: `/v1/responses` ignores `Idempotency-Key`
+     * (verified against the live API — the same key with an identical body returns two
+     * distinct response ids and a conflicting body draws no 409), so a retry would
+     * generate and bill a second response. Both the OpenAI SDK and the AI SDK likewise
+     * decline to retry this class; the AI SDK classifies `TimeoutError` as an abort and
+     * rethrows it.
+     *
+     * Scope: non-streaming only. The streaming path holds its body open by design, so a
+     * deadline there would cut healthy generations; it keeps the runtime's socket wall.
+     */
+    const bodyDeadline = new AbortController()
+    const signal = request.abortSignal
+      ? AbortSignal.any([request.abortSignal, bodyDeadline.signal])
+      : bodyDeadline.signal
+
+    let response: Response
+    try {
+      response = await fetchResponsesWithSummaryFallback(body, signal)
+    } catch (error) {
+      throw annotateTransportFailure(error, 'awaiting-response-headers', startedAt)
+    }
+
+    /**
+     * `x-request-id` is the only handle OpenAI support can trace a call by, so it is
+     * captured here — a stalled request is exactly the case where we need to hand them
+     * one, and it is unavailable once the body read fails.
+     */
+    const responseMeta = {
+      status: response.status,
+      ttfbMs: Date.now() - startedAt,
+      requestId: response.headers.get('x-request-id'),
+      contentLength: response.headers.get('content-length'),
+      contentEncoding: response.headers.get('content-encoding'),
+    }
+
+    const timer = setTimeout(() => {
+      bodyDeadline.abort(new DOMException('response body stalled', 'TimeoutError'))
+    }, RESPONSE_BODY_BUDGET_MS)
+
+    try {
+      return await response.json()
+    } catch (error) {
+      throw annotateTransportFailure(error, 'reading-response-body', startedAt, responseMeta)
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   const providerStartTime = Date.now()
@@ -722,10 +853,14 @@ export async function executeResponsesProviderRequest(
       throw error
     }
 
-    throw new ProviderError(toError(error).message, {
-      startTime: providerStartTimeISO,
-      endTime: providerEndTimeISO,
-      duration: totalDuration,
-    })
+    throw new ProviderError(
+      toError(error).message,
+      {
+        startTime: providerStartTimeISO,
+        endTime: providerEndTimeISO,
+        duration: totalDuration,
+      },
+      { cause: error }
+    )
   }
 }

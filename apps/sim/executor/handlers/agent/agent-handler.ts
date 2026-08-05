@@ -72,6 +72,22 @@ import { getToolAsync } from '@/tools/utils.server'
 const logger = createLogger('AgentBlockHandler')
 
 /**
+ * True when a failure originated from a transport deadline or abort, at any depth of the
+ * cause chain.
+ *
+ * Providers rewrap transport failures (`ProviderError` overwrites `name`), so a check on
+ * the top-level `name` alone misses every wrapped case. Bounded to a short walk so a
+ * self-referential cause cannot loop.
+ */
+function isTransportTimeout(error: unknown): boolean {
+  for (let current = error, depth = 0; current instanceof Error && depth < 5; depth++) {
+    if (current.name === 'AbortError' || current.name === 'TimeoutError') return true
+    current = current.cause
+  }
+  return false
+}
+
+/**
  * Handler for Agent blocks that process LLM requests with optional tools.
  */
 export class AgentBlockHandler implements BlockHandler {
@@ -1299,8 +1315,20 @@ export class AgentBlockHandler implements BlockHandler {
       timestamp: new Date().toISOString(),
     })
 
-    if (error.name === 'AbortError') {
-      throw new Error('Provider request timed out - the API took too long to respond')
+    /**
+     * `TimeoutError` is what the runtime raises on a fetch deadline; without it a
+     * stalled model call reached the trace as the bare runtime string.
+     *
+     * The cause chain is walked, not just `name`: providers rewrap transport failures in
+     * a `ProviderError`, which overwrites `name`, so the classification only survives on
+     * `cause`. The original message is kept rather than replaced — providers annotate it
+     * with the request phase they died in, and that detail is the only thing separating a
+     * request that was never answered from one whose body stalled.
+     */
+    if (isTransportTimeout(error)) {
+      throw new Error(
+        `Provider request timed out - the API took too long to respond (${error.message})`
+      )
     }
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       throw new Error(
