@@ -28,6 +28,7 @@ import {
   v2PartUrlsDataSchema,
   v2UploadStatusSchema,
   v2UploadTokenHeadersSchema,
+  v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
@@ -211,14 +212,22 @@ export const v2KnowledgeDocumentUploadSchema = z.object({
   name: z.string(),
   contentType: z.string(),
   size: z.number().int().positive(),
-  partSize: z.number().int().positive(),
-  partCount: z.number().int().positive(),
-  uploadToken: z.string().min(1),
   expiresAt: z.string().datetime(),
   error: z.string().nullable(),
   document: v2KnowledgeDocumentSummarySchema.nullable(),
 })
 export type V2KnowledgeDocumentUpload = z.output<typeof v2KnowledgeDocumentUploadSchema>
+
+export const v2CreateKnowledgeDocumentUploadDataSchema = z
+  .object({
+    session: v2KnowledgeDocumentUploadSchema,
+    uploadToken: z.string().min(1),
+    transfer: v2UploadTransferSchema,
+  })
+  .strict()
+export type V2CreateKnowledgeDocumentUploadData = z.output<
+  typeof v2CreateKnowledgeDocumentUploadDataSchema
+>
 
 export const v2KnowledgeBaseSortFields = ['name', 'createdAt', 'updatedAt'] as const
 
@@ -345,7 +354,10 @@ export const v2CreateKnowledgeDocumentUploadContract = defineRouteContract({
   path: '/api/v2/knowledge/[id]/documents/uploads',
   params: knowledgeBaseParamsSchema,
   body: v2CreateKnowledgeDocumentUploadBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeDocumentUploadSchema) },
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CreateKnowledgeDocumentUploadDataSchema),
+  },
 })
 
 export const v2AbortKnowledgeDocumentUploadContract = defineRouteContract({

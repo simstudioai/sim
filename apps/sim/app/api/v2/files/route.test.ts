@@ -6,13 +6,19 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckRateLimit, mockResolveWorkspaceAccess, mockQueryWorkspaceFiles } = vi.hoisted(
-  () => ({
-    mockCheckRateLimit: vi.fn(),
-    mockResolveWorkspaceAccess: vi.fn(),
-    mockQueryWorkspaceFiles: vi.fn(),
-  })
-)
+const {
+  mockCheckRateLimit,
+  mockPerformCreateWorkspaceFile,
+  mockQueryWorkspaceFiles,
+  mockResolveWorkspaceAccess,
+  mockV2ApiGateError,
+} = vi.hoisted(() => ({
+  mockCheckRateLimit: vi.fn(),
+  mockPerformCreateWorkspaceFile: vi.fn(),
+  mockResolveWorkspaceAccess: vi.fn(),
+  mockQueryWorkspaceFiles: vi.fn(),
+  mockV2ApiGateError: vi.fn().mockResolvedValue(null),
+}))
 
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,
@@ -20,15 +26,21 @@ vi.mock('@/app/api/v1/middleware', () => ({
 }))
 
 vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
+  v2ApiGateError: mockV2ApiGateError,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   queryWorkspaceFiles: mockQueryWorkspaceFiles,
 }))
 
+vi.mock('@/lib/workspace-files/orchestration', () => ({
+  MAX_WORKSPACE_FILE_INLINE_BODY_BYTES: 70 * 1024 * 1024,
+  performCreateWorkspaceFile: mockPerformCreateWorkspaceFile,
+}))
+
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GET } from '@/app/api/v2/files/route'
+import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
+import { GET, POST } from '@/app/api/v2/files/route'
 
 const WS = 'workspace-1'
 const FOLDER_ID = 'fold_1'
@@ -81,6 +93,14 @@ const DEFAULT_LIST_ARGS = {
 
 const callList = (query: string) =>
   GET(new NextRequest(`http://localhost:3000/api/v2/files?${query}`))
+
+function createRequest(body: Record<string, unknown>) {
+  return new NextRequest('http://localhost:3000/api/v2/files', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
 
 describe('GET /api/v2/files', () => {
   beforeEach(() => {
@@ -272,5 +292,214 @@ describe('GET /api/v2/files', () => {
     const res = await callList(`workspaceId=${WS}&search=data`)
 
     expect((await res.json()).nextCursor).toBeNull()
+  })
+})
+
+describe('POST /api/v2/files', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
+    mockV2ApiGateError.mockResolvedValue(null)
+    mockResolveWorkspaceAccess.mockResolvedValue(null)
+    mockPerformCreateWorkspaceFile.mockResolvedValue({
+      success: true,
+      file: buildRecord({ name: 'untitled.md', size: 0, type: 'text/markdown' }),
+    })
+  })
+
+  it('creates an empty exact-name file with an inferred MIME type', async () => {
+    const request = createRequest({ workspaceId: WS, name: 'untitled.md' })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toMatchObject({
+      data: { id: 'wf_1', name: 'untitled.md', size: 0, type: 'text/markdown' },
+    })
+    expect(mockResolveWorkspaceAccess).toHaveBeenCalledWith(RATE_LIMIT_OK, 'user-1', WS, 'write')
+    expect(mockPerformCreateWorkspaceFile).toHaveBeenCalledWith({
+      workspaceId: WS,
+      userId: 'user-1',
+      name: 'untitled.md',
+      contentType: 'text/markdown',
+      folderId: undefined,
+      content: Buffer.alloc(0),
+      exactName: true,
+      request,
+    })
+  })
+
+  it('decodes initialized base64 content before orchestration', async () => {
+    mockPerformCreateWorkspaceFile.mockResolvedValue({
+      success: true,
+      file: buildRecord({
+        name: 'seed.bin',
+        size: 3,
+        type: 'application/octet-stream',
+        folderId: FOLDER_ID,
+        folderPath: 'Fixtures',
+      }),
+    })
+    const request = createRequest({
+      workspaceId: WS,
+      name: 'seed.bin',
+      contentType: 'application/octet-stream',
+      folderId: FOLDER_ID,
+      content: Buffer.from([1, 2, 3]).toString('base64'),
+      encoding: 'base64',
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(201)
+    expect(mockPerformCreateWorkspaceFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: WS,
+        name: 'seed.bin',
+        contentType: 'application/octet-stream',
+        folderId: FOLDER_ID,
+        content: Buffer.from([1, 2, 3]),
+        exactName: true,
+      })
+    )
+  })
+
+  it('rejects malformed base64 before workspace access or orchestration', async () => {
+    const response = await POST(
+      createRequest({
+        workspaceId: WS,
+        name: 'seed.bin',
+        content: 'not-base64!',
+        encoding: 'base64',
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'BAD_REQUEST' },
+    })
+    expect(mockResolveWorkspaceAccess).not.toHaveBeenCalled()
+    expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('accepts empty base64 as a zero-byte file', async () => {
+    const response = await POST(
+      createRequest({ workspaceId: WS, name: 'empty.bin', content: '', encoding: 'base64' })
+    )
+
+    expect(response.status).toBe(201)
+    expect(mockPerformCreateWorkspaceFile).toHaveBeenCalledWith(
+      expect.objectContaining({ content: Buffer.alloc(0) })
+    )
+  })
+
+  it('returns the canonical v2 envelope when the JSON body exceeds the inline limit', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/files', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': String(MAX_WORKSPACE_FILE_INLINE_BODY_BYTES + 1),
+      },
+      body: '{}',
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
+    })
+    expect(mockResolveWorkspaceAccess).not.toHaveBeenCalled()
+    expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('returns the canonical v2 envelope for malformed JSON', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{not-json',
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
+    })
+    expect(mockResolveWorkspaceAccess).not.toHaveBeenCalled()
+    expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      label: 'name conflict',
+      result: {
+        success: false,
+        error: 'A file with this name already exists',
+        errorCode: 'conflict',
+      },
+      status: 409,
+      code: 'CONFLICT',
+      message: 'A file with this name already exists',
+    },
+    {
+      label: 'internal orchestration failure',
+      result: { success: false, error: 'database connection details', errorCode: 'internal' },
+      status: 500,
+      code: 'INTERNAL_ERROR',
+      message: 'Internal server error',
+    },
+  ])('maps a $label into the v2 error envelope', async ({ result, status, code, message }) => {
+    mockPerformCreateWorkspaceFile.mockResolvedValue(result)
+
+    const response = await POST(createRequest({ workspaceId: WS, name: 'untitled.md' }))
+
+    expect(response.status).toBe(status)
+    await expect(response.json()).resolves.toMatchObject({ error: { code, message } })
+  })
+
+  it('returns the auth failure before gating, access checks, or orchestration', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: false,
+      error: 'Invalid API key',
+      limit: 100,
+      remaining: 0,
+      resetAt: RATE_LIMIT_OK.resetAt,
+    })
+
+    const response = await POST(createRequest({ workspaceId: WS, name: 'untitled.md' }))
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'UNAUTHORIZED', message: 'Invalid API key' },
+    })
+    expect(mockV2ApiGateError).not.toHaveBeenCalled()
+    expect(mockResolveWorkspaceAccess).not.toHaveBeenCalled()
+    expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('returns the v2 gate failure before access checks or orchestration', async () => {
+    const { v2Error } = await import('@/app/api/v2/lib/response')
+    mockV2ApiGateError.mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+
+    const response = await POST(createRequest({ workspaceId: WS, name: 'untitled.md' }))
+
+    expect(response.status).toBe(404)
+    expect(mockResolveWorkspaceAccess).not.toHaveBeenCalled()
+    expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('requires workspace write access before orchestration', async () => {
+    mockResolveWorkspaceAccess.mockResolvedValue({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'Access denied',
+    })
+
+    const response = await POST(createRequest({ workspaceId: WS, name: 'untitled.md' }))
+
+    expect(response.status).toBe(403)
+    expect(mockResolveWorkspaceAccess).toHaveBeenCalledWith(RATE_LIMIT_OK, 'user-1', WS, 'write')
+    expect(mockPerformCreateWorkspaceFile).not.toHaveBeenCalled()
   })
 })

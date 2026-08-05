@@ -16,13 +16,14 @@ import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import type { CreatedKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import { findBoundKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import {
   abortUploadSession,
+  type CreatedUploadSession,
   createUploadSession,
   getOwnedUploadSession,
   type UploadSessionRecord,
-} from '@/lib/uploads/multipart-session/service'
-import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
+} from '@/lib/uploads/upload-session/service'
 import { resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
 import type { RateLimitResult } from '@/app/api/v1/middleware'
 import { v2Error } from '@/app/api/v2/lib/response'
@@ -110,7 +111,8 @@ export async function createKnowledgeDocumentUploadSession(params: {
   contentType: string
   fileSize: number
   metadata: Record<string, unknown>
-}): Promise<UploadSessionRecord> {
+  localOrigin: string
+}): Promise<CreatedUploadSession> {
   const session = await createUploadSession({
     ...params,
     purpose: 'knowledge_document',
@@ -163,9 +165,6 @@ export function toV2KnowledgeDocumentUpload(
     name: session.fileName,
     contentType: session.contentType,
     size: session.fileSize,
-    partSize: session.partSize,
-    partCount: session.partCount,
-    uploadToken: session.uploadToken,
     expiresAt: session.expiresAt.toISOString(),
     error: session.error,
     document: document ? toV2KnowledgeDocumentSummary(document) : null,
@@ -216,7 +215,7 @@ export async function abortKnowledgeDocumentUpload(
 }
 
 /**
- * Binds a completed multipart session to its knowledge document. Shared by the public v2
+ * Binds a completed upload session to its knowledge document. Shared by the public v2
  * and session-authenticated routes so both get identical completion semantics.
  *
  * Ordering is load-bearing. A retry is answered from the already-bound document before any

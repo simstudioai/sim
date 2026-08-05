@@ -34,6 +34,9 @@ export type CsvDelimiter = (typeof CSV_DELIMITER_CANDIDATES)[number]
  */
 export const CSV_DELIMITER_SNIFF_BYTES = 64 * 1024
 
+/** Maximum characters buffered for one CSV record before parsing fails. */
+export const CSV_MAX_RECORD_SIZE_BYTES = 1024 * 1024
+
 /**
  * Single source of truth for the `csv-parse` options used by both the buffered
  * sync parser and the streaming parser.
@@ -62,9 +65,13 @@ export function csvParseOptions(
     relax_column_count: true,
     relax_quotes: true,
     skip_records_with_error: true,
+    on_skip(error) {
+      if (error?.code === 'CSV_MAX_RECORD_SIZE') throw error
+    },
     cast: false,
     bom: true,
     delimiter,
+    max_record_size: CSV_MAX_RECORD_SIZE_BYTES,
   }
 }
 
@@ -220,8 +227,13 @@ export const CSV_SCHEMA_SAMPLE_SIZE = 100
  */
 export const CSV_MAX_BATCH_SIZE = 5000
 
+/** Maximum serialized CSV row data retained before an import batch is flushed. */
+export const CSV_MAX_BATCH_SIZE_BYTES = 5 * 1024 * 1024
+
 /** Maximum CSV/TSV file size accepted by import routes (25 MB). */
 export const CSV_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+
+export const CSV_MAX_FILE_SIZE_MESSAGE = `File exceeds maximum allowed size of ${CSV_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`
 
 /**
  * Error thrown when the user-supplied mapping or CSV does not line up with the

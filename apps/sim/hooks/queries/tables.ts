@@ -87,6 +87,7 @@ import {
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
 import type { V2TableImportSource, V2TableImportTarget } from '@/lib/api/contracts/v2/tables'
+import type { V2CompleteUploadBody } from '@/lib/api/contracts/v2/uploads'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
   CsvHeaderMapping,
@@ -111,7 +112,8 @@ import {
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
 import { sanitizeName } from '@/lib/table/import'
-import { uploadMultipartSession } from '@/lib/uploads/client/multipart-session'
+import type { UploadProgressEvent } from '@/lib/uploads/client/types'
+import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   TABLE_LIST_STALE_TIME,
@@ -1756,46 +1758,49 @@ async function createAndUploadTableImport(params: {
       timezone: params.timezone,
     },
   })
-  params.onCreated?.(created.data.id)
-  if (params.source.type === 'workspace_file') return created.data
-  if (!params.file || !created.data.upload) {
+  const { session, uploadToken, transfer } = created.data
+  params.onCreated?.(session.id)
+  if (params.source.type === 'workspace_file') return session
+  if (!params.file || !uploadToken || !transfer) {
     throw new Error('Upload-backed table import returned no upload session')
   }
-  const upload = created.data.upload
-  return uploadMultipartSession({
+  const getPartUrls = async (partNumbers: number[]) => {
+    const response = await requestJson(createTableImportPartUrlsContract, {
+      params: { importId: session.id },
+      query: { workspaceId: params.workspaceId },
+      headers: { 'upload-token': uploadToken },
+      body: { partNumbers },
+    })
+    return response.data.parts
+  }
+  const common = {
     file: params.file,
-    partSize: upload.partSize,
-    partCount: upload.partCount,
-    onProgress: params.onProgress ? (event) => params.onProgress?.(event.percent) : undefined,
-    getPartUrls: async (partNumbers) => {
-      const response = await requestJson(createTableImportPartUrlsContract, {
-        params: { importId: created.data.id },
-        query: { workspaceId: params.workspaceId },
-        headers: { 'upload-token': upload.uploadToken },
-        body: { partNumbers },
-      })
-      return response.data.parts
-    },
-    complete: async (parts) => {
+    onProgress: params.onProgress
+      ? (event: UploadProgressEvent) => params.onProgress?.(event.percent)
+      : undefined,
+    complete: async (body: V2CompleteUploadBody) => {
       const response = await requestJson(completeTableImportResourceContract, {
-        params: { importId: created.data.id },
+        params: { importId: session.id },
         query: { workspaceId: params.workspaceId },
-        headers: { 'upload-token': upload.uploadToken },
-        body: { parts },
+        headers: { 'upload-token': uploadToken },
+        body,
       })
       return response.data
     },
     abort: async () => {
       await requestJson(cancelTableImportResourceContract, {
-        params: { importId: created.data.id },
+        params: { importId: session.id },
         query: { workspaceId: params.workspaceId },
-        headers: { 'upload-token': upload.uploadToken },
+        headers: { 'upload-token': uploadToken },
       })
     },
-  })
+  }
+  return transfer.method === 'put'
+    ? uploadFileSession({ ...common, transfer })
+    : uploadFileSession({ ...common, transfer, getPartUrls })
 }
 
-/** Uploads a CSV/TSV through a signed multipart session and creates a table from it. */
+/** Uploads a CSV/TSV through a signed upload session and creates a table from it. */
 export function useImportCsv() {
   const queryClient = useQueryClient()
   const timezone = useTimezone()

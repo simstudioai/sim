@@ -4,11 +4,8 @@ import {
   deleteFile,
   downloadFile,
   generatePresignedDownloadUrl,
-  generatePresignedUploadUrl,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
-import type { PresignedUrlResponse } from '@/lib/uploads/shared/types'
-import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('CopilotFileManager')
 
@@ -49,14 +46,6 @@ interface CopilotFileAttachment {
   media_type: string
 }
 
-export interface GenerateCopilotUploadUrlOptions {
-  fileName: string
-  contentType: string
-  fileSize: number
-  userId: string
-  expirationSeconds?: number
-}
-
 export interface CopilotStoredFile {
   id: string
   key: string
@@ -66,48 +55,6 @@ export interface CopilotStoredFile {
   size: number
   type: string
   mimeType: string
-}
-
-/**
- * Generate a presigned URL for copilot file upload
- *
- * Images and document files are allowed for copilot uploads.
- * Requires authenticated user session.
- *
- * @param options Upload URL generation options
- * @returns Presigned URL response with upload URL and file key
- * @throws Error if file type is unsupported or user is not authenticated
- */
-export async function generateCopilotUploadUrl(
-  options: GenerateCopilotUploadUrlOptions
-): Promise<PresignedUrlResponse> {
-  const { fileName, contentType, fileSize, userId, expirationSeconds = 3600 } = options
-
-  if (!userId?.trim()) {
-    throw new Error('Authenticated user session is required for copilot uploads')
-  }
-
-  if (!isSupportedFileType(contentType) && !isImageFileType(contentType)) {
-    throw new Error(
-      'Unsupported file type. Allowed: images (JPEG, PNG, GIF, WebP), PDF, and text files (TXT, CSV, MD, HTML, JSON, XML).'
-    )
-  }
-
-  const presignedUrlResponse = await generatePresignedUploadUrl({
-    fileName,
-    contentType,
-    fileSize,
-    context: 'copilot',
-    userId,
-    expirationSeconds,
-  })
-
-  logger.info(`Generated copilot upload URL for: ${fileName}`, {
-    key: presignedUrlResponse.key,
-    userId,
-  })
-
-  return presignedUrlResponse
 }
 
 export async function uploadCopilotFile(options: {

@@ -121,7 +121,7 @@ describe('resolveApiCorsPolicy', () => {
   })
 
   it('returns default policy with APP_URL and credentials for other API routes', () => {
-    const policy = resolveApiCorsPolicy(makeRequest('/api/files/upload'))
+    const policy = resolveApiCorsPolicy(makeRequest('/api/files/uploads'))
     expect(policy).toEqual({
       origin: 'https://app.sim.test',
       credentials: true,
@@ -137,7 +137,7 @@ describe('resolveApiCorsPolicy', () => {
       '/api/chat/abc',
       '/api/workflows/wf/execute',
       '/api/v2/workflows/wf/execute',
-      '/api/files/upload',
+      '/api/files/uploads',
     ]
     for (const path of paths) {
       const policy = resolveApiCorsPolicy(makeRequest(path))

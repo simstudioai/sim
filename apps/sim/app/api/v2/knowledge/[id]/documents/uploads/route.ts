@@ -72,8 +72,16 @@ export const POST = withRouteHandler(
         contentType,
         fileSize: size,
         metadata,
+        localOrigin: request.nextUrl.origin,
       })
-      return v2Data(toV2KnowledgeDocumentUpload(session, null), { rateLimit, status: 201 })
+      return v2Data(
+        {
+          session: toV2KnowledgeDocumentUpload(session, null),
+          uploadToken: session.uploadToken,
+          transfer: session.transfer,
+        },
+        { rateLimit, status: 201 }
+      )
     } catch (error) {
       const classified = v2CaughtOrchestrationError(error)
       if (classified) return classified

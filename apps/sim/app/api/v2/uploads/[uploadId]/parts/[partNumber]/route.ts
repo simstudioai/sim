@@ -2,12 +2,15 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { localUploadPartContract } from '@/lib/api/contracts/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { writeLocalMultipartPart } from '@/lib/uploads/multipart-session/provider'
+import {
+  LocalUploadBodyError,
+  writeLocalMultipartPart,
+} from '@/lib/uploads/upload-session/provider'
 import {
   expectedUploadPartSize,
   type UploadSessionRecord,
   verifyUploadSessionToken,
-} from '@/lib/uploads/multipart-session/service'
+} from '@/lib/uploads/upload-session/service'
 
 interface LocalPartRouteParams {
   params: Promise<{ uploadId: string; partNumber: string }>
@@ -36,6 +39,9 @@ export const PUT = withRouteHandler(
     if (session.status !== 'uploading') {
       return NextResponse.json({ error: `Upload session is ${session.status}` }, { status: 409 })
     }
+    if (session.method !== 'multipart') {
+      return NextResponse.json({ error: 'PUT upload sessions do not have parts' }, { status: 409 })
+    }
 
     const { partNumber } = parsed.data.params
     const expectedSize = expectedUploadPartSize(session, partNumber)
@@ -50,7 +56,14 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'Upload part body is required' }, { status: 400 })
     }
 
-    await writeLocalMultipartPart({ uploadId, partNumber, body: request.body, expectedSize })
+    try {
+      await writeLocalMultipartPart({ uploadId, partNumber, body: request.body, expectedSize })
+    } catch (error) {
+      if (error instanceof LocalUploadBodyError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+      throw error
+    }
     return new NextResponse(null, { status: 204 })
   }
 )

@@ -115,45 +115,6 @@ export async function insertFileMetadata(
 }
 
 /**
- * Bulk-insert file metadata rows in a single statement.
- *
- * Intended for batch upload flows that create many fresh keys at once (e.g. the
- * presigned batch route), replacing a fan-out of individual `insertFileMetadata`
- * calls. Uses `ON CONFLICT DO NOTHING` on the active-key unique index, so it is
- * safe against a concurrent single insert and idempotent for already-present
- * active keys. Unlike {@link insertFileMetadata} it does NOT restore
- * soft-deleted rows — callers use this only for newly generated keys.
- */
-export async function insertFileMetadataMany(
-  rows: Array<Omit<FileMetadataInsertOptions, 'id'> & { id?: string }>
-): Promise<void> {
-  if (rows.length === 0) {
-    return
-  }
-
-  await db
-    .insert(workspaceFiles)
-    .values(
-      rows.map((row) => ({
-        id: row.id || generateId(),
-        key: row.key,
-        userId: row.userId,
-        workspaceId: row.workspaceId || null,
-        folderId: row.folderId ?? null,
-        context: row.context,
-        originalName: row.originalName,
-        displayName: row.originalName,
-        contentType: row.contentType,
-        size: toLegacyWorkspaceFileSize(row.size),
-        sizeBytes: row.size,
-        deletedAt: null,
-        uploadedAt: new Date(),
-      }))
-    )
-    .onConflictDoNothing()
-}
-
-/**
  * Get file metadata by key with optional context filter
  */
 export async function getFileMetadataByKey(
@@ -255,26 +216,11 @@ export interface KnowledgeBaseFileOwnership {
  * Record the ownership binding for a single knowledge-base upload. KB file
  * authorization (`verifyKBFileAccess`) resolves the owning workspace from this
  * binding, so every KB object must have exactly one. Single source of truth for
- * the binding shape across the presigned, batch-presigned, and multipart upload
- * paths — keep all callers routed through here so they cannot drift.
+ * the binding shape for knowledge upload sessions — keep all callers routed
+ * through here so they cannot drift.
  */
 export async function recordKnowledgeBaseFileOwnership(
   ownership: KnowledgeBaseFileOwnership
 ): Promise<void> {
   await insertFileMetadata({ ...ownership, context: 'knowledge-base' })
-}
-
-/**
- * Bulk variant of {@link recordKnowledgeBaseFileOwnership} for batch upload flows.
- * Idempotent against the active-key unique index (ON CONFLICT DO NOTHING).
- */
-export async function recordKnowledgeBaseFileOwnershipMany(
-  ownerships: KnowledgeBaseFileOwnership[]
-): Promise<void> {
-  if (ownerships.length === 0) {
-    return
-  }
-  await insertFileMetadataMany(
-    ownerships.map((ownership) => ({ ...ownership, context: 'knowledge-base' }))
-  )
 }

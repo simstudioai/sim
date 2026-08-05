@@ -790,7 +790,7 @@
       "post": {
         "operationId": "createKnowledgeDocumentUpload",
         "summary": "Create Document Upload",
-        "description": "Create a stateless multipart upload session for a knowledge document. Write access, billing, usage, file type, file size, and workspace storage are checked before provider storage is allocated. The signed upload token binds the caller, workspace, knowledge base, filename, content type, byte size, provider, and knowledge-document purpose. Files may be up to 100 MB.",
+        "description": "Create an upload session for a knowledge document. Files up to and including 50 MiB use a single signed PUT; larger files use multipart transfer. Write access, billing, usage, file type, file size, and workspace storage are checked before provider storage is allocated. The signed upload token binds the caller, workspace, knowledge base, filename, content type, byte size, provider, and knowledge-document purpose. Files may be up to 100 MB.",
         "tags": ["Knowledge Bases"],
         "x-codeSamples": [
           {
@@ -801,7 +801,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Metadata for the document that will be uploaded through signed part URLs.",
+          "description": "Metadata for the document that will be uploaded through the returned transfer instructions.",
           "content": {
             "application/json": {
               "schema": {
@@ -812,11 +812,11 @@
         },
         "responses": {
           "201": {
-            "description": "The multipart upload session and its signed control-plane token.",
+            "description": "The terminal-safe upload session, signed control-plane token, and PUT or multipart transfer instructions.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentUploadEnvelope"
+                  "$ref": "#/components/schemas/CreateDocumentUploadEnvelope"
                 }
               }
             }
@@ -918,7 +918,7 @@
       "post": {
         "operationId": "completeKnowledgeDocumentUpload",
         "summary": "Complete Document Upload",
-        "description": "Verify and assemble all parts, record knowledge-base storage ownership, create the knowledge document, and queue asynchronous processing. Repeating the same completion is idempotent and returns the same document. It never registers a general workspace file.",
+        "description": "Verify the single PUT or assemble all multipart parts, record knowledge-base storage ownership, create the knowledge document, and queue asynchronous processing. Repeating the same completion is idempotent and returns the same document. It never registers a general workspace file.",
         "tags": ["Knowledge Bases"],
         "parameters": [{ "$ref": "#/components/parameters/WorkspaceIdQuery" }],
         "requestBody": {
@@ -1480,9 +1480,6 @@
           "name",
           "contentType",
           "size",
-          "partSize",
-          "partCount",
-          "uploadToken",
           "expiresAt",
           "error",
           "document"
@@ -1510,19 +1507,6 @@
             "type": "integer",
             "minimum": 1
           },
-          "partSize": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "partCount": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "uploadToken": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Signed token required for part URLs, completion, and abort."
-          },
           "expiresAt": {
             "type": "string",
             "format": "date-time"
@@ -1542,6 +1526,52 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/DocumentUpload"
+          }
+        }
+      },
+      "PutUploadTransfer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["method", "url", "headers"],
+        "properties": {
+          "method": { "type": "string", "const": "put" },
+          "url": { "type": "string", "format": "uri" },
+          "headers": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      },
+      "MultipartUploadTransfer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["method", "partSize", "partCount"],
+        "properties": {
+          "method": { "type": "string", "const": "multipart" },
+          "partSize": { "type": "integer", "minimum": 1 },
+          "partCount": { "type": "integer", "minimum": 1, "maximum": 640 }
+        }
+      },
+      "UploadTransfer": {
+        "oneOf": [
+          { "$ref": "#/components/schemas/PutUploadTransfer" },
+          { "$ref": "#/components/schemas/MultipartUploadTransfer" }
+        ],
+        "discriminator": { "propertyName": "method" }
+      },
+      "CreateDocumentUploadEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["session", "uploadToken", "transfer"],
+            "properties": {
+              "session": { "$ref": "#/components/schemas/DocumentUpload" },
+              "uploadToken": { "type": "string", "minLength": 1 },
+              "transfer": { "$ref": "#/components/schemas/UploadTransfer" }
+            }
           }
         }
       },
@@ -1605,31 +1635,39 @@
         }
       },
       "CompleteUploadBody": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["parts"],
-        "properties": {
-          "parts": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 640,
-            "items": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["partNumber"],
-              "properties": {
-                "partNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "etag": {
-                  "type": "string",
-                  "minLength": 1
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["parts"],
+            "properties": {
+              "parts": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 640,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["partNumber"],
+                  "properties": {
+                    "partNumber": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "etag": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
                 }
               }
             }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false
           }
-        }
+        ]
       },
       "DocumentSummary": {
         "type": "object",

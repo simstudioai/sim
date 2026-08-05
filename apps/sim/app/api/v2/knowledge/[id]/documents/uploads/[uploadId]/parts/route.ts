@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { v2CreateKnowledgeDocumentUploadPartUrlsContract } from '@/lib/api/contracts/v2/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createUploadPartUrls } from '@/lib/uploads/multipart-session/service'
+import { createUploadPartUrls } from '@/lib/uploads/upload-session/service'
 import { checkRateLimit } from '@/app/api/v1/middleware'
 import {
   getOwnedKnowledgeDocumentUpload,

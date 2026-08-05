@@ -257,6 +257,52 @@ export async function getPresignedUrlWithConfig(
   return `${blockBlobClient.url}?${sasToken}`
 }
 
+/** Generates a SAS-backed single-object PUT for a caller-selected staging key. */
+export async function getBlobPresignedUploadUrl(params: {
+  key: string
+  contentType: string
+  metadata: Record<string, string>
+  customConfig: BlobConfig
+  expiresIn: number
+}): Promise<{ url: string; headers: Record<string, string> }> {
+  const { BlobSASPermissions, generateBlobSASQueryParameters, StorageSharedKeyCredential } =
+    await import('@azure/storage-blob')
+  const client = await getBlockBlobClientFor(params.key, params.customConfig)
+  const credentials = params.customConfig.connectionString
+    ? parseConnectionString(params.customConfig.connectionString)
+    : {
+        accountName: params.customConfig.accountName,
+        accountKey: params.customConfig.accountKey,
+      }
+  if (!credentials.accountName || !credentials.accountKey) {
+    throw new Error('Azure Blob SAS generation requires accountName and accountKey')
+  }
+  const startsOn = new Date()
+  const expiresOn = new Date(startsOn.getTime() + params.expiresIn * 1000)
+  const sasToken = generateBlobSASQueryParameters(
+    {
+      containerName: params.customConfig.containerName,
+      blobName: params.key,
+      permissions: BlobSASPermissions.parse('w'),
+      startsOn,
+      expiresOn,
+    },
+    new StorageSharedKeyCredential(credentials.accountName, credentials.accountKey)
+  ).toString()
+  const metadata = sanitizeStorageMetadata(params.metadata, 8000)
+  return {
+    url: `${client.url}?${sasToken}`,
+    headers: {
+      'Content-Type': params.contentType,
+      'x-ms-blob-type': 'BlockBlob',
+      'x-ms-blob-content-type': params.contentType,
+      ...Object.fromEntries(
+        Object.entries(metadata).map(([key, value]) => [`x-ms-meta-${key}`, value])
+      ),
+    },
+  }
+}
+
 /**
  * Download a file from Azure Blob Storage
  * @param key Blob name
@@ -392,7 +438,12 @@ export async function downloadFromBlobStream(
 export async function headBlobObject(
   key: string,
   customConfig?: BlobConfig
-): Promise<{ size: number; contentType?: string } | null> {
+): Promise<{
+  size: number
+  contentType?: string
+  uploadId?: string
+  version: string
+} | null> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
   let containerName: string
@@ -423,9 +474,14 @@ export async function headBlobObject(
 
   try {
     const properties = await blockBlobClient.getProperties()
+    if (properties.copyStatus && properties.copyStatus !== 'success') {
+      throw new Error(`Blob copy for ${key} is ${properties.copyStatus}`)
+    }
     return {
       size: properties.contentLength ?? 0,
       contentType: properties.contentType,
+      uploadId: readUploadId(properties.metadata),
+      version: properties.etag ?? '',
     }
   } catch (err) {
     const status = (err as { statusCode?: number }).statusCode
@@ -435,6 +491,40 @@ export async function headBlobObject(
     }
     throw err
   }
+}
+
+/**
+ * Copies one immutable staging version into a destination that must not already exist.
+ * The asynchronous API supports objects above the synchronous copy operation's 256 MiB limit.
+ */
+export async function promoteBlobObject(params: {
+  sourceKey: string
+  destinationKey: string
+  sourceEtag: string
+  customConfig: BlobConfig
+}): Promise<void> {
+  if (!params.sourceEtag) throw new Error('Blob staging object is missing its ETag')
+  const source = await getBlockBlobClientFor(params.sourceKey, params.customConfig)
+  const destination = await getBlockBlobClientFor(params.destinationKey, params.customConfig)
+  const copy = await destination.beginCopyFromURL(source.url, {
+    conditions: { ifNoneMatch: '*' },
+    sourceConditions: { ifMatch: params.sourceEtag },
+  })
+  const result = await copy.pollUntilDone()
+  if (result.copyStatus !== 'success') {
+    throw new Error(`Blob promotion finished with status ${result.copyStatus ?? 'unknown'}`)
+  }
+}
+
+/** Deletes a staging blob only if it is still the version completion inspected. */
+export async function deleteBlobObjectVersion(params: {
+  key: string
+  etag: string
+  customConfig: BlobConfig
+}): Promise<void> {
+  if (!params.etag) throw new Error('Blob staging object is missing its ETag')
+  const client = await getBlockBlobClientFor(params.key, params.customConfig)
+  await client.deleteIfExists({ conditions: { ifMatch: params.etag } })
 }
 
 /**
@@ -498,48 +588,12 @@ export function deriveBlobBlockId(partNumber: number): string {
 export async function initiateMultipartUpload(
   options: AzureMultipartUploadInit
 ): Promise<{ uploadId: string; key: string }> {
-  const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
-  const { fileName, contentType, customConfig, customKey } = options
-
-  let blobServiceClient: BlobServiceClientType
-  let containerName: string
-
-  if (customConfig) {
-    if (customConfig.connectionString) {
-      blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
-    } else if (customConfig.accountName && customConfig.accountKey) {
-      const credential = new StorageSharedKeyCredential(
-        customConfig.accountName,
-        customConfig.accountKey
-      )
-      blobServiceClient = new BlobServiceClient(
-        `https://${customConfig.accountName}.blob.core.windows.net`,
-        credential
-      )
-    } else {
-      throw new Error('Invalid custom blob configuration')
-    }
-    containerName = customConfig.containerName
-  } else {
-    blobServiceClient = await getBlobServiceClient()
-    containerName = BLOB_CONFIG.containerName
-  }
+  const { fileName, customKey } = options
 
   const safeFileName = sanitizeFileName(fileName)
   const uniqueKey = customKey || `kb/${generateId()}-${safeFileName}`
 
   const uploadId = generateId()
-
-  const containerClient = blobServiceClient.getContainerClient(containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(uniqueKey)
-
-  await blockBlobClient.setMetadata({
-    uploadId,
-    fileName: encodeURIComponent(fileName),
-    contentType,
-    uploadStarted: new Date().toISOString(),
-    multipartUpload: 'true',
-  })
 
   return {
     uploadId,
@@ -692,7 +746,8 @@ export async function completeMultipartUpload(
   key: string,
   parts: AzureMultipartPart[],
   customConfig?: BlobConfig,
-  contentType?: string
+  contentType?: string,
+  metadata?: Record<string, string>
 ): Promise<{ location: string; path: string; key: string }> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
@@ -731,6 +786,7 @@ export async function completeMultipartUpload(
     metadata: {
       multipartUpload: 'completed',
       uploadCompletedAt: new Date().toISOString(),
+      ...sanitizeStorageMetadata(metadata ?? {}, 8000),
     },
   })
 
@@ -753,4 +809,9 @@ export async function completeMultipartUpload(
  */
 export function abortMultipartUpload(_key: string, _customConfig?: BlobConfig): Promise<void> {
   return Promise.resolve()
+}
+
+function readUploadId(metadata?: Record<string, string>): string | undefined {
+  if (!metadata) return undefined
+  return Object.entries(metadata).find(([key]) => key.toLowerCase() === 'uploadid')?.[1]
 }

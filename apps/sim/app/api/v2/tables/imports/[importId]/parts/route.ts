@@ -5,7 +5,7 @@ import { v2CreateTableImportPartUrlsContract } from '@/lib/api/contracts/v2/tabl
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getOwnedTableImportUpload } from '@/lib/table/orchestration/import-resource'
-import { createUploadPartUrls } from '@/lib/uploads/multipart-session/service'
+import { createUploadPartUrls } from '@/lib/uploads/upload-session/service'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {

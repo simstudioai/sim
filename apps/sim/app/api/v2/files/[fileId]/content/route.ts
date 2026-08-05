@@ -5,7 +5,10 @@ import { v2UpdateFileContentContract } from '@/lib/api/contracts/v2/files'
 import { parseRequest } from '@/lib/api/server'
 import { messageForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { performUpdateWorkspaceFileContent } from '@/lib/workspace-files/orchestration'
+import {
+  MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
+  performUpdateWorkspaceFileContent,
+} from '@/lib/workspace-files/orchestration'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2File } from '@/app/api/v2/files/utils'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -46,9 +49,15 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: FileRo
     if (gate) return gate
 
     const parsed = await parseRequest(v2UpdateFileContentContract, request, context, {
+      invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
+      maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
       validationErrorResponse: v2ValidationError,
     })
-    if (!parsed.success) return parsed.response
+    if (!parsed.success) {
+      return parsed.response.status === 413
+        ? v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large')
+        : parsed.response
+    }
 
     const { fileId } = parsed.data.params
     const { workspaceId, content, encoding } = parsed.data.body

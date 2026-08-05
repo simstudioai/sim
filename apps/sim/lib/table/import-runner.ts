@@ -7,6 +7,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildAutoMapping,
   CSV_MAX_BATCH_SIZE,
+  CSV_MAX_BATCH_SIZE_BYTES,
   CSV_SCHEMA_SAMPLE_SIZE,
   type CsvHeaderMapping,
   coerceRowsForTable,
@@ -178,8 +179,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     let headerToColumn: Map<string, string> | null = null
     let inserted = 0
     let lastReported = 0
-    const sample: Record<string, unknown>[] = []
+    let sample: Record<string, unknown>[] = []
+    let sampleBytes = 0
     let batch: Record<string, unknown>[] = []
+    let batchBytes = 0
 
     /**
      * Resolve the schema + header→column mapping from the buffered sample (runs once).
@@ -311,19 +314,43 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
 
     let ready = false
     for await (const record of parser as AsyncIterable<Record<string, unknown>>) {
+      const recordBytes = Buffer.byteLength(JSON.stringify(record), 'utf8')
+      if (recordBytes > CSV_MAX_BATCH_SIZE_BYTES) {
+        throw new Error(`CSV record exceeds ${CSV_MAX_BATCH_SIZE_BYTES} serialized bytes`)
+      }
+
       if (!ready) {
-        sample.push(record)
-        if (sample.length >= CSV_SCHEMA_SAMPLE_SIZE) {
+        if (sample.length > 0 && sampleBytes + recordBytes > CSV_MAX_BATCH_SIZE_BYTES) {
           await resolveSetup()
           await flush(sample)
+          sample = []
+          sampleBytes = 0
           ready = true
+        } else {
+          sample.push(record)
+          sampleBytes += recordBytes
+          if (sample.length >= CSV_SCHEMA_SAMPLE_SIZE || sampleBytes >= CSV_MAX_BATCH_SIZE_BYTES) {
+            await resolveSetup()
+            await flush(sample)
+            sample = []
+            sampleBytes = 0
+            ready = true
+          }
+          continue
         }
-        continue
       }
-      batch.push(record)
-      if (batch.length >= CSV_MAX_BATCH_SIZE) {
+
+      if (batch.length > 0 && batchBytes + recordBytes > CSV_MAX_BATCH_SIZE_BYTES) {
         await flush(batch)
         batch = []
+        batchBytes = 0
+      }
+      batch.push(record)
+      batchBytes += recordBytes
+      if (batch.length >= CSV_MAX_BATCH_SIZE || batchBytes >= CSV_MAX_BATCH_SIZE_BYTES) {
+        await flush(batch)
+        batch = []
+        batchBytes = 0
       }
     }
 

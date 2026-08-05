@@ -27,12 +27,43 @@ export const v2CompletedPartSchema = z
   .strict()
 export type V2CompletedPart = z.input<typeof v2CompletedPartSchema>
 
-export const v2CompleteUploadBodySchema = z
+const v2CompleteMultipartUploadBodySchema = z
   .object({
     parts: z.array(v2CompletedPartSchema).min(1).max(640),
   })
   .strict()
+
+const v2CompletePutUploadBodySchema = z.object({}).strict()
+
+export const v2CompleteUploadBodySchema = z.union([
+  v2CompleteMultipartUploadBodySchema,
+  v2CompletePutUploadBodySchema,
+])
 export type V2CompleteUploadBody = z.input<typeof v2CompleteUploadBodySchema>
+
+export const v2PutUploadTransferSchema = z
+  .object({
+    method: z.literal('put'),
+    url: z.string().url(),
+    headers: z.record(z.string(), z.string()),
+  })
+  .strict()
+export type V2PutUploadTransfer = z.output<typeof v2PutUploadTransferSchema>
+
+export const v2MultipartUploadTransferSchema = z
+  .object({
+    method: z.literal('multipart'),
+    partSize: z.number().int().positive(),
+    partCount: z.number().int().positive().max(640),
+  })
+  .strict()
+export type V2MultipartUploadTransfer = z.output<typeof v2MultipartUploadTransferSchema>
+
+export const v2UploadTransferSchema = z.discriminatedUnion('method', [
+  v2PutUploadTransferSchema,
+  v2MultipartUploadTransferSchema,
+])
+export type V2UploadTransfer = z.output<typeof v2UploadTransferSchema>
 
 export const v2PartUrlsBodySchema = z
   .object({
