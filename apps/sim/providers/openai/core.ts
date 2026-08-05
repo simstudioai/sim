@@ -410,6 +410,29 @@ export async function executeResponsesProviderRequest(
 
   let reasoningSummariesUnavailable = false
 
+  /**
+   * The single point every Responses request leaves through, so a stall waiting for
+   * headers is named on the streaming paths too — they call
+   * {@link fetchResponsesWithSummaryFallback} directly and never reach `postResponses`,
+   * which is where the annotation used to live.
+   */
+  const postOnce = async (
+    payload: Record<string, unknown>,
+    abortSignal: AbortSignal | undefined,
+    startedAt: number
+  ): Promise<Response> => {
+    try {
+      return await fetchImpl(config.endpoint, {
+        method: 'POST',
+        headers: config.headers,
+        body: JSON.stringify(payload),
+        signal: abortSignal,
+      })
+    } catch (error) {
+      throw annotateTransportFailure(error, 'awaiting-response-headers', startedAt)
+    }
+  }
+
   const fetchResponsesWithSummaryFallback = async (
     requestedBody: Record<string, unknown>,
     startedAt: number,
@@ -418,12 +441,7 @@ export async function executeResponsesProviderRequest(
     const body = reasoningSummariesUnavailable
       ? (stripReasoningSummary(requestedBody) ?? requestedBody)
       : requestedBody
-    const response = await fetchImpl(config.endpoint, {
-      method: 'POST',
-      headers: config.headers,
-      body: JSON.stringify(body),
-      signal: abortSignal,
-    })
+    const response = await postOnce(body, abortSignal, startedAt)
     if (response.ok) return response
 
     const message = await parseErrorResponse(response, startedAt)
@@ -439,12 +457,7 @@ export async function executeResponsesProviderRequest(
       `${config.providerLabel} rejected reasoning summaries (organization not verified); retrying without summary`,
       { model: config.modelName }
     )
-    const retryResponse = await fetchImpl(config.endpoint, {
-      method: 'POST',
-      headers: config.headers,
-      body: JSON.stringify(strippedBody),
-      signal: abortSignal,
-    })
+    const retryResponse = await postOnce(strippedBody, abortSignal, startedAt)
     if (!retryResponse.ok) {
       const retryMessage = await parseErrorResponse(retryResponse, startedAt)
       throw new Error(
@@ -459,12 +472,7 @@ export async function executeResponsesProviderRequest(
   ): Promise<OpenAI.Responses.Response> => {
     const startedAt = Date.now()
 
-    let response: Response
-    try {
-      response = await fetchResponsesWithSummaryFallback(body, startedAt)
-    } catch (error) {
-      throw annotateTransportFailure(error, 'awaiting-response-headers', startedAt)
-    }
+    const response = await fetchResponsesWithSummaryFallback(body, startedAt)
 
     const responseMeta = { ...describeResponse(response), ttfbMs: Date.now() - startedAt }
 
