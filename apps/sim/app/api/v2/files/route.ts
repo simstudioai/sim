@@ -9,6 +9,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { messageForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { queryWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import {
@@ -17,6 +18,7 @@ import {
 } from '@/lib/workspace-files/orchestration'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2File } from '@/app/api/v2/files/utils'
+import { resolveFolderPathId } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   cursorSortKey,
@@ -42,9 +44,6 @@ export const revalidate = 0
  * GET /api/v2/files — List files in a workspace with search, sort, and cursor
  * pagination.
  *
- * `scope=archived` reads Recently Deleted, which is what makes the restore
- * endpoints usable — a caller can find the id of something it deleted.
- *
  * Filtering, ordering, and the page slice all run inside
  * {@link queryWorkspaceFiles}' query. The route only translates the validated
  * params and the opaque cursor, so a `search` never costs a full-workspace read.
@@ -69,18 +68,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, scope, folderId, search, sortBy, sortOrder, limit, cursor } =
-      parsed.data.query
+    const { workspaceId, folderPath, search, sortBy, sortOrder, limit, cursor } = parsed.data.query
 
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
+
+    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file')
+    const folderId =
+      folderPath === undefined ? undefined : resolveFolderPathId(folderIndex, folderPath)
+    if (folderPath !== undefined && folderId === undefined) {
+      return v2Error('NOT_FOUND', 'Folder not found')
+    }
 
     const sort = cursorSortKey(sortBy, sortOrder)
     const decoded = decodeSortedCursor(cursor, sort)
     if (decoded.status === 'invalid') return v2CursorSortError()
 
     const { files, nextKeys } = await queryWorkspaceFiles(workspaceId, {
-      scope,
       folderId,
       search,
       sortBy,
@@ -129,7 +133,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         : parsed.response
     }
 
-    const { workspaceId, name, contentType, folderId, content, encoding } = parsed.data.body
+    const { workspaceId, name, contentType, folderPath, content, encoding } = parsed.data.body
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
 
@@ -138,7 +142,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId,
       name,
       contentType: contentType ?? getMimeTypeFromExtension(getFileExtension(name)),
-      folderId,
+      folderPath: folderPath ?? '/',
       content: Buffer.from(content, encoding),
       exactName: true,
       request,

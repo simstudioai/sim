@@ -4,19 +4,25 @@ import {
   deploymentVersionParamsSchema,
   deploymentVersionSchema,
 } from '@/lib/api/contracts/deployments'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  V1_IMPORT_DESCRIPTION_MAX_LENGTH,
+  V1_IMPORT_NAME_MAX_LENGTH,
   v1DeployWorkflowDataSchema,
   v1ImportWorkflowBodySchema,
-  v1ImportWorkflowDataSchema,
-  v1ListWorkflowsQuerySchema,
   v1RollbackWorkflowDataSchema,
   v1WorkflowExportPayloadSchema,
 } from '@/lib/api/contracts/v1/workflows'
 import {
+  v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
+  v2DeleteFolderQuerySchema,
+  v2FolderPathSchema,
+  v2FolderSchema,
+  v2ListFoldersQuerySchema,
+  v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
@@ -63,10 +69,17 @@ export type V2WorkflowSortBy = (typeof v2WorkflowSortFields)[number]
  * sort convention. The keyset behind the cursor follows `sortBy`, so the cursor
  * carries the sort it was minted under and is rejected once that changes.
  */
-export const v2ListWorkflowsQuerySchema = v1ListWorkflowsQuerySchema.extend({
-  search: v2SearchSchema,
-  ...v2SortFields(v2WorkflowSortFields, { sortBy: 'position', sortOrder: 'asc' }),
-})
+export const v2ListWorkflowsQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    folderPath: v2FolderPathSchema.optional(),
+    deployedOnly: booleanQueryFlagSchema.optional().default(false),
+    limit: z.coerce.number().min(1).max(100).optional().default(50),
+    cursor: z.string().optional(),
+    search: v2SearchSchema,
+    ...v2SortFields(v2WorkflowSortFields, { sortBy: 'position', sortOrder: 'asc' }),
+  })
+  .strict()
 
 export type V2ListWorkflowsQuery = z.output<typeof v2ListWorkflowsQuerySchema>
 
@@ -74,7 +87,7 @@ export const v2WorkflowListItemSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  folderId: z.string().nullable(),
+  folderPath: v2FolderPathSchema,
   workspaceId: z.string(),
   isDeployed: z.boolean(),
   deployedAt: z.string().nullable(),
@@ -145,8 +158,8 @@ export const v2CreateWorkflowBodySchema = z
     workspaceId: workspaceIdSchema,
     name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
     description: z.string().max(50_000, 'description is too long').nullable().optional(),
-    /** Explicit `null` (or omission) creates the workflow at the workspace root. */
-    folderId: z.string().min(1, 'folderId cannot be empty').nullable().optional(),
+    /** Omission creates the workflow at the workspace root. */
+    folderPath: v2FolderPathSchema.optional(),
   })
   .strict()
 export type V2CreateWorkflowBody = z.input<typeof v2CreateWorkflowBodySchema>
@@ -156,24 +169,24 @@ export const v2UpdateWorkflowBodySchema = z
   .object({
     name: z.string().trim().min(1, 'name cannot be empty').max(255, 'name is too long').optional(),
     description: z.string().max(50_000, 'description is too long').nullable().optional(),
-    folderId: z.string().min(1, 'folderId cannot be empty').nullable().optional(),
+    folderPath: v2FolderPathSchema.optional(),
   })
   .strict()
   .superRefine((body, ctx) => {
-    if (body.name === undefined && body.description === undefined && body.folderId === undefined) {
+    if (
+      body.name === undefined &&
+      body.description === undefined &&
+      body.folderPath === undefined
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['name'],
-        message: 'At least one of name, description, or folderId is required',
+        message: 'At least one of name, description, or folderPath is required',
       })
     }
   })
 export type V2UpdateWorkflowBody = z.input<typeof v2UpdateWorkflowBodySchema>
 
-/**
- * Delete acknowledgement. Deletion archives the workflow (it lands in Recently
- * Deleted) rather than dropping its rows, so runs and logs stay attributable.
- */
 export const v2DeleteWorkflowDataSchema = z.object({
   id: z.string(),
   deleted: z.literal(true),
@@ -209,6 +222,45 @@ export const v2DeleteWorkflowContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2DeleteWorkflowDataSchema),
   },
+})
+
+export const v2WorkflowFolderSchema = v2FolderSchema.extend({ locked: z.boolean() })
+export type V2WorkflowFolder = z.output<typeof v2WorkflowFolderSchema>
+
+export const v2WorkflowFolderDataSchema = z.object({ folder: v2WorkflowFolderSchema })
+
+export const v2DeleteWorkflowFolderDataSchema = z.object({
+  path: v2FolderPathSchema,
+  deleted: z.literal(true),
+  deletedItems: z.object({ folders: z.number().int(), workflows: z.number().int() }),
+})
+
+export const v2ListWorkflowFoldersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/folders',
+  query: v2ListFoldersQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2WorkflowFolderSchema) },
+})
+
+export const v2CreateWorkflowFolderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/folders',
+  body: v2CreateFolderBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderDataSchema) },
+})
+
+export const v2RelocateWorkflowFolderContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/workflows/folders',
+  body: v2RelocateFolderBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderDataSchema) },
+})
+
+export const v2DeleteWorkflowFolderContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/workflows/folders',
+  query: v2DeleteFolderQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2DeleteWorkflowFolderDataSchema) },
 })
 
 /**
@@ -439,27 +491,60 @@ export const v2CancelWorkflowExecutionContract = defineRouteContract({
   },
 })
 
-/**
- * Export/import reuse the v1 payload and body schemas verbatim — the portable
- * envelope must round-trip across both surfaces — with only the response
- * envelope upgraded.
- */
+export const v2WorkflowExportPayloadSchema = v1WorkflowExportPayloadSchema.extend({
+  workflow: v1WorkflowExportPayloadSchema.shape.workflow
+    .omit({ folderId: true })
+    .extend({ folderPath: v2FolderPathSchema }),
+})
+
+export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
+  .omit({ folderId: true, name: true, description: true })
+  .extend({
+    folderPath: v2FolderPathSchema.optional(),
+    name: z
+      .string()
+      .min(1, 'name cannot be empty')
+      .max(
+        V1_IMPORT_NAME_MAX_LENGTH,
+        `name must be at most ${V1_IMPORT_NAME_MAX_LENGTH} characters`
+      )
+      .optional(),
+    description: z
+      .string()
+      .max(
+        V1_IMPORT_DESCRIPTION_MAX_LENGTH,
+        `description must be at most ${V1_IMPORT_DESCRIPTION_MAX_LENGTH} characters`
+      )
+      .optional(),
+  })
+  .strict()
+
+export const v2ImportWorkflowDataSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  workspaceId: z.string(),
+  folderPath: v2FolderPathSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
 export const v2ExportWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/export',
   params: workflowIdParamsSchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v1WorkflowExportPayloadSchema),
+    schema: v2DataResponse(v2WorkflowExportPayloadSchema),
   },
 })
 
 export const v2ImportWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/import',
-  body: v1ImportWorkflowBodySchema,
+  body: v2ImportWorkflowBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v1ImportWorkflowDataSchema),
+    schema: v2DataResponse(v2ImportWorkflowDataSchema),
   },
 })

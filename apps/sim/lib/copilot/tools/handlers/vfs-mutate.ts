@@ -17,6 +17,7 @@ import {
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { createFolder, deleteFolder, updateFolder } from '@/lib/folders/orchestration'
 import {
   deleteKnowledgeBase,
   getKnowledgeBases,
@@ -34,13 +35,7 @@ import {
   resolveWorkspaceFileReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import {
-  performCreateFolder,
-  performDeleteFolder,
-  performDeleteWorkflow,
-  performUpdateFolder,
-  performUpdateWorkflow,
-} from '@/lib/workflows/orchestration'
+import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { listFolders, verifyFolderWorkspace } from '@/lib/workflows/utils'
 import {
@@ -503,7 +498,8 @@ function makeWorkflowFolderEnsurer(
         continue
       }
       await assertFolderMutable(parentId)
-      const created = await performCreateFolder({
+      const created = await createFolder({
+        resourceType: 'workflow',
         workspaceId,
         userId,
         name: segment,
@@ -690,7 +686,8 @@ async function mutateWorkflows(
         continue
       }
       await assertFolderMutable(targetFolderId)
-      const result = await performUpdateFolder({
+      const result = await updateFolder({
+        resourceType: 'workflow',
         folderId: ref.folderId,
         workspaceId,
         userId: context.userId,
@@ -989,7 +986,12 @@ async function removeWorkflowPath(
   if (!folderId) return { from: path, kind: 'workflow', error: `Not found: ${path}` }
 
   await assertFolderMutable(folderId)
-  const result = await performDeleteFolder({ folderId, workspaceId, userId: context.userId })
+  const result = await deleteFolder({
+    resourceType: 'workflow',
+    folderId,
+    workspaceId,
+    userId: context.userId,
+  })
   if (!result.success) {
     return {
       from: path,

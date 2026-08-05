@@ -16,6 +16,9 @@ const {
   mockRenameWorkspaceFile,
   mockRestoreWorkspaceFile,
   mockBulkArchive,
+  mockCreateWorkspaceFileFolderAtPath,
+  mockRelocateWorkspaceFileFolderByPath,
+  mockDeleteWorkspaceFileFolderByPath,
 } = vi.hoisted(() => ({
   mockMoveWorkspaceFileItems: vi.fn(),
   mockUpdateWorkspaceFileFolder: vi.fn(),
@@ -24,6 +27,9 @@ const {
   mockRenameWorkspaceFile: vi.fn(),
   mockRestoreWorkspaceFile: vi.fn(),
   mockBulkArchive: vi.fn(),
+  mockCreateWorkspaceFileFolderAtPath: vi.fn(),
+  mockRelocateWorkspaceFileFolderByPath: vi.fn(),
+  mockDeleteWorkspaceFileFolderByPath: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
@@ -34,6 +40,9 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   renameWorkspaceFile: mockRenameWorkspaceFile,
   restoreWorkspaceFile: mockRestoreWorkspaceFile,
   bulkArchiveWorkspaceFileItems: mockBulkArchive,
+  createWorkspaceFileFolderAtPath: mockCreateWorkspaceFileFolderAtPath,
+  relocateWorkspaceFileFolderByPath: mockRelocateWorkspaceFileFolderByPath,
+  deleteWorkspaceFileFolderByPath: mockDeleteWorkspaceFileFolderByPath,
   moveRenameWorkspaceFile: vi.fn(),
   FileConflictError: class FileConflictError extends Error {},
   WorkspaceFileFolderConflictError: class WorkspaceFileFolderConflictError extends Error {},
@@ -54,7 +63,10 @@ vi.mock('@sim/audit', () => ({
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   performCreateWorkspaceFileFolder,
+  performCreateWorkspaceFileFolderAtPath,
+  performDeleteWorkspaceFileFolderByPath,
   performMoveWorkspaceFileItems,
+  performRelocateWorkspaceFileFolderByPath,
   performRenameWorkspaceFile,
   performRestoreWorkspaceFile,
   performRestoreWorkspaceFileFolder,
@@ -215,5 +227,70 @@ describe('workspace file orchestration error classification', () => {
     })
 
     expect(result.errorCode).toBe('internal')
+  })
+
+  it('delegates path folder mutations to the existing file manager orchestration', async () => {
+    const folder = {
+      id: 'internal-folder-id',
+      workspaceId: WS,
+      userId: USER,
+      name: 'Reports',
+      parentId: null,
+      path: 'Reports',
+      sortOrder: 0,
+      deletedAt: null,
+      createdAt: new Date('2024-01-01T00:00:00Z'),
+      updatedAt: new Date('2024-01-02T00:00:00Z'),
+    }
+    mockCreateWorkspaceFileFolderAtPath.mockResolvedValue({ folder, path: '/Reports' })
+    mockRelocateWorkspaceFileFolderByPath.mockResolvedValue({ folder, path: '/Archive' })
+    mockDeleteWorkspaceFileFolderByPath.mockResolvedValue({ folders: 1, files: 2 })
+
+    const created = await performCreateWorkspaceFileFolderAtPath({
+      workspaceId: WS,
+      userId: USER,
+      path: '/Reports',
+    })
+    const relocated = await performRelocateWorkspaceFileFolderByPath({
+      workspaceId: WS,
+      userId: USER,
+      path: '/Reports',
+      destinationPath: '/Archive',
+    })
+    const deleted = await performDeleteWorkspaceFileFolderByPath({
+      workspaceId: WS,
+      userId: USER,
+      path: '/Archive',
+      recursive: true,
+    })
+
+    expect(created).toMatchObject({ success: true, path: '/Reports' })
+    expect(relocated).toMatchObject({ success: true, path: '/Archive' })
+    expect(deleted).toEqual({ success: true, deletedItems: { folders: 1, files: 2 } })
+    expect(mockDeleteWorkspaceFileFolderByPath).toHaveBeenCalledWith({
+      workspaceId: WS,
+      userId: USER,
+      path: '/Archive',
+      recursive: true,
+    })
+  })
+
+  it('classifies a non-empty non-recursive folder delete as a conflict', async () => {
+    mockDeleteWorkspaceFileFolderByPath.mockRejectedValue(
+      new OrchestrationError('conflict', 'Folder is not empty')
+    )
+
+    const result = await performDeleteWorkspaceFileFolderByPath({
+      workspaceId: WS,
+      userId: USER,
+      path: '/Reports',
+      recursive: false,
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Folder is not empty',
+      errorCode: 'conflict',
+    })
   })
 })

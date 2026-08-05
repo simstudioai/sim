@@ -5,7 +5,11 @@ import {
   v1ListLogsQuerySchema,
   v1LogParamsSchema,
 } from '@/lib/api/contracts/v1/logs'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2FolderPathSchema,
+} from '@/lib/api/contracts/v2/shared'
 
 /**
  * v2 logs contracts. The query schemas are reused verbatim from v1 (the request
@@ -61,7 +65,7 @@ export const v2LogDetailSchema = z.object({
     id: z.string().nullable(),
     name: z.string(),
     description: z.string().nullable(),
-    folderId: z.string().nullable(),
+    folderPath: v2FolderPathSchema.nullable(),
     userId: z.string().nullable(),
     workspaceId: z.string().nullable(),
     createdAt: z.string().nullable(),
@@ -92,10 +96,29 @@ export const v2ExecutionSchema = z.object({
 
 export type V2Execution = z.output<typeof v2ExecutionSchema>
 
+export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
+  .omit({ folderIds: true })
+  .extend({
+    folderPaths: z
+      .string()
+      .optional()
+      .superRefine((value, ctx) => {
+        if (!value) return
+        const paths = value.split(',').filter(Boolean)
+        if (
+          paths.length === 0 ||
+          paths.some((path) => !v2FolderPathSchema.safeParse(path).success)
+        ) {
+          ctx.addIssue({ code: 'custom', message: 'folderPaths must contain canonical paths' })
+        }
+      }),
+  })
+  .strict()
+
 export const v2ListLogsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/logs',
-  query: v1ListLogsQuerySchema,
+  query: v2ListLogsQuerySchema,
   response: {
     mode: 'json',
     schema: v2CursorListResponse(v2LogListItemSchema),

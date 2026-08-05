@@ -7,8 +7,10 @@ import type { NextRequest } from 'next/server'
 import { v2ExportWorkflowContract } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { buildWorkflowExportPayload } from '@/lib/workflows/operations/export-workflow'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
+import { folderPathForId } from '@/app/api/v2/lib/folders'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
 
@@ -57,6 +59,8 @@ export const GET = withRouteHandler(
 
       const payload = await buildWorkflowExportPayload(workflowData)
       if (!payload) return v2Error('NOT_FOUND', 'Workflow state not found')
+      const folderIndex = await loadActiveFolderPathIndex(workflowData.workspaceId, 'workflow')
+      const folderPath = folderPathForId(folderIndex, workflowData.folderId)
 
       recordAudit({
         workspaceId: workflowData.workspaceId,
@@ -68,14 +72,26 @@ export const GET = withRouteHandler(
         description: `Exported workflow "${workflowData.name}" via the API`,
         metadata: {
           workspaceId: workflowData.workspaceId,
-          folderId: workflowData.folderId || undefined,
+          folderPath,
           blocksCount: Object.keys(payload.state.blocks).length,
           edgesCount: payload.state.edges.length,
         },
         request,
       })
 
-      return v2Data(payload, { rateLimit })
+      return v2Data(
+        {
+          ...payload,
+          workflow: {
+            id: payload.workflow.id,
+            name: payload.workflow.name,
+            description: payload.workflow.description,
+            workspaceId: payload.workflow.workspaceId,
+            folderPath,
+          },
+        },
+        { rateLimit }
+      )
     } catch (error) {
       logger.error(`[${requestId}] Workflow export error`, {
         error: getErrorMessage(error, 'Unknown error'),

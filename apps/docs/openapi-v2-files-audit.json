@@ -23,7 +23,7 @@
   "tags": [
     {
       "name": "Files",
-      "description": "Upload, download, list, rename, archive, restore, share, and replace the contents of workspace files (v2). Workspace-scoped via the required workspaceId query parameter or body field."
+      "description": "Upload, download, list, rename, delete, share, and replace the contents of workspace files (v2). Workspace-scoped via the required workspaceId query parameter or body field."
     },
     {
       "name": "Audit Logs",
@@ -40,7 +40,7 @@
       "get": {
         "operationId": "listFiles",
         "summary": "List Files",
-        "description": "List a workspace's files with opaque cursor pagination. Results are ordered by upload time. Pass the `nextCursor` from a previous response to fetch the next page; a `null` `nextCursor` means there are no more results. Use `scope=archived` to page through Recently Deleted — that is how you find the id of a file to restore.",
+        "description": "List a workspace's files with opaque cursor pagination. Pass the `nextCursor` from a previous response to fetch the next page; a `null` `nextCursor` means there are no more results. Use `folderPath` to return only files directly inside one canonical folder path; omit it to list files from every folder.",
         "tags": ["Files"],
         "x-codeSamples": [
           {
@@ -53,17 +53,6 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/WorkspaceIdQuery"
-          },
-          {
-            "name": "scope",
-            "in": "query",
-            "required": false,
-            "description": "`active` (the default) lists live files; `archived` lists the ones in Recently Deleted, which is how you find an id to restore.",
-            "schema": {
-              "type": "string",
-              "enum": ["active", "archived"],
-              "default": "active"
-            }
           },
           {
             "name": "limit",
@@ -81,18 +70,25 @@
             "$ref": "#/components/parameters/Cursor"
           },
           {
-            "name": "folderId",
+            "name": "folderPath",
             "in": "query",
             "required": false,
             "description": "Restrict the list to one folder. Omit to list every file in the workspace.",
-            "schema": { "type": "string", "minLength": 1 }
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           {
             "name": "search",
             "in": "query",
             "required": false,
             "description": "Case-insensitive substring match against the file `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
-            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
           },
           {
             "name": "sortBy",
@@ -110,7 +106,11 @@
             "in": "query",
             "required": false,
             "description": "Sort direction. The cursor is a keyset over the active sort, so it carries the sort it was minted under. Replaying a cursor after changing `sortBy` or `sortOrder` returns `400`; restart pagination without a cursor instead.",
-            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
           }
         ],
         "responses": {
@@ -131,23 +131,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileListResponse"
-                },
-                "example": {
-                  "data": [
-                    {
-                      "id": "wf_V1StGXR8z5jdHi6BmyT91",
-                      "name": "data.csv",
-                      "size": 1024,
-                      "type": "text/csv",
-                      "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
-                      "folderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
-                      "folderPath": "Reports/Q1",
-                      "uploadedBy": "user_abc123",
-                      "uploadedAt": "2026-01-15T10:30:00Z",
-                      "updatedAt": "2026-01-15T10:30:00Z"
-                    }
-                  ],
-                  "nextCursor": "eyJ1cGxvYWRlZEF0IjoiMjAyNi0wMS0xNVQxMDozMDowMFoiLCJpZCI6IndmX1YxU3RHWFI4ejVqZEhpNkJteVQ5MSJ9"
                 }
               }
             }
@@ -208,11 +191,11 @@
                     "maxLength": 255,
                     "description": "MIME type. When omitted, it is inferred from the file extension."
                   },
-                  "folderId": {
+                  "folderPath": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128,
-                    "description": "Destination folder. Omit to create the file at the workspace root."
+                    "description": "Canonical containing-folder path. `/` is the workspace root."
                   },
                   "content": {
                     "type": "string",
@@ -227,10 +210,6 @@
                     "description": "Encoding of `content`."
                   }
                 }
-              },
-              "example": {
-                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                "name": "notes.md"
               }
             }
           }
@@ -253,32 +232,34 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileResponse"
-                },
-                "example": {
-                  "data": {
-                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
-                    "name": "notes.md",
-                    "size": 0,
-                    "type": "text/markdown",
-                    "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-notes.md",
-                    "folderId": null,
-                    "folderPath": null,
-                    "uploadedBy": "user_abc123",
-                    "uploadedAt": "2026-01-15T10:30:00Z",
-                    "updatedAt": "2026-01-15T10:30:00Z"
-                  }
                 }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -290,18 +271,36 @@
         "tags": ["Files"],
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": {} } }
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
         },
         "responses": {
           "201": {
             "description": "The upload session.",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -316,21 +315,41 @@
             "name": "uploadId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
-          { "$ref": "#/components/parameters/UploadTokenHeader" }
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/UploadTokenHeader"
+          }
         ],
         "responses": {
           "200": {
             "description": "The aborted upload session.",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -345,26 +364,52 @@
             "name": "uploadId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
-          { "$ref": "#/components/parameters/UploadTokenHeader" }
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/UploadTokenHeader"
+          }
         ],
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": {} } }
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
         },
         "responses": {
           "200": {
             "description": "Signed URLs for the requested parts.",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -379,26 +424,52 @@
             "name": "uploadId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
-          { "$ref": "#/components/parameters/UploadTokenHeader" }
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/UploadTokenHeader"
+          }
         ],
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": {} } }
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
         },
         "responses": {
           "200": {
             "description": "The completed upload and registered file.",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -431,22 +502,19 @@
               "Content-Type": {
                 "description": "MIME type of the file. Varies per file; defaults to application/octet-stream when unknown.",
                 "schema": {
-                  "type": "string",
-                  "example": "text/csv"
+                  "type": "string"
                 }
               },
               "Content-Disposition": {
                 "description": "Attachment disposition carrying the (sanitized and RFC 5987 encoded) filename.",
                 "schema": {
-                  "type": "string",
-                  "example": "attachment; filename=\"data.csv\"; filename*=UTF-8''data.csv"
+                  "type": "string"
                 }
               },
               "Content-Length": {
                 "description": "Size of the file in bytes.",
                 "schema": {
-                  "type": "string",
-                  "example": "1024"
+                  "type": "string"
                 }
               },
               "X-RateLimit-Limit": {
@@ -491,7 +559,7 @@
       "delete": {
         "operationId": "deleteFile",
         "summary": "Delete File",
-        "description": "Archive (soft delete) a file in a workspace. The operation is workspace-scoped and records its own audit entry. Returns the file id and a `deleted` acknowledgement.",
+        "description": "Delete a file in a workspace. The operation is workspace-scoped and records its own audit entry. Returns the file id and a `deleted` acknowledgement.",
         "tags": ["Files"],
         "x-codeSamples": [
           {
@@ -511,7 +579,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The file was archived.",
+            "description": "The file was deleted.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -527,12 +595,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2DeleteFileResponse"
-                },
-                "example": {
-                  "data": {
-                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
-                    "deleted": true
-                  }
                 }
               }
             }
@@ -550,17 +612,11 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The file could not be archived because of a conflicting state.",
+            "description": "The file could not be deleted because of a conflicting state.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "CONFLICT",
-                    "message": "Failed to delete file"
-                  }
                 }
               }
             }
@@ -601,21 +657,15 @@
                 "properties": {
                   "workspaceId": {
                     "type": "string",
-                    "description": "The workspace that owns the file.",
-                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                    "description": "The workspace that owns the file."
                   },
                   "name": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 255,
-                    "description": "The new filename. Cannot contain `/`, `\\`, or be `.` / `..`.",
-                    "example": "renamed.csv"
+                    "description": "The new filename. Cannot contain `/`, `\\`, or be `.` / `..`."
                   }
                 }
-              },
-              "example": {
-                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                "name": "renamed.csv"
               }
             }
           }
@@ -638,20 +688,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileResponse"
-                },
-                "example": {
-                  "data": {
-                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
-                    "name": "renamed.csv",
-                    "size": 1024,
-                    "type": "text/csv",
-                    "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
-                    "folderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
-                    "folderPath": "Reports/Q1",
-                    "uploadedBy": "user_abc123",
-                    "uploadedAt": "2026-01-15T10:30:00Z",
-                    "updatedAt": "2026-01-15T10:30:00Z"
-                  }
                 }
               }
             }
@@ -670,6 +706,71 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/metadata": {
+      "get": {
+        "operationId": "getFile",
+        "summary": "Get File Metadata",
+        "description": "Return one workspace file's metadata without downloading its content. Lookups are workspace-scoped: a file that belongs to another workspace returns `404`.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/files/{fileId}/metadata?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file metadata.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -947,110 +1048,18 @@
         }
       }
     },
-    "/api/v2/files/{fileId}/restore": {
-      "post": {
-        "operationId": "restoreFile",
-        "summary": "Restore File",
-        "description": "Restore an archived file. Find archived ids with `GET /api/v2/files?scope=archived`. If the original name has since been taken by a live file, the file is restored under a suffixed name.",
-        "tags": ["Files"],
-        "x-codeSamples": [
-          {
-            "id": "curl",
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl -X POST \\\\\n  \"https://www.sim.ai/api/v2/files/wf_V1StGXR8z5jdHi6BmyT91/restore\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\"}'"
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/FileIdPath"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["workspaceId"],
-                "properties": {
-                  "workspaceId": {
-                    "type": "string",
-                    "description": "The workspace that owns the file.",
-                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
-                  }
-                }
-              },
-              "example": {
-                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The file was restored.",
-            "headers": {
-              "X-RateLimit-Limit": {
-                "$ref": "#/components/headers/X-RateLimit-Limit"
-              },
-              "X-RateLimit-Remaining": {
-                "$ref": "#/components/headers/X-RateLimit-Remaining"
-              },
-              "X-RateLimit-Reset": {
-                "$ref": "#/components/headers/X-RateLimit-Reset"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/V2RestoreFileResponse"
-                },
-                "example": {
-                  "data": {
-                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
-                    "restored": true
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      }
-    },
     "/api/v2/files/move": {
       "post": {
         "operationId": "moveFileItems",
         "summary": "Move Files and Folders",
-        "description": "Move files and/or folders into a folder. `targetFolderId: null` — or omitting it — moves the selection to the workspace root. At least one of `fileIds` or `folderIds` must be non-empty. The whole selection moves under one lock, so a name collision at the destination fails the request with `409` instead of applying part of it.",
+        "description": "Move files and/or folders into a folder. `targetFolderPath: null` — or omitting it — moves the selection to the workspace root. At least one of `fileIds` or `folderPaths` must be non-empty. The whole selection moves under one lock, so a name collision at the destination fails the request with `409` instead of applying part of it.",
         "tags": ["Files"],
         "x-codeSamples": [
           {
             "id": "curl",
             "label": "cURL",
             "lang": "bash",
-            "source": "curl -X POST \\\\\n  \"https://www.sim.ai/api/v2/files/move\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"fileIds\": [\"wf_V1StGXR8z5jdHi6BmyT91\"], \"targetFolderId\": \"fold_9Kq2mZ7pR4tLxWc0Ye3Nu\"}'"
+            "source": "curl -X POST \\\\\n  \"https://www.sim.ai/api/v2/files/move\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"fileIds\": [\"wf_V1StGXR8z5jdHi6BmyT91\"], \"targetFolderPath\": \"fold_9Kq2mZ7pR4tLxWc0Ye3Nu\"}'"
           }
         ],
         "requestBody": {
@@ -1059,12 +1068,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId"],
+                "required": ["workspaceId", "fileIds"],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
-                    "description": "The workspace that owns the items.",
-                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                    "description": "The workspace that owns the items."
                   },
                   "fileIds": {
                     "type": "array",
@@ -1075,37 +1083,9 @@
                     },
                     "description": "Files to move."
                   },
-                  "folderIds": {
-                    "type": "array",
-                    "maxItems": 1000,
-                    "default": [],
-                    "items": {
-                      "type": "string"
-                    },
-                    "description": "Folders to move. Descendants follow their folder."
-                  },
-                  "targetFolderId": {
-                    "type": ["string", "null"],
-                    "description": "Destination folder. `null` or omitted moves to the workspace root.",
-                    "example": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
-                  }
-                }
-              },
-              "examples": {
-                "intoFolder": {
-                  "summary": "Move two files into a folder",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "fileIds": ["wf_V1StGXR8z5jdHi6BmyT91", "wf_2QrTb9xLm4PvZc7Ns1Ka"],
-                    "targetFolderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
-                  }
-                },
-                "toRoot": {
-                  "summary": "Move a folder back to the workspace root",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "folderIds": ["fold_9Kq2mZ7pR4tLxWc0Ye3Nu"],
-                    "targetFolderId": null
+                  "targetFolderPath": {
+                    "type": "string",
+                    "description": "Canonical destination folder path. Omit to use the workspace root."
                   }
                 }
               }
@@ -1130,123 +1110,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2MoveFileItemsResponse"
-                },
-                "example": {
-                  "data": {
-                    "movedItems": {
-                      "files": 2,
-                      "folders": 0
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      }
-    },
-    "/api/v2/files/bulk-archive": {
-      "post": {
-        "operationId": "bulkArchiveFileItems",
-        "summary": "Archive Files and Folders",
-        "description": "Archive (soft delete) files and/or folders in one call. Archiving a folder cascades to everything under it, so `deletedItems` reports totals larger than the selection. Archived items remain listable via `scope=archived` and can be restored.\n\n**This endpoint is best-effort and idempotent.** Ids that do not exist, belong to another workspace, or are already archived are skipped rather than failing the request — the call still returns `200`. `deletedItems` is what was actually archived, so compare it against your selection if you need to detect that something was skipped. The single-item `DELETE /api/v2/files/{fileId}` does return `404` for a missing id.",
-        "tags": ["Files"],
-        "x-codeSamples": [
-          {
-            "id": "curl",
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl -X POST \\\\\n  \"https://www.sim.ai/api/v2/files/bulk-archive\" \\\\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"workspaceId\": \"YOUR_WORKSPACE_ID\", \"fileIds\": [\"wf_V1StGXR8z5jdHi6BmyT91\"], \"folderIds\": [\"fold_9Kq2mZ7pR4tLxWc0Ye3Nu\"]}'"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["workspaceId"],
-                "properties": {
-                  "workspaceId": {
-                    "type": "string",
-                    "description": "The workspace that owns the items.",
-                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
-                  },
-                  "fileIds": {
-                    "type": "array",
-                    "maxItems": 1000,
-                    "default": [],
-                    "items": {
-                      "type": "string"
-                    },
-                    "description": "Files to archive."
-                  },
-                  "folderIds": {
-                    "type": "array",
-                    "maxItems": 1000,
-                    "default": [],
-                    "items": {
-                      "type": "string"
-                    },
-                    "description": "Folders to archive, together with their contents."
-                  }
-                }
-              },
-              "example": {
-                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                "fileIds": ["wf_V1StGXR8z5jdHi6BmyT91"],
-                "folderIds": ["fold_9Kq2mZ7pR4tLxWc0Ye3Nu"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The items were archived.",
-            "headers": {
-              "X-RateLimit-Limit": {
-                "$ref": "#/components/headers/X-RateLimit-Limit"
-              },
-              "X-RateLimit-Remaining": {
-                "$ref": "#/components/headers/X-RateLimit-Remaining"
-              },
-              "X-RateLimit-Reset": {
-                "$ref": "#/components/headers/X-RateLimit-Reset"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/V2BulkArchiveFileItemsResponse"
-                },
-                "example": {
-                  "data": {
-                    "deletedItems": {
-                      "files": 3,
-                      "folders": 1
-                    }
-                  }
                 }
               }
             }
@@ -1279,7 +1142,7 @@
       "get": {
         "operationId": "getFileShare",
         "summary": "Get File Share",
-        "description": "Read a file's public share state. `share` is `null` when the file has never been shared. The encrypted password is never returned — `hasPassword` is the only password signal.\n\n**Disabling is not revoking.** Setting `isActive: false` preserves the token and the stored password / allow-list, so re-enabling later resurrects the identical URL. To make a link permanently unreachable, archive the file instead.",
+        "description": "Read a file's public share state. `share` is `null` when the file has never been shared. The encrypted password is never returned — `hasPassword` is the only password signal.\n\n**Disabling is not revoking.** Setting `isActive: false` preserves the token and the stored password / allow-list, so re-enabling later resurrects the identical URL. To make a link permanently unreachable, delete the file instead.",
         "tags": ["Files"],
         "x-codeSamples": [
           {
@@ -1357,7 +1220,7 @@
       "put": {
         "operationId": "upsertFileShare",
         "summary": "Enable or Disable File Share",
-        "description": "Enable or disable a file's public share. Requires workspace `write`.\n\nThe share token is always server-generated; there is no way to supply one. `authType` selects how the link is gated: `public` (anyone with the link), `password` (requires `password` on first enable), or `email` / `sso` (requires a non-empty `allowedEmails`). Omitting `authType` on a re-enable keeps the stored mode, and the org access-control policy is evaluated against that stored mode rather than against `public`. Disabling is never blocked by the policy.\n\n**Disabling is not revoking.** Setting `isActive: false` preserves the token and the stored password / allow-list, so re-enabling later resurrects the identical URL. To make a link permanently unreachable, archive the file instead.",
+        "description": "Enable or disable a file's public share. Requires workspace `write`.\n\nThe share token is always server-generated; there is no way to supply one. `authType` selects how the link is gated: `public` (anyone with the link), `password` (requires `password` on first enable), or `email` / `sso` (requires a non-empty `allowedEmails`). Omitting `authType` on a re-enable keeps the stored mode, and the org access-control policy is evaluated against that stored mode rather than against `public`. Disabling is never blocked by the policy.\n\n**Disabling is not revoking.** Setting `isActive: false` preserves the token and the stored password / allow-list, so re-enabling later resurrects the identical URL. To make a link permanently unreachable, delete the file instead.",
         "tags": ["Files"],
         "x-codeSamples": [
           {
@@ -1528,8 +1391,7 @@
                 "properties": {
                   "workspaceId": {
                     "type": "string",
-                    "description": "The workspace that owns the file.",
-                    "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                    "description": "The workspace that owns the file."
                   },
                   "content": {
                     "type": "string",
@@ -1540,23 +1402,6 @@
                     "enum": ["utf-8", "base64"],
                     "default": "utf-8",
                     "description": "How to decode `content` into bytes."
-                  }
-                }
-              },
-              "examples": {
-                "text": {
-                  "summary": "Replace with UTF-8 text",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "content": "id,name\n1,alpha\n"
-                  }
-                },
-                "binary": {
-                  "summary": "Replace with base64-encoded bytes",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "content": "aWQsbmFtZQoxLGFscGhhCg==",
-                    "encoding": "base64"
                   }
                 }
               }
@@ -1581,20 +1426,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileResponse"
-                },
-                "example": {
-                  "data": {
-                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
-                    "name": "data.csv",
-                    "size": 16,
-                    "type": "text/csv",
-                    "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
-                    "folderId": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu",
-                    "folderPath": "Reports/Q1",
-                    "uploadedBy": "user_abc123",
-                    "uploadedAt": "2026-01-15T10:30:00Z",
-                    "updatedAt": "2026-01-15T11:05:00Z"
-                  }
                 }
               }
             }
@@ -1613,6 +1444,469 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/bulk-delete": {
+      "post": {
+        "operationId": "bulkDeleteFiles",
+        "summary": "Delete Files",
+        "description": "Delete up to 1,000 files. Folder deletion is available at `/api/v2/files/folders`.",
+        "tags": ["Files"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "fileIds"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "fileIds": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1000,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deletion result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["deletedItems"],
+                      "properties": {
+                        "deletedItems": {
+                          "type": "object",
+                          "required": ["files"],
+                          "properties": {
+                            "files": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/folders": {
+      "get": {
+        "operationId": "listFilesFolders",
+        "summary": "List Folders",
+        "description": "List active folders for this resource. Omit `parentPath` for the full tree, or pass a canonical path (including `/`) for immediate children only.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "parentPath",
+            "in": "query",
+            "required": false,
+            "description": "Canonical parent path. `/` lists root folders; omit for every folder.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Name search.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Sort field.",
+            "schema": {
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"],
+              "default": "name"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folders.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FilesFolder"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": ["string", "null"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createFilesFolder",
+        "summary": "Create Folder",
+        "description": "Create exactly one folder leaf. Its parent path must already exist.",
+        "tags": ["Files"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "path"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Canonical non-root folder path."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["folder"],
+                      "properties": {
+                        "folder": {
+                          "$ref": "#/components/schemas/FilesFolder"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "relocateFilesFolder",
+        "summary": "Rename or Move Folder",
+        "description": "Rename, move, or rename and move a folder. Descendant paths change with the folder.",
+        "tags": ["Files"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "path", "destinationPath"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Current canonical non-root path."
+                  },
+                  "destinationPath": {
+                    "type": "string",
+                    "description": "New canonical non-root path."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["folder"],
+                      "properties": {
+                        "folder": {
+                          "$ref": "#/components/schemas/FilesFolder"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteFilesFolder",
+        "summary": "Delete Folder",
+        "description": "Delete a folder. With `recursive=false`, the folder must be empty. With `recursive=true`, its descendant folders and resources are deleted too.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "description": "Canonical non-root folder path.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": true,
+            "description": "Whether to delete the subtree.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deletion result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["path", "deleted", "deletedItems"],
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "deleted": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "deletedItems": {
+                          "type": "object",
+                          "required": ["folders", "files"],
+                          "properties": {
+                            "folders": {
+                              "type": "integer"
+                            },
+                            "files": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1649,7 +1943,10 @@
         "in": "header",
         "required": true,
         "description": "The signed control token returned when the upload session was created.",
-        "schema": { "type": "string", "minLength": 1 }
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "FileIdPath": {
         "name": "fileId",
@@ -1705,7 +2002,7 @@
           "size",
           "type",
           "key",
-          "folderId",
+          "folderPath",
           "folderPath",
           "uploadedBy",
           "uploadedAt",
@@ -1749,15 +2046,10 @@
             "description": "ISO 8601 timestamp of when the file was uploaded.",
             "example": "2026-01-15T10:30:00Z"
           },
-          "folderId": {
-            "type": ["string", "null"],
-            "description": "The containing file folder, or null when the file sits at the workspace root.",
-            "example": "fold_9Kq2mZ7pR4tLxWc0Ye3Nu"
-          },
           "folderPath": {
-            "type": ["string", "null"],
-            "description": "Slash-joined folder names for `folderId`, or null at the workspace root.",
-            "example": "Reports/Q1"
+            "type": "string",
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "example": "/Engineering"
           },
           "updatedAt": {
             "type": "string",
@@ -1769,18 +2061,18 @@
       },
       "V2DeleteFileResult": {
         "type": "object",
-        "description": "Acknowledgement returned by a successful archive (soft delete).",
+        "description": "Acknowledgement returned by a successful delete.",
         "required": ["id", "deleted"],
         "properties": {
           "id": {
             "type": "string",
-            "description": "The unique identifier of the archived file.",
+            "description": "The unique identifier of the deleted file.",
             "example": "wf_V1StGXR8z5jdHi6BmyT91"
           },
           "deleted": {
             "type": "boolean",
             "const": true,
-            "description": "Always true on a successful archive."
+            "description": "Always true on a successful delete."
           }
         }
       },
@@ -1956,23 +2248,6 @@
           }
         }
       },
-      "V2FileItemCounts": {
-        "type": "object",
-        "description": "Counts of what an operation actually touched. A folder cascades to its descendants, so these exceed the size of the selection.",
-        "required": ["files", "folders"],
-        "properties": {
-          "files": {
-            "type": "integer",
-            "description": "Number of files affected.",
-            "example": 3
-          },
-          "folders": {
-            "type": "integer",
-            "description": "Number of folders affected.",
-            "example": 1
-          }
-        }
-      },
       "V2FileShare": {
         "type": "object",
         "description": "A file's public share. Never carries the storage key or the encrypted password — `hasPassword` is the only password signal exposed.",
@@ -2036,40 +2311,19 @@
           }
         }
       },
-      "V2RestoreFileResult": {
-        "type": "object",
-        "description": "Acknowledgement returned by a successful file restore.",
-        "required": ["id", "restored"],
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "The unique identifier of the restored file.",
-            "example": "wf_V1StGXR8z5jdHi6BmyT91"
-          },
-          "restored": {
-            "type": "boolean",
-            "const": true,
-            "description": "Always true on a successful restore."
-          }
-        }
-      },
       "V2MoveFileItemsResult": {
         "type": "object",
         "description": "What the move actually relocated.",
         "required": ["movedItems"],
         "properties": {
           "movedItems": {
-            "$ref": "#/components/schemas/V2FileItemCounts"
-          }
-        }
-      },
-      "V2BulkArchiveFileItemsResult": {
-        "type": "object",
-        "description": "What the archive actually soft-deleted, including the cascade.",
-        "required": ["deletedItems"],
-        "properties": {
-          "deletedItems": {
-            "$ref": "#/components/schemas/V2FileItemCounts"
+            "type": "object",
+            "required": ["files"],
+            "properties": {
+              "files": {
+                "type": "integer"
+              }
+            }
           }
         }
       },
@@ -2101,16 +2355,6 @@
           }
         }
       },
-      "V2RestoreFileResponse": {
-        "type": "object",
-        "description": "The result of restoring a file.",
-        "required": ["data"],
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/V2RestoreFileResult"
-          }
-        }
-      },
       "V2MoveFileItemsResponse": {
         "type": "object",
         "description": "The result of a move.",
@@ -2118,16 +2362,6 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/V2MoveFileItemsResult"
-          }
-        }
-      },
-      "V2BulkArchiveFileItemsResponse": {
-        "type": "object",
-        "description": "The result of a bulk archive.",
-        "required": ["data"],
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/V2BulkArchiveFileItemsResult"
           }
         }
       },
@@ -2148,6 +2382,32 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/V2UpsertFileShareResult"
+          }
+        }
+      },
+      "FilesFolder": {
+        "type": "object",
+        "required": ["name", "path", "parentPath", "createdAt", "updatedAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Folder name."
+          },
+          "path": {
+            "type": "string",
+            "description": "Canonical folder path. This is the public folder identifier."
+          },
+          "parentPath": {
+            "type": "string",
+            "description": "Canonical parent path; `/` is the root."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

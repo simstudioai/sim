@@ -129,7 +129,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: File
 })
 
 /**
- * DELETE /api/v2/files/[fileId] — Archive (soft delete) a file.
+ * DELETE /api/v2/files/[fileId] — Delete a file.
  *
  * Delegates to the shared orchestration, which is workspace-scoped and records
  * its own audit entry (the request is forwarded so that entry captures client
@@ -171,7 +171,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Fil
       )
     }
 
-    logger.info(`Archived file ${fileId} from workspace ${workspaceId}`)
+    logger.info(`Deleted file ${fileId} from workspace ${workspaceId}`)
 
     return v2Data({ id: fileId, deleted: true as const }, { rateLimit })
   } catch (error) {

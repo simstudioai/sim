@@ -135,7 +135,8 @@ const KNOWLEDGE_BASE_SORTS = {
 
 interface GetKnowledgeBasesOptions {
   /** Restrict to one knowledge-base folder. */
-  folderId?: string
+  /** `undefined` lists every folder, `null` lists only workspace-root resources. */
+  folderId?: string | null
   /** Case-insensitive substring match on the knowledge base name. */
   search?: string
   sortBy?: V2KnowledgeBaseSortBy
@@ -201,7 +202,11 @@ export async function getKnowledgeBases(
     .where(
       and(
         scopeCondition,
-        folderId ? eq(knowledgeBase.folderId, folderId) : undefined,
+        folderId === undefined
+          ? undefined
+          : folderId === null
+            ? isNull(knowledgeBase.folderId)
+            : eq(knowledgeBase.folderId, folderId),
         searchFilter(knowledgeBase.name, search),
         workspaceId
           ? // When filtering by workspace

@@ -10,12 +10,6 @@ export {
   performRevertToVersion,
 } from './deploy'
 export {
-  performCreateFolder,
-  performDeleteFolder,
-  performRestoreFolder,
-  performUpdateFolder,
-} from './folder-lifecycle'
-export {
   performCreateWorkflow,
   performDeleteWorkflow,
   performRestoreWorkflow,

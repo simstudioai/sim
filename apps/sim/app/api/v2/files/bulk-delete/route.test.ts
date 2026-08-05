@@ -4,10 +4,10 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckRateLimit, mockResolveWorkspaceAccess, mockPerformRestore } = vi.hoisted(() => ({
+const { mockCheckRateLimit, mockResolveWorkspaceAccess, mockPerformDelete } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
-  mockPerformRestore: vi.fn(),
+  mockPerformDelete: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -20,13 +20,12 @@ vi.mock('@/app/api/v2/lib/gate', () => ({
 }))
 
 vi.mock('@/lib/workspace-files/orchestration', () => ({
-  performRestoreWorkspaceFile: mockPerformRestore,
+  performDeleteWorkspaceFileItems: mockPerformDelete,
 }))
 
-import { POST } from '@/app/api/v2/files/[fileId]/restore/route'
+import { POST } from '@/app/api/v2/files/bulk-delete/route'
 
 const WS = 'workspace-1'
-const FILE_ID = 'wf_1'
 
 const RATE_LIMIT_OK = {
   allowed: true,
@@ -45,22 +44,21 @@ const RATE_LIMIT_DENIED = {
   retryAfterMs: 1000,
 }
 
-const callRestore = (body: unknown) =>
+const callDelete = (body: unknown) =>
   POST(
-    new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/restore`, {
+    new NextRequest('http://localhost:3000/api/v2/files/bulk-delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }),
-    { params: Promise.resolve({ fileId: FILE_ID }) }
+    })
   )
 
-describe('POST /api/v2/files/[fileId]/restore', () => {
+describe('POST /api/v2/files/bulk-delete', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockPerformRestore.mockResolvedValue({ success: true })
+    mockPerformDelete.mockResolvedValue({ success: true, deletedItems: { files: 3, folders: 1 } })
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
@@ -68,18 +66,17 @@ describe('POST /api/v2/files/[fileId]/restore', () => {
     const { v2Error } = await import('@/app/api/v2/lib/response')
     vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
 
-    const res = await callRestore({ workspaceId: WS })
+    const res = await callDelete({ workspaceId: WS, fileIds: ['wf_1'] })
 
     expect(res.status).toBe(404)
-    expect((await res.json()).error.code).toBe('NOT_FOUND')
-    expect(mockPerformRestore).not.toHaveBeenCalled()
+    expect(mockPerformDelete).not.toHaveBeenCalled()
   })
 
-  it('400s when workspaceId is missing', async () => {
-    const res = await callRestore({})
+  it('400s when the selection is empty', async () => {
+    const res = await callDelete({ workspaceId: WS, fileIds: [] })
     expect(res.status).toBe(400)
     expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockPerformRestore).not.toHaveBeenCalled()
+    expect(mockPerformDelete).not.toHaveBeenCalled()
   })
 
   it('surfaces an access-denied failure in the v2 error envelope', async () => {
@@ -88,43 +85,42 @@ describe('POST /api/v2/files/[fileId]/restore', () => {
       code: 'FORBIDDEN',
       message: 'Access denied',
     })
-    const res = await callRestore({ workspaceId: WS })
+    const res = await callDelete({ workspaceId: WS, fileIds: ['wf_1'] })
     expect(res.status).toBe(403)
-    expect(mockPerformRestore).not.toHaveBeenCalled()
+    expect(mockPerformDelete).not.toHaveBeenCalled()
   })
 
   it('returns the rate-limit response when denied', async () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callRestore({ workspaceId: WS })
+    const res = await callDelete({ workspaceId: WS, fileIds: ['wf_1'] })
     expect(res.status).toBe(429)
     expect((await res.json()).error.code).toBe('RATE_LIMITED')
   })
 
-  it('restores the file and acknowledges', async () => {
-    const res = await callRestore({ workspaceId: WS })
+  it('deletes the selection and reports the file count', async () => {
+    const res = await callDelete({ workspaceId: WS, fileIds: ['wf_1'] })
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body.data).toEqual({ id: FILE_ID, restored: true })
-    expect(mockPerformRestore).toHaveBeenCalledWith({
+    expect(body.data).toEqual({ deletedItems: { files: 3 } })
+    expect(mockPerformDelete).toHaveBeenCalledWith({
       workspaceId: WS,
-      fileId: FILE_ID,
       userId: 'user-1',
+      fileIds: ['wf_1'],
+      request: expect.anything(),
     })
   })
 
-  it('maps a not_found errorCode to 404 rather than a blanket 500', async () => {
-    mockPerformRestore.mockResolvedValue({
+  it('maps a not_found errorCode to 404', async () => {
+    mockPerformDelete.mockResolvedValue({
       success: false,
       error: 'File not found',
       errorCode: 'not_found',
     })
 
-    const res = await callRestore({ workspaceId: WS })
-    const body = await res.json()
+    const res = await callDelete({ workspaceId: WS, fileIds: ['wf_missing'] })
 
     expect(res.status).toBe(404)
-    expect(body.error.code).toBe('NOT_FOUND')
-    expect(body.error.message).toBe('File not found')
+    expect((await res.json()).error.code).toBe('NOT_FOUND')
   })
 })

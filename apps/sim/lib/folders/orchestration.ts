@@ -2,11 +2,12 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { folder as folderTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import type { FolderCascadeCountsApi, FolderResourceType } from '@/lib/api/contracts/folders'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import { withTransactionRetry } from '@/lib/db/transaction'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   archiveFolderCascade,
@@ -17,12 +18,19 @@ import {
   toCascadeCounts,
 } from '@/lib/folders/cascade'
 import { folderResourceConfig } from '@/lib/folders/config'
+import { acquireFolderMutationLock, withFolderTreeLock } from '@/lib/folders/locks'
 import { deduplicateFolderName } from '@/lib/folders/naming'
-import { wouldCreateFolderCycle } from '@/lib/folders/queries'
+import {
+  type FolderPathIndex,
+  folderNameFromPath,
+  parentFolderPath,
+  requireNonRootFolderPath,
+} from '@/lib/folders/paths'
+import { loadActiveFolderPathIndex, wouldCreateFolderCycle } from '@/lib/folders/queries'
 import type { FolderMutationErrorCode } from '@/lib/folders/status'
 import { notifyFolderResourceChanged } from '@/lib/realtime/notify'
 
-const logger = createLogger('FolderLifecycle')
+const logger = createLogger('FolderOrchestration')
 
 const DUPLICATE_NAME_ERROR = 'A folder with this name already exists in this location'
 
@@ -60,6 +68,7 @@ export interface DeleteFolderParams {
   workspaceId: string
   userId: string
   folderName?: string
+  folderPath?: string
 }
 
 export interface DeleteFolderResult {
@@ -84,6 +93,271 @@ export interface RestoreFolderResult {
   restoredItems?: FolderCascadeCountsApi
 }
 
+export interface FolderPathMutationResult extends FolderMutationResult {
+  path?: string
+}
+
+export interface DeleteFolderByPathParams {
+  resourceType: FolderResourceType
+  workspaceId: string
+  userId: string
+  path: string
+  recursive: boolean
+}
+
+export interface DeleteFolderByPathResult extends DeleteFolderResult {
+  path?: string
+}
+
+function validatePathLeafName(path: string): string {
+  const name = folderNameFromPath(path)
+  if (name.trim() !== name || name.length === 0 || name.length > 255) {
+    throw new Error('Folder path leaf must be between 1 and 255 characters without outer spaces')
+  }
+  return name
+}
+
+function resolveRequiredFolderId(index: FolderPathIndex, path: string): string {
+  const folderId = index.idByPath.get(path)
+  if (!folderId) throw new Error('Folder not found')
+  return folderId
+}
+
+function isEffectivelyLocked(index: FolderPathIndex<typeof folderTable.$inferSelect>, id: string) {
+  let currentId: string | null = id
+  while (currentId) {
+    const row = index.rowById.get(currentId)
+    if (!row) throw new Error('Folder hierarchy references a missing ancestor')
+    if (row.locked) return true
+    currentId = row.parentId
+  }
+  return false
+}
+
+function pathMutationError(error: unknown): FolderPathMutationResult {
+  const message = getErrorMessage(error, 'Internal server error')
+  if (message === 'Folder not found' || message === 'Parent folder not found') {
+    return { success: false, error: message, errorCode: 'not_found' }
+  }
+  if (
+    message === DUPLICATE_NAME_ERROR ||
+    message === 'Folder is not empty' ||
+    getPostgresErrorCode(error) === '23505'
+  ) {
+    return { success: false, error: message, errorCode: 'conflict' }
+  }
+  if (message === 'Folder is locked') {
+    return { success: false, error: message, errorCode: 'locked' }
+  }
+  if (
+    message.includes('Folder path') ||
+    message.includes('root path') ||
+    message.includes('descendant') ||
+    message.includes('canonical folder path')
+  ) {
+    return { success: false, error: message, errorCode: 'validation' }
+  }
+  logger.error('Folder path mutation failed', { error })
+  return { success: false, error: 'Internal server error', errorCode: 'internal' }
+}
+
+/** Creates exactly the leaf identified by `path`; every ancestor must already exist. */
+export async function createFolderAtPath(
+  params: Omit<CreateFolderParams, 'name' | 'parentId' | 'sortOrder' | 'id'> & { path: string }
+): Promise<FolderPathMutationResult> {
+  try {
+    requireNonRootFolderPath(params.path)
+    const name = validatePathLeafName(params.path)
+    const folder = await withTransactionRetry(
+      async (tx) => {
+        await acquireFolderMutationLock(tx, params.workspaceId, params.resourceType)
+        const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
+        if (index.idByPath.has(params.path)) throw new Error(DUPLICATE_NAME_ERROR)
+
+        const parentPath = parentFolderPath(params.path)
+        const parentId = parentPath === '/' ? null : index.idByPath.get(parentPath)
+        if (parentPath !== '/' && !parentId) throw new Error('Parent folder not found')
+        if (
+          parentId &&
+          folderResourceConfig(params.resourceType).supportsLocking &&
+          isEffectivelyLocked(index, parentId)
+        ) {
+          throw new Error('Folder is locked')
+        }
+
+        const sortOrder = await nextFolderSortOrder(
+          params.resourceType,
+          params.workspaceId,
+          parentId,
+          tx
+        )
+        const [created] = await tx
+          .insert(folderTable)
+          .values({
+            id: generateId(),
+            resourceType: params.resourceType,
+            name,
+            userId: params.userId,
+            workspaceId: params.workspaceId,
+            parentId,
+            sortOrder,
+          })
+          .returning()
+        return created
+      },
+      { label: 'create-folder-at-path' }
+    )
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_CREATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: folder.id,
+      resourceName: folder.name,
+      description: `Created ${folderResourceConfig(params.resourceType).label} folder "${params.path}"`,
+      metadata: { path: params.path, folderResourceType: params.resourceType },
+    })
+    await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
+    return { success: true, folder, path: params.path }
+  } catch (error) {
+    return pathMutationError(error)
+  }
+}
+
+/** Renames, moves, or both by replacing one canonical path with another. */
+export async function relocateFolderByPath(params: {
+  resourceType: FolderResourceType
+  workspaceId: string
+  userId: string
+  path: string
+  destinationPath: string
+}): Promise<FolderPathMutationResult> {
+  try {
+    requireNonRootFolderPath(params.path)
+    requireNonRootFolderPath(params.destinationPath)
+    const name = validatePathLeafName(params.destinationPath)
+
+    const folder = await withTransactionRetry(
+      async (tx) => {
+        await acquireFolderMutationLock(tx, params.workspaceId, params.resourceType)
+        const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
+        const folderId = resolveRequiredFolderId(index, params.path)
+        if (index.idByPath.has(params.destinationPath)) throw new Error(DUPLICATE_NAME_ERROR)
+
+        const destinationParentPath = parentFolderPath(params.destinationPath)
+        if (
+          destinationParentPath === params.path ||
+          destinationParentPath.startsWith(`${params.path}/`)
+        ) {
+          throw new Error('Cannot move a folder into one of its descendants')
+        }
+        const resolvedParentId =
+          destinationParentPath === '/' ? null : index.idByPath.get(destinationParentPath)
+        if (resolvedParentId === undefined) throw new Error('Parent folder not found')
+        const parentId = resolvedParentId
+
+        const config = folderResourceConfig(params.resourceType)
+        if (
+          config.supportsLocking &&
+          (isEffectivelyLocked(index, folderId) ||
+            (parentId !== null && isEffectivelyLocked(index, parentId)))
+        ) {
+          throw new Error('Folder is locked')
+        }
+
+        const [updated] = await tx
+          .update(folderTable)
+          .set({ name, parentId, updatedAt: new Date() })
+          .where(
+            and(
+              eq(folderTable.id, folderId),
+              eq(folderTable.workspaceId, params.workspaceId),
+              eq(folderTable.resourceType, params.resourceType),
+              isNull(folderTable.deletedAt)
+            )
+          )
+          .returning()
+        if (!updated) throw new Error('Folder not found')
+        return updated
+      },
+      { label: 'relocate-folder-by-path' }
+    )
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_MOVED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: folder.id,
+      resourceName: folder.name,
+      description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${params.destinationPath}"`,
+      metadata: {
+        sourcePath: params.path,
+        destinationPath: params.destinationPath,
+        folderResourceType: params.resourceType,
+      },
+    })
+    await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
+    return { success: true, folder, path: params.destinationPath }
+  } catch (error) {
+    return pathMutationError(error)
+  }
+}
+
+/** Resolves a public path under the tree lock, then delegates the cascade to the domain engine. */
+export async function deleteFolderByPath(
+  params: DeleteFolderByPathParams
+): Promise<DeleteFolderByPathResult> {
+  try {
+    requireNonRootFolderPath(params.path)
+    const result = await withFolderTreeLock(params.workspaceId, params.resourceType, async (tx) => {
+      const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
+      const folderId = resolveRequiredFolderId(index, params.path)
+      if (
+        folderResourceConfig(params.resourceType).supportsLocking &&
+        isEffectivelyLocked(index, folderId)
+      ) {
+        throw new Error('Folder is locked')
+      }
+
+      if (!params.recursive) {
+        const hasChildFolder = [...index.pathById.values()].some((candidate) =>
+          candidate.startsWith(`${params.path}/`)
+        )
+        const config = folderResourceConfig(params.resourceType)
+        const [child] = await tx
+          .select({ id: config.idColumn })
+          .from(config.table)
+          .where(
+            and(
+              eq(config.folderIdColumn, folderId),
+              eq(config.workspaceColumn, params.workspaceId),
+              isNull(config.deletedColumn),
+              config.scope
+            )
+          )
+          .limit(1)
+        if (hasChildFolder || child) throw new Error('Folder is not empty')
+      }
+
+      const row = index.rowById.get(folderId)
+      if (!row) throw new Error('Folder not found')
+      return deleteFolderWithoutTreeLock({
+        resourceType: params.resourceType,
+        folderId,
+        workspaceId: params.workspaceId,
+        userId: params.userId,
+        folderName: row.name,
+        folderPath: params.path,
+      })
+    })
+    return { ...result, path: result.success ? params.path : undefined }
+  } catch (error) {
+    return pathMutationError(error)
+  }
+}
+
 /**
  * Verifies that a prospective parent folder exists, belongs to the target workspace, is of
  * the same `resourceType`, and is not archived.
@@ -95,9 +369,10 @@ export interface RestoreFolderResult {
 async function assertParentFolderInWorkspace(
   resourceType: FolderResourceType,
   parentId: string,
-  workspaceId: string
+  workspaceId: string,
+  tx: DbOrTx = db
 ): Promise<{ error: string; errorCode: OrchestrationErrorCode } | null> {
-  const [parent] = await db
+  const [parent] = await tx
     .select({
       workspaceId: folderTable.workspaceId,
       archivedAt: folderTable.deletedAt,
@@ -177,35 +452,46 @@ export async function createFolder(params: CreateFolderParams): Promise<FolderMu
     const folderId = params.id || generateId()
     const parentId = params.parentId || null
 
-    if (parentId) {
-      if (parentId === folderId) {
-        return { success: false, error: 'Folder cannot be its own parent', errorCode: 'validation' }
-      }
-      const parentError = await assertParentFolderInWorkspace(
-        params.resourceType,
-        parentId,
-        params.workspaceId
-      )
-      if (parentError) return { success: false, ...parentError }
+    if (parentId === folderId) {
+      return { success: false, error: 'Folder cannot be its own parent', errorCode: 'validation' }
     }
 
-    const sortOrder =
-      params.sortOrder !== undefined
-        ? params.sortOrder
-        : await nextFolderSortOrder(params.resourceType, params.workspaceId, parentId)
+    const outcome = await withTransactionRetry(
+      async (tx) => {
+        await acquireFolderMutationLock(tx, params.workspaceId, params.resourceType)
+        if (parentId) {
+          const parentError = await assertParentFolderInWorkspace(
+            params.resourceType,
+            parentId,
+            params.workspaceId,
+            tx
+          )
+          if (parentError) return { parentError }
+        }
 
-    const [folder] = await db
-      .insert(folderTable)
-      .values({
-        id: folderId,
-        resourceType: params.resourceType,
-        name: params.name.trim(),
-        userId: params.userId,
-        workspaceId: params.workspaceId,
-        parentId,
-        sortOrder,
-      })
-      .returning()
+        const sortOrder =
+          params.sortOrder !== undefined
+            ? params.sortOrder
+            : await nextFolderSortOrder(params.resourceType, params.workspaceId, parentId, tx)
+
+        const [folder] = await tx
+          .insert(folderTable)
+          .values({
+            id: folderId,
+            resourceType: params.resourceType,
+            name: params.name.trim(),
+            userId: params.userId,
+            workspaceId: params.workspaceId,
+            parentId,
+            sortOrder,
+          })
+          .returning()
+        return { folder }
+      },
+      { label: 'create-folder' }
+    )
+    if ('parentError' in outcome) return { success: false, ...outcome.parentError }
+    const { folder } = outcome
 
     logger.info('Created folder', {
       folderId,
@@ -255,28 +541,6 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
       return { success: false, error: 'Folder cannot be its own parent', errorCode: 'validation' }
     }
 
-    if (params.parentId) {
-      const parentError = await assertParentFolderInWorkspace(
-        params.resourceType,
-        params.parentId,
-        params.workspaceId
-      )
-      if (parentError) return { success: false, ...parentError }
-
-      const wouldCreateCycle = await wouldCreateFolderCycle(
-        params.folderId,
-        params.parentId,
-        params.resourceType
-      )
-      if (wouldCreateCycle) {
-        return {
-          success: false,
-          error: 'Cannot create circular folder reference',
-          errorCode: 'validation',
-        }
-      }
-    }
-
     // Typed against the table rather than `Record<string, unknown>`: the loose type is what
     // let `color`/`isExpanded` survive an earlier cutover after the create path dropped them.
     const updates: Partial<typeof folderTable.$inferInsert> = { updatedAt: new Date() }
@@ -294,18 +558,52 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
      * reparentable. The engine is reachable from the copilot tools as well as the route, so
      * the guard belongs here rather than only at the boundary.
      */
-    const [folder] = await db
-      .update(folderTable)
-      .set(updates)
-      .where(
-        and(
-          eq(folderTable.id, params.folderId),
-          eq(folderTable.workspaceId, params.workspaceId),
-          eq(folderTable.resourceType, params.resourceType),
-          isNull(folderTable.deletedAt)
-        )
-      )
-      .returning()
+    const outcome = await withTransactionRetry(
+      async (tx) => {
+        await acquireFolderMutationLock(tx, params.workspaceId, params.resourceType)
+        if (params.parentId) {
+          const parentError = await assertParentFolderInWorkspace(
+            params.resourceType,
+            params.parentId,
+            params.workspaceId,
+            tx
+          )
+          if (parentError) return { parentError }
+
+          const wouldCreateCycle = await wouldCreateFolderCycle(
+            params.folderId,
+            params.parentId,
+            params.resourceType,
+            tx
+          )
+          if (wouldCreateCycle) {
+            return {
+              parentError: {
+                error: 'Cannot create circular folder reference',
+                errorCode: 'validation' as const,
+              },
+            }
+          }
+        }
+
+        const [folder] = await tx
+          .update(folderTable)
+          .set(updates)
+          .where(
+            and(
+              eq(folderTable.id, params.folderId),
+              eq(folderTable.workspaceId, params.workspaceId),
+              eq(folderTable.resourceType, params.resourceType),
+              isNull(folderTable.deletedAt)
+            )
+          )
+          .returning()
+        return { folder }
+      },
+      { label: 'update-folder' }
+    )
+    if ('parentError' in outcome) return { success: false, ...outcome.parentError }
+    const { folder } = outcome
 
     if (!folder) {
       return { success: false, error: 'Folder not found', errorCode: 'not_found' }
@@ -340,7 +638,15 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
  * the new stamp would never match on restore and would be stranded permanently.
  */
 export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFolderResult> {
-  const { resourceType, folderId, workspaceId, userId, folderName } = params
+  return withFolderTreeLock(params.workspaceId, params.resourceType, () =>
+    deleteFolderWithoutTreeLock(params)
+  )
+}
+
+async function deleteFolderWithoutTreeLock(
+  params: DeleteFolderParams
+): Promise<DeleteFolderResult> {
+  const { resourceType, folderId, workspaceId, userId, folderName, folderPath } = params
   const config = folderResourceConfig(resourceType)
 
   const [existing] = await db
@@ -387,9 +693,10 @@ export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFo
     resourceType: AuditResourceType.FOLDER,
     resourceId: folderId,
     resourceName: folderName,
-    description: `Deleted ${config.label} folder "${folderName || folderId}"`,
+    description: `Deleted ${config.label} folder "${folderPath ?? folderName ?? folderId}"`,
     metadata: {
       folderResourceType: resourceType,
+      path: folderPath,
       affected: {
         [config.countKey]: counts.children,
         subfolders: Math.max(counts.folders - 1, 0),
@@ -410,7 +717,9 @@ export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFo
  * deduplicated against the *resolved* parent's active siblings — the caller cannot rename
  * an archived folder, so a taken name would otherwise make it permanently unrestorable.
  */
-export async function restoreFolder(params: RestoreFolderParams): Promise<RestoreFolderResult> {
+async function restoreFolderWithoutTreeLock(
+  params: RestoreFolderParams
+): Promise<RestoreFolderResult> {
   const { resourceType, folderId, workspaceId, userId, folderName } = params
   const config = folderResourceConfig(resourceType)
 
@@ -562,4 +871,11 @@ export async function restoreFolder(params: RestoreFolderParams): Promise<Restor
   // Live resource list (e.g. tables): a restore brings the folder and its contents back.
   await notifyFolderResourceChanged(resourceType, workspaceId)
   return { success: true, restoredItems: toCascadeCounts(config, counts) }
+}
+
+/** Restores a folder while serializing against every writer for the resource tree. */
+export async function restoreFolder(params: RestoreFolderParams): Promise<RestoreFolderResult> {
+  return withFolderTreeLock(params.workspaceId, params.resourceType, () =>
+    restoreFolderWithoutTreeLock(params)
+  )
 }

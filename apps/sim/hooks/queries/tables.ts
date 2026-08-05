@@ -1731,7 +1731,7 @@ export function useRestoreTable() {
 interface ImportCsvAsyncParams {
   workspaceId: string
   /** Folder to create the imported table in; omitted imports to the workspace root. */
-  folderId?: string | null
+  folderPath?: string
   file: File
   onCreated?: (importId: string) => void
   onProgress?: (percent: number) => void
@@ -1807,7 +1807,7 @@ export function useImportCsv() {
   return useMutation({
     mutationFn: async ({
       workspaceId,
-      folderId,
+      folderPath,
       file,
       onCreated,
       onProgress,
@@ -1826,7 +1826,7 @@ export function useImportCsv() {
             0,
             TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
           ),
-          folderId: folderId ?? undefined,
+          folderPath,
         },
         file,
         timezone,

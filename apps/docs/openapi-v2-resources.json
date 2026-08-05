@@ -34,10 +34,6 @@
       "description": "Create and manage the workspace's own code-backed tools that agents can call (v2 API)."
     },
     {
-      "name": "Folders",
-      "description": "Organize workflows, knowledge bases, and tables into folder trees (v2 API)."
-    },
-    {
       "name": "Credentials",
       "description": "Provision the secrets and connected accounts a workspace's agents authenticate with (v2 API)."
     }
@@ -62,13 +58,19 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
           {
             "name": "search",
             "in": "query",
             "required": false,
             "description": "Case-insensitive substring match against the MCP server `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
-            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
           },
           {
             "name": "sortBy",
@@ -86,16 +88,26 @@
             "in": "query",
             "required": false,
             "description": "Sort direction.",
-            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "desc"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "MCP servers registered in the workspace.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
@@ -106,9 +118,13 @@
                     "data": {
                       "type": "array",
                       "description": "The MCP servers registered in the workspace.",
-                      "items": { "$ref": "#/components/schemas/McpServer" }
+                      "items": {
+                        "$ref": "#/components/schemas/McpServer"
+                      }
                     },
-                    "nextCursor": { "$ref": "#/components/schemas/NextCursor" }
+                    "nextCursor": {
+                      "$ref": "#/components/schemas/NextCursor"
+                    }
                   }
                 },
                 "example": {
@@ -140,11 +156,21 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "post": {
@@ -164,7 +190,9 @@
           "description": "The MCP server to register.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateMcpServerBody" },
+              "schema": {
+                "$ref": "#/components/schemas/CreateMcpServerBody"
+              },
               "examples": {
                 "headerAuth": {
                   "summary": "Header-authenticated server",
@@ -174,7 +202,9 @@
                     "description": "Internal documentation tools",
                     "url": "https://mcp.example.com/sse",
                     "authType": "headers",
-                    "headers": { "Authorization": "Bearer YOUR_TOKEN" },
+                    "headers": {
+                      "Authorization": "Bearer YOUR_TOKEN"
+                    },
                     "timeout": 30000,
                     "retries": 3
                   }
@@ -198,13 +228,21 @@
           "201": {
             "description": "The MCP server was registered.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/McpServerData" },
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerData"
+                },
                 "example": {
                   "data": {
                     "mcpServer": {
@@ -231,12 +269,24 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -254,20 +304,32 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/McpServerId" },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          {
+            "$ref": "#/components/parameters/McpServerId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
         ],
         "responses": {
           "200": {
             "description": "The MCP server.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/McpServerData" },
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerData"
+                },
                 "example": {
                   "data": {
                     "mcpServer": {
@@ -291,12 +353,24 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "patch": {
@@ -311,13 +385,19 @@
             "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/mcp-servers/mcp-3f7a9c21\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"enabled\": false\n  }'"
           }
         ],
-        "parameters": [{ "$ref": "#/components/parameters/McpServerId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/McpServerId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "The fields to change. `workspaceId` is required so the request is tenant-scoped.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateMcpServerBody" },
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMcpServerBody"
+              },
               "examples": {
                 "disable": {
                   "summary": "Disable a server",
@@ -330,7 +410,9 @@
                   "summary": "Rotate the auth header",
                   "value": {
                     "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "headers": { "Authorization": "Bearer NEW_TOKEN" }
+                    "headers": {
+                      "Authorization": "Bearer NEW_TOKEN"
+                    }
                   }
                 }
               }
@@ -341,13 +423,21 @@
           "200": {
             "description": "The updated MCP server.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/McpServerData" },
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerData"
+                },
                 "example": {
                   "data": {
                     "mcpServer": {
@@ -371,12 +461,24 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "delete": {
@@ -392,30 +494,59 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/McpServerId" },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          {
+            "$ref": "#/components/parameters/McpServerId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
         ],
         "responses": {
           "200": {
             "description": "The MCP server was deleted.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DeleteAcknowledgement" },
-                "example": { "data": { "id": "mcp-3f7a9c21", "deleted": true } }
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAcknowledgement"
+                },
+                "example": {
+                  "data": {
+                    "id": "mcp-3f7a9c21",
+                    "deleted": true
+                  }
+                }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -433,13 +564,19 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
           {
             "name": "search",
             "in": "query",
             "required": false,
             "description": "Case-insensitive substring match against the skill `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
-            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
           },
           {
             "name": "sortBy",
@@ -457,16 +594,26 @@
             "in": "query",
             "required": false,
             "description": "Sort direction.",
-            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "desc"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Skills available in the workspace.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
@@ -477,9 +624,13 @@
                     "data": {
                       "type": "array",
                       "description": "The skills available in the workspace, without their bodies.",
-                      "items": { "$ref": "#/components/schemas/SkillSummary" }
+                      "items": {
+                        "$ref": "#/components/schemas/SkillSummary"
+                      }
                     },
-                    "nextCursor": { "$ref": "#/components/schemas/NextCursor" }
+                    "nextCursor": {
+                      "$ref": "#/components/schemas/NextCursor"
+                    }
                   }
                 },
                 "example": {
@@ -506,11 +657,21 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "post": {
@@ -530,7 +691,9 @@
           "description": "The skill to create.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateSkillBody" },
+              "schema": {
+                "$ref": "#/components/schemas/CreateSkillBody"
+              },
               "examples": {
                 "refundPolicy": {
                   "summary": "A support playbook",
@@ -549,13 +712,21 @@
           "201": {
             "description": "The skill was created.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SkillData" },
+                "schema": {
+                  "$ref": "#/components/schemas/SkillData"
+                },
                 "example": {
                   "data": {
                     "skill": {
@@ -572,12 +743,24 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -595,20 +778,32 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/SkillId" },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          {
+            "$ref": "#/components/parameters/SkillId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
         ],
         "responses": {
           "200": {
             "description": "The skill.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SkillData" },
+                "schema": {
+                  "$ref": "#/components/schemas/SkillData"
+                },
                 "example": {
                   "data": {
                     "skill": {
@@ -625,12 +820,24 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "patch": {
@@ -645,13 +852,19 @@
             "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/skills/V1StGXR8Z5jdHi6BmyT\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"description\": \"Updated refund guidance\"\n  }'"
           }
         ],
-        "parameters": [{ "$ref": "#/components/parameters/SkillId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SkillId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "The fields to change. At least one of `name`, `description`, or `content` is required.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateSkillBody" },
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSkillBody"
+              },
               "examples": {
                 "editDescription": {
                   "summary": "Change the description only",
@@ -675,13 +888,21 @@
           "200": {
             "description": "The updated skill.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SkillData" },
+                "schema": {
+                  "$ref": "#/components/schemas/SkillData"
+                },
                 "example": {
                   "data": {
                     "skill": {
@@ -698,13 +919,27 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "delete": {
@@ -720,30 +955,59 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/SkillId" },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          {
+            "$ref": "#/components/parameters/SkillId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
         ],
         "responses": {
           "200": {
             "description": "The skill was deleted.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DeleteAcknowledgement" },
-                "example": { "data": { "id": "V1StGXR8Z5jdHi6BmyT", "deleted": true } }
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAcknowledgement"
+                },
+                "example": {
+                  "data": {
+                    "id": "V1StGXR8Z5jdHi6BmyT",
+                    "deleted": true
+                  }
+                }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -761,13 +1025,19 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
           {
             "name": "search",
             "in": "query",
             "required": false,
             "description": "Case-insensitive substring match against the custom tool `title`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
-            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
           },
           {
             "name": "sortBy",
@@ -785,16 +1055,26 @@
             "in": "query",
             "required": false,
             "description": "Sort direction.",
-            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "desc"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Custom tools defined in the workspace.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
@@ -805,9 +1085,13 @@
                     "data": {
                       "type": "array",
                       "description": "The custom tools defined in the workspace.",
-                      "items": { "$ref": "#/components/schemas/CustomTool" }
+                      "items": {
+                        "$ref": "#/components/schemas/CustomTool"
+                      }
                     },
-                    "nextCursor": { "$ref": "#/components/schemas/NextCursor" }
+                    "nextCursor": {
+                      "$ref": "#/components/schemas/NextCursor"
+                    }
                   }
                 },
                 "example": {
@@ -822,7 +1106,11 @@
                           "description": "Look up an order by id",
                           "parameters": {
                             "type": "object",
-                            "properties": { "orderId": { "type": "string" } },
+                            "properties": {
+                              "orderId": {
+                                "type": "string"
+                              }
+                            },
                             "required": ["orderId"]
                           }
                         }
@@ -837,11 +1125,21 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "post": {
@@ -861,7 +1159,9 @@
           "description": "The custom tool to create.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateCustomToolBody" },
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomToolBody"
+              },
               "examples": {
                 "lookupOrder": {
                   "summary": "A tool that calls an internal API",
@@ -875,7 +1175,11 @@
                         "description": "Look up an order by id",
                         "parameters": {
                           "type": "object",
-                          "properties": { "orderId": { "type": "string" } },
+                          "properties": {
+                            "orderId": {
+                              "type": "string"
+                            }
+                          },
                           "required": ["orderId"]
                         }
                       }
@@ -891,13 +1195,21 @@
           "201": {
             "description": "The custom tool was created.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CustomToolData" },
+                "schema": {
+                  "$ref": "#/components/schemas/CustomToolData"
+                },
                 "example": {
                   "data": {
                     "customTool": {
@@ -909,7 +1221,11 @@
                           "name": "lookup_order",
                           "parameters": {
                             "type": "object",
-                            "properties": { "orderId": { "type": "string" } },
+                            "properties": {
+                              "orderId": {
+                                "type": "string"
+                              }
+                            },
                             "required": ["orderId"]
                           }
                         }
@@ -923,12 +1239,24 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -946,20 +1274,32 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/CustomToolId" },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          {
+            "$ref": "#/components/parameters/CustomToolId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
         ],
         "responses": {
           "200": {
             "description": "The custom tool.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CustomToolData" },
+                "schema": {
+                  "$ref": "#/components/schemas/CustomToolData"
+                },
                 "example": {
                   "data": {
                     "customTool": {
@@ -971,7 +1311,11 @@
                           "name": "lookup_order",
                           "parameters": {
                             "type": "object",
-                            "properties": { "orderId": { "type": "string" } },
+                            "properties": {
+                              "orderId": {
+                                "type": "string"
+                              }
+                            },
                             "required": ["orderId"]
                           }
                         }
@@ -985,12 +1329,24 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "patch": {
@@ -1005,13 +1361,19 @@
             "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/custom-tools/V1StGXR8Z5jdHi6BmyT\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"code\": \"return { ok: false }\"\n  }'"
           }
         ],
-        "parameters": [{ "$ref": "#/components/parameters/CustomToolId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomToolId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "The fields to change. At least one of `title`, `schema`, or `code` is required.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateCustomToolBody" },
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomToolBody"
+              },
               "examples": {
                 "editCode": {
                   "summary": "Replace the implementation only",
@@ -1035,13 +1397,21 @@
           "200": {
             "description": "The updated custom tool.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CustomToolData" },
+                "schema": {
+                  "$ref": "#/components/schemas/CustomToolData"
+                },
                 "example": {
                   "data": {
                     "customTool": {
@@ -1053,7 +1423,11 @@
                           "name": "lookup_order",
                           "parameters": {
                             "type": "object",
-                            "properties": { "orderId": { "type": "string" } },
+                            "properties": {
+                              "orderId": {
+                                "type": "string"
+                              }
+                            },
                             "required": ["orderId"]
                           }
                         }
@@ -1067,13 +1441,27 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "delete": {
@@ -1089,396 +1477,59 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/CustomToolId" },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          {
+            "$ref": "#/components/parameters/CustomToolId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
         ],
         "responses": {
           "200": {
             "description": "The custom tool was deleted.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/DeleteAcknowledgement" },
-                "example": { "data": { "id": "V1StGXR8Z5jdHi6BmyT", "deleted": true } }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
               }
-            }
-          },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/api/v2/folders": {
-      "get": {
-        "operationId": "listFolders",
-        "summary": "List Folders",
-        "description": "List a workspace's folder tree for one resource type. One folder engine serves several trees, so `resourceType` is **required** — it selects which tree you are addressing.\n\nPass `scope=archived` to list folders in Recently Deleted instead of live ones. A workspace's tree for one resource type is small and bounded, so the full set is returned as a single page and `nextCursor` is always `null`. Folders come back in tree order (`sortOrder`, then creation time); build the hierarchy from `parentId`.",
-        "tags": ["Folders"],
-        "x-codeSamples": [
-          {
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl \\\n  \"https://www.sim.ai/api/v2/folders?workspaceId=YOUR_WORKSPACE_ID&resourceType=workflow\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
-          }
-        ],
-        "parameters": [
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
-          { "$ref": "#/components/parameters/FolderResourceTypeQuery" },
-          {
-            "name": "scope",
-            "in": "query",
-            "required": false,
-            "description": "`active` (default) lists live folders; `archived` lists Recently Deleted.",
-            "schema": { "type": "string", "enum": ["active", "archived"], "default": "active" }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "required": false,
-            "description": "Case-insensitive substring match against the folder `name`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
-            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
-          },
-          {
-            "name": "sortBy",
-            "in": "query",
-            "required": false,
-            "description": "Field to sort by. `position` is the tree's own manual arrangement, which is the default order.",
-            "schema": {
-              "type": "string",
-              "enum": ["position", "name", "createdAt", "updatedAt"],
-              "default": "position"
-            }
-          },
-          {
-            "name": "sortOrder",
-            "in": "query",
-            "required": false,
-            "description": "Sort direction.",
-            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Folders in the workspace's tree for the requested resource type.",
-            "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "required": ["data", "nextCursor"],
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "description": "The folders in the requested tree.",
-                      "items": { "$ref": "#/components/schemas/Folder" }
-                    },
-                    "nextCursor": { "$ref": "#/components/schemas/NextCursor" }
-                  }
+                  "$ref": "#/components/schemas/DeleteAcknowledgement"
                 },
                 "example": {
-                  "data": [
-                    {
-                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-                      "resourceType": "workflow",
-                      "name": "Onboarding",
-                      "parentId": null,
-                      "locked": false,
-                      "sortOrder": 0,
-                      "createdAt": "2025-06-01T09:14:00.000Z",
-                      "updatedAt": "2025-06-20T14:02:11.000Z",
-                      "deletedAt": null
-                    }
-                  ],
-                  "nextCursor": null
-                }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      },
-      "post": {
-        "operationId": "createFolder",
-        "summary": "Create Folder",
-        "description": "Create a folder in one of a workspace's resource trees. Requires `write` permission on the workspace.\n\n`resourceType` is required and selects the tree. Pass `parentId: null` (or omit it) to create the folder at the root; a `parentId` must name a live folder of the same `resourceType` in the same workspace.\n\nA sibling folder with the same name returns `409 CONFLICT`. If the parent is a locked workflow folder, the request returns `423 LOCKED`.",
-        "tags": ["Folders"],
-        "x-codeSamples": [
-          {
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/folders\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"resourceType\": \"workflow\",\n    \"name\": \"Onboarding\"\n  }'"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "description": "The folder to create.",
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateFolderBody" },
-              "examples": {
-                "rootFolder": {
-                  "summary": "A workflow folder at the workspace root",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "resourceType": "workflow",
-                    "name": "Onboarding"
-                  }
-                },
-                "nestedKnowledgeFolder": {
-                  "summary": "A knowledge-base folder nested under another",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "resourceType": "knowledge_base",
-                    "name": "Policies",
-                    "parentId": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "The folder was created.",
-            "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/FolderData" },
-                "example": {
                   "data": {
-                    "folder": {
-                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-                      "resourceType": "workflow",
-                      "name": "Onboarding",
-                      "parentId": null,
-                      "locked": false,
-                      "sortOrder": 0,
-                      "createdAt": "2025-06-20T14:02:11.000Z",
-                      "updatedAt": "2025-06-20T14:02:11.000Z",
-                      "deletedAt": null
-                    }
+                    "id": "V1StGXR8Z5jdHi6BmyT",
+                    "deleted": true
                   }
                 }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "423": { "$ref": "#/components/responses/Locked" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/api/v2/folders/{id}": {
-      "get": {
-        "operationId": "getFolder",
-        "summary": "Get Folder",
-        "description": "Fetch a single folder by id. Archived folders resolve too — check `deletedAt` to tell them apart from live ones.",
-        "tags": ["Folders"],
-        "x-codeSamples": [
-          {
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl \\\n  \"https://www.sim.ai/api/v2/folders/7c9e6679-7425-40de-944b-e07fc1f90ae7?workspaceId=YOUR_WORKSPACE_ID&resourceType=workflow\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
-          }
-        ],
-        "parameters": [
-          { "$ref": "#/components/parameters/FolderId" },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
-          { "$ref": "#/components/parameters/FolderResourceTypeQuery" }
-        ],
-        "responses": {
-          "200": {
-            "description": "The folder.",
-            "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/FolderData" },
-                "example": {
-                  "data": {
-                    "folder": {
-                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-                      "resourceType": "workflow",
-                      "name": "Onboarding",
-                      "parentId": null,
-                      "locked": false,
-                      "sortOrder": 0,
-                      "createdAt": "2025-06-01T09:14:00.000Z",
-                      "updatedAt": "2025-06-20T14:02:11.000Z",
-                      "deletedAt": null
-                    }
-                  }
-                }
-              }
-            }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      },
-      "patch": {
-        "operationId": "updateFolder",
-        "summary": "Update Folder",
-        "description": "Rename, move, or reorder a folder. Only the fields you send are changed.\n\nMoving is `parentId` — pass `null` to move to the root. A move that would place a folder inside its own subtree is rejected.\n\n`locked` applies to workflow folders only and requires workspace `admin`; sending it for another tree returns `400`. Everything else needs workspace `write`.\n\nArchived folders cannot be updated (`404`), and a mutation lock anywhere on the path returns `423 LOCKED`.",
-        "tags": ["Folders"],
-        "x-codeSamples": [
-          {
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/folders/7c9e6679-7425-40de-944b-e07fc1f90ae7\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"resourceType\": \"workflow\",\n    \"name\": \"Customer Onboarding\"\n  }'"
-          }
-        ],
-        "parameters": [{ "$ref": "#/components/parameters/FolderId" }],
-        "requestBody": {
-          "required": true,
-          "description": "The fields to change. At least one of `name`, `locked`, `parentId`, or `sortOrder` is required.",
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateFolderBody" },
-              "examples": {
-                "rename": {
-                  "summary": "Rename a folder",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "resourceType": "workflow",
-                    "name": "Customer Onboarding"
-                  }
-                },
-                "moveToRoot": {
-                  "summary": "Move a folder to the workspace root",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "resourceType": "workflow",
-                    "parentId": null
-                  }
-                },
-                "lock": {
-                  "summary": "Lock a workflow folder (requires admin)",
-                  "value": {
-                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                    "resourceType": "workflow",
-                    "locked": true
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The updated folder.",
-            "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/FolderData" },
-                "example": {
-                  "data": {
-                    "folder": {
-                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-                      "resourceType": "workflow",
-                      "name": "Customer Onboarding",
-                      "parentId": null,
-                      "locked": false,
-                      "sortOrder": 0,
-                      "createdAt": "2025-06-01T09:14:00.000Z",
-                      "updatedAt": "2025-06-21T08:30:00.000Z",
-                      "deletedAt": null
-                    }
-                  }
-                }
-              }
-            }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "423": { "$ref": "#/components/responses/Locked" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      },
-      "delete": {
-        "operationId": "deleteFolder",
-        "summary": "Delete Folder",
-        "description": "Archive a folder and everything under it. The cascade moves the subtree — subfolders and the resources filed in them — into Recently Deleted, and `deletedItems` reports how much was archived; only the count matching `resourceType` is populated.\n\nDeleting is idempotent: re-issuing it against an already archived folder retries the cascade onto the same snapshot rather than 404ing, so a run that failed partway can be completed.\n\nA mutation lock anywhere in the subtree returns `423 LOCKED`.",
-        "tags": ["Folders"],
-        "x-codeSamples": [
-          {
-            "label": "cURL",
-            "lang": "bash",
-            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/folders/7c9e6679-7425-40de-944b-e07fc1f90ae7?workspaceId=YOUR_WORKSPACE_ID&resourceType=workflow\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
-          }
-        ],
-        "parameters": [
-          { "$ref": "#/components/parameters/FolderId" },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
-          { "$ref": "#/components/parameters/FolderResourceTypeQuery" }
-        ],
-        "responses": {
-          "200": {
-            "description": "The folder and its subtree were archived.",
-            "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/FolderDeleteAcknowledgement" },
-                "example": {
-                  "data": {
-                    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-                    "deleted": true,
-                    "deletedItems": { "folders": 3, "workflows": 12 }
-                  }
-                }
-              }
-            }
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "423": { "$ref": "#/components/responses/Locked" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -1496,7 +1547,9 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
           {
             "name": "type",
             "in": "query",
@@ -1512,14 +1565,22 @@
             "in": "query",
             "required": false,
             "description": "Only return credentials for this integration.",
-            "schema": { "type": "string", "minLength": 1, "example": "slack" }
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "slack"
+            }
           },
           {
             "name": "search",
             "in": "query",
             "required": false,
             "description": "Case-insensitive substring match against the credential `displayName`. Matches nothing else — not ids, descriptions, or content. `%` and `_` are matched literally. Must be non-empty; omit the parameter instead of sending a blank one.",
-            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
           },
           {
             "name": "sortBy",
@@ -1537,16 +1598,26 @@
             "in": "query",
             "required": false,
             "description": "Sort direction.",
-            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "desc"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Credentials visible to the caller in the workspace.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
@@ -1557,9 +1628,13 @@
                     "data": {
                       "type": "array",
                       "description": "The credentials visible to the caller.",
-                      "items": { "$ref": "#/components/schemas/Credential" }
+                      "items": {
+                        "$ref": "#/components/schemas/Credential"
+                      }
                     },
-                    "nextCursor": { "$ref": "#/components/schemas/NextCursor" }
+                    "nextCursor": {
+                      "$ref": "#/components/schemas/NextCursor"
+                    }
                   }
                 },
                 "example": {
@@ -1583,11 +1658,21 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "post": {
@@ -1607,7 +1692,9 @@
           "description": "The credential to create.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateCredentialBody" },
+              "schema": {
+                "$ref": "#/components/schemas/CreateCredentialBody"
+              },
               "examples": {
                 "workspaceEnvVar": {
                   "summary": "A workspace-wide environment secret",
@@ -1636,13 +1723,21 @@
           "201": {
             "description": "The credential exists with this source. Returned whether it was inserted now or already present.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CredentialData" },
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialData"
+                },
                 "example": {
                   "data": {
                     "credential": {
@@ -1663,13 +1758,27 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" },
-          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
         }
       }
     },
@@ -1687,20 +1796,32 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/CredentialId" },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          {
+            "$ref": "#/components/parameters/CredentialId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
         ],
         "responses": {
           "200": {
             "description": "The credential.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CredentialData" },
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialData"
+                },
                 "example": {
                   "data": {
                     "credential": {
@@ -1721,18 +1842,30 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       },
       "patch": {
         "operationId": "updateCredential",
         "summary": "Update Credential",
-        "description": "Rename a credential, change its description, or rotate its stored secret. Requires credential admin \u2014 access to the workspace plus admin rights on the credential itself. Workspace `write` is not required: credentials are gated per credential, not per workspace.\n\nSending a secret field rotates that secret in place: it is re-verified against the provider and re-encrypted, and the display name is preserved. Secrets are never returned in the response. If the provider cannot be reached to verify the new secret, the request returns `503`.\n\nA credential you cannot see answers `404` rather than `403`, so its existence is never disclosed.",
+        "description": "Rename a credential, change its description, or rotate its stored secret. Requires credential admin — access to the workspace plus admin rights on the credential itself. Workspace `write` is not required: credentials are gated per credential, not per workspace.\n\nSending a secret field rotates that secret in place: it is re-verified against the provider and re-encrypted, and the display name is preserved. Secrets are never returned in the response. If the provider cannot be reached to verify the new secret, the request returns `503`.\n\nA credential you cannot see answers `404` rather than `403`, so its existence is never disclosed.",
         "tags": ["Credentials"],
         "x-codeSamples": [
           {
@@ -1741,13 +1874,19 @@
             "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v2/credentials/7c9e6679-7425-40de-944b-e07fc1f90ae7\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"displayName\": \"Zoom (production)\"\n  }'"
           }
         ],
-        "parameters": [{ "$ref": "#/components/parameters/CredentialId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CredentialId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "The fields to change. At least one field besides `workspaceId` is required.",
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateCredentialBody" },
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCredentialBody"
+              },
               "examples": {
                 "rename": {
                   "summary": "Rename a credential",
@@ -1771,13 +1910,21 @@
           "200": {
             "description": "The updated credential.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CredentialData" },
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialData"
+                },
                 "example": {
                   "data": {
                     "credential": {
@@ -1798,20 +1945,36 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" },
-          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
         }
       },
       "delete": {
         "operationId": "deleteCredential",
         "summary": "Delete Credential",
-        "description": "Delete a credential. Requires credential admin \u2014 access to the workspace plus admin rights on the credential itself; workspace `write` is not required. Blocks and workflows configured against it stop authenticating, and any environment variable it backed is removed.\n\nA credential you cannot see answers `404` rather than `403`.",
+        "description": "Delete a credential. Requires credential admin — access to the workspace plus admin rights on the credential itself; workspace `write` is not required. Blocks and workflows configured against it stop authenticating, and any environment variable it backed is removed.\n\nA credential you cannot see answers `404` rather than `403`.",
         "tags": ["Credentials"],
         "x-codeSamples": [
           {
@@ -1821,32 +1984,59 @@
           }
         ],
         "parameters": [
-          { "$ref": "#/components/parameters/CredentialId" },
-          { "$ref": "#/components/parameters/WorkspaceIdQuery" }
+          {
+            "$ref": "#/components/parameters/CredentialId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
         ],
         "responses": {
           "200": {
             "description": "The credential was deleted.",
             "headers": {
-              "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-              "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-              "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DeleteAcknowledgement" },
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAcknowledgement"
+                },
                 "example": {
-                  "data": { "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "deleted": true }
+                  "data": {
+                    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                    "deleted": true
+                  }
                 }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     }
@@ -1863,19 +2053,32 @@
     "headers": {
       "RateLimitLimit": {
         "description": "The maximum number of requests permitted in the current rate-limit window.",
-        "schema": { "type": "integer", "example": 60 }
+        "schema": {
+          "type": "integer",
+          "example": 60
+        }
       },
       "RateLimitRemaining": {
         "description": "The number of requests remaining in the current rate-limit window.",
-        "schema": { "type": "integer", "example": 59 }
+        "schema": {
+          "type": "integer",
+          "example": 59
+        }
       },
       "RateLimitReset": {
         "description": "ISO 8601 timestamp at which the current rate-limit window resets.",
-        "schema": { "type": "string", "format": "date-time", "example": "2025-06-20T14:16:00Z" }
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "example": "2025-06-20T14:16:00Z"
+        }
       },
       "RetryAfter": {
         "description": "Number of seconds to wait before retrying the request.",
-        "schema": { "type": "integer", "example": 30 }
+        "schema": {
+          "type": "integer",
+          "example": 30
+        }
       }
     },
     "parameters": {
@@ -1895,21 +2098,33 @@
         "in": "path",
         "required": true,
         "description": "The unique identifier of the MCP server.",
-        "schema": { "type": "string", "minLength": 1, "example": "mcp-3f7a9c21" }
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "example": "mcp-3f7a9c21"
+        }
       },
       "SkillId": {
         "name": "id",
         "in": "path",
         "required": true,
         "description": "The unique identifier of the skill. Built-in skills use their name as their id.",
-        "schema": { "type": "string", "minLength": 1, "example": "V1StGXR8Z5jdHi6BmyT" }
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "example": "V1StGXR8Z5jdHi6BmyT"
+        }
       },
       "CustomToolId": {
         "name": "id",
         "in": "path",
         "required": true,
         "description": "The unique identifier of the custom tool.",
-        "schema": { "type": "string", "minLength": 1, "example": "V1StGXR8Z5jdHi6BmyT" }
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "example": "V1StGXR8Z5jdHi6BmyT"
+        }
       },
       "FolderId": {
         "name": "id",
@@ -1932,17 +2147,6 @@
           "minLength": 1,
           "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
         }
-      },
-      "FolderResourceTypeQuery": {
-        "name": "resourceType",
-        "in": "query",
-        "required": true,
-        "description": "Which resource tree the folder belongs to. Required — folder ids are unique, but addressing the wrong tree would file a folder where its page can never see it.",
-        "schema": {
-          "type": "string",
-          "enum": ["workflow", "knowledge_base", "table"],
-          "example": "workflow"
-        }
       }
     },
     "responses": {
@@ -1950,12 +2154,19 @@
         "description": "The request was malformed or failed validation. Inspect `error.details` for field-level issues.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
             "example": {
               "error": {
                 "code": "BAD_REQUEST",
                 "message": "Workspace ID is required",
-                "details": [{ "path": "workspaceId", "message": "Workspace ID is required" }]
+                "details": [
+                  {
+                    "path": "workspaceId",
+                    "message": "Workspace ID is required"
+                  }
+                ]
               }
             }
           }
@@ -1965,8 +2176,15 @@
         "description": "The API key is missing or invalid. Ensure the X-API-Key header is set with a valid key.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
-            "example": { "error": { "code": "UNAUTHORIZED", "message": "Invalid API key" } }
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "Invalid API key"
+              }
+            }
           }
         }
       },
@@ -1974,8 +2192,15 @@
         "description": "The authenticated caller does not have the required permission on the workspace, or the URL was rejected by the server's MCP domain policy.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
-            "example": { "error": { "code": "FORBIDDEN", "message": "Access denied" } }
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Access denied"
+              }
+            }
           }
         }
       },
@@ -1983,8 +2208,15 @@
         "description": "The requested resource does not exist or is not accessible from this workspace.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
-            "example": { "error": { "code": "NOT_FOUND", "message": "MCP server not found" } }
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "MCP server not found"
+              }
+            }
           }
         }
       },
@@ -1992,7 +2224,9 @@
         "description": "The request conflicts with the current state of the workspace — for example a resource with the same identity already exists.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
             "example": {
               "error": {
                 "code": "CONFLICT",
@@ -2006,7 +2240,9 @@
         "description": "A mutation lock on the resource (or something inside it) blocks the change. Unlock it and retry.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
             "example": {
               "error": {
                 "code": "LOCKED",
@@ -2019,19 +2255,31 @@
       "RateLimited": {
         "description": "The rate limit has been exceeded. Retry after the period indicated by the Retry-After header.",
         "headers": {
-          "Retry-After": { "$ref": "#/components/headers/RetryAfter" },
-          "X-RateLimit-Limit": { "$ref": "#/components/headers/RateLimitLimit" },
-          "X-RateLimit-Remaining": { "$ref": "#/components/headers/RateLimitRemaining" },
-          "X-RateLimit-Reset": { "$ref": "#/components/headers/RateLimitReset" }
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          },
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/RateLimitLimit"
+          },
+          "X-RateLimit-Remaining": {
+            "$ref": "#/components/headers/RateLimitRemaining"
+          },
+          "X-RateLimit-Reset": {
+            "$ref": "#/components/headers/RateLimitReset"
+          }
         },
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
             "example": {
               "error": {
                 "code": "RATE_LIMITED",
                 "message": "API rate limit exceeded",
-                "details": { "retryAfter": "2025-06-20T14:16:00Z" }
+                "details": {
+                  "retryAfter": "2025-06-20T14:16:00Z"
+                }
               }
             }
           }
@@ -2041,8 +2289,15 @@
         "description": "An unexpected error occurred on the server.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
-            "example": { "error": { "code": "INTERNAL_ERROR", "message": "Internal server error" } }
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
+            }
           }
         }
       },
@@ -2050,7 +2305,9 @@
         "description": "An upstream provider could not be reached to verify the request. Retry shortly.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
             "example": {
               "error": {
                 "code": "SERVICE_UNAVAILABLE",
@@ -2115,7 +2372,10 @@
                 "type": "string",
                 "description": "The identifier of the resource that was deleted."
               },
-              "deleted": { "type": "boolean", "const": true }
+              "deleted": {
+                "type": "boolean",
+                "const": true
+              }
             }
           }
         }
@@ -2139,8 +2399,14 @@
             "type": "string",
             "description": "The server's unique identifier, derived from the workspace and the server URL."
           },
-          "name": { "type": "string", "description": "Display name of the server." },
-          "description": { "type": "string", "description": "Optional description." },
+          "name": {
+            "type": "string",
+            "description": "Display name of the server."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description."
+          },
           "transport": {
             "type": "string",
             "enum": ["streamable-http"],
@@ -2151,12 +2417,18 @@
             "enum": ["none", "headers", "oauth"],
             "description": "How Sim authenticates to the server."
           },
-          "url": { "type": "string", "description": "The server's endpoint URL." },
+          "url": {
+            "type": "string",
+            "description": "The server's endpoint URL."
+          },
           "timeout": {
             "type": "number",
             "description": "Per-request timeout in milliseconds."
           },
-          "retries": { "type": "number", "description": "Number of retries per request." },
+          "retries": {
+            "type": "number",
+            "description": "Number of retries per request."
+          },
           "enabled": {
             "type": "boolean",
             "description": "Whether the server's tools are available to workflows."
@@ -2184,8 +2456,14 @@
             "format": "date-time",
             "description": "When Sim last connected successfully."
           },
-          "createdAt": { "type": "string", "format": "date-time" },
-          "updatedAt": { "type": "string", "format": "date-time" },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
           "oauthClientId": {
             "type": "string",
             "description": "Pre-registered OAuth client id, when the server does not support dynamic client registration."
@@ -2196,7 +2474,9 @@
           },
           "headerNames": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Names of the configured request headers. Values are never returned."
           },
           "hasOauthClientSecret": {
@@ -2212,7 +2492,11 @@
           "data": {
             "type": "object",
             "required": ["mcpServer"],
-            "properties": { "mcpServer": { "$ref": "#/components/schemas/McpServer" } }
+            "properties": {
+              "mcpServer": {
+                "$ref": "#/components/schemas/McpServer"
+              }
+            }
           }
         }
       },
@@ -2256,7 +2540,9 @@
           },
           "headers": {
             "type": "object",
-            "additionalProperties": { "type": "string" },
+            "additionalProperties": {
+              "type": "string"
+            },
             "description": "Write-only. Request headers sent to the server, e.g. `Authorization`. Never returned on read."
           },
           "timeout": {
@@ -2298,25 +2584,53 @@
             "minLength": 1,
             "description": "The workspace that owns the server."
           },
-          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
-          "description": { "type": "string", "maxLength": 2000 },
-          "transport": { "type": "string", "enum": ["streamable-http"] },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "transport": {
+            "type": "string",
+            "enum": ["streamable-http"]
+          },
           "url": {
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
             "description": "Immutable. Must equal the server's current URL — a different value returns `400`, because the server's id is derived from its URL."
           },
-          "authType": { "type": "string", "enum": ["none", "headers", "oauth"] },
+          "authType": {
+            "type": "string",
+            "enum": ["none", "headers", "oauth"]
+          },
           "headers": {
             "type": "object",
-            "additionalProperties": { "type": "string" },
+            "additionalProperties": {
+              "type": "string"
+            },
             "description": "Write-only. Replaces the stored header map wholesale."
           },
-          "timeout": { "type": "integer", "minimum": 1000, "maximum": 300000 },
-          "retries": { "type": "integer", "minimum": 0, "maximum": 10 },
-          "enabled": { "type": "boolean" },
-          "oauthClientId": { "type": ["string", "null"], "maxLength": 512 },
+          "timeout": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 300000
+          },
+          "retries": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "oauthClientId": {
+            "type": ["string", "null"],
+            "maxLength": 512
+          },
           "oauthClientSecret": {
             "type": ["string", "null"],
             "maxLength": 2048,
@@ -2329,7 +2643,10 @@
         "description": "A skill without its body. Fetch the skill by id to read `content`.",
         "required": ["id", "name", "description", "readOnly", "createdAt", "updatedAt"],
         "properties": {
-          "id": { "type": "string", "description": "The skill's unique identifier." },
+          "id": {
+            "type": "string",
+            "description": "The skill's unique identifier."
+          },
           "name": {
             "type": "string",
             "description": "Kebab-case name, unique within the workspace. This is what agents reference."
@@ -2342,8 +2659,14 @@
             "type": "boolean",
             "description": "True for built-in template skills, which ship with Sim and cannot be modified or deleted."
           },
-          "createdAt": { "type": "string", "format": "date-time" },
-          "updatedAt": { "type": "string", "format": "date-time" }
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "Skill": {
@@ -2351,7 +2674,10 @@
         "description": "A skill, including its full body.",
         "required": ["id", "name", "description", "content", "readOnly", "createdAt", "updatedAt"],
         "properties": {
-          "id": { "type": "string", "description": "The skill's unique identifier." },
+          "id": {
+            "type": "string",
+            "description": "The skill's unique identifier."
+          },
           "name": {
             "type": "string",
             "description": "Kebab-case name, unique within the workspace. This is what agents reference."
@@ -2368,8 +2694,14 @@
             "type": "boolean",
             "description": "True for built-in template skills, which ship with Sim and cannot be modified or deleted."
           },
-          "createdAt": { "type": "string", "format": "date-time" },
-          "updatedAt": { "type": "string", "format": "date-time" }
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "SkillData": {
@@ -2379,7 +2711,11 @@
           "data": {
             "type": "object",
             "required": ["skill"],
-            "properties": { "skill": { "$ref": "#/components/schemas/Skill" } }
+            "properties": {
+              "skill": {
+                "$ref": "#/components/schemas/Skill"
+              }
+            }
           }
         }
       },
@@ -2432,8 +2768,16 @@
             "maxLength": 64,
             "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
           },
-          "description": { "type": "string", "minLength": 1, "maxLength": 1024 },
-          "content": { "type": "string", "minLength": 1, "maxLength": 50000 }
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000
+          }
         }
       },
       "CustomToolSchema": {
@@ -2441,7 +2785,10 @@
         "description": "OpenAI-style function declaration describing the tool's callable surface. The parameter properties are caller-defined, so the shape below the function level is open.",
         "required": ["type", "function"],
         "properties": {
-          "type": { "type": "string", "const": "function" },
+          "type": {
+            "type": "string",
+            "const": "function"
+          },
           "function": {
             "type": "object",
             "required": ["name", "parameters"],
@@ -2460,7 +2807,10 @@
                 "description": "JSON Schema for the tool's arguments.",
                 "required": ["type", "properties"],
                 "properties": {
-                  "type": { "type": "string", "description": "Usually `object`." },
+                  "type": {
+                    "type": "string",
+                    "description": "Usually `object`."
+                  },
                   "properties": {
                     "type": "object",
                     "additionalProperties": true,
@@ -2468,7 +2818,9 @@
                   },
                   "required": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                      "type": "string"
+                    },
                     "description": "Names of the required arguments."
                   }
                 }
@@ -2482,18 +2834,29 @@
         "description": "A code-backed tool defined in a workspace that agents can call.",
         "required": ["id", "title", "schema", "code", "createdAt", "updatedAt"],
         "properties": {
-          "id": { "type": "string", "description": "The tool's unique identifier." },
+          "id": {
+            "type": "string",
+            "description": "The tool's unique identifier."
+          },
           "title": {
             "type": "string",
             "description": "Display title, unique within the workspace. Tools also resolve by title at call time."
           },
-          "schema": { "$ref": "#/components/schemas/CustomToolSchema" },
+          "schema": {
+            "$ref": "#/components/schemas/CustomToolSchema"
+          },
           "code": {
             "type": "string",
             "description": "The tool body, executed in Sim's sandboxed function runtime with the schema's parameters bound as variables."
           },
-          "createdAt": { "type": "string", "format": "date-time" },
-          "updatedAt": { "type": "string", "format": "date-time" }
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "CustomToolData": {
@@ -2503,7 +2866,11 @@
           "data": {
             "type": "object",
             "required": ["customTool"],
-            "properties": { "customTool": { "$ref": "#/components/schemas/CustomTool" } }
+            "properties": {
+              "customTool": {
+                "$ref": "#/components/schemas/CustomTool"
+              }
+            }
           }
         }
       },
@@ -2524,7 +2891,9 @@
             "maxLength": 200,
             "description": "Display title, unique within the workspace."
           },
-          "schema": { "$ref": "#/components/schemas/CustomToolSchema" },
+          "schema": {
+            "$ref": "#/components/schemas/CustomToolSchema"
+          },
           "code": {
             "type": "string",
             "maxLength": 100000,
@@ -2543,159 +2912,18 @@
             "minLength": 1,
             "description": "The workspace that owns the tool."
           },
-          "title": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "schema": { "$ref": "#/components/schemas/CustomToolSchema" },
-          "code": { "type": "string", "maxLength": 100000 }
-        }
-      },
-      "Folder": {
-        "type": "object",
-        "description": "A folder in one of a workspace's resource trees.",
-        "required": [
-          "id",
-          "resourceType",
-          "name",
-          "parentId",
-          "locked",
-          "sortOrder",
-          "createdAt",
-          "updatedAt",
-          "deletedAt"
-        ],
-        "properties": {
-          "id": { "type": "string", "description": "The folder's unique identifier." },
-          "resourceType": {
+          "title": {
             "type": "string",
-            "enum": ["workflow", "file", "knowledge_base", "table"],
-            "description": "Which resource tree the folder belongs to. Only `workflow`, `knowledge_base`, and `table` are served by this API; `file` folders have their own surface."
+            "minLength": 1,
+            "maxLength": 200
           },
-          "name": { "type": "string", "description": "Display name." },
-          "parentId": {
-            "type": ["string", "null"],
-            "description": "The containing folder, or null when the folder sits at the workspace root."
+          "schema": {
+            "$ref": "#/components/schemas/CustomToolSchema"
           },
-          "locked": {
-            "type": "boolean",
-            "description": "Whether the folder is locked against modification. Workflow folders only; always false elsewhere."
-          },
-          "sortOrder": {
-            "type": "number",
-            "description": "Position among its siblings, ascending."
-          },
-          "createdAt": { "type": "string", "format": "date-time" },
-          "updatedAt": { "type": "string", "format": "date-time" },
-          "deletedAt": {
-            "type": ["string", "null"],
-            "format": "date-time",
-            "description": "When the folder was archived into Recently Deleted, or null when it is live."
+          "code": {
+            "type": "string",
+            "maxLength": 100000
           }
-        }
-      },
-      "FolderData": {
-        "type": "object",
-        "required": ["data"],
-        "properties": {
-          "data": {
-            "type": "object",
-            "required": ["folder"],
-            "properties": { "folder": { "$ref": "#/components/schemas/Folder" } }
-          }
-        }
-      },
-      "FolderDeleteAcknowledgement": {
-        "type": "object",
-        "description": "Acknowledgement that a folder was archived, with what the cascade took with it.",
-        "required": ["data"],
-        "properties": {
-          "data": {
-            "type": "object",
-            "required": ["id", "deleted"],
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "The identifier of the folder that was archived."
-              },
-              "deleted": { "type": "boolean", "const": true },
-              "deletedItems": {
-                "type": "object",
-                "description": "How much the cascade archived. Only the count matching the folder's `resourceType` is populated.",
-                "required": ["folders"],
-                "properties": {
-                  "folders": {
-                    "type": "integer",
-                    "description": "Subfolders archived, including the folder itself."
-                  },
-                  "workflows": { "type": "integer" },
-                  "files": { "type": "integer" },
-                  "knowledgeBases": { "type": "integer" },
-                  "tables": { "type": "integer" }
-                }
-              }
-            }
-          }
-        }
-      },
-      "CreateFolderBody": {
-        "type": "object",
-        "description": "A new folder.",
-        "additionalProperties": false,
-        "required": ["workspaceId", "resourceType", "name"],
-        "properties": {
-          "workspaceId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "The workspace to create the folder in."
-          },
-          "resourceType": {
-            "type": "string",
-            "enum": ["workflow", "knowledge_base", "table"],
-            "description": "Which resource tree to create the folder in. Required."
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255,
-            "description": "Display name. Must be unique among its siblings."
-          },
-          "parentId": {
-            "type": ["string", "null"],
-            "minLength": 1,
-            "description": "The containing folder. Omit or pass null to create at the workspace root."
-          },
-          "sortOrder": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Position among its siblings. Defaults to the top of the list."
-          }
-        }
-      },
-      "UpdateFolderBody": {
-        "type": "object",
-        "description": "Fields to change on an existing folder. At least one of `name`, `locked`, `parentId`, or `sortOrder` is required; omitted fields keep their stored values.",
-        "additionalProperties": false,
-        "required": ["workspaceId", "resourceType"],
-        "properties": {
-          "workspaceId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "The workspace that owns the folder."
-          },
-          "resourceType": {
-            "type": "string",
-            "enum": ["workflow", "knowledge_base", "table"],
-            "description": "Which resource tree the folder belongs to. Required."
-          },
-          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
-          "locked": {
-            "type": "boolean",
-            "description": "Workflow folders only, and changing it requires workspace `admin`."
-          },
-          "parentId": {
-            "type": ["string", "null"],
-            "minLength": 1,
-            "description": "New parent folder. Pass null to move to the workspace root."
-          },
-          "sortOrder": { "type": "integer", "minimum": 0 }
         }
       },
       "Credential": {
@@ -2715,14 +2943,22 @@
           "updatedAt"
         ],
         "properties": {
-          "id": { "type": "string", "description": "The credential's unique identifier." },
+          "id": {
+            "type": "string",
+            "description": "The credential's unique identifier."
+          },
           "type": {
             "type": "string",
             "enum": ["oauth", "env_workspace", "env_personal", "service_account"],
             "description": "What kind of credential this is."
           },
-          "displayName": { "type": "string", "description": "Display name." },
-          "description": { "type": ["string", "null"] },
+          "displayName": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "description": {
+            "type": ["string", "null"]
+          },
           "providerId": {
             "type": ["string", "null"],
             "description": "The integration this credential authenticates against, when it has one."
@@ -2744,8 +2980,14 @@
             "enum": ["admin", "member"],
             "description": "The caller's role on this credential. Only admins can update or delete it."
           },
-          "createdAt": { "type": "string", "format": "date-time" },
-          "updatedAt": { "type": "string", "format": "date-time" }
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "CredentialData": {
@@ -2755,7 +2997,11 @@
           "data": {
             "type": "object",
             "required": ["credential"],
-            "properties": { "credential": { "$ref": "#/components/schemas/Credential" } }
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/Credential"
+              }
+            }
           }
         }
       },
@@ -2781,7 +3027,10 @@
             "maxLength": 255,
             "description": "Display name. Derived from the env key or the verified provider account when omitted."
           },
-          "description": { "type": "string", "maxLength": 500 },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
           "providerId": {
             "type": "string",
             "minLength": 1,
@@ -2817,14 +3066,22 @@
             "minLength": 1,
             "description": "Atlassian site domain, paired with `apiToken`."
           },
-          "clientId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
           "clientSecret": {
             "type": "string",
             "minLength": 1,
             "maxLength": 1024,
             "description": "Write-only. Client-credentials secret."
           },
-          "orgId": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "orgId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
           "dataCenter": {
             "type": "string",
             "minLength": 1,
@@ -2844,7 +3101,11 @@
             "minLength": 1,
             "description": "The workspace that owns the credential."
           },
-          "displayName": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
           "description": {
             "type": ["string", "null"],
             "maxLength": 500,
@@ -2855,18 +3116,41 @@
             "minLength": 1,
             "description": "Write-only. Replaces the stored service-account JSON key."
           },
-          "signingSecret": { "type": "string", "minLength": 1, "description": "Write-only." },
-          "botToken": { "type": "string", "minLength": 1, "description": "Write-only." },
-          "apiToken": { "type": "string", "minLength": 1, "description": "Write-only." },
-          "domain": { "type": "string", "minLength": 1 },
-          "clientId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "signingSecret": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Write-only."
+          },
+          "botToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Write-only."
+          },
+          "apiToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Write-only."
+          },
+          "domain": {
+            "type": "string",
+            "minLength": 1
+          },
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
           "clientSecret": {
             "type": "string",
             "minLength": 1,
             "maxLength": 1024,
             "description": "Write-only."
           },
-          "orgId": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "orgId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
           "dataCenter": {
             "type": "string",
             "minLength": 1,

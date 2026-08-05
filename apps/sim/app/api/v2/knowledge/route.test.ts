@@ -7,13 +7,17 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckRateLimit, mockResolveWorkspaceAccess, mockGetKnowledgeBases } = vi.hoisted(
-  () => ({
-    mockCheckRateLimit: vi.fn(),
-    mockResolveWorkspaceAccess: vi.fn(),
-    mockGetKnowledgeBases: vi.fn(),
-  })
-)
+const {
+  mockCheckRateLimit,
+  mockResolveWorkspaceAccess,
+  mockGetKnowledgeBases,
+  mockLoadActiveFolderPathIndex,
+} = vi.hoisted(() => ({
+  mockCheckRateLimit: vi.fn(),
+  mockResolveWorkspaceAccess: vi.fn(),
+  mockGetKnowledgeBases: vi.fn(),
+  mockLoadActiveFolderPathIndex: vi.fn(),
+}))
 
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,
@@ -22,6 +26,10 @@ vi.mock('@/app/api/v1/middleware', () => ({
 
 vi.mock('@/lib/knowledge/service', () => ({
   getKnowledgeBases: mockGetKnowledgeBases,
+}))
+
+vi.mock('@/lib/folders/queries', () => ({
+  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
 }))
 
 vi.mock('@/lib/knowledge/orchestration', () => ({
@@ -83,11 +91,16 @@ describe('GET /api/v2/knowledge', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
     mockGetKnowledgeBases.mockResolvedValue([buildKnowledgeBase()])
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['fold_1', { id: 'fold_1', name: 'Support', parentId: null }]]),
+      pathById: new Map([['fold_1', '/Support']]),
+      idByPath: new Map([['/Support', 'fold_1']]),
+    })
   })
 
   it('forwards search, folder, and sort into the query rather than filtering the result', async () => {
     const res = await callList(
-      `workspaceId=${WS}&search=support&folderId=${FOLDER_ID}&sortBy=name&sortOrder=desc`
+      `workspaceId=${WS}&search=support&folderPath=${encodeURIComponent('/Support')}&sortBy=name&sortOrder=desc`
     )
 
     expect(res.status).toBe(200)
@@ -103,6 +116,15 @@ describe('GET /api/v2/knowledge', () => {
     await callList(`workspaceId=${WS}`)
 
     expect(mockGetKnowledgeBases).toHaveBeenCalledWith('user-1', WS, 'active', DEFAULT_LIST_ARGS)
+  })
+
+  it('treats folderPath=/ as root-only while omission lists every folder', async () => {
+    await callList(`workspaceId=${WS}&folderPath=%2F`)
+
+    expect(mockGetKnowledgeBases).toHaveBeenCalledWith('user-1', WS, 'active', {
+      ...DEFAULT_LIST_ARGS,
+      folderId: null,
+    })
   })
 
   it('400s on a sort field outside the enum instead of letting it reach the query', async () => {

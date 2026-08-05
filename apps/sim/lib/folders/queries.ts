@@ -2,10 +2,13 @@ import { db } from '@sim/db'
 import { folder } from '@sim/db/schema'
 import { and, type Column, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { FolderApi, FolderResourceType } from '@/lib/api/contracts/folders'
-import type { V2FolderSortBy } from '@/lib/api/contracts/v2/folders'
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import { listOrderBy, searchFilter } from '@/lib/api/list-query'
+import type { DbOrTx } from '@/lib/db/types'
+import { buildFolderPathIndex, type FolderPathIndex, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import type { FolderQueryScope } from '@/hooks/queries/utils/folder-keys'
+
+export type FolderSortBy = 'position' | 'name' | 'createdAt' | 'updatedAt'
 
 /**
  * Normalizes a `folder` row to the `FolderApi` wire shape (timestamps as ISO strings).
@@ -31,7 +34,8 @@ export function toFolderApi(row: typeof folder.$inferSelect): FolderApi {
 export async function wouldCreateFolderCycle(
   folderId: string,
   parentId: string,
-  resourceType: FolderResourceType
+  resourceType: FolderResourceType,
+  tx: DbOrTx = db
 ): Promise<boolean> {
   let currentParentId: string | null = parentId
   const visited = new Set<string>()
@@ -40,7 +44,7 @@ export async function wouldCreateFolderCycle(
     if (visited.has(currentParentId) || currentParentId === folderId) return true
     visited.add(currentParentId)
 
-    const [parent] = await db
+    const [parent] = await tx
       .select({ parentId: folder.parentId })
       .from(folder)
       .where(and(eq(folder.id, currentParentId), eq(folder.resourceType, resourceType)))
@@ -148,13 +152,75 @@ const FOLDER_SORTS = {
   name: [folder.name, folder.createdAt],
   createdAt: [folder.createdAt],
   updatedAt: [folder.updatedAt, folder.createdAt],
-} satisfies Record<V2FolderSortBy, readonly Column[]>
+} satisfies Record<FolderSortBy, readonly Column[]>
 
 interface ListFoldersOptions {
   /** Case-insensitive substring match on the folder name. */
   search?: string
-  sortBy?: V2FolderSortBy
+  sortBy?: FolderSortBy
   sortOrder?: V2SortOrder
+}
+
+interface ListActiveFolderRowsOptions {
+  parentId?: string | null
+  search?: string
+  sortBy?: Exclude<FolderSortBy, 'position'>
+  sortOrder?: V2SortOrder
+}
+
+export async function loadActiveFolderPathIndex(
+  workspaceId: string,
+  resourceType: FolderResourceType,
+  tx: DbOrTx = db
+): Promise<FolderPathIndex<typeof folder.$inferSelect>> {
+  const rows = await tx
+    .select()
+    .from(folder)
+    .where(
+      and(
+        eq(folder.workspaceId, workspaceId),
+        eq(folder.resourceType, resourceType),
+        isNull(folder.deletedAt)
+      )
+    )
+
+  return buildFolderPathIndex(rows)
+}
+
+/** Resolves a canonical folder path to its internal id; `/` resolves to the root sentinel. */
+export function resolveFolderPathFromIndex(
+  index: FolderPathIndex,
+  path: string
+): string | null | undefined {
+  return path === ROOT_FOLDER_PATH ? null : index.idByPath.get(path)
+}
+
+export async function listActiveFolderRows(
+  workspaceId: string,
+  resourceType: FolderResourceType,
+  options: ListActiveFolderRowsOptions = {},
+  tx: DbOrTx = db
+): Promise<Array<typeof folder.$inferSelect>> {
+  const parentFilter =
+    options.parentId === undefined
+      ? undefined
+      : options.parentId === null
+        ? isNull(folder.parentId)
+        : eq(folder.parentId, options.parentId)
+
+  return tx
+    .select()
+    .from(folder)
+    .where(
+      and(
+        eq(folder.workspaceId, workspaceId),
+        eq(folder.resourceType, resourceType),
+        isNull(folder.deletedAt),
+        parentFilter,
+        searchFilter(folder.name, options.search)
+      )
+    )
+    .orderBy(...listOrderBy(FOLDER_SORTS[options.sortBy ?? 'name'], options.sortOrder ?? 'asc'))
 }
 
 /**

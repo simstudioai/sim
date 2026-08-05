@@ -14,12 +14,14 @@ const {
   mockResolveWorkspaceAccess,
   mockIsFeatureEnabled,
   mockGetWorkspaceOrganizationId,
+  mockLoadActiveFolderPathIndex,
 } = vi.hoisted(() => ({
   mockQueryTables: vi.fn(),
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
   mockIsFeatureEnabled: vi.fn(),
   mockGetWorkspaceOrganizationId: vi.fn(),
+  mockLoadActiveFolderPathIndex: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -48,6 +50,10 @@ vi.mock('@/lib/workspaces/utils', () => ({
 
 vi.mock('@/app/api/v2/lib/gate', () => ({
   v2ApiGateError: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock('@/lib/folders/queries', () => ({
+  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
 }))
 
 import { GET } from '@/app/api/v2/tables/route'
@@ -91,6 +97,11 @@ describe('GET /api/v2/tables', () => {
     mockQueryTables.mockResolvedValue({ tables: [buildTable()], nextKeys: null })
     mockIsFeatureEnabled.mockResolvedValue(true)
     mockGetWorkspaceOrganizationId.mockResolvedValue('org-1')
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map(),
+      pathById: new Map(),
+      idByPath: new Map(),
+    })
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
@@ -160,6 +171,15 @@ describe('GET /api/v2/tables', () => {
 
     expect(res.status).toBe(200)
     expect((await res.json()).nextCursor).toBeNull()
+  })
+
+  it('treats folderPath=/ as root-only while omission lists every folder', async () => {
+    await callList('workspaceId=workspace-1&folderPath=%2F')
+
+    expect(mockQueryTables).toHaveBeenCalledWith(
+      'workspace-1',
+      expect.objectContaining({ folderId: null })
+    )
   })
 
   it('passes limit and the decoded cursor through to the query', async () => {

@@ -8,6 +8,7 @@ import type { NextRequest } from 'next/server'
 import { type V2LogDetail, v2GetLogContract } from '@/lib/api/contracts/v2/logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -59,6 +60,7 @@ export const GET = withRouteHandler(
           workflowWorkspaceId: workflow.workspaceId,
           workflowCreatedAt: workflow.createdAt,
           workflowUpdatedAt: workflow.updatedAt,
+          workflowArchivedAt: workflow.archivedAt,
         })
         .from(workflowExecutionLogs)
         .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
@@ -71,6 +73,8 @@ export const GET = withRouteHandler(
       // Convert an authorization failure into 404 so existence is not leaked.
       const access = await resolveWorkspaceAccess(rateLimit, userId, log.workspaceId)
       if (access) return v2Error('NOT_FOUND', 'Log not found')
+
+      const folderIndex = await loadActiveFolderPathIndex(log.workspaceId, 'workflow')
 
       const executionData = await materializeExecutionData(
         log.executionData as Record<string, unknown> | null,
@@ -91,12 +95,14 @@ export const GET = withRouteHandler(
           id: log.workflowId,
           name: log.workflowName || 'Deleted Workflow',
           description: log.workflowDescription,
-          folderId: log.workflowFolderId,
+          folderPath: log.workflowFolderId
+            ? (folderIndex.pathById.get(log.workflowFolderId) ?? null)
+            : null,
           userId: log.workflowUserId,
           workspaceId: log.workflowWorkspaceId,
           createdAt: log.workflowCreatedAt ? log.workflowCreatedAt.toISOString() : null,
           updatedAt: log.workflowUpdatedAt ? log.workflowUpdatedAt.toISOString() : null,
-          deleted: !log.workflowName,
+          deleted: !log.workflowName || log.workflowArchivedAt !== null,
         },
         executionData,
         cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
