@@ -327,6 +327,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         '\n\nIMPORTANT: Return ONLY the raw cron expression (e.g., "0 9 * * 1-5"). Do NOT wrap it in markdown code blocks, backticks, or quotes. Do NOT include any explanation or text before or after the expression.'
     }
 
+    // Both the JavaScript and Python function-body prompts share this type, so
+    // the reinforcement stays language-neutral.
+    if (generationType === 'javascript-function-body') {
+      finalSystemPrompt +=
+        '\n\nIMPORTANT: Return ONLY the raw function body. Do NOT wrap it in markdown code blocks (no ```javascript, no ```python, no ```). Do NOT include any explanation before or after the code.'
+    }
+
     if (generationType === 'json-object') {
       finalSystemPrompt +=
         '\n\nIMPORTANT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (no ```json or ```). Do NOT include any explanation or text before or after the JSON. The response must start with { and end with }.'

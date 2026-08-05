@@ -180,7 +180,7 @@ function Tab({
             aria-current={tab.active ? 'page' : undefined}
             aria-label={tab.pinned ? tab.title : undefined}
             className={cn(
-              'h-[30px] w-full select-none rounded-b-none border border-transparent border-b-0 bg-transparent py-0 font-normal text-caption',
+              'h-[30px] w-full select-none rounded-b-none border border-transparent border-b-0 bg-transparent py-0 text-caption',
               tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
               closeable && !tab.pinned && 'pr-7',
               tab.active &&

@@ -203,7 +203,7 @@ export function KnowledgeBaseSelector({
                 className='inline-flex items-center rounded-md border border-[color-mix(in_srgb,var(--brand-knowledge)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-knowledge)_10%,transparent)] px-2 py-1 text-xs'
               >
                 <PackageSearchIcon className='mr-1 size-3 text-[var(--brand-knowledge)]' />
-                <span className='font-medium text-[var(--brand-knowledge)]'>
+                <span className='text-[var(--brand-knowledge)]'>
                   {formatDisplayText(labelOf(kb), { workflowSearchHighlight })}
                 </span>
                 {!disabled && !isPreview && (

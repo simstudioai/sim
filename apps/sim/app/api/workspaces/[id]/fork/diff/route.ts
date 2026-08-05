@@ -28,10 +28,7 @@ import {
   collectForkClearedRefCandidates,
 } from '@/ee/workspace-forking/lib/promote/cleared-refs'
 import { computeForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
-import {
-  buildForkTriggerPlan,
-  resolveForkTriggerPaths,
-} from '@/ee/workspace-forking/lib/promote/trigger-urls'
+import { buildForkTriggerPlan } from '@/ee/workspace-forking/lib/promote/trigger-urls'
 import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import { readTargetDraftDependentValue } from '@/ee/workspace-forking/lib/remap/remap-references'
 
@@ -188,7 +185,13 @@ export const GET = withRouteHandler(
       resolveBlockId,
       targetWebhooks: await loadTargetWebhookPathsByBlock(db, allTargetIds),
     })
-    const { changes: triggerUrlChanges } = resolveForkTriggerPaths(triggerPlan)
+    // The RAW retiring set, not the default resolution: the client derives which of these actually
+    // stop being served from the picks the user is making right now, so the heads-up and the
+    // overwrite confirm can never disagree with the Trigger URLs rows.
+    const retiringTriggerUrls = triggerPlan.retiring.map((row) => ({
+      workflowName: row.workflowName,
+      path: row.path,
+    }))
     // Every trigger that HAS a public URL, plus every one whose URL is up for decision - not just
     // the decisions, so the section reads as a standing statement of each URL rather than an alert.
     //
@@ -259,7 +262,7 @@ export const GET = withRouteHandler(
       resourceUsages: collectForkResourceUsages(plan.items, sourceStates),
       copyableUnmapped: plan.copyableUnmapped,
       clearedRefs,
-      triggerUrlChanges,
+      retiringTriggerUrls,
       triggerMappings,
     })
   }

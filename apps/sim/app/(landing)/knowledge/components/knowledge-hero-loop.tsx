@@ -214,7 +214,7 @@ export function KnowledgeHeroLoop() {
                   {COL_HEADERS.map((header) => (
                     <th
                       key={header}
-                      className='h-10 px-6 py-1.5 text-left align-middle font-normal text-[var(--text-muted)] text-caption'
+                      className='h-10 px-6 py-1.5 text-left align-middle text-[var(--text-muted)] text-caption'
                     >
                       {header}
                     </th>

@@ -316,7 +316,7 @@ function TablesGridPane({ rowCount, filledCount }: TablesGridPaneProps) {
                   <th key={column.id} className={CELL_HEADER}>
                     <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
                       <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
-                      <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+                      <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-primary)] text-small'>
                         {column.label}
                       </span>
                       <ChevronDown className='ml-auto size-[14px] shrink-0 text-[var(--text-muted)]' />

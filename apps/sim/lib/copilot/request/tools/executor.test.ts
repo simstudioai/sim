@@ -2,14 +2,31 @@ import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { executeTool, completeAsyncToolCall, markAsyncToolRunning, upsertAsyncToolCall, onEvent } =
-  vi.hoisted(() => ({
+const {
+  executeTool,
+  completeAsyncToolCall,
+  markAsyncToolRunning,
+  upsertAsyncToolCall,
+  onEvent,
+  recordSimToolMetric,
+  setAttribute,
+  withCopilotToolSpan,
+} = vi.hoisted(() => {
+  const setAttribute = vi.fn()
+  return {
     executeTool: vi.fn(),
     completeAsyncToolCall: vi.fn(),
     markAsyncToolRunning: vi.fn(),
     upsertAsyncToolCall: vi.fn(),
     onEvent: vi.fn(),
-  }))
+    recordSimToolMetric: vi.fn(),
+    setAttribute,
+    withCopilotToolSpan: vi.fn(
+      (_input: unknown, fn: (span: { setAttribute: typeof setAttribute }) => Promise<unknown>) =>
+        fn({ setAttribute })
+    ),
+  }
+})
 
 vi.mock('@/lib/copilot/tool-executor', () => ({
   ensureHandlersRegistered: vi.fn(),
@@ -27,13 +44,11 @@ vi.mock('@/lib/copilot/persistence/tool-confirm', () => ({
 }))
 
 vi.mock('@/lib/copilot/request/metrics', () => ({
-  recordSimToolMetric: vi.fn(),
+  recordSimToolMetric,
 }))
 
 vi.mock('@/lib/copilot/request/otel', () => ({
-  withCopilotToolSpan: vi.fn(async (_input: unknown, callback: (span: unknown) => unknown) =>
-    callback({ setAttribute: vi.fn() })
-  ),
+  withCopilotToolSpan,
 }))
 
 vi.mock('@/lib/copilot/request/sse-utils', () => ({
@@ -59,39 +74,22 @@ vi.mock('@/lib/copilot/request/tools/workflow-context', () => ({
 
 import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/copilot/constants'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
+import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
 import {
   buildToolExecutionContext,
   executeToolAndReport,
   pendingToolWaitBudgetMs,
   toolWatchdogTimeoutMs,
 } from '@/lib/copilot/request/tools/executor'
-import { TraceCollector } from '@/lib/copilot/request/trace'
-import type { ExecutionContext, StreamingContext, ToolCallState } from '@/lib/copilot/request/types'
+import type { ExecutionContext, ToolCallState } from '@/lib/copilot/request/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-function buildStreamingContext(toolCall: ToolCallState): StreamingContext {
-  return {
+function buildStreamingContext(toolCall: ToolCallState) {
+  return createStreamingContext({
     runId: 'run-1',
     messageId: 'message-1',
-    accumulatedContent: '',
-    finalAssistantContent: '',
-    sawMainToolCall: false,
-    trace: new TraceCollector(),
-    contentBlocks: [],
     toolCalls: new Map([[toolCall.id, toolCall]]),
-    pendingToolPromises: new Map(),
-    currentThinkingBlock: null,
-    subagentThinkingBlocks: new Map(),
-    isInThinkingBlock: false,
-    subAgentContent: {},
-    subAgentToolCalls: {},
-    pendingContent: '',
-    streamComplete: false,
-    wasAborted: false,
-    errors: [],
-    activeFileIntents: new Map(),
-    toolPermissions: { enabled: false, autoAllowed: new Set() },
-  }
+  })
 }
 
 function buildPendingToolCall(): ToolCallState {
@@ -324,4 +322,75 @@ describe('executeToolAndReport provenance isolation', () => {
     expect(registry.getActiveMatches()).toEqual([])
     expect(JSON.stringify([completion, onEvent.mock.calls])).not.toContain('secret-value')
   })
+})
+
+describe('executeToolAndReport metrics', () => {
+  const executionContext: ExecutionContext = {
+    userId: 'user-1',
+    workflowId: 'workflow-1',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('forwards the stored agent on normal completion', async () => {
+    const toolCall: ToolCallState = {
+      id: 'call-1',
+      name: 'read',
+      status: MothershipStreamV1ToolOutcome.success,
+      result: { success: true, output: 'done' },
+      agentId: 'workflow',
+      endTime: Date.now(),
+    }
+    const context = createStreamingContext({
+      toolCalls: new Map([[toolCall.id, toolCall]]),
+    })
+
+    await executeToolAndReport(toolCall.id, context, executionContext)
+
+    expect(recordSimToolMetric).toHaveBeenCalledWith(
+      'read',
+      'workflow',
+      MothershipStreamV1ToolOutcome.success,
+      expect.any(Number)
+    )
+    expect(withCopilotToolSpan).toHaveBeenCalledWith(
+      expect.objectContaining({ agentName: 'workflow' }),
+      expect.any(Function)
+    )
+  })
+
+  it.each([
+    { agentId: 'workflow', expectedAgentId: 'workflow' },
+    { agentId: undefined, expectedAgentId: 'main' },
+  ])(
+    'forwards $expectedAgentId when an unexpected error occurs',
+    async ({ agentId, expectedAgentId }) => {
+      const toolCall: ToolCallState = {
+        id: 'call-2',
+        name: 'read',
+        status: MothershipStreamV1ToolOutcome.error,
+        agentId,
+        endTime: Date.now(),
+      }
+      const context = createStreamingContext({
+        toolCalls: new Map([[toolCall.id, toolCall]]),
+      })
+
+      await expect(executeToolAndReport(toolCall.id, context, executionContext)).rejects.toThrow(
+        'missing a canonical error'
+      )
+      expect(recordSimToolMetric).toHaveBeenCalledWith(
+        'read',
+        expectedAgentId,
+        MothershipStreamV1ToolOutcome.error,
+        expect.any(Number)
+      )
+      expect(withCopilotToolSpan).toHaveBeenCalledWith(
+        expect.objectContaining({ agentName: expectedAgentId }),
+        expect.any(Function)
+      )
+    }
+  )
 })

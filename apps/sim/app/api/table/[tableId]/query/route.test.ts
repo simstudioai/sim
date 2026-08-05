@@ -137,6 +137,19 @@ describe('POST /api/table/[tableId]/query', () => {
     expect(options.withExecutions).toBe(false)
   })
 
+  it('accepts a root condition and executes its canonical all group', async () => {
+    authAs('internal_jwt')
+    const res = await callQuery({
+      workspaceId: 'workspace-1',
+      predicate: { field: 'name', op: 'eq', value: 'John' },
+    })
+
+    expect(res.status).toBe(200)
+    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
+      all: [{ field: 'col_aaa', op: 'eq', value: 'John' }],
+    })
+  })
+
   it('rejects a keyset cursor combined with a custom sort', async () => {
     authAs('internal_jwt')
     const cursor = encodeCursor({

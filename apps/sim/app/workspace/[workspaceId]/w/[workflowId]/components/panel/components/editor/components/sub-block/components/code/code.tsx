@@ -67,9 +67,32 @@ IMPORTANT FORMATTING RULES:
 1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. When the placeholder is the complete expression, prefer the unquoted form (for example, 'api_key = {{API_KEY}}'). Quoted and embedded string forms are also supported. Sim binds the resolved value separately from the source at execution time, preserving its exact string contents.
 2. Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes.
 3. Module Source: You may define functions and classes and use an if __name__ == '__main__' guard. Assign the final structured value to __sim_result__. A top-level return is supported only for backward-compatible legacy snippets.
-4. Imports: You may add standard-library imports and packages installed in the selected sandbox.
+4. Imports: The Python standard library is always available. Third-party packages are available ONLY when the block has a sandbox selected — the sandbox's package list is appended below when one is. Never import a package that is not on that list.
 5. No Markdown: Do NOT include backticks, code fences, or any markdown.
-6. Clarity: Write clean, readable Python code.`
+6. Clarity: Write clean, readable Python code.
+7. No Explanations: Output the raw Python code only — no prose before or after it.
+
+Example Scenario:
+User Prompt: "Fetch user data from an API. Use the User ID passed in as 'userId' and an API Key stored as the 'SERVICE_API_KEY' environment variable."
+
+Generated Code:
+import json
+import urllib.error
+import urllib.request
+
+user_id = <userId>  # Correct: accessing an input parameter without quotes
+api_key = {{SERVICE_API_KEY}}  # Correct: accessing an environment variable without quotes
+url = f"https://api.example.com/users/{user_id}"
+
+request = urllib.request.Request(url, headers={"Authorization": f"Bearer {api_key}"})
+
+try:
+    with urllib.request.urlopen(request) as response:
+        # Assign the fetched data, which becomes the block's output
+        __sim_result__ = json.loads(response.read().decode())
+except urllib.error.HTTPError as error:
+    # Raising marks the block execution as failed
+    raise Exception(f"API request failed with status {error.code}: {error.read().decode()}")`
 
 const SHELL_AI_PROMPT = `You are an expert Bash programmer.
 Generate ONLY the raw Bash script based on the user's request.
@@ -363,6 +386,9 @@ export const Code = memo(function Code({
       tableId: typeof tableIdValue === 'string' ? tableIdValue : null,
       sandboxId: typeof sandboxIdValue === 'string' ? sandboxIdValue : null,
     },
+    // Keyed off the same value that swaps the prompt below, so history from the
+    // previous language cannot steer the next generation back to it.
+    historyResetKey: typeof languageValue === 'string' ? languageValue : undefined,
     onStreamStart: () => handleStreamStartRef.current?.(),
     onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
     onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),

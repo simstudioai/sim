@@ -17,6 +17,7 @@ import {
   parseMarkdownToDoc,
   serializeDocToMarkdown,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import { COLLAB_DOC_FIELD } from './normalize'
 
 /**
  * Server-side conversion between a file's markdown and its collaborative Yjs document.
@@ -35,13 +36,6 @@ import {
  * imported only from server code (the seed builder + its internal route); there is no `import
  * 'server-only'` marker because this repo does not use that package.
  */
-
-/**
- * The Yjs `XmlFragment` name TipTap's Collaboration extension binds to. The client configures
- * `Collaboration.configure({ document })` with no explicit `field`, so it uses TipTap's default,
- * `'default'`. The server MUST target the same fragment or the client would sync an empty document.
- */
-const COLLAB_DOC_FIELD = 'default'
 
 let cachedSchema: Schema | null = null
 

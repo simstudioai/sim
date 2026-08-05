@@ -52,6 +52,7 @@ import { runTableImport, type TableImportPayload } from '@/lib/table/import-runn
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
 import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import {
@@ -82,6 +83,7 @@ import type {
   TableDefinition,
   TableDeleteJobPayload,
   TablePredicate,
+  TablePredicateInput,
   TableSchema,
   TableUpdateJobPayload,
   WorkflowGroup,
@@ -739,8 +741,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // NAMES) then translated to storage ids.
           let predicate: TablePredicate | undefined
           if (args.filter) {
-            validatePredicate(args.filter, table.schema.columns)
-            predicate = predicateToStorage(args.filter, table.schema)
+            const filter = args.filter as TablePredicateInput
+            validatePredicate(filter, table.schema.columns)
+            const normalizedFilter = normalizeTablePredicate(filter)
+            predicate = predicateToStorage(normalizedFilter, table.schema)
           }
           let orderSpec = args.order as SortSpec | undefined
           if (orderSpec?.length) {
@@ -926,8 +930,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // Agent authors a predicate object; validate → translate → Filter for
           // the bulk engine (same fieldPredicate leaf → identical SQL). Select
           // operands arrive as option NAMES and must resolve to stored ids.
-          validatePredicate(args.filter, table.schema.columns)
-          const idFilter = predicateToFilter(predicateToStorage(args.filter, table.schema))
+          const filter = args.filter as TablePredicateInput
+          validatePredicate(filter, table.schema.columns)
+          const normalizedFilter = normalizeTablePredicate(filter)
+          const idFilter = predicateToFilter(predicateToStorage(normalizedFilter, table.schema))
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -1030,8 +1036,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // Agent authors a predicate object; validate → translate → Filter for
           // the bulk engine (same fieldPredicate leaf → identical SQL). Select
           // operands arrive as option NAMES and must resolve to stored ids.
-          validatePredicate(args.filter, table.schema.columns)
-          const idFilter = predicateToFilter(predicateToStorage(args.filter, table.schema))
+          const filter = args.filter as TablePredicateInput
+          validatePredicate(filter, table.schema.columns)
+          const normalizedFilter = normalizeTablePredicate(filter)
+          const idFilter = predicateToFilter(predicateToStorage(normalizedFilter, table.schema))
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background
