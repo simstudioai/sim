@@ -143,6 +143,24 @@ export function resolveZohoAttachmentUrl(href: string, apiBase: string): URL {
 }
 
 /**
+ * Normalize a comma-separated Zoho query value to the bare `a,b` form Zoho's
+ * samples use. A pasted or LLM-written `accounts, owner` would otherwise reach
+ * Zoho as `accounts,+owner`; Zoho does not document whether it tolerates the
+ * separator space, so strip it rather than find out in production. Only the
+ * padding around each entry is removed, so multi-word values like `On Hold`
+ * survive intact. Returns `undefined` when nothing usable remains, so the
+ * caller omits the param entirely.
+ */
+export function normalizeZohoDeskCommaList(value: string | undefined): string | undefined {
+  const normalized = value
+    ?.split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .join(',')
+  return normalized || undefined
+}
+
+/**
  * Trim an identifier destined for a URL path segment, rejecting a missing or
  * whitespace-only value. A pasted trailing space would otherwise be encoded as
  * `%20` and 404 against Zoho with no indication of the real cause.
@@ -205,12 +223,43 @@ export function deriveAttachmentName(
   return 'attachment'
 }
 
+/**
+ * Summarize the per-field entries Zoho attaches to a validation failure. Zoho
+ * documents `errorType` (`{"fieldName": "/contactId", "errorType": "invalid"}`)
+ * while its webhook responses carry a prose `errorMessage`; accept either, since
+ * without them every `INVALID_DATA` reads as the useless "The data does not
+ * comply to the validation restrictions defined." with no field named.
+ */
+function summarizeZohoDeskFieldErrors(errors: unknown): string {
+  if (!Array.isArray(errors)) return ''
+  const parts = errors
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return undefined
+      const { fieldName, errorType, errorMessage } = entry as Record<string, unknown>
+      const detail =
+        typeof errorMessage === 'string' && errorMessage.trim()
+          ? errorMessage
+          : typeof errorType === 'string' && errorType.trim()
+            ? errorType
+            : undefined
+      if (!detail) return undefined
+      return typeof fieldName === 'string' && fieldName.trim() ? `${fieldName}: ${detail}` : detail
+    })
+    .filter((part): part is string => Boolean(part))
+  return parts.length > 0 ? ` (${parts.join('; ')})` : ''
+}
+
 /** Extract a human-readable error message from a Zoho Desk error response body. */
 export function getZohoDeskErrorMessage(data: unknown, fallback: string): string {
   if (data && typeof data === 'object') {
     const record = data as Record<string, unknown>
-    if (typeof record.message === 'string' && record.message.trim()) return record.message
-    if (typeof record.errorCode === 'string' && record.errorCode.trim()) return record.errorCode
+    const fieldErrors = summarizeZohoDeskFieldErrors(record.errors)
+    if (typeof record.message === 'string' && record.message.trim()) {
+      return `${record.message}${fieldErrors}`
+    }
+    if (typeof record.errorCode === 'string' && record.errorCode.trim()) {
+      return `${record.errorCode}${fieldErrors}`
+    }
   }
   return fallback
 }

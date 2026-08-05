@@ -209,6 +209,39 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       condition: { field: 'operation', value: 'list_tickets' },
     },
     {
+      id: 'assigneeFilter',
+      title: 'Assignee',
+      type: 'short-input',
+      placeholder: 'Filter, e.g. Unassigned',
+      condition: { field: 'operation', value: 'list_tickets' },
+      mode: 'advanced',
+    },
+    {
+      id: 'channelFilter',
+      title: 'Channel',
+      type: 'short-input',
+      placeholder: 'Filter, e.g. Email,Web',
+      condition: { field: 'operation', value: 'list_tickets' },
+      mode: 'advanced',
+    },
+    {
+      id: 'receivedInDays',
+      title: 'Customer Responded Within',
+      type: 'dropdown',
+      // "Any time" is required, not cosmetic: a dropdown with no empty option
+      // seeds its first option into the store on mount, so merely opening the
+      // advanced fields would pin every List Tickets run to a 15-day
+      // customer-response window with no way to clear it.
+      options: [
+        { label: 'Any time', id: '' },
+        { label: 'Last 15 days', id: '15' },
+        { label: 'Last 30 days', id: '30' },
+        { label: 'Last 90 days', id: '90' },
+      ],
+      condition: { field: 'operation', value: 'list_tickets' },
+      mode: 'advanced',
+    },
+    {
       id: 'assigneeId',
       title: 'Assignee',
       type: 'project-selector',
@@ -245,16 +278,15 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       condition: { field: 'operation', value: 'update_ticket' },
       mode: 'advanced',
     },
+    // Zoho marks classification `x-dynamic-enum` and documents "Custom values
+    // are also supported", so the picklist is portal-editable — a closed
+    // dropdown would lock out any portal that renamed or replaced the
+    // system-defined values. Free text, with those values as the placeholder.
     {
       id: 'classification',
       title: 'Classification',
-      type: 'dropdown',
-      options: [
-        { label: 'Problem', id: 'Problem' },
-        { label: 'Request', id: 'Request' },
-        { label: 'Question', id: 'Question' },
-        { label: 'Others', id: 'Others' },
-      ],
+      type: 'short-input',
+      placeholder: 'e.g. Problem, Request, Question',
       condition: { field: 'operation', value: 'update_ticket' },
       mode: 'advanced',
     },
@@ -369,11 +401,48 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'contactInclude',
+      title: 'Include',
+      type: 'short-input',
+      placeholder: 'accounts,owner',
+      condition: { field: 'operation', value: 'get_contact' },
+      mode: 'advanced',
+    },
+    {
+      id: 'threadInclude',
+      title: 'Include',
+      type: 'short-input',
+      placeholder: 'plainText',
+      condition: { field: 'operation', value: 'get_thread' },
+      mode: 'advanced',
+    },
+    // Sort is split per operation because Zoho allows a different field set on
+    // each list endpoint (tickets sort on createdTime/customerResponseTime/
+    // responseDueDate, comments on commentedTime, threads on sendDateTime). One
+    // shared subBlock keeps its value across an operation change, so it would
+    // carry a field name the next endpoint rejects.
+    {
       id: 'sortBy',
       title: 'Sort By',
       type: 'short-input',
       placeholder: 'createdTime, customerResponseTime, or responseDueDate',
       condition: { field: 'operation', value: 'list_tickets' },
+      mode: 'advanced',
+    },
+    {
+      id: 'commentSortBy',
+      title: 'Sort By',
+      type: 'short-input',
+      placeholder: 'commentedTime or -commentedTime',
+      condition: { field: 'operation', value: 'list_comments' },
+      mode: 'advanced',
+    },
+    {
+      id: 'threadSortBy',
+      title: 'Sort By',
+      type: 'short-input',
+      placeholder: 'sendDateTime or -sendDateTime',
+      condition: { field: 'operation', value: 'list_threads' },
       mode: 'advanced',
     },
     {
@@ -431,6 +500,15 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
           priorityFilter: rawPriorityFilter,
           customFields: rawCustomFields,
           departmentIds: rawDepartmentIds,
+          sortBy: rawSortBy,
+          commentSortBy: rawCommentSortBy,
+          threadSortBy: rawThreadSortBy,
+          include: rawInclude,
+          contactInclude: rawContactInclude,
+          threadInclude: rawThreadInclude,
+          assigneeFilter: rawAssigneeFilter,
+          channelFilter: rawChannelFilter,
+          receivedInDays: rawReceivedInDays,
           ...rest
         } = params
         const result: Record<string, unknown> = { ...rest, oauthCredential }
@@ -505,6 +583,54 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
           result.priority = activePriority
         }
 
+        // sortBy and include are per-operation for the same reason: three list
+        // endpoints accept three different sort fields, and get_contact accepts a
+        // different `include` vocabulary than the ticket endpoints. A subBlock
+        // keeps its value across an operation change, so an ungated spread would
+        // send list_tickets' `createdTime` to list_comments, which Zoho rejects.
+        const activeSortBy =
+          params.operation === 'list_tickets'
+            ? rawSortBy
+            : params.operation === 'list_comments'
+              ? rawCommentSortBy
+              : params.operation === 'list_threads'
+                ? rawThreadSortBy
+                : undefined
+        if (activeSortBy !== undefined && activeSortBy !== null && activeSortBy !== '') {
+          result.sortBy = activeSortBy
+        }
+
+        const activeInclude =
+          params.operation === 'list_tickets' || params.operation === 'get_ticket'
+            ? rawInclude
+            : params.operation === 'get_contact'
+              ? rawContactInclude
+              : params.operation === 'get_thread'
+                ? rawThreadInclude
+                : undefined
+        if (activeInclude !== undefined && activeInclude !== null && activeInclude !== '') {
+          result.include = activeInclude
+        }
+
+        // Gated for the same stale-value reason as the filters above: these three
+        // are list_tickets-only query params, and no other operation declares them.
+        if (params.operation === 'list_tickets') {
+          if (typeof rawAssigneeFilter === 'string' && rawAssigneeFilter.trim()) {
+            result.assignee = rawAssigneeFilter.trim()
+          }
+          if (typeof rawChannelFilter === 'string' && rawChannelFilter.trim()) {
+            result.channel = rawChannelFilter.trim()
+          }
+          if (
+            rawReceivedInDays !== undefined &&
+            rawReceivedInDays !== null &&
+            rawReceivedInDays !== ''
+          ) {
+            const receivedInDays = Number(rawReceivedInDays)
+            if (Number.isInteger(receivedInDays)) result.receivedInDays = receivedInDays
+          }
+        }
+
         if (params.operation === 'update_ticket' && rawCustomFields !== undefined) {
           if (typeof rawCustomFields === 'string') {
             if (rawCustomFields.trim()) {
@@ -537,6 +663,12 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     status: { type: 'string', description: 'Ticket status to set' },
     statusFilter: { type: 'string', description: 'Status filter for listing tickets' },
     priorityFilter: { type: 'string', description: 'Priority filter for listing tickets' },
+    assigneeFilter: { type: 'string', description: 'Assignee filter for listing tickets' },
+    channelFilter: { type: 'string', description: 'Channel filter for listing tickets' },
+    receivedInDays: {
+      type: 'number',
+      description: 'Only tickets with a customer response in the last N days',
+    },
     priority: { type: 'string', description: 'Ticket priority' },
     assigneeId: { type: 'string', description: 'Assignee (agent) ID' },
     description: { type: 'string', description: 'Ticket description' },
@@ -550,8 +682,12 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     customFields: { type: 'json', description: 'Custom field values' },
     href: { type: 'string', description: 'Attachment download href' },
     fileName: { type: 'string', description: 'Downloaded file name' },
-    include: { type: 'string', description: 'Related data to include' },
-    sortBy: { type: 'string', description: 'Sort field' },
+    include: { type: 'string', description: 'Related data to include on ticket operations' },
+    contactInclude: { type: 'string', description: 'Related data to include on a contact' },
+    threadInclude: { type: 'string', description: 'Related data to include on a thread' },
+    sortBy: { type: 'string', description: 'Sort field for listing tickets' },
+    commentSortBy: { type: 'string', description: 'Sort field for listing comments' },
+    threadSortBy: { type: 'string', description: 'Sort field for listing threads' },
     from: { type: 'number', description: 'Pagination start index' },
     limit: { type: 'number', description: 'Maximum results' },
   },
@@ -659,7 +795,7 @@ export const ZohoDeskBlockMeta = {
       description:
         'Read an incoming Zoho Desk ticket, classify it, and set priority, classification, category, and assignee.',
       content:
-        '# Triage a Zoho Desk Ticket\n\nClassify a newly created ticket and route it to the right owner.\n\n## Steps\n1. If the organization ID is unknown, List Organizations and pick the portal to work in.\n2. Get Ticket for the ticket ID and read subject, descriptionText, channel, and status.\n3. Decide the urgency and the owning team from the content, and pick a classification of Problem, Request, Question, or Others.\n4. Update Ticket to set priority, classification, category and subCategory, and the assigneeId or departmentId that should own it.\n5. Add Comment as an internal note explaining the triage decision so the agent who picks it up has the reasoning.\n\n## Output\nReport the ticket ID and number, the classification and priority set, the assignee or department it was routed to, and anything ambiguous that needs a human decision.',
+        "# Triage a Zoho Desk Ticket\n\nClassify a newly created ticket and route it to the right owner.\n\n## Steps\n1. If the organization ID is unknown, List Organizations and pick the portal to work in.\n2. Get Ticket for the ticket ID and read subject, descriptionText, channel, and status.\n3. Decide the urgency and the owning team from the content, and pick a classification — Problem, Request and Question are Zoho's system-defined values, but the portal may define its own.\n4. Update Ticket to set priority, classification, category and subCategory, and the assigneeId or departmentId that should own it.\n5. Add Comment as an internal note explaining the triage decision so the agent who picks it up has the reasoning.\n\n## Output\nReport the ticket ID and number, the classification and priority set, the assignee or department it was routed to, and anything ambiguous that needs a human decision.",
     },
     {
       name: 'escalate-overdue-tickets',
