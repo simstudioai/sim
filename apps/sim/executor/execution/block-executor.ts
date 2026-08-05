@@ -1,5 +1,7 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
@@ -25,6 +27,7 @@ import {
 } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
+import { isRetryableBlockError, resolveBlockRetryPolicy } from '@/executor/execution/block-retry'
 import type {
   BlockStateWriter,
   ContextExtensions,
@@ -181,9 +184,20 @@ export class BlockExecutor {
 
     let streamingPartialOutput: Record<string, any> | undefined
     try {
-      const output = handler.executeWithNode
-        ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
-        : await handler.execute(ctx, block, resolvedInputs)
+      /**
+       * Only the handler call is retried, never the post-processing below it.
+       *
+       * For a streaming block the handler returns before any token is drained, so
+       * a replay here cannot duplicate output the client has already seen — a
+       * failure during the drain falls through to the catch untouched. The
+       * redaction and compaction steps are deterministic and would fail again
+       * identically, so replaying them would only burn the attempt budget.
+       */
+      const output = await this.runHandlerWithRetry(ctx, node, block, blockLog, () =>
+        handler.executeWithNode
+          ? handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
+          : handler.execute(ctx, block, resolvedInputs)
+      )
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
@@ -368,6 +382,54 @@ export class BlockExecutor {
 
   private findHandler(block: SerializedBlock): BlockHandler | undefined {
     return this.blockHandlers.find((h) => h.canHandle(block))
+  }
+
+  /**
+   * Runs the block handler, replaying it while the failure looks transient.
+   *
+   * Returns the handler's value untouched on success, and rethrows the final
+   * attempt's error on exhaustion so the caller's catch — and with it the error
+   * port — behaves exactly as it does for a block that never retried.
+   */
+  private async runHandlerWithRetry<T>(
+    ctx: ExecutionContext,
+    node: DAGNode,
+    block: SerializedBlock,
+    blockLog: BlockLog | undefined,
+    invoke: () => Promise<T>
+  ): Promise<T> {
+    const policy = resolveBlockRetryPolicy(block)
+    if (!policy) return await invoke()
+
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const output = await invoke()
+        if (blockLog && attempt > 1) blockLog.attempts = attempt
+        return output
+      } catch (error) {
+        const isFinalAttempt = attempt >= policy.maxAttempts
+        /**
+         * A run cancelled mid-backoff must not start another attempt, even when
+         * the error itself looks retryable.
+         */
+        const cancelled = ctx.abortSignal?.aborted === true
+        if (isFinalAttempt || cancelled || !isRetryableBlockError(error)) {
+          if (blockLog && attempt > 1) blockLog.attempts = attempt
+          throw error
+        }
+
+        const delayMs = backoffWithJitter(attempt, null, { baseMs: policy.waitMs })
+        this.execLogger.warn('Block failed on a transient error; retrying', {
+          blockId: node.id,
+          blockType: block.metadata?.id,
+          attempt,
+          maxAttempts: policy.maxAttempts,
+          delayMs,
+          error: normalizeError(error),
+        })
+        await sleep(delayMs)
+      }
+    }
   }
 
   private async handleBlockError(

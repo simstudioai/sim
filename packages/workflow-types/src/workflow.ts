@@ -63,6 +63,29 @@ export interface BlockLayoutState {
   measuredHeight?: number
 }
 
+/** Inclusive bounds for {@link BlockRetryConfig.maxAttempts}. */
+export const BLOCK_RETRY_MIN_ATTEMPTS = 2
+export const BLOCK_RETRY_MAX_ATTEMPTS = 5
+/** Inclusive bounds for {@link BlockRetryConfig.waitMs}, the backoff base delay. */
+export const BLOCK_RETRY_MIN_WAIT_MS = 0
+export const BLOCK_RETRY_MAX_WAIT_MS = 30_000
+export const BLOCK_RETRY_DEFAULT_WAIT_MS = 1_000
+
+/**
+ * Opt-in per-block retry, off unless the builder turns it on.
+ *
+ * Retrying is only safe when the operation is idempotent, which the platform
+ * cannot determine on a block's behalf: re-running "post message" or "create
+ * ticket" after an ambiguous transport failure duplicates a real side effect.
+ * The decision therefore belongs to whoever wired the block.
+ */
+export interface BlockRetryConfig {
+  /** Total attempts including the first, clamped to the bounds above. */
+  maxAttempts: number
+  /** Base delay for exponential backoff with jitter. */
+  waitMs?: number
+}
+
 export interface BlockState {
   id: string
   type: string
@@ -78,6 +101,7 @@ export interface BlockState {
   data?: BlockData
   layout?: BlockLayoutState
   locked?: boolean
+  retry?: BlockRetryConfig
 }
 
 export interface WorkflowLockBlock {

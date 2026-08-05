@@ -327,6 +327,7 @@ export class Serializer {
         color: blockConfig.bgColor,
       },
       enabled: block.enabled,
+      ...(block.retry ? { retry: block.retry } : {}),
     }
 
     const privateInputIds = new Set<string>()

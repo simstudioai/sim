@@ -268,6 +268,8 @@ export interface BlockLog {
   error?: string
   /** Whether this error was handled by an error handler path (error port) */
   errorHandled?: boolean
+  /** Total handler attempts, present only when the block retried at least once. */
+  attempts?: number
   loopId?: string
   parallelId?: string
   iterationIndex?: number
