@@ -67,9 +67,32 @@ IMPORTANT FORMATTING RULES:
 1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes.
 2. Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes.
 3. Function Body ONLY: Do NOT include the function signature (e.g., 'def my_func(...)') or surrounding braces. Return the final value with 'return'.
-4. Imports: You may add imports as needed (standard library or pip-installed packages) without comments.
+4. Imports: The Python standard library is always available. Third-party packages are available ONLY when the block has a sandbox selected — the sandbox's package list is appended below when one is. Never import a package that is not on that list.
 5. No Markdown: Do NOT include backticks, code fences, or any markdown.
-6. Clarity: Write clean, readable Python code.`
+6. Clarity: Write clean, readable Python code.
+7. No Explanations: Output the raw Python code only — no prose before or after it.
+
+Example Scenario:
+User Prompt: "Fetch user data from an API. Use the User ID passed in as 'userId' and an API Key stored as the 'SERVICE_API_KEY' environment variable."
+
+Generated Code:
+import json
+import urllib.error
+import urllib.request
+
+user_id = <userId>  # Correct: accessing an input parameter without quotes
+api_key = {{SERVICE_API_KEY}}  # Correct: accessing an environment variable without quotes
+url = f"https://api.example.com/users/{user_id}"
+
+request = urllib.request.Request(url, headers={"Authorization": f"Bearer {api_key}"})
+
+try:
+    with urllib.request.urlopen(request) as response:
+        # Return the fetched data, which becomes the block's output
+        return json.loads(response.read().decode())
+except urllib.error.HTTPError as error:
+    # Raising marks the block execution as failed
+    raise Exception(f"API request failed with status {error.code}: {error.read().decode()}")`
 
 /**
  * Line height constant for consistent rendering.
@@ -330,6 +353,9 @@ export const Code = memo(function Code({
       tableId: typeof tableIdValue === 'string' ? tableIdValue : null,
       sandboxId: typeof sandboxIdValue === 'string' ? sandboxIdValue : null,
     },
+    // Keyed off the same value that swaps the prompt below, so history from the
+    // previous language cannot steer the next generation back to it.
+    historyResetKey: typeof languageValue === 'string' ? languageValue : undefined,
     onStreamStart: () => handleStreamStartRef.current?.(),
     onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
     onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
