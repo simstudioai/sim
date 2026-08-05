@@ -117,6 +117,27 @@ describe('ZohoDeskBlock keeps the two include vocabularies apart', () => {
   it('never leaks skills onto the list endpoint', () => {
     expect(merged('list_tickets').include).not.toContain('skills')
   })
+
+  // A workflow saved before the split stored its value under `include`. Dropping
+  // it would silently stop embedding what the workflow asked for.
+  it('falls back to the legacy include for a workflow saved before the split', () => {
+    if (!buildParams) throw new Error('ZohoDeskBlock is missing tools.config.params')
+    const legacy = { operation: 'get_ticket', ticketId: '1', include: 'contacts,products' }
+    const result = { ...legacy, ...(buildParams(legacy) as Record<string, unknown>) }
+    expect(result.include).toBe('contacts,products')
+  })
+
+  it('prefers the new field once the workflow sets it', () => {
+    if (!buildParams) throw new Error('ZohoDeskBlock is missing tools.config.params')
+    const both = {
+      operation: 'get_ticket',
+      ticketId: '1',
+      include: 'contacts',
+      ticketInclude: 'skills',
+    }
+    const result = { ...both, ...(buildParams(both) as Record<string, unknown>) }
+    expect(result.include).toBe('skills')
+  })
 })
 
 /**

@@ -669,11 +669,17 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
                 : undefined
         result.sortBy = orUndefined(activeSortBy)
 
+        // Get Ticket falls back to the legacy shared `include`: workflows saved
+        // before the split stored their value there, and dropping it would
+        // silently stop embedding what they asked for. The fallback is one-way
+        // and safe - Get Ticket accepts every value List Tickets does, plus
+        // `contract` and `skills` - while List Tickets never reads
+        // `ticketInclude`, so those two extra tokens can still never reach it.
         const activeInclude =
           params.operation === 'list_tickets'
             ? rawInclude
             : params.operation === 'get_ticket'
-              ? rawTicketInclude
+              ? (orUndefined(rawTicketInclude) ?? rawInclude)
               : params.operation === 'get_contact'
                 ? rawContactInclude
                 : params.operation === 'get_thread'
