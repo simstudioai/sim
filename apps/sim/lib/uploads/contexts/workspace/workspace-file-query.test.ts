@@ -43,6 +43,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => 
   getWorkspaceFileFolderPath: vi.fn(),
   listWorkspaceFileFolders: vi.fn(async () => []),
   normalizeWorkspaceFileItemName: vi.fn((name: string) => name),
+  resolveWorkspaceFileFolderTarget: vi.fn(async () => null),
 }))
 
 import { queryWorkspaceFiles } from '@/lib/uploads/contexts/workspace/workspace-file-manager'

@@ -2824,7 +2824,13 @@
             "maxLength": 1024,
             "description": "Write-only. Client-credentials secret."
           },
-          "orgId": { "type": "string", "minLength": 1, "maxLength": 255 }
+          "orgId": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "dataCenter": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Optional provider region selector, such as a Zoho Desk data center."
+          }
         }
       },
       "UpdateCredentialBody": {
@@ -2860,7 +2866,13 @@
             "maxLength": 1024,
             "description": "Write-only."
           },
-          "orgId": { "type": "string", "minLength": 1, "maxLength": 255 }
+          "orgId": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "dataCenter": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Optional provider region selector, such as a Zoho Desk data center."
+          }
         }
       }
     }

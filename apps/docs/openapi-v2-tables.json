@@ -3500,7 +3500,7 @@
       "post": {
         "operationId": "createTableImport",
         "summary": "Create Table Import",
-        "description": "Create a table import. Upload sources return a stateless multipart token; workspace-file sources start immediately and both use table jobs for processing state.",
+        "description": "Create a table import. Upload sources return a signed control token plus single-PUT or multipart transfer instructions; workspace-file sources start immediately. Both use table jobs for processing state.",
         "tags": ["Tables"],
         "requestBody": {
           "required": true,
@@ -3697,7 +3697,7 @@
       "post": {
         "operationId": "completeTableImportUpload",
         "summary": "Complete Table Import Upload",
-        "description": "Verify and assemble the uploaded CSV or TSV, then start processing with the same import id.",
+        "description": "Verify the single PUT or assemble the multipart CSV or TSV, then start processing with the same import id.",
         "tags": ["Tables"],
         "parameters": [
           {

@@ -7,28 +7,17 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  DirectUploadErrorMock,
   executionStoreState,
   mockExecute,
   mockExecuteFromBlock,
   mockFetch,
   mockResolveStartCandidates,
-  mockRunUploadStrategy,
   mockSelectBestTrigger,
+  mockUploadInternalFileSession,
   terminalStoreState,
   workflowBlocks,
   workflowStoreState,
 } = vi.hoisted(() => {
-  class DirectUploadErrorMock extends Error {
-    constructor(
-      message: string,
-      public code: string
-    ) {
-      super(message)
-      this.name = 'DirectUploadError'
-    }
-  }
-
   const workflowBlocks = {
     start: {
       id: 'start',
@@ -88,14 +77,13 @@ const {
   }
 
   return {
-    DirectUploadErrorMock,
     executionStoreState,
     mockExecute: vi.fn(),
     mockExecuteFromBlock: vi.fn(),
     mockFetch: vi.fn(),
     mockResolveStartCandidates: vi.fn(),
-    mockRunUploadStrategy: vi.fn(),
     mockSelectBestTrigger: vi.fn(),
+    mockUploadInternalFileSession: vi.fn(),
     terminalStoreState,
     workflowBlocks,
     workflowStoreState,
@@ -127,9 +115,8 @@ vi.mock('@/lib/tokenization', () => ({
   processStreamingBlockLogs: () => 0,
 }))
 
-vi.mock('@/lib/uploads/client/direct-upload', () => ({
-  DirectUploadError: DirectUploadErrorMock,
-  runUploadStrategy: mockRunUploadStrategy,
+vi.mock('@/lib/uploads/client/session-upload', () => ({
+  uploadInternalFileSession: mockUploadInternalFileSession,
 }))
 
 vi.mock('@/lib/workflows/input-format', () => ({
@@ -354,8 +341,8 @@ describe('useWorkflowExecution attachment uploads', () => {
     mockResolveStartCandidates.mockReturnValue([])
     mockSelectBestTrigger.mockReturnValue([])
     vi.stubGlobal('fetch', mockFetch)
-    mockRunUploadStrategy.mockRejectedValue(
-      new DirectUploadErrorMock('Server signaled fallback to API upload', 'FALLBACK_REQUIRED')
+    mockUploadInternalFileSession.mockRejectedValue(
+      new Error('Workspace file storage limit exceeded')
     )
     mockFetch.mockResolvedValue(
       new Response(JSON.stringify({ error: 'Workspace file storage limit exceeded' }), {
@@ -378,12 +365,14 @@ describe('useWorkflowExecution attachment uploads', () => {
     const file = new File(['report'], 'report.pdf', { type: 'application/pdf' })
     let uploadError: unknown
 
-    mockRunUploadStrategy.mockResolvedValueOnce({
+    mockUploadInternalFileSession.mockResolvedValueOnce({
+      id: 'attachment-context',
       key: 'executions/context.txt',
-      path: '/uploads/context.txt',
+      url: '/uploads/context.txt',
       name: contextFile.name,
       size: contextFile.size,
-      contentType: contextFile.type,
+      type: contextFile.type,
+      context: 'execution',
     })
 
     await act(async () => {
@@ -437,12 +426,14 @@ describe('useWorkflowExecution attachment uploads', () => {
     }
     let runResult: unknown
 
-    mockRunUploadStrategy.mockResolvedValueOnce({
+    mockUploadInternalFileSession.mockResolvedValueOnce({
+      id: 'attachment-diagram',
       key: 'execution/diagram.png',
-      path: '/api/files/serve/execution%2Fdiagram.png',
+      url: '/api/files/serve/execution%2Fdiagram.png',
       name: file.name,
       size: file.size,
-      contentType: file.type,
+      type: file.type,
+      context: 'execution',
     })
 
     await act(async () => {

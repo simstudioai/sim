@@ -363,4 +363,22 @@ describe('POST /api/v2/credentials', () => {
       })
     )
   })
+
+  it('accepts and forwards an optional service-account data center', async () => {
+    const res = await callCreate({
+      workspaceId: WORKSPACE_ID,
+      type: 'service_account',
+      providerId: 'zoho-desk-service-account',
+      clientId: 'zoho-client-id',
+      clientSecret: 'zoho-client-secret',
+      orgId: '600123456',
+      dataCenter: 'eu',
+    })
+
+    expect(res.status).toBe(201)
+    expect(mockPerformCreateCredential).toHaveBeenCalledWith(
+      expect.objectContaining({ dataCenter: 'eu' })
+    )
+    expect(JSON.stringify(await res.json())).not.toContain('dataCenter')
+  })
 })

@@ -5,8 +5,10 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
-import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
+import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
+import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/client/concurrency'
+import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')
@@ -64,16 +66,26 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   const { userId, workspaceId, disabled, isLoading } = props
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
-  const [isDragging, setIsDragging] = useState(false)
   const [dragCounter, setDragCounter] = useState(0)
+  const isDragging = dragCounter > 0
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const attachedFilesRef = useRef<AttachedFile[]>([])
+  const uploadControllersRef = useRef(new Map<string, AbortController>())
+
+  const updateAttachedFiles = useCallback((update: (files: AttachedFile[]) => AttachedFile[]) => {
+    const next = update(attachedFilesRef.current)
+    attachedFilesRef.current = next
+    setAttachedFiles(next)
+  }, [])
 
   /**
    * Cleanup preview URLs on unmount
    */
   useEffect(() => {
     return () => {
-      attachedFiles.forEach((f) => {
+      for (const controller of uploadControllersRef.current.values()) controller.abort()
+      uploadControllersRef.current.clear()
+      attachedFilesRef.current.forEach((f) => {
         if (f.previewUrl) {
           URL.revokeObjectURL(f.previewUrl)
         }
@@ -122,8 +134,18 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         return
       }
 
+      if (fileList.length === 0) return
+      try {
+        assertMultiFileUploadAdmission(fileList, {
+          existingFiles: attachedFilesRef.current,
+          maxFileBytes: MAX_WORKSPACE_FILE_SIZE,
+        })
+      } catch (error) {
+        toast.error("Couldn't add files", { description: toError(error).message })
+        return
+      }
+
       const files = Array.from(fileList)
-      if (files.length === 0) return
 
       const placeholders: AttachedFile[] = files.map((file) => ({
         id: generateId(),
@@ -137,56 +159,48 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
             ? URL.createObjectURL(file)
             : undefined,
       }))
+      const controllers = placeholders.map(() => new AbortController())
+      placeholders.forEach((placeholder, index) => {
+        uploadControllersRef.current.set(placeholder.id, controllers[index])
+      })
 
-      setAttachedFiles((prev) => [...prev, ...placeholders])
+      updateAttachedFiles((current) => [...current, ...placeholders])
 
-      const presignedEndpoint = `/api/files/presigned?type=mothership&workspaceId=${encodeURIComponent(workspaceId)}`
+      await runWithConcurrency(files, WHOLE_FILE_PARALLEL_UPLOADS, async (file, i) => {
+        const placeholder = placeholders[i]
+        const controller = controllers[i]
+        try {
+          const result = await uploadInternalFileSession({
+            purpose: 'mothership_attachment',
+            file,
+            workspaceId,
+            signal: controller.signal,
+          })
 
-      await Promise.all(
-        files.map(async (file, i) => {
-          const placeholder = placeholders[i]
-          try {
-            let result: { path: string; key: string }
-            try {
-              result = await runUploadStrategy({
-                file,
-                workspaceId,
-                context: 'mothership',
-                presignedEndpoint,
-              })
-            } catch (error) {
-              if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
-                const fallback = await uploadViaApiFallback(file, 'mothership', workspaceId)
-                if (!fallback.key) {
-                  throw new Error('Invalid upload response: missing key')
-                }
-                result = { path: fallback.path, key: fallback.key }
-              } else {
-                throw error
-              }
-            }
+          logger.info(`File uploaded successfully: ${result.path}`)
 
-            logger.info(`File uploaded successfully: ${result.path}`)
-
-            setAttachedFiles((prev) =>
-              prev.map((f) =>
-                f.id === placeholder.id
-                  ? { ...f, path: result.path, key: result.key, uploading: false }
-                  : f
-              )
+          updateAttachedFiles((current) =>
+            current.map((f) =>
+              f.id === placeholder.id
+                ? { ...f, path: result.path, key: result.key, uploading: false }
+                : f
             )
-          } catch (error) {
+          )
+        } catch (error) {
+          if (!controller.signal.aborted) {
             logger.error(`File upload failed: ${error}`)
             toast.error(`Couldn't upload "${file.name}"`, {
               description: toError(error).message,
             })
-            if (placeholder.previewUrl) URL.revokeObjectURL(placeholder.previewUrl)
-            setAttachedFiles((prev) => prev.filter((f) => f.id !== placeholder.id))
           }
-        })
-      )
+          if (placeholder.previewUrl) URL.revokeObjectURL(placeholder.previewUrl)
+          updateAttachedFiles((current) => current.filter((file) => file.id !== placeholder.id))
+        } finally {
+          uploadControllersRef.current.delete(placeholder.id)
+        }
+      })
     },
-    [userId, workspaceId]
+    [userId, workspaceId, updateAttachedFiles]
   )
 
   /**
@@ -222,13 +236,15 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    */
   const removeFile = useCallback(
     (fileId: string) => {
-      const file = attachedFiles.find((f) => f.id === fileId)
+      uploadControllersRef.current.get(fileId)?.abort()
+      uploadControllersRef.current.delete(fileId)
+      const file = attachedFilesRef.current.find((f) => f.id === fileId)
       if (file?.previewUrl) {
         URL.revokeObjectURL(file.previewUrl)
       }
-      setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId))
+      updateAttachedFiles((current) => current.filter((file) => file.id !== fileId))
     },
-    [attachedFiles]
+    [updateAttachedFiles]
   )
 
   /**
@@ -249,13 +265,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragCounter((prev) => {
-      const newCount = prev + 1
-      if (newCount === 1) {
-        setIsDragging(true)
-      }
-      return newCount
-    })
+    setDragCounter((prev) => prev + 1)
   }, [])
 
   /**
@@ -264,13 +274,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragCounter((prev) => {
-      const newCount = prev - 1
-      if (newCount === 0) {
-        setIsDragging(false)
-      }
-      return newCount
-    })
+    setDragCounter((prev) => Math.max(0, prev - 1))
   }, [])
 
   /**
@@ -289,7 +293,6 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     async (e: React.DragEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      setIsDragging(false)
       setDragCounter(0)
 
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -303,26 +306,33 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    * Clears all attached files and cleanup preview URLs
    */
   const clearAttachedFiles = useCallback(() => {
-    attachedFiles.forEach((f) => {
+    for (const controller of uploadControllersRef.current.values()) controller.abort()
+    uploadControllersRef.current.clear()
+    attachedFilesRef.current.forEach((f) => {
       if (f.previewUrl) {
         URL.revokeObjectURL(f.previewUrl)
       }
     })
-    setAttachedFiles([])
-  }, [attachedFiles])
+    updateAttachedFiles(() => [])
+  }, [updateAttachedFiles])
 
   /**
    * Replaces the current attached files with a given set.
    * Cleans up preview URLs from the prior set before replacing.
    */
-  const restoreAttachedFiles = useCallback((files: AttachedFile[]) => {
-    setAttachedFiles((prev) => {
-      prev.forEach((f) => {
-        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+  const restoreAttachedFiles = useCallback(
+    (files: AttachedFile[]) => {
+      for (const controller of uploadControllersRef.current.values()) controller.abort()
+      uploadControllersRef.current.clear()
+      updateAttachedFiles((current) => {
+        current.forEach((f) => {
+          if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+        })
+        return files
       })
-      return files
-    })
-  }, [])
+    },
+    [updateAttachedFiles]
+  )
 
   return {
     // State

@@ -8,14 +8,16 @@ import { requestJson } from '@/lib/api/client/request'
 import { fileStorageStatusContract } from '@/lib/api/contracts/storage-transfer'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
+  type CreateWorkspaceFileBody,
+  createWorkspaceFileContract,
   deleteWorkspaceFileContract,
   listWorkspaceFilesContract,
   renameWorkspaceFileContract,
   restoreWorkspaceFileContract,
   updateWorkspaceFileContentContract,
 } from '@/lib/api/contracts/workspace-files'
-import type { UploadProgressEvent } from '@/lib/uploads/client/direct-upload'
 import { uploadWorkspaceFileSession } from '@/lib/uploads/client/session-upload'
+import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UserFile } from '@/executor/types'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
@@ -383,6 +385,31 @@ export function useUploadWorkspaceFile() {
           duration: 5000,
         })
       }
+    },
+  })
+}
+
+type CreateWorkspaceFileParams = CreateWorkspaceFileBody & {
+  workspaceId: string
+}
+
+export function useCreateWorkspaceFile() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ workspaceId, ...body }: CreateWorkspaceFileParams) =>
+      requestJson(createWorkspaceFileContract, {
+        params: { id: workspaceId },
+        body,
+      }),
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+    },
+    onError: (error) => {
+      logger.error('Failed to create file:', error)
     },
   })
 }

@@ -111,6 +111,7 @@ const credentialSecretFields = {
   clientId: z.string().trim().min(1, 'clientId cannot be empty').max(512).optional(),
   clientSecret: z.string().trim().min(1, 'clientSecret cannot be empty').max(1024).optional(),
   orgId: z.string().trim().min(1, 'orgId cannot be empty').max(255).optional(),
+  dataCenter: z.string().trim().min(1, 'dataCenter cannot be empty').max(32).optional(),
 } as const
 
 export const v2CreateCredentialBodySchema = z

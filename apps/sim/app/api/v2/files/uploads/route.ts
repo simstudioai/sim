@@ -5,7 +5,7 @@ import { v2CreateFileUploadContract } from '@/lib/api/contracts/v2/files'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { assertWorkspaceFileFolderTarget } from '@/lib/uploads/contexts/workspace'
-import { createUploadSession } from '@/lib/uploads/multipart-session/service'
+import { createUploadSession } from '@/lib/uploads/upload-session/service'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { toV2FileUpload } from '@/app/api/v2/files/uploads/utils'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -50,8 +50,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       contentType,
       fileSize: size,
       metadata: { folderId: normalizedFolderId },
+      localOrigin: request.nextUrl.origin,
     })
-    return v2Data(toV2FileUpload(session, null), { rateLimit, status: 201 })
+    return v2Data(
+      {
+        session: toV2FileUpload(session, null),
+        uploadToken: session.uploadToken,
+        transfer: session.transfer,
+      },
+      { rateLimit, status: 201 }
+    )
   } catch (error) {
     const classified = v2CaughtOrchestrationError(error)
     if (classified) return classified

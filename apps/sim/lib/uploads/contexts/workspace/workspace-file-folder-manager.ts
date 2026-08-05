@@ -338,10 +338,10 @@ export async function getWorkspaceFileFolder(
   return mapFolder(folder, paths)
 }
 
-export async function assertWorkspaceFileFolderTarget(
+export async function resolveWorkspaceFileFolderTarget(
   workspaceId: string,
   folderId?: string | null
-): Promise<string | null> {
+): Promise<WorkspaceFileFolderRecord | null> {
   const normalized = normalizeParentId(folderId)
   if (!normalized) return null
 
@@ -350,7 +350,15 @@ export async function assertWorkspaceFileFolderTarget(
     throw new OrchestrationError('not_found', 'Target folder not found')
   }
 
-  return normalized
+  return folder
+}
+
+export async function assertWorkspaceFileFolderTarget(
+  workspaceId: string,
+  folderId?: string | null
+): Promise<string | null> {
+  const folder = await resolveWorkspaceFileFolderTarget(workspaceId, folderId)
+  return folder?.id ?? null
 }
 
 export async function createWorkspaceFileFolder(params: {

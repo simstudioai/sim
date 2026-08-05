@@ -1,28 +1,26 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  createWorkspaceFileContract,
   listWorkspaceFilesQuerySchema,
   workspaceFilesParamsSchema,
 } from '@/lib/api/contracts/workspace-files'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import {
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import {
-  isPayloadSizeLimitError,
-  MAX_MULTIPART_OVERHEAD_BYTES,
-  readFormDataWithLimit,
-} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
+import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import {
-  FileConflictError,
-  listWorkspaceFiles,
-  uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace'
-import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
+  MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
+  performCreateWorkspaceFile,
+} from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -101,19 +99,11 @@ export const GET = withRouteHandler(
 
 /**
  * POST /api/workspaces/[id]/files
- * Upload a new file to workspace storage (requires write permission)
+ * Create an authored workspace file (requires write permission)
  */
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const paramsResult = workspaceFilesParamsSchema.safeParse(await params)
-    if (!paramsResult.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
-        { status: 400 }
-      )
-    }
-    const { id: workspaceId } = paramsResult.data
 
     try {
       const session = await getSession()
@@ -121,7 +111,15 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      // Check workspace permissions (requires write)
+      const paramsResult = workspaceFilesParamsSchema.safeParse(await context.params)
+      if (!paramsResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+          { status: 400 }
+        )
+      }
+      const { id: workspaceId } = paramsResult.data
+
       const userPermission = await getUserEntityPermissions(
         session.user.id,
         'workspace',
@@ -134,93 +132,45 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      let formData: FormData
-      try {
-        formData = await readFormDataWithLimit(request, {
-          maxBytes: MAX_WORKSPACE_FORMDATA_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
-          label: 'workspace file upload body',
-        })
-      } catch (error) {
-        if (isPayloadSizeLimitError(error)) {
-          return NextResponse.json({ error: error.message }, { status: 413 })
-        }
-        return NextResponse.json(
-          { error: 'Request body must be valid multipart form data' },
-          { status: 400 }
-        )
-      }
-      const rawFile = formData.get('file')
-      const rawFolderId = formData.get('folderId')
-      const folderId =
-        typeof rawFolderId === 'string' && rawFolderId.length > 0 ? rawFolderId : null
+      const parsed = await parseRequest(createWorkspaceFileContract, request, context, {
+        maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
+      })
+      if (!parsed.success) return parsed.response
+      const { name, contentType, folderId, content, encoding } = parsed.data.body
 
-      if (!rawFile || !(rawFile instanceof File)) {
-        return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-      }
-
-      const fileName = rawFile.name || 'untitled.md'
-
-      if (rawFile.size > MAX_WORKSPACE_FORMDATA_FILE_SIZE) {
-        return NextResponse.json(
-          {
-            error: `File size exceeds maximum of ${MAX_WORKSPACE_FORMDATA_FILE_SIZE} bytes (${(rawFile.size / (1024 * 1024)).toFixed(2)}MB)`,
-          },
-          { status: 413 }
-        )
-      }
-
-      const buffer = Buffer.from(await rawFile.arrayBuffer())
-
-      const userFile = await uploadWorkspaceFile(
+      const result = await performCreateWorkspaceFile({
         workspaceId,
-        session.user.id,
-        buffer,
-        fileName,
-        rawFile.type || 'application/octet-stream',
-        { folderId }
-      )
-
-      logger.info(`[${requestId}] Uploaded workspace file: ${fileName}`)
-
-      captureServerEvent(
-        session.user.id,
-        'file_uploaded',
-        { workspace_id: workspaceId, file_type: rawFile.type || 'application/octet-stream' },
-        { groups: { workspace: workspaceId } }
-      )
-
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
+        userId: session.user.id,
+        name,
+        contentType: contentType ?? getMimeTypeFromExtension(getFileExtension(name)),
+        folderId,
+        content: Buffer.from(content, encoding),
+        exactName: false,
         actorName: session.user.name,
         actorEmail: session.user.email,
-        action: AuditAction.FILE_UPLOADED,
-        resourceType: AuditResourceType.FILE,
-        resourceId: userFile.id,
-        resourceName: fileName,
-        description: `Uploaded file "${fileName}"`,
-        metadata: { fileSize: rawFile.size, fileType: rawFile.type || 'application/octet-stream' },
         request,
       })
+      if (!result.success || !result.file) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: messageForOrchestrationError(result, 'Failed to create file'),
+          },
+          { status: statusForOrchestrationError(result.errorCode) }
+        )
+      }
 
-      return NextResponse.json({
-        success: true,
-        file: userFile,
-      })
+      logger.info(`[${requestId}] Created workspace file: ${result.file.name}`)
+      return NextResponse.json({ success: true, file: result.file }, { status: 201 })
     } catch (error) {
-      logger.error(`[${requestId}] Error uploading workspace file:`, error)
-
-      const errorMessage = getErrorMessage(error, 'Failed to upload file')
-      const isDuplicate =
-        error instanceof FileConflictError || errorMessage.includes('already exists')
+      logger.error(`[${requestId}] Error creating workspace file:`, error)
 
       return NextResponse.json(
         {
           success: false,
-          error: errorMessage,
-          isDuplicate,
+          error: 'Failed to create file',
         },
-        { status: isDuplicate ? 409 : 500 }
+        { status: 500 }
       )
     }
   }

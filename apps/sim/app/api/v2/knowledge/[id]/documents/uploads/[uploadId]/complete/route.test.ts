@@ -22,7 +22,7 @@ vi.mock('@/app/api/v1/middleware', () => ({ checkRateLimit: mockCheckRateLimit }
 vi.mock('@/app/api/v2/lib/gate', () => ({
   v2ApiGateError: vi.fn().mockResolvedValue(null),
 }))
-vi.mock('@/lib/uploads/multipart-session/service', () => ({
+vi.mock('@/lib/uploads/upload-session/service', () => ({
   completeUploadSession: mockCompleteUploadSession,
 }))
 vi.mock('@/app/api/v2/knowledge/[id]/documents/uploads/utils', () => ({
@@ -50,9 +50,14 @@ const SESSION = {
   workspaceId: WORKSPACE_ID,
   userId: 'user-1',
   knowledgeBaseId: 'kb-1',
+  workflowId: null,
+  executionId: null,
   purpose: 'knowledge_document',
+  method: 'multipart',
   storageContext: 'knowledge-base',
   storageKey: 'kb/guide.pdf',
+  finalKey: 'kb/guide.pdf',
+  stagingKey: 'upload-sessions/upload-1/guide.pdf',
   storageProvider: 's3',
   providerUploadId: 'provider-1',
   fileName: 'guide.pdf',
@@ -144,6 +149,12 @@ describe('POST knowledge-document multipart completion', () => {
         workspaceId: WORKSPACE_ID,
         userId: 'user-1',
         source: 'api',
+      })
+    )
+    expect(mockCompleteUploadSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: SESSION,
+        completion: { parts: [{ partNumber: 1, etag: 'etag-1' }] },
       })
     )
   })

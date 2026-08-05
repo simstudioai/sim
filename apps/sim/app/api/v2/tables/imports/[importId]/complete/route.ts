@@ -10,7 +10,10 @@ import {
   startUploadedTableImport,
   toV2TableImport,
 } from '@/lib/table/orchestration/import-resource'
-import { completeUploadSession } from '@/lib/uploads/multipart-session/service'
+import {
+  completeUploadSession,
+  validateUploadCompletion,
+} from '@/lib/uploads/upload-session/service'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
@@ -50,15 +53,16 @@ export const POST = withRouteHandler(
         userId,
         uploadToken: parsed.data.headers['upload-token'],
       })
+      validateUploadCompletion(upload, parsed.data.body)
       const existing = await findOwnedTableImport({
         importId: upload.id,
-        workspaceId: upload.workspaceId,
+        workspaceId,
         userId: upload.userId,
       })
       if (existing) return v2Data(toV2TableImport(existing), { rateLimit })
       const completed = await completeUploadSession({
         session: upload,
-        parts: parsed.data.body.parts,
+        completion: parsed.data.body,
         finalize: async () => ({ value: null }),
       })
       const started = await startUploadedTableImport(completed.session)

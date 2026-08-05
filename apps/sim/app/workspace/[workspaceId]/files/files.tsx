@@ -112,6 +112,7 @@ import {
   type WorkspaceFileFolderApi,
 } from '@/hooks/queries/workspace-file-folders'
 import {
+  useCreateWorkspaceFile,
   useDeleteWorkspaceFile,
   useRenameWorkspaceFile,
   useUploadWorkspaceFile,
@@ -256,6 +257,7 @@ export function Files() {
     return map
   }, [members])
   const uploadFile = useUploadWorkspaceFile()
+  const createWorkspaceFile = useCreateWorkspaceFile()
   const notifyLimit = useLimitUpgradeToast()
   const deleteFile = useDeleteWorkspaceFile()
   const renameFile = useRenameWorkspaceFile()
@@ -1313,15 +1315,13 @@ export function Files() {
       const name = uniqueMarkdownName(DEFAULT_UNTITLED_NAME, existingNames)
 
       const mimeType = getMimeTypeFromExtension('md')
-      const blob = new Blob([''], { type: mimeType })
-      const file = new File([blob], name, { type: mimeType })
-      const result = await uploadFile.mutateAsync({
+      const result = await createWorkspaceFile.mutateAsync({
         workspaceId,
-        file,
-        folderId: currentFolderId,
-        skipToast: true,
+        name,
+        contentType: mimeType,
+        folderId: currentFolderId ?? undefined,
       })
-      const fileId = result.file?.id
+      const fileId = result.file.id
       if (fileId) {
         justCreatedFileIdRef.current = fileId
         const params = new URLSearchParams({ new: '1' })

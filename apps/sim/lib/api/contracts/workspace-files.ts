@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { inlineFileRefQuerySchema } from '@/lib/api/contracts/primitives'
+import {
+  folderIdSchema,
+  inlineFileRefQuerySchema,
+  isCanonicalBase64,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -12,7 +17,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 export const workspaceFileScopeSchema = z.enum(['active', 'archived'])
 
 export const workspaceFilesParamsSchema = z.object({
-  id: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
+  id: workspaceIdSchema,
 })
 
 export const workspaceFileParamsSchema = workspaceFilesParamsSchema.extend({
@@ -38,10 +43,11 @@ export const getInlineWorkspaceFileContract = defineRouteContract({
   },
 })
 
-const workspaceFileNameSchema = z
+export const workspaceFileNameSchema = z
   .string({ error: 'Name is required' })
   .trim()
   .min(1, 'Name is required')
+  .max(255, 'Name is too long')
   .refine(
     (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
     'Name cannot contain path separators or dot segments'
@@ -51,10 +57,46 @@ export const renameWorkspaceFileBodySchema = z.object({
   name: workspaceFileNameSchema,
 })
 
-export const updateWorkspaceFileContentBodySchema = z.object({
-  content: z.string(),
-  encoding: z.enum(['base64', 'utf-8']).optional(),
-})
+export const updateWorkspaceFileContentBodySchema = z
+  .object({
+    content: z.string().max(70_000_000, 'Content is too large'),
+    encoding: z.enum(['base64', 'utf-8']).optional(),
+  })
+  .superRefine(({ content, encoding }, ctx) => {
+    if (encoding === 'base64' && !isCanonicalBase64(content)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['content'],
+        message: 'Content must be valid base64',
+      })
+    }
+  })
+
+export const createWorkspaceFileBodySchema = z
+  .object({
+    name: workspaceFileNameSchema,
+    contentType: z
+      .string()
+      .trim()
+      .min(1, 'Content type cannot be empty')
+      .max(255, 'Content type is too long')
+      .optional(),
+    folderId: folderIdSchema.optional(),
+    content: z.string().max(70_000_000, 'Content is too large').default(''),
+    encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
+  })
+  .superRefine(({ content, encoding }, ctx) => {
+    if (encoding === 'base64' && !isCanonicalBase64(content)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['content'],
+        message: 'Content must be valid base64',
+      })
+    }
+  })
+  .strict()
+
+export type CreateWorkspaceFileBody = z.input<typeof createWorkspaceFileBodySchema>
 
 export const workspaceFileRecordSchema = z.object({
   id: z.string(),
@@ -93,6 +135,19 @@ export const listWorkspaceFilesContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: listWorkspaceFilesResponseSchema,
+  },
+})
+
+export const createWorkspaceFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files',
+  params: workspaceFilesParamsSchema,
+  body: createWorkspaceFileBodySchema,
+  response: {
+    mode: 'json',
+    schema: workspaceFileSuccessSchema.extend({
+      file: workspaceFileRecordSchema,
+    }),
   },
 })
 
@@ -193,80 +248,5 @@ export const workspaceFileCompiledCheckContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: compiledCheckResponseSchema,
-  },
-})
-
-export const workspacePresignedUploadBodySchema = z.object({
-  fileName: workspaceFileNameSchema,
-  contentType: z.string().min(1, 'contentType is required'),
-  fileSize: z.number().nonnegative('fileSize must be a non-negative number'),
-  folderId: z.string().nullable().optional(),
-})
-
-export type WorkspacePresignedUploadBody = z.input<typeof workspacePresignedUploadBodySchema>
-
-const workspacePresignedFileInfoSchema = z.object({
-  path: z.string(),
-  key: z.string(),
-  name: z.string(),
-  size: z.number(),
-  type: z.string(),
-})
-
-const workspacePresignedUploadResponseSchema = z.object({
-  fileName: z.string(),
-  presignedUrl: z.string(),
-  fileInfo: workspacePresignedFileInfoSchema,
-  uploadHeaders: z.record(z.string(), z.string()).optional(),
-  directUploadSupported: z.boolean(),
-})
-
-export const workspacePresignedUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workspaces/[id]/files/presigned',
-  params: workspaceFilesParamsSchema,
-  body: workspacePresignedUploadBodySchema,
-  response: {
-    mode: 'json',
-    schema: workspacePresignedUploadResponseSchema,
-  },
-})
-
-export const registerWorkspaceFileBodySchema = z.object({
-  key: z.string().min(1, 'key is required'),
-  name: workspaceFileNameSchema,
-  contentType: z.string().min(1, 'contentType is required'),
-  folderId: z.string().nullable().optional(),
-})
-
-export type RegisterWorkspaceFileBody = z.input<typeof registerWorkspaceFileBodySchema>
-
-const registeredWorkspaceFileSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  url: z.string(),
-  size: z.number(),
-  type: z.string(),
-  key: z.string(),
-  context: z.string().optional(),
-})
-
-const registerWorkspaceFileResponseSchema = z.object({
-  success: z.boolean(),
-  file: registeredWorkspaceFileSchema.optional(),
-  error: z.string().optional(),
-  isDuplicate: z.boolean().optional(),
-})
-
-export type RegisterWorkspaceFileResponse = z.output<typeof registerWorkspaceFileResponseSchema>
-
-export const registerWorkspaceFileContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workspaces/[id]/files/register',
-  params: workspaceFilesParamsSchema,
-  body: registerWorkspaceFileBodySchema,
-  response: {
-    mode: 'json',
-    schema: registerWorkspaceFileResponseSchema,
   },
 })

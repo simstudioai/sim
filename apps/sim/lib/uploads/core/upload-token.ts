@@ -1,43 +1,112 @@
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { env } from '@/lib/core/config/env'
-import type { StorageContext } from '@/lib/uploads/shared/types'
 
-export interface UploadTokenPayload {
+export type UploadSessionPurpose =
+  | 'workspace_file'
+  | 'table_import'
+  | 'knowledge_document'
+  | 'profile_picture'
+  | 'workspace_logo'
+  | 'mothership_attachment'
+  | 'execution_attachment'
+
+export type UploadStorageProvider = 's3' | 'blob' | 'gcs' | 'local'
+export type UploadTransferMethod = 'put' | 'multipart'
+
+type UploadPurposeScope =
+  | {
+      purpose: 'workspace_file'
+      workspaceId: string
+      context: 'workspace'
+    }
+  | {
+      purpose: 'table_import'
+      workspaceId: string
+      context: 'table-import'
+    }
+  | {
+      purpose: 'knowledge_document'
+      workspaceId: string
+      context: 'knowledge-base'
+      knowledgeBaseId: string
+    }
+  | {
+      purpose: 'profile_picture'
+      workspaceId: null
+      context: 'profile-pictures'
+    }
+  | {
+      purpose: 'workspace_logo'
+      workspaceId: string
+      context: 'workspace-logos'
+    }
+  | {
+      purpose: 'mothership_attachment'
+      workspaceId: string
+      context: 'mothership'
+    }
+  | {
+      purpose: 'execution_attachment'
+      workspaceId: string
+      context: 'execution'
+      workflowId: string
+      executionId: string
+    }
+
+type UploadTransferState =
+  | {
+      method: 'put'
+      providerUploadId: null
+    }
+  | {
+      method: 'multipart'
+      providerUploadId: string | null
+      partSize: number
+      partCount: number
+    }
+
+interface UploadTokenBase {
   uploadId: string
-  key: string
-  userId: string
-  workspaceId: string
-  context: StorageContext
-  /** Knowledge base bound to a knowledge-document multipart session. */
-  knowledgeBaseId?: string
-  /** Original file name, carried so the completion handler can record ownership metadata. */
-  fileName?: string
-  /** File MIME type, carried for ownership metadata at completion. */
-  contentType?: string
-  /** File size in bytes, carried for ownership metadata at completion. */
-  fileSize?: number
-  /** Multipart-session purpose. Omitted by the legacy multipart endpoint. */
-  purpose?: 'workspace_file' | 'table_import' | 'knowledge_document'
-  /** Storage provider that owns the multipart upload state. */
-  provider?: 's3' | 'blob' | 'gcs' | 'local'
-  /** Provider-issued multipart upload id. Local and block-blob uploads do not need one. */
-  providerUploadId?: string | null
-  /** Fixed byte size of every part except the final part. */
-  partSize?: number
-  /** Exact number of parts the client must complete. */
-  partCount?: number
-  /** Signed purpose-specific data needed during finalization. */
-  metadata?: Record<string, unknown>
-  /** ISO timestamps used to reconstruct the stateless session response. */
-  createdAt?: string
-  expiresAt?: string
+  actorId: string
+  finalKey: string
+  stagingKey: string
+  provider: UploadStorageProvider
+  fileName: string
+  contentType: string
+  fileSize: number
+  metadata: Record<string, unknown>
+  createdAt: string
+  expiresAt: string
 }
 
-interface SignedPayload extends UploadTokenPayload {
+export type UploadTokenPayload = UploadTokenBase & UploadPurposeScope & UploadTransferState
+
+type SignedPayload = UploadTokenPayload & {
   exp: number
-  v: 1
+  v: 2
 }
+
+const BASE_KEYS = [
+  'uploadId',
+  'actorId',
+  'finalKey',
+  'stagingKey',
+  'provider',
+  'providerUploadId',
+  'method',
+  'purpose',
+  'workspaceId',
+  'context',
+  'fileName',
+  'contentType',
+  'fileSize',
+  'metadata',
+  'createdAt',
+  'expiresAt',
+  'exp',
+  'v',
+] as const
 
 const toBase64Url = (input: string): string => Buffer.from(input, 'utf8').toString('base64url')
 
@@ -46,17 +115,19 @@ const fromBase64Url = (input: string): string => Buffer.from(input, 'base64url')
 const sign = (payload: string): string => hmacSha256Base64(payload, env.INTERNAL_API_SECRET)
 
 /**
- * Sign an upload session token binding every supplied field to its signature.
- * Multipart sessions include the caller, workspace, storage context and key,
- * purpose, provider state, file metadata, part geometry, and—for knowledge
- * documents—the target knowledge base. Follow-up calls reconstruct their
- * complete trusted session exclusively from this signed state.
+ * Signs the complete, immutable state of one upload session.
+ *
+ * Version 2 intentionally has no compatibility parser for legacy multipart tokens. A token must
+ * carry a purpose-specific scope, transfer method, staging and final keys, provider state, exact
+ * object identity, and one canonical expiry.
  */
-export function signUploadToken(payload: UploadTokenPayload, expiresInSeconds = 60 * 60): string {
+export function signUploadToken(payload: UploadTokenPayload): string {
+  assertUploadTokenPayload(payload)
+  const expiresAt = new Date(payload.expiresAt)
   const signed: SignedPayload = {
     ...payload,
-    exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
-    v: 1,
+    exp: Math.floor(expiresAt.getTime() / 1000),
+    v: 2,
   }
   const encoded = toBase64Url(JSON.stringify(signed))
   return `${encoded}.${sign(encoded)}`
@@ -67,74 +138,172 @@ export type UploadTokenVerification =
   | { valid: false }
 
 export function verifyUploadToken(token: string): UploadTokenVerification {
-  if (typeof token !== 'string') {
-    return { valid: false }
-  }
+  if (typeof token !== 'string') return { valid: false }
   const parts = token.split('.')
   if (parts.length !== 2) return { valid: false }
   const [encoded, signature] = parts
-  if (!encoded || !signature) return { valid: false }
+  if (!encoded || !signature || !safeCompare(signature, sign(encoded))) return { valid: false }
 
-  const expected = sign(encoded)
-  if (!safeCompare(signature, expected)) {
-    return { valid: false }
-  }
-
-  let parsed: SignedPayload
+  let parsed: unknown
   try {
-    parsed = JSON.parse(fromBase64Url(encoded)) as SignedPayload
+    parsed = JSON.parse(fromBase64Url(encoded))
   } catch {
     return { valid: false }
   }
 
-  if (
-    parsed.v !== 1 ||
-    typeof parsed.exp !== 'number' ||
-    parsed.exp < Math.floor(Date.now() / 1000) ||
-    typeof parsed.uploadId !== 'string' ||
-    typeof parsed.key !== 'string' ||
-    typeof parsed.userId !== 'string' ||
-    typeof parsed.workspaceId !== 'string' ||
-    typeof parsed.context !== 'string'
-  ) {
+  if (!isRecord(parsed) || parsed.v !== 2 || !isSafePositiveInteger(parsed.exp)) {
+    return { valid: false }
+  }
+  if (parsed.exp <= Math.floor(Date.now() / 1000)) return { valid: false }
+
+  try {
+    assertUploadTokenPayload(parsed)
+  } catch {
     return { valid: false }
   }
 
-  return {
-    valid: true,
-    payload: {
-      uploadId: parsed.uploadId,
-      key: parsed.key,
-      userId: parsed.userId,
-      workspaceId: parsed.workspaceId,
-      context: parsed.context as StorageContext,
-      ...(typeof parsed.knowledgeBaseId === 'string'
-        ? { knowledgeBaseId: parsed.knowledgeBaseId }
-        : {}),
-      ...(typeof parsed.fileName === 'string' ? { fileName: parsed.fileName } : {}),
-      ...(typeof parsed.contentType === 'string' ? { contentType: parsed.contentType } : {}),
-      ...(typeof parsed.fileSize === 'number' ? { fileSize: parsed.fileSize } : {}),
-      ...(parsed.purpose === 'workspace_file' ||
-      parsed.purpose === 'table_import' ||
-      parsed.purpose === 'knowledge_document'
-        ? { purpose: parsed.purpose }
-        : {}),
-      ...(parsed.provider === 's3' ||
-      parsed.provider === 'blob' ||
-      parsed.provider === 'gcs' ||
-      parsed.provider === 'local'
-        ? { provider: parsed.provider }
-        : {}),
-      ...(typeof parsed.providerUploadId === 'string' || parsed.providerUploadId === null
-        ? { providerUploadId: parsed.providerUploadId }
-        : {}),
-      ...(typeof parsed.partSize === 'number' ? { partSize: parsed.partSize } : {}),
-      ...(typeof parsed.partCount === 'number' ? { partCount: parsed.partCount } : {}),
-      ...(parsed.metadata && typeof parsed.metadata === 'object' && !Array.isArray(parsed.metadata)
-        ? { metadata: parsed.metadata }
-        : {}),
-      ...(typeof parsed.createdAt === 'string' ? { createdAt: parsed.createdAt } : {}),
-      ...(typeof parsed.expiresAt === 'string' ? { expiresAt: parsed.expiresAt } : {}),
-    },
+  if (Math.floor(new Date(parsed.expiresAt).getTime() / 1000) !== parsed.exp) {
+    return { valid: false }
   }
+
+  const { exp: _exp, v: _version, ...payload } = parsed
+  return { valid: true, payload }
+}
+
+function assertUploadTokenPayload(value: unknown): asserts value is UploadTokenPayload {
+  if (!isRecord(value)) throw new Error('Upload token payload must be an object')
+
+  const purposeKeys =
+    value.purpose === 'knowledge_document'
+      ? ['knowledgeBaseId']
+      : value.purpose === 'execution_attachment'
+        ? ['workflowId', 'executionId']
+        : []
+  const methodKeys = value.method === 'multipart' ? ['partSize', 'partCount'] : []
+  const allowedKeys = new Set<string>([...BASE_KEYS, ...purposeKeys, ...methodKeys])
+  if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
+    throw new Error('Upload token payload contains unexpected state')
+  }
+
+  if (
+    !isNonEmptyString(value.uploadId) ||
+    !isNonEmptyString(value.actorId) ||
+    !isNonEmptyString(value.finalKey) ||
+    !isNonEmptyString(value.stagingKey) ||
+    value.finalKey === value.stagingKey ||
+    !value.stagingKey.startsWith(`upload-sessions/${value.uploadId}/`) ||
+    !isNonEmptyString(value.fileName) ||
+    !isNonEmptyString(value.contentType) ||
+    !isValidFileSize(value.purpose, value.fileSize) ||
+    !isPlainRecord(value.metadata)
+  ) {
+    throw new Error('Upload token payload has invalid object state')
+  }
+
+  if (
+    value.provider !== 's3' &&
+    value.provider !== 'blob' &&
+    value.provider !== 'gcs' &&
+    value.provider !== 'local'
+  ) {
+    throw new Error('Upload token payload has an invalid provider')
+  }
+
+  if (value.method === 'put') {
+    if (value.providerUploadId !== null || 'partSize' in value || 'partCount' in value) {
+      throw new Error('PUT upload token has multipart state')
+    }
+  } else if (value.method === 'multipart') {
+    if (!isSafePositiveInteger(value.partSize) || !isSafePositiveInteger(value.partCount)) {
+      throw new Error('Multipart upload token has invalid geometry')
+    }
+    if (value.provider === 'local') {
+      if (value.providerUploadId !== null) {
+        throw new Error('Local multipart upload token has a provider upload id')
+      }
+    } else if (!isNonEmptyString(value.providerUploadId)) {
+      throw new Error('Cloud multipart upload token is missing its provider upload id')
+    }
+  } else {
+    throw new Error('Upload token payload has an invalid transfer method')
+  }
+
+  assertPurposeScope(value)
+
+  if (!isNonEmptyString(value.createdAt) || !isNonEmptyString(value.expiresAt)) {
+    throw new Error('Upload token payload is missing timestamps')
+  }
+  const createdAt = new Date(value.createdAt).getTime()
+  const expiresAt = new Date(value.expiresAt).getTime()
+  if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt) || expiresAt <= createdAt) {
+    throw new Error('Upload token payload has invalid timestamps')
+  }
+}
+
+function assertPurposeScope(value: Record<string, unknown>): void {
+  switch (value.purpose) {
+    case 'workspace_file':
+      assertWorkspacePurpose(value, 'workspace')
+      break
+    case 'table_import':
+      assertWorkspacePurpose(value, 'table-import')
+      break
+    case 'knowledge_document':
+      assertWorkspacePurpose(value, 'knowledge-base')
+      if (!isNonEmptyString(value.knowledgeBaseId)) {
+        throw new Error('Knowledge upload token is missing knowledgeBaseId')
+      }
+      break
+    case 'profile_picture':
+      if (value.workspaceId !== null || value.context !== 'profile-pictures') {
+        throw new Error('Profile-picture upload token has invalid scope')
+      }
+      break
+    case 'workspace_logo':
+      assertWorkspacePurpose(value, 'workspace-logos')
+      break
+    case 'mothership_attachment':
+      assertWorkspacePurpose(value, 'mothership')
+      break
+    case 'execution_attachment':
+      assertWorkspacePurpose(value, 'execution')
+      if (!isNonEmptyString(value.workflowId) || !isNonEmptyString(value.executionId)) {
+        throw new Error('Execution upload token is missing workflow scope')
+      }
+      break
+    default:
+      throw new Error('Upload token payload has an invalid purpose')
+  }
+}
+
+function assertWorkspacePurpose(value: Record<string, unknown>, context: string): void {
+  if (!isNonEmptyString(value.workspaceId) || value.context !== context) {
+    throw new Error('Upload token payload has invalid workspace scope')
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function isSafePositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
+function isValidFileSize(purpose: unknown, value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    (value > 0 || (purpose === 'workspace_file' && value === 0))
+  )
 }

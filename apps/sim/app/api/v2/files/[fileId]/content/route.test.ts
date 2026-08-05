@@ -22,6 +22,7 @@ vi.mock('@/app/api/v2/lib/gate', () => ({
 }))
 
 vi.mock('@/lib/workspace-files/orchestration', () => ({
+  MAX_WORKSPACE_FILE_INLINE_BODY_BYTES: 70 * 1024 * 1024,
   performUpdateWorkspaceFileContent: mockPerformUpdateContent,
 }))
 
@@ -62,12 +63,15 @@ const RECORD = {
   updatedAt: new Date('2024-01-03T00:00:00Z'),
 }
 
-const callPut = (body: unknown) =>
+const callPut = (body: unknown, contentLength?: number) =>
   PUT(
     new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/content`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(contentLength === undefined ? {} : { 'Content-Length': String(contentLength) }),
+      },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
     }),
     { params: Promise.resolve({ fileId: FILE_ID }) }
   )
@@ -101,6 +105,45 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
   it('400s on an encoding outside the enum', async () => {
     const res = await callPut({ workspaceId: WS, content: 'x', encoding: 'latin1' })
     expect(res.status).toBe(400)
+    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
+  })
+
+  it('400s malformed base64 in the v2 error envelope', async () => {
+    const res = await callPut({ workspaceId: WS, content: 'not-base64!', encoding: 'base64' })
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error.code).toBe('BAD_REQUEST')
+    expect(body.error.message).toBe('content must be valid base64')
+    expect(mockPerformUpdateContent).not.toHaveBeenCalled()
+  })
+
+  it('accepts empty base64 as a zero-byte replacement', async () => {
+    const res = await callPut({ workspaceId: WS, content: '', encoding: 'base64' })
+
+    expect(res.status).toBe(200)
+    expect(mockPerformUpdateContent).toHaveBeenCalledWith(
+      expect.objectContaining({ content: '', encoding: 'base64' })
+    )
+  })
+
+  it('allows JSON bodies above the default 50 MiB cap for base64 expansion', async () => {
+    const res = await callPut(
+      { workspaceId: WS, content: 'TQ==', encoding: 'base64' },
+      60 * 1024 * 1024
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockPerformUpdateContent).toHaveBeenCalled()
+  })
+
+  it('returns an oversized JSON body in the canonical v2 413 envelope', async () => {
+    const res = await callPut({ workspaceId: WS, content: '' }, 70 * 1024 * 1024 + 1)
+
+    expect(res.status).toBe(413)
+    await expect(res.json()).resolves.toEqual({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
+    })
     expect(mockPerformUpdateContent).not.toHaveBeenCalled()
   })
 

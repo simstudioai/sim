@@ -10,6 +10,9 @@ const {
   mockDownload,
   mockDelete,
   mockDeleteIfExists,
+  mockBeginCopyFromURL,
+  mockPollUntilDone,
+  mockGetProperties,
   mockGetBlockBlobClient,
   mockGetContainerClient,
   mockFromConnectionString,
@@ -21,6 +24,9 @@ const {
   mockDownload: vi.fn(),
   mockDelete: vi.fn(),
   mockDeleteIfExists: vi.fn(),
+  mockBeginCopyFromURL: vi.fn(),
+  mockPollUntilDone: vi.fn(),
+  mockGetProperties: vi.fn(),
   mockGetBlockBlobClient: vi.fn(),
   mockGetContainerClient: vi.fn(),
   mockFromConnectionString: vi.fn(),
@@ -52,10 +58,14 @@ vi.mock('@/lib/uploads/config', () => ({
 
 import {
   abortMultipartUpload,
+  deleteBlobObjectVersion,
   deleteFromBlob,
   downloadFromBlob,
+  getBlobPresignedUploadUrl,
   getPresignedUrl,
+  headBlobObject,
   parseConnectionString,
+  promoteBlobObject,
   uploadToBlob,
 } from '@/lib/uploads/providers/blob/client'
 import { sanitizeFilenameForMetadata } from '@/lib/uploads/utils/file-utils'
@@ -71,6 +81,8 @@ describe('Azure Blob Storage Client', () => {
       download: mockDownload,
       delete: mockDelete,
       deleteIfExists: mockDeleteIfExists,
+      beginCopyFromURL: mockBeginCopyFromURL,
+      getProperties: mockGetProperties,
       url: 'https://test.blob.core.windows.net/container/test-file',
     })
 
@@ -85,6 +97,8 @@ describe('Azure Blob Storage Client', () => {
     mockGenerateBlobSASQueryParameters.mockReturnValue({
       toString: () => 'sv=2021-06-08&se=2023-01-01T00%3A00%3A00Z&sr=b&sp=r&sig=test',
     })
+    mockBeginCopyFromURL.mockResolvedValue({ pollUntilDone: mockPollUntilDone })
+    mockPollUntilDone.mockResolvedValue({ copyStatus: 'success' })
   })
 
   describe('uploadToBlob', () => {
@@ -133,6 +147,94 @@ describe('Azure Blob Storage Client', () => {
       expect(mockGetContainerClient).toHaveBeenCalledWith('customcontainer')
       expect(result.name).toBe(fileName)
       expect(result.type).toBe(contentType)
+    })
+  })
+
+  describe('staged upload primitives', () => {
+    const customConfig = {
+      containerName: 'testcontainer',
+      accountName: 'testaccount',
+      accountKey: 'testkey',
+      connectionString:
+        'DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey;EndpointSuffix=core.windows.net',
+    }
+
+    it('signs a PUT with the required blob and metadata headers', async () => {
+      mockBlobSASPermissionsParse.mockReturnValueOnce('w')
+
+      const result = await getBlobPresignedUploadUrl({
+        key: 'upload-sessions/upload-1/file.bin',
+        contentType: 'application/octet-stream',
+        metadata: { uploadId: 'upload-1', purpose: 'workspace_file' },
+        customConfig,
+        expiresIn: 600,
+      })
+
+      expect(mockBlobSASPermissionsParse).toHaveBeenCalledWith('w')
+      expect(result).toEqual({
+        url: expect.stringContaining('?sv=2021-06-08'),
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'x-ms-blob-type': 'BlockBlob',
+          'x-ms-blob-content-type': 'application/octet-stream',
+          'x-ms-meta-uploadId': 'upload-1',
+          'x-ms-meta-purpose': 'workspace_file',
+        },
+      })
+    })
+
+    it('pins the source ETag and requires an absent promotion destination', async () => {
+      await promoteBlobObject({
+        sourceKey: 'upload-sessions/upload-1/file.bin',
+        destinationKey: 'workspace/workspace-1/file.bin',
+        sourceEtag: '"etag-1"',
+        customConfig,
+      })
+
+      expect(mockBeginCopyFromURL).toHaveBeenCalledWith(
+        'https://test.blob.core.windows.net/container/test-file',
+        {
+          conditions: { ifNoneMatch: '*' },
+          sourceConditions: { ifMatch: '"etag-1"' },
+        }
+      )
+      expect(mockPollUntilDone).toHaveBeenCalledOnce()
+    })
+
+    it('returns only completed copied objects as usable upload identities', async () => {
+      mockGetProperties.mockResolvedValueOnce({
+        contentLength: 3,
+        contentType: 'application/octet-stream',
+        metadata: { uploadid: 'upload-1' },
+        etag: '"etag-1"',
+        copyStatus: 'success',
+      })
+
+      await expect(headBlobObject('workspace/workspace-1/file.bin', customConfig)).resolves.toEqual(
+        {
+          size: 3,
+          contentType: 'application/octet-stream',
+          uploadId: 'upload-1',
+          version: '"etag-1"',
+        }
+      )
+
+      mockGetProperties.mockResolvedValueOnce({ copyStatus: 'pending' })
+      await expect(headBlobObject('workspace/workspace-1/file.bin', customConfig)).rejects.toThrow(
+        'Blob copy for workspace/workspace-1/file.bin is pending'
+      )
+    })
+
+    it('deletes staging only when its ETag still matches', async () => {
+      mockDeleteIfExists.mockResolvedValueOnce({})
+
+      await deleteBlobObjectVersion({
+        key: 'upload-sessions/upload-1/file.bin',
+        etag: '"etag-1"',
+        customConfig,
+      })
+
+      expect(mockDeleteIfExists).toHaveBeenCalledWith({ conditions: { ifMatch: '"etag-1"' } })
     })
   })
 

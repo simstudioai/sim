@@ -328,7 +328,12 @@ export async function downloadFromGcsStream(
 export async function headGcsObject(
   key: string,
   customConfig?: GcsConfig
-): Promise<{ size: number; contentType?: string } | null> {
+): Promise<{
+  size: number
+  contentType?: string
+  uploadId?: string
+  version: string
+} | null> {
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
   const storage = await getGcsClient()
 
@@ -337,6 +342,8 @@ export async function headGcsObject(
     return {
       size: Number(fileMetadata.size) || 0,
       contentType: fileMetadata.contentType,
+      uploadId: readUploadId(fileMetadata.metadata as Record<string, string> | undefined),
+      version: String(fileMetadata.generation ?? ''),
     }
   } catch (error) {
     const code = (error as { code?: number } | null)?.code
@@ -345,6 +352,35 @@ export async function headGcsObject(
     }
     throw error
   }
+}
+
+/** Copies one immutable staging generation into a destination that must not already exist. */
+export async function promoteGcsObject(params: {
+  sourceKey: string
+  destinationKey: string
+  sourceGeneration: string
+  customConfig: GcsConfig
+}): Promise<void> {
+  if (!params.sourceGeneration) throw new Error('GCS staging object is missing its generation')
+  const storage = await getGcsClient()
+  const bucket = storage.bucket(params.customConfig.bucket)
+  const source = bucket.file(params.sourceKey, { generation: params.sourceGeneration })
+  const destination = bucket.file(params.destinationKey)
+  await source.copy(destination, { preconditionOpts: { ifGenerationMatch: 0 } })
+}
+
+/** Deletes a staging object only if it is still the generation completion inspected. */
+export async function deleteGcsObjectVersion(params: {
+  key: string
+  generation: string
+  customConfig: GcsConfig
+}): Promise<void> {
+  if (!params.generation) throw new Error('GCS staging object is missing its generation')
+  const storage = await getGcsClient()
+  await storage
+    .bucket(params.customConfig.bucket)
+    .file(params.key, { generation: params.generation })
+    .delete({ ifGenerationMatch: params.generation })
 }
 
 /**
@@ -439,7 +475,7 @@ async function gcsXmlApiRequest(
 export async function initiateGcsMultipartUpload(
   options: GcsMultipartUploadInit
 ): Promise<{ uploadId: string; key: string }> {
-  const { fileName, contentType, customConfig, customKey, purpose } = options
+  const { fileName, contentType, customConfig, customKey, purpose, metadata } = options
 
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
 
@@ -452,6 +488,12 @@ export async function initiateGcsMultipartUpload(
       'x-goog-meta-originalname': encodeURIComponent(sanitizeFilenameForMetadata(fileName)),
       'x-goog-meta-uploadedat': new Date().toISOString(),
       'x-goog-meta-purpose': purpose || 'knowledge-base',
+      ...Object.fromEntries(
+        Object.entries(sanitizeStorageMetadata(metadata ?? {}, 8000)).map(([key, value]) => [
+          `x-goog-meta-${key.toLowerCase()}`,
+          value,
+        ])
+      ),
     },
   })
 
@@ -581,9 +623,10 @@ export async function abortGcsMultipartUpload(
   customConfig?: GcsConfig
 ): Promise<void> {
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
-  try {
-    await gcsXmlApiRequest('DELETE', config.bucket, key, `uploadId=${encodeURIComponent(uploadId)}`)
-  } catch (error) {
-    logger.warn('Error cleaning up GCS multipart upload:', error)
-  }
+  await gcsXmlApiRequest('DELETE', config.bucket, key, `uploadId=${encodeURIComponent(uploadId)}`)
+}
+
+function readUploadId(metadata?: Record<string, string>): string | undefined {
+  if (!metadata) return undefined
+  return Object.entries(metadata).find(([key]) => key.toLowerCase() === 'uploadid')?.[1]
 }

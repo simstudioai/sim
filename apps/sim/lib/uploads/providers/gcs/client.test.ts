@@ -21,6 +21,7 @@ const {
     getMetadata: vi.fn(),
     delete: vi.fn(),
     getSignedUrl: vi.fn(),
+    copy: vi.fn(),
   }
   const mockBucket = { file: vi.fn(() => mockFile) }
   const mockGetAccessToken = vi.fn()
@@ -71,6 +72,7 @@ import {
   abortGcsMultipartUpload,
   completeGcsMultipartUpload,
   deleteFromGcs,
+  deleteGcsObjectVersion,
   downloadFromGcs,
   getGcsClient,
   getGcsMultipartPartUrls,
@@ -78,6 +80,7 @@ import {
   getPresignedUrlWithConfig,
   headGcsObject,
   initiateGcsMultipartUpload,
+  promoteGcsObject,
   resetGcsClientForTesting,
   uploadGcsPart,
   uploadToGcs,
@@ -300,11 +303,23 @@ describe('GCS Client', () => {
 
   describe('headGcsObject', () => {
     it('should return size and content type when the object exists', async () => {
-      mockFile.getMetadata.mockResolvedValueOnce([{ size: '2048', contentType: 'text/csv' }])
+      mockFile.getMetadata.mockResolvedValueOnce([
+        {
+          size: '2048',
+          contentType: 'text/csv',
+          generation: '42',
+          metadata: { uploadid: 'upload-1' },
+        },
+      ])
 
       const result = await headGcsObject('data.csv')
 
-      expect(result).toEqual({ size: 2048, contentType: 'text/csv' })
+      expect(result).toEqual({
+        size: 2048,
+        contentType: 'text/csv',
+        uploadId: 'upload-1',
+        version: '42',
+      })
     })
 
     it('should return null when the object is missing', async () => {
@@ -323,6 +338,42 @@ describe('GCS Client', () => {
       )
 
       await expect(headGcsObject('secret.txt')).rejects.toThrow('Forbidden')
+    })
+  })
+
+  describe('staged upload promotion', () => {
+    it('pins the source generation and requires an absent destination', async () => {
+      mockFile.copy.mockResolvedValueOnce(undefined)
+
+      await promoteGcsObject({
+        sourceKey: 'upload-sessions/upload-1/file.bin',
+        destinationKey: 'workspace/workspace-1/file.bin',
+        sourceGeneration: '42',
+        customConfig: { bucket: 'test-bucket' },
+      })
+
+      expect(mockBucket.file).toHaveBeenCalledWith('upload-sessions/upload-1/file.bin', {
+        generation: '42',
+      })
+      expect(mockBucket.file).toHaveBeenCalledWith('workspace/workspace-1/file.bin')
+      expect(mockFile.copy).toHaveBeenCalledWith(mockFile, {
+        preconditionOpts: { ifGenerationMatch: 0 },
+      })
+    })
+
+    it('deletes staging only at the inspected generation', async () => {
+      mockFile.delete.mockResolvedValueOnce(undefined)
+
+      await deleteGcsObjectVersion({
+        key: 'upload-sessions/upload-1/file.bin',
+        generation: '42',
+        customConfig: { bucket: 'test-bucket' },
+      })
+
+      expect(mockBucket.file).toHaveBeenCalledWith('upload-sessions/upload-1/file.bin', {
+        generation: '42',
+      })
+      expect(mockFile.delete).toHaveBeenCalledWith({ ifGenerationMatch: '42' })
     })
   })
 
@@ -483,10 +534,10 @@ describe('GCS Client', () => {
       expect(init.method).toBe('DELETE')
     })
 
-    it('should swallow abort errors', async () => {
+    it('should surface abort errors', async () => {
       mockFetch.mockResolvedValueOnce(new Response('boom', { status: 500, statusText: 'ISE' }))
 
-      await expect(abortGcsMultipartUpload('key.csv', 'upload-123')).resolves.toBeUndefined()
+      await expect(abortGcsMultipartUpload('key.csv', 'upload-123')).rejects.toThrow('500 ISE')
     })
 
     it('should fail multipart calls when no access token is available', async () => {
