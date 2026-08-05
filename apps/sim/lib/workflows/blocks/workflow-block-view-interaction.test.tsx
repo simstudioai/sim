@@ -220,7 +220,7 @@ describe('WorkflowTypeTag colors', () => {
     )
 
     expect(host.querySelector('[data-workflow-type-icon="knowledge"]')).toHaveClass(
-      'bg-[#005D5F]',
+      'bg-[#007E80]',
       'text-[#FFFFFF]'
     )
     expect(host.querySelector('[data-workflow-type-icon="image_generator_v2"]')).toHaveClass(

@@ -36,7 +36,7 @@ import { cn } from '../../lib/cn'
  *   These are fixed brand values, not derived ones — do not "correct" a hex
  *   for contrast or gamut. Labels use `#F8F8F8` on dark semantic fills and
  *   `#1A1A1A` on light fills; the content tone uses true white (`#FFFFFF`) on
- *   `#005D5F`. `#3B3B3B` appears only as `inverse`'s fill, never as text. One
+ *   `#007E80`. `#3B3B3B` appears only as `inverse`'s fill, never as text. One
  *   value serves both modes; the tones carry no `dark:` overrides.
  *
  *   Contrast against the paired ink varies, and two pairs sit under WCAG AA
@@ -113,7 +113,7 @@ const chipTagVariants = cva(
       { variant: 'workflow', tone: 'green', className: 'bg-[#188F00] text-[#F8F8F8]' },
       { variant: 'workflow', tone: 'yellow', className: 'bg-[#FFEF08] text-[#1A1A1A]' },
       { variant: 'workflow', tone: 'purple', className: 'bg-[#AA00FF] text-[#F8F8F8]' },
-      { variant: 'workflow', tone: 'content', className: 'bg-[#005D5F] text-[#FFFFFF]' },
+      { variant: 'workflow', tone: 'content', className: 'bg-[#007E80] text-[#FFFFFF]' },
       { variant: 'brand', brandForeground: 'light', className: 'text-[#FFFFFF]' },
       { variant: 'brand', brandForeground: 'dark', className: 'text-[#000000]' },
     ],
