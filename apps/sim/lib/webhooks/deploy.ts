@@ -6,6 +6,7 @@ import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { parseQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { WebhookPathClaimConflictError } from '@/lib/webhooks/path-claims'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
@@ -363,8 +364,8 @@ export async function resolveTriggerCredentialId(
 
 /**
  * Resolves a trigger block to its persisted webhook config, including the
- * Slack-specific routing branch. Exported for unit testing that branch; not part
- * of the public deploy API.
+ * provider-specific routing branches. Exported for unit testing those branches;
+ * not part of the public deploy API.
  */
 export async function resolveWebhookConfigForBlock(input: {
   block: BlockState
@@ -565,6 +566,49 @@ export async function resolveWebhookConfigForBlock(input: {
       // (`slack_app`) rows on providerConfig.credentialId.
       providerConfig.credentialId = resolvedCredentialId
     }
+  } else if (triggerDef.provider === 'quickbooks') {
+    if (!credentialId) {
+      return {
+        success: false,
+        error: {
+          message: 'Select a QuickBooks account for the trigger.',
+          status: 400,
+        },
+      }
+    }
+
+    const resolvedAccount = await resolveOAuthAccountId(credentialId)
+    const [quickBooksAccount] = resolvedAccount?.accountId
+      ? await db
+          .select({ accountId: account.accountId })
+          .from(account)
+          .where(
+            and(eq(account.id, resolvedAccount.accountId), eq(account.providerId, 'quickbooks'))
+          )
+          .limit(1)
+      : []
+
+    let realmId: string | undefined
+    try {
+      realmId = quickBooksAccount?.accountId
+        ? parseQuickBooksAccountId(quickBooksAccount.accountId).realmId
+        : undefined
+    } catch {
+      realmId = undefined
+    }
+
+    if (!realmId) {
+      return {
+        success: false,
+        error: {
+          message: 'Could not verify the connected QuickBooks company. Reconnect it and try again.',
+          status: 400,
+        },
+      }
+    }
+
+    effectivePath = null
+    routingKey = realmId
   }
 
   return {

@@ -2,15 +2,17 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDispatch, mockEnqueue, mockFindPage } = vi.hoisted(() => ({
+const { mockDispatch, mockEnqueue, mockFindWebhooks } = vi.hoisted(() => ({
   mockDispatch: vi.fn(),
   mockEnqueue: vi.fn(),
-  mockFindPage: vi.fn(),
+  mockFindWebhooks: vi.fn(),
 }))
-vi.mock('@trigger.dev/sdk', () => ({ task: vi.fn((config: unknown) => config) }))
-vi.mock('@/lib/webhooks/processor', () => ({ dispatchResolvedWebhookTarget: mockDispatch }))
-vi.mock('@/background/quickbooks-webhook-targets', () => ({
-  findQuickBooksWebhookTargetPage: mockFindPage,
+vi.mock('@trigger.dev/sdk', () => ({
+  task: vi.fn((config: unknown) => config),
+}))
+vi.mock('@/lib/webhooks/processor', () => ({
+  dispatchResolvedWebhookTarget: mockDispatch,
+  findWebhooksByRoutingKey: mockFindWebhooks,
 }))
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn(async () => ({ enqueue: mockEnqueue })),
@@ -46,25 +48,12 @@ describe('QuickBooks webhook ingress job', () => {
 
   it('routes the batch by company and dispatches targets sequentially', async () => {
     const order: string[] = []
-    mockFindPage
-      .mockResolvedValueOnce({
-        hasMore: true,
-        nextCursor: 'w2',
-        targets: [
-          { webhook: { id: 'w1' }, workflow: { id: 'wf1' } },
-          { webhook: { id: 'w2' }, workflow: { id: 'wf2' } },
-        ],
-      })
-      .mockResolvedValueOnce({
-        hasMore: false,
-        nextCursor: null,
-        targets: [{ webhook: { id: 'w3' }, workflow: { id: 'wf3' } }],
-      })
-      .mockResolvedValueOnce({
-        hasMore: false,
-        nextCursor: null,
-        targets: [{ webhook: { id: 'w4' }, workflow: { id: 'wf4' } }],
-      })
+    mockFindWebhooks
+      .mockResolvedValueOnce([
+        { webhook: { id: 'w1' }, workflow: { id: 'wf1' } },
+        { webhook: { id: 'w2' }, workflow: { id: 'wf2' } },
+      ])
+      .mockResolvedValueOnce([{ webhook: { id: 'w3' }, workflow: { id: 'wf3' } }])
     mockDispatch.mockImplementation(async (webhook: { id: string }) => {
       order.push(webhook.id)
       return { outcome: 'queued' }
@@ -72,19 +61,20 @@ describe('QuickBooks webhook ingress job', () => {
     await expect(executeQuickBooksWebhookIngress(payload)).resolves.toEqual({
       failed: 0,
       ignored: 0,
-      processed: 4,
-      targetCount: 4,
+      processed: 3,
+      targetCount: 3,
     })
-    expect(mockFindPage).toHaveBeenCalledWith('456', 'request-1', undefined)
-    expect(mockFindPage).toHaveBeenCalledWith('456', 'request-1', 'w2')
-    expect(mockFindPage).toHaveBeenCalledWith('789', 'request-1', undefined)
-    expect(order).toEqual(['w1', 'w2', 'w3', 'w4'])
+    expect(mockFindWebhooks).toHaveBeenNthCalledWith(1, '456', 'request-1', 'quickbooks')
+    expect(mockFindWebhooks).toHaveBeenNthCalledWith(2, '789', 'request-1', 'quickbooks')
+    expect(order).toEqual(['w1', 'w2', 'w3'])
   })
 
   it('enqueues the bounded delivery once without copying it into continuation jobs', async () => {
-    mockFindPage.mockResolvedValue({ hasMore: false, nextCursor: null, targets: [] })
+    mockFindWebhooks.mockResolvedValue([])
     await enqueueQuickBooksWebhookIngress(payload)
-    const options = mockEnqueue.mock.calls[0][2] as { runner: () => Promise<void> }
+    const options = mockEnqueue.mock.calls[0][2] as {
+      runner: () => Promise<void>
+    }
     await options.runner()
     expect(mockEnqueue).toHaveBeenCalledOnce()
     expect(mockEnqueue).toHaveBeenCalledWith(
@@ -97,39 +87,33 @@ describe('QuickBooks webhook ingress job', () => {
   })
 
   it('continues later events before retrying a delivery with failed targets', async () => {
-    mockFindPage
-      .mockResolvedValueOnce({
-        hasMore: false,
-        nextCursor: null,
-        targets: [
-          { webhook: { id: 'w1' }, workflow: { id: 'wf1' } },
-          { webhook: { id: 'w2' }, workflow: { id: 'wf2' } },
-        ],
-      })
-      .mockResolvedValueOnce({
-        hasMore: false,
-        nextCursor: null,
-        targets: [{ webhook: { id: 'w3' }, workflow: { id: 'wf3' } }],
-      })
+    mockFindWebhooks
+      .mockResolvedValueOnce([
+        { webhook: { id: 'w1' }, workflow: { id: 'wf1' } },
+        { webhook: { id: 'w2' }, workflow: { id: 'wf2' } },
+      ])
+      .mockResolvedValueOnce([{ webhook: { id: 'w3' }, workflow: { id: 'wf3' } }])
     mockDispatch
       .mockRejectedValueOnce(new Error('dispatch unavailable'))
       .mockResolvedValueOnce({ outcome: 'failed' })
       .mockResolvedValueOnce({ outcome: 'queued' })
 
     await enqueueQuickBooksWebhookIngress(payload)
-    const options = mockEnqueue.mock.calls[0][2] as { runner: () => Promise<void> }
+    const options = mockEnqueue.mock.calls[0][2] as {
+      runner: () => Promise<void>
+    }
     await expect(options.runner()).rejects.toThrow(
       'QuickBooks webhook delivery completed with 2 failures'
     )
-    expect(mockFindPage).toHaveBeenCalledWith('789', 'request-1', undefined)
+    expect(mockFindWebhooks).toHaveBeenCalledWith('789', 'request-1', 'quickbooks')
     expect(mockDispatch).toHaveBeenCalledTimes(3)
     expect(mockEnqueue).toHaveBeenCalledOnce()
   })
 
-  it('continues later events when a target page cannot be resolved', async () => {
-    mockFindPage
+  it('continues later events when targets cannot be resolved', async () => {
+    mockFindWebhooks
       .mockRejectedValueOnce(new Error('database unavailable'))
-      .mockResolvedValueOnce({ hasMore: false, nextCursor: null, targets: [] })
+      .mockResolvedValueOnce([])
 
     await expect(executeQuickBooksWebhookIngress(payload)).resolves.toEqual({
       failed: 1,
@@ -137,6 +121,6 @@ describe('QuickBooks webhook ingress job', () => {
       processed: 0,
       targetCount: 0,
     })
-    expect(mockFindPage).toHaveBeenCalledWith('789', 'request-1', undefined)
+    expect(mockFindWebhooks).toHaveBeenCalledWith('789', 'request-1', 'quickbooks')
   })
 })

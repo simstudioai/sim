@@ -3,8 +3,7 @@ import { task } from '@trigger.dev/sdk'
 import { NextRequest } from 'next/server'
 import type { QuickBooksWebhookEvent } from '@/lib/api/contracts/webhooks'
 import { getJobQueue } from '@/lib/core/async-jobs'
-import { dispatchResolvedWebhookTarget } from '@/lib/webhooks/processor'
-import { findQuickBooksWebhookTargetPage } from '@/background/quickbooks-webhook-targets'
+import { dispatchResolvedWebhookTarget, findWebhooksByRoutingKey } from '@/lib/webhooks/processor'
 
 const logger = createLogger('QuickBooksWebhookIngressTask')
 
@@ -25,7 +24,7 @@ export interface QuickBooksWebhookIngressResult {
   targetCount: number
 }
 
-/** Process the bounded delivery sequentially, retaining at most one target page at a time. */
+/** Process the bounded delivery sequentially through the shared routing-key dispatcher. */
 export async function executeQuickBooksWebhookIngress(
   payload: QuickBooksWebhookIngressPayload
 ): Promise<QuickBooksWebhookIngressResult> {
@@ -40,61 +39,51 @@ export async function executeQuickBooksWebhookIngress(
       headers: payload.headers,
       body: JSON.stringify(event),
     })
-    let afterWebhookId: string | undefined
 
-    while (true) {
-      try {
-        const page = await findQuickBooksWebhookTargetPage(
-          event.intuitaccountid,
-          payload.requestId,
-          afterWebhookId
-        )
-        const nextCursor = page.hasMore ? page.nextCursor : null
-        if (page.hasMore && (!nextCursor || nextCursor === afterWebhookId)) {
-          throw new Error('QuickBooks webhook target pagination did not advance')
+    try {
+      const targets = await findWebhooksByRoutingKey(
+        event.intuitaccountid,
+        payload.requestId,
+        'quickbooks'
+      )
+      targetCount += targets.length
+
+      for (const { webhook, workflow } of targets) {
+        try {
+          const result = await dispatchResolvedWebhookTarget(webhook, workflow, event, request, {
+            requestId: payload.requestId,
+            path: webhook.path ?? undefined,
+            receivedAt: payload.receivedAt,
+            triggerTimestampMs: Date.parse(event.time),
+          })
+          if (result.outcome === 'queued') processed += 1
+          else if (result.outcome === 'ignored') ignored += 1
+          else failed += 1
+        } catch (error) {
+          failed += 1
+          logger.error(`[${payload.requestId}] QuickBooks webhook target dispatch failed`, {
+            error,
+            eventId: event.id,
+            eventIndex,
+            webhookId: webhook.id,
+          })
         }
-
-        targetCount += page.targets.length
-        for (const { webhook, workflow } of page.targets) {
-          try {
-            const result = await dispatchResolvedWebhookTarget(webhook, workflow, event, request, {
-              requestId: payload.requestId,
-              path: webhook.path ?? undefined,
-              receivedAt: payload.receivedAt,
-              triggerTimestampMs: Date.parse(event.time),
-            })
-            if (result.outcome === 'queued') processed += 1
-            else if (result.outcome === 'ignored') ignored += 1
-            else failed += 1
-          } catch (error) {
-            failed += 1
-            logger.error(`[${payload.requestId}] QuickBooks webhook target dispatch failed`, {
-              error,
-              eventId: event.id,
-              eventIndex,
-              webhookId: webhook.id,
-            })
-          }
-        }
-
-        logger.info(`[${payload.requestId}] QuickBooks webhook page completed`, {
-          eventId: event.id,
-          eventIndex,
-          ignored,
-          processed,
-          targetCount: page.targets.length,
-        })
-        if (!nextCursor) break
-        afterWebhookId = nextCursor
-      } catch (error) {
-        failed += 1
-        logger.error(`[${payload.requestId}] QuickBooks webhook event page failed`, {
-          error,
-          eventId: event.id,
-          eventIndex,
-        })
-        break
       }
+
+      logger.info(`[${payload.requestId}] QuickBooks webhook event completed`, {
+        eventId: event.id,
+        eventIndex,
+        ignored,
+        processed,
+        targetCount: targets.length,
+      })
+    } catch (error) {
+      failed += 1
+      logger.error(`[${payload.requestId}] QuickBooks webhook target lookup failed`, {
+        error,
+        eventId: event.id,
+        eventIndex,
+      })
     }
   }
 
