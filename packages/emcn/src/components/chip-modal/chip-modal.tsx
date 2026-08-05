@@ -623,10 +623,7 @@ function ChipModalField(props: ChipModalFieldProps) {
 
   return (
     <div className={cn('flex flex-col gap-[9px]', flush ? 'px-0' : 'px-2', className)}>
-      <Label
-        htmlFor={associatesLabel ? id : undefined}
-        className='pl-0.5 font-normal text-[var(--text-muted)]'
-      >
+      <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
         {title}
         {required && (
           <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
