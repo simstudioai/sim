@@ -333,7 +333,7 @@ export function LongInput({
               <Textarea
                 ref={setRefs}
                 className={cn(
-                  'allow-scroll box-border min-h-full w-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50',
+                  'allow-scroll box-border min-h-full w-full resize-none text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50',
                   wandHook.isStreaming && 'pointer-events-none cursor-not-allowed opacity-50'
                 )}
                 rows={rows ?? DEFAULT_ROWS}
@@ -357,7 +357,7 @@ export function LongInput({
               <div
                 ref={overlayRef}
                 className={cn(
-                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-medium font-sans text-sm',
+                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-sans text-sm',
                   (isPreview || disabled) && 'opacity-50',
                   !(isPreview || disabled) && 'pointer-events-none'
                 )}

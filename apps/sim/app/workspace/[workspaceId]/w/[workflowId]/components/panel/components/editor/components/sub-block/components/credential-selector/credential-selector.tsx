@@ -453,7 +453,7 @@ export function CredentialSelector({
 
       {needsUpdate && (
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
-          <div className='flex items-center font-medium text-caption'>
+          <div className='flex items-center text-caption'>
             <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
             Additional permissions required
           </div>
@@ -471,7 +471,7 @@ export function CredentialSelector({
               })
               setShowOAuthModal(true)
             }}
-            className='w-full px-2 py-1 font-medium text-caption'
+            className='w-full px-2 py-1 text-caption'
           >
             Update access
           </Button>
