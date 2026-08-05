@@ -189,7 +189,26 @@ export class TriggerDevJobQueue implements JobQueueBackend {
 
   async getJob(jobId: string): Promise<Job | null> {
     try {
-      const run = await runs.retrieve(jobId)
+      let run: Awaited<ReturnType<typeof runs.retrieve>>
+      try {
+        run = await runs.retrieve(jobId)
+      } catch (error) {
+        const isNotFound =
+          (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
+          (error && typeof error === 'object' && 'status' in error && error.status === 404)
+        if (!isNotFound) throw error
+
+        let runId: string | undefined
+        for await (const candidate of runs.list({ tag: `jobId:${jobId}`, limit: 1 })) {
+          runId = candidate.id
+          break
+        }
+        if (!runId) {
+          logger.debug('Job not found in trigger.dev', { jobId })
+          return null
+        }
+        run = await runs.retrieve(runId)
+      }
 
       const payload = run.payload as Record<string, unknown>
       const metadata: JobMetadata = {
@@ -270,6 +289,7 @@ function buildTags(options?: EnqueueOptions): string[] {
   const tags: string[] = []
   const meta = options?.metadata
 
+  if (options?.jobId) tags.push(`jobId:${options.jobId}`)
   if (meta?.workspaceId) tags.push(`workspaceId:${meta.workspaceId}`)
   if (meta?.workflowId) tags.push(`workflowId:${meta.workflowId}`)
   if (meta?.userId) tags.push(`userId:${meta.userId}`)

@@ -153,7 +153,7 @@
       "get": {
         "operationId": "getWorkflowExecution",
         "summary": "Get Execution Status",
-        "description": "Get the current status of a workflow execution. Returns the run's lifecycle state (`running`, `paused`, `completed`, `failed`, etc.), timing, error, and optionally per-block outputs. Designed for polling — works for any execution, including ones that pause and resume.",
+        "description": "Get the current status of a workflow execution. Returns `queued` immediately after async dispatch, then the run's durable lifecycle state (`running`, `paused`, `completed`, `failed`, etc.), timing, error, and optionally per-block outputs. This legacy-compatible resource remains available for existing integrations.",
         "tags": ["Execution"],
         "x-codeSamples": [
           {
@@ -1394,6 +1394,7 @@
       "AsyncExecutionResult": {
         "type": "object",
         "description": "Response returned when a workflow execution is queued for asynchronous processing.",
+        "required": ["success", "async", "jobId", "executionId", "message", "statusUrl"],
         "properties": {
           "success": {
             "type": "boolean",
@@ -1506,8 +1507,8 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "running", "paused", "completed", "failed", "cancelled"],
-            "description": "Current normalized lifecycle status. `paused` is set when a row exists in pausedExecutions with status `paused` or `partially_resumed`; otherwise the workflowExecutionLogs row's status field is used.",
+            "enum": ["queued", "pending", "running", "paused", "completed", "failed", "cancelled"],
+            "description": "Current normalized lifecycle status. `queued` is projected from the async queue before the durable execution log exists; `paused` is set when a row exists in pausedExecutions with status `paused` or `partially_resumed`; otherwise the workflowExecutionLogs row's status field is used.",
             "example": "completed"
           },
           "trigger": {

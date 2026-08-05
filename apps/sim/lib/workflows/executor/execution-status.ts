@@ -1,12 +1,18 @@
 import { db } from '@sim/db'
-import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
+import { getJobQueue } from '@/lib/core/async-jobs'
+import type { Job } from '@/lib/core/async-jobs/types'
 import {
   collectFunctionalBlockOutputs,
   type FunctionalExecutionDataSource,
 } from '@/lib/logs/execution/functional-outputs'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import {
+  RESUME_EXECUTION_JOB_ID_PREFIX,
+  WORKFLOW_EXECUTION_JOB_ID_PREFIX,
+} from '@/lib/workflows/executor/enqueue-execution'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import type { PausePoint } from '@/executor/types'
 
@@ -14,7 +20,9 @@ import type { PausePoint } from '@/executor/types'
  * Reads a single execution's status resource — the log row, the paused-state
  * overlay, and (when requested) materialized outputs. Extracted so the v1 and
  * v2 status routes render the identical resource from one read path.
- * Auth is the caller's responsibility. Returns `null` when no log row exists.
+ * Auth is the caller's responsibility. Before a worker writes the durable log
+ * row, the deterministic queue record is projected as the same execution
+ * resource so callers never need a separate job identifier or endpoint.
  */
 
 type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -79,6 +87,38 @@ function extractError(executionData: unknown): string | null {
   return null
 }
 
+function extractJobFinalOutput(output: unknown): unknown | null {
+  if (!output || typeof output !== 'object' || !('output' in output)) return null
+  return (output as Record<string, unknown>).output ?? null
+}
+
+function projectQueueJob(
+  job: Job,
+  input: Pick<GetWorkflowExecutionStatusInput, 'executionId' | 'includeOutput' | 'workflowId'>
+): WorkflowExecutionStatusResponse {
+  const status: WorkflowExecutionStatusResponse['status'] =
+    job.status === 'pending' ? 'queued' : job.status === 'processing' ? 'running' : job.status
+  const startedAt = job.startedAt ?? job.createdAt
+  const endedAt = job.completedAt ?? null
+
+  return {
+    executionId: input.executionId,
+    workflowId: input.workflowId,
+    status,
+    trigger: job.metadata.correlation?.triggerType ?? 'api',
+    level: status === 'failed' ? 'error' : 'info',
+    startedAt: startedAt.toISOString(),
+    endedAt: endedAt?.toISOString() ?? null,
+    totalDurationMs: endedAt ? endedAt.getTime() - startedAt.getTime() : null,
+    paused: null,
+    cost: null,
+    error: status === 'failed' ? (job.error ?? 'Execution failed') : null,
+    finalOutput:
+      input.includeOutput && status === 'completed' ? extractJobFinalOutput(job.output) : null,
+    blockOutputs: null,
+  }
+}
+
 export interface GetWorkflowExecutionStatusInput {
   workflowId: string
   executionId: string
@@ -113,6 +153,63 @@ export async function getWorkflowExecutionStatus(
       )
     )
     .limit(1)
+
+  const [activeResume] = await db
+    .select({
+      id: resumeQueue.id,
+      status: resumeQueue.status,
+      queuedAt: resumeQueue.queuedAt,
+      claimedAt: resumeQueue.claimedAt,
+    })
+    .from(resumeQueue)
+    .where(
+      and(
+        eq(resumeQueue.parentExecutionId, executionId),
+        eq(resumeQueue.newExecutionId, executionId),
+        inArray(resumeQueue.status, ['pending', 'claimed'] as const)
+      )
+    )
+    .orderBy(sql`case when ${resumeQueue.status} = 'claimed' then 0 else 1 end`)
+    .limit(1)
+
+  const hasTerminalLog =
+    logRow?.status === 'completed' || logRow?.status === 'failed' || logRow?.status === 'cancelled'
+  const projectedResume = hasTerminalLog ? undefined : activeResume
+
+  const queueJobIds = [
+    ...(projectedResume?.status === 'claimed'
+      ? [`${RESUME_EXECUTION_JOB_ID_PREFIX}${projectedResume.id}`]
+      : []),
+    ...(!logRow ? [`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`] : []),
+  ]
+
+  if (queueJobIds.length > 0) {
+    const jobQueue = await getJobQueue()
+    for (const jobId of queueJobIds) {
+      const job = await jobQueue.getJob(jobId)
+      if (!job || job.metadata.workflowId !== workflowId) continue
+      return projectQueueJob(job, { executionId, includeOutput, workflowId })
+    }
+  }
+
+  if (projectedResume) {
+    const startedAt = projectedResume.claimedAt ?? projectedResume.queuedAt
+    return {
+      executionId,
+      workflowId,
+      status: 'queued',
+      trigger: logRow?.trigger ?? 'api',
+      level: 'info',
+      startedAt: startedAt.toISOString(),
+      endedAt: null,
+      totalDurationMs: null,
+      paused: null,
+      cost: null,
+      error: null,
+      finalOutput: null,
+      blockOutputs: null,
+    }
+  }
 
   if (!logRow) return null
 

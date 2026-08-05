@@ -437,6 +437,31 @@ export const v2ExecuteWorkflowContract = defineRouteContract({
   },
 })
 
+/** Resume input is scoped to one pause context on the parent execution. */
+export const v2ResumeWorkflowBodySchema = z
+  .object({
+    contextId: z.string().min(1, 'contextId cannot be empty'),
+    input: z.unknown().optional(),
+  })
+  .strict()
+export type V2ResumeWorkflowBody = z.input<typeof v2ResumeWorkflowBodySchema>
+
+export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema.extend({
+  queuePosition: z.number().int().positive().optional(),
+})
+export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
+
+export const v2ResumeWorkflowContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[id]/executions/[executionId]/resume',
+  params: workflowExecutionParamsSchema,
+  body: v2ResumeWorkflowBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2ExecuteWorkflowDataSchema),
+  },
+})
+
 /**
  * The polled execution resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404

@@ -546,6 +546,7 @@ const pausedWorkflowExecutionDetailSchema = pausedWorkflowExecutionSummarySchema
 })
 
 const workflowExecutionStatusEnum = z.enum([
+  'queued',
   'pending',
   'running',
   'paused',
