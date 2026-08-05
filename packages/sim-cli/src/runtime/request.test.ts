@@ -142,6 +142,25 @@ describe('repeated flags encode per the field kind, not uniformly', () => {
     )
     expect(built.body?.knowledgeBaseIds).toEqual(['kb_1', 'kb_2'])
   })
+
+  it('reads one list value per line from @path', () => {
+    const path = join(tmpdir(), 'sim-cli-list-values.txt')
+    writeFileSync(path, 'file_1\nfile_2\n')
+    expect(coerce(`@${path}`, { kind: 'array' }, { list: true }, 'file-ids')).toEqual([
+      'file_1',
+      'file_2',
+    ])
+    rmSync(path)
+  })
+
+  it('rejects empty lines in a list file', () => {
+    const path = join(tmpdir(), 'sim-cli-list-empty-line.txt')
+    writeFileSync(path, 'file_1\n\nfile_2')
+    expect(() => coerce(`@${path}`, { kind: 'array' }, { list: true }, 'file-ids')).toThrow(
+      /empty value on line 2/
+    )
+    rmSync(path)
+  })
 })
 
 describe('contract-provided choices', () => {

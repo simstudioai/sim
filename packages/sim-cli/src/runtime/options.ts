@@ -59,9 +59,13 @@ function addFieldOption(
   const choices = flag.choices ?? descriptor.values
   const describe = `${
     flag.describe ?? (choices ? `One of: ${choices.join(', ')}` : `Set ${field}`)
-  }${wantsJson && !takesList ? ' (JSON, or @path / @- to read a file or stdin)' : ''}${
-    descriptor.required ? ' (required)' : ''
-  }`
+  }${
+    takesList
+      ? ' (space-separated, or @path / @- with one value per line)'
+      : wantsJson
+        ? ' (JSON, or @path / @- to read a file or stdin)'
+        : ''
+  }${descriptor.required ? ' (required)' : ''}`
 
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
   if (choices && !takesList) option.choices([...choices])

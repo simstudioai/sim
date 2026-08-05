@@ -77,16 +77,16 @@ function readStdin(): string {
 }
 
 /**
- * Resolves a JSON flag's argument, which may name a file instead of carrying
- * the document inline.
+ * Resolves a flag argument that may name a file instead of carrying its value
+ * inline.
  *
  * `@path` reads the file and `@-` reads stdin, the curl convention. A workflow
  * export is hundreds of lines, and the shell makes passing that literally
  * unpleasant — unquoted `$(cat f.json)` word-splits into broken JSON, and the
- * quoted form is easy to get wrong. `@` cannot collide with a real value
- * because JSON only ever starts with `{ [ " -`, a digit, or t/f/n.
+ * quoted form is easy to get wrong. JSON never starts with `@`; primitive list
+ * flags reserve it for this explicit file-input form.
  */
-function readJsonArgument(raw: string, flagName: string): { text: string; from: string } {
+function readArgumentSource(raw: string, flagName: string): { text: string; from: string } {
   if (!raw.startsWith('@')) return { text: raw, from: '' }
 
   const path = raw.slice(1)
@@ -106,6 +106,42 @@ function readJsonArgument(raw: string, flagName: string): { text: string; from: 
   } catch (error) {
     throw new SimApiError(`--${flagName} cannot read ${path}: ${(error as Error).message}`, 0)
   }
+}
+
+/** Reads a primitive list from argv or a newline-delimited file. */
+function readListValues(raw: unknown, flagName: string): string[] {
+  const arguments_ = Array.isArray(raw) ? raw : [raw]
+  const values = arguments_.flatMap((argument) => {
+    if (typeof argument !== 'string') {
+      throw new SimApiError(`--${flagName} values must be strings`, 0)
+    }
+
+    if (!argument.startsWith('@')) return [argument]
+
+    const source = readArgumentSource(argument, flagName)
+    const lines = source.text.split(/\r?\n/)
+    if (lines.at(-1) === '') lines.pop()
+    if (lines.length === 0) {
+      throw new SimApiError(`--${flagName}${source.from} contains no values`, 0)
+    }
+
+    return lines.map((line, index) => {
+      const value = line.trim()
+      if (!value) {
+        throw new SimApiError(
+          `--${flagName}${source.from} has an empty value on line ${index + 1}`,
+          0
+        )
+      }
+      return value
+    })
+  })
+
+  return values.map((value) => {
+    const trimmed = value.trim()
+    if (!trimmed) throw new SimApiError(`--${flagName} values cannot be empty`, 0)
+    return trimmed
+  })
 }
 
 /**
@@ -144,13 +180,13 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
    *   or failed validation outright.
    */
   if (flag.list) {
-    const values = Array.isArray(raw) ? raw : [raw]
+    const values = readListValues(raw, flagName)
     return field.kind === 'string' ? values.join(',') : values
   }
 
   if (takesJson(field, flag)) {
     if (typeof raw !== 'string') return raw
-    const source = readJsonArgument(raw, flagName)
+    const source = readArgumentSource(raw, flagName)
     try {
       return JSON.parse(source.text)
     } catch (error) {

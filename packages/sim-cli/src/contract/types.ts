@@ -30,7 +30,8 @@ export interface FlagSpec {
   /** Short alias, e.g. `w` for `--workspace`. */
   short?: string
   /**
-   * Accept the flag more than once.
+   * Accept one or more space-separated values, or `@path` / `@-` with one
+   * value per line.
    *
    * Only says that several values are allowed — how they reach the wire is
    * decided by the field's kind, not here. A `string` field is one the route

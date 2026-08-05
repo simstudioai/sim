@@ -133,6 +133,8 @@ sim files list
 sim files create --name <name> [--content <value>] [--encoding utf-8|base64]
 sim files upload <path> [--name <name>] [--folder-id <id>]
 sim files download <fileId> [-o <path>]
+sim files move [--file-ids <id>…] [--folder-ids <id>…] [--target-folder-id <id>]
+sim files batch-archive [--file-ids <id>…] [--folder-ids <id>…] --yes
 sim files delete <fileId>
 
 sim knowledge list
@@ -141,6 +143,20 @@ sim knowledge documents <id> [--search <text>]
 sim knowledge documents upload <id> <path> [--tag <value>...]
 sim knowledge search --query <text> --kb <id>… [--search-mode vector|hybrid]
 ```
+
+### List inputs
+
+Primitive lists take space-separated values. Prefix a path with `@` to read
+one value per line, or use `@-` to read the list from stdin.
+
+```bash
+sim files move --file-ids file_1 file_2 --target-folder-id folder_1
+sim files move --file-ids @file-ids.txt --target-folder-id folder_1
+printf 'file_1\nfile_2\n' | sim files move --file-ids @- --target-folder-id folder_1
+```
+
+Arrays of objects remain JSON inputs because they cannot be represented as a
+flat list without losing structure.
 
 ### Filtering table rows
 

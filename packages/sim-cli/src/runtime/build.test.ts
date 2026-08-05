@@ -155,6 +155,27 @@ describe('commands parsed through commander', () => {
     })
   })
 
+  it('accepts space-separated file and folder ids', async () => {
+    const [path, options] = await run([
+      'file',
+      'move',
+      '--file-ids',
+      'file_1',
+      'file_2',
+      '--folder-ids',
+      'folder_1',
+      '--target-folder-id',
+      'folder_2',
+    ])
+    expect(path).toBe('/api/v2/files/move')
+    expect(options.body).toEqual({
+      workspaceId: 'ws_local',
+      fileIds: ['file_1', 'file_2'],
+      folderIds: ['folder_1'],
+      targetFolderId: 'folder_2',
+    })
+  })
+
   it('exposes credential data centers added by the v2 credential contract', async () => {
     const [, options] = await run([
       'credential',
@@ -220,6 +241,12 @@ describe('commands parsed through commander', () => {
       { data: { results: [] } }
     )
     expect(options.body).toMatchObject({ knowledgeBaseIds: ['kb_1'], searchMode: 'hybrid' })
+  })
+
+  it('documents space-separated and file-backed lists', () => {
+    const help = commandAt('files', 'move').helpInformation()
+    expect(help).toContain('--file-ids <value...>')
+    expect(help).toMatch(/space-separated.*@path.*one value per line/s)
   })
 
   it('advertises the file-content encoding choices', () => {

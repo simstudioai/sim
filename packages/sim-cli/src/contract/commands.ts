@@ -285,11 +285,19 @@ export const CLI_CONTRACT: CliContract = {
     // `batch-` for the bulk form, matching `tables rows batch-delete`.
     command: 'files batch-archive',
     describe: 'Archive several files and folders at once',
+    flags: {
+      fileIds: { list: true },
+      folderIds: { list: true },
+    },
     confirm: 'This archives every listed file and folder, and everything inside those folders.',
   },
   moveFileItems: {
     command: 'files move',
     describe: 'Move files and folders into another folder',
+    flags: {
+      fileIds: { list: true },
+      folderIds: { list: true },
+    },
   },
   renameFile: {
     // Derived to `files update`, which contradicted its own summary.
@@ -314,13 +322,23 @@ export const CLI_CONTRACT: CliContract = {
   upsertFileShare: {
     command: 'files share set',
     describe: 'Enable or disable sharing for a file',
+    flags: {
+      allowedEmails: { list: true },
+    },
   },
 
   // ─── The expanded tables surface ──────────────────────────────────────────
   // `/cancel-runs`, `/rows/find`, `/restore`, `/columns/run` and the enrichment
   // path all put a verb where the deriver expects a sub-resource, so each became
   // a group holding a lone `create`.
-  cancelTableRuns: { command: 'tables cancel-runs', describe: 'Stop every running column job' },
+  cancelTableRuns: {
+    command: 'tables cancel-runs',
+    describe: 'Stop every running column job',
+    flags: {
+      excludeRowIds: { list: true },
+      filter: { json: true, describe: TABLE_FILTER_HELP },
+    },
+  },
   findTableRows: {
     command: 'tables rows find',
     describe: 'Find rows matching a predicate',
@@ -336,7 +354,12 @@ export const CLI_CONTRACT: CliContract = {
   runTableColumn: {
     command: 'tables columns run',
     describe: 'Run a column’s workflow',
-    flags: { filter: { json: true, describe: TABLE_FILTER_HELP } },
+    flags: {
+      groupIds: { list: true },
+      rowIds: { list: true },
+      excludeRowIds: { list: true },
+      filter: { json: true, describe: TABLE_FILTER_HELP },
+    },
   },
   runRowEnrichment: {
     command: 'tables rows enrich',
