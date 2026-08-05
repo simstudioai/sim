@@ -58,7 +58,6 @@ export function createDragPreview(info: DragItemInfo): HTMLElement {
   text.style.cssText = `
     color: var(--text-primary);
     font-size: 16px;
-    font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
