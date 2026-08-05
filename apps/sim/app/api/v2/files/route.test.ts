@@ -332,7 +332,7 @@ describe('POST /api/v2/files', () => {
       userId: 'user-1',
       name: 'untitled.md',
       contentType: 'text/markdown',
-      folderId: null,
+      folderPath: '/',
       content: Buffer.alloc(0),
       exactName: true,
       request,
@@ -367,7 +367,7 @@ describe('POST /api/v2/files', () => {
         workspaceId: WS,
         name: 'seed.bin',
         contentType: 'application/octet-stream',
-        folderId: FOLDER_ID,
+        folderPath: '/Fixtures',
         content: Buffer.from([1, 2, 3]),
         exactName: true,
       })

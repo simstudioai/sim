@@ -345,10 +345,26 @@ export async function resolveWorkspaceFileFolderTarget(
 
 export async function assertWorkspaceFileFolderTarget(
   workspaceId: string,
-  folderId?: string | null
+  folderId?: string | null,
+  executor: DbOrTx = db
 ): Promise<string | null> {
-  const folder = await resolveWorkspaceFileFolderTarget(workspaceId, folderId)
-  return folder?.id ?? null
+  const normalized = normalizeParentId(folderId)
+  if (!normalized) return null
+
+  const [folder] = await executor
+    .select({ id: folderTable.id })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.id, normalized),
+        eq(folderTable.workspaceId, workspaceId),
+        isFileFolder,
+        isNull(folderTable.deletedAt)
+      )
+    )
+    .limit(1)
+  if (!folder) throw new OrchestrationError('not_found', 'Target folder not found')
+  return folder.id
 }
 
 export async function createWorkspaceFileFolder(params: {

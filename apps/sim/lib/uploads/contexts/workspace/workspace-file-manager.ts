@@ -38,6 +38,9 @@ import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestrati
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
+import { acquireFolderMutationLock } from '@/lib/folders/locks'
+import { parseFolderPath } from '@/lib/folders/paths'
+import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
 import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
@@ -338,13 +341,30 @@ export async function uploadWorkspaceFile(
   fileBuffer: Buffer,
   fileName: string,
   contentType: string,
-  options?: { folderId?: string | null; exactName?: boolean }
+  options?: { folderId?: string | null; folderPath?: string; exactName?: boolean }
 ): Promise<UploadedWorkspaceFileRecord> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
-  const folderTarget = await resolveWorkspaceFileFolderTarget(workspaceId, options?.folderId)
-  const folderId = folderTarget?.id ?? null
-  const folderPath = folderTarget?.path ?? null
+  if (options?.folderId !== undefined && options.folderPath !== undefined) {
+    throw new OrchestrationError('validation', 'Specify either folderId or folderPath, not both')
+  }
+
+  let folderId: string | null
+  let folderPath: string | null
+  if (options?.folderPath !== undefined) {
+    const folderPathSegments = parseFolderPath(options.folderPath)
+    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file')
+    const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
+    if (resolvedFolderId === undefined) {
+      throw new OrchestrationError('not_found', 'Target folder not found')
+    }
+    folderId = resolvedFolderId
+    folderPath = resolvedFolderId ? folderPathSegments.join('/') : null
+  } else {
+    const folderTarget = await resolveWorkspaceFileFolderTarget(workspaceId, options?.folderId)
+    folderId = folderTarget?.id ?? null
+    folderPath = folderTarget?.path ?? null
+  }
   const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
   const exactName = options?.exactName ?? false
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
@@ -370,7 +390,7 @@ export async function uploadWorkspaceFile(
         purpose: 'workspace',
         userId: userId,
         workspaceId: workspaceId,
-        ...(folderId ? { folderId } : {}),
+        ...(folderId && options?.folderPath === undefined ? { folderId } : {}),
       }
 
       const uploadResult = await uploadFile({
@@ -392,12 +412,24 @@ export async function uploadWorkspaceFile(
       }
       try {
         finalized = await db.transaction(async (tx) => {
+          await acquireFolderMutationLock(tx, workspaceId, 'file')
+          let activeFolderId: string | null
+          if (options?.folderPath !== undefined) {
+            const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', tx)
+            const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
+            if (resolvedFolderId === undefined) {
+              throw new OrchestrationError('not_found', 'Target folder not found')
+            }
+            activeFolderId = resolvedFolderId
+          } else {
+            activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
+          }
           const inserted = await insertWorkspaceFileMetadataInTx(tx, {
             id: fileId,
             key: uploadResult.key,
             userId,
             workspaceId,
-            folderId,
+            folderId: activeFolderId,
             originalName: uniqueName,
             contentType,
             size: fileBuffer.length,
@@ -537,7 +569,7 @@ export async function registerUploadedWorkspaceFile(params: {
     }
   }
 
-  const folderId = await assertWorkspaceFileFolderTarget(workspaceId, params.folderId)
+  const folderId = params.folderId ?? null
 
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
@@ -549,12 +581,14 @@ export async function registerUploadedWorkspaceFile(params: {
     )
 
     const finalized = await db.transaction(async (tx) => {
+      await acquireFolderMutationLock(tx, workspaceId, 'file')
+      const activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
       const inserted = await insertWorkspaceFileMetadataInTx(tx, {
         id: fileId,
         key,
         userId,
         workspaceId,
-        folderId,
+        folderId: activeFolderId,
         originalName: displayName,
         contentType,
         size: verifiedSize,

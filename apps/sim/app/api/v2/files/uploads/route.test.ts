@@ -7,13 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockCheckRateLimit,
   mockResolveWorkspaceAccess,
-  mockAssertFolder,
   mockCreateUploadSession,
+  mockLoadActiveFolderPathIndex,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockResolveWorkspaceAccess: vi.fn(),
-  mockAssertFolder: vi.fn(),
   mockCreateUploadSession: vi.fn(),
+  mockLoadActiveFolderPathIndex: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -25,8 +25,8 @@ vi.mock('@/app/api/v2/lib/gate', () => ({
   v2ApiGateError: vi.fn().mockResolvedValue(null),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  assertWorkspaceFileFolderTarget: mockAssertFolder,
+vi.mock('@/lib/folders/queries', () => ({
+  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
 }))
 
 vi.mock('@/lib/uploads/upload-session/service', () => ({
@@ -60,7 +60,11 @@ describe('POST /api/v2/files/uploads', () => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT)
     mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockAssertFolder.mockResolvedValue(null)
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map(),
+      pathById: new Map(),
+      idByPath: new Map([['/Reports', 'folder-reports']]),
+    })
     mockCreateUploadSession.mockResolvedValue({
       id: 'upload-1',
       workspaceId: WORKSPACE_ID,
@@ -144,7 +148,7 @@ describe('POST /api/v2/files/uploads', () => {
     })
 
     expect(response.status).toBe(403)
-    expect(mockAssertFolder).not.toHaveBeenCalled()
+    expect(mockLoadActiveFolderPathIndex).not.toHaveBeenCalled()
     expect(mockCreateUploadSession).not.toHaveBeenCalled()
   })
 
@@ -159,6 +163,26 @@ describe('POST /api/v2/files/uploads', () => {
     expect(response.status).toBe(201)
     expect(mockCreateUploadSession).toHaveBeenCalledWith(
       expect.objectContaining({ purpose: 'workspace_file', fileSize: 0 })
+    )
+  })
+
+  it('resolves a canonical folder path while the upload session is created', async () => {
+    const response = await request({
+      workspaceId: WORKSPACE_ID,
+      name: 'file.csv',
+      contentType: 'text/csv',
+      size: 10,
+      folderPath: '/Reports',
+    })
+
+    expect(response.status).toBe(201)
+    expect(mockLoadActiveFolderPathIndex).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      'file',
+      expect.any(Object)
+    )
+    expect(mockCreateUploadSession).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: { folderId: 'folder-reports' } })
     )
   })
 })

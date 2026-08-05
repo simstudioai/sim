@@ -22,6 +22,7 @@ export interface PerformCreateWorkspaceFileParams {
   name: string
   contentType: string
   folderId?: string | null
+  folderPath?: string
   content?: Buffer
   exactName?: boolean
   actorName?: string
@@ -53,6 +54,7 @@ export async function performCreateWorkspaceFile(
     name,
     contentType,
     folderId,
+    folderPath,
     content = Buffer.alloc(0),
     exactName = true,
     actorName,
@@ -71,6 +73,7 @@ export async function performCreateWorkspaceFile(
   try {
     const file = await uploadWorkspaceFile(workspaceId, userId, content, name, contentType, {
       folderId,
+      folderPath,
       exactName,
     })
 
@@ -104,7 +107,7 @@ export async function performCreateWorkspaceFile(
 
     return { success: true, file }
   } catch (error) {
-    logger.error('Failed to create workspace file', { error, workspaceId, folderId })
+    logger.error('Failed to create workspace file', { error, workspaceId, folderId, folderPath })
 
     if (error instanceof FileConflictError || getPostgresErrorCode(error) === '23505') {
       return { success: false, error: toError(error).message, errorCode: 'conflict' }

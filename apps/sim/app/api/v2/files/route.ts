@@ -137,16 +137,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (access) return v2WorkspaceAccessError(access)
 
-    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file')
-    const folderId = resolveFolderPathId(folderIndex, folderPath ?? '/')
-    if (folderId === undefined) return v2Error('NOT_FOUND', 'Folder not found')
-
     const result = await performCreateWorkspaceFile({
       workspaceId,
       userId,
       name,
       contentType: contentType ?? getMimeTypeFromExtension(getFileExtension(name)),
-      folderId,
+      folderPath: folderPath ?? '/',
       content: Buffer.from(content, encoding),
       exactName: true,
       request,
