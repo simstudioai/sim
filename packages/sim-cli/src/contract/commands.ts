@@ -71,7 +71,7 @@ export const CLI_CONTRACT: CliContract = {
     command: 'billing logs',
     describe: 'List credit usage events',
     flags: {
-      source: { describe: 'Filter by usage source' },
+      source: { describe: 'Filter by usage source; sim-chat combines Copilot and workspace chat' },
       period: { describe: 'Billing period' },
       startDate: { describe: 'Custom period start (ISO 8601)' },
       endDate: { describe: 'Custom period end (ISO 8601)' },

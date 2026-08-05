@@ -165,7 +165,10 @@ describe('commands parsed through commander', () => {
 
     const help = commandAt('billing', 'logs').helpInformation()
     expect(help).toContain('--source <value>')
-    expect(help).toContain('Filter by usage source (choices:')
+    expect(help).toMatch(/sim-chat combines Copilot and\s+workspace chat/)
+    expect(help).toContain('"sim-chat"')
+    expect(help).not.toContain('"workspace-chat"')
+    expect(help).not.toContain('"copilot"')
     expect(help).not.toContain('One of: workflow')
 
     const [summaryPath, summaryOptions] = await run(['billing'], {
@@ -174,9 +177,27 @@ describe('commands parsed through commander', () => {
     expect(summaryPath).toBe('/api/v2/billing/usage')
     expect(summaryOptions.query).toEqual({ workspaceId: 'ws_local' })
 
-    const [logsPath, logsOptions] = await run(['billing', 'logs', '--period', '7d'])
+    const [logsPath, logsOptions] = await run([
+      'billing',
+      'logs',
+      '--period',
+      '7d',
+      '--source',
+      'sim-chat',
+    ])
     expect(logsPath).toBe('/api/v2/billing/usage/logs')
-    expect(logsOptions.query).toMatchObject({ workspaceId: 'ws_local', period: '7d' })
+    expect(logsOptions.query).toMatchObject({
+      workspaceId: 'ws_local',
+      period: '7d',
+      source: 'sim-chat',
+    })
+
+    for (const deprecated of ['copilot', 'workspace-chat']) {
+      await expect(run(['billing', 'logs', '--source', deprecated])).rejects.toThrow(
+        /allowed choices.*sim-chat/i
+      )
+      expect(mockRequest).not.toHaveBeenCalled()
+    }
   })
 
   it('carries every multi-word flag on a command, not just the first', async () => {

@@ -165,8 +165,10 @@ sim documents upload <path> --kb <knowledgeBaseId> [--tag <value>...]
 sim documents delete <documentId> --kb <knowledgeBaseId> --yes
 
 sim billing
-sim billing logs [--period 7d] [--limit <n>]
+sim billing logs [--period 7d] [--source sim-chat] [--limit <n>]
 ```
+
+The `sim-chat` billing source combines Copilot and workspace chat usage.
 
 Workflow output selectors use `blockName.field` syntax, such as
 `--select-output agent_1.content`; fields that are not produced are omitted.

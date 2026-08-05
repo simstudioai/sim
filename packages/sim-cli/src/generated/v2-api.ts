@@ -3173,8 +3173,7 @@ export type ListUsageLogsQuery = {
   source?:
     | 'workflow'
     | 'wand'
-    | 'copilot'
-    | 'workspace-chat'
+    | 'sim-chat'
     | 'mcp_copilot'
     | 'mothership_block'
     | 'knowledge-base'
@@ -3196,8 +3195,7 @@ export type ListUsageLogsResponse = {
     source:
       | 'workflow'
       | 'wand'
-      | 'copilot'
-      | 'workspace-chat'
+      | 'sim-chat'
       | 'mcp_copilot'
       | 'mothership_block'
       | 'knowledge-base'
@@ -5486,8 +5484,7 @@ export const V2_OPERATIONS = {
         values: [
           'workflow',
           'wand',
-          'copilot',
-          'workspace-chat',
+          'sim-chat',
           'mcp_copilot',
           'mothership_block',
           'knowledge-base',
