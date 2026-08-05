@@ -25,6 +25,13 @@ describe('channel identity', () => {
   it('treats an unrecognized (self-hosted) origin as production', () => {
     expect(identityForOrigin('https://sim.acme-corp.example')).toBe(PROD)
   })
+
+  it('selects the icon owned by the resolved build channel', () => {
+    expect(identityForOrigin('').icon).toBe('build/icon.icon')
+    expect(identityForOrigin(LOCAL.origin).icon).toBe('build/icon-local.icon')
+    expect(identityForOrigin(DEV.origin).icon).toBe('build/icon-dev.icon')
+    expect(identityForOrigin(STAGING.origin).icon).toBe('build/icon-staging.icon')
+  })
 })
 
 /**

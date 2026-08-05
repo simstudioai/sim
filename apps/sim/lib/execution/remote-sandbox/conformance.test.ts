@@ -37,6 +37,7 @@ const {
   mockEnv: {
     SANDBOX_PROVIDER: 'e2b' as string | undefined,
     PI_SANDBOX_LIFETIME_MS: undefined as string | undefined,
+    E2B_ENABLED: 'true',
     E2B_API_KEY: 'test-key',
     MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-shell',
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID: 'mothership-docs',

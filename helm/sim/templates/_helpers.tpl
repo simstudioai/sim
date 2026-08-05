@@ -85,6 +85,11 @@ Realtime selector labels
 app.kubernetes.io/component: realtime
 {{- end }}
 
+{{- define "sim.redis.selectorLabels" -}}
+{{ include "sim.selectorLabels" . }}
+app.kubernetes.io/component: redis
+{{- end }}
+
 {{/*
 PostgreSQL specific labels
 */}}
@@ -457,6 +462,22 @@ PII (Presidio) service URL
 {{- else }}
 {{- .Values.app.env.PII_URL | default "http://localhost:5001" }}
 {{- end }}
+{{- end }}
+
+{{/*
+Whether the chart owns Redis for this release.
+
+False only when the operator points app.env.REDIS_URL at their own instance —
+then deploying a bundled one would leave an unused pod. Secret-manager modes do
+NOT suppress it: the bundled URL ships as a ConfigMap listed before the app
+Secret in envFrom, so any operator-supplied REDIS_URL (chart Secret, pre-created
+Secret, or ESO-synced) overrides it without the chart needing to see the value.
+See templates/configmap-redis.yaml.
+*/}}
+{{- define "sim.chartManagesRedis" -}}
+{{- if and .Values.redis.enabled (not (.Values.app.env.REDIS_URL | default "")) -}}
+true
+{{- end -}}
 {{- end }}
 
 {{/*

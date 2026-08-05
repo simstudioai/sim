@@ -94,6 +94,7 @@ app:
 
     # AWS S3 Cloud Storage Configuration (RECOMMENDED for production)
     # Create S3 buckets in your AWS account and configure IAM permissions
+    STORAGE_PROVIDER: "s3"
     AWS_REGION: "us-west-2"
     AWS_ACCESS_KEY_ID: ""                               # AWS access key (or use IRSA for EKS)
     AWS_SECRET_ACCESS_KEY: ""                           # AWS secret key (or use IRSA for EKS)
@@ -112,10 +113,9 @@ app:
 # Realtime service
 realtime:
   enabled: true
-  # Keep realtime at 1 replica unless REDIS_URL is set (in app.env — realtime
-  # shares the app secret): Socket.IO only bridges events across pods through
-  # its Redis adapter, so multi-replica realtime without Redis silently drops
-  # cross-pod collaboration updates.
+  # Safe to scale past 1: Socket.IO bridges cross-pod events through its Redis
+  # adapter, and the chart bundles Redis by default. Only keep this at 1 if you
+  # set redis.enabled=false without supplying app.env.REDIS_URL.
   replicaCount: 1
 
   # Node selector for realtime pods

@@ -53,10 +53,15 @@ import { stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
-  INLINE_ATTACHMENT_THRESHOLD_BYTES,
+  formatAttachmentSizes,
+  getProviderFileStrategy,
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
+import {
+  canUseProviderLargeFilePath,
+  getInlineHydrationMaxBytes,
+} from '@/providers/file-attachments.server'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -65,6 +70,22 @@ import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('AgentBlockHandler')
+
+/**
+ * True when a failure originated from a transport deadline or abort, at any depth of the
+ * cause chain.
+ *
+ * Providers rewrap transport failures (`ProviderError` overwrites `name`), so a check on
+ * the top-level `name` alone misses every wrapped case. Bounded to a short walk so a
+ * self-referential cause cannot loop.
+ */
+function isTransportTimeout(error: unknown): boolean {
+  for (let current = error, depth = 0; current instanceof Error && depth < 5; depth++) {
+    if (current.name === 'AbortError' || current.name === 'TimeoutError') return true
+    current = current.cause
+  }
+  return false
+}
 
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
@@ -946,6 +967,8 @@ export class AgentBlockHandler implements BlockHandler {
     const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
     const nextMessages = [...messages]
 
+    const inlineMaxBytes = getInlineHydrationMaxBytes(providerId)
+
     for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
       const message = messages[messageIndex]
       if (!message.files?.length) {
@@ -963,15 +986,37 @@ export class AgentBlockHandler implements BlockHandler {
         allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         logger,
-        maxBytes: INLINE_ATTACHMENT_THRESHOLD_BYTES,
+        maxBytes: inlineMaxBytes,
       })
 
       const missingFile = hydratedFiles.find(
-        (file) => !file.base64 && !shouldUseLargeFilePath(file, providerId)
+        (file) =>
+          !file.base64 &&
+          !(canUseProviderLargeFilePath(providerId) && shouldUseLargeFilePath(file, providerId))
       )
       if (missingFile) {
+        const { size: sizeMB, limit: inlineMB } = formatAttachmentSizes(
+          missingFile.size,
+          inlineMaxBytes
+        )
+        const oversized = Number.isFinite(missingFile.size) && missingFile.size > inlineMaxBytes
+        /**
+         * Ordered by how general the cause is. A provider with no upload path at all cannot be
+         * helped by changing the file, and a deployment with no object storage cannot reach any
+         * upload path whatever the file is — so both outrank the format-specific case. Leading
+         * with the generated-document arm blamed the document on providers that have no upload
+         * path for anything, and on hosts whose only real problem was unconfigured storage.
+         */
+        const reason =
+          getProviderFileStrategy(providerId) === 'inline'
+            ? `provider "${providerId}" has no large-file upload path`
+            : !canUseProviderLargeFilePath(providerId)
+              ? 'this deployment has no cloud file storage for the large-file upload path'
+              : `a generated document cannot use the large-file path for provider "${providerId}", because a signed URL points at the generation source rather than the rendered file`
         throw new Error(
-          `File "${missingFile.name}" could not be read for provider "${providerId}". The file may exceed the attachment size limit or may no longer be accessible.`
+          oversized
+            ? `File "${missingFile.name}" (${sizeMB}MB) exceeds the ${inlineMB}MB inline attachment limit, and ${reason}.`
+            : `File "${missingFile.name}" could not be read for provider "${providerId}". The file may no longer be accessible.`
         )
       }
 
@@ -1173,57 +1218,65 @@ export class AgentBlockHandler implements BlockHandler {
       let finalApiKey: string | undefined = providerRequest.apiKey
 
       if (providerId === 'vertex' && providerRequest.vertexCredential) {
-        finalApiKey = await resolveVertexCredential(
-          providerRequest.vertexCredential,
-          ctx.userId,
-          'vertex-agent'
-        )
+        finalApiKey = await resolveVertexCredential({
+          credentialId: providerRequest.vertexCredential,
+          actingUserId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          callerLabel: 'vertex-agent',
+        })
       }
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
 
-      const response = await executeProviderRequest(providerId, {
-        model,
-        systemPrompt: 'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
-        context: 'context' in providerRequest ? providerRequest.context : undefined,
-        tools: providerRequest.tools,
-        temperature: providerRequest.temperature,
-        maxTokens: providerRequest.maxTokens,
-        apiKey: finalApiKey,
-        azureEndpoint: providerRequest.azureEndpoint,
-        azureApiVersion: providerRequest.azureApiVersion,
-        vertexProject: providerRequest.vertexProject,
-        vertexLocation: providerRequest.vertexLocation,
-        bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
-        bedrockSecretKey: providerRequest.bedrockSecretKey,
-        bedrockRegion: providerRequest.bedrockRegion,
-        responseFormat: providerRequest.responseFormat,
-        workflowId: providerRequest.workflowId,
-        workspaceId: ctx.workspaceId,
-        userId: ctx.userId,
-        stream: providerRequest.stream,
-        messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
-        environmentVariables: normalizeStringRecord(ctx.environmentVariables),
-        workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
-        blockData,
-        blockNameMapping,
-        isDeployedContext: ctx.isDeployedContext,
-        callChain: ctx.callChain,
-        billingAttribution: ctx.metadata.billingAttribution,
-        // Reaches tool `_context` via `prepareToolExecution`, so a tool that starts
-        // its own child execution (a custom block) correlates and cancels against
-        // this real run instead of minting a phantom id.
-        executionId: ctx.executionId,
-        reasoningEffort: providerRequest.reasoningEffort,
-        verbosity: providerRequest.verbosity,
-        thinkingLevel: providerRequest.thinkingLevel,
-        promptCaching: providerRequest.promptCaching,
-        // Stable per-block identity; providers use it to route cache lookups.
-        blockId: block.id,
-        previousInteractionId: providerRequest.previousInteractionId,
-        agentEvents: providerRequest.agentEvents,
-        abortSignal: ctx.abortSignal,
-      })
+      const response = await executeProviderRequest(
+        providerId,
+        {
+          model,
+          systemPrompt:
+            'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
+          context: 'context' in providerRequest ? providerRequest.context : undefined,
+          tools: providerRequest.tools,
+          temperature: providerRequest.temperature,
+          maxTokens: providerRequest.maxTokens,
+          apiKey: finalApiKey,
+          azureEndpoint: providerRequest.azureEndpoint,
+          azureApiVersion: providerRequest.azureApiVersion,
+          vertexProject: providerRequest.vertexProject,
+          vertexLocation: providerRequest.vertexLocation,
+          bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
+          bedrockSecretKey: providerRequest.bedrockSecretKey,
+          bedrockRegion: providerRequest.bedrockRegion,
+          responseFormat: providerRequest.responseFormat,
+          workflowId: providerRequest.workflowId,
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          stream: providerRequest.stream,
+          messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
+          environmentVariables: normalizeStringRecord(ctx.environmentVariables),
+          workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
+          blockData,
+          blockNameMapping,
+          isDeployedContext: ctx.isDeployedContext,
+          callChain: ctx.callChain,
+          billingAttribution: ctx.metadata.billingAttribution,
+          // Reaches tool `_context` via `prepareToolExecution`, so a tool that starts
+          // its own child execution (a custom block) correlates and cancels against
+          // this real run instead of minting a phantom id.
+          executionId: ctx.executionId,
+          reasoningEffort: providerRequest.reasoningEffort,
+          verbosity: providerRequest.verbosity,
+          thinkingLevel: providerRequest.thinkingLevel,
+          promptCaching: providerRequest.promptCaching,
+          // Stable per-block identity; providers use it to route cache lookups.
+          blockId: block.id,
+          previousInteractionId: providerRequest.previousInteractionId,
+          agentEvents: providerRequest.agentEvents,
+          abortSignal: ctx.abortSignal,
+        },
+        {
+          resolvedSecretTraceRegistry: ctx.resolvedSecretTraceRegistry,
+        }
+      )
 
       return this.processProviderResponse(response, block, responseFormat)
     } catch (error) {
@@ -1262,8 +1315,15 @@ export class AgentBlockHandler implements BlockHandler {
       timestamp: new Date().toISOString(),
     })
 
-    if (error.name === 'AbortError') {
-      throw new Error('Provider request timed out - the API took too long to respond')
+    /**
+     * The original message is appended rather than replaced: providers annotate it with
+     * the request phase they died in, which is the only thing separating a request that
+     * was never answered from one whose body stalled.
+     */
+    if (isTransportTimeout(error)) {
+      throw new Error(
+        `Provider request timed out - the API took too long to respond (${error.message})`
+      )
     }
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       throw new Error(

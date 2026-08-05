@@ -35,8 +35,8 @@ describe('validateWebflowServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'Acme Marketing',
-      auditMetadata: { webflowSiteId: 'site123' },
-      storedMetadata: { siteId: 'site123', siteName: 'Acme Marketing' },
+      principal: { kind: 'tenant', id: 'site123', label: 'Acme Marketing' },
+      auditMetadata: {},
     })
     expect(mockFetch).toHaveBeenCalledWith('https://api.webflow.com/v2/sites', {
       headers: {
@@ -55,7 +55,7 @@ describe('validateWebflowServiceAccount', () => {
     const result = await validateWebflowServiceAccount({ apiToken: 'wf-token' })
 
     expect(result.displayName).toBe('acme')
-    expect(result.storedMetadata).toEqual({ siteId: 'site456', siteName: 'acme' })
+    expect(result.principal).toEqual({ kind: 'tenant', id: 'site456', label: 'acme' })
   })
 
   it('throws invalid_credentials on 401', async () => {

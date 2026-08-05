@@ -209,12 +209,12 @@ export function KnowledgeHeroLoop() {
                 <col style={{ width: 170 }} />
                 <col style={{ width: 190 }} />
               </colgroup>
-              <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+              <thead className='border-[var(--border)] border-b'>
                 <tr>
                   {COL_HEADERS.map((header) => (
                     <th
                       key={header}
-                      className='h-10 px-6 py-1.5 text-left align-middle font-normal text-[var(--text-muted)] text-caption'
+                      className='h-10 px-6 py-1.5 text-left align-middle text-[var(--text-muted)] text-caption'
                     >
                       {header}
                     </th>

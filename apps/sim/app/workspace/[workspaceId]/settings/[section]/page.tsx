@@ -58,6 +58,7 @@ const WORKSPACE_SECTION_MAP: Partial<Record<SettingsSection, WorkspaceSettingsSe
   'recently-deleted': 'recently-deleted',
   forks: 'forks',
   'custom-blocks': 'custom-blocks',
+  'self-host': 'self-host',
 }
 
 const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSettingsSection>> = {

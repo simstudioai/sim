@@ -6,7 +6,10 @@ import { z } from 'zod'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
@@ -124,20 +127,32 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       context?.userId && context?.workspaceId
         ? await getUserPermissionConfig(context.userId, context.workspaceId)
         : null
-    const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+    const allowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      getAllowedIntegrationsFromEnv()
+    )
+    const visibility = overlayVisibility()
 
     const result: Record<string, CopilotBlockMetadata> = {}
     for (const blockId of blockIds || []) {
-      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
+      const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
+      if (!isIntegrationDeploymentAvailableForVisibility(blockId, visibility)) {
+        logger.debug('Block unavailable for this deployment', { blockId })
+        continue
+      }
+      if (
+        allowedIntegrations != null &&
+        !specialBlock &&
+        !isBlockTypeAccessControlExempt(blockId) &&
+        !allowedIntegrations.includes(blockId.toLowerCase())
+      ) {
         logger.debug('Block not allowed by permission group', { blockId })
         continue
       }
 
       let metadata: any
 
-      if (SPECIAL_BLOCKS_METADATA[blockId]) {
-        const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
+      if (specialBlock) {
         const { commonParameters, operationParameters } = splitParametersByOperation(
           specialBlock.subBlocks || [],
           specialBlock.inputs || {}
@@ -170,7 +185,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         // explicitly: unrevealed preview blocks and kill-switched types stay
         // out of the agent's metadata (the router wraps this tool in
         // withBlockVisibility).
-        if (isHiddenUnder(overlayVisibility(), blockConfig)) {
+        if (isHiddenUnder(visibility, blockConfig)) {
           logger.debug('Skipping block gated by visibility', { blockId })
           continue
         }
@@ -180,7 +195,9 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           // `workflow_executor`; the agent never configures a workflowId/inputMapping.
           // Present it as self-contained: its visible input fields + curated outputs,
           // no tools/operations.
-          const visibleSubBlocks = (blockConfig.subBlocks || []).filter((sb) => !sb.hidden)
+          const visibleSubBlocks = (blockConfig.subBlocks || []).filter(
+            (sb) => !sb.hidden && !sb.hideFromCopilot
+          )
           const outputs = blockConfig.outputs
             ? Object.fromEntries(
                 Object.entries(blockConfig.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
@@ -273,11 +290,13 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           })
         }
 
-        const blockInputs = computeBlockLevelInputs(blockConfig)
+        const hiddenParamKeys = getCopilotHiddenParamKeys(blockConfig)
+        const blockInputs = computeBlockLevelInputs(blockConfig, hiddenParamKeys)
         const { commonParameters, operationParameters } = splitParametersByOperation(
           Array.isArray(blockConfig.subBlocks)
             ? blockConfig.subBlocks.filter(
-                (sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced'
+                (sb) =>
+                  !sb.hideFromCopilot && sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced'
               )
             : [],
           blockInputs
@@ -297,7 +316,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
             : {}
           const filteredToolParams: Record<string, any> = {}
           for (const [k, v] of Object.entries(toolParams)) {
-            if (!(k in blockInputs)) filteredToolParams[k] = v
+            if (!(k in blockInputs) && !hiddenParamKeys.has(k)) filteredToolParams[k] = v
           }
           operations[opId] = {
             toolId: resolvedToolId,
@@ -968,10 +987,25 @@ function splitParametersByOperation(
   return { commonParameters, operationParameters }
 }
 
-function computeBlockLevelInputs(blockConfig: BlockConfig): Record<string, any> {
+function getCopilotHiddenParamKeys(blockConfig: BlockConfig): Set<string> {
+  const hiddenParamKeys = new Set<string>()
+  for (const subBlock of blockConfig.subBlocks ?? []) {
+    if (!subBlock.hideFromCopilot) continue
+    if (subBlock.id) hiddenParamKeys.add(subBlock.id)
+    if (subBlock.canonicalParamId) hiddenParamKeys.add(subBlock.canonicalParamId)
+  }
+  return hiddenParamKeys
+}
+
+export function computeBlockLevelInputs(
+  blockConfig: BlockConfig,
+  hiddenParamKeys = getCopilotHiddenParamKeys(blockConfig)
+): Record<string, any> {
   const inputs = blockConfig.inputs || {}
   const subBlocks: any[] = Array.isArray(blockConfig.subBlocks)
-    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
+    ? blockConfig.subBlocks.filter(
+        (sb) => !sb.hideFromCopilot && sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced'
+      )
     : []
 
   const byParamKey: Record<string, any[]> = {}
@@ -988,6 +1022,7 @@ function computeBlockLevelInputs(blockConfig: BlockConfig): Record<string, any> 
 
   const blockInputs: Record<string, any> = {}
   for (const key of Object.keys(inputs)) {
+    if (hiddenParamKeys.has(key)) continue
     const sbs = byParamKey[key] || []
     const isOperationGated = sbs.some((sb) => {
       const cond = normalizeCondition(sb.condition)
@@ -1006,7 +1041,9 @@ function computeOperationLevelInputs(
 ): Record<string, Record<string, any>> {
   const inputs = blockConfig.inputs || {}
   const subBlocks = Array.isArray(blockConfig.subBlocks)
-    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
+    ? blockConfig.subBlocks.filter(
+        (sb) => !sb.hideFromCopilot && sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced'
+      )
     : []
 
   const opInputs: Record<string, Record<string, any>> = {}

@@ -7,6 +7,7 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
+import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
@@ -342,14 +343,18 @@ export async function maybeWriteOutputToFile(
         }
       } catch (err) {
         const message = toError(err).message
+        const projectedMessage = projectToolErrorMessageForCopilot(
+          message,
+          context.resolvedSecretTraceRegistry
+        )
         logger.warn('Failed to write tool output to file', {
           toolName,
           outputPaths: outputFiles.map((file) => file.path),
-          error: message,
+          error: projectedMessage,
         })
         span.setAttribute(TraceAttr.CopilotOutputFileOutcome, CopilotOutputFileOutcome.Failed)
         span.addEvent(TraceEvent.CopilotOutputFileError, {
-          [TraceAttr.ErrorMessage]: message.slice(0, 500),
+          [TraceAttr.ErrorMessage]: projectedMessage.slice(0, 500),
         })
         return {
           success: false,

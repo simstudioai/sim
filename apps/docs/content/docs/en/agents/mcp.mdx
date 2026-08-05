@@ -1,7 +1,6 @@
 ---
 title: Using MCP tools
 description: Connect external tools and services using the Model Context Protocol
-pageType: guide
 ---
 
 import { Image } from '@/components/ui/image'
@@ -71,6 +70,8 @@ Authorization: Bearer {{MCP_API_TOKEN}}
 ```
 
 When you type `{{` in the URL or header fields, a dropdown appears showing available workspace environment variables.
+
+When a saved secret is successfully substituted this way, exact occurrences of its value are masked in stored MCP tool-call traces. The real URL or header value still reaches the MCP server unchanged. See [Execution log protection](/platform/credentials#execution-log-protection) for the exact scope and limitations.
 
 ### Testing and Validation
 

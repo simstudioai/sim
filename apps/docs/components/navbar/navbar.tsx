@@ -75,14 +75,14 @@ export function Navbar() {
                 aria-current={isActive ? 'page' : undefined}
                 {...(tab.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                 className={cn(
-                  '-mb-px relative flex items-center border-b text-[14px] tracking-[-0.01em] transition-colors',
+                  '-mb-px relative flex items-center border-b text-sm tracking-[-0.01em] transition-colors',
                   isActive
-                    ? 'border-[var(--text-muted)] font-[480] text-[var(--text-primary)]'
-                    : 'border-transparent font-[430] text-[var(--text-muted)] hover:border-[var(--border-1)] hover:text-[var(--text-secondary)]'
+                    ? 'border-[var(--text-muted)] font-medium text-[var(--text-primary)]'
+                    : 'border-transparent font-normal text-[var(--text-muted)] hover:border-[var(--border-1)] hover:text-[var(--text-secondary)]'
                 )}
               >
                 {/* Invisible bold text reserves width to prevent layout shift */}
-                <span className='invisible font-[480]'>{tab.label}</span>
+                <span className='invisible font-medium'>{tab.label}</span>
                 <span className='absolute'>{tab.label}</span>
               </Link>
             )

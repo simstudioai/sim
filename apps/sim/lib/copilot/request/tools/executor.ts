@@ -53,6 +53,7 @@ import {
   setTerminalToolCallState,
 } from '@/lib/copilot/request/tool-call-state'
 import { maybeWriteOutputToFile } from '@/lib/copilot/request/tools/files'
+import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import {
   maybeWriteOutputToTable,
@@ -254,6 +255,18 @@ class ToolExecutionTimeoutError extends Error {
   }
 }
 
+/** Builds the per-call context from the turn-scoped execution context. */
+export function buildToolExecutionContext(
+  toolCall: Pick<ToolCallState, 'id' | 'parentToolCallId'>,
+  execContext: ExecutionContext
+): ExecutionContext {
+  return {
+    ...execContext,
+    toolCallId: toolCall.id,
+    ...(toolCall.parentToolCallId ? { parentToolCallId: toolCall.parentToolCallId } : {}),
+  }
+}
+
 /**
  * Execute a tool with a hard settlement guarantee. If the handler neither
  * resolves nor rejects within the tool's watchdog cap, throw a timeout error
@@ -264,12 +277,7 @@ class ToolExecutionTimeoutError extends Error {
  */
 async function executeToolWithWatchdog(toolCall: ToolCallState, execContext: ExecutionContext) {
   const timeoutMs = toolWatchdogTimeoutMs(toolCall.name)
-  // Thread the invoking subagent's channel id per call (execContext is shared
-  // across the whole turn, so the channel id can't live on it) — server tools
-  // use it to scope the workspace_file -> edit_content intent handoff.
-  const toolContext = toolCall.parentToolCallId
-    ? { ...execContext, parentToolCallId: toolCall.parentToolCallId }
-    : execContext
+  const toolContext = buildToolExecutionContext(toolCall, execContext)
   const execution = executeTool(toolCall.name, toolCall.params || {}, toolContext)
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -400,6 +408,7 @@ export async function executeToolAndReport(
     {
       toolName: toolCall.name,
       toolCallId: toolCall.id,
+      agentName: toolCall.agentId ?? 'main',
       runId: context.runId,
       chatId: execContext.chatId,
       argsBytes: argsPayload?.length,
@@ -420,7 +429,12 @@ export async function executeToolAndReport(
         }
         // Durable Grafana signal for "which Sim tool is slowest" (executor=sim);
         // pairs with the Go executor-boundary metric (U15) as one series set.
-        recordSimToolMetric(toolCall.name, completion.status, durationMs)
+        recordSimToolMetric(
+          toolCall.name,
+          toolCall.agentId ?? 'main',
+          completion.status,
+          durationMs
+        )
         return completion
       } catch (err) {
         // executeToolAndReportInner threw (infra/unexpected error, not a normal
@@ -429,7 +443,12 @@ export async function executeToolAndReport(
         const durationMs = Date.now() - startedAt
         otelSpan.setAttribute(TraceAttr.ToolOutcome, 'error')
         otelSpan.setAttribute(TraceAttr.ToolDurationMs, durationMs)
-        recordSimToolMetric(toolCall.name, 'error', durationMs)
+        recordSimToolMetric(
+          toolCall.name,
+          toolCall.agentId ?? 'main',
+          MothershipStreamV1ToolOutcome.error,
+          durationMs
+        )
         throw err
       }
     }
@@ -558,6 +577,10 @@ async function executeToolAndReportInner(
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
+      const copilotResult = projectToolResultForCopilot(
+        result,
+        execContext.resolvedSecretTraceRegistry
+      )
       markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
       await completeAsyncToolCall({
@@ -579,7 +602,7 @@ async function executeToolAndReportInner(
       })
       endToolSpan('cancelled', {
         cancelReason: 'abort_during_execution',
-        error: result.success === false ? result.error : undefined,
+        error: copilotResult.success === false ? copilotResult.error : undefined,
       })
       return cancelledCompletion('Request aborted during tool execution')
     }
@@ -655,17 +678,22 @@ async function executeToolAndReportInner(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_csv' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
+    const copilotResult = projectToolResultForCopilot(
+      result,
+      execContext.resolvedSecretTraceRegistry
+    )
+
     toolSpan.attributes = {
       ...toolSpan.attributes,
-      ...summarizeToolResultForSpan(result),
+      ...summarizeToolResultForSpan(copilotResult),
     }
 
     setTerminalToolCallState(toolCall, {
-      status: result.success
+      status: copilotResult.success
         ? MothershipStreamV1ToolOutcome.success
         : MothershipStreamV1ToolOutcome.error,
-      ...(hasOutputValue(result) ? { output: result.output } : {}),
-      ...(result.success ? {} : { error: result.error || 'Tool failed' }),
+      ...(hasOutputValue(copilotResult) ? { output: copilotResult.output } : {}),
+      ...(copilotResult.success ? {} : { error: copilotResult.error || 'Tool failed' }),
     })
 
     if (result.success) {
@@ -688,7 +716,7 @@ async function executeToolAndReportInner(
       logger.warn('Tool execution failed', {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
-        error: result.error,
+        error: copilotResult.error,
         params: toolCall.params,
       })
     }
@@ -741,7 +769,7 @@ async function executeToolAndReportInner(
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         success: result.success,
-        output: result.output,
+        output: copilotResult.output,
         ...(result.success
           ? { status: MothershipStreamV1ToolOutcome.success }
           : { status: MothershipStreamV1ToolOutcome.error }),
@@ -760,6 +788,7 @@ async function executeToolAndReportInner(
         toolCall.name,
         toolCall.params,
         result,
+        copilotResult,
         execContext.chatId,
         options?.onEvent,
         () => abortRequested(context, execContext, options)
@@ -776,6 +805,11 @@ async function executeToolAndReportInner(
     })
   } catch (error) {
     const thrownMessage = toError(error).message
+    const copilotError = projectToolResultForCopilot(
+      { success: false, error: thrownMessage },
+      execContext.resolvedSecretTraceRegistry
+    )
+    const safeThrownMessage = copilotError.error || 'Tool failed'
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
@@ -798,13 +832,13 @@ async function executeToolAndReportInner(
       })
       endToolSpan('cancelled', {
         cancelReason: 'abort_during_execution_catch',
-        error: thrownMessage,
+        error: safeThrownMessage,
       })
       return cancelledCompletion('Request aborted during tool execution')
     }
     setTerminalToolCallState(toolCall, {
       status: MothershipStreamV1ToolOutcome.error,
-      error: thrownMessage,
+      error: safeThrownMessage,
     })
 
     logger.error('Tool execution threw', {
@@ -848,7 +882,7 @@ async function executeToolAndReportInner(
       },
     }
     await options?.onEvent?.(errorEvent)
-    endToolSpan('error', { error: thrownMessage })
+    endToolSpan('error', { error: safeThrownMessage })
     return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.error,
       message: toolCall.error,

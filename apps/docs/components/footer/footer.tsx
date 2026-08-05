@@ -21,7 +21,7 @@ interface FooterItem {
 
 const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Enterprise', href: `${SIM_SITE_URL}/enterprise`, external: true },
-  { label: 'Mothership', href: '/mothership' },
+  { label: 'Chat', href: '/chat' },
   { label: 'Workflows', href: '/introduction' },
   { label: 'Knowledge Base', href: '/knowledgebase' },
   { label: 'Tables', href: '/tables' },

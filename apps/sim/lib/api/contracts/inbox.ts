@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  mountedSecretNamesSchema,
+  secretMountScopeSchema,
+} from '@/lib/api/contracts/secret-mount-policy'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const inboxWorkspaceParamsSchema = z.object({
@@ -17,6 +21,8 @@ export const inboxTaskStatusSchema = z.enum([
 export const inboxConfigSchema = z.object({
   enabled: z.boolean(),
   address: z.string().nullable(),
+  secretScope: secretMountScopeSchema,
+  mountedSecrets: mountedSecretNamesSchema,
   entitled: z.boolean(),
   taskStats: z.object({
     total: z.number(),
@@ -32,12 +38,16 @@ export type InboxTaskStatus = z.output<typeof inboxTaskStatusSchema>
 export const updateInboxConfigBodySchema = z.object({
   enabled: z.boolean().optional(),
   username: z.string().min(1).max(64).optional(),
+  secretScope: secretMountScopeSchema.optional(),
+  mountedSecrets: mountedSecretNamesSchema.optional(),
 })
 
 export const updateInboxConfigResponseSchema = z.object({
   enabled: z.boolean(),
   address: z.string().nullable(),
   providerId: z.string().nullable().optional(),
+  secretScope: secretMountScopeSchema,
+  mountedSecrets: mountedSecretNamesSchema,
 })
 
 export const inboxSenderSchema = z.object({

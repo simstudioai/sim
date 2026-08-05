@@ -2,7 +2,6 @@ import React from 'react'
 import { Badge } from '@sim/emcn'
 import { formatDuration, formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
-import type { WorkflowLogDetail } from '@/lib/api/contracts/logs'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
@@ -17,6 +16,29 @@ export const LOG_COLUMNS = {
 } as const
 
 export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
+
+/**
+ * Resolves the workflow a log row points at, or null when there is nowhere to
+ * navigate. Sim agent jobs have no workflow of their own, and a deleted
+ * workflow leaves both id fields empty.
+ *
+ * Single source of truth for "is this log's workflow reachable" — the list row,
+ * its context menu, and the details panel must agree, or a row can render as
+ * "Deleted Workflow" while still linking somewhere.
+ */
+export function resolveLogWorkflowId(log: {
+  trigger?: string | null
+  workflowId?: string | null
+  workflow?: { id?: string } | null
+}): string | null {
+  if (log.trigger === 'mothership') return null
+  return log.workflow?.id || log.workflowId || null
+}
+
+/** Path to a workflow in the editor. */
+export function workflowEditorPath(workspaceId: string, workflowId: string): string {
+  return `/workspace/${workspaceId}/w/${workflowId}`
+}
 
 export type LogStatus =
   | 'error'
@@ -212,38 +234,4 @@ export const formatDate = (dateString: string) => {
     compactTime: format(date, 'h:mm a'),
     relative: formatRelativeTime(dateString),
   }
-}
-
-/**
- * Extracts the original workflow input from a log entry for retry.
- * Prefers the persisted `workflowInput` field (new logs), falls back to
- * reconstructing from `executionState.blockStates` (old logs).
- */
-export function extractRetryInput(log: WorkflowLogDetail): unknown | undefined {
-  const execData = log.executionData
-  if (!execData) return undefined
-
-  if (execData.workflowInput !== undefined) {
-    return execData.workflowInput
-  }
-
-  const executionState = (execData as Record<string, unknown>).executionState as
-    | {
-        blockStates?: Record<
-          string,
-          { output?: unknown; executed?: boolean; executionTime?: number }
-        >
-      }
-    | undefined
-  if (!executionState?.blockStates) return undefined
-
-  // Starter/trigger blocks are pre-populated with executed: false and
-  // executionTime: 0, which distinguishes them from blocks that actually ran.
-  for (const state of Object.values(executionState.blockStates)) {
-    if (state.executed === false && state.executionTime === 0 && state.output != null) {
-      return state.output
-    }
-  }
-
-  return undefined
 }

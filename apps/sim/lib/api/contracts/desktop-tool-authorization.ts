@@ -14,6 +14,7 @@ export type AuthorizeDesktopToolBody = z.input<typeof authorizeDesktopToolBodySc
 export const authorizeDesktopToolResponseSchema = z.object({
   toolName: z.string().min(1),
   args: z.record(z.string(), z.unknown()),
+  chatId: z.string().min(1),
 })
 
 export type AuthorizeDesktopToolResponse = z.output<typeof authorizeDesktopToolResponseSchema>

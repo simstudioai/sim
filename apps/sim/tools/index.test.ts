@@ -11,6 +11,7 @@ import {
   createExecutionContext,
   createMockFetch,
   type ExecutionContext,
+  encryptionMockFns,
   environmentUtilsMockFns,
   inputValidationMock,
   inputValidationMockFns,
@@ -25,6 +26,12 @@ import {
 import { sleep } from '@sim/utils/helpers'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import {
+  ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
+import { workflowExecutorTool } from '@/tools/workflow/executor'
 
 // Hoisted mock state - these are available to vi.mock factories
 const {
@@ -64,6 +71,11 @@ vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
 }))
 
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: encryptionMockFns.mockDecryptSecret,
+  encryptSecret: encryptionMockFns.mockEncryptSecret,
+}))
+
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
   assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
   validateBlockType: vi.fn().mockResolvedValue(undefined),
@@ -98,6 +110,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  workflow_executor: workflowExecutorTool,
   http_request: {
     id: 'http_request',
     name: 'HTTP Request',
@@ -645,6 +658,352 @@ describe('executeTool Function', () => {
       expect.stringContaining('/api/function/execute'),
       expect.anything()
     )
+  })
+
+  it('consumes Function secret provenance without exposing private transport metadata', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'API_KEY',
+        plaintext: 'secret-value',
+        encryptedValue: 'encrypted-value',
+      },
+    ])
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            output: { result: 'secret-value', stdout: '' },
+            __resolvedSecretNames: ['API_KEY'],
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-names-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'function_execute',
+      {
+        code: 'return {{API_KEY}}',
+        envVars: { API_KEY: 'secret-value' },
+      },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0]
+    expect(new Headers(requestInit?.headers).get('x-sim-request-private-tool-metadata')).toBe(
+      'resolved-secret-names-v1'
+    )
+    expect(result.output).toEqual({
+      success: true,
+      output: { result: 'secret-value', stdout: '' },
+    })
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
+    ])
+  })
+
+  it('fails concurrent projection closed while custom-tool provenance is pending', async () => {
+    const secret = 'custom-tool-secret-value'
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'API_KEY',
+        plaintext: secret,
+        encryptedValue: 'encrypted-value',
+      },
+    ])
+    mockGetToolAsync.mockResolvedValueOnce({
+      id: 'custom_pending-provenance',
+      name: 'Pending provenance custom tool',
+      description: 'Tests late provenance activation',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/function/execute',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: () => ({ code: 'return {{API_KEY}}', envVars: { API_KEY: secret } }),
+      },
+      transformResponse: async (response: Response) => {
+        const data = await response.json()
+        return { success: true, output: data.output }
+      },
+    })
+
+    let resolveRequest!: (response: Response) => void
+    let markRequestStarted!: () => void
+    const requestStarted = new Promise<void>((resolve) => {
+      markRequestStarted = resolve
+    })
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveRequest = resolve
+            markRequestStarted()
+          })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const execution = executeTool(
+      'custom_pending-provenance',
+      { envVars: { API_KEY: secret } },
+      {
+        executionContext: createToolExecutionContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+    await requestStarted
+
+    expect(registry.isComplete()).toBe(false)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
+    ).not.toHaveProperty('output')
+
+    resolveRequest(
+      new Response(
+        JSON.stringify({
+          success: true,
+          output: { result: secret },
+          __resolvedSecretNames: ['API_KEY'],
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'x-sim-private-tool-metadata': 'resolved-secret-names-v1',
+          },
+        }
+      )
+    )
+
+    await expect(execution).resolves.toMatchObject({ success: true })
+    expect(registry.isComplete()).toBe(true)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
+    ).toMatchObject({ output: { result: '{{API_KEY}}' } })
+  })
+
+  it('keeps the Function result unchanged when requested provenance is missing', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    global.fetch = Object.assign(
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ success: true, output: { result: 'unchanged', stdout: '' } }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+        ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return "unchanged"', envVars: {} },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.output).toEqual({
+      success: true,
+      output: { result: 'unchanged', stdout: '' },
+    })
+    expect(registry.isComplete()).toBe(false)
+  })
+
+  it('filters cross-scope workflow provenance to literals present in the unchanged result', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'parent-user',
+      workspaceId: 'workspace-456',
+    })
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: encryptedValue === 'crossed-encrypted' ? 'crossed-secret' : 'unrelated-secret',
+    }))
+    const childOutput = {
+      answer: 'The child returned crossed-secret verbatim',
+      publicValue: 'unchanged',
+    }
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            workflowId: 'child-workflow',
+            workflowName: 'Child Workflow',
+            output: childOutput,
+            metadata: { duration: 17 },
+            __resolvedSecretTraceProvenance: {
+              version: 1,
+              complete: true,
+              entries: [
+                { name: 'CROSSED', encryptedValue: 'crossed-encrypted' },
+                { name: 'UNRELATED', encryptedValue: 'unrelated-encrypted' },
+              ],
+              scope: { userId: 'parent-user', workspaceId: 'child-workspace' },
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'workflow_executor_child-workflow',
+      { workflowId: 'child-workflow', inputMapping: {} },
+      {
+        executionContext: createToolExecutionContext({ userId: 'parent-user' }),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result).toEqual({
+      success: true,
+      duration: 17,
+      childWorkflowId: 'child-workflow',
+      childWorkflowName: 'Child Workflow',
+      output: childOutput,
+      result: childOutput,
+      error: undefined,
+      timing: {
+        startTime: expect.any(String),
+        endTime: expect.any(String),
+        duration: expect.any(Number),
+      },
+    })
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+    expect(registry.getActiveMatches()).toEqual([
+      {
+        plaintext: 'crossed-secret',
+        replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+      },
+    ])
+    expect(registry.isComplete()).toBe(true)
+  })
+
+  it('does not charge private provenance against the functional response limit', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'parent-user',
+      workspaceId: 'workspace-456',
+    })
+    const functionalValue = 'f'.repeat(9 * 1024 * 1024)
+    const encryptedValue = 'e'.repeat(2 * 1024 * 1024)
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'secret-value' })
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            workflowId: 'child-workflow',
+            workflowName: 'Child Workflow',
+            output: { value: functionalValue },
+            metadata: { duration: 17 },
+            __resolvedSecretTraceProvenance: {
+              version: 1,
+              complete: true,
+              entries: [{ name: 'TOKEN', encryptedValue }],
+              scope: { userId: 'parent-user', workspaceId: 'workspace-456' },
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'workflow_executor_child-workflow',
+      { workflowId: 'child-workflow', inputMapping: {} },
+      {
+        executionContext: createToolExecutionContext({ userId: 'parent-user' }),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect((result.output as { value: string }).value).toHaveLength(functionalValue.length)
+    expect(result).not.toHaveProperty('__resolvedSecretTraceProvenance')
+    expect(result.output).not.toHaveProperty('__resolvedSecretTraceProvenance')
+    expect(registry.isComplete()).toBe(true)
+  })
+
+  it('strips private metadata even when an internal endpoint returns the wrong marker', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            output: { result: 'unchanged' },
+            __resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return "unchanged"', envVars: {} },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+    expect(registry.isComplete()).toBe(false)
+  })
+
+  it('fails closed when a marked private response envelope is malformed', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response('{"__resolvedSecretNames":["API_KEY"],"value":"secret-value"', {
+          status: 500,
+          headers: {
+            'content-type': 'application/json',
+            'x-sim-private-tool-metadata': 'resolved-secret-names-v1',
+          },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return "unchanged"', envVars: { API_KEY: 'secret-value' } },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(JSON.stringify(result)).not.toContain('secret-value')
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretNames')
+    expect(registry.isComplete()).toBe(false)
   })
 
   it('should handle non-existent tool', async () => {
@@ -1505,6 +1864,53 @@ describe('Copilot Env Variable Reference Resolution', () => {
     expect(sentRequestBody(fetchMock).apiKey).toBe('sntrys_real_token')
   })
 
+  it('fails concurrent projection closed while a user-only secret reference is resolving', async () => {
+    const secret = 'sntrys_real_token'
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'SENTRY_AUTH_TOKEN',
+        plaintext: secret,
+        encryptedValue: 'encrypted-token',
+      },
+    ])
+    let resolveEnvironment!: (variables: Record<string, string>) => void
+    let markResolutionStarted!: () => void
+    const resolutionStarted = new Promise<void>((resolve) => {
+      markResolutionStarted = resolve
+    })
+    mockGetEffectiveDecryptedEnv.mockImplementationOnce(
+      () =>
+        new Promise<Record<string, string>>((resolve) => {
+          resolveEnvironment = resolve
+          markResolutionStarted()
+        })
+    )
+    mockJsonFetch()
+
+    const execution = executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}' },
+      {
+        executionContext: copilotContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+    await resolutionStarted
+
+    expect(registry.isComplete()).toBe(false)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
+    ).not.toHaveProperty('output')
+
+    resolveEnvironment({ SENTRY_AUTH_TOKEN: secret })
+    await expect(execution).resolves.toMatchObject({ success: true })
+
+    expect(registry.isComplete()).toBe(true)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
+    ).toMatchObject({ output: { result: '{{SENTRY_AUTH_TOKEN}}' } })
+  })
+
   it('trims whitespace inside the braces like the executor resolver', async () => {
     const fetchMock = mockJsonFetch()
 
@@ -1912,6 +2318,248 @@ describe('MCP Tool Execution', () => {
     expect(result.output).toBeDefined()
     expect(result.output.content).toBeDefined()
     expect(result.timing).toBeDefined()
+  })
+
+  it('consumes marker-gated MCP provenance while leaving the tool result unchanged', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'test-user',
+      workspaceId: 'workspace-456',
+    })
+    const importProvenance = vi.spyOn(registry, 'importProvenance')
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'secret-value' })
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { output: { content: [{ type: 'text', text: 'secret-value' }] } },
+            __resolvedSecretTraceProvenance: {
+              version: 1,
+              complete: true,
+              entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+              scope: { userId: 'test-user', workspaceId: 'workspace-456' },
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'mcp-123-list_files',
+      { path: '/test' },
+      {
+        executionContext: createToolExecutionContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0]
+    expect(new Headers(requestInit?.headers).get('x-sim-request-private-tool-metadata')).toBe(
+      'resolved-secret-provenance-v1'
+    )
+    expect(result.output).toEqual({ content: [{ type: 'text', text: 'secret-value' }] })
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+    expect(importProvenance).toHaveBeenCalledTimes(1)
+    expect(importProvenance).toHaveBeenCalledWith(
+      {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+        scope: { userId: 'test-user', workspaceId: 'workspace-456' },
+      },
+      { trusted: true }
+    )
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledWith('encrypted-token')
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'secret-value', replacement: '{{MCP_TOKEN}}' },
+    ])
+  })
+
+  it('fails concurrent projection closed while MCP provenance is pending', async () => {
+    const secret = 'mcp-secret-value'
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'test-user',
+      workspaceId: 'workspace-456',
+    })
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: secret })
+
+    let resolveRequest!: (response: Response) => void
+    let markRequestStarted!: () => void
+    const requestStarted = new Promise<void>((resolve) => {
+      markRequestStarted = resolve
+    })
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveRequest = resolve
+            markRequestStarted()
+          })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const execution = executeTool(
+      'mcp-123-list_files',
+      { path: '/test' },
+      {
+        executionContext: createToolExecutionContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+    await requestStarted
+
+    expect(registry.isComplete()).toBe(false)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { value: secret } }, registry)
+    ).not.toHaveProperty('output')
+
+    resolveRequest(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: { output: { content: [{ type: 'text', text: secret }] } },
+          __resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+            scope: { userId: 'test-user', workspaceId: 'workspace-456' },
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
+          },
+        }
+      )
+    )
+
+    await expect(execution).resolves.toMatchObject({ success: true })
+    expect(registry.isComplete()).toBe(true)
+    expect(
+      projectToolResultForCopilot({ success: true, output: { value: secret } }, registry)
+    ).toMatchObject({ output: { value: '{{MCP_TOKEN}}' } })
+  })
+
+  it('rejects unmarked MCP provenance instead of trusting a response body field', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { output: { content: [{ type: 'text', text: 'unchanged' }] } },
+            __resolvedSecretTraceProvenance: {
+              version: 1,
+              complete: true,
+              entries: [{ name: 'MCP_TOKEN', encryptedValue: 'untrusted-encrypted-token' }],
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'mcp-123-list_files',
+      { path: '/test' },
+      {
+        executionContext: createToolExecutionContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+    expect(registry.getActiveMatches()).toEqual([])
+    expect(registry.isComplete()).toBe(false)
+  })
+
+  it('preserves MCP error semantics while stripping marked private provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: 'provider error detail',
+            __resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+          }),
+          {
+            status: 500,
+            headers: {
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'mcp-123-list_files',
+      { path: '/test' },
+      {
+        executionContext: createToolExecutionContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result).toMatchObject({ success: false, error: 'provider error detail' })
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+    expect(registry.isComplete()).toBe(true)
+  })
+
+  it('accepts MCP responses above the generic tool cap while stripping private metadata', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { output: { content: [{ type: 'text', text: 'unchanged' }] } },
+            __resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-length': String(10 * 1024 * 1024 + 1),
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool(
+      'mcp-123-list_files',
+      { path: '/test' },
+      {
+        executionContext: createToolExecutionContext(),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { content: [{ type: 'text', text: 'unchanged' }] },
+    })
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+    expect(registry.isComplete()).toBe(true)
   })
 
   it('should handle MCP tool ID parsing correctly', async () => {

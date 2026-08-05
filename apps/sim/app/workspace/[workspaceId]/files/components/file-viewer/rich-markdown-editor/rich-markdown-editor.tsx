@@ -12,14 +12,21 @@ import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
+import {
+  buildFileSelectionLabel,
+  truncateSelectionText,
+} from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { isUntitledName } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
+import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { SaveStatus } from '@/hooks/use-autosave'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
+import type { ChatContext } from '@/stores/panel'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
+import { useSelectionCopyBridge } from '../use-selection-copy-bridge'
 import {
   announceAgentApplying,
   clearAgentApplying,
@@ -1124,6 +1131,36 @@ export function LoadedRichMarkdownEditor({
     []
   )
 
+  const addToChat = useAddToChat()
+  /**
+   * No line range: this editor renders a ProseMirror document, whose block
+   * boundaries do not correspond to markdown source lines (blank lines between
+   * paragraphs, list markers, heading prefixes and fenced blocks all shift the
+   * real line). Reporting a derived count would label the chip — and prompt the
+   * agent — with line numbers that don't exist in the file.
+   */
+  const buildSelectionContext = useCallback((): ChatContext | null => {
+    if (!editor) return null
+    const { from, to } = editor.state.selection
+    if (from === to) return null
+    const text = editor.state.doc.textBetween(from, to, '\n')
+    if (!text.trim()) return null
+    return {
+      kind: 'file_selection',
+      fileId: file.id,
+      fileName: file.name,
+      label: buildFileSelectionLabel(file.name),
+      text: truncateSelectionText(text),
+    }
+  }, [editor, file.id, file.name])
+
+  const handleAddSelectionToChat = () => {
+    const context = buildSelectionContext()
+    if (context) addToChat(context)
+  }
+
+  useSelectionCopyBridge(containerRef, buildSelectionContext)
+
   // Show the read-only placeholder (the already-fetched markdown) whenever a collaborative doc has not yet
   // seeded — including during an agent stream that begins before the seed lands. Streamed diffs are held
   // until `collabReady` (see the streaming effect), so before then the editor is empty; the placeholder
@@ -1135,7 +1172,13 @@ export function LoadedRichMarkdownEditor({
       ref={containerRef}
       className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
     >
-      {editor && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
+      {editor && (
+        <EditorBubbleMenu
+          editor={editor}
+          scrollContainerRef={containerRef}
+          onAddToChat={handleAddSelectionToChat}
+        />
+      )}
       {editor && <TableBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
       {editor && <LinkHoverCard editor={editor} />}
       <input
@@ -1155,10 +1198,12 @@ export function LoadedRichMarkdownEditor({
         }}
       />
       {showPlaceholder && placeholderHtml && (
-        // Instant read-only content while the collaborative doc seeds; the editor stays mounted-but-
-        // hidden below so it renders the seeded doc before the swap. Same layout box → no reflow.
+        // Instant read-only content while the collaborative doc seeds, swapped for the live editor
+        // once ready. The `ProseMirror` class is load-bearing: it gives the placeholder the same base
+        // text layout as the live editable (prosemirror-view sets `white-space: break-spaces` and
+        // disables ligatures), so a line wraps identically and never re-wraps on the swap.
         <div
-          className='rich-markdown-prose mx-auto w-full max-w-[48rem] px-8 py-6'
+          className='ProseMirror rich-markdown-prose mx-auto w-full max-w-[48rem] px-8 py-6'
           dangerouslySetInnerHTML={{ __html: placeholderHtml }}
         />
       )}

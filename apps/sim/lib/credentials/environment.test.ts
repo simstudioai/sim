@@ -15,9 +15,92 @@ vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
 }))
 
 import {
+  getPersonalEnvKeyRawAccess,
   getWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+
+describe('getPersonalEnvKeyRawAccess', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('returns own values without querying credential grants', async () => {
+    const result = await getPersonalEnvKeyRawAccess({
+      workspaceId: 'ws-1',
+      userId: 'u-1',
+      personalOwners: { OWN_KEY: 'u-1' },
+    })
+
+    expect([...result.ownedKeys]).toEqual(['OWN_KEY'])
+    expect(result.adminKeys.size).toBe(0)
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+
+  it('allows own values and only active admin grants for other personal values', async () => {
+    queueTableRows(credential, [
+      {
+        envKey: 'SHARED_ADMIN',
+        envOwnerUserId: 'owner-2',
+        role: 'admin',
+        status: 'active',
+      },
+      {
+        envKey: 'SHARED_MEMBER',
+        envOwnerUserId: 'owner-3',
+        role: 'member',
+        status: 'active',
+      },
+      {
+        envKey: 'REVOKED_ADMIN',
+        envOwnerUserId: 'owner-4',
+        role: 'admin',
+        status: 'revoked',
+      },
+    ])
+
+    const result = await getPersonalEnvKeyRawAccess({
+      workspaceId: 'ws-1',
+      userId: 'u-1',
+      personalOwners: {
+        OWN_KEY: 'u-1',
+        SHARED_ADMIN: 'owner-2',
+        SHARED_MEMBER: 'owner-3',
+        REVOKED_ADMIN: 'owner-4',
+      },
+    })
+
+    expect([...result.ownedKeys]).toEqual(['OWN_KEY'])
+    expect([...result.adminKeys]).toEqual(['SHARED_ADMIN'])
+  })
+
+  it('requires the admin grant to belong to the exact effective secret owner', async () => {
+    queueTableRows(credential, [
+      {
+        envKey: 'COLLISION',
+        envOwnerUserId: 'owner-a',
+        role: 'admin',
+        status: 'active',
+      },
+      {
+        envKey: 'COLLISION',
+        envOwnerUserId: 'owner-b',
+        role: 'member',
+        status: 'active',
+      },
+    ])
+
+    const result = await getPersonalEnvKeyRawAccess({
+      workspaceId: 'ws-1',
+      userId: 'u-1',
+      personalOwners: { COLLISION: 'owner-b' },
+    })
+
+    expect(result.ownedKeys.size).toBe(0)
+    expect(result.adminKeys.size).toBe(0)
+  })
+})
 
 describe('getWorkspaceEnvKeyAdminAccess', () => {
   beforeEach(() => {

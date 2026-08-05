@@ -8,7 +8,7 @@ import {
   Input,
   Label,
 } from '@sim/emcn'
-import { ChevronUp } from 'lucide-react'
+import { ChevronUp } from '@sim/emcn/icons'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import {

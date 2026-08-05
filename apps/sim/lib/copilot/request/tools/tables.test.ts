@@ -2,12 +2,14 @@
  * @vitest-environment node
  */
 
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const { mockGetTableById, mockReplaceTableRows } = vi.hoisted(() => ({
+const { mockGetTableById, mockReplaceTableRows, mockSpanAddEvent } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
   mockReplaceTableRows: vi.fn(),
+  mockSpanAddEvent: vi.fn(),
 }))
 
 vi.mock('@/lib/table/service', () => ({
@@ -23,7 +25,7 @@ vi.mock('@/lib/copilot/request/otel', () => ({
     _name: string,
     _attrs: Record<string, unknown> | undefined,
     fn: (span: unknown) => Promise<unknown>
-  ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn(), addEvent: vi.fn() }),
+  ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn(), addEvent: mockSpanAddEvent }),
 }))
 
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -32,6 +34,13 @@ import {
   maybeWriteReadCsvToTable,
 } from '@/lib/copilot/request/tools/tables'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const tableLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi
+    .mocked(loggerMock.createLogger)
+    .mock.calls.findIndex(([name]) => name === 'CopilotToolResultTables')
+]?.value
 
 function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   return {
@@ -172,6 +181,27 @@ describe('maybeWriteOutputToTable', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('Row 1: name is required')
   })
+
+  it('keeps raw errors for terminal projection but projects application logs and OTel events', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' },
+    ])
+    registry.recordResolved('SECRET', 'secret-value')
+    mockReplaceTableRows.mockRejectedValue(new Error('Duplicate value "secret-value"'))
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      { success: true, output: { result: [{ name: 'secret-value' }] } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.error).toContain('secret-value')
+    expect(JSON.stringify(tableLogger?.warn.mock.calls)).toContain('{{SECRET}}')
+    expect(JSON.stringify(tableLogger?.warn.mock.calls)).not.toContain('secret-value')
+    expect(JSON.stringify(mockSpanAddEvent.mock.calls)).toContain('{{SECRET}}')
+    expect(JSON.stringify(mockSpanAddEvent.mock.calls)).not.toContain('secret-value')
+  })
 })
 
 describe('maybeWriteReadCsvToTable', () => {
@@ -250,5 +280,26 @@ describe('maybeWriteReadCsvToTable', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Row 1: name is required')
+  })
+
+  it('projects active secret literals in CSV-import log and OTel errors', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' },
+    ])
+    registry.recordResolved('SECRET', 'secret-value')
+    mockReplaceTableRows.mockRejectedValue(new Error('Duplicate value "secret-value"'))
+
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'tbl_1', path: 'files/people.csv' },
+      { success: true, output: { content: 'name\nsecret-value' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.error).toContain('secret-value')
+    expect(JSON.stringify(tableLogger?.warn.mock.calls)).toContain('{{SECRET}}')
+    expect(JSON.stringify(tableLogger?.warn.mock.calls)).not.toContain('secret-value')
+    expect(JSON.stringify(mockSpanAddEvent.mock.calls)).toContain('{{SECRET}}')
+    expect(JSON.stringify(mockSpanAddEvent.mock.calls)).not.toContain('secret-value')
   })
 })

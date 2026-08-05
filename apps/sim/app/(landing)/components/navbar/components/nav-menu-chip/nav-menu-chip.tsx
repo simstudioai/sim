@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipChevronDown, chipContentLabelClass, chipGeometryClass, cn } from '@sim/emcn'
+import { ChipChevronDown, chipContentLabelClass, chipVariants, cn } from '@sim/emcn'
 import { NavMenuItem } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-item'
 import type { NavMenu } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
 
@@ -68,8 +68,9 @@ export function NavMenuChip({ menu }: NavMenuChipProps) {
         aria-label={`${label} menu`}
         onFocus={reArm}
         className={cn(
-          chipGeometryClass,
-          'mx-0.5 inline-flex cursor-pointer transition-colors hover-hover:bg-[var(--surface-active)]',
+          chipVariants(),
+          /* Held open by the wrapper's state, not the button's own hover, so the
+             panel and its trigger light together. */
           'group-focus-within/navmenu:bg-[var(--surface-active)] group-hover/navmenu:bg-[var(--surface-active)]'
         )}
       >

@@ -1,3 +1,5 @@
+'use client'
+
 import { memo, type ReactNode, useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
@@ -143,7 +145,7 @@ export const ResourceOptions = memo(function ResourceOptions({
             and only the trailing action is pushed to the far edge. */}
         <div className={cn('flex shrink-0 items-center gap-1.5', search && !trailing && 'ml-auto')}>
           {aside}
-          <div className='flex items-center'>
+          <div className='flex items-center gap-1'>
             {filterTags?.map((tag) => (
               <Chip key={tag.label} rightIcon={X} onClick={tag.onRemove}>
                 {tag.label}
@@ -163,7 +165,7 @@ export const ResourceOptions = memo(function ResourceOptions({
                 }
               >
                 <PopoverPrimitive.Anchor asChild>
-                  <div className='flex items-center'>
+                  <div className='flex items-center gap-1'>
                     <PopoverPrimitive.Trigger asChild>
                       <Chip active={popoverFilter.active} leftIcon={ListFilter}>
                         Filter

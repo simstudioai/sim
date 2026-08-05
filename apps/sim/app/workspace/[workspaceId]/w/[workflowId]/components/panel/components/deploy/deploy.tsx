@@ -120,7 +120,6 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
           <span className='inline-flex'>
             <Chip
               variant='border'
-              flush
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
             >

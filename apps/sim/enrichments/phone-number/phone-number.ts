@@ -1,5 +1,5 @@
+import { Phone } from '@sim/emcn/icons'
 import { filterUndefined } from '@sim/utils/object'
-import { Phone } from 'lucide-react'
 import { firstNonEmpty, normalizeDomain, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 

@@ -1,25 +1,9 @@
 'use client'
 import { ChevronDown, cn, Home, Library } from '@sim/emcn'
-import {
-  Calendar,
-  Database,
-  File,
-  HelpCircle,
-  Search,
-  Settings,
-  Table,
-  Workflow,
-} from '@sim/emcn/icons'
+import { Database, File, HelpCircle, Search, Settings, Table, Workflow } from '@sim/emcn/icons'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
-export type SidebarView =
-  | 'home'
-  | 'workflow'
-  | 'tables'
-  | 'files'
-  | 'knowledge'
-  | 'logs'
-  | 'scheduled-tasks'
+export type SidebarView = 'home' | 'workflow' | 'tables' | 'files' | 'knowledge' | 'logs'
 
 interface LandingPreviewSidebarProps {
   workflows: PreviewWorkflow[]
@@ -34,7 +18,6 @@ const WORKSPACE_NAV = [
   { id: 'tables', label: 'Tables', icon: Table },
   { id: 'files', label: 'Files', icon: File },
   { id: 'knowledge', label: 'Knowledge Base', icon: Database },
-  { id: 'scheduled-tasks', label: 'Scheduled Tasks', icon: Calendar },
   { id: 'logs', label: 'Logs', icon: Library },
 ] as const
 
@@ -58,9 +41,7 @@ function NavItem({
     return (
       <div className='pointer-events-none mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2'>
         <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='truncate text-[13px] text-[var(--text-body)]' style={{ fontWeight: 450 }}>
-          {label}
-        </span>
+        <span className='truncate text-[13px] text-[var(--text-body)]'>{label}</span>
       </div>
     )
   }
@@ -75,9 +56,7 @@ function NavItem({
       )}
     >
       <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate text-[13px] text-[var(--text-body)]' style={{ fontWeight: 450 }}>
-        {label}
-      </span>
+      <span className='truncate text-[13px] text-[var(--text-body)]'>{label}</span>
     </button>
   )
 }
@@ -118,7 +97,7 @@ export function LandingPreviewSidebar({
           <span className='min-w-0 flex-1 truncate text-left font-medium text-[13px] text-[var(--text-primary)]'>
             Superark
           </span>
-          <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+          <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
         </div>
       </div>
 
@@ -133,12 +112,7 @@ export function LandingPreviewSidebar({
           )}
         >
           <Home className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          <span
-            className='truncate text-[13px] text-[var(--text-body)]'
-            style={{ fontWeight: 450 }}
-          >
-            Home
-          </span>
+          <span className='truncate text-[13px] text-[var(--text-body)]'>Home</span>
         </button>
         <NavItem icon={Search} label='Search' />
       </div>
@@ -182,10 +156,7 @@ export function LandingPreviewSidebar({
                   )}
                 >
                   <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                  <div
-                    className='min-w-0 flex-1 truncate text-left text-[13px] text-[var(--text-body)]'
-                    style={{ fontWeight: 450 }}
-                  >
+                  <div className='min-w-0 flex-1 truncate text-left text-[13px] text-[var(--text-body)]'>
                     {workflow.name}
                   </div>
                 </button>

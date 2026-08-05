@@ -18,6 +18,7 @@ import {
   buildCustomBlockExecutionContext,
   runCustomBlockTool,
 } from '@/executor/handlers/workflow/custom-block-tool-runner'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('buildCustomBlockExecutionContext', () => {
   it('carries consumer identity, inherits the call chain, and is fully scaffolded', () => {
@@ -143,5 +144,18 @@ describe('buildCustomBlockExecutionContext cancellation', () => {
 
   it('leaves the signal undefined when the caller has none', () => {
     expect(buildCustomBlockExecutionContext({ workspaceId: 'ws-1' }).abortSignal).toBeUndefined()
+  })
+})
+
+describe('buildCustomBlockExecutionContext secret provenance', () => {
+  it('carries the server-only parent registry without putting it in model parameters', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+
+    const ctx = buildCustomBlockExecutionContext(
+      { workspaceId: 'ws-1' },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(ctx.resolvedSecretTraceRegistry).toBe(registry)
   })
 })

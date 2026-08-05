@@ -11,8 +11,8 @@ import {
   PopoverSection,
   usePopoverContext,
 } from '@sim/emcn'
+import { Repeat, Split } from '@sim/emcn/icons'
 import { isEqual } from 'es-toolkit'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
@@ -1767,9 +1767,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   if (blockConfig?.icon) {
                     tagIcon = blockConfig.icon
                   } else if (group.blockType === 'loop') {
-                    tagIcon = RepeatIcon
+                    tagIcon = Repeat
                   } else if (group.blockType === 'parallel') {
-                    tagIcon = SplitIcon
+                    tagIcon = Split
                   }
 
                   const normalizedBlockName = normalizeName(group.blockName)

@@ -362,6 +362,8 @@ export const executeWorkflowBodySchema = z.object({
   includeToolCalls: z.boolean().optional().default(false),
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
+  /** Trusted server-side reuse of a prior execution's raw workflow input. */
+  inputFromExecutionId: executionIdSchema.optional(),
   isClientSession: z.boolean().optional(),
   includeFileBase64: z.boolean().optional().default(true),
   base64MaxBytes: z.number().int().positive().optional(),
@@ -369,6 +371,7 @@ export const executeWorkflowBodySchema = z.object({
   /** Internal MCP bridge pin for calls admitted before a deployment cutover. */
   deploymentVersionId: z.string().min(1).optional(),
   executionId: z.unknown().optional(),
+  copilotToolCallId: z.string().min(1).max(255).optional(),
   triggerBlockId: z.string().optional(),
   startBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),

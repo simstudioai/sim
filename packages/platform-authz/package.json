@@ -25,6 +25,10 @@
     "./rooms": {
       "types": "./src/rooms.ts",
       "default": "./src/rooms.ts"
+    },
+    "./room-policy": {
+      "types": "./src/room-policy.ts",
+      "default": "./src/room-policy.ts"
     }
   },
   "scripts": {

@@ -7,9 +7,9 @@
  * The second test drives the real `ReactRenderer` path the suggestion plugin actually uses.
  */
 import { act, createRef } from 'react'
+import { File } from '@sim/emcn/icons'
 import { Editor } from '@tiptap/core'
 import { EditorContent, ReactRenderer } from '@tiptap/react'
-import { File } from 'lucide-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMarkdownEditorExtensions } from '../editor-extensions'
 import { MentionList, type MentionListHandle } from './mention-list'

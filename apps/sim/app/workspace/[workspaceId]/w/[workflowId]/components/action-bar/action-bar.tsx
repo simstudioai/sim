@@ -10,16 +10,16 @@ import {
   Duplicate,
   PlayOutline,
   Tooltip,
-  Trash2,
+  Trash,
   toast,
 } from '@sim/emcn'
+import { Ban, Circle, Lock, LogOut, Palette, Square, Unlock } from '@sim/emcn/icons'
 import {
   DEFAULT_NOTE_COLOR,
   isNoteColor,
   NOTE_COLOR_OPTIONS,
   type NoteColor,
 } from '@sim/workflow-renderer'
-import { Circle, CircleOff, Lock, LogOut, Palette, Square, Unlock } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -427,11 +427,7 @@ export const ActionBar = memo(
                       (!isEnabled && isParentDisabled)
                     }
                   >
-                    {isEnabled ? (
-                      <Circle className={ICON_SIZE} />
-                    ) : (
-                      <CircleOff className={ICON_SIZE} />
-                    )}
+                    {isEnabled ? <Circle className={ICON_SIZE} /> : <Ban className={ICON_SIZE} />}
                   </Button>
                 </span>
               </Tooltip.Trigger>
@@ -621,7 +617,7 @@ export const ActionBar = memo(
                   className={getActionButtonStyles('delete')}
                   disabled={isWorkflowRunning || disabled || isLocked || isParentLocked}
                 >
-                  <Trash2 className={ICON_SIZE} />
+                  <Trash className={ICON_SIZE} />
                 </Button>
               </span>
             </Tooltip.Trigger>

@@ -24,6 +24,13 @@ export interface AdminUser {
   banReason: string | null
 }
 
+export interface AddUserInput {
+  name: string
+  email: string
+  password: string
+  emailVerified: boolean
+}
+
 interface AdminUserListData {
   users: AdminUser[]
   total: number
@@ -45,6 +52,24 @@ function mapUser(u: {
     banned: u.banned ?? false,
     banReason: u.banReason ?? null,
   }
+}
+
+export async function addUser({
+  name,
+  email,
+  password,
+  emailVerified,
+}: AddUserInput): Promise<AdminUser> {
+  const { data, error } = await client.admin.createUser({
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    password,
+    role: 'user',
+    data: { emailVerified },
+  })
+  if (error) throw new Error(error.message ?? 'Failed to add user')
+  if (!data?.user) throw new Error('Better Auth did not return the created user')
+  return mapUser(data.user)
 }
 
 async function fetchAdminUsers(
@@ -124,6 +149,17 @@ export function useAdminUsers(offset: number, limit: number, searchQuery: string
     enabled: searchQuery.length > 0,
     staleTime: ADMIN_USER_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
+  })
+}
+
+export function useAddUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: addUser,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() }),
+    onError: (error) => {
+      logger.error('Failed to add user', error)
+    },
   })
 }
 

@@ -14,9 +14,9 @@ import {
   cn,
   SecretInput,
 } from '@sim/emcn'
+import { ChevronDown, ChevronRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import {
   checkEnvVarTrigger,

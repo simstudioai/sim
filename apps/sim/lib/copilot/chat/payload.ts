@@ -1,5 +1,6 @@
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
+import { isPermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -15,10 +16,19 @@ import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
+import {
+  getAllowedIntegrationsFromEnv,
+  isDocSandboxEnabled,
+  isHosted,
+} from '@/lib/core/config/env-flags'
+import {
+  isIntegrationDeploymentAvailableForVisibility,
+  isOAuthServiceDeploymentAvailable,
+} from '@/lib/integrations/availability.server'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
-import { stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatPayload')
 const INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS = 5_000
@@ -57,7 +67,7 @@ interface BuildPayloadParams {
     timezone?: string
   }
   desktopLocalFilesystem?: boolean
-  browserCapable?: boolean
+  browser?: boolean
   terminalCapable?: boolean
   terminals?: Array<{
     id: string
@@ -186,6 +196,19 @@ async function buildIntegrationToolSchemasUncached(
 ): Promise<ToolSchema[]> {
   const reqLogger = logger.withMetadata({ messageId })
   const integrationTools: ToolSchema[] = []
+  let allowedIntegrations = getAllowedIntegrationsFromEnv()
+  if (workspaceId) {
+    const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
+    const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
+    allowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      allowedIntegrations
+    )
+  }
+  const allowedIntegrationTypes = allowedIntegrations
+    ? new Set(allowedIntegrations.map((integration) => integration.toLowerCase()))
+    : null
+
   try {
     const { createUserToolSchema } = await import('@/tools/params')
     let shouldAppendEmailTagline = false
@@ -200,46 +223,16 @@ async function buildIntegrationToolSchemasUncached(
       })
     }
 
-    let allowedIntegrations: Set<string> | null = null
-    let toolIdToBlockType: Map<string, string> | null = null
-    if (workspaceId) {
-      try {
-        const [{ getUserPermissionConfig }, { getAllBlocks }] = await Promise.all([
-          import('@/ee/access-control/utils/permission-check'),
-          import('@/blocks/registry'),
-        ])
-        const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
-        if (permissionConfig?.allowedIntegrations) {
-          allowedIntegrations = new Set(
-            permissionConfig.allowedIntegrations.map((i) => i.toLowerCase())
-          )
-          toolIdToBlockType = new Map()
-          for (const blockConfig of getAllBlocks()) {
-            const access = blockConfig.tools?.access
-            if (!access) continue
-            for (const toolId of access) {
-              toolIdToBlockType.set(stripVersionSuffix(toolId), blockConfig.type.toLowerCase())
-            }
-          }
-        }
-      } catch (error) {
-        reqLogger.warn('Failed to load permission config for tool schema filter', {
-          userId,
-          workspaceId,
-          error: toError(error).message,
-        })
-      }
-    }
-
-    const exposedTools = filterExposedIntegrationTools(getExposedIntegrationTools(), vis)
+    const exposedTools = filterExposedIntegrationTools(
+      getExposedIntegrationTools(),
+      vis,
+      (owner) =>
+        isIntegrationDeploymentAvailableForVisibility(owner.blockType, vis) &&
+        (allowedIntegrationTypes === null ||
+          allowedIntegrationTypes.has(owner.blockType.toLowerCase()))
+    )
     for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
       try {
-        if (allowedIntegrations && toolIdToBlockType) {
-          const owningBlock = toolIdToBlockType.get(stripVersionSuffix(toolId))
-          if (owningBlock && !allowedIntegrations.has(owningBlock)) {
-            continue
-          }
-        }
         const userSchema = createUserToolSchema(toolConfig, {
           surface: options.schemaSurface,
           // On hosted deployments the executor injects hosted keys server-side,
@@ -271,14 +264,16 @@ async function buildIntegrationToolSchemasUncached(
           defer_loading: true,
           executeLocally:
             catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
-          ...(toolConfig.oauth?.required && {
-            oauth: {
-              required: true,
-              provider: toolConfig.oauth.provider,
-            },
-          }),
+          ...(toolConfig.oauth?.required &&
+            isOAuthServiceDeploymentAvailable(toolConfig.oauth.provider) && {
+              oauth: {
+                required: true,
+                provider: toolConfig.oauth.provider,
+              },
+            }),
         })
       } catch (toolError) {
+        if (toolError instanceof EnvCapabilityConfigurationError) throw toolError
         logger.warn(
           messageId
             ? `Failed to build schema for tool, skipping [messageId:${messageId}]`
@@ -291,6 +286,7 @@ async function buildIntegrationToolSchemasUncached(
       }
     }
   } catch (error) {
+    if (error instanceof EnvCapabilityConfigurationError) throw error
     logger.warn(
       messageId
         ? `Failed to build tool schemas [messageId:${messageId}]`
@@ -333,10 +329,25 @@ export async function buildCopilotRequestPayload(
   const effectiveMode = mode === 'agent' ? 'build' : mode
   const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
-  // Track uploaded files in the DB and build context tags instead of base64 inlining
+  // Track uploaded files in the DB and build context tags instead of base64 inlining.
+  // Tracking writes `workspace_files` rows, so it needs the same write grant the
+  // upload routes that issue these keys already require — reaching the chat
+  // endpoint with `read` must not confer a file-write capability.
   const uploadContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
+  // `userPermission` is typed `string` for legacy reasons, so narrow it before
+  // comparing — an unrecognized value must fail the gate, not rank below it.
+  const canWriteWorkspaceFiles =
+    isPermissionType(params.userPermission) && permissionSatisfies(params.userPermission, 'write')
   if (chatId && params.workspaceId && fileAttachments && fileAttachments.length > 0) {
-    for (const f of fileAttachments) {
+    if (!canWriteWorkspaceFiles) {
+      logger.warn('Dropping chat file attachments without workspace write access', {
+        chatId,
+        workspaceId: params.workspaceId,
+        attachmentCount: fileAttachments.length,
+      })
+    }
+    const trackableAttachments = canWriteWorkspaceFiles ? fileAttachments : []
+    for (const f of trackableAttachments) {
       const filename = (f.filename ?? f.name ?? 'file') as string
       const mediaType = (f.media_type ?? f.mimeType ?? 'application/octet-stream') as string
       try {
@@ -447,24 +458,21 @@ export async function buildCopilotRequestPayload(
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
     ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-    ...(params.desktopLocalFilesystem || params.browserCapable || params.terminalCapable
+    ...(params.desktopLocalFilesystem || params.browser || params.terminalCapable
       ? {
           desktopCapabilities: {
             ...(params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
-            ...(params.browserCapable ? { browser: true } : {}),
+            ...(params.browser ? { browser: true } : {}),
             ...(params.terminalCapable ? { terminal: true } : {}),
             ...(params.terminalCapable && params.terminals?.length
               ? { terminals: params.terminals }
               : {}),
-            ...(params.browserCapable && params.browserSessions?.length
+            ...(params.browser && params.browserSessions?.length
               ? { browserSessions: params.browserSessions }
               : {}),
           },
         }
       : {}),
-    // Compatibility with mothership deployments that predate the unified
-    // desktop capability object.
-    ...(params.browserCapable ? { browserCapable: true } : {}),
     isHosted,
   }
 }

@@ -1,4 +1,5 @@
-import { join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { basename, extname, join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { Session } from 'electron'
 import { app } from 'electron'
@@ -50,6 +51,27 @@ export function suggestedFilename(
   const stamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const extension = MIME_EXTENSIONS[mimeType] ?? ''
   return `download-${stamp}${extension}`
+}
+
+/**
+ * Picks a Chrome-style non-conflicting destination without overwriting an
+ * existing download: `report.csv`, `report (1).csv`, and so on.
+ */
+export function uniqueDownloadPath(
+  directory: string,
+  rawFilename: string,
+  pathExists: (path: string) => boolean = existsSync
+): string {
+  const filename = sanitizeFilename(rawFilename) || 'download'
+  const extension = extname(filename)
+  const stem = basename(filename, extension)
+  let candidate = join(directory, filename)
+  let copy = 1
+  while (pathExists(candidate)) {
+    candidate = join(directory, `${stem} (${copy})${extension}`)
+    copy += 1
+  }
+  return candidate
 }
 
 /**

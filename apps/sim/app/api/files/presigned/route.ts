@@ -1,12 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { presignedUploadBodyContract, uploadTypeSchema } from '@/lib/api/contracts/storage-transfer'
+import {
+  presignedUploadBodyContract,
+  presignedUploadTypeSchema,
+  presignedUploadTypes,
+} from '@/lib/api/contracts/storage-transfer'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles } from '@/lib/uploads'
-import type { StorageContext } from '@/lib/uploads/config'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
@@ -19,16 +22,6 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('PresignedUploadAPI')
-
-const VALID_UPLOAD_TYPES = [
-  'knowledge-base',
-  'chat',
-  'copilot',
-  'profile-pictures',
-  'mothership',
-  'workspace-logos',
-  'execution',
-] as const
 
 class PresignedUrlError extends Error {
   constructor(
@@ -76,14 +69,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       throw new ValidationError('type query parameter is required')
     }
 
-    const uploadTypeResult = uploadTypeSchema.safeParse(uploadTypeParam)
+    const uploadTypeResult = presignedUploadTypeSchema.safeParse(uploadTypeParam)
     if (!uploadTypeResult.success) {
       throw new ValidationError(
-        `Invalid type parameter. Must be one of: ${VALID_UPLOAD_TYPES.join(', ')}`
+        `Invalid type parameter. Must be one of: ${presignedUploadTypes.join(', ')}`
       )
     }
 
-    const uploadType = uploadTypeResult.data as StorageContext
+    const uploadType = uploadTypeResult.data
 
     if (uploadType === 'knowledge-base') {
       const fileValidationError = validateFileType(fileName, contentType)
@@ -290,17 +283,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         size: fileSize,
       })
     } else {
-      if (uploadType === 'profile-pictures') {
-        if (!sessionUserId?.trim()) {
-          throw new ValidationError(
-            'Authenticated user session is required for profile picture uploads'
-          )
-        }
-        if (!isImageFileType(contentType)) {
-          throw new ValidationError(
-            'Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for profile picture uploads'
-          )
-        }
+      if (!isImageFileType(contentType)) {
+        throw new ValidationError(
+          'Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for profile picture uploads'
+        )
       }
 
       presignedUrlResponse = await generatePresignedUploadUrl({

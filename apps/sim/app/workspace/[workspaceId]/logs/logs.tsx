@@ -72,8 +72,6 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import {
-  fetchLogDetail,
-  logKeys,
   prefetchLogDetail,
   useCancelExecution,
   useDashboardStats,
@@ -90,14 +88,15 @@ import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
 import {
   DELETED_WORKFLOW_LABEL,
-  extractRetryInput,
   formatDate,
   getDisplayStatus,
   type LogStatus,
   parseDuration,
+  resolveLogWorkflowId,
   STATUS_CONFIG,
   StatusBadge,
   TriggerBadge,
+  workflowEditorPath,
 } from './utils'
 
 const LOGS_PER_PAGE = 50 as const
@@ -527,9 +526,9 @@ export default function Logs() {
   }, [contextMenuLog, workspaceId])
 
   const handleOpenWorkflow = useCallback(() => {
-    const wfId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
+    const wfId = contextMenuLog ? resolveLogWorkflowId(contextMenuLog) : null
     if (wfId) {
-      window.open(`/workspace/${workspaceId}/w/${wfId}`, '_blank')
+      window.open(workflowEditorPath(workspaceId, wfId), '_blank')
     }
   }, [contextMenuLog, workspaceId])
 
@@ -573,17 +572,11 @@ export default function Logs() {
   const retryLog = useCallback(
     async (log: WorkflowLogRow | null) => {
       const workflowId = log?.workflow?.id || log?.workflowId
-      const logId = log?.id
-      if (!workflowId || !logId) return
+      const executionId = log?.executionId
+      if (!workflowId || !executionId) return
 
       try {
-        const detailLog = await queryClient.fetchQuery({
-          queryKey: logKeys.detail(workspaceId, logId),
-          queryFn: ({ signal }) => fetchLogDetail(logId, workspaceId, signal),
-          staleTime: 30 * 1000,
-        })
-        const input = extractRetryInput(detailLog)
-        await retryExecution.mutateAsync({ workflowId, input })
+        await retryExecution.mutateAsync({ workflowId, executionId })
         toast.success('Retry started')
       } catch {
         toast.error('Failed to retry execution')

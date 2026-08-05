@@ -42,13 +42,27 @@ const multiTriggerConfig = {
   ],
 }
 
+const mothershipConfig = {
+  type: 'mothership',
+  name: 'Sim Chat',
+  category: 'blocks',
+  outputs: {},
+  subBlocks: [
+    { id: 'prompt', type: 'long-input' },
+    { id: 'secretScope', type: 'dropdown', hideFromCopilot: true },
+    { id: 'mountedSecrets', type: 'dropdown', hideFromCopilot: true },
+  ],
+}
+
 vi.mock('@/blocks/registry', () => ({
   getBlock: (type: string) =>
     type === 'generic_webhook'
       ? genericWebhookConfig
       : type === 'github_v2'
         ? multiTriggerConfig
-        : undefined,
+        : type === 'mothership'
+          ? mothershipConfig
+          : undefined,
 }))
 
 /**
@@ -109,6 +123,29 @@ describe('sanitizeForCopilot knowledge tag subblocks', () => {
     const inputs = result.blocks['kb-1'].inputs
 
     expect(inputs).not.toHaveProperty('tagFilters')
+  })
+})
+
+describe('sanitizeForCopilot server-only block inputs', () => {
+  it('omits Sim Chat secret-mount policy while retaining model-visible inputs', () => {
+    const result = sanitizeForCopilot(
+      makeSingleBlockWorkflow('chat-1', {
+        type: 'mothership',
+        name: 'Sim Chat 1',
+        enabled: true,
+        subBlocks: {
+          prompt: { id: 'prompt', type: 'long-input', value: 'Help me' },
+          secretScope: { id: 'secretScope', type: 'dropdown', value: 'selected' },
+          mountedSecrets: {
+            id: 'mountedSecrets',
+            type: 'dropdown',
+            value: ['OPENAI_API_KEY'],
+          },
+        },
+      })
+    )
+
+    expect(result.blocks['chat-1'].inputs).toEqual({ prompt: 'Help me' })
   })
 })
 

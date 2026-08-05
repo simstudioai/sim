@@ -2,18 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ChipTag, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
-import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
-import { isEqual } from 'es-toolkit'
 import {
   BookOpen,
   Check,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
   Lock,
   Pencil,
+  SquareArrowUpRight,
   Unlock,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
+import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -586,7 +586,7 @@ export function Editor() {
                                   onClick={handleOpenChildWorkflow}
                                   className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                                 >
-                                  <ExternalLink className='size-[12px]' />
+                                  <SquareArrowUpRight className='size-[12px]' />
                                 </Button>
                               </Tooltip.Trigger>
                               <Tooltip.Content side='top'>Open workflow</Tooltip.Content>

@@ -37,6 +37,10 @@ const SYSTEM_MANAGED_FIELDS = new Set([
   'setupCompleted',
   'subscriptionExpiration',
   'userId',
+  // Zoho Desk provider-managed: the persisted data-center Desk base, set by
+  // createSubscription (not a user trigger field), so it must not count as a
+  // config change that forces delete/recreate.
+  'apiDomain',
 ])
 
 /**

@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { customPatternSchema, unknownRecordSchema } from '@/lib/api/contracts/primitives'
+import {
+  customPatternSchema,
+  stringRecordSchema,
+  unknownRecordSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 export const guardrailsValidateContract = defineRouteContract({
@@ -175,9 +179,9 @@ export const functionExecuteContract = defineRouteContract({
       })
       .strict()
       .optional(),
-    envVars: z.record(z.string(), z.string()).optional().default({}),
+    envVars: stringRecordSchema.optional().default({}),
     blockData: unknownRecordSchema.optional().default({}),
-    blockNameMapping: z.record(z.string(), z.string()).optional().default({}),
+    blockNameMapping: stringRecordSchema.optional().default({}),
     blockOutputSchemas: z.record(z.string(), unknownRecordSchema).optional().default({}),
     workflowVariables: unknownRecordSchema.optional().default({}),
     contextVariables: unknownRecordSchema.optional().default({}),

@@ -143,7 +143,7 @@ export function HeroWorkflowStage({
                   stroke='var(--workflow-edge)'
                   strokeWidth={2}
                   strokeLinecap='round'
-                  className='transition-[stroke-dashoffset] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] [stroke-dasharray:1]'
+                  className='transition-[stroke-dashoffset] duration-500 [stroke-dasharray:1] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
                   style={{ strokeDashoffset: visible ? 0 : 1 } as CSSProperties}
                 />
               )
@@ -156,7 +156,7 @@ export function HeroWorkflowStage({
               <div
                 key={block.id}
                 className={cn(
-                  'pointer-events-none absolute transition-[opacity,scale] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+                  'pointer-events-none absolute transition-[opacity,scale] duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
                   built ? 'scale-100 opacity-100' : 'scale-[0.94] opacity-0'
                 )}
                 style={{ left: block.x, top: block.y, width: BLOCK_WIDTH }}

@@ -1,5 +1,5 @@
 import { Chip, cn } from '@sim/emcn'
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from '@sim/emcn/icons'
 
 interface PreviewNavigationControls {
   current: number
@@ -34,10 +34,10 @@ export function PreviewToolbar({ navigation, zoom, className }: PreviewToolbarPr
         className
       )}
     >
-      <div className='flex items-center'>
+      <div className='flex items-center gap-1'>
         {navigation && <PreviewNavigationControls {...navigation} />}
       </div>
-      <div className='flex items-center'>{zoom && <PreviewZoomControls {...zoom} />}</div>
+      <div className='flex items-center gap-1'>{zoom && <PreviewZoomControls {...zoom} />}</div>
     </div>
   )
 }

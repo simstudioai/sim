@@ -133,15 +133,24 @@ async function findExistingCredentialBySourceWith(
   return null
 }
 
+/**
+ * `return await` is load-bearing, not redundant. Next 16.3.0's Turbopack
+ * optimizer models a bare `return <asyncCall>()` tail call as returning the
+ * promise object, then propagates that always-truthy fact through the caller's
+ * `await`. It concludes `if (existingCredential)` is always taken and — because
+ * every branch inside that block returns — deletes the entire create path from
+ * the emitted bundle, so a first-time create throws on `existingCredential.id`.
+ * Awaiting here makes the optimizer model the resolved value instead.
+ */
 async function findExistingCredentialBySource(params: ExistingCredentialSourceParams) {
-  return findExistingCredentialBySourceWith(db, params)
+  return await findExistingCredentialBySourceWith(db, params)
 }
 
 async function findExistingCredentialBySourceTx(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   params: ExistingCredentialSourceParams
 ) {
-  return findExistingCredentialBySourceWith(tx, params)
+  return await findExistingCredentialBySourceWith(tx, params)
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -270,7 +279,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const credentials = rows.map(({ memberRole, ...rest }) => ({
       ...rest,
       role:
-        isWorkspaceAdmin && isSharedCredentialType(rest.type) ? 'admin' : (memberRole ?? 'member'),
+        (rest.type === 'env_personal' && rest.envOwnerUserId === session.user.id) ||
+        (isWorkspaceAdmin && isSharedCredentialType(rest.type))
+          ? 'admin'
+          : (memberRole ?? 'member'),
     }))
 
     return NextResponse.json({ credentials })
@@ -318,6 +330,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       clientId,
       clientSecret,
       orgId,
+      dataCenter,
     } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
@@ -378,6 +391,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           clientId,
           clientSecret,
           orgId,
+          dataCenter,
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null
@@ -649,9 +663,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resourceName: resolvedDisplayName,
       description: `Created ${type} credential "${resolvedDisplayName}"`,
       metadata: {
+        // Provider metadata spreads first so this route's own keys stay
+        // authoritative and can never be shadowed, matching the update path in
+        // `lib/credentials/orchestration`.
+        ...extraAuditMetadata,
         credentialType: type,
         providerId: resolvedProviderId,
-        ...extraAuditMetadata,
       },
       request,
     })

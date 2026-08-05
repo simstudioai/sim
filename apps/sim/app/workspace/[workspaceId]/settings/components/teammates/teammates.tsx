@@ -36,7 +36,7 @@ import {
   useWorkspacePermissionsQuery,
   useWorkspacesQuery,
 } from '@/hooks/queries/workspace'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useWorkspaceInvitePolicy } from '@/hooks/use-workspace-invite-policy'
 
 const ROLE_OPTIONS = [
   { value: 'read', label: 'Read' },
@@ -56,6 +56,7 @@ interface Teammate {
   invitationId?: string
   token?: string
   roleSource?: WorkspaceRoleSource
+  isBilledAccount?: boolean
 }
 
 /**
@@ -89,7 +90,7 @@ export function Teammates() {
 
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { isInvitationsDisabled: isInvitationsDisabledByConfig } = usePermissionConfig()
+  const { inviteDisabledReason, isInvitationsDisabled } = useWorkspaceInvitePolicy(workspaceId)
 
   const resendInvitation = useResendWorkspaceInvitation()
   const cancelInvitation = useCancelWorkspaceInvitation()
@@ -103,8 +104,6 @@ export function Teammates() {
   })
 
   const activeWorkspace = workspaces?.find((workspace) => workspace.id === workspaceId)
-  const inviteDisabledReason = activeWorkspace?.inviteDisabledReason ?? null
-  const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
 
   const upgradeHref = buildUpgradeHref(workspaceId, 'seats')
 
@@ -140,6 +139,7 @@ export function Teammates() {
       isPending: false,
       userId: member.userId,
       roleSource: member.roleSource,
+      isBilledAccount: member.isBilledAccount,
     }))
 
     const pending: Teammate[] = (invitations ?? []).map((invitation) => ({
@@ -216,7 +216,9 @@ export function Teammates() {
               roleControl={(() => {
                 const lockReason = teammate.isPending
                   ? null
-                  : workspaceRoleLockReason(teammate.roleSource)
+                  : workspaceRoleLockReason(teammate.roleSource, {
+                      isBilledAccount: teammate.isBilledAccount,
+                    })
                 return (
                   <RoleLockTooltip reason={lockReason}>
                     <ChipDropdown

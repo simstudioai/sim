@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { RESOURCE_LIST_GRID } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 interface IntegrationSectionProps {
   label: string
@@ -6,19 +8,15 @@ interface IntegrationSectionProps {
 }
 
 /**
- * Labeled section used throughout the integrations surface. Renders a small
- * caption, a divider, and a responsive auto-fit grid for its children so the
- * vertical rhythm stays consistent across the integrations list, the connected
- * credentials list, and the integration detail page templates.
+ * Labeled section used throughout the integrations surface: the shared
+ * {@link SettingsSection} label/divider chrome wrapped around the shared
+ * responsive card grid, so the integrations list, the connected credentials
+ * list, and the integration detail templates cannot drift from settings.
  */
 export function IntegrationSection({ label, children }: IntegrationSectionProps) {
   return (
-    <section className='flex flex-col'>
-      <span className='pl-0.5 text-[var(--text-muted)] text-small'>{label}</span>
-      <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
-      <div className='-mx-2 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-2 gap-y-0.5'>
-        {children}
-      </div>
-    </section>
+    <SettingsSection label={label}>
+      <div className={RESOURCE_LIST_GRID}>{children}</div>
+    </SettingsSection>
   )
 }

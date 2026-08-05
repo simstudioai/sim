@@ -7,6 +7,7 @@ import {
   queueTableRows,
   resetDbChainMock,
   schemaMock,
+  workflowAuthzMockFns,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -97,9 +98,13 @@ vi.mock('@/lib/workflows/schedules', () => ({
   validateWorkflowSchedules: mockValidateWorkflowSchedules,
 }))
 
+// Resolves to the global @sim/platform-authz/workflow mock, so instanceof matches.
+import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import {
+  getWorkflowDeploymentSummary,
   performActivateVersion,
   performFullDeploy,
+  performFullUndeploy,
   performRevertToVersion,
 } from '@/lib/workflows/orchestration/deploy'
 
@@ -258,6 +263,50 @@ describe('performFullDeploy workspace event emission', () => {
     })
   })
 
+  it('marks the latest active operation historical when no matching version is live', async () => {
+    const now = new Date('2026-07-14T08:00:00.000Z')
+    mockGetWorkflowDeploymentStatus.mockResolvedValueOnce({
+      activeDeployment: null,
+      latestOperation: {
+        id: 'operation-historical',
+        workflowId: 'workflow-1',
+        deploymentVersionId: 'dv-old',
+        version: 3,
+        previousActiveVersionId: null,
+        action: 'deploy',
+        protocolVersion: 2,
+        generation: 1,
+        status: 'active',
+        componentReadiness: {
+          webhooks: { status: 'ready', updatedAt: now.toISOString() },
+          schedules: { status: 'ready', updatedAt: now.toISOString() },
+          mcp: { status: 'ready', updatedAt: now.toISOString() },
+        },
+        errorCode: null,
+        errorMessage: null,
+        idempotencyKey: 'request-historical',
+        requestHash: 'hash',
+        actorId: 'user-1',
+        completedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+    })
+
+    const result = await getWorkflowDeploymentSummary('workflow-1')
+
+    expect(result).toMatchObject({
+      activeDeployment: null,
+      latestDeploymentAttempt: {
+        id: 'operation-historical',
+        status: 'active',
+        isCurrent: false,
+        error: null,
+      },
+      warnings: [expect.stringContaining('historical')],
+    })
+  })
+
   it('always admits deploys through v2 without legacy immediate activation', async () => {
     const result = await performFullDeploy({
       workflowId: 'workflow-1',
@@ -271,6 +320,62 @@ describe('performFullDeploy workspace event emission', () => {
       expect.objectContaining({ protocolVersion: 2 })
     )
     expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
+  })
+
+  it('does not reuse a correlation request ID as an implicit idempotency key', async () => {
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'My Workflow', workspaceId: 'workspace-1' },
+      { id: 'workflow-1', name: 'My Workflow', workspaceId: 'workspace-1' },
+    ])
+
+    const params = { workflowId: 'workflow-1', userId: 'user-1', requestId: 'request-1' }
+    await performFullDeploy(params)
+    await performFullDeploy(params)
+
+    const firstKey = mockPrepareWorkflowDeployment.mock.calls[0][0].idempotencyKey
+    const secondKey = mockPrepareWorkflowDeployment.mock.calls[1][0].idempotencyKey
+    expect(firstKey).toEqual(expect.any(String))
+    expect(secondKey).toEqual(expect.any(String))
+    expect(firstKey).not.toBe('request-1')
+    expect(firstKey).not.toBe(secondKey)
+  })
+
+  it('keeps the request hash stable across snapshot timestamps and edge order', async () => {
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'My Workflow', workspaceId: 'workspace-1' },
+      { id: 'workflow-1', name: 'My Workflow', workspaceId: 'workspace-1' },
+    ])
+    const baseState = {
+      blocks: {},
+      edges: [
+        { id: 'edge-b', source: 'block-2', target: 'block-3' },
+        { id: 'edge-a', source: 'block-1', target: 'block-2' },
+      ],
+      loops: {},
+      parallels: {},
+      variables: {},
+      lastSaved: 1,
+    }
+    mockLoadWorkflowDeploymentSnapshot.mockResolvedValueOnce(baseState).mockResolvedValueOnce({
+      ...baseState,
+      edges: [...baseState.edges].reverse(),
+      lastSaved: 2,
+    })
+
+    const params = {
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      idempotencyKey: 'copilot:execution-1:tool-call:call-1',
+    }
+    await performFullDeploy(params)
+    await performFullDeploy(params)
+
+    expect(mockPrepareWorkflowDeployment.mock.calls[0][0].requestHash).toBe(
+      mockPrepareWorkflowDeployment.mock.calls[1][0].requestHash
+    )
+    expect(mockPrepareWorkflowDeployment.mock.calls[0][0].idempotencyKey).toBe(
+      'copilot:execution-1:tool-call:call-1'
+    )
   })
 
   it('keeps a first deploy pending without claiming an active deployment', async () => {
@@ -658,5 +763,40 @@ describe('performActivateVersion workspace event emission', () => {
     expect(result.success).toBe(false)
     expect(result.error).toBe('nope')
     expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
+  })
+})
+
+describe('mutation lock on the orchestration entry points', () => {
+  const mockAssertMutable = workflowAuthzMockFns.mockAssertWorkflowMutable
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockAssertMutable.mockRejectedValue(new WorkflowLockedError('Workflow is locked'))
+  })
+
+  it.each([
+    ['performFullDeploy', () => performFullDeploy({ workflowId: 'wf-1', userId: 'user-1' })],
+    ['performFullUndeploy', () => performFullUndeploy({ workflowId: 'wf-1', userId: 'user-1' })],
+    [
+      'performActivateVersion',
+      () => performActivateVersion({ workflowId: 'wf-1', version: 2, userId: 'user-1' }),
+    ],
+  ])('%s returns a lock denial instead of throwing', async (_name, call) => {
+    // Callers like performChatDeploy and the copilot deploy tools consume the
+    // result object; a throw surfaces as a generic 500 instead of a denial.
+    const result = await call()
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('locked')
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('proceeds past the gate when the workflow is mutable', async () => {
+    mockAssertMutable.mockResolvedValue(undefined)
+
+    await performFullUndeploy({ workflowId: 'wf-1', userId: 'user-1' })
+
+    expect(mockAssertMutable).toHaveBeenCalledWith('wf-1')
   })
 })

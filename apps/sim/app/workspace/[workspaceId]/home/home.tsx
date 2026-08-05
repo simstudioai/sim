@@ -10,6 +10,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import { Button, cn } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
@@ -26,12 +27,15 @@ import {
   LandingWorkflowSeedStorage,
   MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
+import { isDesktopApp } from '@/lib/desktop'
 import {
+  addMothershipContexts,
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import {
@@ -55,6 +59,8 @@ import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hoo
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
+const subscribeToDesktopApp = () => () => {}
+const getServerDesktopAppSnapshot = () => false
 
 /**
  * The resource preview panel pulls in the file-viewer stack (rich-markdown
@@ -77,6 +83,11 @@ interface HomeProps {
 
 export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps) {
   useOAuthReturnRouter()
+  const isDesktop = useSyncExternalStore(
+    subscribeToDesktopApp,
+    isDesktopApp,
+    getServerDesktopAppSnapshot
+  )
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
   /**
@@ -192,17 +203,10 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   const { isPending: isChatHistoryPending } = useMothershipChatHistory(chatId)
   const { mutate: markRead } = useMarkMothershipChatRead(workspaceId)
 
-  const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
-
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
   isResourceCollapsedRef.current = isResourceCollapsed
-
-  const collapseResource = useCallback(() => {
-    clearWidth()
-    setIsResourceCollapsed(true)
-  }, [clearWidth])
 
   function handleResourceEvent() {
     if (isResourceCollapsedRef.current) {
@@ -217,6 +221,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     sendMessage,
     stopGeneration,
     resolvedChatId,
+    desktopScopeId,
     resources,
     activeResourceId,
     setActiveResourceId,
@@ -249,6 +254,13 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       },
     })
   )
+
+  const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize(desktopScopeId)
+
+  const collapseResource = useCallback(() => {
+    clearWidth()
+    setIsResourceCollapsed(true)
+  }, [clearWidth])
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -329,19 +341,39 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   }, [sendMessage])
 
   /**
-   * Consumes a one-shot handoff left by another surface (e.g. "Troubleshoot in
-   * Chat" on an errored log viewed from a different route) and auto-sends it
-   * into this fresh chat, tagging the run so Sim can inspect the failure. Only
-   * the cross-route path lands here — when a chat is already mounted the event
-   * above delivers directly. Gated to the new-chat surface (`!chatId`): a
+   * Consumes a one-shot handoff left by another surface and applies it to this
+   * fresh chat. Two shapes arrive here: a message handoff (e.g. "Troubleshoot in
+   * Chat" on an errored log) is auto-sent with its contexts attached; a
+   * chip-only handoff (highlight-to-chat from the standalone Files/Tables pages)
+   * seeds reference chips and sends nothing.
+   *
+   * Only the cross-route path lands here — when a chat is already mounted the
+   * events deliver directly. Gated to the new-chat surface (`!chatId`): a
    * handoff always targets a fresh chat, so an existing `/chat/[chatId]` mount
    * must never claim it if navigation races. `consume` clears the entry
    * atomically, so it fires at most once even across a StrictMode remount.
+   *
+   * Chip-only handoffs open each resource directly rather than relying on the
+   * input's listener being mounted, then dispatch so the input inserts the chip.
+   * This effect is declared after `useChat`, so its chat-init `setResources([])`
+   * has already flushed and cannot wipe the just-opened resource.
    */
   useEffect(() => {
     if (chatId) return
     const handoff = MothershipHandoffStorage.consume(workspaceId)
-    if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
+    if (!handoff) return
+    if (handoff.message) {
+      sendMessage(handoff.message, undefined, handoff.contexts)
+      return
+    }
+    const contexts = handoff.contexts ?? []
+    for (const context of contexts) handleContextAdd(context)
+    addMothershipContexts(contexts)
+    // `handleContextAdd` is a body function, so it is a new value every render;
+    // listing it would re-run this drain on every render. Omitted deliberately to
+    // keep it one-shot — and harmless either way, since `consume` clears the entry
+    // atomically and any re-run would find nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [chatId, workspaceId, sendMessage])
 
   function resolveResourceFromContext(
@@ -355,24 +387,48 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         return context.knowledgeId ? { type: 'knowledgebase', id: context.knowledgeId } : null
       case 'table':
         return context.tableId ? { type: 'table', id: context.tableId } : null
+      case 'table_selection':
+        return context.tableId ? { type: 'table', id: context.tableId } : null
       case 'file':
+        return context.fileId ? { type: 'file', id: context.fileId } : null
+      case 'file_selection':
         return context.fileId ? { type: 'file', id: context.fileId } : null
       default:
         return null
     }
   }
 
+  /**
+   * Tab title for the resource a chip opens. A selection chip's label describes
+   * the selection (`notes.md:12-40`, `Sales (3 rows)`) but the tab shows the
+   * whole file/table, so title it from the resource name the context carries.
+   */
+  function resourceTitleForContext(context: ChatContext): string {
+    if (context.kind === 'file_selection') return context.fileName
+    if (context.kind === 'table_selection') return context.tableName
+    return context.label
+  }
+
   function handleContextAdd(context: ChatContext) {
     const resolved = resolveResourceFromContext(context)
     if (resolved) {
-      addResource({ ...resolved, title: context.label })
+      addResource({ ...resolved, title: resourceTitleForContext(context) })
       handleResourceEvent()
     }
   }
 
-  function handleInitialContextRemove(context: ChatContext) {
+  function handleInitialContextRemove(context: ChatContext, remaining: ChatContext[]) {
     const resolved = resolveResourceFromContext(context)
     if (!resolved) return
+    // A whole-file chip and one or more of its selection chips (or several
+    // selections of the same file/table) all resolve to the same resource tab.
+    // Only close the tab once no remaining chip still references it, so removing
+    // one of several chips doesn't yank a slideover the others still point at.
+    const stillReferenced = remaining.some((other) => {
+      const otherResolved = resolveResourceFromContext(other)
+      return otherResolved?.type === resolved.type && otherResolved.id === resolved.id
+    })
+    if (stillReferenced) return
     removeResource(resolved.type, resolved.id)
   }
 
@@ -420,15 +476,16 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   const showEmptyState = !hasMessages && !showChatSkeleton
 
   return (
-    <div className='relative flex h-full bg-[var(--bg)]'>
-      <div className='relative flex h-full min-w-[320px] flex-1 flex-col'>
-        {/* Clears the expand button when the panel is closed and that button is
-            occupying the same corner. */}
+    <div className={cn('relative flex h-full bg-[var(--bg)]', RESOURCE_HEADER_CLASSES.layout)}>
+      <div className='relative flex h-full min-w-[240px] flex-1 flex-col'>
         {showEmptyState && (
           <div
             className={cn(
-              'absolute top-[8.5px] z-10',
-              isResourceCollapsed ? 'right-[54px]' : 'right-[16px]'
+              'absolute z-10',
+              RESOURCE_HEADER_CLASSES.contentTop,
+              isDesktop || isResourceCollapsed
+                ? RESOURCE_HEADER_CLASSES.adjacentEndPosition
+                : RESOURCE_HEADER_CLASSES.endPosition
             )}
           >
             <CreditsChip />
@@ -438,10 +495,10 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
           <div className='h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
             {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
             <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-              <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
+              <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
                 What should we get done{firstName ? `, ${firstName}` : ''}?
               </h1>
-              <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
+              <div ref={initialViewInputRef} className='relative w-full max-w-chat'>
                 <ChatSurfaceProvider
                   userId={userId}
                   onContextAdd={handleContextAdd}
@@ -519,9 +576,11 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
             ref={mothershipRef}
             workspaceId={workspaceId}
             chatId={resolvedChatId}
+            desktopScopeId={desktopScopeId}
             resources={resources}
             activeResourceId={activeResourceId}
             isCollapsed={isResourceCollapsed}
+            useFixedResourceToggle={isDesktop}
             previewSession={previewSession}
             isAgentResponding={isSending}
             genericResourceData={genericResourceData ?? undefined}
@@ -531,19 +590,46 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         </Suspense>
       </MothershipResourcesProvider>
 
-      {isResourceCollapsed && (
-        <div className='absolute top-[8.5px] right-[16px]'>
+      {isDesktop ? (
+        <div
+          className={cn(
+            'absolute top-0 z-30 flex items-center',
+            RESOURCE_HEADER_CLASSES.controls,
+            RESOURCE_HEADER_CLASSES.endPosition
+          )}
+        >
           <Button
             variant='ghost'
             size={null}
             type='button'
-            onClick={() => setIsResourceCollapsed(false)}
+            onClick={isResourceCollapsed ? () => setIsResourceCollapsed(false) : collapseResource}
             className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
-            aria-label='Expand resource view'
+            aria-label={isResourceCollapsed ? 'Expand resource view' : 'Collapse resource view'}
           >
-            <PanelLeft className='size-[16px] text-[var(--text-icon)]' />
+            <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
           </Button>
         </div>
+      ) : (
+        isResourceCollapsed && (
+          <div
+            className={cn(
+              'absolute',
+              RESOURCE_HEADER_CLASSES.contentTop,
+              RESOURCE_HEADER_CLASSES.endPosition
+            )}
+          >
+            <Button
+              variant='ghost'
+              size={null}
+              type='button'
+              onClick={() => setIsResourceCollapsed(false)}
+              className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
+              aria-label='Expand resource view'
+            >
+              <PanelLeft className='size-[16px] text-[var(--text-icon)]' />
+            </Button>
+          </div>
+        )
       )}
     </div>
   )

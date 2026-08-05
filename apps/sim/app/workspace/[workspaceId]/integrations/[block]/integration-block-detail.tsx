@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
-import Link from 'next/link'
+import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import {
   blockTypeToIconMap,
@@ -16,6 +15,7 @@ import {
 } from '@/lib/integrations'
 import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { RESOURCE_TILE_BASE } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
 import {
@@ -24,8 +24,16 @@ import {
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import {
+  CONNECT_MODE,
+  resolveAvailableConnectMode,
+} from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import {
@@ -35,6 +43,7 @@ import {
 } from '@/blocks/registry'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 /** Maximum number of overlapping icon tiles rendered per template row. */
 const TEMPLATE_CLUSTER_MAX = 3 as const
@@ -59,6 +68,9 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const matchingTemplates = getTemplatesForBlock(integration.type)
   const suggestedSkills = getSuggestedSkillsForBlock(integration.type)
   const oauthService = resolveOAuthServiceForIntegration(integration)
+  const { integrationAvailability, isLoading: permissionConfigLoading } = usePermissionConfig()
+  const availability = integrationAvailability.get(integration.type.toLowerCase())
+  const oauthAvailable = Boolean(oauthService) && (availability?.oauthAvailable ?? true)
   const [oauthOpen, setOAuthOpen] = useState(false)
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
@@ -88,40 +100,61 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     serviceName: oauthService?.serviceName,
     serviceIcon: oauthService?.serviceIcon,
   })
-  const hasServiceAccount = Boolean(serviceAccountTarget) && !serviceAccountTarget?.hidden
+  const serviceAccountDeploymentAvailable =
+    availability?.state === 'ready' || availability?.state === 'limited'
+  const hasServiceAccount =
+    serviceAccountDeploymentAvailable &&
+    Boolean(serviceAccountTarget) &&
+    !serviceAccountTarget?.hidden
   const serviceAccountConnectLabel = serviceAccountTarget?.label ?? 'Add service account'
   const hasHandledConnectQueryRef = useRef(false)
 
   useEffect(() => {
-    if (hasHandledConnectQueryRef.current) return
-    if (!connectMode) return
+    if (hasHandledConnectQueryRef.current || !connectMode || permissionConfigLoading) return
 
-    let handled = false
-    if (connectMode === CONNECT_MODE.oauth && oauthService) {
+    const availableConnectMode = resolveAvailableConnectMode(connectMode, {
+      oauth: Boolean(oauthService) && oauthAvailable,
+      serviceAccount: hasServiceAccount,
+    })
+    if (!availableConnectMode) return
+
+    if (availableConnectMode === CONNECT_MODE.oauth) {
       setOAuthOpen(true)
-      handled = true
-    } else if (connectMode === CONNECT_MODE.serviceAccount && hasServiceAccount) {
+    } else {
       setServiceAccountOpen(true)
-      handled = true
     }
-    if (!handled) return
 
     hasHandledConnectQueryRef.current = true
     void setConnectMode(null, { history: 'replace', scroll: false })
-  }, [connectMode, oauthService, hasServiceAccount, setConnectMode])
+  }, [
+    connectMode,
+    oauthService,
+    oauthAvailable,
+    hasServiceAccount,
+    permissionConfigLoading,
+    setConnectMode,
+  ])
 
   const connectOptions = oauthService
     ? [
-        {
-          value: CONNECT_MODE.oauth,
-          label: 'Connect with OAuth',
-          icon: oauthService.serviceIcon,
-        },
-        {
-          value: CONNECT_MODE.serviceAccount,
-          label: serviceAccountConnectLabel,
-          icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
-        },
+        ...(oauthAvailable
+          ? [
+              {
+                value: CONNECT_MODE.oauth,
+                label: 'Connect with OAuth',
+                icon: oauthService.serviceIcon,
+              },
+            ]
+          : []),
+        ...(hasServiceAccount
+          ? [
+              {
+                value: CONNECT_MODE.serviceAccount,
+                label: serviceAccountConnectLabel,
+                icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
+              },
+            ]
+          : []),
       ]
     : []
 
@@ -141,9 +174,9 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
         <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
           Integrations
         </ChipLink>
-        <div className='ml-auto flex items-center'>
+        <div className={cn('ml-auto', HEADER_ACTION_CLUSTER)}>
           {oauthService ? (
-            hasServiceAccount ? (
+            connectOptions.length > 1 ? (
               <ChipDropdown
                 variant='primary'
                 leftIcon={Plus}
@@ -153,10 +186,16 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
                 onChange={handleSelectConnectOption}
                 matchTriggerWidth={false}
               />
-            ) : (
+            ) : oauthAvailable ? (
               <Chip variant='primary' leftIcon={Plus} onClick={() => setOAuthOpen(true)}>
                 Add to Sim
               </Chip>
+            ) : hasServiceAccount ? (
+              <Chip variant='primary' leftIcon={Plus} onClick={() => setServiceAccountOpen(true)}>
+                {serviceAccountConnectLabel}
+              </Chip>
+            ) : (
+              <Chip disabled>Unavailable</Chip>
             )
           ) : isChatEnabled ? (
             <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
@@ -165,7 +204,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           ) : null}
         </div>
       </div>
-      {oauthService && (
+      {oauthService && oauthAvailable && (
         <ConnectOAuthModal
           mode='connect'
           origin='integrations'
@@ -198,10 +237,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
               <IntegrationTile blockType={integration.type} icon={Icon} />
             ) : (
               <div
-                className={cn(
-                  'flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)]',
-                  getTileIconColorClass(integration.bgColor)
-                )}
+                className={cn(RESOURCE_TILE_BASE, getTileIconColorClass(integration.bgColor))}
                 style={{ background: integration.bgColor }}
               >
                 {integration.name.charAt(0)}
@@ -216,22 +252,18 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           {connectedCredentials.length > 0 && (
             <IntegrationSection label='Connected'>
               {connectedCredentials.map((credential) => (
-                <Link
+                <SettingsResourceRow
                   key={credential.id}
+                  iconVariant='custom'
+                  icon={Icon && <IntegrationTile blockType={integration.type} icon={Icon} />}
+                  title={credential.displayName}
+                  description={
+                    credential.description || resolveCredentialDisplay(credential).subtitle
+                  }
                   href={`/workspace/${workspaceId}/integrations/connected/${credential.id}`}
-                  className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-                >
-                  {Icon && <IntegrationTile blockType={integration.type} icon={Icon} />}
-                  <div className='flex min-w-0 flex-1 flex-col'>
-                    <span className='truncate text-[14px] text-[var(--text-body)]'>
-                      {credential.displayName}
-                    </span>
-                    <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                      {credential.description || resolveCredentialDisplay(credential).subtitle}
-                    </span>
-                  </div>
-                  <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-                </Link>
+                  clickLabel={`Open ${credential.displayName}`}
+                  navigable
+                />
               ))}
             </IntegrationSection>
           )}
@@ -274,10 +306,8 @@ function TemplatesSection({ integration, templates, workspaceId }: TemplatesSect
   }
 
   return (
-    <section className='flex flex-col'>
-      <span className='pl-0.5 text-[var(--text-muted)] text-small'>Templates</span>
-      <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
-      <div className='-mx-2 flex flex-col gap-y-0.5'>
+    <SettingsSection label='Templates'>
+      <div className={RESOURCE_LIST_STACK}>
         {templates.map((template) => {
           const blockTypes = [integration.type, ...template.otherBlockTypes].slice(
             0,
@@ -294,7 +324,7 @@ function TemplatesSection({ integration, templates, workspaceId }: TemplatesSect
           )
         })}
       </div>
-    </section>
+    </SettingsSection>
   )
 }
 
@@ -306,25 +336,21 @@ interface TemplateRowProps {
 }
 
 /**
- * Template row that mirrors `IntegrationItem` from the integrations index
- * byte-for-byte (icon cluster · title · description · trailing `ArrowRight`).
- * Renders as a `<button>` because click seeds the home page chat with `prompt`
- * and navigates to the workspace home, matching the `ShowcaseWithExplore` flow.
+ * Template row. Click seeds the home page chat with `prompt` and navigates to the
+ * workspace home, matching the `ShowcaseWithExplore` flow — so it activates rather
+ * than links, and its leading visual is an overlapping block cluster.
  */
 function TemplateRow({ blockTypes, title, prompt, onSelect }: TemplateRowProps) {
   return (
-    <button
-      type='button'
+    <SettingsResourceRow
+      iconVariant='custom'
+      icon={<TemplateIcons blockTypes={blockTypes} />}
+      title={title}
+      description={prompt}
       onClick={() => onSelect(prompt)}
-      className='group flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-    >
-      <TemplateIcons blockTypes={blockTypes} />
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <span className='truncate text-[14px] text-[var(--text-body)]'>{title}</span>
-        <span className='truncate text-[12px] text-[var(--text-muted)]'>{prompt}</span>
-      </div>
-      <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-    </button>
+      clickLabel={`Use template ${title}`}
+      navigable
+    />
   )
 }
 

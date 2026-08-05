@@ -6,6 +6,7 @@ import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contex
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { hashMarkdown, loadFreshCollabDocState } from './collab-state'
 import { markdownToYDoc } from './converter'
+import { stripEmptyTopLevelParagraphs } from './normalize'
 
 const logger = createLogger('FileDocSeed')
 
@@ -24,6 +25,24 @@ export interface FileDocSeed {
    * as what its freshly-seeded live doc is synced to, for the persist optimistic-concurrency guard.
    */
   version: number
+}
+
+/**
+ * Repair a cached Yjs snapshot before it seeds a room: strip any top-level empty paragraphs the markdown
+ * re-parse would drop (see {@link stripEmptyTopLevelParagraphs}), so a warm seed renders identically to
+ * the static placeholder and never surfaces a stray blank line once the doc settles. Returns the original
+ * bytes untouched when the snapshot is already clean (the common case) — no re-encode cost — and a fresh
+ * encode (preserving the CRDT's client ids, only adding tombstones for the removed empties) when it
+ * repaired a legacy snapshot baked before this normalization existed.
+ */
+function normalizeSeedUpdate(cached: Uint8Array): Uint8Array {
+  const doc = new Y.Doc()
+  try {
+    Y.applyUpdate(doc, cached)
+    return stripEmptyTopLevelParagraphs(doc) ? Y.encodeStateAsUpdate(doc) : cached
+  } finally {
+    doc.destroy()
+  }
 }
 
 /**
@@ -63,7 +82,7 @@ export async function buildFileDocSeed(
   // block the cold open — symmetric with persist's best-effort cache write.
   try {
     const cached = await loadFreshCollabDocState(fileId, hashMarkdown(buffer))
-    if (cached) return { update: cached, version }
+    if (cached) return { update: normalizeSeedUpdate(cached), version }
   } catch (error) {
     logger.warn(`Failed to read cached collab doc state for file ${fileId}`, {
       error: getErrorMessage(error),

@@ -488,6 +488,7 @@ async function completeLoggingSession(result: ExecutionResult): Promise<void> {
     finalOutput: result.output || {},
     traceSpans: (traceSpans || []) as any,
     workflowInput: result._streamingMetadata.processedInput,
+    executionState: result.executionState,
   })
 
   result._streamingMetadata = undefined

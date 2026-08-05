@@ -25,7 +25,7 @@
 .document-table th,
 .document-table td {
   position: relative;
-  border: 1px solid var(--divider);
+  border: var(--border-width) solid var(--border);
   padding: 0.5rem 0.75rem;
   text-align: left;
   vertical-align: top;

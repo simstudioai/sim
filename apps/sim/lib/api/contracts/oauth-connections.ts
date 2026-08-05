@@ -86,6 +86,8 @@ const oauthTokenResponseSchema = z.object({
   accessToken: z.string(),
   idToken: z.string().optional(),
   instanceUrl: z.string().optional(),
+  /** Zoho Desk — the data-center-scoped Desk REST base for this credential. */
+  apiDomain: z.string().optional(),
   cloudId: z.string().optional(),
   domain: z.string().optional(),
   authStyle: z.enum(['x-api-token']).optional(),

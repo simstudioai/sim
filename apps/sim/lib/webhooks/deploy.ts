@@ -32,12 +32,12 @@ import {
   refreshAccessTokenIfNeeded,
   resolveOAuthAccountId,
 } from '@/app/api/auth/oauth/utils'
-import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 import { SIM_SUBSCRIBED_EVENTS } from '@/triggers/slack/shared'
+import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 const logger = createLogger('DeployWebhookSync')
 
@@ -75,7 +75,7 @@ export async function validateTriggerWebhookConfigForDeploy(
   const triggerBlocks = Object.values(blocks || {}).filter((b) => b && b.enabled !== false)
 
   for (const block of triggerBlocks) {
-    const triggerId = resolveTriggerId(block)
+    const triggerId = resolveBlockTriggerId(block)
     if (!triggerId || !isTriggerValid(triggerId)) continue
 
     const triggerDef = getTrigger(triggerId)
@@ -170,43 +170,6 @@ function isFieldRequired(
 
   const condition = typeof config.required === 'function' ? config.required() : config.required
   return evalCond(condition, subBlockValues)
-}
-
-function resolveTriggerId(block: BlockState): string | undefined {
-  const blockConfig = getBlock(block.type)
-
-  if (blockConfig?.category === 'triggers' && isTriggerValid(block.type)) {
-    return block.type
-  }
-
-  if (!block.triggerMode) {
-    return undefined
-  }
-
-  const selectedTriggerId = getSubBlockValue(block, 'selectedTriggerId')
-  if (typeof selectedTriggerId === 'string' && isTriggerValid(selectedTriggerId)) {
-    return selectedTriggerId
-  }
-
-  const storedTriggerId = getSubBlockValue(block, 'triggerId')
-  if (typeof storedTriggerId === 'string' && isTriggerValid(storedTriggerId)) {
-    return storedTriggerId
-  }
-
-  if (blockConfig?.triggers?.enabled) {
-    const configuredTriggerId =
-      typeof selectedTriggerId === 'string' ? selectedTriggerId : undefined
-    if (configuredTriggerId && isTriggerValid(configuredTriggerId)) {
-      return configuredTriggerId
-    }
-
-    const available = blockConfig.triggers?.available?.[0]
-    if (available && isTriggerValid(available)) {
-      return available
-    }
-  }
-
-  return undefined
 }
 
 function getConfigValue(block: BlockState, subBlock: SubBlockConfig): unknown {
@@ -372,7 +335,7 @@ export async function resolveWebhookConfigForBlock(input: {
   userId: string
   requestId: string
 }): Promise<ResolveWebhookConfigResult | null> {
-  const triggerId = resolveTriggerId(input.block)
+  const triggerId = resolveBlockTriggerId(input.block)
   if (!triggerId || !isTriggerValid(triggerId)) return null
 
   const triggerDef = getTrigger(triggerId)
@@ -683,7 +646,10 @@ export async function prepareStableTriggerWebhooksForDeploy({
       success: false,
       error: {
         message: getErrorMessage(error, 'Failed to prepare webhook registrations'),
-        status: 500,
+        // Propagate a provider-attached status (e.g. Zoho's 4xx edition/validation
+        // failures) so the deploy outbox fails terminally instead of retrying,
+        // matching the legacy save path's status-aware mapping below.
+        status: (error as { status?: number })?.status ?? 500,
       },
     }
   }
@@ -940,7 +906,11 @@ export async function saveTriggerWebhooksForDeploy({
             (cleanupFailure as Error)?.message ||
             (error as Error)?.message ||
             'Failed to create external subscription',
-          status: 500,
+          // Propagate a 4xx from the provider handler (e.g. a permanent Zoho
+          // config/permission/invalid-data failure) so the outbox classifies it
+          // as non-retryable; anything else (network, provider 5xx) stays 500 and
+          // retryable. cleanupFailure never overrides the root cause's status.
+          status: (error as { status?: number })?.status ?? 500,
         },
       }
     }

@@ -2,10 +2,11 @@
 
 import { memo, type ReactElement, useEffect, useRef, useState } from 'react'
 import {
-  ChevronDown,
   Chip,
+  ChipChevronDown,
   ChipConfirmModal,
   ChipInput,
+  chipContentLabelClass,
   chipGeometryClass,
   chipVariants,
   cn,
@@ -18,10 +19,9 @@ import {
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
-import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
+import { MoreHorizontal, PanelLeft, Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { MoreHorizontal, Search } from 'lucide-react'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -38,6 +38,7 @@ import {
 } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { SIDEBAR_WIDTH } from '@/stores/constants'
 
 const logger = createLogger('WorkspaceHeader')
 
@@ -261,6 +262,11 @@ function WorkspaceHeaderImpl({
    * server refused the send.
    */
   const { userPermissions } = useWorkspacePermissionsContext()
+  /**
+   * Derived from the `workspaces` prop rather than {@link useWorkspaceInvitePolicy}:
+   * this component is already handed the list it would otherwise re-read, and the
+   * same object supplies the logo, color, and organization below.
+   */
   const inviteDisabledReason = activeWorkspaceFull?.inviteDisabledReason ?? null
   const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
 
@@ -497,10 +503,8 @@ function WorkspaceHeaderImpl({
               )}
               {!isCollapsed && activeWorkspace?.name && (
                 <>
-                  <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
-                    {activeWorkspace.name}
-                  </span>
-                  <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+                  <span className={chipContentLabelClass}>{activeWorkspace.name}</span>
+                  <ChipChevronDown />
                 </>
               )}
             </button>
@@ -511,7 +515,7 @@ function WorkspaceHeaderImpl({
             sideOffset={isCollapsed ? 16 : 8}
             className='flex max-h-none flex-col overflow-hidden'
             style={{
-              width: '248px',
+              width: `${SIDEBAR_WIDTH.DEFAULT}px`,
               maxWidth: 'calc(100vw - 24px)',
             }}
             onCloseAutoFocus={(e) => e.preventDefault()}
@@ -599,9 +603,7 @@ function WorkspaceHeaderImpl({
                         }
                       >
                         {editingWorkspaceId === workspace.id ? (
-                          <div
-                            className={chipVariants({ active: true, fullWidth: true, flush: true })}
-                          >
+                          <div className={chipVariants({ active: true, fullWidth: true })}>
                             {workspace.logoUrl ? (
                               <img
                                 src={workspace.logoUrl}
@@ -676,7 +678,6 @@ function WorkspaceHeaderImpl({
                               chipVariants({
                                 active: isActive || isMenuOpen || isKeyboardHighlighted,
                                 fullWidth: true,
-                                flush: true,
                               }),
                               'select-none'
                             )}
@@ -755,7 +756,6 @@ function WorkspaceHeaderImpl({
                       disabled={isCreatingWorkspace}
                       aria-disabled={!canCreateWorkspace || undefined}
                       fullWidth
-                      flush
                       className={cn(
                         'select-none',
                         !canCreateWorkspace &&
@@ -765,51 +765,30 @@ function WorkspaceHeaderImpl({
                       New workspace
                     </Chip>
                   </DisabledReasonTooltip>
+                  <DisabledReasonTooltip reason={inviteDisabledReason}>
+                    <Chip
+                      leftIcon={Send}
+                      onClick={() => {
+                        setIsWorkspaceMenuOpen(false)
+                        if (isInvitationsDisabled) {
+                          if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+                          return
+                        }
+                        setIsInviteModalOpen(true)
+                      }}
+                      fullWidth
+                      className='select-none'
+                    >
+                      Invite teammates
+                    </Chip>
+                  </DisabledReasonTooltip>
+                  <ViewInvitationsMenuItem
+                    onOpen={() => {
+                      setIsWorkspaceMenuOpen(false)
+                      setIsViewInvitationsOpen(true)
+                    }}
+                  />
                 </div>
-
-                <DropdownMenuSeparator className='mx-0' />
-                <DisabledReasonTooltip reason={inviteDisabledReason}>
-                  <Chip
-                    leftIcon={Send}
-                    onClick={() => {
-                      setIsWorkspaceMenuOpen(false)
-                      if (isInvitationsDisabled) {
-                        if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-                        return
-                      }
-                      setIsInviteModalOpen(true)
-                    }}
-                    fullWidth
-                    flush
-                    className='select-none'
-                  >
-                    Invite teammates
-                  </Chip>
-                </DisabledReasonTooltip>
-                <ViewInvitationsMenuItem
-                  onOpen={() => {
-                    setIsWorkspaceMenuOpen(false)
-                    setIsViewInvitationsOpen(true)
-                  }}
-                />
-                <DisabledReasonTooltip reason={inviteDisabledReason}>
-                  <Chip
-                    leftIcon={ManageWorkspace}
-                    onClick={() => {
-                      setIsWorkspaceMenuOpen(false)
-                      if (isInvitationsDisabled) {
-                        if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-                        return
-                      }
-                      navigateToSettings({ section: 'teammates' })
-                    }}
-                    fullWidth
-                    flush
-                    className='select-none'
-                  >
-                    Manage workspace
-                  </Chip>
-                </DisabledReasonTooltip>
               </>
             )}
           </DropdownMenuContent>
@@ -818,11 +797,10 @@ function WorkspaceHeaderImpl({
         <button
           type='button'
           aria-label='Switch workspace'
-          className={cn(
-            chipGeometryClass,
-            'mx-0.5',
-            isCollapsed ? 'flex' : 'inline-flex min-w-0 max-w-full'
-          )}
+          /* Geometry must match the live trigger it stands in for, or the switcher
+             shifts when the workspace resolves. Chips carry no margin, so neither
+             does this. */
+          className={cn(chipGeometryClass, isCollapsed ? 'flex' : 'inline-flex min-w-0 max-w-full')}
           title={activeWorkspace?.name}
           disabled
         >
@@ -844,10 +822,8 @@ function WorkspaceHeaderImpl({
           )}
           {!isCollapsed && activeWorkspace?.name && (
             <>
-              <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
-                {activeWorkspace.name}
-              </span>
-              <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+              <span className={chipContentLabelClass}>{activeWorkspace.name}</span>
+              <ChipChevronDown />
             </>
           )}
         </button>

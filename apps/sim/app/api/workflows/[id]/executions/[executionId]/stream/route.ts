@@ -142,9 +142,20 @@ export const GET = withRouteHandler(
             if (!closed) controller.close()
           }
 
+          /**
+           * Terminal metadata is the authoritative end-of-run signal. The
+           * happy path writes it atomically with the terminal event, and a run
+           * whose terminal event could not be buffered records the status on
+           * its own — so metadata without a matching event means the buffer
+           * degraded, not that the run is still going. End the stream cleanly:
+           * the reader has already received every event that was buffered, and
+           * failing here would turn a degraded replay into a broken one.
+           */
           const closeAfterTerminalEvent = (events: ExecutionEventEntry[]) => {
             if (!enqueueEvents(events)) {
-              throw new Error('Execution reached terminal metadata without a terminal event')
+              logger.warn('Execution reached terminal metadata without a terminal event', {
+                executionId,
+              })
             }
             closeWithDone()
           }

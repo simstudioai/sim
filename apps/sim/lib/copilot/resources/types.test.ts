@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
 import {
   BROWSER_SESSION_RESOURCE_ID,
+  canonicalizeDesktopSessionResource,
+  canonicalizeDesktopSessionResources,
   isDesktopOnlyResource,
   isEphemeralResource,
   type MothershipResource,
@@ -47,6 +49,32 @@ describe('isDesktopOnlyResource', () => {
   it('leaves ordinary workspace resources alone', () => {
     expect(isDesktopOnlyResource(resource({ type: 'workflow' }))).toBe(false)
     expect(isDesktopOnlyResource(resource({ type: 'file' }))).toBe(false)
+  })
+})
+
+describe('desktop session resource identity', () => {
+  it('keeps browser pages as inner tabs of one canonical Browser resource', () => {
+    expect(
+      canonicalizeDesktopSessionResources([
+        resource({
+          type: 'browser',
+          id: 'browser-session:slack-tab',
+          title: 'mship-todo (Channel) - sim - Slack',
+        }),
+        resource({ type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' }),
+      ])
+    ).toEqual([{ type: 'browser', id: BROWSER_SESSION_RESOURCE_ID, title: 'Browser' }])
+  })
+
+  it('canonicalizes terminal inner-tab metadata without changing regular resources', () => {
+    expect(
+      canonicalizeDesktopSessionResource(
+        resource({ type: 'terminal', id: 'terminal-session:2', title: 'zsh' })
+      )
+    ).toEqual({ type: 'terminal', id: TERMINAL_SESSION_RESOURCE_ID, title: 'Terminal' })
+
+    const file = resource({ type: 'file', id: 'file-1', title: 'report.csv' })
+    expect(canonicalizeDesktopSessionResource(file)).toBe(file)
   })
 })
 

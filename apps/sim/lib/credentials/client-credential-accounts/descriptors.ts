@@ -15,7 +15,12 @@
 export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account' as const
 
 /** Contract field ids a client-credential connect modal collects. */
-export type ClientCredentialAccountFieldId = 'clientId' | 'clientSecret' | 'orgId'
+export type ClientCredentialAccountFieldId = 'clientId' | 'clientSecret' | 'orgId' | 'dataCenter'
+
+export interface ClientCredentialAccountOption {
+  value: string
+  label: string
+}
 
 export interface ClientCredentialAccountField {
   id: ClientCredentialAccountFieldId
@@ -23,6 +28,21 @@ export interface ClientCredentialAccountField {
   placeholder: string
   /** Rendered with SecretInput and never echoed back. */
   secret: boolean
+  /**
+   * Field the connect modal may submit empty; excluded from
+   * {@link CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS} so create/reconnect
+   * validation never demands it. Omitted (default) means required.
+   */
+  optional?: boolean
+  /**
+   * Fixed value set, rendered by the connect modal as a dropdown — which removes
+   * the need for a format hint on the field. Required on `dataCenter`: the modal
+   * renders that field only when it carries options, so a region selector added
+   * without them would silently not appear.
+   */
+  options?: ReadonlyArray<ClientCredentialAccountOption>
+  /** Always-visible guidance, for a field whose value is not self-explanatory. */
+  hint?: string
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -54,11 +74,13 @@ export interface ClientCredentialAccountDescriptor {
 export const ZOOM_SERVICE_ACCOUNT_PROVIDER_ID = 'zoom-service-account' as const
 export const BOX_SERVICE_ACCOUNT_PROVIDER_ID = 'box-service-account' as const
 export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-account' as const
+export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
 
 export type ClientCredentialAccountProviderId =
   | typeof ZOOM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof BOX_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Allowed My Domain host shapes: one org label (optionally with a
@@ -85,6 +107,115 @@ export function normalizeSalesforceMyDomainHost(rawHost: string): string {
     .toLowerCase()
 }
 
+/**
+ * Zoho's `soid` token parameter is documented only as the syntax
+ * `{servicename}.{zsoid}` with a single Zoho CRM example
+ * (`ZohoCRM.600*****434`). Two things are NOT confirmed by Zoho's own docs:
+ *
+ * 1. that the Desk service name is literally `ZohoDesk` (inferred from the
+ *    documented syntax and corroborated only by community posts), and
+ * 2. that `zsoid` is the same value as the Desk `orgId` sent in the `orgId`
+ *    request header, rather than a distinct Zoho ServiceOrg id.
+ *
+ * Both need live verification against a real Zoho Desk org before this flow is
+ * relied on. The normalization is therefore deliberately permissive: a value
+ * that already carries a `{servicename}.` prefix (any dot) is passed through
+ * untouched, so an operator who learns the correct prefix or id can paste the
+ * full `soid` and bypass the inference entirely. A bare id is prefixed with
+ * `ZohoDesk.`.
+ *
+ * Shared by the connect modal's format hint and the server-side minter so both
+ * judge the same normalized value.
+ */
+export function normalizeZohoDeskSoid(rawOrgId: string): string {
+  const trimmed = rawOrgId.trim()
+  if (!trimmed || trimmed.includes('.')) return trimmed
+  return `ZohoDesk.${trimmed}`
+}
+
+/** A normalized `soid`: a service-name prefix plus a numeric Zoho org id. */
+export const ZOHO_DESK_SOID_REGEX = /^[A-Za-z]+\.\d+$/
+
+/**
+ * Zoho data centers the Self Client (client-credentials) flow supports. Each
+ * entry pairs the accounts server that mints the token with the Desk REST host
+ * in the same region, so the minter never has to guess either one.
+ *
+ * Only regions where BOTH hosts are confirmed are listed. CA, SA, JP, CN, and
+ * UK are deliberately absent: Zoho's accounts documentation and Zoho's own Desk
+ * SDK disagree on Canada (`accounts.zohocloud.ca` vs `accounts.zoho.ca`), and
+ * the Desk hosts for the others are not confirmed. More regions can be added
+ * once both the accounts server and the Desk host are confirmed for them.
+ *
+ * This applies to the service account only — the interactive OAuth flow's
+ * authorize/token URLs are static per provider and remain US-only.
+ */
+export const ZOHO_DESK_DATA_CENTERS = {
+  us: { accountsBase: 'https://accounts.zoho.com', deskBase: 'https://desk.zoho.com' },
+  eu: { accountsBase: 'https://accounts.zoho.eu', deskBase: 'https://desk.zoho.eu' },
+  in: { accountsBase: 'https://accounts.zoho.in', deskBase: 'https://desk.zoho.in' },
+  au: { accountsBase: 'https://accounts.zoho.com.au', deskBase: 'https://desk.zoho.com.au' },
+} as const satisfies Record<string, { accountsBase: string; deskBase: string }>
+
+export type ZohoDeskDataCenterId = keyof typeof ZOHO_DESK_DATA_CENTERS
+
+/** Region used when the admin leaves the field blank, so existing credentials are unaffected. */
+export const DEFAULT_ZOHO_DESK_DATA_CENTER: ZohoDeskDataCenterId = 'us'
+
+export const ZOHO_DESK_DATA_CENTER_IDS = Object.keys(
+  ZOHO_DESK_DATA_CENTERS
+) as ZohoDeskDataCenterId[]
+
+/** Region names, paired with the ids so a label can never name the wrong host. */
+const ZOHO_DESK_DATA_CENTER_LABELS: Record<ZohoDeskDataCenterId, string> = {
+  us: 'United States',
+  eu: 'Europe',
+  in: 'India',
+  au: 'Australia',
+}
+
+/**
+ * Connect-modal dropdown options, derived from {@link ZOHO_DESK_DATA_CENTERS} so
+ * adding a region cannot leave the picker behind. Each label carries the accounts
+ * host the region mints against, which is what an admin recognizes from the URL
+ * they sign in to Zoho with.
+ */
+export const ZOHO_DESK_DATA_CENTER_OPTIONS: ReadonlyArray<ClientCredentialAccountOption> =
+  ZOHO_DESK_DATA_CENTER_IDS.map((id) => ({
+    value: id,
+    label: `${ZOHO_DESK_DATA_CENTER_LABELS[id]} (${ZOHO_DESK_DATA_CENTERS[id].accountsBase.replace('https://', '')})`,
+  }))
+
+/** Accepts exactly the supported region codes, case-insensitively after normalization. */
+export const ZOHO_DESK_DATA_CENTER_REGEX = new RegExp(`^(${ZOHO_DESK_DATA_CENTER_IDS.join('|')})$`)
+
+/**
+ * Normalizes a pasted data-center value to its lowercase region code. Shared by
+ * the connect modal's format hint and the server-side minter so both judge the
+ * same normalized value.
+ */
+export function normalizeZohoDeskDataCenter(rawDataCenter: string): string {
+  return rawDataCenter.trim().toLowerCase()
+}
+
+/**
+ * Resolves a stored data-center value to its accounts/Desk host pair. A blank,
+ * absent, or unrecognized value falls back to {@link DEFAULT_ZOHO_DESK_DATA_CENTER}
+ * so credentials created before this field existed keep minting against the US
+ * accounts server exactly as they did.
+ */
+export function resolveZohoDeskDataCenter(rawDataCenter?: string): {
+  id: ZohoDeskDataCenterId
+  accountsBase: string
+  deskBase: string
+} {
+  const normalized = normalizeZohoDeskDataCenter(rawDataCenter ?? '')
+  const id: ZohoDeskDataCenterId = Object.hasOwn(ZOHO_DESK_DATA_CENTERS, normalized)
+    ? (normalized as ZohoDeskDataCenterId)
+    : DEFAULT_ZOHO_DESK_DATA_CENTER
+  return { id, ...ZOHO_DESK_DATA_CENTERS[id] }
+}
+
 export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
   ClientCredentialAccountDescriptor
@@ -97,7 +228,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'clientId',
         label: 'Client ID',
-        placeholder: 'Client ID from the App Credentials page',
+        placeholder: 'Paste the client ID',
         secret: false,
       },
       {
@@ -109,13 +240,13 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'orgId',
         label: 'Account ID',
-        placeholder: 'Account ID from the App Credentials page',
+        placeholder: 'Paste the account ID',
         secret: false,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/zoom-service-account',
     helpText:
-      "Copy all three values from the Server-to-Server OAuth app's App Credentials page — the Account ID there is not the account number shown in the Zoom web portal. The app must be activated before tokens can be issued.",
+      'The Account ID on the App Credentials page is not the account number shown in the Zoom web portal. The app must be activated before tokens can be issued.',
   },
   [BOX_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: BOX_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -125,7 +256,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'clientId',
         label: 'Client ID',
-        placeholder: 'Client ID from Configuration > OAuth 2.0 Credentials',
+        placeholder: 'Paste the client ID',
         secret: false,
       },
       {
@@ -155,7 +286,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'clientId',
         label: 'Consumer key',
-        placeholder: "Consumer Key from the Connected App's Manage Consumer Details page",
+        placeholder: 'Paste the consumer key',
         secret: false,
       },
       {
@@ -177,14 +308,57 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/salesforce-service-account',
     helpText:
-      'The Connected App must have "Enable Client Credentials Flow" checked with a "Run As" integration user set under Edit Policies — every call executes with that user\'s permissions, and deactivating or freezing the user stops all runs.',
+      'Every call executes as the Connected App\'s "Run As" user, so deactivating or freezing that user stops all runs. Without the "openid" scope the connection still works, but Sim cannot record which user it authenticates as.',
+  },
+  [ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Zoho Desk',
+    connectNoun: 'Self Client',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+      {
+        id: 'orgId',
+        label: 'Organization ID',
+        placeholder: '600123456',
+        secret: false,
+        hintPattern: ZOHO_DESK_SOID_REGEX,
+        hintNormalize: normalizeZohoDeskSoid,
+        hintMessage:
+          'Expected a numeric organization ID like 600123456, or a full ZohoDesk.600123456 value.',
+      },
+      {
+        id: 'dataCenter',
+        label: 'Data center',
+        // Deliberately region-neutral: on a reconnect an unset value keeps the
+        // credential's stored region, so naming a region here would be wrong.
+        placeholder: 'Select a data center',
+        secret: false,
+        optional: true,
+        options: ZOHO_DESK_DATA_CENTER_OPTIONS,
+        hint: 'The region your Zoho account signs in to. New credentials default to the United States.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/zoho-desk-service-account',
+    helpText: 'Zoho Desk triggers still require an OAuth connection, which is US-only.',
   },
 }
 
 /**
  * Required contract fields per client-credential provider, consumed by the
  * `createCredentialBodySchema` superRefine so validation errors name the exact
- * missing field. Derived from each descriptor's field list.
+ * missing field. Derived from each descriptor's field list, minus the fields
+ * marked `optional`.
  */
 export const CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: Record<
   string,
@@ -192,7 +366,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: Record<
 > = Object.fromEntries(
   Object.values(CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS).map((descriptor) => [
     descriptor.providerId,
-    descriptor.fields.map((field) => field.id),
+    descriptor.fields.filter((field) => !field.optional).map((field) => field.id),
   ])
 )
 

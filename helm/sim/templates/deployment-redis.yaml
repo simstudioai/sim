@@ -1,0 +1,106 @@
+{{- if include "sim.chartManagesRedis" . }}
+{{- /*
+  In-cluster Redis, mirroring how the chart bundles PostgreSQL so a default
+  install has the same capabilities as the Docker Compose stack. Redis backs
+  pub/sub, the Socket.IO adapter, and the idempotency and progress stores;
+  without it, multi-replica deployments silently drop cross-pod events.
+
+  No persistence: Sim uses Redis for coordination and short-lived keys only,
+  and losing it costs in-flight live updates, not committed data. For
+  production, prefer a managed instance — set redis.enabled=false and point
+  app.env.REDIS_URL at it.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sim.fullname" . }}-redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "sim.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "sim.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- include "sim.podSecurityContext" .Values.redis | nindent 6 }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: redis
+          image: {{ include "sim.image" (dict "imageRoot" .Values.redis.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          {{- include "sim.containerSecurityContext" .Values.redis | nindent 10 }}
+          args:
+            - --maxmemory
+            - {{ .Values.redis.maxmemory | quote }}
+            - --maxmemory-policy
+            - {{ .Values.redis.maxmemoryPolicy | quote }}
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          {{- include "sim.resources" .Values.redis | nindent 10 }}
+      {{- with .Values.redis.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sim.fullname" . }}-redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+  selector:
+    {{- include "sim.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+{{- end }}

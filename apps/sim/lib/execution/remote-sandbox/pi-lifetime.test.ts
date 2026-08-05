@@ -3,99 +3,108 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-/**
- * The resolver reads configuration at import, so each case re-imports the module
- * with its own mocked environment rather than mutating shared state.
- */
-async function resolveWith(options: {
-  provider?: string
-  lifetimeMs?: string
-}): Promise<{ lifetime: number | undefined; min: number; max: number }> {
-  vi.resetModules()
-  vi.doMock('@/lib/core/config/env', () => ({
-    env: {
-      PI_SANDBOX_LIFETIME_MS: options.lifetimeMs,
-      SANDBOX_PROVIDER: options.provider,
-    },
-  }))
+const { mockEnv } = vi.hoisted(() => ({
+  mockEnv: {
+    PI_SANDBOX_LIFETIME_MS: undefined as string | undefined,
+    SANDBOX_PROVIDER: undefined as string | undefined,
+  },
+}))
 
-  const mod = await import('@/lib/execution/remote-sandbox/pi-lifetime')
+vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
+
+import { createTimeoutAbortController } from '@/lib/core/execution-limits'
+import {
+  PI_SANDBOX_MAX_LIFETIME_MS,
+  PI_SANDBOX_MIN_LIFETIME_MS,
+  resolvePiRunLifetimeMs,
+  resolvePiSandboxLifetimeMs,
+} from '@/lib/execution/remote-sandbox/pi-lifetime'
+
+function resolveWith(options: { provider?: string; lifetimeMs?: string }): {
+  lifetime: number | undefined
+  min: number
+  max: number
+} {
+  mockEnv.PI_SANDBOX_LIFETIME_MS = options.lifetimeMs
+  mockEnv.SANDBOX_PROVIDER = options.provider
   return {
-    lifetime: mod.resolvePiSandboxLifetimeMs(),
-    min: mod.PI_SANDBOX_MIN_LIFETIME_MS,
-    max: mod.PI_SANDBOX_MAX_LIFETIME_MS,
+    lifetime: resolvePiSandboxLifetimeMs(),
+    min: PI_SANDBOX_MIN_LIFETIME_MS,
+    max: PI_SANDBOX_MAX_LIFETIME_MS,
   }
 }
 
 beforeEach(() => {
-  vi.resetModules()
+  mockEnv.PI_SANDBOX_LIFETIME_MS = undefined
+  mockEnv.SANDBOX_PROVIDER = undefined
 })
 
 describe('resolvePiSandboxLifetimeMs', () => {
-  it('defaults to the sub-hour cap on E2B', async () => {
-    const { lifetime, max } = await resolveWith({})
+  it('defaults to the sub-hour cap on E2B', () => {
+    const { lifetime, max } = resolveWith({})
 
     expect(lifetime).toBe(max)
   })
 
-  it('matches provider selection by treating an empty provider as E2B', async () => {
-    const { lifetime, max } = await resolveWith({ provider: '' })
+  it('matches provider selection by treating an empty provider as E2B', () => {
+    const { lifetime, max } = resolveWith({ provider: '' })
 
     expect(lifetime).toBe(max)
   })
 
-  it('has no lifetime to report when the provider stops on inactivity', async () => {
+  it('has no lifetime to report when the provider stops on inactivity', () => {
     // Daytona has no absolute lifetime, so reporting E2B's would cut the agent
     // turn to fit a ceiling that does not apply — the regression this prevents.
-    const { lifetime } = await resolveWith({ provider: 'daytona' })
+    const { lifetime } = resolveWith({ provider: 'daytona' })
 
     expect(lifetime).toBeUndefined()
   })
 
-  it('ignores a configured lifetime entirely on that provider', async () => {
-    const { lifetime } = await resolveWith({ provider: 'daytona', lifetimeMs: '600000' })
+  it('ignores a configured lifetime entirely on that provider', () => {
+    const { lifetime } = resolveWith({ provider: 'daytona', lifetimeMs: '600000' })
 
     expect(lifetime).toBeUndefined()
   })
 
-  it('lets a configured value lower the lifetime', async () => {
-    const { lifetime, min, max } = await resolveWith({ lifetimeMs: String(45 * 60 * 1000) })
+  it('uses tolerant capability inspection for an unknown provider', () => {
+    const { lifetime } = resolveWith({ provider: 'modal' })
+
+    expect(lifetime).toBeUndefined()
+  })
+
+  it('lets a configured value lower the lifetime', () => {
+    const { lifetime, min, max } = resolveWith({ lifetimeMs: String(45 * 60 * 1000) })
 
     expect(lifetime).toBe(45 * 60 * 1000)
     expect(lifetime!).toBeGreaterThan(min)
     expect(lifetime!).toBeLessThan(max)
   })
 
-  it('refuses to be raised above the cap', async () => {
+  it('refuses to be raised above the cap', () => {
     // A Hobby key rejects a create above one hour, so an over-large override
     // would otherwise fail every Pi run rather than lengthening one.
-    const { lifetime, max } = await resolveWith({ lifetimeMs: String(6 * 60 * 60 * 1000) })
+    const { lifetime, max } = resolveWith({ lifetimeMs: String(6 * 60 * 60 * 1000) })
 
     expect(lifetime).toBe(max)
   })
 
-  it('raises a lifetime too short for a run to finish in', async () => {
+  it('raises a lifetime too short for a run to finish in', () => {
     // Ten minutes is consumed by the clone reserve alone, leaving the turn and
     // the push to race a sandbox that may already be reaped.
-    const { lifetime, min } = await resolveWith({ lifetimeMs: String(10 * 60 * 1000) })
+    const { lifetime, min } = resolveWith({ lifetimeMs: String(10 * 60 * 1000) })
 
     expect(lifetime).toBe(min)
   })
 
-  it.each(['', 'soon', '0', '-1'])('falls back to the cap for %o', async (value) => {
-    const { lifetime, max } = await resolveWith({ lifetimeMs: value })
+  it.each(['', 'soon', '0', '-1'])('falls back to the cap for %o', (value) => {
+    const { lifetime, max } = resolveWith({ lifetimeMs: value })
 
     expect(lifetime).toBe(max)
   })
 })
 
 describe('resolvePiRunLifetimeMs', () => {
-  it('keeps the provider ceiling when the execution is untimed', async () => {
-    const { createTimeoutAbortController } = await import('@/lib/core/execution-limits')
-    const { resolvePiRunLifetimeMs, PI_SANDBOX_MAX_LIFETIME_MS } = await import(
-      '@/lib/execution/remote-sandbox/pi-lifetime'
-    )
-
+  it('keeps the provider ceiling when the execution is untimed', () => {
     // No timeout means no deadline was recorded, so there is nothing to narrow
     // to — the ceiling is the only bound available.
     const untimed = createTimeoutAbortController()
@@ -104,12 +113,7 @@ describe('resolvePiRunLifetimeMs', () => {
     expect(resolvePiRunLifetimeMs()).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
   })
 
-  it('narrows to the deadline of a run shorter than the ceiling', async () => {
-    const { createTimeoutAbortController } = await import('@/lib/core/execution-limits')
-    const { resolvePiRunLifetimeMs, PI_SANDBOX_MAX_LIFETIME_MS } = await import(
-      '@/lib/execution/remote-sandbox/pi-lifetime'
-    )
-
+  it('narrows to the deadline of a run shorter than the ceiling', () => {
     // A free-plan sync run gets five minutes. Handing its sandbox the sub-hour
     // ceiling is what left an orphan billing for an hour after a five-minute run.
     const timeout = createTimeoutAbortController(5 * 60 * 1000)
@@ -121,12 +125,7 @@ describe('resolvePiRunLifetimeMs', () => {
     timeout.cleanup()
   })
 
-  it('keeps the ceiling when the run outlives it', async () => {
-    const { createTimeoutAbortController } = await import('@/lib/core/execution-limits')
-    const { resolvePiRunLifetimeMs, PI_SANDBOX_MAX_LIFETIME_MS } = await import(
-      '@/lib/execution/remote-sandbox/pi-lifetime'
-    )
-
+  it('keeps the ceiling when the run outlives it', () => {
     // The deadline must be strictly past the ceiling for the ceiling to win.
     // Passing exactly `PI_SANDBOX_MAX_LIFETIME_MS` made this a coin flip: the
     // remaining budget is `deadline - Date.now()`, so it decays below the ceiling
@@ -140,27 +139,17 @@ describe('resolvePiRunLifetimeMs', () => {
     timeout.cleanup()
   })
 
-  it('keeps the ceiling for a signal that carries no deadline', async () => {
-    const { resolvePiRunLifetimeMs, PI_SANDBOX_MAX_LIFETIME_MS } = await import(
-      '@/lib/execution/remote-sandbox/pi-lifetime'
-    )
-
+  it('keeps the ceiling for a signal that carries no deadline', () => {
     // A derived or foreign signal reports `undefined` remaining, which means
     // "unknown", not "expired" — narrowing to zero there would kill every run.
     expect(resolvePiRunLifetimeMs(new AbortController().signal)).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
   })
 
-  it('has no lifetime to narrow on a provider without one', async () => {
-    vi.resetModules()
-    vi.doMock('@/lib/core/config/env', () => ({
-      env: { SANDBOX_PROVIDER: 'daytona' },
-    }))
-    const { createTimeoutAbortController } = await import('@/lib/core/execution-limits')
-    const { resolvePiRunLifetimeMs } = await import('@/lib/execution/remote-sandbox/pi-lifetime')
-
+  it('has no lifetime to narrow on a provider without one', () => {
     // Daytona stops on inactivity, so imposing the run's deadline as an absolute
     // lifetime would cut a turn to fit a limit that does not apply to it.
     const timeout = createTimeoutAbortController(5 * 60 * 1000)
+    mockEnv.SANDBOX_PROVIDER = 'daytona'
 
     expect(resolvePiRunLifetimeMs(timeout.signal)).toBeUndefined()
     timeout.cleanup()

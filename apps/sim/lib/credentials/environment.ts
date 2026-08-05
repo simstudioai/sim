@@ -107,6 +107,67 @@ export interface WorkspaceEnvKeyAdminAccess {
   knownKeys: Set<string>
 }
 
+export interface PersonalEnvKeyRawAccess {
+  /** Keys stored in the caller's own personal Secrets catalog. */
+  ownedKeys: Set<string>
+  /** Keys owned by someone else for which the caller is an active credential admin. */
+  adminKeys: Set<string>
+}
+
+/** Resolves which personal secret values a workspace viewer may read as plaintext. */
+export async function getPersonalEnvKeyRawAccess(params: {
+  workspaceId: string
+  personalOwners: Record<string, string>
+  userId: string
+}): Promise<PersonalEnvKeyRawAccess> {
+  const keys = Object.keys(params.personalOwners)
+  if (keys.length === 0) return { ownedKeys: new Set(), adminKeys: new Set() }
+
+  const ownedKeys = new Set(
+    keys.filter((envKey) => params.personalOwners[envKey] === params.userId)
+  )
+  const sharedKeys = keys.filter((envKey) => !ownedKeys.has(envKey))
+  if (sharedKeys.length === 0) return { ownedKeys, adminKeys: new Set() }
+
+  const credentialRows = await db
+    .select({
+      envKey: credential.envKey,
+      envOwnerUserId: credential.envOwnerUserId,
+      role: credentialMember.role,
+      status: credentialMember.status,
+    })
+    .from(credential)
+    .leftJoin(
+      credentialMember,
+      and(
+        eq(credentialMember.credentialId, credential.id),
+        eq(credentialMember.userId, params.userId)
+      )
+    )
+    .where(
+      and(
+        eq(credential.workspaceId, params.workspaceId),
+        eq(credential.type, 'env_personal'),
+        inArray(credential.envKey, sharedKeys)
+      )
+    )
+
+  const adminKeys = new Set<string>()
+  for (const row of credentialRows) {
+    if (
+      row.envKey &&
+      row.envOwnerUserId === params.personalOwners[row.envKey] &&
+      row.envOwnerUserId !== params.userId &&
+      row.role === 'admin' &&
+      row.status === 'active'
+    ) {
+      adminKeys.add(row.envKey)
+    }
+  }
+
+  return { ownedKeys, adminKeys }
+}
+
 /**
  * For a set of workspace env keys, resolves which the caller may administer
  * (active `credential_member` with role `admin`) and which already have an

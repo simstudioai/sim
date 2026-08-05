@@ -338,8 +338,35 @@ export const validUploadTypes = [
 
 export const uploadTypeSchema = z.enum(validUploadTypes)
 
+/**
+ * Storage contexts a client may mint a single presigned upload URL for. Each one
+ * has a per-context authorization predicate in `/api/files/presigned`; a context
+ * that cannot be authorized must not be listed here. `chat` is deliberately
+ * absent — it has no owning entity to authorize against and no client that mints
+ * one (chat assets go through the server-proxied `/api/files/upload`).
+ */
+export const presignedUploadTypes = [
+  'knowledge-base',
+  'copilot',
+  'profile-pictures',
+  'mothership',
+  'workspace-logos',
+  'execution',
+] as const
+
+export const presignedUploadTypeSchema = z.enum(presignedUploadTypes)
+
+/**
+ * Storage contexts `/api/files/presigned/batch` serves. Batching exists only for
+ * knowledge-base ingest; no other context has a batch client, and the batch
+ * endpoint carries no authorization predicate for one.
+ */
+export const batchPresignedUploadTypes = ['knowledge-base'] as const
+
+export const batchPresignedUploadTypeSchema = z.enum(batchPresignedUploadTypes)
+
 export const presignedUploadQuerySchema = z.object({
-  type: uploadTypeSchema,
+  type: presignedUploadTypeSchema,
 })
 
 export const presignedUrlBodySchema = z

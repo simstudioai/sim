@@ -16,6 +16,7 @@ export type ServiceAccountFieldId =
   | 'clientId'
   | 'clientSecret'
   | 'orgId'
+  | 'dataCenter'
 
 /**
  * Required create-body fields per service-account provider — the client-safe

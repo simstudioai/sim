@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo } from 'react'
 import { Badge, ChipInput, ChipSelect, Search } from '@sim/emcn'
+import { ArrowRight, Paperclip } from '@sim/emcn/icons'
 import { formatRelativeTime } from '@sim/utils/formatting'
-import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
@@ -12,6 +12,7 @@ import {
   inboxTaskUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/inbox/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
@@ -119,7 +120,7 @@ export function InboxTaskList() {
             </SettingsEmptyState>
           )
         ) : (
-          <div className='flex flex-col gap-0.5'>
+          <div className='-mx-2 flex flex-col gap-y-0.5'>
             {filteredTasks.map((task) => {
               const statusBadge = STATUS_BADGES[task.status] || STATUS_BADGES.received
               const isClickable =
@@ -177,9 +178,7 @@ export function InboxTaskList() {
                       )}
                       {statusBadge.label}
                     </Badge>
-                    {isClickable && (
-                      <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-                    )}
+                    {isClickable && <ArrowRight className={RESOURCE_ROW_ARROW_CLASSES} />}
                   </div>
                 </>
               )

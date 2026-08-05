@@ -1,6 +1,6 @@
 import { useId, useMemo } from 'react'
 import { usePrefersReducedMotion } from '@sim/emcn'
-import { X } from 'lucide-react'
+import { X } from '@sim/emcn/icons'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 import type { EdgeDiffStatus, EdgeRunStatus } from '../types'
 

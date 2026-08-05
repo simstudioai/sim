@@ -33,7 +33,6 @@ export interface ToolCatalogEntry {
     | 'browser_wait_for'
     | 'call_integration_tool'
     | 'check_deployment_status'
-    | 'complete_scheduled_task'
     | 'cp'
     | 'crawl_website'
     | 'create_file'
@@ -63,7 +62,6 @@ export interface ToolCatalogEntry {
     | 'get_deployment_log'
     | 'get_page_contents'
     | 'get_platform_actions'
-    | 'get_scheduled_task_logs'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
     | 'glob'
@@ -79,7 +77,6 @@ export interface ToolCatalogEntry {
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_mcp_tool'
-    | 'manage_scheduled_task'
     | 'manage_skill'
     | 'materialize_file'
     | 'media'
@@ -102,7 +99,6 @@ export interface ToolCatalogEntry {
     | 'run_from_block'
     | 'run_workflow'
     | 'run_workflow_until_block'
-    | 'scheduled_task'
     | 'scrape_page'
     | 'search'
     | 'search_documentation'
@@ -118,7 +114,6 @@ export interface ToolCatalogEntry {
     | 'table'
     | 'terminal'
     | 'update_deployment_version'
-    | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
     | 'user_table'
     | 'wait'
@@ -153,7 +148,6 @@ export interface ToolCatalogEntry {
     | 'browser_wait_for'
     | 'call_integration_tool'
     | 'check_deployment_status'
-    | 'complete_scheduled_task'
     | 'cp'
     | 'crawl_website'
     | 'create_file'
@@ -183,7 +177,6 @@ export interface ToolCatalogEntry {
     | 'get_deployment_log'
     | 'get_page_contents'
     | 'get_platform_actions'
-    | 'get_scheduled_task_logs'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
     | 'glob'
@@ -199,7 +192,6 @@ export interface ToolCatalogEntry {
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_mcp_tool'
-    | 'manage_scheduled_task'
     | 'manage_skill'
     | 'materialize_file'
     | 'media'
@@ -222,7 +214,6 @@ export interface ToolCatalogEntry {
     | 'run_from_block'
     | 'run_workflow'
     | 'run_workflow_until_block'
-    | 'scheduled_task'
     | 'scrape_page'
     | 'search'
     | 'search_documentation'
@@ -238,7 +229,6 @@ export interface ToolCatalogEntry {
     | 'table'
     | 'terminal'
     | 'update_deployment_version'
-    | 'update_scheduled_task_history'
     | 'update_workspace_mcp_server'
     | 'user_table'
     | 'wait'
@@ -258,7 +248,6 @@ export interface ToolCatalogEntry {
     | 'knowledge'
     | 'media'
     | 'run'
-    | 'scheduled_task'
     | 'search'
     | 'table'
     | 'workflow'
@@ -327,10 +316,97 @@ export const BrowserClick: ToolCatalogEntry = {
     properties: {
       elementId: {
         type: 'number',
-        description: 'The element id to act on (from the most recent browser_snapshot).',
+        description:
+          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
     },
     required: ['elementId'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      activation: {
+        type: 'string',
+        description: 'native-pointer, native-keyboard, or synthetic-pointer.',
+      },
+      activeTab: {
+        type: 'object',
+        description: 'New active tab after a tab-changing click.',
+        properties: {
+          tabId: { type: 'string', description: 'Stable browser tab id.' },
+          url: { type: 'string', description: 'New active tab URL.' },
+        },
+      },
+      dialogs: {
+        type: 'array',
+        description: 'Visible DOM dialogs remaining after the click.',
+        items: { type: 'string' },
+      },
+      dispatched: { type: 'boolean', description: 'Whether input dispatch completed.' },
+      effect: {
+        type: 'object',
+        description:
+          'Detailed postcondition signals; generic title/DOM/scroll churn is weak evidence unless the tool documents otherwise.',
+        properties: {
+          dialogChanged: { type: 'boolean', description: 'The visible DOM dialog set changed.' },
+          domChanged: {
+            type: 'boolean',
+            description: 'The DOM mutation revision changed; weak evidence on its own.',
+          },
+          fieldChanged: {
+            type: 'boolean',
+            description: 'The safely inspectable focused-field state changed.',
+          },
+          focusChanged: { type: 'boolean', description: 'The focused element changed.' },
+          popupChanged: { type: 'boolean', description: 'The visible popup/menu set changed.' },
+          scrollChanged: {
+            type: 'boolean',
+            description: 'A tracked scroll offset changed; weak evidence except for scroll keys.',
+          },
+          tabChanged: { type: 'boolean', description: 'The active browser tab changed.' },
+          targetChanged: {
+            type: 'boolean',
+            description: "The requested target's checked/selected/expanded/open state changed.",
+          },
+          titleChanged: {
+            type: 'boolean',
+            description: 'The document title changed; weak evidence on its own.',
+          },
+          urlChanged: { type: 'boolean', description: 'The observed URL changed.' },
+        },
+      },
+      effectObserved: {
+        type: 'boolean',
+        description:
+          'Whether a URL/tab/dialog/popup/target-state change, or editable-target focus change, was observed.',
+      },
+      element: { type: 'string', description: 'Resolved target element kind.' },
+      note: { type: 'string', description: 'Postcondition or recovery guidance.' },
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
+      obstructedAfterNavigation: {
+        type: 'boolean',
+        description: 'Navigation/tab change occurred while a visible DOM dialog remained.',
+      },
+      possibleEffectObserved: {
+        type: 'boolean',
+        description: 'Includes weak title/DOM/scroll churn; never treat this alone as success.',
+      },
+      refRecovered: {
+        type: 'boolean',
+        description:
+          'Whether a stale detached ref was safely rebound to one unique semantic match.',
+      },
+      trusted: {
+        type: 'boolean',
+        description: 'Whether Chromium trusted pointer/keyboard input was used.',
+      },
+    },
+    required: ['dispatched'],
   },
   clientExecutable: true,
 }
@@ -369,6 +445,48 @@ export const BrowserExtract: ToolCatalogEntry = {
     },
     required: ['instruction'],
   },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      instruction: { type: 'string', description: 'The extraction instruction echoed unchanged.' },
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
+      page: {
+        type: 'object',
+        description: 'Bounded visible page/frame text result.',
+        properties: {
+          framesRead: {
+            type: 'number',
+            description: 'Visible child frames whose text was appended.',
+          },
+          hiddenFrames: {
+            type: 'number',
+            description:
+              'Eligible child frames skipped because their embedding surface was not visible.',
+          },
+          text: {
+            type: 'string',
+            description:
+              'Visible text, capped across the top page and eligible visible child frames.',
+          },
+          title: { type: 'string', description: 'Top-page title when available.' },
+          truncated: {
+            type: 'boolean',
+            description: 'Whether a page, frame, or combined character cap omitted text.',
+          },
+          unreadableFrames: {
+            type: 'number',
+            description: 'Eligible child frames whose text could not be read.',
+          },
+          url: { type: 'string', description: 'Top-page URL.' },
+        },
+      },
+    },
+  },
   clientExecutable: true,
 }
 
@@ -400,10 +518,75 @@ export const BrowserHover: ToolCatalogEntry = {
     properties: {
       elementId: {
         type: 'number',
-        description: 'The element id to act on (from the most recent browser_snapshot).',
+        description:
+          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
     },
     required: ['elementId'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      effect: {
+        type: 'object',
+        description:
+          'Detailed postcondition signals; generic title/DOM/scroll churn is weak evidence unless the tool documents otherwise.',
+        properties: {
+          dialogChanged: { type: 'boolean', description: 'The visible DOM dialog set changed.' },
+          domChanged: {
+            type: 'boolean',
+            description: 'The DOM mutation revision changed; weak evidence on its own.',
+          },
+          fieldChanged: {
+            type: 'boolean',
+            description: 'The safely inspectable focused-field state changed.',
+          },
+          focusChanged: { type: 'boolean', description: 'The focused element changed.' },
+          popupChanged: { type: 'boolean', description: 'The visible popup/menu set changed.' },
+          scrollChanged: {
+            type: 'boolean',
+            description: 'A tracked scroll offset changed; weak evidence except for scroll keys.',
+          },
+          tabChanged: { type: 'boolean', description: 'The active browser tab changed.' },
+          targetChanged: {
+            type: 'boolean',
+            description: "The requested target's checked/selected/expanded/open state changed.",
+          },
+          titleChanged: {
+            type: 'boolean',
+            description: 'The document title changed; weak evidence on its own.',
+          },
+          urlChanged: { type: 'boolean', description: 'The observed URL changed.' },
+        },
+      },
+      effectObserved: {
+        type: 'boolean',
+        description: 'Whether a URL/dialog/popup/target-state change was observed.',
+      },
+      element: { type: 'string', description: 'Resolved target element kind when available.' },
+      hovered: { type: 'boolean', description: 'Whether hover input was dispatched.' },
+      note: { type: 'string', description: 'Guidance when no tooltip/menu was confirmed.' },
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
+      possibleEffectObserved: {
+        type: 'boolean',
+        description: 'Includes weak title/DOM/scroll churn; not proof of success.',
+      },
+      refRecovered: {
+        type: 'boolean',
+        description:
+          'Whether a stale detached ref was safely rebound to one unique semantic match.',
+      },
+      trusted: {
+        type: 'boolean',
+        description: 'Whether Chromium trusted pointer movement was used.',
+      },
+    },
+    required: ['hovered'],
   },
   clientExecutable: true,
 }
@@ -487,10 +670,89 @@ export const BrowserPressKey: ToolCatalogEntry = {
       key: {
         type: 'string',
         description:
-          "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/'). Anything else — 'F5', 'Return', 'Insert' — is rejected. Join modifiers with '+': Control (Ctrl), Cmd (Command, Meta), Shift, Alt (Option), e.g. 'Cmd+A' or 'Control+Shift+K'. On macOS, Control maps to Cmd for the editing shortcuts A, C, X, V, and Z only, so 'Control+A' selects all on every platform.",
+          "Key or combination. Named keys (case-insensitive): Enter, Escape (Esc), Tab, Backspace, Delete, Space, ArrowUp/ArrowDown/ArrowLeft/ArrowRight (or Up/Down/Left/Right), Home, End, PageUp, PageDown. Any single character also works ('a', '5', '/', ','). Anything else — 'F5', 'Return', 'Insert' — is rejected. Join modifiers with '+'. Use Mod (aliases Primary, ControlOrMeta, CommandOrControl) for the platform primary modifier, e.g. Mod+K or Mod+,. Raw Control/Ctrl and Cmd/Command/Meta remain available; Control is not generally Cmd on macOS. Check effectObserved and primaryModifier in the result.",
       },
     },
     required: ['key'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      activeElement: { type: 'string', description: 'Focused element kind after the action.' },
+      dialogs: {
+        type: 'array',
+        description: 'Visible DOM dialogs after the key.',
+        items: { type: 'string' },
+      },
+      effect: {
+        type: 'object',
+        description:
+          'Detailed postcondition signals; generic title/DOM/scroll churn is weak evidence unless the tool documents otherwise.',
+        properties: {
+          dialogChanged: { type: 'boolean', description: 'The visible DOM dialog set changed.' },
+          domChanged: {
+            type: 'boolean',
+            description: 'The DOM mutation revision changed; weak evidence on its own.',
+          },
+          fieldChanged: {
+            type: 'boolean',
+            description: 'The safely inspectable focused-field state changed.',
+          },
+          focusChanged: { type: 'boolean', description: 'The focused element changed.' },
+          popupChanged: { type: 'boolean', description: 'The visible popup/menu set changed.' },
+          scrollChanged: {
+            type: 'boolean',
+            description: 'A tracked scroll offset changed; weak evidence except for scroll keys.',
+          },
+          tabChanged: { type: 'boolean', description: 'The active browser tab changed.' },
+          targetChanged: {
+            type: 'boolean',
+            description: "The requested target's checked/selected/expanded/open state changed.",
+          },
+          titleChanged: {
+            type: 'boolean',
+            description: 'The document title changed; weak evidence on its own.',
+          },
+          urlChanged: { type: 'boolean', description: 'The observed URL changed.' },
+        },
+      },
+      effectObserved: { type: 'boolean', description: 'A strong targeted effect was observed.' },
+      note: { type: 'string', description: 'No-op/fallback guidance.' },
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
+      possibleEffectObserved: {
+        type: 'boolean',
+        description: 'Includes weak title/DOM/scroll churn; not proof of success.',
+      },
+      pressed: { type: 'string', description: 'Requested key/combo whose dispatch completed.' },
+      primaryModifier: { type: 'string', description: 'Cmd on macOS, Control elsewhere.' },
+      redacted: {
+        type: 'boolean',
+        description: 'Whether sensitive focused-field details were withheld.',
+      },
+      selectedChars: {
+        type: 'number',
+        description: 'Number of selected characters when safely inspectable.',
+      },
+      target: {
+        type: 'string',
+        description: 'Synthetic fallback target element kind, when applicable.',
+      },
+      trusted: { type: 'boolean', description: 'Whether Chromium trusted key input was used.' },
+      valueLength: {
+        type: 'number',
+        description: 'Focused non-secret field length when safely inspectable.',
+      },
+      valuePreview: {
+        type: 'string',
+        description: 'Bounded focused non-secret field preview when safely inspectable.',
+      },
+    },
+    required: ['pressed'],
   },
   clientExecutable: true,
 }
@@ -506,8 +768,39 @@ export const BrowserReadText: ToolCatalogEntry = {
       elementId: {
         type: 'number',
         description:
-          'Optional element id (from browser_snapshot) to read text from. Omit to read the whole page.',
+          "Optional element id from the current tab's most recent browser_snapshot. Treat refs as invalid across tab switches or later snapshots. Omit to read the whole page.",
       },
+    },
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      framesRead: { type: 'number', description: 'Visible child frames whose text was appended.' },
+      hiddenFrames: {
+        type: 'number',
+        description:
+          'Eligible child frames skipped because their embedding surface was not visible.',
+      },
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
+      text: {
+        type: 'string',
+        description: 'Visible text, capped across the top page and eligible visible child frames.',
+      },
+      title: { type: 'string', description: 'Top-page title when available.' },
+      truncated: {
+        type: 'boolean',
+        description: 'Whether a page, frame, or combined character cap omitted text.',
+      },
+      unreadableFrames: {
+        type: 'number',
+        description: 'Eligible child frames whose text could not be read.',
+      },
+      url: { type: 'string', description: 'Top-page URL.' },
     },
   },
   clientExecutable: true,
@@ -561,8 +854,50 @@ export const BrowserScroll: ToolCatalogEntry = {
           'Optional distance to scroll in pixels (default: 85% of the viewport height, so a little context carries over).',
       },
       direction: { type: 'string', description: 'Scroll direction.', enum: ['up', 'down'] },
+      elementId: {
+        type: 'number',
+        description:
+          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+      },
     },
     required: ['direction'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      atBottom: {
+        type: 'boolean',
+        description: 'Whether the selected region is at its bottom boundary.',
+      },
+      atTop: {
+        type: 'boolean',
+        description: 'Whether the selected region is at its top boundary.',
+      },
+      clientHeight: { type: 'number', description: 'Region viewport height.' },
+      movedBy: {
+        type: 'number',
+        description: 'Actual signed movement; zero means the target did not move.',
+      },
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
+      scrollHeight: { type: 'number', description: 'Region content height.' },
+      scrollTop: { type: 'number', description: 'Resulting region scroll offset.' },
+      target: { type: 'string', description: 'Chosen scroll region label.' },
+      targetSource: {
+        type: 'string',
+        description:
+          'element, element-boundary, focus, focus-boundary, viewport-center, viewport-center-boundary, largest-visible, or page.',
+      },
+      windowScrollY: {
+        type: 'number',
+        description: 'Top-page window scroll offset after the region scroll.',
+      },
+    },
+    required: ['atTop', 'atBottom'],
   },
   clientExecutable: true,
 }
@@ -577,11 +912,44 @@ export const BrowserSelectOption: ToolCatalogEntry = {
     properties: {
       elementId: {
         type: 'number',
-        description: 'The element id to act on (from the most recent browser_snapshot).',
+        description:
+          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
       value: { type: 'string', description: "The option's visible label or its value." },
     },
     required: ['elementId', 'value'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      effectObserved: {
+        type: 'boolean',
+        description: 'Whether the settled readback retained the requested selection.',
+      },
+      note: { type: 'string', description: 'Guidance when the page reverted the selection.' },
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
+      readback: {
+        type: 'object',
+        description: 'Settled selected label and value.',
+        properties: {
+          selected: { type: 'string', description: 'Settled visible option label.' },
+          value: { type: 'string', description: 'Settled option value.' },
+        },
+      },
+      refRecovered: {
+        type: 'boolean',
+        description:
+          'Whether a stale detached ref was safely rebound to one unique semantic match.',
+      },
+      selected: { type: 'string', description: 'Canonical visible label of the matched option.' },
+      value: { type: 'string', description: 'Canonical value of the matched option.' },
+    },
+    required: ['selected'],
   },
   clientExecutable: true,
 }
@@ -592,6 +960,45 @@ export const BrowserSnapshot: ToolCatalogEntry = {
   route: 'client',
   mode: 'async',
   parameters: { type: 'object', properties: {} },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      capturedCrossOriginFrames: {
+        type: 'number',
+        description: 'Number of non-empty eligible cross-origin frames appended.',
+      },
+      hiddenCrossOriginFrames: {
+        type: 'number',
+        description:
+          'Eligible cross-origin frames skipped because their embedding surface was hidden, offscreen, or covered.',
+      },
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
+      outline: {
+        type: 'string',
+        description: 'Mounted DOM/frame outline containing model-visible [ref=N] ids.',
+      },
+      pageHeight: { type: 'number', description: 'Top-page document height.' },
+      scrollY: { type: 'number', description: 'Top-page window scroll offset.' },
+      title: { type: 'string', description: 'Captured top-page title.' },
+      truncated: {
+        type: 'boolean',
+        description: 'True when page/ref/frame/combined output caps omitted content.',
+      },
+      unreadableCrossOriginFrames: {
+        type: 'number',
+        description: 'Eligible cross-origin frames that could not be captured.',
+      },
+      url: { type: 'string', description: 'Captured top-page URL.' },
+      viewportHeight: { type: 'number', description: 'Top-page viewport height.' },
+      viewportWidth: { type: 'number', description: 'Top-page viewport width.' },
+    },
+    required: ['outline', 'truncated'],
+  },
   clientExecutable: true,
 }
 
@@ -623,16 +1030,119 @@ export const BrowserType: ToolCatalogEntry = {
     properties: {
       elementId: {
         type: 'number',
-        description: 'The element id to act on (from the most recent browser_snapshot).',
+        description:
+          "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
       submit: { type: 'boolean', description: 'Press Enter after typing. Default false.' },
       text: {
         type: 'string',
         description:
-          "The text to type. Replaces the element's current content. Must be non-empty — an empty string is rejected as a missing parameter; to clear a field, press Cmd+A then Backspace with browser_press_key.",
+          "The text to type. Replaces the element's current content. Must be non-empty — an empty string is rejected as a missing parameter; to clear a field, press Mod+A then Backspace with browser_press_key.",
       },
     },
     required: ['elementId', 'text'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      activeElement: { type: 'string', description: 'Focused element kind after the action.' },
+      dispatched: { type: 'boolean', description: 'Whether text dispatch completed.' },
+      effect: {
+        type: 'object',
+        description:
+          'Detailed postcondition signals; generic title/DOM/scroll churn is weak evidence unless the tool documents otherwise.',
+        properties: {
+          dialogChanged: { type: 'boolean', description: 'The visible DOM dialog set changed.' },
+          domChanged: {
+            type: 'boolean',
+            description: 'The DOM mutation revision changed; weak evidence on its own.',
+          },
+          fieldChanged: {
+            type: 'boolean',
+            description: 'The safely inspectable focused-field state changed.',
+          },
+          focusChanged: { type: 'boolean', description: 'The focused element changed.' },
+          popupChanged: { type: 'boolean', description: 'The visible popup/menu set changed.' },
+          scrollChanged: {
+            type: 'boolean',
+            description: 'A tracked scroll offset changed; weak evidence except for scroll keys.',
+          },
+          tabChanged: { type: 'boolean', description: 'The active browser tab changed.' },
+          targetChanged: {
+            type: 'boolean',
+            description: "The requested target's checked/selected/expanded/open state changed.",
+          },
+          titleChanged: {
+            type: 'boolean',
+            description: 'The document title changed; weak evidence on its own.',
+          },
+          urlChanged: { type: 'boolean', description: 'The observed URL changed.' },
+        },
+      },
+      effectObserved: { type: 'boolean', description: 'A strong field/page effect was observed.' },
+      note: {
+        type: 'string',
+        description: 'Postcondition guidance when readback did not prove a change.',
+      },
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
+      possibleEffectObserved: {
+        type: 'boolean',
+        description: 'Includes weak title/DOM/scroll churn; not proof of success.',
+      },
+      redacted: {
+        type: 'boolean',
+        description: 'Whether sensitive focused-field details were withheld.',
+      },
+      refRecovered: {
+        type: 'boolean',
+        description:
+          'Whether a stale detached ref was safely rebound to one unique semantic match.',
+      },
+      replacedExisting: {
+        type: 'boolean',
+        description: "Whether the operation replaced the field's existing content.",
+      },
+      selectedChars: {
+        type: 'number',
+        description: 'Number of selected characters when safely inspectable.',
+      },
+      submissionEffectObserved: {
+        type: 'boolean',
+        description:
+          'Whether a strong effect was observed after Enter, separately from the text write.',
+      },
+      submitDispatched: {
+        type: 'boolean',
+        description:
+          'Whether Enter dispatch acknowledged completion; this alone is not proof of submission.',
+      },
+      submitRequested: { type: 'boolean', description: 'Whether submit=true was requested.' },
+      submitUncertain: {
+        type: 'boolean',
+        description:
+          'Whether Enter key-down may have landed but dispatch did not acknowledge completion.',
+      },
+      submitted: {
+        type: 'boolean',
+        description:
+          'Whether Enter dispatch completed and a strong submission effect was observed.',
+      },
+      trusted: { type: 'boolean', description: 'Whether native Chromium input was used.' },
+      valueLength: {
+        type: 'number',
+        description: 'Focused non-secret field length when safely inspectable.',
+      },
+      valuePreview: {
+        type: 'string',
+        description: 'Bounded focused non-secret field preview when safely inspectable.',
+      },
+    },
+    required: ['dispatched'],
   },
   clientExecutable: true,
 }
@@ -649,6 +1159,31 @@ export const BrowserWaitFor: ToolCatalogEntry = {
       timeoutMs: {
         type: 'number',
         description: 'Maximum time to wait, in milliseconds (default 10000, capped at 120000).',
+      },
+    },
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      elapsedMs: { type: 'number', description: 'Elapsed wait duration.' },
+      found: {
+        type: 'boolean',
+        description: 'Whether the requested text appeared before timeout.',
+      },
+      foundInFrame: {
+        type: 'boolean',
+        description: 'Whether the match was found in an eligible visible child frame.',
+      },
+      note: { type: 'string', description: 'Timeout/recovery guidance.' },
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
+      waitedMs: {
+        type: 'number',
+        description: 'Completed sleep duration when no text was requested.',
       },
     },
   },
@@ -698,20 +1233,6 @@ export const CheckDeploymentStatus: ToolCatalogEntry = {
         description: 'Workflow ID to check (defaults to current workflow)',
       },
     },
-  },
-}
-
-export const CompleteScheduledTask: ToolCatalogEntry = {
-  id: 'complete_scheduled_task',
-  name: 'complete_scheduled_task',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      jobId: { type: 'string', description: 'The ID of the scheduled task to mark as completed.' },
-    },
-    required: ['jobId'],
   },
 }
 
@@ -1768,7 +2289,7 @@ export const FunctionExecute: ToolCatalogEntry = {
       code: {
         type: 'string',
         description:
-          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with access to pre-installed CLI tools and workspace env vars as $VAR_NAME.',
+          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
       },
       inputs: {
         type: 'object',
@@ -2484,26 +3005,6 @@ export const GetPlatformActions: ToolCatalogEntry = {
   parameters: { type: 'object', properties: {} },
 }
 
-export const GetScheduledTaskLogs: ToolCatalogEntry = {
-  id: 'get_scheduled_task_logs',
-  name: 'get_scheduled_task_logs',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      executionId: { type: 'string', description: 'Optional execution ID for a specific run.' },
-      includeDetails: {
-        type: 'boolean',
-        description: 'Include tool calls, outputs, and cost details.',
-      },
-      jobId: { type: 'string', description: 'The scheduled task (schedule) ID to get logs for.' },
-      limit: { type: 'number', description: 'Max number of entries (default: 3, max: 5)' },
-    },
-    required: ['jobId'],
-  },
-}
-
 export const GetWorkflowData: ToolCatalogEntry = {
   id: 'get_workflow_data',
   name: 'get_workflow_data',
@@ -2955,7 +3456,7 @@ export const ManageCustomTool: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description:
-          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
+          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
         enum: ['add', 'edit', 'delete', 'list'],
       },
       schema: {
@@ -3045,7 +3546,7 @@ export const ManageMcpTool: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description:
-          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
+          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
         enum: ['add', 'edit', 'delete', 'list'],
       },
       serverId: {
@@ -3057,80 +3558,6 @@ export const ManageMcpTool: ToolCatalogEntry = {
     required: ['operation'],
   },
   requiredPermission: 'write',
-}
-
-export const ManageScheduledTask: ToolCatalogEntry = {
-  id: 'manage_scheduled_task',
-  name: 'manage_scheduled_task',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      args: {
-        type: 'object',
-        description:
-          'Operation-specific arguments. For create: {title, prompt, cron?, time?, timezone?, lifecycle?, successCondition?, maxRuns?}. For get/delete: {jobId}. For update: {jobId, title?, prompt?, cron?, timezone?, status?, lifecycle?, successCondition?, maxRuns?}. For list: no args needed.',
-        properties: {
-          cron: {
-            type: 'string',
-            description:
-              "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Provide cron, time, or both — with both, time anchors the recurring task's first fire.",
-          },
-          jobId: { type: 'string', description: 'Scheduled task ID (required for get, update)' },
-          jobIds: {
-            type: 'array',
-            description: 'Array of scheduled task IDs (for batch delete)',
-            items: { type: 'string' },
-          },
-          lifecycle: {
-            type: 'string',
-            description:
-              "'persistent' (default) or 'until_complete'. Until_complete scheduled tasks stop when complete_scheduled_task is called.",
-            enum: ['persistent', 'until_complete'],
-          },
-          maxRuns: {
-            type: 'integer',
-            description: 'Max executions before auto-completing. Safety limit.',
-          },
-          prompt: {
-            type: 'string',
-            description: 'The prompt to execute when the scheduled task fires',
-          },
-          status: {
-            type: 'string',
-            description: 'Scheduled task status: active, paused',
-            enum: ['active', 'paused'],
-          },
-          successCondition: {
-            type: 'string',
-            description:
-              'What must happen for the scheduled task to be considered complete (until_complete lifecycle).',
-          },
-          time: {
-            type: 'string',
-            description:
-              "ISO 8601 datetime. One-time scheduled task -> set time and omit cron. May also anchor a recurring cron task's first-fire time.",
-          },
-          timezone: {
-            type: 'string',
-            description: 'IANA timezone (e.g. America/New_York). Defaults to UTC.',
-          },
-          title: {
-            type: 'string',
-            description: "Short descriptive title for the scheduled task (e.g. 'Email Poller')",
-          },
-        },
-      },
-      operation: {
-        type: 'string',
-        description:
-          'The operation to perform: create, list, get, update, delete. These verbs are tool-specific — the custom-tool/MCP/skill managers use add/edit instead of create/update.',
-        enum: ['create', 'list', 'get', 'update', 'delete'],
-      },
-    },
-    required: ['operation'],
-  },
 }
 
 export const ManageSkill: ToolCatalogEntry = {
@@ -3157,7 +3584,7 @@ export const ManageSkill: ToolCatalogEntry = {
       operation: {
         type: 'string',
         description:
-          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
+          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
         enum: ['add', 'edit', 'delete', 'list'],
       },
       skillId: {
@@ -3337,7 +3764,7 @@ export const OpenResource: ToolCatalogEntry = {
             type: {
               type: 'string',
               description: 'The resource type.',
-              enum: ['workflow', 'table', 'knowledgebase', 'file', 'log', 'scheduledtask'],
+              enum: ['workflow', 'table', 'knowledgebase', 'file', 'log'],
             },
           },
           required: ['type'],
@@ -3489,21 +3916,27 @@ export const QueryUserTable: ToolCatalogEntry = {
         type: 'object',
         description: 'Arguments for the operation',
         properties: {
-          filter: { type: 'object', description: 'MongoDB-style filter for query_rows' },
-          limit: {
-            type: 'number',
-            description: 'Maximum rows to return (optional, default 100, max 1000 per call)',
+          cursor: {
+            type: 'string',
+            description:
+              'Opaque pagination cursor for query_rows (optional). Omit for the first page; to fetch the next page, pass back the nextCursor from the previous result\'s "more available" message verbatim. Cannot be combined with a fresh order — the cursor already encodes the paging position.',
           },
-          offset: {
-            type: 'number',
-            description: 'Number of rows to skip (optional for query_rows, default 0)',
-          },
-          rowId: { type: 'string', description: 'Row ID (required for get_row)' },
-          sort: {
+          filter: {
             type: 'object',
             description:
-              "Sort specification as { field: 'asc' | 'desc' } (optional for query_rows)",
+              'Predicate filter object for query_rows. A single condition is {field, op, value}; use {"all":[...]} (AND) or {"any":[...]} (OR) for multiple or nested conditions. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"field":"status","op":"eq","value":"active"}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"field":"name","op":"ilike","value":"*jo*"}.',
           },
+          limit: {
+            type: 'number',
+            description:
+              'Maximum rows per page for query_rows (optional). Omit to fetch the ENTIRE matching result in one response — the call fails if the result exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, a page may end early at the byte budget with more remaining; a non-null nextCursor in the result means more rows exist (continue with cursor).',
+          },
+          order: {
+            type: 'array',
+            description:
+              'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
+          },
+          rowId: { type: 'string', description: 'Row ID (required for get_row)' },
           tableId: { type: 'string', description: 'Table ID (required for all operations)' },
         },
       },
@@ -3766,7 +4199,7 @@ export const RunCode: ToolCatalogEntry = {
       code: {
         type: 'string',
         description:
-          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with access to pre-installed CLI tools and workspace env vars as $VAR_NAME.',
+          'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
       },
       inputs: {
         type: 'object',
@@ -3974,22 +4407,6 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
   },
   clientExecutable: true,
   requiresApproval: true,
-}
-
-export const ScheduledTask: ToolCatalogEntry = {
-  id: 'scheduled_task',
-  name: 'scheduled_task',
-  route: 'subagent',
-  mode: 'async',
-  parameters: {
-    properties: {
-      request: { description: 'What scheduled task action is needed.', type: 'string' },
-    },
-    required: ['request'],
-    type: 'object',
-  },
-  subagentId: 'scheduled_task',
-  internal: true,
 }
 
 export const ScrapePage: ToolCatalogEntry = {
@@ -4536,25 +4953,6 @@ export const UpdateDeploymentVersion: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const UpdateScheduledTaskHistory: ToolCatalogEntry = {
-  id: 'update_scheduled_task_history',
-  name: 'update_scheduled_task_history',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      jobId: { type: 'string', description: 'The scheduled task ID.' },
-      summary: {
-        type: 'string',
-        description:
-          "A concise summary of what was done this run (e.g., 'Sent follow-up emails to 3 leads: Alice, Bob, Carol').",
-      },
-    },
-    required: ['jobId', 'summary'],
-  },
-}
-
 export const UpdateWorkspaceMcpServer: ToolCatalogEntry = {
   id: 'update_workspace_mcp_server',
   name: 'update_workspace_mcp_server',
@@ -4651,7 +5049,7 @@ export const UserTable: ToolCatalogEntry = {
           filter: {
             type: 'object',
             description:
-              'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}.',
+              'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A single condition is {field, op, value}; use {"all":[...]} (AND) or {"any":[...]} (OR) for multiple or nested conditions. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"field":"status","op":"eq","value":"active"}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"field":"name","op":"ilike","value":"*jo*"}; {"field":"slack_user_id","op":"in","value":["U1","U2"]}.',
           },
           groupId: {
             type: 'string',
@@ -4742,16 +5140,16 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
           },
-          order: {
-            type: 'array',
-            description:
-              'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
-          },
           options: {
             type: 'array',
             description:
               'Choices for a select (enum) column, as a list of display names, e.g. ["Open", "Closed"]. Required when creating or converting to a select column. On update_column this REPLACES the option list and is matched against the current one BY NAME: a name still present keeps its cells, a name no longer present is removed and cleared from every cell that held it. Send the full list including the options you are keeping — omitting one deletes it. There is no in-place rename, so re-sending an option under a new name clears the cells that held the old one. Max 100.',
             items: { type: 'string' },
+          },
+          order: {
+            type: 'array',
+            description:
+              'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
           },
           outputColumnNames: {
             type: 'object',
@@ -5212,25 +5610,6 @@ export const ManageMcpToolOperationValues = [
   ManageMcpToolOperation.list,
 ] as const
 
-export const ManageScheduledTaskOperation = {
-  create: 'create',
-  list: 'list',
-  get: 'get',
-  update: 'update',
-  delete: 'delete',
-} as const
-
-export type ManageScheduledTaskOperation =
-  (typeof ManageScheduledTaskOperation)[keyof typeof ManageScheduledTaskOperation]
-
-export const ManageScheduledTaskOperationValues = [
-  ManageScheduledTaskOperation.create,
-  ManageScheduledTaskOperation.list,
-  ManageScheduledTaskOperation.get,
-  ManageScheduledTaskOperation.update,
-  ManageScheduledTaskOperation.delete,
-] as const
-
 export const ManageSkillOperation = {
   add: 'add',
   edit: 'edit',
@@ -5434,7 +5813,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [BrowserWaitFor.id]: BrowserWaitFor,
   [CallIntegrationTool.id]: CallIntegrationTool,
   [CheckDeploymentStatus.id]: CheckDeploymentStatus,
-  [CompleteScheduledTask.id]: CompleteScheduledTask,
   [Cp.id]: Cp,
   [CrawlWebsite.id]: CrawlWebsite,
   [CreateFile.id]: CreateFile,
@@ -5464,7 +5842,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GetDeploymentLog.id]: GetDeploymentLog,
   [GetPageContents.id]: GetPageContents,
   [GetPlatformActions.id]: GetPlatformActions,
-  [GetScheduledTaskLogs.id]: GetScheduledTaskLogs,
   [GetWorkflowData.id]: GetWorkflowData,
   [GetWorkflowRunOptions.id]: GetWorkflowRunOptions,
   [Glob.id]: Glob,
@@ -5480,7 +5857,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
   [ManageMcpTool.id]: ManageMcpTool,
-  [ManageScheduledTask.id]: ManageScheduledTask,
   [ManageSkill.id]: ManageSkill,
   [MaterializeFile.id]: MaterializeFile,
   [Media.id]: Media,
@@ -5503,7 +5879,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [RunFromBlock.id]: RunFromBlock,
   [RunWorkflow.id]: RunWorkflow,
   [RunWorkflowUntilBlock.id]: RunWorkflowUntilBlock,
-  [ScheduledTask.id]: ScheduledTask,
   [ScrapePage.id]: ScrapePage,
   [Search.id]: Search,
   [SearchDocumentation.id]: SearchDocumentation,
@@ -5519,7 +5894,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Table.id]: Table,
   [Terminal.id]: Terminal,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
-  [UpdateScheduledTaskHistory.id]: UpdateScheduledTaskHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserTable.id]: UserTable,
   [Wait.id]: Wait,

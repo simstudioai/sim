@@ -53,11 +53,13 @@ export type VfsToolAuth =
  * per-tool `auth.serviceAccount` field and the `oauth-integrations.json`
  * roll-up, so the two never disagree. Returns `undefined` when the service has
  * no service-account flow, or its flow is gated by a preview block (a custom
- * Slack bot needs slack_v2) — GA-only discovery, so the agent never proactively
- * offers a preview flow, matching the per-viewer gate the renderer applies.
+ * Slack bot needs slack_v2) that is not the visible owner being serialized.
+ * This keeps the default projection GA-only while allowing a revealed preview
+ * block's own schema to describe the credential flow it enables.
  */
 export function describeServiceAccountForOAuthProvider(
-  oauthProvider: string
+  oauthProvider: string,
+  ownerBlockType?: string
 ): VfsServiceAccountAuth | undefined {
   const serviceAccountProviderId = getServiceAccountProviderForProviderId(oauthProvider)
   if (!serviceAccountProviderId) return undefined
@@ -69,7 +71,9 @@ export function describeServiceAccountForOAuthProvider(
     // static preview check — so once the block GAs and drops `preview`, it is
     // no longer hidden and discovery includes it again, matching the renderer.
     // Hand-rolling `?.preview ?? true` would keep it omitted forever after GA.
-    if (!gatingBlock || isHiddenUnder(null, gatingBlock)) return undefined
+    if (!gatingBlock || (ownerBlockType !== gatingBlockType && isHiddenUnder(null, gatingBlock))) {
+      return undefined
+    }
   }
   return { connectNoun: getServiceAccountConnectNoun(serviceAccountProviderId) }
 }
@@ -77,15 +81,23 @@ export function describeServiceAccountForOAuthProvider(
 export interface ComponentSerializationOptions {
   hosted?: boolean
   toolConfigs?: ReadonlyMap<string, ToolConfig>
+  ownerBlockType?: string
 }
 
 /**
  * Project runtime tool authentication into a stable, machine-readable VFS contract.
  * ToolConfig.hosting remains the source of truth for every hosted-key integration.
  */
-export function serializeToolAuth(tool: ToolConfig, hosted = isHosted): VfsToolAuth | undefined {
+export function serializeToolAuth(
+  tool: ToolConfig,
+  hosted = isHosted,
+  ownerBlockType?: string
+): VfsToolAuth | undefined {
   if (tool.oauth) {
-    const serviceAccount = describeServiceAccountForOAuthProvider(tool.oauth.provider)
+    const serviceAccount = describeServiceAccountForOAuthProvider(
+      tool.oauth.provider,
+      ownerBlockType
+    )
     return {
       type: 'oauth',
       required: tool.oauth.required,
@@ -573,12 +585,14 @@ export function serializeBlockSchema(
   const customBlock = isCustomBlockType(block.type)
   const hosted = options?.hosted ?? isHosted
   const visibleSubBlocks = block.subBlocks.filter(
-    (sb) => !isSubBlockHidden(sb, { hosted }) && !(customBlock && sb.hidden)
+    (sb) => !sb.hideFromCopilot && !isSubBlockHidden(sb, { hosted }) && !(customBlock && sb.hidden)
   )
   const visibleIds = new Set(visibleSubBlocks.map((sb) => sb.id))
   const hiddenIds = new Set(
     block.subBlocks
-      .filter((sb) => isSubBlockHidden(sb, { hosted }) || (customBlock && sb.hidden))
+      .filter(
+        (sb) => sb.hideFromCopilot || isSubBlockHidden(sb, { hosted }) || (customBlock && sb.hidden)
+      )
       .map((sb) => sb.id)
       .filter((id) => !visibleIds.has(id))
   )
@@ -598,7 +612,7 @@ export function serializeBlockSchema(
   for (const toolId of block.tools.access) {
     const tool = options?.toolConfigs?.get(toolId)
     if (!tool) continue
-    const auth = serializeToolAuth(tool, hosted)
+    const auth = serializeToolAuth(tool, hosted, block.type)
     if (auth) toolAuth[toolId] = auth
   }
 
@@ -709,7 +723,6 @@ interface ApiKeyIntegrationTool {
   config: ToolConfig
   service: string
   operation: string
-  preview?: boolean
 }
 
 /**
@@ -717,7 +730,7 @@ interface ApiKeyIntegrationTool {
  * ToolConfig.hosting is the only provider registry used to build this index.
  */
 export function serializeApiKeyIntegrations(
-  tools: ApiKeyIntegrationTool[],
+  tools: readonly ApiKeyIntegrationTool[],
   hosted = isHosted
 ): string {
   const services = new Map<
@@ -730,8 +743,8 @@ export function serializeApiKeyIntegrations(
     }
   >()
 
-  for (const { config: tool, service, operation, preview } of tools) {
-    if (preview || !tool.hosting?.apiKeyParam) continue
+  for (const { config: tool, service, operation } of tools) {
+    if (!tool.hosting?.apiKeyParam) continue
 
     const metadata = services.get(service) ?? {
       params: [],
@@ -957,10 +970,12 @@ export function serializeSkill(s: {
  */
 export function serializeIntegrationSchema(
   tool: ToolConfig,
-  options?: Pick<ComponentSerializationOptions, 'hosted'>
+  options?: Pick<ComponentSerializationOptions, 'hosted' | 'ownerBlockType'> & {
+    oauthAvailable?: boolean
+  }
 ): string {
   const hosted = options?.hosted ?? isHosted
-  const auth = serializeToolAuth(tool, hosted)
+  const auth = serializeToolAuth(tool, hosted, options?.ownerBlockType)
   const hostedApiKeyParam =
     auth?.type === 'api_key' && auth.mode === 'hosted_or_byok' ? auth.param : null
 
@@ -974,9 +989,10 @@ export function serializeIntegrationSchema(
       description: getCopilotToolDescription(tool, { isHosted: hosted }),
       version: tool.version,
       auth,
-      oauth: tool.oauth
-        ? { required: tool.oauth.required, provider: tool.oauth.provider }
-        : undefined,
+      oauth:
+        tool.oauth && options?.oauthAvailable !== false
+          ? { required: tool.oauth.required, provider: tool.oauth.provider }
+          : undefined,
       params: tool.params
         ? {
             ...Object.fromEntries(
@@ -1098,101 +1114,4 @@ export function serializeTriggerOverview(
 
   lines.push('')
   return lines.join('\n')
-}
-
-/**
- * Serialize job metadata for VFS jobs/{id}/meta.json
- */
-export function serializeJobMeta(job: {
-  id: string
-  title: string | null
-  prompt: string
-  cronExpression: string | null
-  timezone: string | null
-  status: string
-  lifecycle: string
-  successCondition: string | null
-  maxRuns: number | null
-  runCount: number
-  nextRunAt: Date | null
-  lastRanAt: Date | null
-  sourceTaskName: string | null
-  sourceChatId: string | null
-  createdAt: Date
-}): string {
-  return JSON.stringify(
-    {
-      id: job.id,
-      title: job.title || undefined,
-      prompt: job.prompt,
-      cronExpression: job.cronExpression || undefined,
-      timezone: job.timezone || 'UTC',
-      status: job.status,
-      lifecycle: job.lifecycle,
-      successCondition: job.successCondition || undefined,
-      maxRuns: job.maxRuns ?? undefined,
-      runCount: job.runCount,
-      nextRunAt: job.nextRunAt?.toISOString(),
-      lastRanAt: job.lastRanAt?.toISOString(),
-      sourceTaskName: job.sourceTaskName || undefined,
-      sourceChatId: job.sourceChatId || undefined,
-      createdAt: job.createdAt.toISOString(),
-    },
-    null,
-    2
-  )
-}
-
-export function serializeTaskSession(task: {
-  id: string
-  title: string
-  messageCount: number
-  createdAt: Date
-  updatedAt: Date
-}): string {
-  return [
-    `# ${task.title}`,
-    '',
-    `- **Chat ID:** ${task.id}`,
-    `- **Created:** ${task.createdAt.toISOString()}`,
-    `- **Updated:** ${task.updatedAt.toISOString()}`,
-    `- **Messages:** ${task.messageCount}`,
-    '',
-  ].join('\n')
-}
-
-export function serializeTaskChat(rawMessages: unknown[]): string {
-  const filtered: { role: string; content: string }[] = []
-
-  for (const msg of rawMessages) {
-    if (!msg || typeof msg !== 'object') continue
-    const m = msg as Record<string, unknown>
-    const role = m.role as string | undefined
-    if (role !== 'user' && role !== 'assistant') continue
-
-    let content = ''
-    if (role === 'assistant' && Array.isArray(m.contentBlocks)) {
-      const textParts: string[] = []
-      for (const block of m.contentBlocks) {
-        if (
-          block &&
-          typeof block === 'object' &&
-          (block as any).type === 'text' &&
-          (block as any).content
-        ) {
-          textParts.push((block as any).content)
-        }
-      }
-      content = textParts.join('')
-    }
-
-    if (!content && typeof m.content === 'string') {
-      content = m.content
-    }
-
-    if (!content) continue
-    filtered.push({ role, content })
-  }
-
-  return JSON.stringify(filtered, null, 2)
 }

@@ -217,6 +217,44 @@ describe('hosted-key VFS metadata', () => {
     expect(schema.inputs.apiKey).toBeDefined()
     expect(schema.toolAuth.search.mode).toBe('hosted_or_byok')
   })
+
+  it('omits server-only lifecycle inputs from block schemas', () => {
+    const block = {
+      type: 'mothership',
+      name: 'Sim Chat',
+      description: 'Talk to Sim',
+      category: 'blocks',
+      bgColor: '#000000',
+      icon: () => null,
+      subBlocks: [
+        { id: 'prompt', title: 'Prompt', type: 'long-input' },
+        {
+          id: 'secretScope',
+          title: 'Secret access',
+          type: 'dropdown',
+          hideFromCopilot: true,
+        },
+        {
+          id: 'mountedSecrets',
+          title: 'Secrets',
+          type: 'dropdown',
+          hideFromCopilot: true,
+        },
+      ],
+      tools: { access: [] },
+      inputs: {
+        prompt: { type: 'string' },
+        secretScope: { type: 'string' },
+        mountedSecrets: { type: 'json' },
+      },
+      outputs: {},
+    } as unknown as BlockConfig
+
+    const schema = JSON.parse(serializeBlockSchema(block))
+
+    expect(schema.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual(['prompt'])
+    expect(schema.inputs).toEqual({ prompt: { type: 'string' } })
+  })
 })
 
 describe('serializeKBMeta', () => {
@@ -314,6 +352,17 @@ describe('serializeIntegrationSchema — service-account auth', () => {
     const schema = JSON.parse(serializeIntegrationSchema(oauthTool('gh_read', 'github')))
     expect(schema.auth.type).toBe('oauth')
     expect(schema.auth.serviceAccount).toBeUndefined()
+  })
+
+  it('keeps service-account auth while suppressing an unavailable OAuth connection', () => {
+    const schema = JSON.parse(
+      serializeIntegrationSchema(oauthTool('notion_read', 'notion'), {
+        oauthAvailable: false,
+      })
+    )
+
+    expect(schema.auth.serviceAccount).toEqual({ connectNoun: 'integration secret' })
+    expect(schema.oauth).toBeUndefined()
   })
 
   // The preview-gate behavior (slack custom bot ↔ slack_v2) is covered in

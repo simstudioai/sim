@@ -141,6 +141,18 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     })
   })
 
+  it('accepts a root condition and executes its canonical all group', async () => {
+    const res = await callQuery({
+      workspaceId: 'workspace-1',
+      predicate: { field: 'status', op: 'eq', value: 'active' },
+    })
+
+    expect(res.status).toBe(200)
+    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
+      all: [{ field: 'col_status', op: 'eq', value: 'active' }],
+    })
+  })
+
   it('applies the bounded default limit when omitted', async () => {
     await callQuery({ workspaceId: 'workspace-1' })
     expect(mockQueryRows.mock.calls[0][1].limit).toBe(100)

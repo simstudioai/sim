@@ -21,7 +21,6 @@ const orderByLimitMock = vi.fn()
 const {
   mockVerifyCronAuth,
   mockExecuteScheduleJob,
-  mockExecuteJobInline,
   mockReleaseScheduleLock,
   mockEnqueue,
   mockGetJob,
@@ -37,7 +36,6 @@ const {
 } = vi.hoisted(() => ({
   mockVerifyCronAuth: vi.fn().mockReturnValue(null),
   mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
-  mockExecuteJobInline: vi.fn().mockResolvedValue(undefined),
   mockReleaseScheduleLock: vi.fn().mockResolvedValue(undefined),
   mockEnqueue: vi.fn().mockResolvedValue('job-id-1'),
   mockGetJob: vi.fn().mockResolvedValue(null),
@@ -63,7 +61,6 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 vi.mock('@/background/schedule-execution', () => ({
   executeScheduleJob: mockExecuteScheduleJob,
-  executeJobInline: mockExecuteJobInline,
   releaseScheduleLock: mockReleaseScheduleLock,
   applyScheduleFailureUpdate: mockApplyScheduleFailureUpdate,
 }))
@@ -205,18 +202,6 @@ function createBillingAttribution(workspaceId: string, actorUserId = `owner-${wo
   }
 }
 
-const SINGLE_JOB = [
-  {
-    id: 'job-1',
-    cronExpression: '0 * * * *',
-    failedCount: 0,
-    infraRetryCount: 0,
-    timezone: 'UTC',
-    lastQueuedAt: undefined,
-    sourceType: 'job',
-  },
-]
-
 function conditionContains(
   condition: unknown,
   predicate: (entry: Record<string, unknown>) => boolean
@@ -313,8 +298,6 @@ describe('Scheduled Workflow Execution API Route', () => {
     mockCancelJob.mockResolvedValue(undefined)
     mockExecuteScheduleJob.mockReset()
     mockExecuteScheduleJob.mockResolvedValue(undefined)
-    mockExecuteJobInline.mockReset()
-    mockExecuteJobInline.mockResolvedValue(undefined)
     mockReleaseScheduleLock.mockReset()
     mockReleaseScheduleLock.mockResolvedValue(undefined)
     mockAssertBillingAttributionSnapshot.mockReset()
@@ -373,21 +356,6 @@ describe('Scheduled Workflow Execution API Route', () => {
     const result = await runScheduleTick('test-request-id')
 
     expect(result.processedCount).toBe(2)
-  })
-
-  it('should execute mothership jobs inline', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'job-1' }])
-    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_JOB)
-
-    await runScheduleTick('test-request-id')
-    expect(mockExecuteJobInline).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scheduleId: 'job-1',
-        cronExpression: '0 * * * *',
-        failedCount: 0,
-        now: expect.any(String),
-      })
-    )
   })
 
   it('should enqueue schedule with one atomic system actor and payer snapshot', async () => {
@@ -1024,7 +992,11 @@ describe('Scheduled Workflow Execution API Route', () => {
     const result = await runScheduleTick('test-request-id')
 
     expect(result.processedCount).toBe(100)
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(100)
+    // The workflow claim is capped by SCHEDULE_WORKFLOW_ENQUEUE_LIMIT
+    // (SCHEDULE_EXECUTION_CONCURRENCY_LIMIT 30 x SCHEDULE_ENQUEUE_BUDGET_MULTIPLIER 2),
+    // not by WORKFLOW_CHUNK_SIZE. This used to read 100, which only ever matched
+    // the separate job claim's chunk size rather than the budget under test.
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(60)
     expect(mockEnqueue).toHaveBeenCalledTimes(100)
   })
 

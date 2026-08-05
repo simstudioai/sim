@@ -20,7 +20,7 @@ import {
   handleKeyboardActivation,
   Search,
 } from '@sim/emcn'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
@@ -235,9 +235,10 @@ export function AddConnectorModal({
     <>
       <ChipModal
         open={open}
-        onOpenChange={(val) => !isCreating && onOpenChange(val)}
+        onOpenChange={onOpenChange}
         srTitle={step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
         size='md'
+        dismissDisabled={isCreating}
       >
         <ChipModalHeader onClose={() => onOpenChange(false)}>
           {step === 'configure' ? (
@@ -428,7 +429,6 @@ export function AddConnectorModal({
         {step === 'configure' && (
           <ChipModalFooter
             onCancel={() => onOpenChange(false)}
-            cancelDisabled={isCreating}
             primaryAction={{
               label: isCreating ? 'Connecting…' : 'Connect & Sync',
               onClick: handleSubmit,

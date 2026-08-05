@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { posToDOMRect } from '@tiptap/core'
-import { PluginKey } from '@tiptap/pm/state'
-import type { Editor } from '@tiptap/react'
-import { useEditorState } from '@tiptap/react'
-import { BubbleMenu } from '@tiptap/react/menus'
 import {
+  Blimp,
   Bold,
   Check,
   Code,
@@ -19,7 +15,12 @@ import {
   Strikethrough,
   TextQuote,
   Unlink,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import { posToDOMRect } from '@tiptap/core'
+import { PluginKey } from '@tiptap/pm/state'
+import type { Editor } from '@tiptap/react'
+import { useEditorState } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
 import { applyLink, LinkUrlInput } from './link-editing'
 import { ToolbarButton, ToolbarDivider } from './toolbar-button'
 
@@ -54,6 +55,8 @@ interface EditorBubbleMenuProps {
   editor: Editor
   /** The editor's scrollable viewport, used to keep the toolbar on-screen for selections taller than it. */
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
+  /** Adds the current selection to Chat as a reference. Omit to hide the action. */
+  onAddToChat?: () => void
 }
 
 /**
@@ -62,7 +65,11 @@ interface EditorBubbleMenuProps {
  * live in the `/` slash menu. Active states are read through {@link useEditorState} so the bar
  * stays correct without re-rendering the editor on every transaction.
  */
-export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMenuProps) {
+export function EditorBubbleMenu({
+  editor,
+  scrollContainerRef,
+  onAddToChat,
+}: EditorBubbleMenuProps) {
   const [linkValue, setLinkValue] = useState<string | null>(null)
   const linkInputRef = useRef<HTMLInputElement>(null)
   const linkRangeRef = useRef<{ from: number; to: number } | null>(null)
@@ -243,6 +250,17 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
         </>
       ) : (
         <>
+          {onAddToChat && (
+            <>
+              <ToolbarButton
+                icon={Blimp}
+                label='Add to Chat'
+                isActive={false}
+                onClick={onAddToChat}
+              />
+              <ToolbarDivider />
+            </>
+          )}
           <ToolbarButton
             icon={Bold}
             label='Bold'
