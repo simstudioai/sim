@@ -180,3 +180,48 @@ describe('ZohoDeskBlock overwrites stale advanced values from another operation'
     expect(() => throughSeam({ operation: 'list_tickets', receivedInDays: '' })).not.toThrow()
   })
 })
+
+/**
+ * On the agent-tool path `operation` is a sibling of the tool call rather than a
+ * member of params, so the mapper cannot scope by it — and must not try. The
+ * model addresses tool params by their real names, and the tool has already been
+ * selected, so scoping there would erase the model's own arguments.
+ */
+describe('ZohoDeskBlock leaves agent-supplied params alone', () => {
+  const buildParams = ZohoDeskBlock.tools.config?.params
+
+  const merged = (llmArgs: Record<string, unknown>) => {
+    if (!buildParams) throw new Error('ZohoDeskBlock is missing tools.config.params')
+    return { ...llmArgs, ...(buildParams({ ...llmArgs }) as Record<string, unknown>) }
+  }
+
+  it('preserves every tool param the model supplied', () => {
+    const result = merged({
+      status: 'Open',
+      priority: 'High',
+      sortBy: '-createdTime',
+      include: 'contacts',
+      assignee: 'Unassigned',
+      channel: 'Email',
+      receivedInDays: 30,
+      ticketId: '123',
+    })
+    expect(result).toMatchObject({
+      status: 'Open',
+      priority: 'High',
+      sortBy: '-createdTime',
+      include: 'contacts',
+      assignee: 'Unassigned',
+      channel: 'Email',
+      receivedInDays: 30,
+      ticketId: '123',
+    })
+  })
+
+  it('still coerces a JSON custom-field string, which is a type fix not a gate', () => {
+    expect(merged({ customFields: '{"cf_severity":"High"}' }).customFields).toEqual({
+      cf_severity: 'High',
+    })
+    expect(() => merged({ customFields: '{not json' })).toThrow(/Invalid JSON/)
+  })
+})

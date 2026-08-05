@@ -44,6 +44,22 @@ function toPaginationValue(value: unknown, min: number): number | undefined {
   return Number.isInteger(parsed) && parsed >= min ? parsed : undefined
 }
 
+/**
+ * Accept the custom-field map as either an object (an agent supplying it
+ * directly) or the JSON text the subBlock stores. Anything unparseable fails
+ * loudly rather than reaching Zoho as a string it would silently ignore.
+ */
+function parseCustomFields(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') return value as Record<string, unknown>
+  if (!value.trim()) return undefined
+  try {
+    return JSON.parse(value)
+  } catch {
+    throw new Error('Invalid JSON provided for custom fields')
+  }
+}
+
 export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
   type: 'zoho_desk',
   name: 'Zoho Desk',
@@ -524,6 +540,16 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
     config: {
       tool: (params) => `zoho_desk_${params.operation}`,
       params: (params) => {
+        // The agent-tool path does not carry `operation` inside params - it is a
+        // sibling of the tool call, used only to pick the tool - and there the
+        // model addresses tool params by their real names. The tool is already
+        // selected, so there is no cross-operation leak to guard against, while
+        // running the scoping below WOULD overwrite the model's own values with
+        // `undefined`. Leave those params alone; only coerce the JSON field,
+        // which is a type fix rather than an operation gate.
+        if (typeof params.operation !== 'string') {
+          return { ...params, customFields: parseCustomFields(params.customFields) }
+        }
         // IMPORTANT: destructuring a key out of `rest` does NOT keep it from the
         // tool. Both call sites merge this function's return value on top of the
         // original inputs (`{ ...inputs, ...transformedParams }` in
@@ -668,20 +694,8 @@ export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
         const receivedInDays = isListTickets ? orUndefined(rawReceivedInDays) : undefined
         result.receivedInDays = receivedInDays === undefined ? undefined : Number(receivedInDays)
 
-        if (params.operation === 'update_ticket' && rawCustomFields !== undefined) {
-          if (typeof rawCustomFields === 'string') {
-            if (rawCustomFields.trim()) {
-              try {
-                result.customFields = JSON.parse(rawCustomFields)
-              } catch {
-                throw new Error('Invalid JSON provided for custom fields')
-              }
-            }
-          } else if (rawCustomFields !== null) {
-            // Already an object when an agent supplies it directly.
-            result.customFields = rawCustomFields
-          }
-        }
+        result.customFields =
+          params.operation === 'update_ticket' ? parseCustomFields(rawCustomFields) : undefined
         return result
       },
     },
