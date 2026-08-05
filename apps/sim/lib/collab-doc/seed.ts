@@ -2,8 +2,9 @@ import { createLogger } from '@sim/logger'
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { getErrorMessage } from '@sim/utils/errors'
 import * as Y from 'yjs'
+// boundary-resource-internal: server-side markdown fidelity only; the barrel would pull the React file view into the realtime persist path
+import { splitFrontmatter } from '@/components/resources/file-view/components/rich-markdown-editor/markdown-fidelity'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
-import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { hashMarkdown, loadFreshCollabDocState } from './collab-state'
 import { markdownToYDoc } from './converter'
 

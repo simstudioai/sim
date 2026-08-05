@@ -9,9 +9,10 @@ import {
   useState,
 } from 'react'
 import type { VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown } from '../../icons'
+import { Check } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
+import { ChipChevronDown } from '../chip/chip-chevron'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,8 +73,9 @@ interface ChipDropdownBaseProps extends VariantProps<typeof chipVariants> {
   /** Forwarded class for the trigger button. */
   className?: string
   /**
-   * Accessible name for the trigger. Use when the visible label sits outside
-   * the component (a field label above it) rather than in the selected value.
+   * Accessible name for the trigger. Required whenever no visible `<label>`
+   * points at it — the trigger is a `<button>` whose text is the selected
+   * option, which rarely names the field on its own.
    */
   'aria-label'?: string
   /**
@@ -83,8 +85,16 @@ interface ChipDropdownBaseProps extends VariantProps<typeof chipVariants> {
    * selected value is dropped from the accessible name.
    */
   'aria-labelledby'?: string
+  /** Id of the hint/error text describing the trigger. */
+  'aria-describedby'?: string
+  /** Marks the trigger as a required field. */
+  'aria-required'?: boolean
+  /** Marks the trigger's current value as invalid. */
+  'aria-invalid'?: boolean
   /** Id for the trigger button. Needed to reference it from `aria-labelledby`. */
   id?: string
+  /** Marks the field invalid; swaps the trigger border to the error token. */
+  error?: boolean
 }
 
 /**
@@ -181,8 +191,12 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       active,
       fullWidth,
       'aria-label': ariaLabel,
-      'aria-labelledby': ariaLabelledBy,
+      'aria-labelledby': ariaLabelledby,
+      'aria-describedby': ariaDescribedby,
+      'aria-required': ariaRequired,
+      'aria-invalid': ariaInvalid,
       id,
+      error,
     } = props
 
     const isMultiple = props.multiple === true
@@ -234,17 +248,6 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
     const isPlaceholder = !isMultiple && selectedValues.length === 0
 
     const iconClass = cn('size-[16px] flex-shrink-0', !isInverse && 'text-[var(--text-icon)]')
-    /**
-     * The chevron glyph stays at its conventional subtle size, but is rendered
-     * inside a `size-[16px]` slot so its bounding box matches `leftIcon`'s. The
-     * chip's `gap-2` then produces visually equal spacing on both sides of the
-     * label — without this, the smaller glyph's bounding box would let the
-     * chevron read as glued to the text relative to the leading icon.
-     */
-    const chevronSlotClass = cn(
-      'inline-flex size-[16px] flex-shrink-0 items-center justify-center',
-      !isInverse && 'text-[var(--text-icon)]'
-    )
     /**
      * `flex-1` is always applied so the chevron is pushed flush against the
      * trailing edge whenever the trigger gets stretched — by `fullWidth`, by a
@@ -304,10 +307,14 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             type='button'
             disabled={disabled}
             aria-label={ariaLabel}
-            aria-labelledby={ariaLabelledBy}
+            aria-labelledby={ariaLabelledby}
+            aria-describedby={ariaDescribedby}
+            aria-required={ariaRequired}
+            aria-invalid={ariaInvalid}
             className={cn(
               chipVariants({ variant, active, fullWidth }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,
+              error && 'border border-[var(--text-error)]',
               className
             )}
           >
@@ -317,9 +324,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             >
               {displayLabel}
             </span>
-            <span aria-hidden className={chevronSlotClass}>
-              <ChevronDown className='size-[14px]' />
-            </span>
+            <ChipChevronDown className={isInverse ? 'text-current' : undefined} />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent

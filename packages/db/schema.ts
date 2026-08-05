@@ -409,7 +409,12 @@ export const workflowExecutionLogs = pgTable(
 
     level: text('level').notNull(), // 'info' | 'error'
     status: text('status').notNull().default('running'), // 'running' | 'pending' | 'completed' | 'failed' | 'cancelled'
-    trigger: text('trigger').notNull(), // 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
+    /**
+     * A `CORE_TRIGGER_TYPES` value (apps/sim/stores/logs/filters/types.ts) or an
+     * executor-internal trigger type not in that list (e.g. 'table' from table
+     * column executions).
+     */
+    trigger: text('trigger').notNull(),
 
     startedAt: timestamp('started_at').notNull(),
     endedAt: timestamp('ended_at'),
@@ -1987,14 +1992,14 @@ export const workspaceFileCollabState = pgTable('workspace_file_collab_state', {
 
 /**
  * Public share links for workspace resources. Polymorphic on `resourceType` so a
- * single mechanism serves files now and folders later. One row per resource
- * (disable/re-enable flips `isActive` and keeps the same token).
+ * single mechanism serves files and interfaces today, and folders later. One row
+ * per resource (disable/re-enable flips `isActive` and keeps the same token).
  */
 export const publicShare = pgTable(
   'public_share',
   {
     id: text('id').primaryKey(),
-    resourceType: text('resource_type').notNull(), // 'file' | 'folder' (folder reserved for future)
+    resourceType: text('resource_type').notNull(), // 'file' | 'interface' | 'folder' (folder reserved for future)
     resourceId: text('resource_id').notNull(),
     workspaceId: text('workspace_id')
       .notNull()
@@ -4407,5 +4412,47 @@ export const sandboxImage = pgTable(
     ),
     statusIdx: index('sandbox_image_status_idx').on(table.status),
     lastUsedIdx: index('sandbox_image_last_used_idx').on(table.lastUsedAt),
+  })
+)
+
+/**
+ * Workspace interfaces — user-composed grid pages combining chat, form, table,
+ * and file modules wired to workspace resources.
+ */
+export const workspaceInterface = pgTable(
+  'workspace_interface',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    /**
+     * @remarks
+     * Versioned layout envelope. The grid travels with the document, so the
+     * page shape is described by the row rather than assumed by the reader:
+     * { version: 1, grid: { rows, cols },
+     *   modules: [{ id, type, placement: { row, col, rowSpan, colSpan }, config }] }
+     */
+    layout: jsonb('layout')
+      .notNull()
+      .default(sql`'{"version":1,"grid":{"rows":2,"cols":2},"modules":[]}'::jsonb`),
+    archivedAt: timestamp('archived_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('workspace_interface_workspace_id_idx').on(table.workspaceId),
+    workspaceNameUnique: uniqueIndex('workspace_interface_workspace_name_unique')
+      .on(table.workspaceId, table.name)
+      .where(sql`${table.archivedAt} IS NULL`),
+    archivedAtIdx: index('workspace_interface_archived_at_idx').on(table.archivedAt),
+    workspaceArchivedAtPartialIdx: index('workspace_interface_workspace_archived_partial_idx')
+      .on(table.workspaceId, table.archivedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
   })
 )

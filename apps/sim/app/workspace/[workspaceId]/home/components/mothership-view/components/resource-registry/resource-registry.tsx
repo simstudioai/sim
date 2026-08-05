@@ -9,6 +9,7 @@ import {
   Folder as FolderIcon,
   Globe,
   Library,
+  Panels,
   Table as TableIcon,
   Task,
   TerminalWindow,
@@ -24,6 +25,7 @@ import { getBareIconStyle, type StyleableIcon } from '@/blocks/brand-icon-style'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { interfaceKeys } from '@/hooks/queries/utils/interface-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
@@ -138,6 +140,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TableIcon} />,
   },
+  interface: {
+    type: 'interface',
+    label: 'Interfaces',
+    icon: Panels,
+    renderTabIcon: (_resource, className) => (
+      <Panels className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Panels} />,
+  },
   file: {
     type: 'file',
     label: 'Files',
@@ -237,6 +248,10 @@ const RESOURCE_INVALIDATORS: Record<
   table: (qc, _wId, id) => {
     qc.invalidateQueries({ queryKey: tableKeys.lists() })
     qc.invalidateQueries({ queryKey: tableKeys.detail(id) })
+  },
+  interface: (qc, _wId, id) => {
+    qc.invalidateQueries({ queryKey: interfaceKeys.lists() })
+    qc.invalidateQueries({ queryKey: interfaceKeys.detail(id) })
   },
   file: (qc, wId, id) => {
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })

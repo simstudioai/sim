@@ -4,3 +4,6 @@ export const CHAT_ERROR_MESSAGES = {
 } as const
 
 export const CHAT_REQUEST_TIMEOUT_MS = 5 * 60 * 1000
+
+/** Markdown note appended to a partial answer when the user stops a streaming run. */
+export const CHAT_STOPPED_NOTE = '_Response stopped by user._'

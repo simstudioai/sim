@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildVfsFolderPathMap,
   canonicalBlockVfsPath,
+  canonicalInterfaceVfsPath,
   canonicalKnowledgeBaseVfsDir,
   canonicalTableVfsPath,
   canonicalWorkflowVfsDir,
@@ -50,8 +51,9 @@ describe('canonical resource VFS paths', () => {
     ).toBe('workflows/My%20Folder/Sub%20Folder/My%20Flow')
   })
 
-  it('builds table, knowledge base, and block pointers', () => {
+  it('builds table, interface, knowledge base, and block pointers', () => {
     expect(canonicalTableVfsPath('Sales Data')).toBe('tables/Sales%20Data/meta.json')
+    expect(canonicalInterfaceVfsPath('Support Desk')).toBe('interfaces/Support%20Desk/meta.json')
     expect(canonicalKnowledgeBaseVfsDir('Docs — KB')).toBe('knowledgebases/Docs%20%E2%80%94%20KB')
     expect(canonicalBlockVfsPath('agent')).toBe('components/blocks/agent.json')
   })

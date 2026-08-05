@@ -1,8 +1,9 @@
-import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
+  domainObjectSchema,
   folderIdSchema,
   requiredFieldSchema,
+  successResponseSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
@@ -38,8 +39,6 @@ import {
   MAX_PREDICATE_GROUP_SIZE,
   normalizeTablePredicate,
 } from '@/lib/table/query-builder/predicate'
-
-export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
 /**
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot
@@ -626,12 +625,6 @@ export const updateRowsByFilterBodySchema = z.object({
   data: rowDataSchema,
   limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
 })
-
-const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
-  z.object({
-    success: z.literal(true),
-    data: dataSchema,
-  })
 
 const tableColumnsResponseDataSchema = z.object({
   columns: z.array(tableColumnSchema),

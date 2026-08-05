@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { chat, workflow } from '@sim/db/schema'
+import { chat, user, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -11,6 +11,7 @@ import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { env } from '@/lib/core/config/env'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { serializeSelectedOutputs } from '@/lib/core/utils/response-format'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -31,7 +32,7 @@ interface ChatConfigSource {
   includeToolCalls?: boolean | null
 }
 
-function toChatConfigResponse(deployment: ChatConfigSource) {
+function toChatConfigResponse(deployment: ChatConfigSource, sharedByName?: string) {
   return {
     id: deployment.id,
     title: deployment.title,
@@ -39,9 +40,21 @@ function toChatConfigResponse(deployment: ChatConfigSource) {
     customizations: deployment.customizations,
     authType: deployment.authType,
     outputConfigs: deployment.outputConfigs,
+    ...(sharedByName ? { sharedByName } : {}),
     includeThinking: deployment.includeThinking ?? false,
     includeToolCalls: deployment.includeToolCalls ?? false,
   }
+}
+
+/** The deployer's display name for the "Shared by" credit, or `undefined` when unknown. */
+async function resolveSharedByName(userId: string | null | undefined): Promise<string | undefined> {
+  if (!userId) return undefined
+  const [owner] = await db
+    .select({ name: user.name })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  return owner?.name?.trim() || undefined
 }
 
 export const dynamic = 'force-dynamic'
@@ -156,7 +169,9 @@ export const POST = withRouteHandler(
       const { input, password, email, conversationId, files } = parsedBody
 
       if ((password || email) && !input) {
-        const response = createSuccessResponse(toChatConfigResponse(deployment))
+        const response = createSuccessResponse(
+          toChatConfigResponse(deployment, await resolveSharedByName(deployment.userId))
+        )
 
         if (deployment.authType !== 'sso') {
           setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
@@ -209,15 +224,9 @@ export const POST = withRouteHandler(
       }
 
       try {
-        const selectedOutputs: string[] = []
-        if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
-          for (const config of deployment.outputConfigs) {
-            const outputId = config.path
-              ? `${config.blockId}_${config.path}`
-              : `${config.blockId}_content`
-            selectedOutputs.push(outputId)
-          }
-        }
+        const selectedOutputs: string[] = Array.isArray(deployment.outputConfigs)
+          ? serializeSelectedOutputs(deployment.outputConfigs)
+          : []
 
         const { createStreamingResponse, agentStreamProtocolResponseHeaders } = await import(
           '@/lib/workflows/streaming/streaming'
@@ -360,6 +369,7 @@ export const GET = withRouteHandler(
       const deploymentResult = await db
         .select({
           id: chat.id,
+          userId: chat.userId,
           title: chat.title,
           description: chat.description,
           customizations: chat.customizations,
@@ -397,7 +407,9 @@ export const GET = withRouteHandler(
         authCookie &&
         validateAuthToken(authCookie.value, deployment.id, deployment.authType, deployment.password)
       ) {
-        return createSuccessResponse(toChatConfigResponse(deployment))
+        return createSuccessResponse(
+          toChatConfigResponse(deployment, await resolveSharedByName(deployment.userId))
+        )
       }
 
       const authResult = await validateChatAuth(requestId, deployment, request)
@@ -408,7 +420,9 @@ export const GET = withRouteHandler(
         return createErrorResponse(authResult.error || 'Authentication required', 401)
       }
 
-      return createSuccessResponse(toChatConfigResponse(deployment))
+      return createSuccessResponse(
+        toChatConfigResponse(deployment, await resolveSharedByName(deployment.userId))
+      )
     } catch (error: any) {
       logger.error(`[${requestId}] Error fetching chat info:`, error)
       return createErrorResponse(error.message || 'Failed to fetch chat information', 500)

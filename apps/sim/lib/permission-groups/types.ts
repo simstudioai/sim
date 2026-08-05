@@ -2,8 +2,10 @@ import { z } from 'zod'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 
 /**
- * Auth modes a public file share or a chat deployment can use; admins may
- * restrict the allowed subset. The two surfaces share the same four modes.
+ * Auth modes a public share can use — a public file share, a chat deployment, or
+ * an interface; admins may restrict the allowed subset. Shared verbatim by every
+ * one of those allow-lists, since the four modes are identical, so the name is
+ * historical rather than file-specific.
  */
 export const FILE_SHARE_AUTH_TYPES = ['public', 'password', 'email', 'sso'] as const
 
@@ -41,6 +43,8 @@ export const permissionGroupConfigSchema = z.object({
   disablePublicApi: z.boolean().optional(),
   disablePublicFileSharing: z.boolean().optional(),
   allowedFileShareAuthTypes: z.array(z.enum(FILE_SHARE_AUTH_TYPES)).nullable().optional(),
+  disablePublicInterfaceSharing: z.boolean().optional(),
+  allowedInterfaceShareAuthTypes: z.array(z.enum(FILE_SHARE_AUTH_TYPES)).nullable().optional(),
   hideDeployApi: z.boolean().optional(),
   hideDeployMcp: z.boolean().optional(),
   hideDeployChatbot: z.boolean().optional(),
@@ -79,6 +83,15 @@ export interface PermissionGroupConfig {
   disablePublicFileSharing: boolean
   /** Allowed public-file-share auth modes; `null` means all are allowed. */
   allowedFileShareAuthTypes: ShareAuthType[] | null
+  /**
+   * Separate from the file switch on purpose: a public file serves bytes, while
+   * a public interface runs workflows, reads table rows, and accepts form
+   * submissions on the workspace's compute and billing account. An admin who
+   * restricted file sharing has expressed no opinion about interfaces.
+   */
+  disablePublicInterfaceSharing: boolean
+  /** Allowed public-interface-share auth modes; `null` means all are allowed. */
+  allowedInterfaceShareAuthTypes: ShareAuthType[] | null
   hideDeployApi: boolean
   hideDeployMcp: boolean
   hideDeployChatbot: boolean
@@ -107,6 +120,8 @@ export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   disablePublicApi: false,
   disablePublicFileSharing: false,
   allowedFileShareAuthTypes: null,
+  disablePublicInterfaceSharing: false,
+  allowedInterfaceShareAuthTypes: null,
   hideDeployApi: false,
   hideDeployMcp: false,
   hideDeployChatbot: false,
@@ -148,6 +163,15 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
       typeof c.disablePublicFileSharing === 'boolean' ? c.disablePublicFileSharing : false,
     allowedFileShareAuthTypes: Array.isArray(c.allowedFileShareAuthTypes)
       ? c.allowedFileShareAuthTypes.filter((t): t is ShareAuthType =>
+          (FILE_SHARE_AUTH_TYPES as readonly string[]).includes(t as string)
+        )
+      : null,
+    disablePublicInterfaceSharing:
+      typeof c.disablePublicInterfaceSharing === 'boolean'
+        ? c.disablePublicInterfaceSharing
+        : false,
+    allowedInterfaceShareAuthTypes: Array.isArray(c.allowedInterfaceShareAuthTypes)
+      ? c.allowedInterfaceShareAuthTypes.filter((t): t is ShareAuthType =>
           (FILE_SHARE_AUTH_TYPES as readonly string[]).includes(t as string)
         )
       : null,

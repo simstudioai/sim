@@ -40,7 +40,7 @@ export function extractTotalResults(xmlText: string): number {
 }
 
 export function extractXmlValue(xml: string, tagName: string): string | undefined {
-  const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\/${tagName}>`)
+  const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)</${tagName}>`)
   const match = xml.match(regex)
   return match ? match[1].trim() : undefined
 }

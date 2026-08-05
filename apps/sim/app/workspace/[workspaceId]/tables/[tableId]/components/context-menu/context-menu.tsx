@@ -1,10 +1,4 @@
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@sim/emcn'
+import { DropdownMenuItem, DropdownMenuSeparator } from '@sim/emcn'
 import {
   ArrowDown,
   ArrowUp,
@@ -17,6 +11,7 @@ import {
   Square,
   Trash,
 } from '@sim/emcn/icons'
+import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 import type { ContextMenuState } from '../../types'
 
 interface ContextMenuProps {
@@ -127,94 +122,70 @@ export function ContextMenu({
       : 'Add row to Chat'
 
   return (
-    <DropdownMenu
-      open={contextMenu.isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      modal={false}
+    <AnchoredContextMenu
+      isOpen={contextMenu.isOpen}
+      position={contextMenu.position}
+      onClose={onClose}
     >
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${contextMenu.position.x}px`,
-            top: `${contextMenu.position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        {onAddToChat && (
-          <>
-            <DropdownMenuItem onSelect={onAddToChat}>
-              <Blimp />
-              {addToChatLabel}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        {contextMenu.columnName && canEditCell && (
-          <DropdownMenuItem disabled={disableEdit} onSelect={onEditCell}>
-            <Pencil />
-            Edit cell
+      {onAddToChat && (
+        <>
+          <DropdownMenuItem onSelect={onAddToChat}>
+            <Blimp />
+            {addToChatLabel}
           </DropdownMenuItem>
-        )}
-        {canViewExecution && onViewExecution && (
-          <DropdownMenuItem onSelect={onViewExecution}>
-            <Eye />
-            View execution
-          </DropdownMenuItem>
-        )}
-        {/* Not gated on `disableEdit`: these write only workflow-output columns,
-            which the update lock exempts, and Stop is a cancel rather than a
-            write. Their handlers are already withheld without edit permission. */}
-        {hasWorkflowColumns && onRunWorkflows && (
-          <DropdownMenuItem onSelect={onRunWorkflows}>
-            <PlayOutline />
-            {runLabel}
-          </DropdownMenuItem>
-        )}
-        {hasWorkflowColumns && onRefreshWorkflows && (
-          <DropdownMenuItem onSelect={onRefreshWorkflows}>
-            <RefreshCw />
-            {refreshLabel}
-          </DropdownMenuItem>
-        )}
-        {hasWorkflowColumns && onStopWorkflows && runningInSelectionCount > 0 && (
-          <DropdownMenuItem onSelect={onStopWorkflows}>
-            <Square className='size-[14px] text-[var(--text-icon)]' />
-            {stopLabel}
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>
-          <ArrowUp />
-          Insert row above
+          <DropdownMenuSeparator />
+        </>
+      )}
+      {contextMenu.columnName && canEditCell && (
+        <DropdownMenuItem disabled={disableEdit} onSelect={onEditCell}>
+          <Pencil />
+          Edit cell
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={disableInsert} onSelect={onInsertBelow}>
-          <ArrowDown />
-          Insert row below
+      )}
+      {canViewExecution && onViewExecution && (
+        <DropdownMenuItem onSelect={onViewExecution}>
+          <Eye />
+          View execution
         </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={disableDuplicate || selectedRowCount > 1}
-          onSelect={onDuplicate}
-        >
-          <Duplicate />
-          Duplicate row
+      )}
+      {/* Not gated on `disableEdit`: these write only workflow-output columns,
+          which the update lock exempts, and Stop is a cancel rather than a
+          write. Their handlers are already withheld without edit permission. */}
+      {hasWorkflowColumns && onRunWorkflows && (
+        <DropdownMenuItem onSelect={onRunWorkflows}>
+          <PlayOutline />
+          {runLabel}
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
-          <Trash />
-          {deleteLabel}
+      )}
+      {hasWorkflowColumns && onRefreshWorkflows && (
+        <DropdownMenuItem onSelect={onRefreshWorkflows}>
+          <RefreshCw />
+          {refreshLabel}
         </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      )}
+      {hasWorkflowColumns && onStopWorkflows && runningInSelectionCount > 0 && (
+        <DropdownMenuItem onSelect={onStopWorkflows}>
+          <Square className='size-[14px] text-[var(--text-icon)]' />
+          {stopLabel}
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>
+        <ArrowUp />
+        Insert row above
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={disableInsert} onSelect={onInsertBelow}>
+        <ArrowDown />
+        Insert row below
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={disableDuplicate || selectedRowCount > 1} onSelect={onDuplicate}>
+        <Duplicate />
+        Duplicate row
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
+        <Trash />
+        {deleteLabel}
+      </DropdownMenuItem>
+    </AnchoredContextMenu>
   )
 }

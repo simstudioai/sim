@@ -66,6 +66,7 @@ export const SEARCH_SECTIONS = [
   'chats',
   'workflows',
   'tables',
+  'interfaces',
   'files',
   'knowledgeBases',
   'toolOperations',

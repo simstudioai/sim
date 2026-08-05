@@ -253,7 +253,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                   animate={{ width: '55%', opacity: 1 }}
                   transition={{ duration: 0.35, ease: EASE_OUT }}
                 >
-                  <MiniTablePanel />
+                  <LandingLeadsPanel />
                 </m.div>
               )}
             </AnimatePresence>
@@ -381,9 +381,14 @@ function ChatMarkdown({
 }
 
 /**
- * Mini Customer Leads table panel matching the resource panel pattern.
+ * The "Customer Leads" panel in the landing hero's static product mock.
+ *
+ * Named for what it is rather than `MiniTablePanel`: it is hardcoded marketing
+ * markup with no queries and no relationship to the table resource, and a
+ * `Mini` + resource-noun name reads to both a reader and the resource-view
+ * audit as a per-consumer fork of the real table view.
  */
-function MiniTablePanel() {
+function LandingLeadsPanel() {
   return (
     <div className='flex h-full w-full flex-col bg-[var(--surface-2)]'>
       <div className='flex items-center gap-2 border-[var(--border)] border-b px-3 py-2'>

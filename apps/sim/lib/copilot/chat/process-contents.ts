@@ -16,6 +16,7 @@ import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   buildVfsFolderPathMap,
   canonicalBlockVfsPath,
+  canonicalInterfaceVfsPath,
   canonicalKnowledgeBaseVfsDir,
   canonicalTableVfsPath,
   canonicalWorkflowVfsDir,
@@ -26,6 +27,7 @@ import {
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { getInterfaceById } from '@/lib/interfaces'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
@@ -282,6 +284,16 @@ export async function processContextsServer(
         if (!result) return null
         return {
           type: 'filefolder',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: result.content,
+          path: result.path,
+        }
+      }
+      if (ctx.kind === 'interface' && ctx.interfaceId && currentWorkspaceId) {
+        const result = await resolveInterfaceResource(ctx.interfaceId, currentWorkspaceId)
+        if (!result) return null
+        return {
+          type: 'active_resource',
           tag: ctx.label ? `@${ctx.label}` : '@',
           content: result.content,
           path: result.path,
@@ -846,6 +858,9 @@ export async function resolveActiveResourceContext(
       case 'table': {
         return await resolveTableResource(resourceId, workspaceId)
       }
+      case 'interface': {
+        return await resolveInterfaceResource(resourceId, workspaceId)
+      }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId)
       }
@@ -875,6 +890,26 @@ async function resolveTableResource(
     tag: '@active_resource',
     content: '',
     path: canonicalTableVfsPath(table.name),
+  }
+}
+
+/**
+ * Points the agent at the interface's materialized `meta.json` rather than
+ * inlining its layout, matching the table/file resolvers. The VFS is the read
+ * path; `user_interface` is the write path.
+ */
+async function resolveInterfaceResource(
+  interfaceId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
+  const definition = await getInterfaceById(interfaceId)
+  if (!definition) return null
+  if (definition.workspaceId !== workspaceId) return null
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: '',
+    path: canonicalInterfaceVfsPath(definition.name),
   }
 }
 

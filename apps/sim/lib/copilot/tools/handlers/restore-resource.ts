@@ -4,6 +4,7 @@ import { performRestoreResource, type RestorableResourceType } from '@/lib/resou
 const VALID_TYPES = new Set([
   'workflow',
   'table',
+  'interface',
   'file',
   'knowledgebase',
   'folder',

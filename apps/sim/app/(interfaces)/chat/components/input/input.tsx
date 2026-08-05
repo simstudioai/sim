@@ -12,7 +12,11 @@ const logger = createLogger('ChatInput')
 
 const MAX_TEXTAREA_HEIGHT = 200
 
-interface AttachedFile {
+/** Today's deployed-chat budget — unchanged defaults for every existing caller. */
+const DEFAULT_MAX_FILE_BYTES = 10 * 1024 * 1024
+const DEFAULT_MAX_FILES = 15
+
+export interface AttachedFile {
   id: string
   name: string
   size: number
@@ -25,7 +29,41 @@ export const ChatInput: React.FC<{
   onSubmit?: (value: string, files?: AttachedFile[]) => void
   isStreaming?: boolean
   onStopStreaming?: () => void
-}> = ({ onSubmit, isStreaming = false, onStopStreaming }) => {
+  /** Inert composer — the interface canvas renders one in edit mode, where nothing runs. */
+  disabled?: boolean
+  /**
+   * Whether the composer pins itself to the bottom of the viewport, which is
+   * what a full-page chat wants. `false` lets it sit inside a bounded container
+   * — an interface module's pane — as an ordinary block.
+   */
+  docked?: boolean
+  /** Placeholder override; defaults to the deployed chat's own prompt. */
+  placeholder?: string
+  /**
+   * Whether the attach control is offered. Off for surfaces whose run endpoint
+   * takes no inbound files, so the composer never presents an affordance that
+   * would silently drop what the user attached.
+   */
+  allowAttachments?: boolean
+  /**
+   * Per-file and per-turn caps. Attachments travel inline as base64, so the
+   * ceiling is really the receiving route's body limit — a surface posting to
+   * a smaller one lowers these rather than letting the user attach something
+   * the request will reject.
+   */
+  maxFileSizeBytes?: number
+  maxFiles?: number
+}> = ({
+  onSubmit,
+  isStreaming = false,
+  onStopStreaming,
+  disabled = false,
+  docked = true,
+  placeholder,
+  allowAttachments = true,
+  maxFileSizeBytes = DEFAULT_MAX_FILE_BYTES,
+  maxFiles = DEFAULT_MAX_FILES,
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [inputValue, setInputValue] = useState('')
@@ -33,6 +71,8 @@ export const ChatInput: React.FC<{
   const [uploadErrors, setUploadErrors] = useState<string[]>([])
   const [dragCounter, setDragCounter] = useState(0)
   const isDragOver = dragCounter > 0
+  /** One flag for every attach path — button, drag-drop, and the send gate. */
+  const attachmentsEnabled = allowAttachments && !disabled
 
   useLayoutEffect(() => {
     const el = textareaRef.current
@@ -42,11 +82,10 @@ export const ChatInput: React.FC<{
   }, [inputValue])
 
   const handleFileSelect = async (selectedFiles: FileList | null) => {
-    if (!selectedFiles) return
+    if (!selectedFiles || !attachmentsEnabled) return
 
     const newFiles: AttachedFile[] = []
-    const maxSize = 10 * 1024 * 1024
-    const maxFiles = 15
+    const maxSize = maxFileSizeBytes
 
     for (let i = 0; i < selectedFiles.length; i++) {
       if (attachedFiles.length + newFiles.length >= maxFiles) break
@@ -54,7 +93,10 @@ export const ChatInput: React.FC<{
       const file = selectedFiles[i]
 
       if (file.size > maxSize) {
-        setUploadErrors((prev) => [...prev, `${file.name} is too large (max 10MB)`])
+        setUploadErrors((prev) => [
+          ...prev,
+          `${file.name} is too large (max ${Math.round(maxSize / (1024 * 1024))}MB)`,
+        ])
         continue
       }
 
@@ -121,11 +163,20 @@ export const ChatInput: React.FC<{
     textareaRef.current?.focus()
   }
 
-  const canSubmit = (inputValue.trim().length > 0 || attachedFiles.length > 0) && !isStreaming
+  const canSubmit =
+    (inputValue.trim().length > 0 || (attachmentsEnabled && attachedFiles.length > 0)) &&
+    !isStreaming &&
+    !disabled
 
   return (
-    <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-[var(--bg)] to-transparent px-4 pb-4 md:px-0 md:pb-4'>
-      <div className='w-full max-w-3xl md:max-w-[748px]'>
+    <div
+      className={cn(
+        'flex w-full items-center justify-center',
+        docked &&
+          'fixed right-0 bottom-0 left-0 bg-gradient-to-t from-[var(--bg)] to-transparent px-4 pb-4 md:px-0 md:pb-4'
+      )}
+    >
+      <div className={cn('w-full', docked && 'max-w-3xl md:max-w-[748px]')}>
         {uploadErrors.length > 0 && (
           <div className='mb-3 flex flex-col gap-2'>
             {uploadErrors.map((error, idx) => (
@@ -142,17 +193,17 @@ export const ChatInput: React.FC<{
           onClick={handleContainerClick}
           className={cn(
             'relative z-10 cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2',
-            isDragOver && 'border-purple-500'
+            isDragOver && 'border-[var(--text-muted)]'
           )}
           onDragEnter={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            if (!isStreaming) setDragCounter((prev) => prev + 1)
+            if (!isStreaming && attachmentsEnabled) setDragCounter((prev) => prev + 1)
           }}
           onDragOver={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            if (!isStreaming) e.dataTransfer.dropEffect = 'copy'
+            if (!isStreaming && attachmentsEnabled) e.dataTransfer.dropEffect = 'copy'
           }}
           onDragLeave={(e) => {
             e.preventDefault()
@@ -163,7 +214,7 @@ export const ChatInput: React.FC<{
             e.preventDefault()
             e.stopPropagation()
             setDragCounter(0)
-            if (!isStreaming) handleFileSelect(e.dataTransfer.files)
+            if (!isStreaming && attachmentsEnabled) handleFileSelect(e.dataTransfer.files)
           }}
         >
           {attachedFiles.length > 0 && (
@@ -212,28 +263,33 @@ export const ChatInput: React.FC<{
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isDragOver ? 'Drop files here...' : 'Enter a message...'}
+            placeholder={isDragOver ? 'Drop files here...' : (placeholder ?? 'Enter a message...')}
             rows={1}
+            disabled={disabled}
             className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[15px] text-[var(--text-primary)] leading-[24px] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
           />
 
           <div className='flex items-center justify-between'>
             <div>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='quiet'
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isStreaming || attachedFiles.length >= 15}
-                    className='size-[28px] rounded-full p-0'
-                  >
-                    <Paperclip className='size-[16px]' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>
-                  <p>Attach files</p>
-                </Tooltip.Content>
-              </Tooltip.Root>
+              {allowAttachments && (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='quiet'
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={
+                        !attachmentsEnabled || isStreaming || attachedFiles.length >= maxFiles
+                      }
+                      className='size-[28px] rounded-full p-0'
+                    >
+                      <Paperclip className='size-[16px]' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
+                    <p>Attach files</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              )}
 
               <input
                 ref={fileInputRef}

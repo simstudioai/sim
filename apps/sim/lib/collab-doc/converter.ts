@@ -8,15 +8,18 @@ import {
   yDocToProsemirrorJSON,
 } from '@tiptap/y-tiptap'
 import type * as Y from 'yjs'
-import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+// boundary-resource-internal: server-side markdown schema/parsing only; the barrel would pull the React file view into the realtime persist path
+import { createMarkdownContentExtensions } from '@/components/resources/file-view/components/rich-markdown-editor/extensions'
+// boundary-resource-internal: server-side markdown schema/parsing only; the barrel would pull the React file view into the realtime persist path
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+} from '@/components/resources/file-view/components/rich-markdown-editor/markdown-fidelity'
+// boundary-resource-internal: server-side markdown schema/parsing only; the barrel would pull the React file view into the realtime persist path
 import {
   parseMarkdownToDoc,
   serializeDocToMarkdown,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+} from '@/components/resources/file-view/components/rich-markdown-editor/markdown-parse'
 
 /**
  * Server-side conversion between a file's markdown and its collaborative Yjs document.

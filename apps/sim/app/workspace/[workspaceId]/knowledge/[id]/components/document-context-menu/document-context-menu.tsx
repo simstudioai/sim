@@ -1,13 +1,8 @@
 'use client'
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@sim/emcn'
+import { DropdownMenuItem, DropdownMenuSeparator } from '@sim/emcn'
 import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
+import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 
 interface DocumentContextMenuProps {
   isOpen: boolean
@@ -67,92 +62,65 @@ export function DocumentContextMenu({
     return isDocumentEnabled ? 'Disable' : 'Enable'
   }
 
+  /**
+   * Canonical resource-menu structure: navigation (Open in new tab, Open
+   * source) above a single separator, then the item actions in the shared
+   * order — Rename, Tags, Enable/Disable, Delete.
+   */
   const hasNavigationSection = !isMultiSelect && (!!onOpenInNewTab || !!onOpenSource)
-  const hasEditSection = !isMultiSelect && (!!onRename || !!onViewTags)
-  const hasStateSection = !!onToggleEnabled
-  const hasDestructiveSection = !!onDelete
+  const hasActionsSection =
+    (!isMultiSelect && (!!onRename || !!onViewTags)) || !!onToggleEnabled || !!onDelete
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        {hasDocument ? (
-          <>
-            {!isMultiSelect && onOpenInNewTab && (
-              <DropdownMenuItem onSelect={onOpenInNewTab}>
-                <SquareArrowUpRight />
-                Open in new tab
-              </DropdownMenuItem>
-            )}
-            {!isMultiSelect && onOpenSource && (
-              <DropdownMenuItem onSelect={onOpenSource}>
-                <SquareArrowUpRight />
-                Open source
-              </DropdownMenuItem>
-            )}
-            {hasNavigationSection &&
-              (hasEditSection || hasStateSection || hasDestructiveSection) && (
-                <DropdownMenuSeparator />
-              )}
-
-            {!isMultiSelect && onRename && (
-              <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
-                <Pencil />
-                Rename
-              </DropdownMenuItem>
-            )}
-            {!isMultiSelect && onViewTags && (
-              <DropdownMenuItem onSelect={onViewTags}>
-                <TagIcon />
-                Tags
-              </DropdownMenuItem>
-            )}
-            {hasEditSection && (hasStateSection || hasDestructiveSection) && (
-              <DropdownMenuSeparator />
-            )}
-
-            {onToggleEnabled && (
-              <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
-                <Eye />
-                {getToggleLabel()}
-              </DropdownMenuItem>
-            )}
-
-            {hasStateSection && hasDestructiveSection && <DropdownMenuSeparator />}
-            {onDelete && (
-              <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
-                <Trash />
-                Delete
-              </DropdownMenuItem>
-            )}
-          </>
-        ) : (
-          onAddDocument && (
-            <DropdownMenuItem disabled={disableAddDocument} onSelect={onAddDocument}>
-              <Plus />
-              Add document
+    <AnchoredContextMenu isOpen={isOpen} position={position} onClose={onClose}>
+      {hasDocument ? (
+        <>
+          {!isMultiSelect && onOpenInNewTab && (
+            <DropdownMenuItem onSelect={onOpenInNewTab}>
+              <SquareArrowUpRight />
+              Open in new tab
             </DropdownMenuItem>
-          )
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          )}
+          {!isMultiSelect && onOpenSource && (
+            <DropdownMenuItem onSelect={onOpenSource}>
+              <SquareArrowUpRight />
+              Open source
+            </DropdownMenuItem>
+          )}
+          {hasNavigationSection && hasActionsSection && <DropdownMenuSeparator />}
+          {!isMultiSelect && onRename && (
+            <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
+              <Pencil />
+              Rename
+            </DropdownMenuItem>
+          )}
+          {!isMultiSelect && onViewTags && (
+            <DropdownMenuItem onSelect={onViewTags}>
+              <TagIcon />
+              Tags
+            </DropdownMenuItem>
+          )}
+          {onToggleEnabled && (
+            <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
+              <Eye />
+              {getToggleLabel()}
+            </DropdownMenuItem>
+          )}
+          {onDelete && (
+            <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
+              <Trash />
+              Delete
+            </DropdownMenuItem>
+          )}
+        </>
+      ) : (
+        onAddDocument && (
+          <DropdownMenuItem disabled={disableAddDocument} onSelect={onAddDocument}>
+            <Plus />
+            Add document
+          </DropdownMenuItem>
+        )
+      )}
+    </AnchoredContextMenu>
   )
 }

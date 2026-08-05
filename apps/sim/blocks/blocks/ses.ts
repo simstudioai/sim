@@ -170,7 +170,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
       type: 'code',
       language: 'json',
       placeholder:
-        '[{"toAddresses": ["user1@example.com"], "templateData": "{\"name\": \"User 1\"}"}, {"toAddresses": ["user2@example.com"]}]',
+        '[{"toAddresses": ["user1@example.com"], "templateData": "{"name": "User 1"}"}, {"toAddresses": ["user2@example.com"]}]',
       condition: { field: 'operation', value: 'send_bulk_email' },
       required: { field: 'operation', value: 'send_bulk_email' },
     },

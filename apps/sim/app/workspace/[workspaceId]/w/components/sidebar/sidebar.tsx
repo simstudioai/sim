@@ -25,6 +25,7 @@ import {
   Integration,
   MoreHorizontal,
   PanelLeft,
+  Panels,
   Pin,
   Plus,
   Search,
@@ -93,6 +94,7 @@ import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
+import { useInterfacesList } from '@/hooks/queries/interfaces'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import {
@@ -792,6 +794,12 @@ export const Sidebar = memo(function Sidebar({
     () =>
       [
         {
+          id: 'interfaces',
+          label: 'Interfaces',
+          icon: Panels,
+          href: `/workspace/${workspaceId}/interfaces`,
+        },
+        {
           id: 'tables',
           label: 'Tables',
           icon: Table,
@@ -857,9 +865,20 @@ export const Sidebar = memo(function Sidebar({
     [fetchedChats, workspaceId]
   )
 
+  const { data: fetchedInterfaces = [] } = useInterfacesList(workspaceId)
   const { data: fetchedTables = [] } = useTablesList(workspaceId)
   const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId)
   const { data: fetchedKnowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
+
+  const searchModalInterfaces = useMemo(
+    () =>
+      fetchedInterfaces.map((i) => ({
+        id: i.id,
+        name: i.name,
+        href: `/workspace/${workspaceId}/interfaces/${i.id}`,
+      })),
+    [fetchedInterfaces, workspaceId]
+  )
 
   const searchModalTables = useMemo(
     () =>
@@ -1832,6 +1851,7 @@ export const Sidebar = memo(function Sidebar({
         workflows={searchModalWorkflows}
         workspaces={searchModalWorkspaces}
         chats={chats}
+        interfaces={searchModalInterfaces}
         tables={searchModalTables}
         files={searchModalFiles}
         knowledgeBases={searchModalKnowledgeBases}

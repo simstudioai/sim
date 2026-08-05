@@ -27,6 +27,12 @@ import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import {
+  getDisplayStatus,
+  type LogStatus,
+  STATUS_CONFIG,
+  StatusBadge,
+} from '@/components/execution-status'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
@@ -89,12 +95,8 @@ import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './c
 import {
   DELETED_WORKFLOW_LABEL,
   formatDate,
-  getDisplayStatus,
-  type LogStatus,
   parseDuration,
   resolveLogWorkflowId,
-  STATUS_CONFIG,
-  StatusBadge,
   TriggerBadge,
   workflowEditorPath,
 } from './utils'

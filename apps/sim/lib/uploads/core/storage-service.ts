@@ -22,6 +22,7 @@ import type {
   StorageContext,
   UploadFileOptions,
 } from '@/lib/uploads/shared/types'
+import type { ByteRange } from '@/lib/uploads/utils/byte-range'
 import {
   sanitizeFileKey,
   sanitizeFilenameForMetadata,
@@ -501,34 +502,40 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
 /**
  * Stream a file out of the configured storage provider without buffering it in memory.
  * The caller MUST fully consume or `destroy()` the returned stream. Used by the large-CSV
- * import worker so a multi-hundred-MB file is never held resident.
+ * import worker so a multi-hundred-MB file is never held resident, and by the media
+ * byte-serving path.
+ *
+ * `range` performs a partial read at the provider, so a seek in a long video
+ * costs one short request instead of re-reading the object from the start.
  */
 export async function downloadFileStream(options: {
   key: string
   context: StorageContext
+  /** Inclusive byte interval for a partial read. Omit to stream the whole object. */
+  range?: ByteRange
 }): Promise<Readable> {
-  const { key, context } = options
+  const { key, context, range } = options
   const config = getStorageConfig(context)
 
   if (USE_BLOB_STORAGE) {
     const { downloadFromBlobStream } = await import('@/lib/uploads/providers/blob/client')
-    return downloadFromBlobStream(key, createBlobConfig(config))
+    return downloadFromBlobStream(key, createBlobConfig(config), range)
   }
 
   if (USE_S3_STORAGE) {
     const { downloadFromS3Stream } = await import('@/lib/uploads/providers/s3/client')
-    return downloadFromS3Stream(key, createS3Config(config))
+    return downloadFromS3Stream(key, createS3Config(config), range)
   }
 
   if (USE_GCS_STORAGE) {
     const { downloadFromGcsStream } = await import('@/lib/uploads/providers/gcs/client')
-    return downloadFromGcsStream(key, createGcsConfig(config))
+    return downloadFromGcsStream(key, createGcsConfig(config), range)
   }
 
   const { createReadStream } = await import('fs')
   const { join } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
-  return createReadStream(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)))
+  return createReadStream(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)), range)
 }
 
 /**
@@ -609,9 +616,14 @@ export async function deleteFiles(
 }
 
 /**
- * Check whether an object exists in the configured cloud storage provider.
- * Returns object size and content-type when present, or null when missing.
- * Throws on errors other than "not found". For local filesystem, returns null.
+ * Check whether an object exists in the configured storage provider.
+ * Returns object size (and content-type where the provider reports one) when
+ * present, or null when missing. Throws on errors other than "not found".
+ *
+ * Local filesystem is answered from `stat`, not treated as "missing". Returning
+ * null there made every caller that reads a size before serving — the media
+ * byte-range paths — refuse the object outright on a self-hosted or dev
+ * deployment, which reads as a corrupt file rather than an unsupported mode.
  */
 export async function headObject(
   key: string,
@@ -634,7 +646,17 @@ export async function headObject(
     return headGcsObject(key, createGcsConfig(config))
   }
 
-  return null
+  const { stat } = await import('fs/promises')
+  const { join } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+  try {
+    const stats = await stat(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)))
+    return stats.isFile() ? { size: stats.size } : null
+  } catch (error) {
+    /** Missing is a null, exactly as the cloud providers report it; anything else is real. */
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return null
+    throw error
+  }
 }
 
 /**

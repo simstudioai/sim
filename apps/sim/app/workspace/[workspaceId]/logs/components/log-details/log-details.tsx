@@ -39,6 +39,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { createPortal } from 'react-dom'
+import { getDisplayStatus, StatusBadge } from '@/components/execution-status'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -60,9 +61,7 @@ import {
 import {
   DELETED_WORKFLOW_LABEL,
   formatDate,
-  getDisplayStatus,
   resolveLogWorkflowId,
-  StatusBadge,
   TriggerBadge,
   workflowEditorPath,
 } from '@/app/workspace/[workspaceId]/logs/utils'

@@ -6,6 +6,7 @@ export {
   DocsGroup,
   FilesGroup,
   IntegrationsGroup,
+  InterfacesGroup,
   KnowledgeBasesGroup,
   PagesGroup,
   TablesGroup,

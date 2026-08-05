@@ -22,11 +22,9 @@ vi.mock('@/hooks/queries/credentials', () => ({
   useWorkspaceCredential: mockUseWorkspaceCredential,
 }))
 
-import type { CredentialTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
-import {
-  parseSpecialTags,
-  SpecialTags,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
+import type { CredentialTagData } from '@/components/chat/special-tags/parse'
+import { parseSpecialTags } from '@/components/chat/special-tags/parse'
+import { SpecialTags } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 
 /**
  * Minimal dependency-free render harness (the repo has no `@testing-library/react`). Mounts the

@@ -265,7 +265,7 @@ Common panel types:
 - "bargauge": Bar gauge
 
 Examples:
-- "CPU usage panel" -> [{"title":"CPU Usage","type":"timeseries","gridPos":{"x":0,"y":0,"w":12,"h":8},"targets":[{"expr":"100 - (avg(irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)","refId":"A"}]}]
+- "CPU usage panel" -> [{"title":"CPU Usage","type":"timeseries","gridPos":{"x":0,"y":0,"w":12,"h":8},"targets":[{"expr":"100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)","refId":"A"}]}]
 
 Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         placeholder: 'Describe the panels you want to create...',

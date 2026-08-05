@@ -410,6 +410,24 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  interface_created: {
+    interface_id: string
+    workspace_id: string
+  }
+
+  interface_deleted: {
+    interface_id: string
+    workspace_id: string
+  }
+
+  /** A form module on an interface was submitted, dispatching a `form`-triggered workflow run. */
+  interface_form_submitted: {
+    interface_id: string
+    module_id: string
+    workspace_id: string
+    workflow_id: string
+  }
+
   /**
    * A table-workflow run was dispatched from the grid.
    * `source` distinguishes the gesture: a single row's gutter Play (`row`),
@@ -572,6 +590,7 @@ export interface PostHogEventMap {
       | 'workflow'
       | 'workspace'
       | 'task'
+      | 'interface'
       | 'table'
       | 'file'
       | 'knowledge_base'

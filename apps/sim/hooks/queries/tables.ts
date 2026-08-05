@@ -16,12 +16,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import {
-  ApiClientError,
-  extractValidationIssues,
-  isApiClientError,
-  isValidationError,
-} from '@/lib/api/client/errors'
+import { ApiClientError, isApiClientError, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
@@ -109,6 +104,10 @@ import {
 } from '@/lib/table/deps'
 import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import { useTimezone } from '@/hooks/queries/general-settings'
+import {
+  toastMutationError,
+  toastNonValidationError,
+} from '@/hooks/queries/utils/mutation-error-toast'
 import {
   TABLE_LIST_STALE_TIME,
   TABLE_VIEWS_STALE_TIME,
@@ -539,9 +538,7 @@ export function useCreateTable(workspaceId: string) {
     },
     // Unlike row writes, table naming has no inline validation surface — the
     // issue message (e.g. the NAME_PATTERN rule) must reach the user as a toast.
-    onError: (error) => {
-      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
-    },
+    onError: toastMutationError,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
     },
@@ -563,8 +560,7 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
     },
     onError: (error) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
     onSettled: () => {
       invalidateTableSchemaOnly(queryClient, tableId)
@@ -587,9 +583,7 @@ export function useRenameTable(workspaceId: string) {
     },
     // Inline rename reverts the field on failure with no message of its own, so
     // the validation issue (e.g. the NAME_PATTERN rule) must surface as a toast.
-    onError: (error) => {
-      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
-    },
+    onError: toastMutationError,
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(variables.tableId) })
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -698,8 +692,7 @@ export function useDeleteTable(workspaceId: string) {
     },
     onError: (error, tableId) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
     onSettled: (_data, _error, tableId) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -1067,8 +1060,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
   })
 }
@@ -1141,8 +1133,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
   })
 }
@@ -1162,8 +1153,7 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
     },
     onError: (error) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
@@ -1211,8 +1201,7 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
     },
     onError: (error) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
@@ -1313,8 +1302,7 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
         queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
       }
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
   })
 }
@@ -1382,8 +1370,7 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
         queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
       }
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
     onSettled: (_data, _error, variables, context) => {
       // A type change, a select single↔multi toggle, or removing an option
@@ -1705,8 +1692,7 @@ export function useRestoreTable() {
     },
     onError: (error, tableId) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
     onSuccess: (response, tableId) => {
       queryClient.setQueryData(tableKeys.detail(tableId), response.data.table)
@@ -2067,8 +2053,7 @@ export function useExportTableAsync({ workspaceId, tableId }: RowMutationContext
     },
     onError: (error) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
   })
 }
@@ -2179,8 +2164,7 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
         }
       }
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
@@ -2480,8 +2464,7 @@ export function useAddWorkflowGroup({ workspaceId, tableId }: RowMutationContext
     },
     onError: (error) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
@@ -2514,8 +2497,7 @@ export function useUpdateWorkflowGroup({ workspaceId, tableId }: RowMutationCont
     },
     onError: (error) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
@@ -2539,8 +2521,7 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
     },
     onError: (error) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
+      toastNonValidationError(error)
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)

@@ -84,7 +84,7 @@ type ConfigTab = 'general' | 'providers' | 'blocks' | 'platform'
 /** Hoisted: rebuilding this per comparison allocated once per sort step. */
 const BLOCK_CATEGORY_ORDER: Record<string, number> = { triggers: 0, blocks: 1, tools: 2 }
 
-/** Public-file-share auth modes an admin can allow/disallow. `null` config = all allowed. */
+/** Public-share auth modes an admin can allow/disallow. `null` config = all allowed. */
 const FILE_SHARE_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
   { value: 'public', label: 'Anyone with link' },
   { value: 'password', label: 'Password' },
@@ -301,8 +301,9 @@ const PLATFORM_FEATURES = [
     configKey: 'disablePublicApi' as const,
     hint: 'Disable public API access to deployed workflows.',
   },
-  // Chat and Files get a category of their own so their nested auth-mode
-  // dropdown (see `featureExtras`) reads as part of the toggle it qualifies.
+  // Chat, Files and Interfaces get a category of their own so their nested
+  // auth-mode dropdown (see `featureExtras`) reads as part of the toggle it
+  // qualifies.
   {
     id: 'hide-deploy-chatbot',
     label: 'Deployment',
@@ -316,6 +317,13 @@ const PLATFORM_FEATURES = [
     category: 'Files',
     configKey: 'disablePublicFileSharing' as const,
     hint: 'Disable public file-share links.',
+  },
+  {
+    id: 'disable-public-interface-sharing',
+    label: 'Public Sharing',
+    category: 'Interfaces',
+    configKey: 'disablePublicInterfaceSharing' as const,
+    hint: 'Disable public interface-share links.',
   },
 ]
 
@@ -1304,6 +1312,19 @@ export function GroupDetail({
     }))
   }, [])
 
+  const interfaceShareAuthValue = useMemo(
+    () => editingConfig.allowedInterfaceShareAuthTypes ?? ALL_FILE_SHARE_AUTH_TYPES,
+    [editingConfig.allowedInterfaceShareAuthTypes]
+  )
+
+  const setInterfaceShareAuthTypes = useCallback((values: string[]) => {
+    setEditingConfig((prev) => ({
+      ...prev,
+      allowedInterfaceShareAuthTypes:
+        values.length === ALL_FILE_SHARE_AUTH_TYPES.length ? null : (values as ShareAuthType[]),
+    }))
+  }, [])
+
   const chatDeployAuthValue = useMemo(
     () => editingConfig.allowedChatDeployAuthTypes ?? ALL_CHAT_DEPLOY_AUTH_TYPES,
     [editingConfig.allowedChatDeployAuthTypes]
@@ -1342,6 +1363,15 @@ export function GroupDetail({
         onChange={setFileShareAuthTypes}
         options={FILE_SHARE_AUTH_TYPE_OPTIONS}
         disabled={editingConfig.disablePublicFileSharing}
+      />
+    ),
+    'disable-public-interface-sharing': (
+      <AuthModeField
+        label='Auth modes public interface-share links may use'
+        value={interfaceShareAuthValue}
+        onChange={setInterfaceShareAuthTypes}
+        options={FILE_SHARE_AUTH_TYPE_OPTIONS}
+        disabled={editingConfig.disablePublicInterfaceSharing}
       />
     ),
   }

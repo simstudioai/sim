@@ -73,6 +73,7 @@ import {
   serializeEnvironmentVariables,
   serializeFileMeta,
   serializeIntegrationSchema,
+  serializeInterfaceMeta,
   serializeKBMeta,
   serializeMcpServer,
   serializeRecentExecutions,
@@ -101,6 +102,7 @@ import {
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
+import { listInterfaces } from '@/lib/interfaces'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -515,6 +517,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   knowledgebases/{name}/documents.json
  *   knowledgebases/{name}/connectors.json
  *   tables/{name}/meta.json
+ *   interfaces/{name}/meta.json
  *   files/{name}                         (workspace file leaf; dynamic content on read)
  *   files/{path}/{name}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
  *   files/{path}/{name}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
@@ -742,6 +745,7 @@ export class WorkspaceVFS {
               wfSummary,
               kbSummary,
               tblSummary,
+              interfaceSummary,
               fileSummary,
               envSummary,
               toolsSummary,
@@ -755,6 +759,7 @@ export class WorkspaceVFS {
               timed('workflows', this.materializeWorkflows(workspaceId)),
               timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId, userId)),
               timed('tables', this.materializeTables(workspaceId)),
+              timed('interfaces', this.materializeInterfaces(workspaceId)),
               timed('files', this.materializeFiles(workspaceId)),
               timed(
                 'environment',
@@ -780,6 +785,7 @@ export class WorkspaceVFS {
               workflows: wfSummary,
               knowledgeBases: kbSummary,
               tables: tblSummary,
+              interfaces: interfaceSummary,
               files: fileSummary,
               oauthIntegrations: envSummary.oauthIntegrations,
               envVariables: envSummary.envVariables,
@@ -1740,6 +1746,33 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Materialize interfaces using the shared listInterfaces function.
+   * Returns a summary for WORKSPACE.md generation.
+   */
+  private async materializeInterfaces(workspaceId: string): Promise<WorkspaceMdData['interfaces']> {
+    try {
+      const interfaces = await listInterfaces(workspaceId)
+
+      for (const definition of interfaces) {
+        const safeName = sanitizeName(definition.name)
+        this.files.set(`interfaces/${safeName}/meta.json`, serializeInterfaceMeta(definition))
+      }
+
+      return interfaces.map((definition) => ({
+        id: definition.id,
+        name: definition.name,
+        description: definition.description,
+      }))
+    } catch (err) {
+      logger.error('Failed to materialize interfaces; refusing to serve an incomplete VFS', {
+        workspaceId,
+        error: toError(err).message,
+      })
+      throw err
+    }
+  }
+
+  /**
    * Materialize workspace files (already uses listWorkspaceFiles).
    * Returns a summary for WORKSPACE.md generation.
    */
@@ -2113,6 +2146,7 @@ export class WorkspaceVFS {
         archivedWorkflows,
         archivedFolders,
         archivedTables,
+        archivedInterfaces,
         archivedFiles,
         archivedFileFolders,
         archivedKBs,
@@ -2133,6 +2167,7 @@ export class WorkspaceVFS {
             )
           ),
         listTables(workspaceId, { scope: 'archived' }),
+        listInterfaces(workspaceId, { scope: 'archived' }),
         listWorkspaceFiles(workspaceId, { scope: 'archived' }),
         listWorkspaceFileFolders(workspaceId, { scope: 'archived' }),
         getKnowledgeBases(userId, workspaceId, 'archived'),
@@ -2172,6 +2207,14 @@ export class WorkspaceVFS {
             createdAt: table.createdAt,
             updatedAt: table.updatedAt,
           })
+        )
+      }
+
+      for (const definition of archivedInterfaces) {
+        const safeName = sanitizeName(definition.name)
+        this.files.set(
+          `recently-deleted/interfaces/${safeName}/meta.json`,
+          serializeInterfaceMeta(definition)
         )
       }
 

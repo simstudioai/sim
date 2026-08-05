@@ -23,7 +23,7 @@ vi.mock('./collab-state', () => ({
   loadFreshCollabDocState: mockLoadFresh,
 }))
 
-import { serializeMarkdownBody } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import { serializeMarkdownBody } from '@/components/resources/file-view/components/rich-markdown-editor/markdown-parse'
 import { yDocToMarkdown } from './converter'
 import { buildFileDocSeed } from './seed'
 

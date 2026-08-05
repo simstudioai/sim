@@ -39,6 +39,7 @@ import type {
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { listIntegrations } from '@/blocks/integration-matcher'
 import { useFolders } from '@/hooks/queries/folders'
+import { useInterfacesList } from '@/hooks/queries/interfaces'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
@@ -102,6 +103,12 @@ interface UseAvailableResourcesOptions {
    */
   enabled?: boolean
   /**
+   * Keys (`type:id`) of resources the caller already has open, so an interface
+   * that is already on screen renders as such. Omitted by callers with no
+   * notion of "open" — every item then reads as closed.
+   */
+  existingKeys?: Set<string>
+  /**
    * Resource types to omit from the result. Must be referentially stable
    * (a module constant) — it keys the group memo.
    */
@@ -140,6 +147,7 @@ export function useAvailableResources(
 ): AvailableResources {
   const enabled = options?.enabled ?? true
   const excludeTypes = options?.excludeTypes
+  const existingKeys = options?.existingKeys
   // Destructured without `= []` defaults on purpose: a literal default allocates a
   // fresh array every render while `data` is undefined (exactly the disabled state),
   // which would bust the group memo below on every render. Undefined is stable.
@@ -147,6 +155,11 @@ export function useAvailableResources(
   const { data: tables, isPending: tablesPending } = useTablesList(workspaceId, 'active', {
     enabled,
   })
+  const { data: interfaces, isPending: interfacesPending } = useInterfacesList(
+    workspaceId,
+    'active',
+    { enabled }
+  )
   const { data: files, isPending: filesPending } = useWorkspaceFiles(workspaceId, 'active', {
     enabled,
   })
@@ -192,6 +205,7 @@ export function useAvailableResources(
     enabled &&
     (workflowsPending ||
       tablesPending ||
+      interfacesPending ||
       filesPending ||
       knowledgeBasesPending ||
       foldersPending ||
@@ -227,6 +241,14 @@ export function useAvailableResources(
           id: t.id,
           name: t.name,
           folderId: t.folderId ?? null,
+        })),
+      },
+      {
+        type: 'interface' as const,
+        items: (interfaces ?? []).map((i) => ({
+          id: i.id,
+          name: i.name,
+          isOpen: existingKeys?.has(`interface:${i.id}`) ?? false,
         })),
       },
       {
@@ -304,11 +326,13 @@ export function useAvailableResources(
     folders,
     fileFolders,
     tables,
+    interfaces,
     files,
     knowledgeBases,
     tasks,
     logs,
     excludeTypes,
+    existingKeys,
   ])
 
   /**
@@ -524,6 +548,7 @@ export function AddResourceDropdown({
   const { groups: available, structureFolders } = useAvailableResources(workspaceId, {
     enabled: open,
     excludeTypes,
+    existingKeys,
   })
   const treeSections = useResourceTreeSections({ groups: available, structureFolders })
   const hasNativeResourceSurface = isBrowserAgentAvailable() || isTerminalAvailable()

@@ -1,5 +1,6 @@
 export const MothershipResourceType = {
   table: 'table',
+  interface: 'interface',
   file: 'file',
   workflow: 'workflow',
   knowledgebase: 'knowledgebase',
@@ -47,6 +48,7 @@ interface ResourcePolicy {
  */
 const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
   table: { persisted: true },
+  interface: { persisted: true },
   file: { persisted: true },
   workflow: { persisted: true },
   knowledgebase: { persisted: true },
@@ -141,6 +143,7 @@ export function canonicalizeDesktopSessionResources(
 /** Placeholder resource titles that a more specific title may overwrite during dedup. */
 export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Table',
+  'Interface',
   'File',
   'Workflow',
   'Knowledge Base',
@@ -150,6 +153,7 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
 
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',
+  interfaces: 'interface',
   files: 'file',
   workflows: 'workflow',
   knowledgebases: 'knowledgebase',

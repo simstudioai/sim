@@ -62,6 +62,7 @@ import type {
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import type { SerializedConnection } from '@/serializer/types'
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 /**
  * All paused-execution / resume-queue / execution-log persistence in this
@@ -1193,9 +1194,7 @@ export class PauseResumeManager {
       pendingQueue: stateCopy?.pendingQueue,
     })
 
-    const triggerType =
-      (metadata.triggerType as 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | undefined) ??
-      'manual'
+    const triggerType = (metadata.triggerType as CoreTriggerType | undefined) ?? 'manual'
     const loggingSession = new LoggingSession(
       metadata.workflowId,
       parentExecutionId,

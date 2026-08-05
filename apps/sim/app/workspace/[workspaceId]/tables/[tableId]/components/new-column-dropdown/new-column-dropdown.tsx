@@ -5,6 +5,7 @@ import {
   chipContentIconClass,
   chipContentLabelClass,
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -53,15 +54,16 @@ export function NewColumnDropdown({
 }: NewColumnDropdownProps) {
   const triggerButton =
     trigger === 'header' ? (
+      /** Primary CTA of the table header — inverse chip, so icon/label/chevron ride `currentColor`. */
       <button
         type='button'
-        className={chipVariants()}
+        className={chipVariants({ variant: 'primary' })}
         disabled={disabled}
         onClick={blocked ? onBlocked : undefined}
       >
-        <Plus className={chipContentIconClass} />
-        <span className={chipContentLabelClass}>New column</span>
-        <ChipChevronDown />
+        <Plus className={cn(chipContentIconClass, 'text-current')} />
+        <span className={cn(chipContentLabelClass, 'text-current')}>New column</span>
+        <ChipChevronDown className='text-current' />
       </button>
     ) : (
       <button

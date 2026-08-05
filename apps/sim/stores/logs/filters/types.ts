@@ -31,6 +31,7 @@ export const CORE_TRIGGER_TYPES = [
   'copilot',
   'mothership',
   'workflow',
+  'form',
   'custom_block',
 ] as const
 
