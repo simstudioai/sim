@@ -121,7 +121,7 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     
     - **Stream mode** (`stream: true` on the original execute call) — The resume response streams SSE events with `selectedOutputs` chunks, just like the initial execution.
     
-    - **Async mode** (`X-Execution-Mode: async` on the original execute call) — The resume dispatches execution to a background worker and returns immediately with `202`, including the resume attempt's `executionId` and `statusUrl` for polling:
+    - **Async mode** (`async: true` on the original v2 execute call) — The resume dispatches execution to a background worker and returns immediately with `202`, including the resume attempt's `executionId` and v2 `statusUrl` for polling:
     
     ```json
     {
@@ -129,7 +129,7 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
       "async": true,
       "executionId": "<resumeExecutionId>",
       "message": "Resume execution queued",
-      "statusUrl": "/api/workflows/<workflowId>/executions/<resumeExecutionId>"
+      "statusUrl": "/api/v2/workflows/<workflowId>/executions/<resumeExecutionId>"
     }
     ```
     
@@ -138,7 +138,7 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     Poll the `statusUrl` from the async response to check when the resume completes:
     
     ```bash
-    GET /api/workflows/{workflowId}/executions/{resumeExecutionId}?includeOutput=true
+    GET /api/v2/workflows/{workflowId}/executions/{resumeExecutionId}?includeOutput=true
     X-API-Key: your-api-key
     ```
     
@@ -162,7 +162,7 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
 
 ## API Execute Behavior
 
-When triggering a workflow via the execute API (`POST /api/workflows/{id}/execute`), HITL blocks cause the execution to pause and return the `_resume` data in the response:
+When triggering a workflow through `POST /api/v2/workflows/{id}/execute`, HITL blocks cause the execution to pause and return the `_resume` data in the v2 response envelope. The legacy `POST /api/workflows/{id}/execute` endpoint remains available for existing integrations.
 
 <Tabs items={['Sync (JSON)', 'Stream (SSE)', 'Async']}>
   <Tab>
@@ -170,19 +170,23 @@ When triggering a workflow via the execute API (`POST /api/workflows/{id}/execut
     
     ```json
     {
-      "success": true,
-      "executionId": "<executionId>",
-      "output": {
-        "data": {
-          "operation": "human",
-          "_resume": {
-            "apiUrl": "/api/resume/{workflowId}/{executionId}/{contextId}",
-            "uiUrl": "/resume/{workflowId}/{executionId}",
-            "contextId": "<contextId>",
-            "executionId": "<executionId>",
-            "workflowId": "<workflowId>"
+      "data": {
+        "executionId": "<executionId>",
+        "workflowId": "<workflowId>",
+        "status": "paused",
+        "output": {
+          "data": {
+            "operation": "human",
+            "_resume": {
+              "apiUrl": "/api/resume/{workflowId}/{executionId}/{contextId}",
+              "uiUrl": "/resume/{workflowId}/{executionId}",
+              "contextId": "<contextId>",
+              "executionId": "<executionId>",
+              "workflowId": "<workflowId>"
+            }
           }
-        }
+        },
+        "error": null
       }
     }
     ```

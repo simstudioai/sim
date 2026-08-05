@@ -120,7 +120,7 @@ Get the status and optional outputs of a workflow execution.
 status = client.get_workflow_execution("workflow-id", "execution-id", include_output=True)
 print("Status:", status["status"])  # 'queued', 'running', 'completed', 'failed'
 if status["status"] == "completed":
-    print("Output:", status["finalOutput"])
+    print("Output:", status["output"])
 ```
 
 **Parameters:**
@@ -136,10 +136,18 @@ if status["status"] == "completed":
 - `workflowId` (str): The workflow ID
 - `status` (str): One of `'queued'`, `'pending'`, `'running'`, `'paused'`, `'completed'`, `'failed'`, `'cancelled'`
 - `startedAt` / `endedAt` (str): Execution timestamps
-- `totalDurationMs` (int, optional): Duration in milliseconds
-- `finalOutput` (any, optional): The workflow output when requested for a completed execution
+- `durationMs` (int, optional): Duration in milliseconds
+- `output` (any, optional): The workflow output when requested for a completed execution
 - `blockOutputs` (dict, optional): Requested block outputs
-- `error` (str, optional): Failure details
+- `error` (dict, optional): Structured failure details with `code`, `message`, and optional `details`
+
+##### get_job_status()
+
+Get the status of a job created through the legacy async execution endpoint. New integrations should use `get_workflow_execution()` with the execution ID instead.
+
+```python
+status = client.get_job_status("legacy-job-id")
+```
 
 ##### execute_with_retry()
 
@@ -515,8 +523,8 @@ def execute_async():
 
             if status["status"] == "completed":
                 print("Workflow completed!")
-                print(f"Output: {status['finalOutput']}")
-                print(f"Duration: {status['totalDurationMs']}")
+                print(f"Output: {status['output']}")
+                print(f"Duration: {status['durationMs']}")
             else:
                 print(f"Workflow failed: {status['error']}")
 
@@ -663,13 +671,13 @@ def stream_workflow():
 
     def generate():
         response = requests.post(
-            'https://sim.ai/api/workflows/WORKFLOW_ID/execute',
+            'https://sim.ai/api/v2/workflows/WORKFLOW_ID/execute',
             headers={
                 'Content-Type': 'application/json',
                 'X-API-Key': os.getenv('SIM_API_KEY')
             },
             json={
-                'message': 'Generate a story',
+                'input': {'message': 'Generate a story'},
                 'stream': True,
                 'selectedOutputs': ['agent1.content']
             },

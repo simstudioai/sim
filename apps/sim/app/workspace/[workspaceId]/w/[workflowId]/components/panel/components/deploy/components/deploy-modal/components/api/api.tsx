@@ -101,13 +101,9 @@ export function ApiDeploy({
     const inputExample = getInputFormatExample ? getInputFormatExample(false) : ''
     const match = inputExample.match(/-d\s*'([\s\S]*)'/)
     if (match) {
-      try {
-        return JSON.parse(match[1]) as Record<string, unknown>
-      } catch {
-        return { input: 'your data here' }
-      }
+      return JSON.parse(match[1]) as Record<string, unknown>
     }
-    return { input: 'your data here' }
+    return { input: {} }
   }
 
   const getStreamPayloadObject = (): Record<string, unknown> => {
@@ -261,21 +257,21 @@ while (true) {
   const getAsyncCommand = (): string => {
     if (!info) return ''
     const endpoint = getBaseEndpoint()
-    if (!endpoint.endsWith('/execute')) {
+    const v2WorkflowPrefix = '/api/v2/workflows/'
+    if (!endpoint.includes(v2WorkflowPrefix) || !endpoint.endsWith('/execute')) {
       throw new Error(`Invalid workflow execution endpoint: ${endpoint}`)
     }
-    const baseUrl = endpoint.split('/api/workflows/')[0]
+    const baseUrl = endpoint.split(v2WorkflowPrefix)[0]
     const statusEndpoint = `${endpoint.slice(0, -'/execute'.length)}/executions/EXECUTION_ID_FROM_EXECUTION`
-    const payload = getPayloadObject()
-    const isPublic = info.isPublicApi
+    const payload = { ...getPayloadObject(), async: true }
 
     switch (asyncExampleType) {
       case 'execute':
         switch (language) {
           case 'curl':
             return `curl -X POST \\
-${isPublic ? '' : '  -H "X-API-Key: $SIM_API_KEY" \\\n'}  -H "Content-Type: application/json" \\
-  -H "X-Execution-Mode: async" \\
+  -H "X-API-Key: $SIM_API_KEY" \\
+  -H "Content-Type: application/json" \\
   -d '${JSON.stringify(payload)}' \\
   ${endpoint}`
 
@@ -286,39 +282,39 @@ import requests
 response = requests.post(
     "${endpoint}",
     headers={
-${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}        "Content-Type": "application/json",
-        "X-Execution-Mode": "async"
+        "X-API-Key": os.environ.get("SIM_API_KEY"),
+        "Content-Type": "application/json",
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
 )
 
-execution = response.json()
+execution = response.json()["data"]
 print(execution)`
 
           case 'javascript':
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json",
-    "X-Execution-Mode": "async"
+    "X-API-Key": process.env.SIM_API_KEY,
+    "Content-Type": "application/json",
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const execution = await response.json();
+const { data: execution } = await response.json();
 console.log(execution);`
 
           case 'typescript':
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json",
-    "X-Execution-Mode": "async"
+    "X-API-Key": process.env.SIM_API_KEY,
+    "Content-Type": "application/json",
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const execution: { executionId: string; statusUrl: string } = await response.json();
+const { data: execution }: { data: { executionId: string; statusUrl: string } } = await response.json();
 console.log(execution);`
 
           default:
@@ -341,7 +337,7 @@ response = requests.get(
     headers={"X-API-Key": os.environ.get("SIM_API_KEY")}
 )
 
-status = response.json()
+status = response.json()["data"]
 print(status)`
 
           case 'javascript':
@@ -352,7 +348,7 @@ print(status)`
   }
 );
 
-const status = await response.json();
+const { data: status } = await response.json();
 console.log(status);`
 
           case 'typescript':
@@ -363,7 +359,7 @@ console.log(status);`
   }
 );
 
-const status: Record<string, unknown> = await response.json();
+const { data: status }: { data: Record<string, unknown> } = await response.json();
 console.log(status);`
 
           default:

@@ -1,0 +1,102 @@
+/**
+ * @vitest-environment node
+ */
+import {
+  hybridAuthMockFns,
+  workflowAuthzMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
+import { NextRequest } from 'next/server'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockGetJobQueue, mockGetJob } = vi.hoisted(() => ({
+  mockGetJobQueue: vi.fn(),
+  mockGetJob: vi.fn(),
+}))
+
+vi.mock('@/lib/core/async-jobs', () => ({
+  getJobQueue: mockGetJobQueue,
+}))
+
+const mockAuthorizeWorkflow = workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
+
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
+
+import { GET } from './route'
+
+function createMockRequest(): NextRequest {
+  return new NextRequest(new URL('http://localhost:3000/api/jobs/test'))
+}
+
+describe('GET /api/jobs/[jobId]', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      apiKeyType: undefined,
+      workspaceId: undefined,
+    })
+
+    mockAuthorizeWorkflow.mockResolvedValue({ allowed: true, status: 200 })
+    workflowsUtilsMockFns.mockGetWorkflowById.mockResolvedValue({
+      id: 'workflow-1',
+      workspaceId: 'workspace-1',
+    })
+
+    mockGetJobQueue.mockResolvedValue({
+      getJob: mockGetJob,
+    })
+  })
+
+  it('returns job status with metadata', async () => {
+    mockGetJob.mockResolvedValue({
+      id: 'job-1',
+      status: 'pending',
+      metadata: {
+        workflowId: 'workflow-1',
+      },
+    })
+
+    const response = await GET(createMockRequest(), {
+      params: Promise.resolve({ jobId: 'job-1' }),
+    })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.status).toBe('pending')
+    expect(body.metadata.workflowId).toBe('workflow-1')
+  })
+
+  it('returns completed output from job', async () => {
+    mockGetJob.mockResolvedValue({
+      id: 'job-2',
+      status: 'completed',
+      metadata: {
+        workflowId: 'workflow-1',
+      },
+      output: { success: true },
+    })
+
+    const response = await GET(createMockRequest(), {
+      params: Promise.resolve({ jobId: 'job-2' }),
+    })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.status).toBe('completed')
+    expect(body.output).toEqual({ success: true })
+  })
+
+  it('returns 404 when job does not exist', async () => {
+    mockGetJob.mockResolvedValue(null)
+
+    const response = await GET(createMockRequest(), {
+      params: Promise.resolve({ jobId: 'missing-job' }),
+    })
+
+    expect(response.status).toBe(404)
+  })
+})

@@ -133,37 +133,31 @@ if (isReady) {
 
 **戻り値:** `Promise<boolean>`
 
-##### getWorkflowExecution()
+##### getJobStatus()
 
-Get the status and optional outputs of a workflow execution.
+非同期ジョブ実行のステータスを取得します。
 
 ```typescript
-const status = await client.getWorkflowExecution('workflow-id', 'execution-id', {
-  includeOutput: true
-});
-console.log('Status:', status.status); // 'queued', 'running', 'completed', 'failed'
+const status = await client.getJobStatus('task-id-from-async-execution');
+console.log('Status:', status.status); // 'queued', 'processing', 'completed', 'failed'
 if (status.status === 'completed') {
-  console.log('Output:', status.finalOutput);
+  console.log('Output:', status.output);
 }
 ```
 
-**Parameters:**
-- `workflowId` (string): The workflow ID
-- `executionId` (string): The execution ID returned from async execution
-- `options.includeOutput` (boolean, optional): Include the final output for completed executions
-- `options.selectedOutputs` (string[], optional): Block output selectors to include
+**パラメータ:**
+- `taskId` (string): 非同期実行から返されたタスクID
 
-**Returns:** `Promise<WorkflowExecutionStatus>`
+**戻り値:** `Promise<JobStatus>`
 
-**Response fields:**
-- `executionId` (string): The execution ID
-- `workflowId` (string): The workflow ID
-- `status` (string): One of `'queued'`, `'pending'`, `'running'`, `'paused'`, `'completed'`, `'failed'`, `'cancelled'`
-- `startedAt` / `endedAt` (string): Execution timestamps
-- `totalDurationMs` (number, nullable): Duration in milliseconds
-- `finalOutput` (any, nullable): The workflow output when requested for a completed execution
-- `blockOutputs` (object, nullable): Requested block outputs
-- `error` (string, nullable): Failure details
+**レスポンスフィールド:**
+- `success` (boolean): リクエストが成功したかどうか
+- `taskId` (string): タスクID
+- `status` (string): 次のいずれか `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
+- `metadata` (object): `startedAt`, `completedAt`, および `duration` を含む
+- `output` (any, オプション): ワークフロー出力（完了時）
+- `error` (any, オプション): エラー詳細（失敗時）
+- `estimatedDuration` (number, オプション): 推定所要時間（ミリ秒）（処理中/キュー時）
 
 ##### executeWithRetry()
 
@@ -292,10 +286,12 @@ interface WorkflowExecutionResult {
 ```typescript
 interface AsyncExecutionResult {
   success: boolean;
-  executionId: string;
-  statusUrl: string;
-  message: string;
-  async: true;
+  taskId: string;
+  status: 'queued';
+  createdAt: string;
+  links: {
+    status: string;  // e.g., "/api/jobs/{taskId}"
+  };
 }
 ```
 
@@ -795,32 +791,29 @@ const client = new SimStudioClient({
 async function executeAsync() {
   try {
     // Start async execution
-    const result = await client.executeWorkflow('workflow-id', { data: 'large dataset' }, {
+    const result = await client.executeWorkflow('workflow-id', {
+      input: { data: 'large dataset' },
       async: true  // Execute asynchronously
     });
 
     // Check if result is an async execution
-    if ('async' in result && result.async) {
-      console.log('Execution ID:', result.executionId);
-      console.log('Status endpoint:', result.statusUrl);
+    if ('taskId' in result) {
+      console.log('Task ID:', result.taskId);
+      console.log('Status endpoint:', result.links.status);
 
       // Poll for completion
-      let status = await client.getWorkflowExecution('workflow-id', result.executionId, {
-        includeOutput: true
-      });
+      let status = await client.getJobStatus(result.taskId);
 
-      while (status.status === 'queued' || status.status === 'pending' || status.status === 'running') {
+      while (status.status === 'queued' || status.status === 'processing') {
         console.log('Current status:', status.status);
         await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-        status = await client.getWorkflowExecution('workflow-id', result.executionId, {
-          includeOutput: true
-        });
+        status = await client.getJobStatus(result.taskId);
       }
 
       if (status.status === 'completed') {
         console.log('Workflow completed!');
-        console.log('Output:', status.finalOutput);
-        console.log('Duration:', status.totalDurationMs);
+        console.log('Output:', status.output);
+        console.log('Duration:', status.metadata.duration);
       } else {
         console.error('Workflow failed:', status.error);
       }

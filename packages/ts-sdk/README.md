@@ -52,12 +52,12 @@ new SimStudioClient(config: SimStudioConfig)
 Execute a workflow with optional input data.
 
 ```typescript
-// With object input (spread at root level of request body)
+// With object input (sent as the v2 input object)
 const result = await client.executeWorkflow('workflow-id', {
   message: 'Hello, world!'
 });
 
-// With primitive input (wrapped as { input: value })
+// With primitive input (sent as { input: { input: value } })
 const result = await client.executeWorkflow('workflow-id', 'NVDA');
 
 // With options
@@ -68,7 +68,7 @@ const result = await client.executeWorkflow('workflow-id', { message: 'Hello' },
 
 **Parameters:**
 - `workflowId` (string): The ID of the workflow to execute
-- `input` (any, optional): Input data to pass to the workflow. Objects are spread at the root level, primitives/arrays are wrapped in `{ input: value }`. File objects are automatically converted to base64.
+- `input` (any, optional): Input data to pass to the workflow. Objects become the v2 `input` object; primitives and arrays become `{ input: value }` inside it. File objects are automatically converted to base64.
 - `options` (ExecutionOptions, optional):
   - `timeout` (number): Timeout in milliseconds (default: 30000)
   - `stream` (boolean): Enable streaming responses
@@ -144,6 +144,16 @@ console.log('Execution status:', status.status);
 - `options.selectedOutputs` (string[], optional): Block output selectors to include
 
 **Returns:** `Promise<WorkflowExecutionStatus>`
+
+##### getJobStatus(jobId)
+
+Get the status of a job created through the legacy async execution endpoint. New integrations should use `getWorkflowExecution()` with an execution ID.
+
+```typescript
+const status = await client.getJobStatus('legacy-job-id');
+```
+
+**Returns:** `Promise<JobStatusResult>`
 
 ##### executeWithRetry(workflowId, input?, options?, retryOptions?)
 

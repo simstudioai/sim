@@ -81,6 +81,10 @@ export function isCanonicalBase64(value: string): boolean {
   return true
 }
 
+export const jobIdParamsSchema = z.object({
+  jobId: z.string().min(1),
+})
+
 /**
  * Non-empty string identifier with no custom message — suitable for internal
  * shapes where the field name is not worth surfacing. For a required *request*

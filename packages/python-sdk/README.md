@@ -48,10 +48,10 @@ SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
 Execute a workflow with optional input data.
 
 ```python
-# With dict input (spread at root level of request body)
+# With dict input (sent as the v2 input object)
 result = client.execute_workflow("workflow-id", {"message": "Hello, world!"})
 
-# With primitive input (wrapped as { input: value })
+# With primitive input (sent as { input: { input: value } })
 result = client.execute_workflow("workflow-id", "NVDA")
 
 # With options (keyword-only arguments)
@@ -60,7 +60,7 @@ result = client.execute_workflow("workflow-id", {"message": "Hello"}, timeout=60
 
 **Parameters:**
 - `workflow_id` (str): The ID of the workflow to execute
-- `input` (any, optional): Input data to pass to the workflow. Dicts are spread at the root level, primitives/lists are wrapped in `{ input: value }`. File objects are automatically converted to base64.
+- `input` (any, optional): Input data to pass to the workflow. Dicts become the v2 `input` object; primitives and lists become `{ input: value }` inside it. File objects are automatically converted to base64.
 - `timeout` (float, keyword-only): Timeout in seconds (default: 30.0)
 - `stream` (bool, keyword-only): Enable streaming responses
 - `selected_outputs` (list, keyword-only): Block outputs to stream (e.g., `["agent1.content"]`)
@@ -134,6 +134,16 @@ print("Execution status:", status["status"])
 - `execution_id` (str): The execution ID returned from async execution
 - `include_output` (bool, keyword-only): Include the final output for completed executions
 - `selected_outputs` (list, keyword-only): Block output selectors to include
+
+**Returns:** `dict`
+
+##### get_job_status(job_id)
+
+Get the status of a job created through the legacy async execution endpoint. New integrations should use `get_workflow_execution()` with an execution ID.
+
+```python
+status = client.get_job_status("legacy-job-id")
+```
 
 **Returns:** `dict`
 

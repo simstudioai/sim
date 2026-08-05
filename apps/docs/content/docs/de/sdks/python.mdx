@@ -112,34 +112,30 @@ if is_ready:
 
 **Rückgabe:** `bool`
 
-##### get_workflow_execution()
+##### get_job_status()
 
-Get the status and optional outputs of a workflow execution.
+Ruft den Status einer asynchronen Job-Ausführung ab.
 
 ```python
-status = client.get_workflow_execution("workflow-id", "execution-id", include_output=True)
-print("Status:", status["status"])  # 'queued', 'running', 'completed', 'failed'
+status = client.get_job_status("task-id-from-async-execution")
+print("Status:", status["status"])  # 'queued', 'processing', 'completed', 'failed'
 if status["status"] == "completed":
-    print("Output:", status["finalOutput"])
+    print("Output:", status["output"])
 ```
 
-**Parameters:**
-- `workflow_id` (str): The workflow ID
-- `execution_id` (str): The execution ID returned from async execution
-- `include_output` (bool, optional): Include the final output for completed executions
-- `selected_outputs` (list[str], optional): Block output selectors to include
+**Parameter:**
+- `task_id` (str): Die Task-ID, die von der asynchronen Ausführung zurückgegeben wurde
 
-**Returns:** `Dict[str, Any]`
+**Rückgabe:** `Dict[str, Any]`
 
-**Response fields:**
-- `executionId` (str): The execution ID
-- `workflowId` (str): The workflow ID
-- `status` (str): One of `'queued'`, `'pending'`, `'running'`, `'paused'`, `'completed'`, `'failed'`, `'cancelled'`
-- `startedAt` / `endedAt` (str): Execution timestamps
-- `totalDurationMs` (int, optional): Duration in milliseconds
-- `finalOutput` (any, optional): The workflow output when requested for a completed execution
-- `blockOutputs` (dict, optional): Requested block outputs
-- `error` (str, optional): Failure details
+**Antwortfelder:**
+- `success` (bool): Ob die Anfrage erfolgreich war
+- `taskId` (str): Die Task-ID
+- `status` (str): Einer von `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
+- `metadata` (dict): Enthält `startedAt`, `completedAt` und `duration`
+- `output` (any, optional): Die Workflow-Ausgabe (wenn abgeschlossen)
+- `error` (any, optional): Fehlerdetails (wenn fehlgeschlagen)
+- `estimatedDuration` (int, optional): Geschätzte Dauer in Millisekunden (wenn in Bearbeitung/in Warteschlange)
 
 ##### execute_with_retry()
 
@@ -275,10 +271,10 @@ class WorkflowExecutionResult:
 @dataclass
 class AsyncExecutionResult:
     success: bool
-    execution_id: str
-    status_url: str
-    message: str = ""
-    async_execution: bool = True
+    task_id: str
+    status: str  # 'queued'
+    created_at: str
+    links: Dict[str, str]  # e.g., {"status": "/api/jobs/{taskId}"}
 ```
 
 ### WorkflowStatus
@@ -493,31 +489,27 @@ def execute_async():
         # Start async execution
         result = client.execute_workflow(
             "workflow-id",
-            input={"data": "large dataset"},
+            input_data={"data": "large dataset"},
             async_execution=True  # Execute asynchronously
         )
 
         # Check if result is an async execution
-        if hasattr(result, 'async_execution') and result.async_execution:
-            print(f"Execution ID: {result.execution_id}")
-            print(f"Status endpoint: {result.status_url}")
+        if hasattr(result, 'task_id'):
+            print(f"Task ID: {result.task_id}")
+            print(f"Status endpoint: {result.links['status']}")
 
             # Poll for completion
-            status = client.get_workflow_execution(
-                "workflow-id", result.execution_id, include_output=True
-            )
+            status = client.get_job_status(result.task_id)
 
-            while status["status"] in ["queued", "pending", "running"]:
+            while status["status"] in ["queued", "processing"]:
                 print(f"Current status: {status['status']}")
                 time.sleep(2)  # Wait 2 seconds
-                status = client.get_workflow_execution(
-                    "workflow-id", result.execution_id, include_output=True
-                )
+                status = client.get_job_status(result.task_id)
 
             if status["status"] == "completed":
                 print("Workflow completed!")
-                print(f"Output: {status['finalOutput']}")
-                print(f"Duration: {status['totalDurationMs']}")
+                print(f"Output: {status['output']}")
+                print(f"Duration: {status['metadata']['duration']}")
             else:
                 print(f"Workflow failed: {status['error']}")
 

@@ -429,9 +429,10 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
       {
         success: true,
         async: true,
+        jobId: enqueue.jobId,
         executionId: enqueue.executionId,
         message: 'Workflow execution queued',
-        statusUrl: `${getBaseUrl()}/api/workflows/${params.workflowId}/executions/${enqueue.executionId}`,
+        statusUrl: `${getBaseUrl()}/api/jobs/${enqueue.jobId}`,
       },
       { status: 202 }
     ),

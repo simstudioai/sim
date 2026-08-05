@@ -263,7 +263,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
       async: true,
       executionId: 'resume-execution-1',
       message: 'Resume execution queued',
-      statusUrl: 'https://test.sim.ai/api/workflows/workflow-1/executions/resume-execution-1',
+      statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/executions/resume-execution-1',
     })
     expect(mockEnqueueResume).toHaveBeenCalledWith(
       'resume-execution',

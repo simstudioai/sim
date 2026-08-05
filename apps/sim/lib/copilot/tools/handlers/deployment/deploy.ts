@@ -31,7 +31,7 @@ import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../para
 import { getCopilotDeploymentIdempotencyKey, getHistoricalDeploymentAttemptError } from './context'
 
 function buildWorkflowApiEndpoint(baseUrl: string, workflowId: string): string {
-  return `${baseUrl}/api/workflows/${workflowId}/execute`
+  return `${baseUrl}/api/v2/workflows/${workflowId}/execute`
 }
 
 function buildWorkflowExecutionStatusEndpoint(
@@ -39,7 +39,10 @@ function buildWorkflowExecutionStatusEndpoint(
   apiEndpoint: string,
   executionId: string
 ): string {
-  if (!apiEndpoint.startsWith(`${baseUrl}/api/workflows/`) || !apiEndpoint.endsWith('/execute')) {
+  if (
+    !apiEndpoint.startsWith(`${baseUrl}/api/v2/workflows/`) ||
+    !apiEndpoint.endsWith('/execute')
+  ) {
     throw new Error(`Invalid workflow execution endpoint: ${apiEndpoint}`)
   }
   return `${apiEndpoint.slice(0, -'/execute'.length)}/executions/${executionId}`
@@ -69,8 +72,7 @@ function buildWorkflowApiConfig(baseUrl: string, apiEndpoint: string) {
         method: 'POST',
         transport: 'json',
         stream: false,
-        headers: { 'X-Execution-Mode': 'async' },
-        body: { input: { key: 'value' } },
+        body: { async: true, input: { key: 'value' } },
         executionStatusEndpointTemplate: buildWorkflowExecutionStatusEndpoint(
           baseUrl,
           apiEndpoint,
@@ -94,8 +96,7 @@ function buildWorkflowApiExamples(baseUrl: string, apiEndpoint: string) {
     async: `curl -X POST "${apiEndpoint}" \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: YOUR_API_KEY" \\
-  -H "X-Execution-Mode: async" \\
-  -d '{"input":{"key":"value"}}'`,
+  -d '{"async":true,"input":{"key":"value"}}'`,
     poll: `curl "${buildWorkflowExecutionStatusEndpoint(baseUrl, apiEndpoint, 'EXECUTION_ID')}" \\
   -H "X-API-Key: YOUR_API_KEY"`,
   }

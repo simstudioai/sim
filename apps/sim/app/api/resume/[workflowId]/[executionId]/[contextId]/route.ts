@@ -359,7 +359,7 @@ export const POST = withRouteHandler(
             async: true,
             executionId: enqueueResult.resumeExecutionId,
             message: 'Resume execution queued',
-            statusUrl: `${getBaseUrl()}/api/workflows/${workflowId}/executions/${enqueueResult.resumeExecutionId}`,
+            statusUrl: `${getBaseUrl()}/api/v2/workflows/${workflowId}/executions/${enqueueResult.resumeExecutionId}`,
           },
           { status: 202 }
         )

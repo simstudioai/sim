@@ -7,6 +7,19 @@ from unittest.mock import Mock, patch
 from simstudio import SimStudioClient, SimStudioError, WorkflowExecutionResult, WorkflowStatus
 
 
+def v2_execution_response(output=None):
+    return {
+        "data": {
+            "executionId": "execution-123",
+            "workflowId": "workflow-id",
+            "status": "completed",
+            "output": {} if output is None else output,
+            "error": None,
+            "durationMs": 10
+        }
+    }
+
+
 def test_simstudio_client_initialization():
     """Test SimStudioClient initialization."""
     client = SimStudioClient(api_key="test-api-key", base_url="https://test.sim.ai")
@@ -101,11 +114,10 @@ def test_async_execution_returns_execution_id(mock_post):
     mock_response.ok = True
     mock_response.status_code = 202
     mock_response.json.return_value = {
-        "success": True,
-        "executionId": "execution-123",
-        "statusUrl": "https://test.sim.ai/api/workflows/workflow-id/executions/execution-123",
-        "message": "Workflow execution started",
-        "async": True
+        "data": {
+            "executionId": "execution-123",
+            "statusUrl": "https://sim.ai/api/v2/workflows/workflow-id/executions/execution-123"
+        }
     }
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
@@ -119,11 +131,16 @@ def test_async_execution_returns_execution_id(mock_post):
 
     assert result.success is True
     assert result.execution_id == "execution-123"
-    assert result.status_url == "https://test.sim.ai/api/workflows/workflow-id/executions/execution-123"
+    assert result.status_url == "https://sim.ai/api/v2/workflows/workflow-id/executions/execution-123"
     assert result.async_execution is True
 
     call_args = mock_post.call_args
-    assert call_args[1]["headers"]["X-Execution-Mode"] == "async"
+    assert call_args.args[0] == "https://sim.ai/api/v2/workflows/workflow-id/execute"
+    assert "X-Execution-Mode" not in call_args.kwargs["headers"]
+    assert call_args.kwargs["json"] == {
+        "input": {"message": "Hello"},
+        "async": True
+    }
 
 
 @patch('simstudio.requests.Session.post')
@@ -132,11 +149,7 @@ def test_sync_execution_returns_result(mock_post):
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "success": True,
-        "output": {"result": "completed"},
-        "logs": []
-    }
+    mock_response.json.return_value = v2_execution_response({"result": "completed"})
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
 
@@ -158,7 +171,7 @@ def test_async_header_not_set_when_false(mock_post):
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 200
-    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.json.return_value = v2_execution_response()
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
 
@@ -170,15 +183,61 @@ def test_async_header_not_set_when_false(mock_post):
 
 
 @patch('simstudio.requests.Session.get')
-def test_get_workflow_execution_success(mock_get):
-    """Test getting workflow execution status."""
+def test_get_job_status_success(mock_get):
+    """Test getting legacy job status."""
     mock_response = Mock()
     mock_response.ok = True
     mock_response.json.return_value = {
-        "executionId": "execution-123",
-        "workflowId": "workflow-123",
+        "success": True,
+        "taskId": "task-123",
         "status": "completed",
-        "finalOutput": {"result": "done"}
+        "metadata": {"duration": 60000},
+        "output": {"result": "done"}
+    }
+    mock_response.headers.get.return_value = None
+    mock_get.return_value = mock_response
+
+    client = SimStudioClient(api_key="test-api-key", base_url="https://test.sim.ai")
+    result = client.get_job_status("task-123")
+
+    assert result["taskId"] == "task-123"
+    assert result["status"] == "completed"
+    assert result["output"]["result"] == "done"
+    mock_get.assert_called_once_with("https://test.sim.ai/api/jobs/task-123")
+
+
+@patch('simstudio.requests.Session.get')
+def test_get_job_status_not_found(mock_get):
+    """Test legacy job not found error."""
+    mock_response = Mock()
+    mock_response.ok = False
+    mock_response.status_code = 404
+    mock_response.reason = "Not Found"
+    mock_response.json.return_value = {
+        "error": "Job not found",
+        "code": "JOB_NOT_FOUND"
+    }
+    mock_response.headers.get.return_value = None
+    mock_get.return_value = mock_response
+
+    client = SimStudioClient(api_key="test-api-key")
+
+    with pytest.raises(SimStudioError) as exc_info:
+        client.get_job_status("invalid-task")
+    assert "Job not found" in str(exc_info.value)
+
+
+@patch('simstudio.requests.Session.get')
+def test_get_workflow_execution_success(mock_get):
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.json.return_value = {
+        "data": {
+            "executionId": "execution-123",
+            "workflowId": "workflow-123",
+            "status": "completed",
+            "output": {"result": "done"}
+        }
     }
     mock_response.headers.get.return_value = None
     mock_get.return_value = mock_response
@@ -193,23 +252,24 @@ def test_get_workflow_execution_success(mock_get):
 
     assert result["executionId"] == "execution-123"
     assert result["status"] == "completed"
-    assert result["finalOutput"]["result"] == "done"
+    assert result["output"]["result"] == "done"
     mock_get.assert_called_once_with(
-        "https://test.sim.ai/api/workflows/workflow-123/executions/execution-123",
+        "https://test.sim.ai/api/v2/workflows/workflow-123/executions/execution-123",
         params={"includeOutput": "true", "selectedOutputs": "agent.content"}
     )
 
 
 @patch('simstudio.requests.Session.get')
 def test_get_workflow_execution_not_found(mock_get):
-    """Test execution not found error."""
     mock_response = Mock()
     mock_response.ok = False
     mock_response.status_code = 404
     mock_response.reason = "Not Found"
     mock_response.json.return_value = {
-        "error": "Execution not found",
-        "code": "EXECUTION_NOT_FOUND"
+        "error": {
+            "code": "NOT_FOUND",
+            "message": "Execution not found"
+        }
     }
     mock_response.headers.get.return_value = None
     mock_get.return_value = mock_response
@@ -228,10 +288,7 @@ def test_execute_with_retry_success_first_attempt(mock_sleep, mock_post):
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "success": True,
-        "output": {"result": "success"}
-    }
+    mock_response.json.return_value = v2_execution_response({"result": "success"})
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
 
@@ -265,10 +322,7 @@ def test_execute_with_retry_retries_on_rate_limit(mock_sleep, mock_post):
     success_response = Mock()
     success_response.ok = True
     success_response.status_code = 200
-    success_response.json.return_value = {
-        "success": True,
-        "output": {"result": "success"}
-    }
+    success_response.json.return_value = v2_execution_response({"result": "success"})
     success_response.headers.get.return_value = None
 
     mock_post.side_effect = [rate_limit_response, success_response]
@@ -322,8 +376,10 @@ def test_execute_with_retry_no_retry_on_other_errors(mock_post):
     mock_response.status_code = 500
     mock_response.reason = "Internal Server Error"
     mock_response.json.return_value = {
-        "error": "Server error",
-        "code": "INTERNAL_ERROR"
+        "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "Server error"
+        }
     }
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
@@ -350,7 +406,7 @@ def test_get_rate_limit_info_after_api_call(mock_post):
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 200
-    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.json.return_value = v2_execution_response()
     mock_response.headers.get.side_effect = lambda h: {
         'x-ratelimit-limit': '100',
         'x-ratelimit-remaining': '95',
@@ -437,7 +493,7 @@ def test_execute_workflow_with_stream_and_selected_outputs(mock_post):
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 200
-    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.json.return_value = v2_execution_response()
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
 
@@ -452,7 +508,7 @@ def test_execute_workflow_with_stream_and_selected_outputs(mock_post):
     call_args = mock_post.call_args
     request_body = call_args[1]["json"]
 
-    assert request_body["message"] == "test"
+    assert request_body["input"] == {"message": "test"}
     assert request_body["stream"] is True
     assert request_body["selectedOutputs"] == ["agent1.content", "agent2.content"]
 
@@ -464,7 +520,7 @@ def test_execute_workflow_with_string_input(mock_post):
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 200
-    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.json.return_value = v2_execution_response()
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
 
@@ -474,7 +530,7 @@ def test_execute_workflow_with_string_input(mock_post):
     call_args = mock_post.call_args
     request_body = call_args[1]["json"]
 
-    assert request_body["input"] == "NVDA"
+    assert request_body["input"] == {"input": "NVDA"}
     assert "0" not in request_body  # Should not spread string characters
 
 
@@ -484,7 +540,7 @@ def test_execute_workflow_with_number_input(mock_post):
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 200
-    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.json.return_value = v2_execution_response()
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
 
@@ -494,7 +550,7 @@ def test_execute_workflow_with_number_input(mock_post):
     call_args = mock_post.call_args
     request_body = call_args[1]["json"]
 
-    assert request_body["input"] == 42
+    assert request_body["input"] == {"input": 42}
 
 
 @patch('simstudio.requests.Session.post')
@@ -503,7 +559,7 @@ def test_execute_workflow_with_list_input(mock_post):
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 200
-    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.json.return_value = v2_execution_response()
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
 
@@ -513,17 +569,16 @@ def test_execute_workflow_with_list_input(mock_post):
     call_args = mock_post.call_args
     request_body = call_args[1]["json"]
 
-    assert request_body["input"] == ["NVDA", "AAPL", "GOOG"]
+    assert request_body["input"] == {"input": ["NVDA", "AAPL", "GOOG"]}
     assert "0" not in request_body  # Should not spread list
 
 
 @patch('simstudio.requests.Session.post')
-def test_execute_workflow_with_dict_input_spreads_at_root(mock_post):
-    """Test execution with dict input spreads at root level."""
+def test_execute_workflow_with_dict_input_uses_v2_input_field(mock_post):
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 200
-    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.json.return_value = v2_execution_response()
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
 
@@ -533,6 +588,4 @@ def test_execute_workflow_with_dict_input_spreads_at_root(mock_post):
     call_args = mock_post.call_args
     request_body = call_args[1]["json"]
 
-    assert request_body["ticker"] == "NVDA"
-    assert request_body["quantity"] == 100
-    assert "input" not in request_body  # Should not wrap in input field
+    assert request_body["input"] == {"ticker": "NVDA", "quantity": 100}

@@ -153,7 +153,7 @@
       "get": {
         "operationId": "getWorkflowExecution",
         "summary": "Get Execution Status",
-        "description": "Get the current status of a workflow execution. Returns `queued` immediately after async dispatch, then the run's durable lifecycle state (`running`, `paused`, `completed`, `failed`, etc.), timing, error, and optionally per-block outputs. This is the canonical polling resource for synchronous executions, asynchronous executions, and resume attempts.",
+        "description": "Get the current status of a workflow execution. Returns `queued` immediately after async dispatch, then the run's durable lifecycle state (`running`, `paused`, `completed`, `failed`, etc.), timing, error, and optionally per-block outputs. This legacy-compatible resource remains available for existing integrations.",
         "tags": ["Execution"],
         "x-codeSamples": [
           {
@@ -364,6 +364,66 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/jobs/{jobId}": {
+      "get": {
+        "operationId": "getJobStatus",
+        "summary": "Get Job Status",
+        "description": "Poll the status of an asynchronous workflow execution. Use the jobId returned from the Execute Workflow endpoint when the execution is queued asynchronously.",
+        "tags": ["Execution"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/jobs/{jobId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "description": "The job identifier returned in the async execution response.",
+            "schema": {
+              "type": "string",
+              "example": "job_4a3b2c1d0e"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current status of the job. When completed, includes the execution output.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatus"
+                },
+                "example": {
+                  "success": true,
+                  "taskId": "job_abc123",
+                  "status": "completed",
+                  "output": {
+                    "content": "Done"
+                  },
+                  "metadata": {
+                    "startTime": "2026-01-15T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -856,7 +916,7 @@
                   "async": true,
                   "executionId": "f0b3d8c2-7e5a-4b9d-8c1f-6a4e2d0b9c58",
                   "message": "Resume execution queued",
-                  "statusUrl": "https://www.sim.ai/api/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/executions/f0b3d8c2-7e5a-4b9d-8c1f-6a4e2d0b9c58"
+                  "statusUrl": "https://www.sim.ai/api/v2/workflows/81f661e1-d704-4861-b5c1-5bb3cf57e6a7/executions/f0b3d8c2-7e5a-4b9d-8c1f-6a4e2d0b9c58"
                 }
               }
             }
@@ -1333,7 +1393,7 @@
       "AsyncExecutionResult": {
         "type": "object",
         "description": "Response returned when a workflow execution is queued for asynchronous processing.",
-        "required": ["success", "async", "executionId", "message", "statusUrl"],
+        "required": ["success", "async", "jobId", "executionId", "message", "statusUrl"],
         "properties": {
           "success": {
             "type": "boolean",
@@ -1344,6 +1404,11 @@
             "type": "boolean",
             "description": "Always true for async executions. Use this to distinguish from synchronous responses.",
             "example": true
+          },
+          "jobId": {
+            "type": "string",
+            "description": "Internal job queue identifier for tracking the execution.",
+            "example": "job_4a3b2c1d0e"
           },
           "executionId": {
             "type": "string",
@@ -1359,7 +1424,69 @@
             "type": "string",
             "format": "uri",
             "description": "URL to poll for execution status and results. Returns the full execution result once complete.",
-            "example": "https://www.sim.ai/api/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/executions/e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
+            "example": "https://www.sim.ai/api/jobs/job_4a3b2c1d0e"
+          }
+        }
+      },
+      "JobStatus": {
+        "type": "object",
+        "description": "Status of an asynchronous job.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the request was successful.",
+            "example": true
+          },
+          "taskId": {
+            "type": "string",
+            "description": "The unique identifier of the job.",
+            "example": "job_4a3b2c1d0e"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["queued", "processing", "completed", "failed"],
+            "description": "Current status of the job.",
+            "example": "completed"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Timing metadata for the job.",
+            "properties": {
+              "startedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp when the job started processing.",
+                "example": "2025-06-20T14:15:22Z"
+              },
+              "completedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp when the job completed. Present only when status is completed or failed.",
+                "example": "2025-06-20T14:15:23Z"
+              },
+              "duration": {
+                "type": "integer",
+                "description": "Duration of the job in milliseconds. Present only when status is completed or failed.",
+                "example": 1250
+              }
+            }
+          },
+          "output": {
+            "description": "The workflow execution output. Present only when status is completed.",
+            "type": "object",
+            "example": {
+              "result": "Hello, world!"
+            }
+          },
+          "error": {
+            "description": "Error details. Present only when status is failed.",
+            "type": "string",
+            "example": null
+          },
+          "estimatedDuration": {
+            "type": "integer",
+            "description": "Estimated duration in milliseconds. Present only when status is queued or processing.",
+            "example": 2000
           }
         }
       },

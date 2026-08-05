@@ -109,27 +109,27 @@ curl -X POST https://www.sim.ai/api/workflows/{workflowId}/execute \
   -d '{"inputs": {}, "async": true}'
 ```
 
-This returns immediately with an `executionId` and `statusUrl`:
+This returns immediately with a `jobId` and `statusUrl`:
 
 ```json
 {
   "success": true,
-  "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
-  "statusUrl": "https://www.sim.ai/api/workflows/{workflowId}/executions/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
-  "message": "Workflow execution queued",
+  "jobId": "job_abc123",
+  "statusUrl": "https://www.sim.ai/api/jobs/job_abc123",
+  "message": "Workflow execution started",
   "async": true
 }
 ```
 
-Poll the [Get Execution Status](/api-reference/execution/getWorkflowExecution) endpoint until the status is terminal:
+Poll the [Get Job Status](/api-reference/execution/getJobStatus) endpoint until the status is `completed` or `failed`:
 
 ```bash
-curl https://www.sim.ai/api/workflows/{workflowId}/executions/{executionId}?includeOutput=true \
+curl https://www.sim.ai/api/jobs/{jobId} \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
 <Callout type="info">
-  Execution status transitions follow: `queued` → `running` → `completed`, `failed`, `cancelled`, or `paused`. The `finalOutput` field is populated for completed executions when `includeOutput=true`.
+  Job status transitions follow: `queued` → `processing` → `completed` or `failed`. The `output` field is only present when status is `completed`.
 </Callout>
 
 ## Response Format

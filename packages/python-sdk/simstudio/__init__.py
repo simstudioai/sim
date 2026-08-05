@@ -178,31 +178,26 @@ class SimStudioClient:
         Raises:
             SimStudioError: If the workflow execution fails
         """
-        url = f"{self.base_url}/api/workflows/{workflow_id}/execute"
-
-        # Build headers - async execution uses X-Execution-Mode header
+        url = f"{self.base_url}/api/v2/workflows/{workflow_id}/execute"
         headers = self._session.headers.copy()
-        if async_execution:
-            headers['X-Execution-Mode'] = 'async'
 
         try:
-            # Build JSON body - spread dict inputs at root level, wrap primitives/lists in 'input' field
-            body = {}
+            workflow_input = {}
             if input is not None:
                 if isinstance(input, dict):
-                    # Dict input: spread at root level (matches curl/API behavior)
-                    body = input.copy()
+                    workflow_input = input.copy()
                 else:
-                    # Primitive or list input: wrap in 'input' field
-                    body = {'input': input}
+                    workflow_input = {'input': input}
 
-            # Convert any file objects in the input to base64 format
-            body = self._convert_files_to_base64(body)
+            workflow_input = self._convert_files_to_base64(workflow_input)
+            body = {'input': workflow_input}
 
             if stream is not None:
                 body['stream'] = stream
             if selected_outputs is not None:
                 body['selectedOutputs'] = selected_outputs
+            if async_execution is not None:
+                body['async'] = async_execution
 
             response = self._session.post(
                 url,
@@ -226,34 +221,41 @@ class SimStudioClient:
             if not response.ok:
                 try:
                     error_data = response.json()
-                    error_message = error_data.get('error', f'HTTP {response.status_code}: {response.reason}')
-                    error_code = error_data.get('code')
+                    error = error_data.get('error', {})
+                    error_message = error.get('message', f'HTTP {response.status_code}: {response.reason}')
+                    error_code = error.get('code')
                 except (ValueError, KeyError):
                     error_message = f'HTTP {response.status_code}: {response.reason}'
                     error_code = None
 
                 raise SimStudioError(error_message, error_code, response.status_code)
 
-            result_data = response.json()
+            result = response.json()
+            if 'data' not in result:
+                raise SimStudioError('Invalid v2 workflow execution response', 'EXECUTION_ERROR')
+            result_data = result['data']
 
-            # Check if this is an async execution response (202 status)
-            if response.status_code == 202 and 'executionId' in result_data:
+            if response.status_code == 202:
+                if 'executionId' not in result_data or 'statusUrl' not in result_data:
+                    raise SimStudioError('Invalid v2 async execution response', 'EXECUTION_ERROR')
                 return AsyncExecutionResult(
-                    success=result_data.get('success', True),
+                    success=True,
                     execution_id=result_data['executionId'],
                     status_url=result_data['statusUrl'],
-                    message=result_data.get('message', ''),
-                    async_execution=result_data.get('async', True)
+                    message='Workflow execution queued',
+                    async_execution=True
                 )
 
+            execution_error = result_data.get('error')
             return WorkflowExecutionResult(
-                success=result_data['success'],
+                success=result_data.get('status') != 'failed',
                 output=result_data.get('output'),
-                error=result_data.get('error'),
-                logs=result_data.get('logs'),
-                metadata=result_data.get('metadata'),
-                trace_spans=result_data.get('traceSpans'),
-                total_duration=result_data.get('totalDuration')
+                error=execution_error.get('message') if execution_error else None,
+                metadata={
+                    'duration': result_data.get('durationMs'),
+                    'executionId': result_data['executionId']
+                },
+                total_duration=result_data.get('durationMs')
             )
 
         except requests.Timeout:
@@ -374,38 +376,23 @@ class SimStudioClient:
         """Close the underlying HTTP session."""
         self._session.close()
 
-    def get_workflow_execution(
-        self,
-        workflow_id: str,
-        execution_id: str,
-        *,
-        include_output: Optional[bool] = None,
-        selected_outputs: Optional[list] = None
-    ) -> Dict[str, Any]:
+    def get_job_status(self, job_id: str) -> Dict[str, Any]:
         """
-        Get a workflow execution's current status and optional outputs.
+        Get the status of a legacy async job.
 
         Args:
-            workflow_id: The workflow ID
-            execution_id: The execution ID returned from async execution
-            include_output: Include the final output for completed executions
-            selected_outputs: Block output selectors to include
+            job_id: The job ID returned from legacy async execution
 
         Returns:
-            Dictionary containing the execution status
+            Dictionary containing the job status
 
         Raises:
             SimStudioError: If getting the status fails
         """
-        url = f"{self.base_url}/api/workflows/{workflow_id}/executions/{execution_id}"
-        params = {}
-        if include_output is not None:
-            params['includeOutput'] = str(include_output).lower()
-        if selected_outputs:
-            params['selectedOutputs'] = ','.join(selected_outputs)
+        url = f"{self.base_url}/api/jobs/{job_id}"
 
         try:
-            response = self._session.get(url, params=params or None)
+            response = self._session.get(url)
 
             self._update_rate_limit_info(response)
 
@@ -421,6 +408,61 @@ class SimStudioClient:
                 raise SimStudioError(error_message, error_code, response.status_code)
 
             return response.json()
+
+        except requests.RequestException as e:
+            raise SimStudioError(f'Failed to get job status: {str(e)}', 'STATUS_ERROR')
+
+    def get_workflow_execution(
+        self,
+        workflow_id: str,
+        execution_id: str,
+        *,
+        include_output: Optional[bool] = None,
+        selected_outputs: Optional[list] = None
+    ) -> Dict[str, Any]:
+        """
+        Get a workflow execution's current status and optional outputs from the v2 API.
+
+        Args:
+            workflow_id: The workflow ID
+            execution_id: The execution ID returned from async execution
+            include_output: Include the final output for completed executions
+            selected_outputs: Block output selectors to include
+
+        Returns:
+            Dictionary containing the execution status
+
+        Raises:
+            SimStudioError: If getting the status fails
+        """
+        url = f"{self.base_url}/api/v2/workflows/{workflow_id}/executions/{execution_id}"
+        params = {}
+        if include_output is not None:
+            params['includeOutput'] = str(include_output).lower()
+        if selected_outputs:
+            params['selectedOutputs'] = ','.join(selected_outputs)
+
+        try:
+            response = self._session.get(url, params=params or None)
+
+            self._update_rate_limit_info(response)
+
+            if not response.ok:
+                try:
+                    error_data = response.json()
+                    error = error_data.get('error', {})
+                    error_message = error.get('message', f'HTTP {response.status_code}: {response.reason}')
+                    error_code = error.get('code')
+                except (ValueError, KeyError):
+                    error_message = f'HTTP {response.status_code}: {response.reason}'
+                    error_code = None
+
+                raise SimStudioError(error_message, error_code, response.status_code)
+
+            result = response.json()
+            if 'data' not in result:
+                raise SimStudioError('Invalid v2 workflow execution response', 'STATUS_ERROR')
+            return result['data']
 
         except requests.RequestException as e:
             raise SimStudioError(f'Failed to get workflow execution: {str(e)}', 'STATUS_ERROR')
