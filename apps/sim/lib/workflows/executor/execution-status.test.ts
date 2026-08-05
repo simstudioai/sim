@@ -57,7 +57,7 @@ describe('getWorkflowExecutionStatus queue projection', () => {
   })
 
   it('uses the resume entry ID when the queued work is a resume attempt', async () => {
-    queueTableRows(schemaMock.resumeQueue, [{ id: 'resume-entry-1' }])
+    queueTableRows(schemaMock.resumeQueue, [{ id: 'resume-entry-1', status: 'claimed' }])
     mockGetJob.mockResolvedValueOnce({
       status: 'processing',
       createdAt: new Date('2026-08-05T12:00:00.000Z'),
@@ -84,7 +84,7 @@ describe('getWorkflowExecutionStatus queue projection', () => {
         status: 'paused',
       },
     ])
-    queueTableRows(schemaMock.resumeQueue, [{ id: 'resume-entry-1' }])
+    queueTableRows(schemaMock.resumeQueue, [{ id: 'resume-entry-1', status: 'claimed' }])
     mockGetJob.mockResolvedValueOnce({
       status: 'pending',
       createdAt: new Date('2026-08-05T12:00:00.000Z'),
@@ -112,6 +112,7 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     queueTableRows(schemaMock.resumeQueue, [
       {
         id: 'resume-entry-1',
+        status: 'claimed',
         queuedAt: new Date('2026-08-05T12:00:00.000Z'),
         claimedAt: new Date('2026-08-05T12:00:01.000Z'),
       },
@@ -127,6 +128,35 @@ describe('getWorkflowExecutionStatus queue projection', () => {
       startedAt: '2026-08-05T12:00:01.000Z',
       paused: null,
     })
+  })
+
+  it('projects a pending serialized resume as queued', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        status: 'paused',
+        trigger: 'api',
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [
+      {
+        id: 'resume-entry-2',
+        status: 'pending',
+        queuedAt: new Date('2026-08-05T12:00:02.000Z'),
+        claimedAt: null,
+      },
+    ])
+
+    const status = await getWorkflowExecutionStatus(input)
+
+    expect(status).toMatchObject({
+      executionId: 'execution-1',
+      status: 'queued',
+      startedAt: '2026-08-05T12:00:02.000Z',
+      paused: null,
+    })
+    expect(mockGetJob).not.toHaveBeenCalled()
   })
 
   it('returns completed queue output when requested', async () => {

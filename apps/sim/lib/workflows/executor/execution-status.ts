@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
@@ -157,6 +157,7 @@ export async function getWorkflowExecutionStatus(
   const [activeResume] = await db
     .select({
       id: resumeQueue.id,
+      status: resumeQueue.status,
       queuedAt: resumeQueue.queuedAt,
       claimedAt: resumeQueue.claimedAt,
     })
@@ -165,13 +166,16 @@ export async function getWorkflowExecutionStatus(
       and(
         eq(resumeQueue.parentExecutionId, executionId),
         eq(resumeQueue.newExecutionId, executionId),
-        eq(resumeQueue.status, 'claimed')
+        inArray(resumeQueue.status, ['pending', 'claimed'] as const)
       )
     )
+    .orderBy(sql`case when ${resumeQueue.status} = 'claimed' then 0 else 1 end`)
     .limit(1)
 
   const queueJobIds = [
-    ...(activeResume ? [`${RESUME_EXECUTION_JOB_ID_PREFIX}${activeResume.id}`] : []),
+    ...(activeResume?.status === 'claimed'
+      ? [`${RESUME_EXECUTION_JOB_ID_PREFIX}${activeResume.id}`]
+      : []),
     ...(!logRow ? [`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`] : []),
   ]
 
@@ -184,13 +188,13 @@ export async function getWorkflowExecutionStatus(
     }
   }
 
-  if (activeResume && logRow) {
+  if (activeResume) {
     const startedAt = activeResume.claimedAt ?? activeResume.queuedAt
     return {
       executionId,
       workflowId,
       status: 'queued',
-      trigger: logRow.trigger,
+      trigger: logRow?.trigger ?? 'api',
       level: 'info',
       startedAt: startedAt.toISOString(),
       endedAt: null,
