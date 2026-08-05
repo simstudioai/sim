@@ -300,6 +300,34 @@ export async function annotateForkClearedRefSourceLiveness(
   )
 }
 
+/**
+ * Narrow a caller's drop acknowledgments to the ones the server will actually honour: a reference
+ * whose kind can block at all, and whose resource is genuinely gone from the SOURCE workspace.
+ *
+ * Both promote gates consult this, so "which drops count" is decided once. The unmapped gate runs
+ * FIRST and would otherwise reject a dropped required reference before the cleared-ref gate ever
+ * got to honour it - making Drop unusable for exactly the required references it exists for. It
+ * cannot simply subtract the raw acknowledgments there either: an unmapped reference of a
+ * non-blocking kind (credential, env-var) never re-blocks downstream, so an unverified subtraction
+ * would let a crafted payload skip the required gate entirely.
+ */
+export async function verifyForkDropAcknowledgments(
+  executor: DbOrTx,
+  sourceWorkspaceId: string,
+  acknowledged: ReadonlyArray<{ kind: ForkRemapKind; sourceId: string }> | undefined
+): Promise<Array<{ kind: ForkRemapKind; sourceId: string }>> {
+  const droppable = (acknowledged ?? []).filter(
+    (entry) => !CLEARED_REF_EXCLUDED_KINDS.has(entry.kind)
+  )
+  if (droppable.length === 0) return []
+  const idsByKind: Partial<Record<ForkRemapKind, Set<string>>> = {}
+  for (const entry of droppable) {
+    ;(idsByKind[entry.kind] ??= new Set()).add(entry.sourceId)
+  }
+  const liveByKind = await filterExistingForkTargets(executor, sourceWorkspaceId, idsByKind)
+  return droppable.filter((entry) => !(liveByKind[entry.kind]?.has(entry.sourceId) ?? false))
+}
+
 /** Upper bound on the blockers a gate failure reports, so the error body stays sane. */
 const FORK_SYNC_BLOCKER_LIMIT = 100
 

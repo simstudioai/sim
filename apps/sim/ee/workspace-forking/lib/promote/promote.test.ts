@@ -21,6 +21,7 @@ const {
   mockSumForkCopyBytes,
   mockAssertForkStorageHeadroom,
   mockLoadTargetWebhookPaths,
+  mockVerifyDrops,
 } = vi.hoisted(() => ({
   mockComputePlan: vi.fn(),
   mockBuildCopySelection: vi.fn(),
@@ -38,6 +39,7 @@ const {
   mockSumForkCopyBytes: vi.fn(),
   mockAssertForkStorageHeadroom: vi.fn(),
   mockLoadTargetWebhookPaths: vi.fn(),
+  mockVerifyDrops: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/deployment-outbox', () => ({
@@ -107,6 +109,7 @@ vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
 }))
 vi.mock('@/ee/workspace-forking/lib/promote/cleared-refs', () => ({
   collectForkSyncBlockers: mockCollectBlockers,
+  verifyForkDropAcknowledgments: mockVerifyDrops,
 }))
 vi.mock('@/ee/workspace-forking/lib/promote/copy-unmapped', () => ({
   // Faithful mirror of the real overlay so a copy's id maps resolve through the augmented
@@ -260,6 +263,8 @@ beforeEach(() => {
   mockSumForkCopyBytes.mockResolvedValue(0)
   mockAssertForkStorageHeadroom.mockResolvedValue(undefined)
   mockLoadTargetWebhookPaths.mockResolvedValue(new Map())
+  // Default: no acknowledgments, so the unmapped gate behaves exactly as before.
+  mockVerifyDrops.mockResolvedValue([])
 })
 
 describe('promoteFork gates', () => {
@@ -324,6 +329,54 @@ describe('promoteFork gates', () => {
     expect(mockCollectBlockers).not.toHaveBeenCalled()
     expect(mockResolveFolderMapping).not.toHaveBeenCalled()
     expect(mockUpsertPromoteRun).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A source-deleted reference on a REQUIRED field sits in `unmappedRequired`, and that gate runs
+   * before the cleared-ref gate that honours drops. Without subtracting verified drops here, Drop
+   * was inert for exactly the references it exists to unblock - the sync still failed with
+   * "map all required ... first".
+   */
+  it('lets a VERIFIED drop clear the unmapped gate for a required reference', async () => {
+    mockComputePlan.mockResolvedValue(
+      makePlan({
+        unmappedRequired: [
+          { kind: 'table', sourceId: 'tbl-gone', subBlockKey: 'tableSelector', required: true },
+        ],
+      })
+    )
+    mockVerifyDrops.mockResolvedValue([{ kind: 'table', sourceId: 'tbl-gone' }])
+
+    const result = await promoteFork({
+      ...promoteParams(),
+      dropReferences: [{ kind: 'table', sourceId: 'tbl-gone' }],
+    })
+
+    expect(result.blocked).toBeNull()
+    // The SAME verified set reaches the cleared-ref gate, so one liveness check governs both.
+    expect(mockCollectBlockers).toHaveBeenCalledWith(
+      expect.objectContaining({ droppedReferences: [{ kind: 'table', sourceId: 'tbl-gone' }] })
+    )
+  })
+
+  /** An acknowledgment the server refuses (source still live) must not weaken the required gate. */
+  it('keeps blocking when the acknowledgment fails verification', async () => {
+    mockComputePlan.mockResolvedValue(
+      makePlan({
+        unmappedRequired: [
+          { kind: 'table', sourceId: 'tbl-live', subBlockKey: 'tableSelector', required: true },
+        ],
+      })
+    )
+    mockVerifyDrops.mockResolvedValue([])
+
+    const result = await promoteFork({
+      ...promoteParams(),
+      dropReferences: [{ kind: 'table', sourceId: 'tbl-live' }],
+    })
+
+    expect(result.blocked).toBe('unmapped')
+    expect(mockCollectBlockers).not.toHaveBeenCalled()
   })
 
   it('blocks with the structured blocker list when references would clear, writing NOTHING', async () => {
@@ -644,7 +697,9 @@ describe('promoteFork trigger URLs', () => {
     blocks: {
       'blk-new': {
         id: 'blk-new',
-        type: 'slack',
+        // The REAL slack_webhook trigger id, so the provider check resolves against the actual
+        // registry - adoption only pairs a URL with a trigger of the SAME provider.
+        type: 'slack_webhook',
         name: 'Slack messages',
         triggerMode: true,
         subBlocks: {},
@@ -674,7 +729,7 @@ describe('promoteFork trigger URLs', () => {
     // The old trigger block ('blk-old') serves the live URL and is NOT in the source any more:
     // the user deleted and re-added the trigger, so the sync writes 'blk-new' instead.
     mockLoadTargetWebhookPaths.mockResolvedValue(
-      new Map([['blk-old', { path: 'live-slack-path', workflowId: 'wf-tgt' }]])
+      new Map([['blk-old', { path: 'live-slack-path', workflowId: 'wf-tgt', provider: 'slack' }]])
     )
     vi.mocked(copyWorkflowStateIntoTarget).mockResolvedValue({
       targetWorkflowId: 'wf-tgt',

@@ -64,7 +64,10 @@ import {
   upsertEdgeMappings,
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import { getMcpServerMetaByIds } from '@/ee/workspace-forking/lib/mapping/resources'
-import { collectForkSyncBlockers } from '@/ee/workspace-forking/lib/promote/cleared-refs'
+import {
+  collectForkSyncBlockers,
+  verifyForkDropAcknowledgments,
+} from '@/ee/workspace-forking/lib/promote/cleared-refs'
 import {
   augmentForkResolver,
   buildPromoteCopySelection,
@@ -474,10 +477,23 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       params.copyResources,
       plan.copyableUnmapped
     )
+    // Drop acknowledgments the server will honour, verified against the SOURCE inside this same
+    // locked tx. Resolved BEFORE the unmapped gate because a source-deleted reference on a
+    // required field is in `unmappedRequired`: gating on it first would reject the sync with
+    // "map all required ... first" no matter what the user dropped, making Drop inert for the
+    // required references it exists to unblock.
+    const verifiedDrops = await verifyForkDropAcknowledgments(
+      tx,
+      sourceWorkspaceId,
+      params.dropReferences
+    )
+    const droppedKeys = new Set(verifiedDrops.map((entry) => `${entry.kind}:${entry.sourceId}`))
     // plan.unmappedRequired is already references.filter(resolver == null).filter(required), so
     // subtracting the refs the copy will resolve is equivalent to re-scanning the predicate.
     const postCopyUnmappedRequired = plan.unmappedRequired.filter(
-      (reference) => !willResolve.has(`${reference.kind}:${reference.sourceId}`)
+      (reference) =>
+        !willResolve.has(`${reference.kind}:${reference.sourceId}`) &&
+        !droppedKeys.has(`${reference.kind}:${reference.sourceId}`)
     )
     if (postCopyUnmappedRequired.length > 0) {
       return {
@@ -521,7 +537,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       workflowIdMap: plan.workflowIdMap,
       resolveBlockId,
       planUnmapped: [...plan.unmappedRequired, ...plan.unmappedOptional],
-      droppedReferences: params.dropReferences,
+      droppedReferences: verifiedDrops,
     })
     if (blockers.length > 0) {
       return { blocked: 'cleared-refs', blockers }

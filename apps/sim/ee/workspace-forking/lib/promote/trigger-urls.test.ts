@@ -71,6 +71,10 @@ function run(
   return { plan, ...resolveForkTriggerPaths(plan, overrides) }
 }
 
+/**
+ * Blocks use the REAL `slack_webhook` trigger id, so provider resolution runs against the actual
+ * trigger registry (provider `slack`) rather than a mock that could drift from it.
+ */
 describe('fork trigger URLs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -79,8 +83,8 @@ describe('fork trigger URLs', () => {
 
   it('pins a trigger that keeps its target identity to its own path, reporting no change', () => {
     const { pathByTargetBlockId, changes, plan } = run(
-      { blk: { type: 'slack', name: 'Slack' } },
-      webhooks([['blk', { path: 'custom-path', workflowId: 'wf-tgt' }]])
+      { blk: { type: 'slack_webhook', name: 'Slack' } },
+      webhooks([['blk', { path: 'custom-path', workflowId: 'wf-tgt', provider: 'slack' }]])
     )
     expect(changes).toEqual([])
     expect(pathByTargetBlockId.get('blk')).toBe('custom-path')
@@ -94,8 +98,8 @@ describe('fork trigger URLs', () => {
    */
   it('adopts a retiring URL onto the single arriving trigger that replaces it', () => {
     const { pathByTargetBlockId, changes, plan } = run(
-      { blk2: { type: 'slack', name: 'Slack v2' } },
-      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt' }]])
+      { blk2: { type: 'slack_webhook', name: 'Slack v2' } },
+      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'slack' }]])
     )
     expect(plan.slots[0].defaultAdoptPath).toBe('blk1')
     expect(pathByTargetBlockId.get('blk2')).toBe('blk1')
@@ -107,7 +111,7 @@ describe('fork trigger URLs', () => {
     vi.mocked(getBlock).mockReturnValue({ ...TRIGGER_BLOCK, category: 'blocks' } as never)
     const { pathByTargetBlockId, changes } = run(
       { fn: { type: 'function', name: 'Fn' } },
-      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt' }]])
+      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'slack' }]])
     )
     expect(changes).toEqual([{ workflowName: 'Prod', path: 'blk1' }])
     expect(pathByTargetBlockId.size).toBe(0)
@@ -115,10 +119,10 @@ describe('fork trigger URLs', () => {
 
   it('does not guess a pairing when several URLs retire at once', () => {
     const { pathByTargetBlockId, changes, plan } = run(
-      { blk3: { type: 'slack', name: 'Slack' } },
+      { blk3: { type: 'slack_webhook', name: 'Slack' } },
       webhooks([
-        ['blk1', { path: 'blk1', workflowId: 'wf-tgt' }],
-        ['blk2', { path: 'blk2', workflowId: 'wf-tgt' }],
+        ['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'slack' }],
+        ['blk2', { path: 'blk2', workflowId: 'wf-tgt', provider: 'slack' }],
       ])
     )
     expect(plan.slots[0].defaultAdoptPath).toBeNull()
@@ -130,10 +134,10 @@ describe('fork trigger URLs', () => {
 
   it('honours an explicit pick when the pairing is ambiguous', () => {
     const { pathByTargetBlockId, changes } = run(
-      { blk3: { type: 'slack', name: 'Slack' } },
+      { blk3: { type: 'slack_webhook', name: 'Slack' } },
       webhooks([
-        ['blk1', { path: 'blk1', workflowId: 'wf-tgt' }],
-        ['blk2', { path: 'blk2', workflowId: 'wf-tgt' }],
+        ['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'slack' }],
+        ['blk2', { path: 'blk2', workflowId: 'wf-tgt', provider: 'slack' }],
       ]),
       [{ sourceBlockId: 'blk3', adoptPath: 'blk2' }]
     )
@@ -143,8 +147,8 @@ describe('fork trigger URLs', () => {
 
   it('lets an explicit null override the default and mint a new URL', () => {
     const { pathByTargetBlockId, changes } = run(
-      { blk2: { type: 'slack', name: 'Slack v2' } },
-      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt' }]]),
+      { blk2: { type: 'slack_webhook', name: 'Slack v2' } },
+      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'slack' }]]),
       [{ sourceBlockId: 'blk2', adoptPath: null }]
     )
     expect(pathByTargetBlockId.size).toBe(0)
@@ -154,8 +158,8 @@ describe('fork trigger URLs', () => {
   /** A crafted payload must not be able to move a URL the plan never offered. */
   it('ignores an override naming a path this slot does not offer', () => {
     const { pathByTargetBlockId } = run(
-      { blk2: { type: 'slack', name: 'Slack v2' } },
-      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt' }]]),
+      { blk2: { type: 'slack_webhook', name: 'Slack v2' } },
+      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'slack' }]]),
       [{ sourceBlockId: 'blk2', adoptPath: 'a-path-from-another-workspace' }]
     )
     expect(pathByTargetBlockId.size).toBe(0)
@@ -164,10 +168,10 @@ describe('fork trigger URLs', () => {
   it('never lets two triggers adopt the same path', () => {
     const { pathByTargetBlockId } = run(
       {
-        blk2: { type: 'slack', name: 'Slack A' },
-        blk3: { type: 'slack', name: 'Slack B' },
+        blk2: { type: 'slack_webhook', name: 'Slack A' },
+        blk3: { type: 'slack_webhook', name: 'Slack B' },
       },
-      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt' }]]),
+      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'slack' }]]),
       [
         { sourceBlockId: 'blk2', adoptPath: 'blk1' },
         { sourceBlockId: 'blk3', adoptPath: 'blk1' },
@@ -178,14 +182,44 @@ describe('fork trigger URLs', () => {
   })
 
   /**
+   * A path is authenticated and parsed as its provider. Handing a GitHub URL to an arriving Slack
+   * trigger would keep the endpoint alive while every request failed signature verification — and
+   * the sync would have reported the URL as preserved, so nobody would go looking.
+   */
+  it('never offers a retiring URL from a DIFFERENT provider', () => {
+    const { plan, pathByTargetBlockId, changes } = run(
+      { blk2: { type: 'slack_webhook', name: 'Slack v2' } },
+      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'github' }]])
+    )
+    expect(plan.slots[0].adoptablePaths).toEqual([])
+    expect(plan.slots[0].defaultAdoptPath).toBeNull()
+    expect(pathByTargetBlockId.size).toBe(0)
+    // Still reported as lost, so the GitHub subscription's owner is told it stopped serving.
+    expect(changes).toEqual([{ workflowName: 'Prod', path: 'blk1' }])
+  })
+
+  it('pairs only within the matching provider when several URLs retire', () => {
+    const { plan, pathByTargetBlockId } = run(
+      { blk3: { type: 'slack_webhook', name: 'Slack' } },
+      webhooks([
+        ['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'github' }],
+        ['blk2', { path: 'blk2', workflowId: 'wf-tgt', provider: 'slack' }],
+      ])
+    )
+    // Only the same-provider URL is a candidate, which makes the pairing unambiguous again.
+    expect(plan.slots[0].adoptablePaths).toEqual(['blk2'])
+    expect(pathByTargetBlockId.get('blk3')).toBe('blk2')
+  })
+
+  /**
    * Adoption is scoped to one target workflow because `webhook_path_claim` ownership is
    * per-workflow: taking a path from another workflow would be an ownership transfer the claim
    * layer refuses, so it must never be offered.
    */
   it('never offers a path owned by a different workflow', () => {
     const { plan, pathByTargetBlockId, changes } = run(
-      { blk: { type: 'slack', name: 'Slack' } },
-      webhooks([['other', { path: 'other', workflowId: 'wf-elsewhere' }]])
+      { blk: { type: 'slack_webhook', name: 'Slack' } },
+      webhooks([['other', { path: 'other', workflowId: 'wf-elsewhere', provider: 'slack' }]])
     )
     expect(plan.slots[0].adoptablePaths).toEqual([])
     expect(pathByTargetBlockId.size).toBe(0)
@@ -196,7 +230,7 @@ describe('fork trigger URLs', () => {
     vi.mocked(getBlock).mockReturnValue({ ...TRIGGER_BLOCK, category: 'blocks' } as never)
     const { plan } = run(
       { fn: { type: 'function', name: 'Fn' } },
-      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt' }]])
+      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'slack' }]])
     )
     expect(plan.slots).toEqual([])
   })
@@ -209,7 +243,7 @@ describe('fork trigger URLs', () => {
     vi.mocked(getBlock).mockReturnValue(URL_LESS_TRIGGER_BLOCK as never)
     const { plan, pathByTargetBlockId, changes } = run(
       { poller: { type: 'gmail', name: 'Gmail poller' } },
-      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt' }]])
+      webhooks([['blk1', { path: 'blk1', workflowId: 'wf-tgt', provider: 'slack' }]])
     )
     expect(plan.slots).toEqual([])
     expect(pathByTargetBlockId.size).toBe(0)

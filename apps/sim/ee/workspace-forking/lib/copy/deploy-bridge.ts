@@ -233,6 +233,11 @@ export async function readDeployedState(
 export interface ForkTargetWebhook {
   path: string
   workflowId: string
+  /**
+   * The provider the path is served under. An inbound request is authenticated and parsed as this
+   * provider, so a URL is only meaningfully transferable to a trigger of the SAME provider.
+   */
+  provider: string | null
 }
 
 /**
@@ -295,7 +300,11 @@ export async function loadTargetWebhookPathsByBlock(
       continue
     }
     // One live path-based row per block within a version - `path_deployment_unique` enforces it.
-    byBlock.set(row.blockId, { path: row.path, workflowId: row.workflowId })
+    byBlock.set(row.blockId, {
+      path: row.path,
+      workflowId: row.workflowId,
+      provider: row.provider,
+    })
   }
   return byBlock
 }

@@ -119,3 +119,43 @@ describe('provider registries agree with the webhook-URL marker', () => {
     expect(INTERNAL_TRIGGER_PROVIDERS.size).toBeGreaterThan(0)
   })
 })
+
+/**
+ * Slack ships BOTH delivery families, so it is the sharpest test of the marker - and the trigger
+ * the fork sync's URL preservation exists for. `slack_webhook` is path-based and its URL is what
+ * a user pastes into a Slack app's Request URL; `slack_oauth` arrives on a shared endpoint routed
+ * by `routingKey`, so `lib/webhooks/deploy.ts` nulls its path and there is no URL to preserve.
+ *
+ * The block configs spread these exact arrays (`blocks/blocks/slack.ts` `...getTrigger(...)
+ * .subBlocks`), so asserting on the trigger definitions is asserting on what the predicate reads.
+ */
+describe('Slack: both delivery families classify correctly', () => {
+  function slackBlock(triggerId: 'slack_webhook' | 'slack_oauth'): BlockState {
+    vi.mocked(getBlock).mockReturnValue({
+      category: 'triggers',
+      subBlocks: TRIGGER_REGISTRY[triggerId].subBlocks,
+    } as never)
+    return block({ type: triggerId === 'slack_webhook' ? 'slack' : 'slack_v2' })
+  }
+
+  it('slack_webhook advertises a URL, so the fork sync can preserve it', () => {
+    expect(blockAdvertisesWebhookUrl(slackBlock('slack_webhook'))).toBe(true)
+  })
+
+  it('slack_oauth does NOT, so it is never offered a URL it cannot serve', () => {
+    expect(blockAdvertisesWebhookUrl(slackBlock('slack_oauth'))).toBe(false)
+  })
+
+  /**
+   * The URL field must stay UNCONDITIONAL on the single-trigger Slack block. A `selectedTriggerId`
+   * condition would evaluate false there (no dropdown ⇒ no value), silently dropping Slack from
+   * the Trigger URLs section - the one trigger this feature was built for.
+   */
+  it('slack_webhook gates its URL field on nothing', () => {
+    const urlField = TRIGGER_REGISTRY.slack_webhook.subBlocks.find(
+      (subBlock) => subBlock.useWebhookUrl === true
+    )
+    expect(urlField).toBeDefined()
+    expect(urlField?.condition).toBeUndefined()
+  })
+})

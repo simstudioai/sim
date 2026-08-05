@@ -1,9 +1,79 @@
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   buildSubBlockValues,
   evaluateSubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import { getTrigger, isTriggerValid } from '@/triggers'
+
+/** The public URL an external system POSTs to for a given webhook path. */
+export function buildWebhookTriggerUrl(path: string): string {
+  return `${getBaseUrl()}/api/webhooks/trigger/${path}`
+}
+
+function subBlockValue(block: BlockState, subBlockId: string): unknown {
+  return block.subBlocks?.[subBlockId]?.value
+}
+
+/**
+ * The trigger a block deploys as, or undefined when it is not acting as one.
+ *
+ * A dedicated trigger block IS its trigger; a tool block flipped into trigger mode names one via
+ * `selectedTriggerId` / `triggerId`, falling back to the first trigger its config declares
+ * available. Single-sourced here because the webhook deploy path and anything reasoning about a
+ * block's delivery must agree on the answer - two resolutions would let a block deploy as one
+ * trigger while another layer classified it as a different one.
+ */
+export function resolveBlockTriggerId(block: BlockState): string | undefined {
+  const blockConfig = getBlock(block.type)
+
+  if (blockConfig?.category === 'triggers' && isTriggerValid(block.type)) {
+    return block.type
+  }
+
+  if (!block.triggerMode) {
+    return undefined
+  }
+
+  const selectedTriggerId = subBlockValue(block, 'selectedTriggerId')
+  if (typeof selectedTriggerId === 'string' && isTriggerValid(selectedTriggerId)) {
+    return selectedTriggerId
+  }
+
+  const storedTriggerId = subBlockValue(block, 'triggerId')
+  if (typeof storedTriggerId === 'string' && isTriggerValid(storedTriggerId)) {
+    return storedTriggerId
+  }
+
+  if (blockConfig?.triggers?.enabled) {
+    const configuredTriggerId =
+      typeof selectedTriggerId === 'string' ? selectedTriggerId : undefined
+    if (configuredTriggerId && isTriggerValid(configuredTriggerId)) {
+      return configuredTriggerId
+    }
+
+    const available = blockConfig.triggers?.available?.[0]
+    if (available && isTriggerValid(available)) {
+      return available
+    }
+  }
+
+  return undefined
+}
+
+/**
+ * The webhook provider a block's events arrive under, or null when it is not a trigger.
+ *
+ * This is the identity an inbound request is verified against: a path served by a `slack` webhook
+ * authenticates Slack's signature and parses Slack's event shape. Two triggers of DIFFERENT
+ * providers can therefore never share a URL meaningfully, however similar they look.
+ */
+export function resolveBlockTriggerProvider(block: BlockState): string | null {
+  const triggerId = resolveBlockTriggerId(block)
+  if (!triggerId || !isTriggerValid(triggerId)) return null
+  return getTrigger(triggerId).provider ?? null
+}
 
 /**
  * Whether this block advertises a public webhook URL - one an external system POSTs to at

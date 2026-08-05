@@ -46,6 +46,7 @@ import {
 } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { useWorkspaceCreationPolicy, useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
 
 /** Explains a disabled lineage action whose target workspace the viewer cannot open. */
 const NO_ACCESS_TOOLTIP = "You don't have access to this workspace"
@@ -235,11 +236,16 @@ function ForkSyncDetailView({
               until you re-register:
             </p>
             {controller.triggerUrlChanges.slice(0, ARCHIVED_PREVIEW_LIMIT).map((change) => (
+              // Naming the URL, not just its workflow: several URLs in one workflow would render
+              // as identical lines, and this confirm is the last point before they stop serving.
               <div
                 key={`${change.workflowName}:${change.path}`}
-                className='min-w-0 truncate text-[var(--text-muted)] text-small'
+                className='min-w-0 text-[var(--text-muted)] text-small'
               >
                 {change.workflowName}
+                <span className='block truncate font-mono text-caption'>
+                  {buildWebhookTriggerUrl(change.path)}
+                </span>
               </div>
             ))}
             {controller.triggerUrlChanges.length > ARCHIVED_PREVIEW_LIMIT ? (

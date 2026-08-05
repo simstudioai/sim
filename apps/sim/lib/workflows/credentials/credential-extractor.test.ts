@@ -59,8 +59,13 @@ describe('export sanitizer resource coverage', () => {
     expect(sanitizedValue('table-selector', 'tbl_239e870374c14d4a89923175a7b10648')).toBeNull()
   })
 
-  it('preserves workflow-selector so a multi-workflow bundle keeps its internal links', () => {
-    expect(sanitizedValue('workflow-selector', 'wf-123')).toBe('wf-123')
+  /**
+   * Nothing on the import path remaps workflow references — `import-export.ts` extracts each
+   * workflow independently under a fresh id — so a preserved reference names a workflow that does
+   * not exist in the target, bundle or not.
+   */
+  it('clears workflow-selector, since import never remaps the id it names', () => {
+    expect(sanitizedValue('workflow-selector', 'wf-123')).toBeNull()
   })
 
   it('still clears oauth-input, via the credential rule rather than the workspace rule', () => {

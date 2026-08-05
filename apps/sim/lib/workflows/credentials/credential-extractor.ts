@@ -30,17 +30,21 @@ export interface CredentialRequirement {
 }
 
 /**
- * Resource-selector types deliberately NOT cleared on export. Everything else the resource
+ * Resource-selector types NOT cleared by the workspace rule below. Everything else the resource
  * registry knows about IS cleared, so the two lists can never drift apart again — the previous
  * hand-written copy had silently omitted `table-selector`, `mcp-tool-selector`, `user-selector`
  * and `sheet-selector`, which is how raw `tbl_…` ids reached other workspaces through an export.
+ *
+ * Every id in an export is workspace-scoped, and nothing on the import path remaps them:
+ * `import-export.ts` extracts each workflow independently and assigns it a fresh id, so a
+ * preserved reference points at a workflow that does not exist in the target — including inside a
+ * multi-workflow bundle, where the sibling it named was itself re-created under a new id. Clearing
+ * is therefore the only correct treatment for every id-bearing selector.
  */
 export const EXPORT_PRESERVED_RESOURCE_TYPES: ReadonlySet<string> = new Set([
-  // Cleared by the dedicated `oauth-input` branch in `sanitizeWorkflowForSharing`.
+  // Cleared by the dedicated `oauth-input` branch in `sanitizeWorkflowForSharing`, so excluding it
+  // here only avoids clearing it twice - it never survives an export.
   'oauth-input',
-  // A bundle can carry several workflows at once; clearing these would sever the links between
-  // them. Cross-workflow references are remapped on import instead.
-  'workflow-selector',
 ])
 
 /**

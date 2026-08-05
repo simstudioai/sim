@@ -160,6 +160,14 @@ export interface ForkSyncController {
   dropAllDeletedRefs: () => void
   /** Source-deleted blockers still awaiting a decision, for the bulk affordance. */
   droppableBlockerCount: number
+  /**
+   * How many blocking rows name each resource, keyed `${kind}:${sourceId}`. A drop is inherently
+   * resource-scoped - the remapper clears by reference, not by field - so the row that offers the
+   * control states how many fields it covers rather than implying a per-field choice.
+   */
+  blockingUsesByResource: ReadonlyMap<string, number>
+  /** Index of the row that owns each resource's Drop control, so it renders exactly once. */
+  firstBlockingRowForResource: ReadonlyMap<string, number>
   /** Visible copy candidates split by referenced-ness, grouped per kind for the section rows. */
   referencedByKind: ReadonlyMap<ForkCopyableUnmapped['kind'], ForkCopyableUnmapped[]>
   unreferencedByKind: ReadonlyMap<ForkCopyableUnmapped['kind'], ForkCopyableUnmapped[]>
@@ -757,6 +765,19 @@ export function useForkSync(params: {
     setDroppedRefs((prev) => new Set([...prev, ...droppableBlockerKeys]))
   }
 
+  // Blocking rows indexed by the resource they name, so the Drop control renders once per resource
+  // and can state how many fields it covers - matching what the sync actually does.
+  const { blockingUsesByResource, firstBlockingRowForResource } = useMemo(() => {
+    const uses = new Map<string, number>()
+    const firstRow = new Map<string, number>()
+    blockingRefs.forEach((ref, index) => {
+      const key = `${ref.kind}:${ref.sourceId}`
+      uses.set(key, (uses.get(key) ?? 0) + 1)
+      if (!firstRow.has(key)) firstRow.set(key, index)
+    })
+    return { blockingUsesByResource: uses, firstBlockingRowForResource: firstRow }
+  }, [blockingRefs])
+
   const setTriggerAdoption = (sourceBlockId: string, path: string) => {
     setTriggerAdoptions((prev) => ({ ...prev, [sourceBlockId]: path }))
   }
@@ -935,6 +956,8 @@ export function useForkSync(params: {
     toggleDroppedRef,
     dropAllDeletedRefs,
     droppableBlockerCount: droppableBlockerKeys.length,
+    blockingUsesByResource,
+    firstBlockingRowForResource,
     referencedByKind,
     unreferencedByKind,
     hasVisibleCopyables: visibleCopyables.length > 0,

@@ -21,7 +21,6 @@ import type {
   ForkResourceUsage,
   ForkTriggerMapping,
 } from '@/lib/api/contracts/workspace-fork'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -47,6 +46,7 @@ import type {
 import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { forkSyncBlockerReasonFor } from '@/ee/workspace-forking/lib/promote/sync-blockers'
 import type { SelectorKey } from '@/hooks/selectors/types'
+import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
 
 /**
  * Copyable kinds as expandable rows in the "Copy resources" section, ordered + labeled to match
@@ -80,15 +80,6 @@ const NEW_TRIGGER_URL_VALUE = '__new_trigger_url__'
 
 /** Fixed target-picker width so every mapping row's control lines up as one column (mirrors General). */
 const MAPPING_TARGET_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
-
-/**
- * The public webhook URL a trigger path resolves to - the string the user pasted into Slack, so
- * it is what a Triggers row shows rather than the bare path (an opaque block id). Same shape the
- * block's own webhook field renders (`use-webhook-management`).
- */
-function forkWebhookUrl(path: string): string {
-  return `${getBaseUrl()}/api/webhooks/trigger/${path}`
-}
 
 interface DependentBlock {
   targetBlockId: string
@@ -659,7 +650,7 @@ function TriggerMappingRow({ controller, mapping }: TriggerMappingRowProps) {
       </div>
       <p className='min-w-0 truncate text-[var(--text-muted)] text-small'>
         {resultingPath ? (
-          <span className='font-mono text-caption'>{forkWebhookUrl(resultingPath)}</span>
+          <span className='font-mono text-caption'>{buildWebhookTriggerUrl(resultingPath)}</span>
         ) : (
           'Gets a new URL on sync — register it with the calling service afterwards.'
         )}
@@ -813,7 +804,9 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
                 A webhook URL in {change.workflowName}
               </span>{' '}
               stops being served — anything calling it will stop working.
-              <span className='block truncate font-mono text-caption'>{change.path}</span>
+              <span className='block truncate font-mono text-caption'>
+                {buildWebhookTriggerUrl(change.path)}
+              </span>
             </div>
           ))}
         </SettingsSection>
@@ -888,26 +881,42 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           }
         >
           <div className='flex flex-col gap-1'>
-            {controller.blockingRefs.map((ref, index) => (
-              <div
-                key={`${ref.targetWorkflowId}:${ref.blockId}:${ref.kind}:${ref.sourceId}:${ref.fieldLabel}:${index}`}
-                className='flex min-w-0 items-start justify-between gap-3 text-[var(--text-secondary)] text-small'
-              >
-                <span className='min-w-0'>
-                  <span className='text-[var(--text-body)]'>{ref.blockLabel}</span> would lose{' '}
-                  <span className='text-[var(--text-body)]'>{ref.fieldLabel}</span> in{' '}
-                  {ref.workflowName} — {forkBlockerResolution(ref)}
-                </span>
-                {/* Only a source-deleted reference can be dropped: an unmapped copyable can still
-                    be copied and a missing workflow can still be deployed, so neither is a dead
-                    end the user should be able to accept away. */}
-                {forkSyncBlockerReasonFor(ref) === 'source-deleted' ? (
-                  <Chip onClick={() => controller.toggleDroppedRef(ref.kind, ref.sourceId, true)}>
-                    Drop
-                  </Chip>
-                ) : null}
-              </div>
-            ))}
+            {controller.blockingRefs.map((ref, index) => {
+              const dropKey = `${ref.kind}:${ref.sourceId}`
+              const uses = controller.blockingUsesByResource.get(dropKey) ?? 1
+              return (
+                <div
+                  key={`${ref.targetWorkflowId}:${ref.blockId}:${ref.kind}:${ref.sourceId}:${ref.fieldLabel}:${index}`}
+                  className='flex min-w-0 items-start justify-between gap-3 text-[var(--text-secondary)] text-small'
+                >
+                  <span className='min-w-0'>
+                    <span className='text-[var(--text-body)]'>{ref.blockLabel}</span> would lose{' '}
+                    <span className='text-[var(--text-body)]'>{ref.fieldLabel}</span> in{' '}
+                    {ref.workflowName} — {forkBlockerResolution(ref)}
+                  </span>
+                  {/* Only a source-deleted reference can be dropped: an unmapped copyable can still
+                      be copied and a missing workflow can still be deployed, so neither is a dead
+                      end the user should be able to accept away.
+
+                      One control per RESOURCE, not per row: the resource is gone, so the sync
+                      clears every field naming it (the remapper's clear resolves by reference, not
+                      by field). Rendering a Drop on each row would imply a per-field choice the
+                      write path cannot honour, so later rows for the same id state the scope
+                      instead. */}
+                  {forkSyncBlockerReasonFor(ref) !==
+                  'source-deleted' ? null : controller.firstBlockingRowForResource.get(dropKey) ===
+                    index ? (
+                    <Chip onClick={() => controller.toggleDroppedRef(ref.kind, ref.sourceId, true)}>
+                      {uses > 1 ? `Drop from ${uses} fields` : 'Drop'}
+                    </Chip>
+                  ) : (
+                    <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+                      same reference
+                    </span>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </SettingsSection>
       ) : null}
