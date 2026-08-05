@@ -31,8 +31,8 @@ export interface PromptEditorProps extends PromptEditorKeyPolicy {
    * Renders the editor as a non-editable display surface: the textarea becomes
    * `readOnly` (so the chip overlay still paints `@`-mention / `/`-skill chips
    * and the text stays selectable/copyable) and the caret-anchored resource and
-   * skill menus are not mounted. Use for read-only records — e.g. a finished
-   * scheduled task — where the prompt should render with chips but not be edited.
+   * skill menus are not mounted. Use for records where the prompt should render
+   * with chips but not be edited.
    */
   readOnly?: boolean
   /**

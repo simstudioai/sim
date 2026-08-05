@@ -2,7 +2,6 @@ import { trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
   chat as chatTable,
-  copilotChats,
   customTools as customToolsTable,
   document,
   folder as folderTable,
@@ -17,7 +16,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import {
   buildWorkspaceContextMd,
@@ -80,8 +79,6 @@ import {
   serializeRecentExecutions,
   serializeSkill,
   serializeTableMeta,
-  serializeTaskChat,
-  serializeTaskSession,
   serializeTriggerOverview,
   serializeTriggerSchema,
   serializeVersions,
@@ -524,8 +521,6 @@ function getStaticComponentFiles(): Map<string, string> {
  *   files/{name}                         (workspace file leaf; dynamic content on read)
  *   files/{path}/{name}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
  *   files/{path}/{name}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
- *   tasks/{title}/session.md
- *   tasks/{title}/chat.json
  *   custom-tools/{name}.json
  *   environment/credentials.json
  *   environment/api-keys.json
@@ -782,10 +777,6 @@ export class WorkspaceVFS {
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
               timed('members', getUsersWithPermissions(workspaceId)),
               permissionConfigPromise,
-              // Writes tasks/ files only — WORKSPACE.md has no Tasks section
-              // (recent chats reorder every turn and would bust the cached
-              // prompt prefix), so nothing is destructured from this one.
-              timed('tasks', this.materializeTasks(workspaceId, userId)),
             ])
 
             const workspaceMdData = {
@@ -2146,89 +2137,6 @@ export class WorkspaceVFS {
         error: toError(err).message,
       })
       return []
-    }
-  }
-
-  /**
-   * Materialize mothership task chats as browsable conversation files under
-   * `tasks/{title}/`. Nothing is returned: the inventory deliberately has no
-   * Tasks section, so these files are reached through glob/read only.
-   */
-  private async materializeTasks(workspaceId: string, userId: string): Promise<void> {
-    try {
-      const taskRows = await db
-        .select({
-          id: copilotChats.id,
-          title: copilotChats.title,
-          messageCount: sql<number>`COALESCE((
-            SELECT COUNT(*) FROM copilot_messages cm
-            WHERE cm.chat_id = ${copilotChats.id} AND cm.deleted_at IS NULL
-          ), 0)`,
-          messages: sql<unknown[]>`COALESCE((
-            SELECT jsonb_agg(
-              jsonb_build_object(
-                'role', cm.content->>'role',
-                'content', cm.content->'content',
-                'contentBlocks', COALESCE((
-                  SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b.value->'content') ORDER BY b.ord)
-                  FROM jsonb_array_elements(
-                    CASE WHEN jsonb_typeof(cm.content->'contentBlocks') = 'array'
-                         THEN cm.content->'contentBlocks'
-                         ELSE '[]'::jsonb
-                    END
-                  ) WITH ORDINALITY AS b(value, ord)
-                  WHERE b.value->>'type' = 'text'
-                ), '[]'::jsonb)
-              )
-              ORDER BY cm.seq ASC NULLS LAST, cm.created_at ASC, cm.id ASC
-            )
-            FROM copilot_messages cm
-            WHERE cm.chat_id = ${copilotChats.id}
-              AND cm.deleted_at IS NULL
-              AND cm.content->>'role' IN ('user', 'assistant')
-          ), '[]'::jsonb)`,
-          createdAt: copilotChats.createdAt,
-          updatedAt: copilotChats.updatedAt,
-        })
-        .from(copilotChats)
-        .where(
-          and(
-            eq(copilotChats.workspaceId, workspaceId),
-            eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership'),
-            isNull(copilotChats.deletedAt)
-          )
-        )
-        .orderBy(desc(copilotChats.updatedAt))
-        .limit(5)
-
-      for (const task of taskRows) {
-        const title = task.title || 'Untitled task'
-        const safeName = sanitizeName(title)
-        const prefix = `tasks/${safeName}/`
-        const messages = Array.isArray(task.messages) ? task.messages : []
-        const messageCount = Number(task.messageCount) || 0
-
-        this.files.set(
-          `${prefix}session.md`,
-          serializeTaskSession({
-            id: task.id,
-            title,
-            messageCount,
-            createdAt: task.createdAt,
-            updatedAt: task.updatedAt,
-          })
-        )
-
-        if (messages.length > 0) {
-          this.files.set(`${prefix}chat.json`, serializeTaskChat(messages))
-        }
-      }
-    } catch (err) {
-      logger.warn('Failed to materialize tasks', {
-        workspaceId,
-        error: toError(err).message,
-      })
     }
   }
 

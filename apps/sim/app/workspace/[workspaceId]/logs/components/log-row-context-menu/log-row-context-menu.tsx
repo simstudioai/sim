@@ -14,6 +14,7 @@ import {
 } from '@sim/emcn'
 import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
+import { resolveLogWorkflowId } from '@/app/workspace/[workspaceId]/logs/utils'
 
 interface LogRowContextMenuProps {
   isOpen: boolean
@@ -56,6 +57,12 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
 }: LogRowContextMenuProps) {
   const hasExecutionId = Boolean(log?.executionId)
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
+  /**
+   * "Open Workflow" needs a navigable target, which is stricter than
+   * `hasWorkflow`: Sim agent jobs have no workflow of their own. Cancel/retry
+   * keep using `hasWorkflow` so their gating is unchanged.
+   */
+  const hasOpenableWorkflow = Boolean(log && resolveLogWorkflowId(log))
   const isCancellable =
     (log?.status === 'running' || log?.status === 'pending') && hasExecutionId && hasWorkflow
   const isRetryable = log?.status === 'failed' && hasWorkflow && log?.trigger !== 'mothership'
@@ -90,7 +97,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
       </DropdownMenuItem>
 
       <DropdownMenuSeparator />
-      <DropdownMenuItem disabled={!hasWorkflow} onSelect={onOpenWorkflow}>
+      <DropdownMenuItem disabled={!hasOpenableWorkflow} onSelect={onOpenWorkflow}>
         <SquareArrowUpRight />
         Open Workflow
       </DropdownMenuItem>

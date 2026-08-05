@@ -179,7 +179,7 @@ const TagInputTag = React.memo(function TagInputTag({
       onRightIconClick={disabled ? undefined : handleRemove}
       rightIconLabel={`Remove ${item.value}`}
     >
-      <span className='min-w-0 flex-1 translate-y-[0.5px] truncate font-medium font-sans text-sm leading-5'>
+      <span className='min-w-0 flex-1 translate-y-[0.5px] truncate font-sans text-sm leading-5'>
         {item.value}
       </span>
       {showError && <span className='sr-only'>{item.error}</span>}
@@ -422,7 +422,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           <div className='relative inline-flex h-5 min-w-0 max-w-full items-center overflow-hidden'>
             {inputValue.trim() && (
               <span
-                className='invisible whitespace-pre font-medium font-sans text-sm leading-5'
+                className='invisible whitespace-pre font-sans text-sm leading-5'
                 aria-hidden='true'
               >
                 {inputValue}
@@ -446,8 +446,8 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               className={cn(
                 'appearance-none border-none bg-transparent align-middle font-sans outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
                 inputValue.trim()
-                  ? 'absolute top-0 left-0 h-full w-full p-0 font-medium text-inherit text-sm leading-5'
-                  : 'h-5 w-auto min-w-0 p-0 font-medium text-[var(--text-body)] text-sm leading-5',
+                  ? 'absolute top-0 left-0 h-full w-full p-0 text-inherit text-sm leading-5'
+                  : 'h-5 w-auto min-w-0 p-0 text-[var(--text-body)] text-sm leading-5',
                 inputClassName
               )}
               disabled={disabled}

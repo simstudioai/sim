@@ -10,7 +10,12 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 // deploy.ts pulls in the trigger/block/provider registries at module load; none are exercised by
 // buildProviderConfig (a pure function), so stub them to keep this unit test fast and isolated.
-vi.mock('@/blocks', () => ({ getBlock: vi.fn() }))
+const { mockGetBlock } = vi.hoisted(() => ({ mockGetBlock: vi.fn() }))
+// `deploy.ts` reads the registry through `@/blocks`, while the trigger-id resolution it now
+// shares (`@/triggers/webhook-url`) reads `@/blocks/registry`. Point both specifiers at ONE spy
+// so a test configuring the block config governs the whole path, not half of it.
+vi.mock('@/blocks', () => ({ getBlock: mockGetBlock }))
+vi.mock('@/blocks/registry', () => ({ getBlock: mockGetBlock }))
 vi.mock('@/triggers', () => ({ getTrigger: vi.fn(), isTriggerValid: vi.fn(() => true) }))
 vi.mock('@/lib/webhooks/providers', () => ({ getProviderHandler: vi.fn() }))
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({

@@ -167,26 +167,6 @@ describe('buildWorkspaceMd - determinism (prompt-cache stability)', () => {
           { id: 'sk-2', name: 'Writer', description: 'writes' },
           { id: 'sk-1', name: 'Editor', description: 'edits' },
         ],
-        jobs: [
-          {
-            id: 'j-2',
-            title: 'Nightly',
-            prompt: 'run nightly',
-            cronExpression: '0 0 * * *',
-            status: 'active',
-            lifecycle: 'persistent',
-            sourceTaskName: null,
-          },
-          {
-            id: 'j-1',
-            title: 'Hourly',
-            prompt: 'run hourly',
-            cronExpression: '0 * * * *',
-            status: 'active',
-            lifecycle: 'persistent',
-            sourceTaskName: null,
-          },
-        ],
       })
     )
     const b = buildWorkspaceMd(
@@ -223,26 +203,6 @@ describe('buildWorkspaceMd - determinism (prompt-cache stability)', () => {
         skills: [
           { id: 'sk-1', name: 'Editor', description: 'edits' },
           { id: 'sk-2', name: 'Writer', description: 'writes' },
-        ],
-        jobs: [
-          {
-            id: 'j-1',
-            title: 'Hourly',
-            prompt: 'run hourly',
-            cronExpression: '0 * * * *',
-            status: 'active',
-            lifecycle: 'persistent',
-            sourceTaskName: null,
-          },
-          {
-            id: 'j-2',
-            title: 'Nightly',
-            prompt: 'run nightly',
-            cronExpression: '0 0 * * *',
-            status: 'active',
-            lifecycle: 'persistent',
-            sourceTaskName: null,
-          },
         ],
       })
     )

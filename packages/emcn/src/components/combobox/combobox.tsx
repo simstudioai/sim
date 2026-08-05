@@ -21,7 +21,7 @@ import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       variant: {
@@ -589,7 +589,7 @@ const Combobox = memo(
                     <Input
                       ref={inputRef}
                       className={cn(
-                        'w-full pr-10 font-medium transition-colors',
+                        'w-full pr-10 transition-colors',
                         (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
                         SelectedIcon && !overlayContent && 'pl-7',
                         open && 'focus-visible:border-[var(--border-1)]',
@@ -610,7 +610,7 @@ const Combobox = memo(
                     {(overlayContent || SelectedIcon) && (
                       <div
                         className={cn(
-                          'pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
+                          'pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-2 py-1.5 font-sans text-sm',
                           disabled && 'opacity-50'
                         )}
                       >
@@ -820,7 +820,7 @@ const Combobox = memo(
                                   !option.disabled && setHighlightedIndex(globalIndex)
                                 }
                                 className={cn(
-                                  'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-medium font-sans',
+                                  'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                                   size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
                                   'hover-hover:bg-[var(--surface-active)]',
                                   (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
@@ -860,7 +860,7 @@ const Combobox = memo(
                           }}
                           onMouseEnter={() => setHighlightedIndex(-1)}
                           className={cn(
-                            'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-medium font-sans',
+                            'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-sans',
                             size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
                             'hover-hover:bg-[var(--surface-active)]',
                             !multiSelectValues?.length && 'bg-[var(--surface-active)]'
@@ -894,7 +894,7 @@ const Combobox = memo(
                             }}
                             onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
                             className={cn(
-                              'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-medium font-sans',
+                              'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                               size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
                               'hover-hover:bg-[var(--surface-active)]',
                               (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',

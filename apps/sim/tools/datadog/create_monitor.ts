@@ -27,7 +27,7 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Monitor query (e.g., "avg(last_5m):avg:system.cpu.idle{*} < 20", "logs(\"status:error\").index(\"main\").rollup(\"count\").last(\"5m\") > 100")',
+        'Monitor query (e.g., "avg(last_5m):avg:system.cpu.idle{*} < 20", "logs("status:error").index("main").rollup("count").last("5m") > 100")',
     },
     message: {
       type: 'string',

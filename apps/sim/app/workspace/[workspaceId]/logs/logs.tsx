@@ -92,7 +92,14 @@ import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
-import { DELETED_WORKFLOW_LABEL, formatDate, parseDuration, TriggerBadge } from './utils'
+import {
+  DELETED_WORKFLOW_LABEL,
+  formatDate,
+  parseDuration,
+  resolveLogWorkflowId,
+  TriggerBadge,
+  workflowEditorPath,
+} from './utils'
 
 const LOGS_PER_PAGE = 50 as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
@@ -521,9 +528,9 @@ export default function Logs() {
   }, [contextMenuLog, workspaceId])
 
   const handleOpenWorkflow = useCallback(() => {
-    const wfId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
+    const wfId = contextMenuLog ? resolveLogWorkflowId(contextMenuLog) : null
     if (wfId) {
-      window.open(`/workspace/${workspaceId}/w/${wfId}`, '_blank')
+      window.open(workflowEditorPath(workspaceId, wfId), '_blank')
     }
   }, [contextMenuLog, workspaceId])
 

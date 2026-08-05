@@ -837,7 +837,7 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
     return (
       <div
         className={cn(
-          'mt-1.5 min-w-0 font-medium first:mt-0 first:pt-0',
+          'mt-1.5 min-w-0 first:mt-0 first:pt-0',
           STYLES.colorScheme[colorScheme].section,
           STYLES.size[size].section,
           className
@@ -1114,13 +1114,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
           </div>
         )}
         {folderTitle && !onFolderSelect && (
-          <div
-            className={cn(
-              'font-medium',
-              STYLES.colorScheme[colorScheme].section,
-              STYLES.size[size].section
-            )}
-          >
+          <div className={cn(STYLES.colorScheme[colorScheme].section, STYLES.size[size].section)}>
             {folderTitle}
           </div>
         )}
@@ -1173,7 +1167,7 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
         <input
           ref={inputRef}
           className={cn(
-            'w-full bg-transparent font-medium focus:outline-none',
+            'w-full bg-transparent focus:outline-none',
             STYLES.colorScheme[colorScheme].searchInput,
             size === 'sm' ? 'text-xs' : 'text-caption'
           )}

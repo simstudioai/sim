@@ -181,8 +181,14 @@ jobs:
           fi
           bun run check:migrations "$BASE_REF"
 
-      - name: Type-check realtime server
-        run: bunx turbo run type-check --filter=@sim/realtime
+      # Every workspace, not just realtime. packages/emcn, packages/utils,
+      # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
+      # source was covered only as a side effect of `next build` in the separate
+      # Build App job. Note this does NOT cover apps/sim's tests — its tsconfig
+      # excludes *.test.ts(x), and including them today surfaces ~2.2k errors,
+      # so that is its own cleanup rather than a gate to switch on here.
+      - name: Type-check all workspaces
+        run: bunx turbo run type-check
 
       # Runs the setup CLI's Bun tests plus each workspace's Vitest suite,
       # without `--coverage`. See the Codecov note below.

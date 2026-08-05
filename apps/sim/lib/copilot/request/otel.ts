@@ -22,6 +22,7 @@ import {
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
+import { normalizeToolAgentId } from '@/lib/copilot/request/metrics'
 import { isExplicitStopReason } from '@/lib/copilot/request/session/abort-reason'
 
 // OTel GenAI content-capture env var (spec:
@@ -284,6 +285,7 @@ export async function withCopilotToolSpan<T>(
   input: {
     toolName: string
     toolCallId: string
+    agentName: string
     runId?: string
     chatId?: string
     argsBytes?: number
@@ -299,6 +301,7 @@ export async function withCopilotToolSpan<T>(
         [TraceAttr.ToolName]: input.toolName,
         [TraceAttr.ToolCallId]: input.toolCallId,
         [TraceAttr.ToolExecutor]: 'sim',
+        [TraceAttr.GenAiAgentName]: normalizeToolAgentId(input.agentName),
         ...(input.runId ? { [TraceAttr.RunId]: input.runId } : {}),
         ...(input.chatId ? { [TraceAttr.ChatId]: input.chatId } : {}),
         ...(typeof input.argsBytes === 'number'

@@ -3943,7 +3943,7 @@ export const QueryUserTable: ToolCatalogEntry = {
           filter: {
             type: 'object',
             description:
-              'Predicate filter object for query_rows. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}.',
+              'Predicate filter object for query_rows. A single condition is {field, op, value}; use {"all":[...]} (AND) or {"any":[...]} (OR) for multiple or nested conditions. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"field":"status","op":"eq","value":"active"}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"field":"name","op":"ilike","value":"*jo*"}.',
           },
           limit: {
             type: 'number',
@@ -5152,7 +5152,7 @@ export const UserTable: ToolCatalogEntry = {
           filter: {
             type: 'object',
             description:
-              'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}.',
+              'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A single condition is {field, op, value}; use {"all":[...]} (AND) or {"any":[...]} (OR) for multiple or nested conditions. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"field":"status","op":"eq","value":"active"}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"field":"name","op":"ilike","value":"*jo*"}; {"field":"slack_user_id","op":"in","value":["U1","U2"]}.',
           },
           groupId: {
             type: 'string',
