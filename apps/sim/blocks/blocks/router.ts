@@ -1,11 +1,18 @@
 import { ConnectIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type SubBlockConfig } from '@/blocks/types'
 import {
-  getModelOptions,
+  getCustomModelOptions,
   getProviderCredentialSubBlocks,
   PROVIDER_CREDENTIAL_INPUTS,
 } from '@/blocks/utils'
-import { getBaseModelProviders } from '@/providers/models'
+import {
+  CUSTOM_MODEL_CONFIG_DEFAULT,
+  CUSTOM_MODEL_CONFIG_JSON_SCHEMA,
+  CUSTOM_MODEL_ID,
+  isCustomModel,
+  parseCustomModelConfig,
+} from '@/providers/custom-model'
+import { getBaseModelProviders, isAutoModel } from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -39,6 +46,47 @@ interface TargetBlock {
   category?: string
   subBlocks?: Record<string, any>
   currentState?: any
+}
+
+function getCustomModelSubBlock(): SubBlockConfig {
+  return {
+    id: 'customModelConfig',
+    title: 'Custom Model Configuration',
+    type: 'code',
+    language: 'json',
+    placeholder: 'Enter custom provider and model configuration...',
+    description:
+      'Provider, model, credentials, and provider-specific generation settings for routing inference. Use provider "sim" with model "sim-auto" for automatic routing.',
+    defaultValue: CUSTOM_MODEL_CONFIG_DEFAULT,
+    superUserOnly: true,
+    required: {
+      field: 'model',
+      value: CUSTOM_MODEL_ID,
+    },
+    condition: {
+      field: 'model',
+      value: CUSTOM_MODEL_ID,
+    },
+  }
+}
+
+function resolveRouterTool(params: Record<string, any>): string {
+  const model = params.model || 'claude-sonnet-5'
+  if (!model) {
+    throw new Error('No model selected')
+  }
+  if (isCustomModel(model)) {
+    const customConfig = parseCustomModelConfig(params.customModelConfig)
+    if (customConfig.provider !== 'sim') return customConfig.provider
+
+    return getBaseModelProviders()['claude-sonnet-5']
+  }
+  const lookupModel = isAutoModel(model) ? 'claude-sonnet-5' : model
+  const tool = getBaseModelProviders()[lookupModel as ProviderId]
+  if (!tool) {
+    throw new Error(`Invalid model selected: ${model}`)
+  }
+  return tool
 }
 
 /**
@@ -173,8 +221,9 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       placeholder: 'Type or select a model...',
       required: true,
       defaultValue: 'claude-sonnet-5',
-      options: getModelOptions,
+      options: getCustomModelOptions,
     },
+    getCustomModelSubBlock(),
     ...getProviderCredentialSubBlocks(),
     {
       id: 'temperature',
@@ -204,22 +253,17 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       'deepseek_reasoner',
     ],
     config: {
-      tool: (params: Record<string, any>) => {
-        const model = params.model || 'gpt-4o'
-        if (!model) {
-          throw new Error('No model selected')
-        }
-        const tool = getBaseModelProviders()[model as ProviderId]
-        if (!tool) {
-          throw new Error(`Invalid model selected: ${model}`)
-        }
-        return tool
-      },
+      tool: resolveRouterTool,
     },
   },
   inputs: {
     prompt: { type: 'string', description: 'Routing prompt content' },
     model: { type: 'string', description: 'AI model to use' },
+    customModelConfig: {
+      type: 'json',
+      description: 'Custom provider/model execution configuration for routing inference.',
+      schema: CUSTOM_MODEL_CONFIG_JSON_SCHEMA,
+    },
     ...PROVIDER_CREDENTIAL_INPUTS,
     temperature: {
       type: 'number',
@@ -300,8 +344,9 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
       placeholder: 'Type or select a model...',
       required: true,
       defaultValue: 'claude-sonnet-5',
-      options: getModelOptions,
+      options: getCustomModelOptions,
     },
+    getCustomModelSubBlock(),
     ...getProviderCredentialSubBlocks(),
   ],
   tools: {
@@ -314,23 +359,18 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
       'deepseek_reasoner',
     ],
     config: {
-      tool: (params: Record<string, any>) => {
-        const model = params.model || 'gpt-4o'
-        if (!model) {
-          throw new Error('No model selected')
-        }
-        const tool = getBaseModelProviders()[model as ProviderId]
-        if (!tool) {
-          throw new Error(`Invalid model selected: ${model}`)
-        }
-        return tool
-      },
+      tool: resolveRouterTool,
     },
   },
   inputs: {
     context: { type: 'string', description: 'Context for routing decision' },
     routes: { type: 'json', description: 'Route definitions with descriptions' },
     model: { type: 'string', description: 'AI model to use' },
+    customModelConfig: {
+      type: 'json',
+      description: 'Custom provider/model execution configuration for routing inference.',
+      schema: CUSTOM_MODEL_CONFIG_JSON_SCHEMA,
+    },
     ...PROVIDER_CREDENTIAL_INPUTS,
   },
   outputs: {

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
-import { isCustomModel } from '@/providers/custom-model'
+import { isCustomModel, supportsCustomModelOverride } from '@/providers/custom-model'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import {
@@ -31,7 +31,7 @@ interface WorkflowSubBlockLike {
   [key: string]: unknown
 }
 
-interface ProtectedAgentCustomModelState {
+interface ProtectedCustomModelState {
   customModelConfig?: WorkflowSubBlockLike
   hasCustomModelConfig: boolean
   model?: WorkflowSubBlockLike
@@ -51,13 +51,13 @@ function getWorkflowBlocks(state: Record<string, unknown>): Record<string, Workf
     : {}
 }
 
-function captureProtectedAgentCustomModelState(
+function captureProtectedCustomModelState(
   state: Record<string, unknown>
-): Map<string, ProtectedAgentCustomModelState> {
-  const protectedState = new Map<string, ProtectedAgentCustomModelState>()
+): Map<string, ProtectedCustomModelState> {
+  const protectedState = new Map<string, ProtectedCustomModelState>()
 
   for (const [blockId, block] of Object.entries(getWorkflowBlocks(state))) {
-    if (block?.type !== 'agent') continue
+    if (!supportsCustomModelOverride(block?.type)) continue
     const subBlocks = block.subBlocks ?? {}
     const model = subBlocks.model
     const hasCustomModelConfig = Object.hasOwn(subBlocks, 'customModelConfig')
@@ -74,15 +74,15 @@ function captureProtectedAgentCustomModelState(
   return protectedState
 }
 
-function restoreProtectedAgentCustomModelState(
+function restoreProtectedCustomModelState(
   state: Record<string, unknown>,
-  protectedState: ReadonlyMap<string, ProtectedAgentCustomModelState>
+  protectedState: ReadonlyMap<string, ProtectedCustomModelState>
 ): void {
   const blocks = getWorkflowBlocks(state)
 
   for (const [blockId, original] of protectedState) {
     const block = blocks[blockId]
-    if (block?.type !== 'agent') continue
+    if (!supportsCustomModelOverride(block?.type)) continue
     block.subBlocks ??= {}
 
     if (original.hasCustomModelConfig) {
@@ -117,9 +117,12 @@ export function reconcileStoredCustomModelState(
   const storedBlocks = getWorkflowBlocks(storedState)
 
   for (const [blockId, block] of Object.entries(reconciledBlocks)) {
-    if (block?.type !== 'agent') continue
+    if (!supportsCustomModelOverride(block?.type)) continue
     const storedBlock = storedBlocks[blockId]
-    const storedSubBlocks = storedBlock?.type === 'agent' ? (storedBlock.subBlocks ?? {}) : {}
+    const storedSubBlocks =
+      storedBlock?.type === block.type && supportsCustomModelOverride(storedBlock.type)
+        ? (storedBlock.subBlocks ?? {})
+        : {}
     block.subBlocks ??= {}
 
     if (Object.hasOwn(storedSubBlocks, 'customModelConfig')) {
@@ -272,7 +275,7 @@ export function applyOperationsToWorkflowState(
   operations: EditWorkflowOperation[],
   permissionConfig: PermissionGroupConfig | null = null
 ): ApplyOperationsResult {
-  const protectedCustomModelState = captureProtectedAgentCustomModelState(workflowState)
+  const protectedCustomModelState = captureProtectedCustomModelState(workflowState)
   // Deep clone the workflow state to avoid mutations
   const modifiedState = structuredClone(workflowState)
 
@@ -376,7 +379,7 @@ export function applyOperationsToWorkflowState(
 
   // Custom models are configured manually in the editor and never through
   // Copilot. Preserve the stored selection/config across every operation batch.
-  restoreProtectedAgentCustomModelState(modifiedState, protectedCustomModelState)
+  restoreProtectedCustomModelState(modifiedState, protectedCustomModelState)
 
   // Regenerate loops and parallels after modifications
 

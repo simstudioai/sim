@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import {
   type AutoRoutingResult,
@@ -6,6 +7,7 @@ import {
   resolveAutoModel,
   SIM_AUTO_SYSTEM_PREAMBLE,
 } from '@/lib/model-router/resolve'
+import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
@@ -19,8 +21,15 @@ import {
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAuthHeaders } from '@/executor/utils/http'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
+import { executeProviderRequest } from '@/providers'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
+import {
+  type CustomModelConfig,
+  isCustomModel,
+  parseCustomModelConfig,
+} from '@/providers/custom-model'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import type { ProviderRequest, ProviderResponse } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -30,6 +39,14 @@ interface RouteDefinition {
   id: string
   title: string
   value: string
+}
+
+interface ResolvedRouterModel {
+  model: string
+  providerId: string
+  systemPrompt: string
+  autoRouting: AutoRoutingResult | null
+  customModelConfig?: CustomModelConfig
 }
 
 /**
@@ -89,16 +106,27 @@ export class RouterBlockHandler implements BlockHandler {
         ctx,
         block.id,
         routerConfig.model,
+        inputs.customModelConfig,
         systemPrompt,
         routerConfig.prompt,
         false
       )
 
-      await validateModelProvider(ctx.userId, ctx.workspaceId, resolved.model, ctx)
-      const providerId = getProviderFromModel(resolved.model)
+      await validateModelProvider(
+        ctx.userId,
+        ctx.workspaceId,
+        resolved.model,
+        ctx,
+        resolved.providerId
+      )
 
       let finalApiKey: string | undefined = routerConfig.apiKey
-      if (providerId === 'vertex' && routerConfig.vertexCredential) {
+      if (resolved.customModelConfig) {
+        finalApiKey =
+          resolved.customModelConfig.credentials.mode === 'explicit'
+            ? resolved.customModelConfig.credentials.apiKey
+            : undefined
+      } else if (resolved.providerId === 'vertex' && routerConfig.vertexCredential) {
         finalApiKey = await resolveVertexCredential({
           credentialId: routerConfig.vertexCredential,
           actingUserId: ctx.userId,
@@ -107,12 +135,11 @@ export class RouterBlockHandler implements BlockHandler {
         })
       }
 
-      const providerRequest: Record<string, any> = {
-        provider: providerId,
+      const providerRequest: ProviderRequest = {
         model: resolved.model,
         systemPrompt: resolved.systemPrompt,
         context: JSON.stringify(messages),
-        temperature: ROUTER.INFERENCE_TEMPERATURE,
+        ...this.getProviderRequestModelOptions(resolved),
         apiKey: finalApiKey,
         azureEndpoint: inputs.azureEndpoint,
         azureApiVersion: inputs.azureApiVersion,
@@ -125,24 +152,7 @@ export class RouterBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
       }
 
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: await buildAuthHeaders(ctx.userId),
-        body: JSON.stringify(providerRequest),
-      })
-
-      if (!response.ok) {
-        let errorMessage = `Provider API request failed with status ${response.status}`
-        try {
-          const errorData = await response.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-          }
-        } catch (_e) {}
-        throw new Error(errorMessage)
-      }
-
-      const result = await response.json()
+      const result = await this.executeRouterProvider(ctx, block.id, url, resolved, providerRequest)
 
       const chosenBlockId = result.content.trim().toLowerCase()
       const chosenBlock = targetBlocks?.find((b) => b.id === chosenBlockId)
@@ -230,16 +240,27 @@ export class RouterBlockHandler implements BlockHandler {
         ctx,
         block.id,
         routerConfig.model,
+        inputs.customModelConfig,
         systemPrompt,
         routerConfig.context,
         true
       )
 
-      await validateModelProvider(ctx.userId, ctx.workspaceId, resolved.model, ctx)
-      const providerId = getProviderFromModel(resolved.model)
+      await validateModelProvider(
+        ctx.userId,
+        ctx.workspaceId,
+        resolved.model,
+        ctx,
+        resolved.providerId
+      )
 
       let finalApiKey: string | undefined = routerConfig.apiKey
-      if (providerId === 'vertex' && routerConfig.vertexCredential) {
+      if (resolved.customModelConfig) {
+        finalApiKey =
+          resolved.customModelConfig.credentials.mode === 'explicit'
+            ? resolved.customModelConfig.credentials.apiKey
+            : undefined
+      } else if (resolved.providerId === 'vertex' && routerConfig.vertexCredential) {
         finalApiKey = await resolveVertexCredential({
           credentialId: routerConfig.vertexCredential,
           actingUserId: ctx.userId,
@@ -248,12 +269,11 @@ export class RouterBlockHandler implements BlockHandler {
         })
       }
 
-      const providerRequest: Record<string, any> = {
-        provider: providerId,
+      const providerRequest: ProviderRequest = {
         model: resolved.model,
         systemPrompt: resolved.systemPrompt,
         context: JSON.stringify(messages),
-        temperature: ROUTER.INFERENCE_TEMPERATURE,
+        ...this.getProviderRequestModelOptions(resolved),
         apiKey: finalApiKey,
         azureEndpoint: inputs.azureEndpoint,
         azureApiVersion: inputs.azureApiVersion,
@@ -285,24 +305,7 @@ export class RouterBlockHandler implements BlockHandler {
         },
       }
 
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: await buildAuthHeaders(ctx.userId),
-        body: JSON.stringify(providerRequest),
-      })
-
-      if (!response.ok) {
-        let errorMessage = `Provider API request failed with status ${response.status}`
-        try {
-          const errorData = await response.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-          }
-        } catch (_e) {}
-        throw new Error(errorMessage)
-      }
-
-      const result = await response.json()
+      const result = await this.executeRouterProvider(ctx, block.id, url, resolved, providerRequest)
 
       let chosenRouteId: string
       let reasoning = ''
@@ -418,16 +421,39 @@ export class RouterBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     blockId: string,
     configuredModel: string,
+    customModelConfigInput: unknown,
     systemPrompt: string,
     lastMessage: unknown,
     hasResponseFormat: boolean
-  ): Promise<{
-    model: string
-    systemPrompt: string
-    autoRouting: AutoRoutingResult | null
-  }> {
-    if (!isAutoModel(configuredModel)) {
-      return { model: configuredModel, systemPrompt, autoRouting: null }
+  ): Promise<ResolvedRouterModel> {
+    let model = configuredModel
+    let customModelConfig: CustomModelConfig | undefined
+
+    if (isCustomModel(configuredModel)) {
+      if (!ctx.userId) {
+        throw new Error('The selected model is unavailable for this execution')
+      }
+      const { effectiveSuperUser } = await verifyEffectiveSuperUser(ctx.userId)
+      if (!effectiveSuperUser) {
+        throw new Error('The selected model is unavailable for this execution')
+      }
+
+      customModelConfig = parseCustomModelConfig(customModelConfigInput)
+      model = customModelConfig.model
+    }
+
+    const usesAutoRouting =
+      isAutoModel(model) ||
+      (customModelConfig !== undefined && customModelConfig.provider === 'sim')
+
+    if (!usesAutoRouting) {
+      return {
+        model,
+        providerId: customModelConfig?.provider ?? getProviderFromModel(model),
+        systemPrompt,
+        autoRouting: null,
+        customModelConfig,
+      }
     }
 
     const message =
@@ -456,8 +482,90 @@ export class RouterBlockHandler implements BlockHandler {
 
     return {
       model: autoRouting.model,
+      providerId: getProviderFromModel(autoRouting.model),
       systemPrompt: [SIM_AUTO_SYSTEM_PREAMBLE, systemPrompt].filter(Boolean).join('\n\n'),
       autoRouting,
+      customModelConfig,
+    }
+  }
+
+  /**
+   * Keeps the privileged passthrough request server-side. Standard Router
+   * requests retain the existing internal-provider proxy path.
+   */
+  private async executeRouterProvider(
+    ctx: ExecutionContext,
+    blockId: string,
+    url: URL,
+    resolved: ResolvedRouterModel,
+    providerRequest: ProviderRequest
+  ): Promise<ProviderResponse> {
+    if (resolved.customModelConfig) {
+      const response = await executeProviderRequest(
+        resolved.providerId,
+        {
+          ...providerRequest,
+          userId: ctx.userId,
+          environmentVariables: normalizeStringRecord(ctx.environmentVariables),
+          workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
+          isDeployedContext: ctx.isDeployedContext,
+          callChain: ctx.callChain,
+          billingAttribution: ctx.metadata.billingAttribution,
+          executionId: ctx.executionId,
+          blockId,
+          abortSignal: ctx.abortSignal,
+        },
+        {
+          resolvedSecretTraceRegistry: ctx.resolvedSecretTraceRegistry,
+        }
+      )
+
+      if (!response || typeof response !== 'object' || !('content' in response)) {
+        throw new Error('Router custom model returned an unsupported streaming response')
+      }
+      return response
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: await buildAuthHeaders(ctx.userId),
+      body: JSON.stringify({ provider: resolved.providerId, ...providerRequest }),
+    })
+
+    if (!response.ok) {
+      let errorMessage = `Provider API request failed with status ${response.status}`
+      try {
+        const errorData = await response.json()
+        if (errorData.error) {
+          errorMessage = errorData.error
+        }
+      } catch (_error) {}
+      throw new Error(errorMessage)
+    }
+
+    return response.json()
+  }
+
+  private getProviderRequestModelOptions(resolved: ResolvedRouterModel): Partial<ProviderRequest> {
+    const customModelConfig = resolved.customModelConfig
+    if (!customModelConfig) {
+      return {
+        temperature: ROUTER.INFERENCE_TEMPERATURE,
+        capabilityPolicy: 'catalog',
+      }
+    }
+
+    return {
+      temperature: customModelConfig.parameters.temperature ?? undefined,
+      maxTokens: customModelConfig.parameters.maxTokens ?? undefined,
+      reasoningEffort: customModelConfig.parameters.reasoningEffort ?? undefined,
+      verbosity: customModelConfig.parameters.verbosity ?? undefined,
+      thinkingLevel: customModelConfig.parameters.thinkingLevel ?? undefined,
+      promptCaching: customModelConfig.parameters.promptCaching === true,
+      capabilityPolicy: customModelConfig.provider === 'sim' ? 'catalog' : 'passthrough',
+      credentialMode: customModelConfig.credentials.mode,
+      providerOptions: customModelConfig.providerOptions,
+      providerModel: customModelConfig.deployment,
     }
   }
 

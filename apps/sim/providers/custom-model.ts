@@ -7,7 +7,7 @@ import {
 } from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
 
-/** Stored in the Agent block's `model` field when Super User custom routing is active. */
+/** Stored in a model-execution block's `model` field when Super User custom routing is active. */
 export const CUSTOM_MODEL_ID = 'sim-custom'
 
 export const CUSTOM_DIRECT_MODEL_PROVIDERS = [
@@ -229,7 +229,7 @@ function parseProviderOptions(value: unknown): Record<string, unknown> {
   for (const key of Object.keys(value)) {
     if (RESERVED_PROVIDER_OPTION_KEYS.has(key)) {
       throw new Error(
-        `customModelConfig.providerOptions.${key} is controlled by Sim; use the canonical custom-model fields or the existing Agent subblocks`
+        `customModelConfig.providerOptions.${key} is controlled by Sim; use the canonical custom-model fields or the block's existing inputs`
       )
     }
   }
@@ -356,6 +356,11 @@ export function validateCustomModelParameterSupport(config: CustomModelConfig): 
 
 export function isCustomModel(model: unknown): boolean {
   return typeof model === 'string' && model.trim().toLowerCase() === CUSTOM_MODEL_ID
+}
+
+/** Whether a workflow block supports the privileged custom-model override. */
+export function supportsCustomModelOverride(blockType: unknown): boolean {
+  return blockType === 'agent' || blockType === 'router' || blockType === 'router_v2'
 }
 
 /** Returns the UI-safe label for a stored model selection. */

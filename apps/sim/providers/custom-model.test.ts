@@ -8,6 +8,7 @@ import {
   getCustomModelDisplayValue,
   isCustomModel,
   parseCustomModelConfig,
+  supportsCustomModelOverride,
 } from '@/providers/custom-model'
 
 describe('custom model config', () => {
@@ -225,6 +226,13 @@ describe('custom model config', () => {
     expect(isCustomModel(CUSTOM_MODEL_ID)).toBe(true)
     expect(isCustomModel('SIM-CUSTOM')).toBe(true)
     expect(isCustomModel('gpt-5.6-terra')).toBe(false)
+  })
+
+  it('limits the override to model-execution workflow blocks', () => {
+    expect(supportsCustomModelOverride('agent')).toBe(true)
+    expect(supportsCustomModelOverride('router')).toBe(true)
+    expect(supportsCustomModelOverride('router_v2')).toBe(true)
+    expect(supportsCustomModelOverride('evaluator')).toBe(false)
   })
 
   it('never renders the Custom sentinel to a non-Super User', () => {

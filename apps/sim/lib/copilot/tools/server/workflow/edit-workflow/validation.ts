@@ -42,7 +42,7 @@ const validationLogger = createLogger('EditWorkflowValidation')
 const agentToolLintLogger = createLogger('EditWorkflowAgentToolLint')
 
 /**
- * Detect privileged Agent custom-model writes anywhere in an edit operation,
+ * Detect privileged custom-model writes anywhere in an edit operation,
  * including nested subflow nodes. Key-aware traversal avoids treating ordinary
  * prompt text that happens to mention the sentinel as a privileged mutation.
  */

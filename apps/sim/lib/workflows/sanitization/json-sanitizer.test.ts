@@ -65,6 +65,12 @@ const agentConfig = {
   ],
 }
 
+const routerConfig = {
+  ...agentConfig,
+  type: 'router_v2',
+  name: 'Router',
+}
+
 vi.mock('@/blocks/registry', () => ({
   getBlock: (type: string) =>
     type === 'generic_webhook'
@@ -75,7 +81,9 @@ vi.mock('@/blocks/registry', () => ({
           ? mothershipConfig
           : type === 'agent'
             ? agentConfig
-            : undefined,
+            : type === 'router_v2'
+              ? routerConfig
+              : undefined,
 }))
 
 /**
@@ -186,6 +194,33 @@ describe('sanitizeForCopilot server-only block inputs', () => {
     expect(JSON.stringify(result)).not.toContain('sim-custom')
     expect(JSON.stringify(result)).not.toContain('customModelConfig')
     expect(JSON.stringify(result)).not.toContain('literal-secret')
+  })
+
+  it('keeps Router custom model configuration and its sentinel opaque to Copilot', () => {
+    const workflow = makeSingleBlockWorkflow('router-1', {
+      type: 'router_v2',
+      name: 'Router',
+      enabled: true,
+      subBlocks: {
+        model: { id: 'model', type: 'combobox', value: 'sim-custom' },
+        customModelConfig: {
+          id: 'customModelConfig',
+          type: 'code',
+          value: JSON.stringify({
+            provider: 'xai',
+            model: 'grok-future',
+            credentials: { mode: 'explicit', apiKey: 'router-secret' },
+          }),
+        },
+      },
+    })
+
+    const result = sanitizeForCopilot(workflow)
+
+    expect(result.blocks['router-1'].inputs).toBeUndefined()
+    expect(JSON.stringify(result)).not.toContain('sim-custom')
+    expect(JSON.stringify(result)).not.toContain('customModelConfig')
+    expect(JSON.stringify(result)).not.toContain('router-secret')
   })
 
   it('hides dormant custom configuration while retaining an ordinary selected model', () => {

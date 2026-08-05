@@ -103,10 +103,10 @@ export function getModelOptions() {
 }
 
 /**
- * Agent-only model options. The custom passthrough entry is filtered by the
- * editor unless the user has effective super-user mode enabled.
+ * Model options for blocks that support the custom passthrough contract. The
+ * editor filters the custom entry unless effective Super User mode is enabled.
  */
-export function getAgentModelOptions() {
+export function getCustomModelOptions() {
   return [
     ...getModelOptions(),
     {
@@ -117,6 +117,8 @@ export function getAgentModelOptions() {
     },
   ]
 }
+
+export const getAgentModelOptions = getCustomModelOptions
 
 /**
  * Model options filtered to exact provider/model pairs in Pi's pinned catalog.

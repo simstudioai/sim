@@ -336,7 +336,7 @@ describe('getModelOptions', () => {
     expect(ids).not.toContain('fireworks/accounts/fireworks/models/minimax-m2p7')
   })
 
-  it('adds the super-user custom option only to the Agent model options', () => {
+  it('adds the super-user custom option only to custom-capable model options', () => {
     expect(getModelOptions().some((option) => option.id === 'sim-custom')).toBe(false)
     expect(getAgentModelOptions()).toContainEqual({
       label: 'Custom',

@@ -3,8 +3,13 @@ import '@sim/testing/mocks/executor'
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-const { mockResolveAutoModel } = vi.hoisted(() => ({
+const { mockResolveAutoModel, mockVerifyEffectiveSuperUser } = vi.hoisted(() => ({
   mockResolveAutoModel: vi.fn(),
+  mockVerifyEffectiveSuperUser: vi.fn(),
+}))
+
+vi.mock('@/lib/permissions/super-user', () => ({
+  verifyEffectiveSuperUser: (...args: unknown[]) => mockVerifyEffectiveSuperUser(...args),
 }))
 
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
@@ -35,11 +40,14 @@ import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/ro
 import { BlockType } from '@/executor/constants'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
 import type { ExecutionContext } from '@/executor/types'
+import { executeProviderRequest } from '@/providers'
+import { CUSTOM_MODEL_ID } from '@/providers/custom-model'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGenerateRouterV2Prompt = generateRouterV2Prompt as Mock
+const mockExecuteProviderRequest = executeProviderRequest as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockFetch = vi.fn()
 
@@ -132,6 +140,13 @@ describe('RouterBlockHandler', () => {
       tier: '2',
       decidedBy: 'llm',
       billableRoutingCost: 0.002,
+    })
+    mockVerifyEffectiveSuperUser.mockResolvedValue({ effectiveSuperUser: true })
+    mockExecuteProviderRequest.mockResolvedValue({
+      content: 'target-block-1',
+      model: 'grok-future',
+      tokens: { input: 100, output: 5, total: 105 },
+      cost: { input: 0, output: 0, total: 0 },
     })
 
     mockFetch.mockImplementation(() => {
@@ -230,6 +245,61 @@ describe('RouterBlockHandler', () => {
       },
       selectedRoute: 'target-block-1',
     })
+  })
+
+  it('routes a Super User custom model through the explicit provider contract', async () => {
+    mockContext.userId = 'super-user'
+
+    const result = await handler.execute(mockContext, mockBlock, {
+      prompt: 'Choose the best option.',
+      model: CUSTOM_MODEL_ID,
+      customModelConfig: {
+        provider: 'xai',
+        model: 'grok-future',
+        parameters: {
+          reasoningEffort: 'xhigh',
+          temperature: 0.15,
+          maxTokens: 12345,
+        },
+        credentials: { mode: 'explicit', apiKey: 'xai-secret' },
+        providerOptions: { service_tier: 'priority' },
+      },
+    })
+
+    expect(mockVerifyEffectiveSuperUser).toHaveBeenCalledWith('super-user')
+    expect(mockGetProviderFromModel).not.toHaveBeenCalledWith(CUSTOM_MODEL_ID)
+    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+      'xai',
+      expect.objectContaining({
+        model: 'grok-future',
+        apiKey: 'xai-secret',
+        credentialMode: 'explicit',
+        capabilityPolicy: 'passthrough',
+        reasoningEffort: 'xhigh',
+        temperature: 0.15,
+        maxTokens: 12345,
+        providerOptions: { service_tier: 'priority' },
+        blockId: mockBlock.id,
+      }),
+      expect.anything()
+    )
+    expect(mockFetch).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ model: 'grok-future', selectedRoute: 'target-block-1' })
+  })
+
+  it('rejects custom model execution when Super User mode is off', async () => {
+    mockContext.userId = 'admin-with-toggle-off'
+    mockVerifyEffectiveSuperUser.mockResolvedValue({ effectiveSuperUser: false })
+
+    await expect(
+      handler.execute(mockContext, mockBlock, {
+        prompt: 'Choose.',
+        model: CUSTOM_MODEL_ID,
+        customModelConfig: { provider: 'openai', model: 'gpt-future' },
+      })
+    ).rejects.toThrow('The selected model is unavailable')
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('bills the cost the provider proxy decided rather than recomputing it', async () => {
@@ -472,6 +542,16 @@ describe('RouterBlockHandler V2', () => {
       decidedBy: 'llm',
       billableRoutingCost: 0.002,
     })
+    mockVerifyEffectiveSuperUser.mockResolvedValue({ effectiveSuperUser: true })
+    mockExecuteProviderRequest.mockResolvedValue({
+      content: JSON.stringify({
+        route: 'route-support',
+        reasoning: 'Matched support.',
+      }),
+      model: 'gpt-future',
+      tokens: { input: 100, output: 20, total: 120 },
+      cost: { input: 0, output: 0, total: 0 },
+    })
   })
 
   it('should handle router_v2 blocks', () => {
@@ -587,6 +667,48 @@ describe('RouterBlockHandler V2', () => {
         total: 0.0035,
       },
     })
+  })
+
+  it('runs custom Sim Auto through the Router response-format path', async () => {
+    mockContext.userId = 'super-user'
+    mockExecuteProviderRequest.mockResolvedValueOnce({
+      content: JSON.stringify({
+        route: 'route-support',
+        reasoning: 'This is a support request.',
+      }),
+      model: 'fireworks/glm-5.2',
+      tokens: { input: 100, output: 20, total: 120 },
+      cost: { input: 0.001, output: 0.0005, total: 0.0015 },
+    })
+
+    const result = await handler.execute(mockContext, mockRouterV2Block, {
+      context: 'My account is locked.',
+      model: CUSTOM_MODEL_ID,
+      customModelConfig: {
+        provider: 'sim',
+        model: 'sim-auto',
+        parameters: { reasoningEffort: 'high', temperature: 0.2 },
+        credentials: { mode: 'auto' },
+      },
+      routes: [{ id: 'route-support', title: 'Support', value: 'Account issues' }],
+    })
+
+    expect(mockVerifyEffectiveSuperUser).toHaveBeenCalledWith('super-user')
+    expect(mockResolveAutoModel).toHaveBeenCalled()
+    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+      'openai',
+      expect.objectContaining({
+        model: 'fireworks/glm-5.2',
+        capabilityPolicy: 'catalog',
+        credentialMode: 'auto',
+        reasoningEffort: 'high',
+        temperature: 0.2,
+        responseFormat: expect.objectContaining({ name: 'router_response' }),
+      }),
+      expect.anything()
+    )
+    expect(mockFetch).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ model: 'sim-auto', selectedRoute: 'route-support' })
   })
 
   it('should include responseFormat in provider request', async () => {

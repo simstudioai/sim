@@ -672,6 +672,34 @@ describe('Copilot-opaque Custom model state', () => {
     )
   })
 
+  it('rehydrates Router custom-model fields omitted from Copilot state', () => {
+    const stored = makeCustomAgentWorkflow()
+    stored.blocks['agent-1'].type = 'router_v2'
+    const copilotState = {
+      ...stored,
+      blocks: {
+        'agent-1': {
+          ...stored.blocks['agent-1'],
+          subBlocks: {
+            context: {
+              id: 'context',
+              type: 'long-input',
+              value: 'Visible context',
+            },
+          },
+        },
+      },
+    }
+
+    const reconciled = reconcileStoredCustomModelState(copilotState, stored) as any
+
+    expect(reconciled.blocks['agent-1'].subBlocks.context.value).toBe('Visible context')
+    expect(reconciled.blocks['agent-1'].subBlocks.model.value).toBe('sim-custom')
+    expect(reconciled.blocks['agent-1'].subBlocks.customModelConfig).toEqual(
+      stored.blocks['agent-1'].subBlocks.customModelConfig
+    )
+  })
+
   it('removes Custom fields that are absent from the stored workflow', () => {
     const untrusted = makeCustomAgentWorkflow()
     const stored = makeCustomAgentWorkflow(false)

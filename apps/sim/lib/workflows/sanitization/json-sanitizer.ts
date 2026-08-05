@@ -3,7 +3,7 @@ import type { Edge } from 'reactflow'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import { getBlock } from '@/blocks/registry'
-import { isCustomModel } from '@/providers/custom-model'
+import { isCustomModel, supportsCustomModelOverride } from '@/providers/custom-model'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
@@ -563,7 +563,7 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
       )
       // Custom models are configured manually in the editor and remain opaque
       // to Copilot. Hide both the privileged JSON and its identifying sentinel.
-      if (block.type === 'agent' && isCustomModel(block.subBlocks.model?.value)) {
+      if (supportsCustomModelOverride(block.type) && isCustomModel(block.subBlocks.model?.value)) {
         hiddenIds.add('model')
       }
       inputs = sanitizeSubBlocks(block.subBlocks, hiddenIds)
