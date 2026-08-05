@@ -213,3 +213,22 @@ describe('empty groups are rejected at every layer', () => {
     expect(() => validatePredicate({ all: [] }, COLS)).toThrow(/at least one condition/)
   })
 })
+
+describe('predicate complexity limits', () => {
+  it('rejects deeply nested untrusted input before recursive validation', () => {
+    let predicate: unknown = { field: 'status', op: 'eq', value: 'active' }
+    for (let depth = 0; depth < 20_000; depth++) predicate = { all: [predicate] }
+
+    expect(() => validatePredicateShape(predicate as never)).toThrow(/Filter nesting is too deep/)
+  })
+
+  it('rejects oversized groups at the shared runtime boundary', () => {
+    const conditions = Array.from({ length: 101 }, () => ({
+      field: 'status',
+      op: 'eq' as const,
+      value: 'active',
+    }))
+
+    expect(() => validatePredicateShape({ all: conditions })).toThrow(/at most 100 conditions/)
+  })
+})

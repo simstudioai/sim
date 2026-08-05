@@ -8,14 +8,27 @@
 import { describe, expect, it } from 'vitest'
 import {
   deleteTableRowsBodySchema,
+  predicateInputSchema,
   predicateSchema,
   rowQueryBodySchema,
   tableRowsQuerySchema,
+  tableViewConfigSchema,
   updateRowsByFilterBodySchema,
 } from '@/lib/api/contracts/tables'
 import { validatePredicate } from '@/lib/table/query-builder/validate'
 
 describe('rowQueryBodySchema', () => {
+  it('accepts a root condition and normalizes it to the canonical all group', () => {
+    const parsed = rowQueryBodySchema.parse({
+      workspaceId: 'ws-1',
+      predicate: { field: 'status', op: 'eq', value: 'active' },
+    })
+
+    expect(parsed.predicate).toEqual({
+      all: [{ field: 'status', op: 'eq', value: 'active' }],
+    })
+  })
+
   it('accepts a predicate/sort object, leaves limit unbounded, has no offset', () => {
     const parsed = rowQueryBodySchema.parse({
       workspaceId: 'ws-1',
@@ -78,6 +91,16 @@ describe('rowQueryBodySchema', () => {
   })
 })
 
+describe('tableViewConfigSchema', () => {
+  it('normalizes a root condition before it is persisted', () => {
+    expect(
+      tableViewConfigSchema.parse({
+        filter: { field: 'status', op: 'eq', value: 'active' },
+      }).filter
+    ).toEqual({ all: [{ field: 'status', op: 'eq', value: 'active' }] })
+  })
+})
+
 describe('bulk schemas accept either a predicate tree or the legacy filter object', () => {
   it('delete accepts a predicate filter', () => {
     expect(
@@ -93,6 +116,15 @@ describe('bulk schemas accept either a predicate tree or the legacy filter objec
       deleteTableRowsBodySchema.safeParse({ workspaceId: 'ws-1', filter: { status: 'archived' } })
         .success
     ).toBe(true)
+  })
+
+  it('does not reinterpret a legacy object with field/op/value columns as a root predicate', () => {
+    const filter = { field: 'status', op: 'eq', value: 'active' }
+    const parsed = deleteTableRowsBodySchema.parse({ workspaceId: 'ws-1', filter })
+
+    expect(parsed.filter).toEqual(filter)
+    expect(predicateSchema.safeParse(filter).success).toBe(false)
+    expect(predicateInputSchema.parse(filter)).toEqual({ all: [filter] })
   })
 
   it('update accepts a predicate filter', () => {
