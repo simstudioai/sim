@@ -1,14 +1,8 @@
 /**
  * @vitest-environment node
  *
- * `/v1/responses` answers HTTP 200 for generations that did not succeed — `status:
- * 'failed'` with a populated `error`, or `status: 'incomplete'` with a reason. The
- * non-streaming path read only `output`, so those reached the user as a success with
- * empty content and billed tokens, while the trace span independently recorded
- * `finishReason: 'error'`.
- *
- * These cover the status/error gate and pin the `incomplete` policy to the one the
- * streaming loop already applies, so the two paths cannot silently diverge again.
+ * Pins the non-streaming status/error gate, and pins its `incomplete` policy to the one
+ * `streamResponsesTurn` applies so the two paths cannot silently diverge.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
@@ -128,11 +122,7 @@ describe('OpenAI non-streaming response status handling', () => {
     await expect(run(fetchMock)).rejects.toThrow('Upstream provider rejected the request.')
   })
 
-  /**
-   * Decision, matching `streamResponsesTurn`: an `incomplete` response truncated by
-   * `max_output_tokens` with no tool call is NOT an error — the partial prose is a
-   * usable answer and is returned as the block content.
-   */
+  /** Policy is shared with `streamResponsesTurn` — keep both in step. */
   it('returns the partial content of a max_output_tokens incomplete response instead of failing', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
@@ -149,10 +139,6 @@ describe('OpenAI non-streaming response status handling', () => {
     expect(result.content).toBe('a truncated but usable answer')
   })
 
-  /**
-   * The other half of the same decision: every other incomplete reason is an error,
-   * because the generation stopped for a reason the caller must be told about.
-   */
   it('fails the block on an incomplete response whose reason is not max_output_tokens', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
@@ -224,10 +210,7 @@ describe('OpenAI non-streaming response status handling', () => {
     expect(result.tokens?.total).toBe(4)
   })
 
-  /**
-   * The gate sits in `postResponses`, so it must cover continuation turns too — a loop
-   * that starts healthy and fails on turn two must still fail the block.
-   */
+  /** The gate lives in `postResponses`, so continuation turns are covered too. */
   it('fails the block when a later tool-loop turn comes back failed', async () => {
     const fetchMock = vi
       .fn()

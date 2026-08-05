@@ -43,25 +43,16 @@ import {
 } from './utils'
 
 /**
- * Rejects a `/v1/responses` body that reports a generation which did not succeed.
+ * Rejects a `/v1/responses` body reporting a generation that did not succeed — the
+ * endpoint answers HTTP 200 for both `status: 'failed'` and `status: 'incomplete'`.
  *
- * The endpoint answers HTTP 200 for failures: `status: 'failed'` with a populated
- * `error`, or `status: 'incomplete'` with an `incomplete_details.reason`. Reading only
- * `output` therefore reports a failed generation as a success with empty content and
- * billed tokens, while the trace independently records `finishReason: 'error'` — so the
- * block and its own span contradict each other. `@ai-sdk/openai` throws on the same
- * condition rather than returning empty content.
+ * The tolerated case must stay matched to `streamResponsesTurn`: `incomplete` is accepted
+ * only when truncated by `max_output_tokens` AND carrying no function call. Truncated
+ * prose is a usable partial answer, but a truncated `function_call` holds half-written
+ * JSON that makes `parseToolArguments` throw a confusing tool failure.
  *
- * The tolerated case is copied from `streamResponsesTurn` and must keep matching it: an
- * `incomplete` response is accepted only when it was truncated by `max_output_tokens`
- * AND carries no function call. Truncated prose is still a usable partial answer, but a
- * truncated `function_call` holds half-written JSON — executing it makes
- * `parseToolArguments` throw, surfacing a confusing tool failure rather than the
- * truncation that actually happened.
- *
- * A status the API did not send is not asserted against: this path is shared with Azure
- * OpenAI and OpenAI-compatible gateways, and inventing a failure for an absent field
- * would break healthy responses instead of reporting broken ones.
+ * An absent `status` is deliberately not treated as a failure: this path is shared with
+ * Azure OpenAI and OpenAI-compatible gateways.
  */
 function assertUsableResponse(response: OpenAI.Responses.Response, providerLabel: string): void {
   if (response.error) {
@@ -141,10 +132,6 @@ export async function executeResponsesProviderRequest(
 
   logger.info(`Preparing ${config.providerLabel} request`, {
     model: request.model,
-    /**
-     * Without these a provider call cannot be tied back to the execution that issued
-     * it, which leaves a stalled request indistinguishable from one never made.
-     */
     workflowId: request.workflowId,
     blockId: request.blockId,
     executionId: request.executionId,
@@ -301,11 +288,10 @@ export async function executeResponsesProviderRequest(
   })
 
   /**
-   * A non-JSON body here is usually a gateway or CDN error page, and this string reaches
-   * the user-facing block error and the trace span — so it is bounded rather than pasted
-   * in whole, and falls back to `statusText` when the body carries nothing useful.
-   * `@ai-sdk/provider-utils` likewise falls back to `statusText` and keeps the raw body
-   * on a separate field rather than in the message.
+   * A non-JSON body is usually a gateway or CDN error page and reaches the user-facing
+   * block error, so it is bounded and falls back to `statusText`. A structured provider
+   * message is returned untruncated on purpose: the reasoning-summary strip-and-retry
+   * fallback matches on its text.
    */
   const parseErrorResponse = async (response: Response): Promise<string> => {
     const text = await response.text().catch(() => '')
@@ -385,21 +371,15 @@ export async function executeResponsesProviderRequest(
   /**
    * Names the request phase an opaque transport failure died in.
    *
-   * A stalled model call surfaces only the runtime's own message — under Bun, a
-   * `TimeoutError: The operation timed out.` from its socket deadline — which cannot
-   * distinguish "still generating, never answered" from "answered, but the body never
-   * arrived". Those have opposite owners and opposite fixes. undici draws the same line
-   * as two distinct error types (`UND_ERR_HEADERS_TIMEOUT` vs `UND_ERR_BODY_TIMEOUT`);
-   * this records the equivalent for a runtime that reports neither.
+   * Bun raises only `TimeoutError: The operation timed out.`, which cannot distinguish
+   * "never answered" from "answered, but the body never arrived" — opposite owners,
+   * opposite fixes. undici splits these as `UND_ERR_HEADERS_TIMEOUT` vs
+   * `UND_ERR_BODY_TIMEOUT`; this records the equivalent for a runtime that reports
+   * neither.
    *
-   * The phase rides the error message because that reaches the block's trace span, and
-   * the trace survives even when a task has stopped shipping logs. `x-request-id` is
-   * carried for the same reason the OpenAI SDK captures it: it is the only handle the
-   * provider can trace a call by, and it is unavailable once the call has failed.
-   *
-   * Errors that already describe themselves — an API error carrying a status and a
-   * provider message — are left untouched; only `TimeoutError`/`AbortError`, which name
-   * nothing, are annotated.
+   * The phase rides the error message because that reaches the block's trace span, which
+   * survives when a task has stopped shipping logs; `x-request-id` is the only handle the
+   * provider can trace the call by. Self-describing API errors are left untouched.
    */
   const annotateTransportFailure = (
     error: unknown,
@@ -467,9 +447,8 @@ export async function executeResponsesProviderRequest(
     }
 
     /**
-     * Asserted here rather than at the call sites so the first turn and every tool-loop
-     * continuation are covered by construction, and outside the transport `try` so a
-     * rejected generation is never mistaken for a transport failure.
+     * Placed here so every tool-loop turn is covered, and outside the transport `try` so
+     * a rejected generation is not misreported as a transport failure.
      */
     assertUsableResponse(parsed, config.providerLabel)
     return parsed

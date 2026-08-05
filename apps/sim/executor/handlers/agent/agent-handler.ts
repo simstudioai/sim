@@ -1316,14 +1316,9 @@ export class AgentBlockHandler implements BlockHandler {
     })
 
     /**
-     * `TimeoutError` is what the runtime raises on a fetch deadline; without it a
-     * stalled model call reached the trace as the bare runtime string.
-     *
-     * The cause chain is walked, not just `name`: providers rewrap transport failures in
-     * a `ProviderError`, which overwrites `name`, so the classification only survives on
-     * `cause`. The original message is kept rather than replaced — providers annotate it
-     * with the request phase they died in, and that detail is the only thing separating a
-     * request that was never answered from one whose body stalled.
+     * The original message is appended rather than replaced: providers annotate it with
+     * the request phase they died in, which is the only thing separating a request that
+     * was never answered from one whose body stalled.
      */
     if (isTransportTimeout(error)) {
       throw new Error(

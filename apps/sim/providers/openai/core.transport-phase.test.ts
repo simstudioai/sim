@@ -1,11 +1,8 @@
 /**
  * @vitest-environment node
  *
- * A stalled model call surfaces only the runtime's own `TimeoutError: The operation
- * timed out.`, which cannot distinguish "still generating, never answered" from
- * "answered, but the body never arrived" — opposite owners, opposite fixes. These
- * cover the phase annotation that makes the distinction readable from the execution
- * trace, which survives even when a task has stopped shipping logs.
+ * Covers the phase annotation that separates "never answered" from "answered, but the
+ * body never arrived" — the runtime reports both as a bare `TimeoutError`.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
@@ -150,8 +147,7 @@ describe('OpenAI transport phase annotation', () => {
    * that recovery path for any provider whose error message runs long.
    */
   it('does not truncate a structured provider error, so the summary fallback still matches', async () => {
-    // Markers deliberately placed beyond the 500-char bound so that truncating a
-    // structured error would drop them and the fallback would stop matching.
+    // Marker sits past the 500-char bound, so truncation would break the fallback match.
     const longMessage = `${'context detail. '.repeat(40)}Invalid value for reasoning.summary: your organization must be verified to use this feature.`
     expect(longMessage.indexOf('reasoning.summary')).toBeGreaterThan(500)
 
@@ -175,7 +171,6 @@ describe('OpenAI transport phase annotation', () => {
     mockSupportsReasoningEffort.mockReturnValue(true)
 
     await expect(run(fetchMock, { agentEvents: true })).resolves.toMatchObject({ content: 'ok' })
-    // Matched the verification error and retried without the summary, rather than failing.
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
