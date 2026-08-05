@@ -300,6 +300,10 @@ export default {
     require('tailwindcss/plugin')(
       ({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
         addVariant('hover-hover', '@media (hover: hover) and (pointer: fine) { &:hover }')
+        addVariant(
+          'group-hover-hover',
+          '@media (hover: hover) and (pointer: fine) { :merge(.group):hover & }'
+        )
       }
     ),
   ],
