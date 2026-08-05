@@ -53,6 +53,8 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
         { id: 'col_name', name: 'name', type: 'string' },
         { id: 'col_age', name: 'age', type: 'number' },
         { id: 'col_status', name: 'status', type: 'string' },
+        { id: 'col_active', name: 'active', type: 'boolean' },
+        { id: 'col_metadata', name: 'metadata', type: 'json' },
       ],
     },
     metadata: null,
@@ -145,7 +147,7 @@ describe('maybeWriteOutputToTable', () => {
     expect(table.id).toBe('tbl_1')
   })
 
-  it('preserves typed persistence values while projecting the same result at model egress', async () => {
+  it('projects activated secrets before persistence without rewriting sibling literals', async () => {
     const parentRegistry = new ResolvedSecretTraceRegistry([
       {
         name: 'OUTPUT_SECRET',
@@ -173,7 +175,7 @@ describe('maybeWriteOutputToTable', () => {
     expect(result.success).toBe(true)
     const persistedRows = mockReplaceTableRows.mock.calls[0][0].rows
     expect(persistedRows).toEqual([
-      { col_name: 'secret-value', col_age: '123', col_status: 'true' },
+      { col_name: '{{OUTPUT_SECRET}}', col_age: '123', col_status: 'true' },
     ])
     expect(runtimeRows).toEqual([{ name: 'secret-value', age: '123', status: 'true' }])
 
@@ -192,6 +194,24 @@ describe('maybeWriteOutputToTable', () => {
       new ResolvedSecretTraceRegistry()
     )
     expect(laterRead.output).toEqual({ data: { rows: persistedRows } })
+  })
+
+  it('does not write when table persistence provenance is incomplete', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete()
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      { success: true, output: { result: [{ name: 'unknown' }] } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
+    })
+    expect(mockReplaceTableRows).not.toHaveBeenCalled()
   })
 
   it('preserves legacy table writes when execution provenance is unavailable', async () => {
@@ -323,7 +343,7 @@ describe('maybeWriteReadCsvToTable', () => {
     ])
   })
 
-  it('preserves typed CSV values when the same bytes are active secret literals', async () => {
+  it('projects active secret literals into string-compatible CSV columns', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
       { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
@@ -334,14 +354,80 @@ describe('maybeWriteReadCsvToTable', () => {
     const result = await maybeWriteReadCsvToTable(
       ReadTool.id,
       { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name,age,status\nAlice,123,true' } },
+      { success: true, output: { content: 'name,status\n123,true' } },
       buildContext({ resolvedSecretTraceRegistry: registry })
     )
 
     expect(result.success).toBe(true)
     expect(mockReplaceTableRows).toHaveBeenCalledWith(
       expect.objectContaining({
-        rows: [{ col_name: 'Alice', col_age: '123', col_status: 'true' }],
+        rows: [
+          {
+            col_name: '{{NUMBER}}',
+            col_status: '{{BOOLEAN}}',
+          },
+        ],
+      }),
+      expect.anything(),
+      expect.any(String)
+    )
+  })
+
+  it('rejects active secret literals in number and boolean columns before mutation', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
+      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
+    ])
+    registry.recordResolved('NUMBER', '123')
+    registry.recordResolved('BOOLEAN', 'true')
+
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'tbl_1', path: 'files/people.csv' },
+      { success: true, output: { content: 'name,age,active\nAlice,123,true' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        'Tool output could not be persisted safely because a resolved secret is incompatible with the target column type.',
+    })
+    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+    expect(JSON.stringify(result)).not.toContain('123')
+    expect(JSON.stringify(result)).not.toContain('true')
+  })
+
+  it('does not import CSV rows when persistence provenance is incomplete', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete()
+
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'tbl_1', path: 'files/people.csv' },
+      { success: true, output: { content: 'name\nAlice' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
+    })
+    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+  })
+
+  it('preserves legacy CSV imports when execution provenance is unavailable', async () => {
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'tbl_1', path: 'files/people.csv' },
+      { success: true, output: { content: 'name,age,active\nlegacy-value,123,true' } },
+      buildContext({ resolvedSecretTraceRegistry: undefined })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockReplaceTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rows: [{ col_name: 'legacy-value', col_age: '123', col_active: 'true' }],
       }),
       expect.anything(),
       expect.any(String)

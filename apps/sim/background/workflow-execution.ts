@@ -33,6 +33,7 @@ import { WORKFLOW_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-l
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('TriggerWorkflowExecution')
@@ -69,6 +70,8 @@ export type WorkflowExecutionPayload = {
   admissionCompleted?: boolean
   /** Optional trusted cap already resolved by the async API admission boundary. */
   executionTimeoutMs?: number
+  /** Authenticated input provenance validated by the workflow execution boundary. */
+  trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 /**
@@ -202,6 +205,8 @@ export async function executeWorkflowJob(
           includeFileBase64: true,
           base64MaxBytes: undefined,
           abortSignal: timeoutController.signal,
+          trustedInitialResolvedSecretTraceProvenance:
+            payload.trustedInitialResolvedSecretTraceProvenance,
         })
 
         let timeoutError: ExecutionTimeoutError | undefined

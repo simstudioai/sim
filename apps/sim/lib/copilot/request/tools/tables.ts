@@ -1,6 +1,8 @@
+import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import { parse as csvParse } from 'csv-parse/sync'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotTableOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -9,16 +11,40 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
-import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import {
+  projectToolErrorMessageForCopilot,
+  projectToolOutputForPersistence,
+} from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import type { RowData, TableDefinition } from '@/lib/table'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import { columnTypeOf } from '@/lib/table/column-types'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { replaceTableRows } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 
 const logger = createLogger('CopilotToolResultTables')
 
 const MAX_OUTPUT_TABLE_ROWS = 10_000
+const TABLE_SECRET_PROJECTION_UNSUPPORTED_ERROR =
+  'Tool output could not be persisted safely because a resolved secret is incompatible with the target column type.'
+
+function hasUnsupportedProjectedCell(
+  table: TableDefinition,
+  sourceRows: Array<Record<string, unknown>>,
+  projectedRows: Array<Record<string, unknown>>
+): boolean {
+  const columnsByName = new Map(table.schema.columns.map((column) => [column.name, column]))
+  for (let rowIndex = 0; rowIndex < projectedRows.length; rowIndex += 1) {
+    for (const [name, projectedValue] of Object.entries(projectedRows[rowIndex])) {
+      const column = columnsByName.get(name)
+      if (!column || isDeepStrictEqual(sourceRows[rowIndex]?.[name], projectedValue)) continue
+      const type = columnTypeOf(column).id
+      if (type !== 'string' && type !== 'json') return true
+    }
+  }
+  return false
+}
 
 /**
  * Replaces a table's rows with wire rows keyed by column name. Translates the
@@ -31,8 +57,24 @@ async function replaceTableRowsFromWire(
   rows: Array<Record<string, unknown>>,
   context: ExecutionContext
 ): Promise<{ error?: string }> {
+  const persistenceProjection = context.resolvedSecretTraceRegistry
+    ? projectToolOutputForPersistence(rows, context.resolvedSecretTraceRegistry)
+    : { safe: true as const, value: rows }
+  if (!persistenceProjection.safe) return { error: persistenceProjection.error }
+  if (
+    !Array.isArray(persistenceProjection.value) ||
+    !persistenceProjection.value.every(isPlainRecord)
+  ) {
+    return { error: 'Table rows could not be persisted safely' }
+  }
+  if (hasUnsupportedProjectedCell(table, rows, persistenceProjection.value)) {
+    return { error: TABLE_SECRET_PROJECTION_UNSUPPORTED_ERROR }
+  }
+
   const idByName = buildIdByName(table.schema)
-  const idKeyedRows = rows.map((row) => rowDataNameToId(row as RowData, idByName))
+  const idKeyedRows = persistenceProjection.value.map((row) =>
+    rowDataNameToId(row as RowData, idByName)
+  )
   const emptyIndex = idKeyedRows.findIndex((row) => Object.keys(row).length === 0)
   if (emptyIndex !== -1) {
     return {
@@ -45,6 +87,7 @@ async function replaceTableRowsFromWire(
       rows: idKeyedRows,
       workspaceId: table.workspaceId,
       userId: context.userId,
+      secretProvenance: idKeyedRows.map(createExactEmptyTableRowSecretProvenance),
     },
     table,
     generateId().slice(0, 8)

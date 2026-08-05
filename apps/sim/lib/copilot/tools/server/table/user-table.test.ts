@@ -290,6 +290,25 @@ describe('userTableServerTool.import_file', () => {
     expect(result.data?.insertedCount).toBe(2)
     expect(mockReplaceTableRows).toHaveBeenCalledTimes(1)
     expect(mockBatchInsertRows).not.toHaveBeenCalled()
+    const call = mockReplaceTableRows.mock.calls[0][0] as {
+      secretProvenance: Array<{ complete: boolean; columns: Record<string, unknown> }>
+    }
+    expect(call.secretProvenance).toEqual([
+      {
+        complete: true,
+        columns: {
+          name: { version: 1, complete: true, entries: [] },
+          age: { version: 1, complete: true, entries: [] },
+        },
+      },
+      {
+        complete: true,
+        columns: {
+          name: { version: 1, complete: true, entries: [] },
+          age: { version: 1, complete: true, entries: [] },
+        },
+      },
+    ])
   })
 
   it('uses the caller-provided mapping', async () => {

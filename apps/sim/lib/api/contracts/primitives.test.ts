@@ -7,6 +7,7 @@ import {
   organizationIdSchema,
   piiStagePolicySchema,
   piiStagesSchema,
+  privateSecretProvenanceBundleSchema,
   resolvedSecretTraceProvenanceSchema,
   workflowIdSchema,
   workspaceFileIdSchema,
@@ -136,6 +137,47 @@ describe('resolvedSecretTraceProvenanceSchema', () => {
         version: 1,
         complete: true,
         entries: [{ encryptedValue }, { encryptedValue }],
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('privateSecretProvenanceBundleSchema', () => {
+  const selection = {
+    key: '[0,"column-1"]',
+    provenance: {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+    },
+  }
+
+  it('accepts a complete bundle with unique, valid selections', () => {
+    expect(
+      privateSecretProvenanceBundleSchema.safeParse({
+        version: 1,
+        complete: true,
+        selections: [selection],
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects selections on an incomplete bundle', () => {
+    expect(
+      privateSecretProvenanceBundleSchema.safeParse({
+        version: 1,
+        complete: false,
+        selections: [selection],
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects duplicate selection keys', () => {
+    expect(
+      privateSecretProvenanceBundleSchema.safeParse({
+        version: 1,
+        complete: true,
+        selections: [selection, selection],
       }).success
     ).toBe(false)
   })

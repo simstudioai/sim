@@ -6,6 +6,11 @@ import {
 } from '@/lib/core/utils/records'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
+import {
+  PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
+  PRIVATE_SECRET_PROVENANCE_FIELD,
+  PRIVATE_SECRET_PROVENANCE_HEADER,
+} from '@/lib/execution/private-tool-metadata'
 import type { CodeExecutionInput, CodeExecutionOutput } from '@/tools/function/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -143,8 +148,11 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
   request: {
     url: '/api/function/execute',
     method: 'POST',
-    headers: () => ({
+    headers: (params) => ({
       'Content-Type': 'application/json',
+      ...(params[PRIVATE_SECRET_PROVENANCE_FIELD]
+        ? { [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 }
+        : {}),
     }),
     body: (params: CodeExecutionInput) => {
       const codeContent = Array.isArray(params.code)
@@ -183,6 +191,11 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         userId: params._context?.userId,
         workspaceId: params._context?.workspaceId,
         isCustomTool: params.isCustomTool || false,
+        ...(params[PRIVATE_SECRET_PROVENANCE_FIELD]
+          ? {
+              [PRIVATE_SECRET_PROVENANCE_FIELD]: params[PRIVATE_SECRET_PROVENANCE_FIELD],
+            }
+          : {}),
       }
 
       if (params._sandboxFiles) {

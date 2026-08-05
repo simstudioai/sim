@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { ExecutionState } from '@/executor/execution/state'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { BlockResolver } from './block'
 import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
   insertFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
   deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
 }))
 
 /**
@@ -616,6 +621,24 @@ describe('BlockResolver', () => {
       const ctx = createTestContext('current', {}, contextStates)
 
       expect(resolver.resolve('<source>', ctx)).toEqual({ fallback: true })
+    })
+
+    it('imports only the provenance attached to the referenced block state', async () => {
+      const workflow = createTestWorkflow([{ id: 'source' }])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext('current')
+      const registry = new ResolvedSecretTraceRegistry()
+      ctx.executionContext.resolvedSecretTraceRegistry = registry
+      ctx.executionState.setBlockOutput('source', { result: 'secret-value' }, 0, {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'API_KEY', encryptedValue: 'secret-value' }],
+      })
+
+      await expect(resolver.resolveAsync('<source.result>', ctx)).resolves.toBe('secret-value')
+      expect(registry.getActiveMatches()).toEqual([
+        { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
+      ])
     })
   })
 

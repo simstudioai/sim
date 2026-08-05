@@ -901,7 +901,7 @@ async function sanitizeTraceSpan(
     throw new TraceSecretProjectionError('Trace span structure limit exceeded')
   }
 
-  let projected: TraceSpan = { ...span }
+  let projected = omit(span, ['displayResolvedSecretTraceProvenance']) as TraceSpan
 
   for (const key of ['input', 'output', 'thinking', 'errorMessage'] as const) {
     const value = span[key]
@@ -1041,6 +1041,7 @@ function structuralOnlySpan(
     errorMessage: _errorMessage,
     children,
     providerTiming,
+    displayResolvedSecretTraceProvenance: _displayResolvedSecretTraceProvenance,
     ...structural
   } = span
 
@@ -1122,8 +1123,12 @@ function cloneTraceSpanForProjection(
   depth = 0
 ): TraceSpan | undefined {
   if (!takeTraceStructureNode(state, depth)) return undefined
+  const {
+    displayResolvedSecretTraceProvenance: _displayResolvedSecretTraceProvenance,
+    ...publicSpan
+  } = span
   return {
-    ...span,
+    ...publicSpan,
     ...(span.modelToolCalls
       ? {
           modelToolCalls: projectBoundedArray(span.modelToolCalls, (call) =>

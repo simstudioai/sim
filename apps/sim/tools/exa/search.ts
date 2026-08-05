@@ -197,6 +197,15 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        query: params.query,
+        summaryQuery: params.summaryQuery,
+        outputSchema: params.outputSchema,
+        systemPrompt: params.systemPrompt,
+      }),
+    },
     url: 'https://api.exa.ai/search',
     method: 'POST',
     headers: (params) => ({

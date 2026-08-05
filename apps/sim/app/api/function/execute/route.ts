@@ -35,6 +35,14 @@ import {
 import { parseExecutionDeadlineHeader } from '@/lib/execution/execution-deadline-header'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
+import {
+  inspectPrivateSecretProvenanceRequest,
+  isPrivateSecretProvenanceBundleV1,
+} from '@/lib/execution/model-input-provenance'
+import {
+  createMountedFileSecretProvenanceScanner,
+  type MountedFileSecretProvenanceScanner,
+} from '@/lib/execution/mounted-file-secret-provenance'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
   isLargeArrayManifest,
@@ -50,6 +58,7 @@ import {
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import {
+  MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
   RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2,
   RESOLVED_SECRET_NAMES_FIELD,
@@ -71,7 +80,10 @@ import {
   fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  mergeWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
@@ -85,6 +97,7 @@ import {
   type ResolvedSecretMatcher,
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 /** Static host ceiling; the trusted workflow deadline applies the smaller per-call budget. */
@@ -97,7 +110,6 @@ const TAG_PATTERN = createReferencePattern()
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
 const MAX_SANDBOX_OUTPUT_FILES = 20
-const MAX_WORKSPACE_OUTPUT_PATH_BYTES = 16 * 1024
 const MAX_PRIVATE_RESOLVED_SECRET_NAMES = 10_000
 const MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES = 1024 * 1024
 const MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS = 1_000_000
@@ -973,11 +985,38 @@ interface FunctionRouteExecutionContext {
   outputSecretMatcher?: ResolvedSecretMatcher
   outputSecretNamesByScanLiteral: Map<string, string[]>
   outputSecretPlaintextsByName: Map<string, string>
+  mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
 }
 
 type ResolvedSecretNamesMetadataType =
   | typeof RESOLVED_SECRET_NAMES_METADATA_V1
   | typeof RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2
+
+type MountedWorkspaceFileProvenanceInspection =
+  | { status: 'none' }
+  | { status: 'verified'; provenance: ResolvedSecretTraceProvenanceV1 }
+  | { status: 'invalid' }
+
+function inspectMountedWorkspaceFileProvenance(
+  headers: Headers,
+  body: unknown
+): MountedWorkspaceFileProvenanceInspection {
+  const inspection = inspectPrivateSecretProvenanceRequest(headers, body)
+  if (inspection.status === 'unsupported') return { status: 'none' }
+  if (
+    inspection.status !== 'verified' ||
+    !isPrivateSecretProvenanceBundleV1(inspection.value) ||
+    !inspection.value.complete ||
+    inspection.value.selections.length !== 1 ||
+    inspection.value.selections[0]?.key !== MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY
+  ) {
+    return { status: 'invalid' }
+  }
+  return {
+    status: 'verified',
+    provenance: inspection.value.selections[0].provenance,
+  }
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -1170,11 +1209,16 @@ function activateOutputSecretProvenance(
 async function getOutputFileSecretProvenance(
   buffer: Buffer,
   isBinary: boolean,
-  context: FunctionRouteExecutionContext
+  context: FunctionRouteExecutionContext,
+  scope: { userId: string; workspaceId: string }
 ): Promise<WorkspaceFileSecretProvenance> {
   if (isBinary) return { status: 'unknown' }
+  const mountedFileProvenance = context.mountedFileSecretProvenanceScanner?.scan(buffer) ?? {
+    status: 'exact' as const,
+    entries: [],
+  }
   if (context.outputSecretPlaintextsByName.size === 0) {
-    return { status: 'exact', entries: [] }
+    return mountedFileProvenance
   }
   if (!context.outputSecretMatcher) return { status: 'unknown' }
 
@@ -1202,30 +1246,18 @@ async function getOutputFileSecretProvenance(
         if (plaintext === undefined) {
           throw new Error('Resolved secret provenance name is outside the scoped catalog')
         }
-        return { name, encryptedValue: (await encryptSecret(plaintext)).encrypted }
+        return {
+          name,
+          encryptedValue: (await encryptSecret(plaintext)).encrypted,
+          sourceUserId: scope.userId,
+          sourceWorkspaceId: scope.workspaceId,
+        }
       })
     )
-    return { status: 'exact', entries }
+    return mergeWorkspaceFileSecretProvenance({ status: 'exact', entries }, mountedFileProvenance)
   } catch {
     return { status: 'unknown' }
   }
-}
-
-function projectWorkspaceOutputPath(path: string, context: FunctionRouteExecutionContext): string {
-  if (context.outputSecretPlaintextsByName.size === 0) return path
-  if (!context.outputSecretMatcher) {
-    throw new Error('Workspace output path secret provenance is unavailable')
-  }
-
-  const projection = projectResolvedSecretContent(
-    path,
-    context.outputSecretMatcher,
-    MAX_WORKSPACE_OUTPUT_PATH_BYTES
-  )
-  if (!projection.safe || typeof projection.value !== 'string') {
-    throw new Error('Workspace output path could not be projected safely')
-  }
-  return projection.value
 }
 
 function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): string[] | null {
@@ -1392,21 +1424,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     )
   }
 
-  let projectedOutputPath: string
-  try {
-    projectedOutputPath = projectWorkspaceOutputPath(outputPath, routeContext)
-  } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: getErrorMessage(error, 'Workspace output path could not be projected safely'),
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
-      },
-      { status: 400 }
-    )
-  }
-
-  const fileName = normalizeOutputWorkspaceFileName(projectedOutputPath)
+  const fileName = normalizeOutputWorkspaceFileName(outputPath)
 
   const TEXT_MIMES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
   const resolvedMimeType =
@@ -1428,10 +1446,13 @@ async function maybeExportSandboxFileToWorkspace(args: {
   const fileBuffer = isBinary
     ? Buffer.from(exportedFileContent, 'base64')
     : Buffer.from(exportedFileContent, 'utf-8')
-  const secretProvenance = await getOutputFileSecretProvenance(fileBuffer, isBinary, routeContext)
+  const secretProvenance = await getOutputFileSecretProvenance(fileBuffer, isBinary, routeContext, {
+    userId: authUserId,
+    workspaceId: resolvedWorkspaceId,
+  })
 
   const mode = outputMode ?? (overwriteFileId ? 'overwrite' : 'create')
-  const targetPath = mode === 'create' ? projectedOutputPath : overwriteFileId || outputPath
+  const targetPath = mode === 'create' ? outputPath : overwriteFileId || outputPath
 
   let previousSize: number | undefined
   let unchanged = false
@@ -1587,24 +1608,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         { status: 500 }
       )
     }
-    let projectedPath: string
-    try {
-      projectedPath = projectWorkspaceOutputPath(file.formatPath ?? file.path, args.routeContext)
-    } catch (error) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: getErrorMessage(error, 'Workspace output path could not be projected safely'),
-          output: {
-            result: null,
-            stdout: cleanStdout(args.stdout),
-            executionTime: args.executionTime,
-          },
-        },
-        { status: 400 }
-      )
-    }
-    const fileName = normalizeOutputWorkspaceFileName(projectedPath)
+    const outputPath = file.formatPath ?? file.path
+    const fileName = normalizeOutputWorkspaceFileName(outputPath)
     const resolvedMimeType =
       file.mimeType ||
       FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, file.format)] ||
@@ -1630,7 +1635,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     const secretProvenance = await getOutputFileSecretProvenance(
       scanBuffer,
       isBinary,
-      args.routeContext
+      args.routeContext,
+      { userId: args.authUserId, workspaceId: resolvedWorkspaceId }
     )
     preparedFiles.push({
       file,
@@ -1641,7 +1647,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       size,
       secretProvenance,
       target: {
-        path: (file.mode ?? 'create') === 'create' ? projectedPath : file.path,
+        path: (file.mode ?? 'create') === 'create' ? outputPath : file.path,
         mode: file.mode ?? 'create',
         mimeType: file.mimeType,
       },
@@ -1841,6 +1847,35 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
     const { body } = parsed.data
 
+    const mountedWorkspaceFileProvenance = inspectMountedWorkspaceFileProvenance(req.headers, body)
+    if (mountedWorkspaceFileProvenance.status === 'invalid') {
+      return appendPrivateResolvedSecretNames(
+        NextResponse.json(
+          { success: false, error: 'Mounted file secret provenance is invalid' },
+          { status: 400 }
+        ),
+        includePrivateResolvedSecretNames ? [] : null,
+        privateResolvedSecretNamesMetadataType
+      )
+    }
+    const mountedFileSecretProvenanceScanner =
+      mountedWorkspaceFileProvenance.status === 'verified'
+        ? await createMountedFileSecretProvenanceScanner(mountedWorkspaceFileProvenance.provenance)
+        : undefined
+    if (
+      mountedWorkspaceFileProvenance.status === 'verified' &&
+      !mountedFileSecretProvenanceScanner
+    ) {
+      return appendPrivateResolvedSecretNames(
+        NextResponse.json(
+          { success: false, error: 'Mounted file secret provenance is unavailable' },
+          { status: 400 }
+        ),
+        includePrivateResolvedSecretNames ? [] : null,
+        privateResolvedSecretNamesMetadataType
+      )
+    }
+
     const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')
 
     const {
@@ -1961,6 +1996,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       outputProvenanceComplete: true,
       outputSecretNamesByScanLiteral: new Map(),
       outputSecretPlaintextsByName: new Map(),
+      mountedFileSecretProvenanceScanner,
     }
     for (const [name, plaintext] of Object.entries(envVars)) {
       if (!plaintext) continue

@@ -8,6 +8,7 @@ import type {
   NormalizedBlockOutput,
   ProviderTimingSegment,
 } from '@/executor/types'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export type { WorkflowState }
@@ -256,6 +257,8 @@ export interface TraceSpan {
   parallelId?: string
   iterationIndex?: number
   parentIterations?: ParentIteration[]
+  /** Internal encrypted sidecar removed by trace projection before persistence or display. */
+  displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /**
    * For model child spans: the assistant's thinking/reasoning blocks from this
    * iteration, stringified. Surfaces Anthropic extended thinking and equivalents.

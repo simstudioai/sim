@@ -198,6 +198,48 @@ describe('ExecutionEngine', () => {
       expect(result.status).toBeUndefined()
     })
 
+    it('persists the selected final block provenance instead of run-global matches', async () => {
+      const node = createMockNode('function', 'function')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'Test', encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', 'Test')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: node.id,
+        output: { result: 'Test' },
+        isFinalOutput: true,
+      })
+      vi.mocked(nodeOrchestrator.handleNodeCompletion).mockImplementation(
+        (_ctx, nodeId, output) => {
+          context.blockStates.set(nodeId, {
+            output,
+            executed: true,
+            executionTime: 1,
+            resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+          })
+        }
+      )
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        nodeOrchestrator
+      )
+      const result = await engine.run(node.id)
+
+      expect(result.output).toEqual({ result: 'Test' })
+      expect(result.executionState?.resolvedSecretTraceProvenance?.entries).toEqual([
+        { name: 'TOKEN', encryptedValue: 'ciphertext' },
+      ])
+      expect(result.executionState?.finalOutputResolvedSecretTraceProvenance?.entries).toEqual([])
+    })
+
     it('should not fall back to starter blocks for terminal resume snapshots', async () => {
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])

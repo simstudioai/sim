@@ -31,10 +31,7 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
-import {
-  collectProviderModelInputProvenanceValues,
-  reconstructLegacyProviderModelInputProvenance,
-} from '@/providers/model-input-provenance'
+import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
 import { projectStreamingExecutionToByteStream } from '@/providers/stream-pump'
 import type { ProviderRequest } from '@/providers/types'
 
@@ -256,28 +253,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       reasoningEffort,
       verbosity,
     }
-    const providerRuntimeContext = await prepareCopilotEnvironmentContext(auth.userId, workspaceId)
     const provenanceInspection = inspectModelInputProvenanceRequest(request.headers, body)
+    if (provenanceInspection.status === 'unsupported') {
+      return NextResponse.json({ error: 'Model input provenance is unavailable' }, { status: 400 })
+    }
     if (provenanceInspection.status === 'invalid') {
       return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
     }
 
+    const providerRuntimeContext = await prepareCopilotEnvironmentContext(auth.userId, workspaceId)
     const provenanceReady =
-      provenanceInspection.status === 'verified'
-        ? await providerRuntimeContext.resolvedSecretTraceRegistry.importProvenanceForValue(
-            provenanceInspection.value,
-            collectProviderModelInputProvenanceValues(providerRequest),
-            { trusted: true }
-          )
-        : await reconstructLegacyProviderModelInputProvenance(
-            providerRequest,
-            providerRuntimeContext.resolvedSecretTraceRegistry
-          )
-    if (!provenanceReady || !providerRuntimeContext.resolvedSecretTraceRegistry.isComplete()) {
-      return NextResponse.json(
-        { error: 'Model input provenance is unavailable' },
-        { status: provenanceInspection.status === 'verified' ? 400 : 500 }
+      await providerRuntimeContext.resolvedSecretTraceRegistry.importProvenanceForValue(
+        provenanceInspection.value,
+        collectProviderModelInputProvenanceValues(providerRequest, provider),
+        { trusted: true }
       )
+    if (!provenanceReady || !providerRuntimeContext.resolvedSecretTraceRegistry.isComplete()) {
+      return NextResponse.json({ error: 'Model input provenance is unavailable' }, { status: 400 })
     }
 
     const response = await executeProviderRequest(provider, providerRequest, providerRuntimeContext)

@@ -56,6 +56,42 @@ export const resolvedSecretTraceProvenanceSchema = z
     }
   })
 
+/** Per-selection encrypted provenance for durable internal persistence boundaries. */
+export const privateSecretProvenanceBundleSchema = z
+  .object({
+    version: z.literal(1),
+    complete: z.boolean(),
+    selections: z
+      .array(
+        z
+          .object({
+            key: z.string().min(1).max(4096),
+            provenance: resolvedSecretTraceProvenanceSchema,
+          })
+          .strict()
+      )
+      .max(10_000),
+  })
+  .strict()
+  .superRefine((bundle, ctx) => {
+    if (!bundle.complete && bundle.selections.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['selections'],
+        message: 'Incomplete private secret provenance cannot contain selections',
+      })
+    }
+    if (
+      new Set(bundle.selections.map((selection) => selection.key)).size !== bundle.selections.length
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['selections'],
+        message: 'Private secret provenance selection keys must be unique',
+      })
+    }
+  })
+
 export const stringRecordSchema = z
   .custom<Record<string, string>>(
     (value) =>

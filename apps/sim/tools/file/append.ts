@@ -39,9 +39,8 @@ export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
       content: params.content,
       workspaceId: params.workspaceId || params._context?.workspaceId,
     }),
-    modelInput: {
-      mode: 'private-provenance',
-      select: (params) => params.content,
+    secretProvenance: {
+      request: (params) => [{ key: 'content', value: params.content }],
     },
   },
 

@@ -14,7 +14,12 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import { StorageService } from '@/lib/uploads'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
@@ -116,6 +121,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const body = parsed.data.body
     const operation = body.operation as AudioOperation
+    if (operation === 'speech_to_speech' || operation === 'audio_isolation') {
+      const modelInputProvenance = validateOpaqueModelInputProvenance({
+        headers: request.headers,
+        payload: body,
+        isInternalRequest: true,
+      })
+      if (!modelInputProvenance.success) {
+        return NextResponse.json(
+          { error: modelInputProvenance.error },
+          { status: modelInputProvenance.status }
+        )
+      }
+    }
 
     if (operation === 'sound_effects' && !body.text) {
       return NextResponse.json({ error: 'text is required' }, { status: 400 })
@@ -129,6 +147,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const file = body.audioFile
       const denied = await assertToolFileAccess(file.key, userId, requestId, logger)
       if (denied) return denied
+      if (!(await isModelSafeWorkspaceFileKey(file.key))) {
+        return NextResponse.json(
+          { error: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE },
+          { status: 400 }
+        )
+      }
       const buffer = await downloadFileFromStorage(file, requestId, logger)
       const ext = file.name.split('.').pop()?.toLowerCase() || ''
       source = {
@@ -152,8 +176,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const response = await fetch(url, init)
 
     if (!response.ok) {
-      const errorBody = await response.text().catch(() => '')
-      logger.error(`[${requestId}] ElevenLabs ${operation} failed: ${response.status}`, errorBody)
+      await response.text().catch(() => '')
+      logger.error(`[${requestId}] ElevenLabs request failed`, {
+        operation,
+        status: response.status,
+        statusText: response.statusText,
+      })
       return NextResponse.json(
         { error: `ElevenLabs request failed: ${response.status} ${response.statusText}` },
         { status: response.status }

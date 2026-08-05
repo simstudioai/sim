@@ -11,7 +11,6 @@ const {
   mockAuthorizeCredentialUse,
   mockPrepareCopilotEnvironmentContext,
   mockCollectProviderModelInputProvenanceValues,
-  mockReconstructLegacyProviderModelInputProvenance,
   mockImportProvenance,
   mockRegistryIsComplete,
 } = vi.hoisted(() => ({
@@ -21,7 +20,6 @@ const {
   mockAuthorizeCredentialUse: vi.fn(),
   mockPrepareCopilotEnvironmentContext: vi.fn(),
   mockCollectProviderModelInputProvenanceValues: vi.fn(),
-  mockReconstructLegacyProviderModelInputProvenance: vi.fn(),
   mockImportProvenance: vi.fn(),
   mockRegistryIsComplete: vi.fn(),
 }))
@@ -49,7 +47,6 @@ vi.mock('@/lib/copilot/environment-context', () => ({
 
 vi.mock('@/providers/model-input-provenance', () => ({
   collectProviderModelInputProvenanceValues: mockCollectProviderModelInputProvenanceValues,
-  reconstructLegacyProviderModelInputProvenance: mockReconstructLegacyProviderModelInputProvenance,
 }))
 
 vi.mock('@/app/api/auth/oauth/utils', () => ({
@@ -80,6 +77,23 @@ const BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
+function createProviderRequest(
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {}
+) {
+  return createMockRequest(
+    'POST',
+    {
+      ...body,
+      __resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+    },
+    {
+      'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1',
+      ...headers,
+    }
+  )
+}
+
 describe('POST /api/providers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -95,7 +109,6 @@ describe('POST /api/providers', () => {
       model: 'gpt-4o',
       tokens: { input: 1, output: 1, total: 2 },
     })
-    mockReconstructLegacyProviderModelInputProvenance.mockResolvedValue(true)
     mockCollectProviderModelInputProvenanceValues.mockReturnValue(['selected-model-input'])
     mockImportProvenance.mockResolvedValue(true)
     mockRegistryIsComplete.mockReturnValue(true)
@@ -109,8 +122,7 @@ describe('POST /api/providers', () => {
 
   it('validates the attribution header and forwards it to executeProviderRequest', async () => {
     const res = await POST(
-      createMockRequest(
-        'POST',
+      createProviderRequest(
         { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' },
         { 'x-sim-billing-attribution': 'encoded-attribution' }
       )
@@ -132,7 +144,7 @@ describe('POST /api/providers', () => {
 
   it('executes without attribution when the header is absent', async () => {
     const res = await POST(
-      createMockRequest('POST', { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' })
+      createProviderRequest({ provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' })
     )
 
     expect(res.status).toBe(200)
@@ -148,7 +160,7 @@ describe('POST /api/providers', () => {
 
   it('passes caller environment values and model-egress context to the provider boundary', async () => {
     const res = await POST(
-      createMockRequest('POST', {
+      createProviderRequest({
         provider: 'openai',
         model: 'gpt-4o',
         workspaceId: 'ws-1',
@@ -167,7 +179,7 @@ describe('POST /api/providers', () => {
     )
   })
 
-  it('imports authenticated active provenance instead of reconstructing dormant catalog values', async () => {
+  it('imports authenticated active provenance', async () => {
     const provenance = {
       version: 1,
       complete: true,
@@ -191,7 +203,6 @@ describe('POST /api/providers', () => {
     expect(mockImportProvenance).toHaveBeenCalledWith(provenance, expect.any(Array), {
       trusted: true,
     })
-    expect(mockReconstructLegacyProviderModelInputProvenance).not.toHaveBeenCalled()
   })
 
   it('rejects a partial private provenance envelope', async () => {
@@ -204,6 +215,20 @@ describe('POST /api/providers', () => {
     )
 
     expect(res.status).toBe(400)
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects an internal request without the private provenance envelope', async () => {
+    const res = await POST(
+      createMockRequest('POST', {
+        provider: 'openai',
+        model: 'gpt-4o',
+        workspaceId: 'ws-1',
+      })
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockImportProvenance).not.toHaveBeenCalled()
     expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
@@ -240,7 +265,7 @@ describe('POST /api/providers', () => {
     })
 
     const res = await POST(
-      createMockRequest('POST', {
+      createProviderRequest({
         provider: 'openai',
         model: 'gpt-4o',
         workspaceId: 'ws-1',
@@ -257,8 +282,7 @@ describe('POST /api/providers', () => {
 
   it('rejects an attribution header when the body has no workspaceId to validate against', async () => {
     const res = await POST(
-      createMockRequest(
-        'POST',
+      createProviderRequest(
         { provider: 'openai', model: 'gpt-4o' },
         { 'x-sim-billing-attribution': 'encoded-attribution' }
       )
@@ -275,8 +299,7 @@ describe('POST /api/providers', () => {
     })
 
     const res = await POST(
-      createMockRequest(
-        'POST',
+      createProviderRequest(
         { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' },
         { 'x-sim-billing-attribution': 'encoded-attribution' }
       )

@@ -7,7 +7,7 @@ import {
 type SandboxProvider = 'e2b' | 'daytona'
 type SandboxProviderCompatibility = readonly [SandboxProvider, ...SandboxProvider[]]
 
-export interface SandboxCliToolRecipe<Id extends SandboxCliToolId = SandboxCliToolId> {
+interface SandboxCliToolRecipe<Id extends SandboxCliToolId = SandboxCliToolId> {
   id: Id
   label: string
   description: string
@@ -272,16 +272,6 @@ const SANDBOX_CLI_TOOL_RECIPES = {
     verificationCommands: ['export CHECKPOINT_DISABLE=1', 'terraform version'],
     binaries: { terraform: 'terraform' },
   }),
-  'opentofu@1.12.5-r1': defineZipRecipe('opentofu@1.12.5-r1', {
-    version: '1.12.5',
-    artifactUrl:
-      'https://github.com/opentofu/opentofu/releases/download/v1.12.5/tofu_1.12.5_linux_amd64.zip',
-    artifactName: 'tofu_1.12.5_linux_amd64.zip',
-    sha256: 'dade9650e6b74fc7a8b986bd8717497d32f9e09cf82e479afef4977fa3085536',
-    executables: ['tofu'],
-    verificationCommands: ['tofu version'],
-    binaries: { tofu: 'tofu' },
-  }),
   'pulumi@3.255.0-r1': defineVerifiedRecipe('pulumi@3.255.0-r1', {
     version: '3.255.0',
     artifactUrl: 'https://get.pulumi.com/releases/sdk/pulumi-v3.255.0-linux-x64.tar.gz',
@@ -424,11 +414,6 @@ const SANDBOX_CLI_TOOL_RECIPES = {
     },
   }),
 } as const satisfies SandboxCliToolRecipeRegistry
-
-/** Complete recipe registry for maintenance checks. */
-export function allSandboxCliToolRecipes(): readonly SandboxCliToolRecipe[] {
-  return Object.values(SANDBOX_CLI_TOOL_RECIPES)
-}
 
 export function sandboxCliToolRecipes(
   cliTools: readonly string[] | null | undefined

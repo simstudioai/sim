@@ -1,3 +1,4 @@
+import { selectModelBoundFileInput } from '@/lib/uploads/utils/model-input'
 import type { ToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
 
@@ -63,6 +64,7 @@ export const runwayVideoTool: ToolConfig<VideoParams, VideoResponse> = {
     modelInput: {
       mode: 'project',
       select: (params) => ({ prompt: params.prompt }),
+      privateProvenance: (params) => selectModelBoundFileInput(params.visualReference),
     },
     url: '/api/tools/video',
     method: 'POST',

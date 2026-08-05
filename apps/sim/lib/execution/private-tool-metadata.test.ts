@@ -3,10 +3,9 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  getPrivateToolMetadataField,
   inspectPrivateToolMetadataEnvelope,
   inspectPrivateToolMetadataResponseCapability,
-  isPrivateToolMetadataType,
+  negotiatePrivateToolMetadataResponse,
   PRIVATE_TOOL_METADATA_REQUEST_HEADER,
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
   RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2,
@@ -15,7 +14,7 @@ import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
   requestsPrivateToolMetadata,
-  responseHasPrivateToolMetadata,
+  serializePrivateToolMetadataResponseEnvelope,
 } from '@/lib/execution/private-tool-metadata'
 
 describe('private tool metadata protocol', () => {
@@ -31,12 +30,9 @@ describe('private tool metadata protocol', () => {
     expect(RESOLVED_SECRET_PROVENANCE_FIELD).toBe('__resolvedSecretTraceProvenance')
   })
 
-  it('accepts only exact request and response markers', () => {
+  it('accepts only exact request markers', () => {
     const requestHeaders = new Headers({
       [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
-    })
-    const responseHeaders = new Headers({
-      [PRIVATE_TOOL_METADATA_RESPONSE_HEADER]: RESOLVED_SECRET_NAMES_METADATA_V1,
     })
 
     expect(
@@ -45,29 +41,83 @@ describe('private tool metadata protocol', () => {
     expect(requestsPrivateToolMetadata(requestHeaders, RESOLVED_SECRET_NAMES_METADATA_V1)).toBe(
       false
     )
-    expect(responseHasPrivateToolMetadata(responseHeaders, RESOLVED_SECRET_NAMES_METADATA_V1)).toBe(
-      true
-    )
-    expect(
-      responseHasPrivateToolMetadata(responseHeaders, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
-    ).toBe(false)
   })
 
-  it('maps each marker to its private payload field', () => {
-    expect(isPrivateToolMetadataType(RESOLVED_SECRET_NAMES_METADATA_V1)).toBe(true)
-    expect(isPrivateToolMetadataType(RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2)).toBe(true)
-    expect(isPrivateToolMetadataType(RESOLVED_SECRET_PROVENANCE_METADATA_V1)).toBe(true)
-    expect(isPrivateToolMetadataType('resolved-secret-provenance-v2')).toBe(false)
-    expect(isPrivateToolMetadataType(null)).toBe(false)
-    expect(getPrivateToolMetadataField(RESOLVED_SECRET_NAMES_METADATA_V1)).toBe(
-      RESOLVED_SECRET_NAMES_FIELD
-    )
-    expect(getPrivateToolMetadataField(RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2)).toBe(
-      RESOLVED_SECRET_NAMES_FIELD
-    )
-    expect(getPrivateToolMetadataField(RESOLVED_SECRET_PROVENANCE_METADATA_V1)).toBe(
-      RESOLVED_SECRET_PROVENANCE_FIELD
-    )
+  it('negotiates authenticated private response metadata before serialization', () => {
+    const requestedHeaders = new Headers({
+      [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+    })
+
+    expect(
+      negotiatePrivateToolMetadataResponse(
+        requestedHeaders,
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+        true
+      )
+    ).toEqual({ status: 'accepted' })
+    expect(
+      negotiatePrivateToolMetadataResponse(
+        requestedHeaders,
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+        false
+      )
+    ).toEqual({ status: 'rejected' })
+    expect(
+      negotiatePrivateToolMetadataResponse(
+        requestedHeaders,
+        RESOLVED_SECRET_NAMES_METADATA_V1,
+        true
+      )
+    ).toEqual({ status: 'rejected' })
+    expect(
+      negotiatePrivateToolMetadataResponse(
+        new Headers(),
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+        true
+      )
+    ).toEqual({ status: 'not-requested' })
+  })
+
+  it('serializes each private metadata type into its exact wire envelope', () => {
+    const names = ['API_KEY']
+    const provenance = { version: 1, complete: true, entries: [] }
+
+    expect(
+      serializePrivateToolMetadataResponseEnvelope(
+        { result: 'ok' },
+        RESOLVED_SECRET_NAMES_METADATA_V1,
+        names
+      )
+    ).toEqual({
+      body: { result: 'ok', [RESOLVED_SECRET_NAMES_FIELD]: names },
+      headers: {
+        [PRIVATE_TOOL_METADATA_RESPONSE_HEADER]: RESOLVED_SECRET_NAMES_METADATA_V1,
+      },
+    })
+    expect(
+      serializePrivateToolMetadataResponseEnvelope(
+        { result: 'ok' },
+        RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2,
+        names
+      )
+    ).toEqual({
+      body: { result: 'ok', [RESOLVED_SECRET_NAMES_FIELD]: names },
+      headers: {
+        [PRIVATE_TOOL_METADATA_RESPONSE_HEADER]: RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2,
+      },
+    })
+    expect(
+      serializePrivateToolMetadataResponseEnvelope(
+        { result: 'ok' },
+        RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+        provenance
+      )
+    ).toEqual({
+      body: { result: 'ok', [RESOLVED_SECRET_PROVENANCE_FIELD]: provenance },
+      headers: {
+        [PRIVATE_TOOL_METADATA_RESPONSE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+      },
+    })
   })
 
   it('distinguishes supported, legacy, and mismatched response capabilities', () => {

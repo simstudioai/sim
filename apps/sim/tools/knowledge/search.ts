@@ -91,6 +91,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       mode: 'private-provenance',
       select: (params) => params.query,
     },
+    secretProvenance: { response: { incomplete: 'reject' } },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

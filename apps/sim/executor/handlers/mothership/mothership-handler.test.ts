@@ -31,6 +31,7 @@ const PRIVATE_PROVENANCE = {
 }
 
 const {
+  mockAreModelSafeWorkspaceFileKeys,
   mockBuildAuthHeaders,
   mockBuildAPIUrl,
   mockExtractAPIErrorMessage,
@@ -39,6 +40,7 @@ const {
   mockIsRedisCancellationEnabled,
   mockReadUserFileContent,
 } = vi.hoisted(() => ({
+  mockAreModelSafeWorkspaceFileKeys: vi.fn(),
   mockBuildAuthHeaders: vi.fn(),
   mockBuildAPIUrl: vi.fn(),
   mockExtractAPIErrorMessage: vi.fn(),
@@ -46,6 +48,12 @@ const {
   mockIsExecutionCancelled: vi.fn(),
   mockIsRedisCancellationEnabled: vi.fn(),
   mockReadUserFileContent: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  areModelSafeWorkspaceFileKeys: mockAreModelSafeWorkspaceFileKeys,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
+    'File cannot be sent to a model because its secret provenance is unavailable',
 }))
 
 vi.mock('@/executor/utils/http', () => ({
@@ -153,6 +161,8 @@ describe('MothershipBlockHandler', () => {
     mockIsRedisCancellationEnabled.mockReset()
     mockIsRedisCancellationEnabled.mockReturnValue(false)
     mockReadUserFileContent.mockReset()
+    mockAreModelSafeWorkspaceFileKeys.mockReset()
+    mockAreModelSafeWorkspaceFileKeys.mockResolvedValue(true)
     // The handler refuses to run without the mothership credential.
     setEnv({ COPILOT_API_KEY: 'test-copilot-key' })
 
@@ -640,7 +650,6 @@ describe('MothershipBlockHandler', () => {
     expect(body.mcpTools).toEqual([
       {
         type: 'mcp',
-        title: 'Search',
         usageControl: 'auto',
         schema: { type: 'object', properties: { query: { type: 'string' } } },
         params: {
@@ -653,7 +662,7 @@ describe('MothershipBlockHandler', () => {
     expect(body.contexts).toEqual([{ kind: 'skill', skillId: 'skill-1', label: 'sales-playbook' }])
   })
 
-  it('projects Mothership display metadata while preserving explicit attachment payloads and dropping extras', async () => {
+  it('projects proven model metadata without rewriting arbitrary attachment names or payloads', async () => {
     const secret = 'boundary-secret'
     const replacement = '{{API_KEY}}'
     const registry = createTraceRegistryMock()
@@ -717,13 +726,12 @@ describe('MothershipBlockHandler', () => {
           media_type: 'text/plain',
           data: attachmentData,
         },
-        filename: `report-${replacement}.txt`,
+        filename: `report-${secret}.txt`,
       },
     ])
     expect(body.mcpTools).toEqual([
       {
         type: 'mcp',
-        title: `Search ${replacement}`,
         usageControl: 'force',
         schema: {
           type: 'object',
@@ -745,7 +753,6 @@ describe('MothershipBlockHandler', () => {
     ])
     const attachmentMetadata = {
       type: body.fileAttachments[0].type,
-      filename: body.fileAttachments[0].filename,
     }
     expect(
       JSON.stringify({
@@ -755,6 +762,30 @@ describe('MothershipBlockHandler', () => {
         contexts: body.contexts,
       })
     ).not.toContain(secret)
+  })
+
+  it('rejects a canonical tracked file whose exact byte provenance is not model-safe', async () => {
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    mockAreModelSafeWorkspaceFileKeys.mockResolvedValueOnce(false)
+
+    await expect(
+      handler.execute(context, block, {
+        prompt: 'Read this file',
+        files: [
+          {
+            name: 'report.txt',
+            key: 'workspace/workspace-1/report.txt',
+            size: 32,
+            type: 'text/plain',
+          },
+        ],
+      })
+    ).rejects.toThrow('File cannot be sent to a model because its secret provenance is unavailable')
+    expect(mockReadUserFileContent).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('drops Mothership selections whose protocol identifiers or schema semantics contain secrets', async () => {
@@ -811,7 +842,6 @@ describe('MothershipBlockHandler', () => {
     expect(body.mcpTools).toEqual([
       {
         type: 'mcp',
-        title: 'Safe search',
         params: { serverId: 'mcp-server-1', toolName: 'search' },
       },
     ])

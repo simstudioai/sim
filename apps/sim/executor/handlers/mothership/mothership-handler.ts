@@ -22,6 +22,10 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
 import {
+  areModelSafeWorkspaceFileKeys,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
   createFileContentFromBase64,
   type MessageContent,
   processSingleFileToUserFile,
@@ -56,7 +60,6 @@ type MothershipFileAttachment = MessageContent & {
 
 interface MothershipMcpToolSelection {
   type: 'mcp'
-  title?: string
   usageControl?: 'auto' | 'force'
   schema?: Record<string, unknown>
   params: {
@@ -100,44 +103,6 @@ function projectMothershipPrompt(
   return projection.value
 }
 
-/**
- * Projects attachment display names while preserving the explicitly attached file payload.
- * This matches the provider boundary, where opaque file bytes are model input rather than text
- * metadata and must remain byte-identical.
- */
-function projectMothershipFileAttachmentNames(
-  attachments: MothershipFileAttachment[] | undefined,
-  registry: ResolvedSecretTraceRegistry | undefined
-): MothershipFileAttachment[] | undefined {
-  if (!attachments) return undefined
-
-  const projection = projectResolvedSecretModelContent(
-    attachments.map((attachment) => attachment.filename),
-    registry
-  )
-  if (!projection.safe) {
-    throw new Error('Mothership attachment names could not be safely projected')
-  }
-  const projectedFilenames = projection.value
-  if (!Array.isArray(projectedFilenames) || projectedFilenames.length !== attachments.length) {
-    throw new Error('Mothership attachment names could not be safely projected')
-  }
-
-  return attachments.map((attachment, index) => {
-    const filename = projectedFilenames[index]
-    if (attachment.filename === undefined) {
-      if (filename !== undefined) {
-        throw new Error('Mothership attachment names could not be safely projected')
-      }
-      return attachment
-    }
-    if (typeof filename !== 'string') {
-      throw new Error('Mothership attachment names could not be safely projected')
-    }
-    return { ...attachment, filename }
-  })
-}
-
 function projectMothershipMcpTools(
   tools: unknown,
   registry: ResolvedSecretTraceRegistry | undefined
@@ -159,7 +124,6 @@ function projectMothershipMcpTools(
       return []
     }
 
-    const title = typeof candidate.title === 'string' ? candidate.title : undefined
     const serverName =
       typeof candidate.params.serverName === 'string' ? candidate.params.serverName : undefined
     const schema = isPlainRecord(candidate.schema) ? candidate.schema : undefined
@@ -169,19 +133,13 @@ function projectMothershipMcpTools(
     if (!isResolvedSecretModelContentUnchanged(schemaContent.guardedValues, registry)) return []
 
     const projection = projectResolvedSecretModelContent(
-      [title, serverName, schemaContent.projectedValues],
+      [serverName, schemaContent.projectedValues],
       registry
     )
-    if (!projection.safe || !Array.isArray(projection.value) || projection.value.length !== 3) {
+    if (!projection.safe || !Array.isArray(projection.value) || projection.value.length !== 2) {
       throw new Error('Mothership MCP tool metadata could not be safely projected')
     }
-    const [projectedTitle, projectedServerName, projectedSchemaValues] = projection.value
-    if (title === undefined && projectedTitle !== undefined) {
-      throw new Error('Mothership MCP tool metadata could not be safely projected')
-    }
-    if (title !== undefined && typeof projectedTitle !== 'string') {
-      throw new Error('Mothership MCP tool metadata could not be safely projected')
-    }
+    const [projectedServerName, projectedSchemaValues] = projection.value
     if (serverName === undefined && projectedServerName !== undefined) {
       throw new Error('Mothership MCP tool metadata could not be safely projected')
     }
@@ -202,7 +160,6 @@ function projectMothershipMcpTools(
         : undefined
     const selection: MothershipMcpToolSelection = {
       type: 'mcp',
-      ...(projectedTitle !== undefined ? { title: projectedTitle } : {}),
       ...(usageControl ? { usageControl } : {}),
       ...(projectedSchema ? { schema: projectedSchema } : {}),
       params: {
@@ -562,9 +519,17 @@ async function buildMothershipFileAttachments(
     throw new Error('Mothership file attachments require an authenticated user.')
   }
 
+  const userFiles = files.map((file) =>
+    processSingleFileToUserFile(file as RawFileInput, requestId, logger)
+  )
+  const modelSafe = await areModelSafeWorkspaceFileKeys(
+    userFiles.map((file) => file.key).filter((key): key is string => Boolean(key)),
+    { workspaceId: ctx.workspaceId }
+  )
+  if (!modelSafe) throw new Error(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
+
   const attachments: MothershipFileAttachment[] = []
-  for (const file of files) {
-    const userFile = processSingleFileToUserFile(file as RawFileInput, requestId, logger)
+  for (const userFile of userFiles) {
     const base64 = await readUserFileContent(userFile, {
       encoding: 'base64',
       userId: ctx.userId,
@@ -634,10 +599,7 @@ export class MothershipBlockHandler implements BlockHandler {
       secretScope: inputs.secretScope,
       mountedSecrets: inputs.mountedSecrets,
     })
-    const fileAttachments = projectMothershipFileAttachmentNames(
-      await buildMothershipFileAttachments(inputs.files, ctx, requestId),
-      ctx.resolvedSecretTraceRegistry
-    )
+    const fileAttachments = await buildMothershipFileAttachments(inputs.files, ctx, requestId)
     const mcpTools = projectMothershipMcpTools(inputs.tools, ctx.resolvedSecretTraceRegistry)
     const skillContexts = projectMothershipSkillContexts(
       inputs.skills,

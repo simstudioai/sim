@@ -1,7 +1,7 @@
 import { collectModelVisibleSchemaContent } from '@/lib/copilot/model-visible-schema'
-import { reconstructLegacyModelInputProvenance } from '@/lib/execution/model-input-provenance'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import type { ProviderRequest } from '@/providers/types'
+import { isProviderAttachmentFilenameModelBound } from '@/providers/attachments'
+import { canUseProviderLargeFilePath } from '@/providers/file-attachments.server'
+import type { ProviderId, ProviderRequest } from '@/providers/types'
 
 const MAX_PROVIDER_MODEL_INPUT_PROVENANCE_VALUES = 50_000
 
@@ -18,8 +18,12 @@ function schemaProvenanceValues(schema: unknown): unknown[] | undefined {
  * Selects the dynamic ProviderRequest values that can reach a model. Transport credentials,
  * execution context, opaque file bytes/locations, and validated schema grammar are excluded.
  */
-export function collectProviderModelInputProvenanceValues(request: ProviderRequest): unknown[] {
+export function collectProviderModelInputProvenanceValues(
+  request: ProviderRequest,
+  providerId: ProviderId | string
+): unknown[] {
   const values: unknown[] = []
+  const largeFilePathAvailable = providerId === 'openai' && canUseProviderLargeFilePath(providerId)
   const append = (...candidates: unknown[]): void => {
     for (const candidate of candidates) {
       if (candidate === undefined) continue
@@ -39,7 +43,11 @@ export function collectProviderModelInputProvenanceValues(request: ProviderReque
     for (const toolCall of message.tool_calls ?? []) {
       append(toolCall.function.name, toolCall.function.arguments)
     }
-    for (const file of message.files ?? []) append(file.name, file.context)
+    for (const file of message.files ?? []) {
+      if (isProviderAttachmentFilenameModelBound(file, providerId, { largeFilePathAvailable })) {
+        append(file.name)
+      }
+    }
   }
   for (const tool of request.tools ?? []) {
     const schemaValues = schemaProvenanceValues(tool.parameters)
@@ -51,20 +59,4 @@ export function collectProviderModelInputProvenanceValues(request: ProviderReque
   }
 
   return values
-}
-
-/** Reconstructs pre-capability callers from the local catalog without scanning transport fields. */
-export async function reconstructLegacyProviderModelInputProvenance(
-  request: ProviderRequest,
-  registry: ResolvedSecretTraceRegistry
-): Promise<boolean> {
-  try {
-    return await reconstructLegacyModelInputProvenance(
-      registry,
-      collectProviderModelInputProvenanceValues(request)
-    )
-  } catch {
-    registry.markIncomplete()
-    return false
-  }
 }

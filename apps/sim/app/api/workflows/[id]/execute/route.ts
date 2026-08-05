@@ -75,6 +75,7 @@ import { containsLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { type PreprocessExecutionSuccess, preprocessExecution } from '@/lib/execution/preprocessing'
 import {
+  PRIVATE_SECRET_PROVENANCE_FIELD,
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
@@ -104,6 +105,10 @@ import {
   hasDurableExecutionOwner,
   releaseExecutionIdClaim,
 } from '@/lib/workflows/executor/execution-id-claim'
+import {
+  INVALID_WORKFLOW_INPUT_PROVENANCE_ERROR,
+  resolveWorkflowInputSecretProvenance,
+} from '@/lib/workflows/executor/input-secret-provenance'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import {
   loadDeployedWorkflowState,
@@ -149,6 +154,7 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -376,6 +382,7 @@ type AsyncExecutionParams = {
   executionId: string
   callChain?: string[]
   executionTimeoutMs: number
+  trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 interface AsyncExecutionResult {
@@ -431,6 +438,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     executionId,
     callChain,
     executionTimeoutMs,
+    trustedInitialResolvedSecretTraceProvenance,
   } = params
   const asyncLogger = logger.withMetadata({
     requestId,
@@ -462,6 +470,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     executionMode: 'async',
     admissionCompleted: true,
     executionTimeoutMs,
+    trustedInitialResolvedSecretTraceProvenance,
   }
 
   let jobQueue: Awaited<ReturnType<typeof getJobQueue>>
@@ -982,6 +991,7 @@ async function handleExecutePost(
               copilotToolCallId: _copilotToolCallId,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               parentWorkspaceId: _parentWorkspaceId,
+              [PRIVATE_SECRET_PROVENANCE_FIELD]: _privateSecretProvenance,
               ...rest
             } = body
             return Object.keys(rest).length > 0 ? rest : validatedInput
@@ -1063,6 +1073,10 @@ async function handleExecutePost(
     }
 
     const workflowWorkspaceId = workflowAuthorization.workflow?.workspaceId
+    if (!workflowWorkspaceId) {
+      reqLogger.error('Workflow authorization succeeded without a workspace')
+      return NextResponse.json({ error: 'Invalid workflow execution context' }, { status: 500 })
+    }
     if (auth.authType === AuthType.API_KEY) {
       if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowWorkspaceId) {
         return NextResponse.json(
@@ -1130,6 +1144,18 @@ async function handleExecutePost(
       }
       input = sourceExecution.input
     }
+
+    const inputProvenanceResolution = await resolveWorkflowInputSecretProvenance({
+      headers: req.headers,
+      payload: body,
+      input,
+      isInternalJwt: auth.authType === AuthType.INTERNAL_JWT,
+      workspaceId: workflowWorkspaceId,
+    })
+    if (!inputProvenanceResolution.success) {
+      return NextResponse.json({ error: INVALID_WORKFLOW_INPUT_PROVENANCE_ERROR }, { status: 400 })
+    }
+    const trustedInitialResolvedSecretTraceProvenance = inputProvenanceResolution.provenance
 
     const upstreamBillingAttribution =
       auth.authType === AuthType.INTERNAL_JWT && workflowAuthorization.workflow?.workspaceId
@@ -1286,6 +1312,7 @@ async function handleExecutePost(
         executionId,
         callChain,
         executionTimeoutMs: preprocessResult.executionTimeout.async,
+        trustedInitialResolvedSecretTraceProvenance,
       })
       executionIdClaimCommitted = asyncResult.retainExecutionClaim
       return asyncResult.response
@@ -1467,6 +1494,7 @@ async function handleExecutePost(
           stopAfterBlockId,
           runFromBlock: resolvedRunFromBlock,
           abortSignal: timeoutController.signal,
+          trustedInitialResolvedSecretTraceProvenance,
         })
 
         await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
@@ -1744,6 +1772,7 @@ async function handleExecutePost(
               includeThinking: requestedIncludeThinking,
               includeToolCalls: requestedIncludeToolCalls,
               agentEvents,
+              trustedInitialResolvedSecretTraceProvenance,
             },
             executionId
           ),
@@ -1943,11 +1972,14 @@ async function handleExecutePost(
             }
             const callbackError = compactCallbackData.output?.error
             const hasError = typeof callbackError === 'string' && callbackError.length > 0
-            const display = await loggingSession.projectDisplayContent({
-              input: compactCallbackData.input,
-              output: compactCallbackData.output,
-              ...(hasError ? { error: callbackError } : {}),
-            })
+            const display = await loggingSession.projectDisplayContent(
+              {
+                input: compactCallbackData.input,
+                output: compactCallbackData.output,
+                ...(hasError ? { error: callbackError } : {}),
+              },
+              callbackData.displayResolvedSecretTraceProvenance
+            )
             const childWorkflowData = childWorkflowContext
               ? {
                   childWorkflowBlockId: childWorkflowContext.parentBlockId,
@@ -2057,7 +2089,12 @@ async function handleExecutePost(
               workflowId,
               sendEvent,
               forwardAnswerText: answerTextFromSink,
-              projectDisplay: (field, value) => loggingSession.projectLiveDisplayText(field, value),
+              projectDisplay: (field, value) =>
+                loggingSession.projectLiveDisplayText(
+                  field,
+                  value,
+                  streamingExec.displayResolvedSecretTraceProvenance
+                ),
             })
 
             const reader = streamingExec.stream.getReader()
@@ -2079,7 +2116,11 @@ async function handleExecutePost(
                 if (answerTextFromSink) continue
 
                 const chunk = decoder.decode(value, { stream: true })
-                const display = await loggingSession.projectLiveDisplayText('chunk', chunk)
+                const display = await loggingSession.projectLiveDisplayText(
+                  'chunk',
+                  chunk,
+                  streamingExec.displayResolvedSecretTraceProvenance
+                )
                 await sendEvent({
                   type: 'stream:chunk',
                   timestamp: new Date().toISOString(),
@@ -2197,6 +2238,7 @@ async function handleExecutePost(
             base64MaxBytes,
             stopAfterBlockId,
             runFromBlock: resolvedRunFromBlock,
+            trustedInitialResolvedSecretTraceProvenance,
           })
 
           await awaitBoundCopilotPostExecution()

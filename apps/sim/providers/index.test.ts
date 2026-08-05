@@ -30,6 +30,7 @@ vi.mock('@/providers/registry', () => ({
 
 vi.mock('@/providers/file-attachments.server', () => ({
   attachLargeFileRemoteUrls: (...args: unknown[]) => mockAttachLargeFileRemoteUrls(...args),
+  canUseProviderLargeFilePath: () => true,
   uploadLargeFilesToProvider: (...args: unknown[]) => mockUploadLargeFilesToProvider(...args),
 }))
 
@@ -532,7 +533,7 @@ describe('executeProviderRequest — model secret projection', () => {
     expect(sent.context).toBe('context {{TOKEN}}')
     expect(sent.messages[0].content).toBe('message {{TOKEN}} {{TOKEN}}')
     expect(sent.messages[0].files[0]).toMatchObject({
-      name: '{{TOKEN}}.txt',
+      name: `${secret}.txt`,
       base64: 'c2FmZQ==',
     })
     expect(sent.messages[1]).toMatchObject({
@@ -756,7 +757,7 @@ describe('executeProviderRequest — model secret projection', () => {
     }
   })
 
-  it('projects attachment display names before storage resolution and provider upload', async () => {
+  it('keeps attachment metadata raw through storage resolution and provider upload', async () => {
     const secret = 'attachment-secret'
     const rawStorageKey = `workspace/raw-${secret}/document.pdf`
     const registry = new ResolvedSecretTraceRegistry([
@@ -791,12 +792,12 @@ describe('executeProviderRequest — model secret projection', () => {
     const attachmentRequest = mockAttachLargeFileRemoteUrls.mock.calls[0][0]
     const uploadRequest = mockUploadLargeFilesToProvider.mock.calls[0][0]
     expect(attachmentRequest.messages[0].files[0]).toMatchObject({
-      name: 'report-{{TOKEN}}.pdf',
+      name: `report-${secret}.pdf`,
       key: rawStorageKey,
     })
     expect(uploadRequest).toBe(attachmentRequest)
     expect(mockExecuteRequest.mock.calls[0][0].messages[0].files[0]).toMatchObject({
-      name: 'report-{{TOKEN}}.pdf',
+      name: `report-${secret}.pdf`,
       key: rawStorageKey,
     })
   })
@@ -864,7 +865,7 @@ describe('executeProviderRequest — model secret projection', () => {
     )
   })
 
-  it('projects JSON arguments and attachment text exactly once when plaintext overlaps its alias', async () => {
+  it('projects JSON arguments without mutating attachment metadata before serialization', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
     ])
@@ -920,14 +921,18 @@ describe('executeProviderRequest — model secret projection', () => {
       ],
       files: [
         {
-          name: '{{TOKEN}}.txt',
-          context: 'Context {{TOKEN}}',
+          name: 'TOKEN.txt',
+          context: 'Context TOKEN',
         },
       ],
     })
-    const serialized = JSON.stringify(sent)
-    expect(serialized.replaceAll('{{TOKEN}}', '')).not.toContain('TOKEN')
-    expect(serialized).not.toContain('{{{{TOKEN}}}}')
+    const modelVisible = JSON.stringify({
+      content: sent.messages[0].content,
+      function_call: sent.messages[0].function_call,
+      tool_calls: sent.messages[0].tool_calls,
+    })
+    expect(modelVisible.replaceAll('{{TOKEN}}', '')).not.toContain('TOKEN')
+    expect(modelVisible).not.toContain('{{{{TOKEN}}}}')
   })
 
   it.each(['123', 'true'])(
@@ -1063,12 +1068,12 @@ describe('executeProviderRequest — model secret projection', () => {
       })
       expect(sent.messages[0].files[0]).toEqual({
         id: secret,
-        name: '{{TOKEN}}.txt',
+        name: `${secret}.txt`,
         url: `https://files.example/${secret}`,
         size: 4,
         type: secret,
         key: secret,
-        context: 'Context {{TOKEN}}',
+        context: `Context ${secret}`,
         providerFileId: secret,
         providerFileUri: `provider://${secret}`,
         remoteUrl: `https://remote.example/${secret}`,

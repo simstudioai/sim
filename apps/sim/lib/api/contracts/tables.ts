@@ -2,11 +2,13 @@ import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
   folderIdSchema,
+  privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import type {
   CsvHeaderMapping,
   EnrichmentRunDetail,
@@ -320,6 +322,7 @@ export const tableRowSchema = domainObjectSchema<TableRow>()
 export const insertTableRowBodyBaseSchema = z.object({
   workspaceId: workspaceIdSchema,
   data: rowDataSchema,
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
   position: z.number().int().min(0).optional(),
   /** Fractional ordering: insert directly after this row id. Takes precedence over `position`. */
   afterRowId: z.string().min(1).optional(),
@@ -344,11 +347,13 @@ export const upsertTableRowBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   data: rowDataSchema,
   conflictTarget: z.string().min(1).optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 export const batchInsertTableRowsBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
     rows: z
       .array(rowDataSchema)
       .min(1, 'At least one row is required')
@@ -378,10 +383,12 @@ export const insertTableRowsBodySchema = z.union([
 export const updateTableRowBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   data: rowDataSchema,
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 export const batchUpdateTableRowsBodySchema = z.object({
   workspaceId: workspaceIdSchema,
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
   updates: z
     .array(
       z.object({
@@ -648,6 +655,7 @@ export const updateRowsByFilterBodySchema = z.object({
   filter: bulkFilterSchema,
   data: rowDataSchema,
   limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>

@@ -17,7 +17,6 @@ export const SANDBOX_CLI_TOOL_IDS = [
   'kustomize@5.8.1-r1',
   'argocd@3.4.6-r1',
   'terraform@1.15.8-r1',
-  'opentofu@1.12.5-r1',
   'pulumi@3.255.0-r1',
   'supabase-cli@2.111.0-r1',
   'firebase-cli@15.25.1-r1',
@@ -47,9 +46,9 @@ export const SANDBOX_CLI_TOOL_CATEGORIES = [
   'Security',
 ] as const
 
-export type SandboxCliToolCategory = (typeof SANDBOX_CLI_TOOL_CATEGORIES)[number]
+type SandboxCliToolCategory = (typeof SANDBOX_CLI_TOOL_CATEGORIES)[number]
 
-export interface SandboxCliToolMetadata {
+interface SandboxCliToolMetadata {
   id: SandboxCliToolId
   label: string
   description: string
@@ -140,13 +139,6 @@ export const SANDBOX_CLI_TOOLS = {
     description: 'Provision infrastructure with Terraform.',
     category: 'Infrastructure',
     searchTerms: ['terraform', 'tf'],
-  },
-  'opentofu@1.12.5-r1': {
-    id: 'opentofu@1.12.5-r1',
-    label: 'OpenTofu',
-    description: 'Provision infrastructure with OpenTofu.',
-    category: 'Infrastructure',
-    searchTerms: ['tofu', 'opentofu'],
   },
   'pulumi@3.255.0-r1': {
     id: 'pulumi@3.255.0-r1',

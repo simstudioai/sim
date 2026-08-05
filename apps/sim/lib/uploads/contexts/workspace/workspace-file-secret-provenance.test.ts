@@ -6,13 +6,17 @@ import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbTransaction } from '@/lib/db/types'
 import {
+  areModelSafeWorkspaceFileKeys,
   copyWorkspaceFileSecretProvenanceInTx,
   filterModelSafeWorkspaceFileAttachments,
+  importWorkspaceFileSecretProvenanceForRuntime,
   initializeWorkspaceFileSecretProvenanceInTx,
+  isModelSafeWorkspaceFileKey,
   mergeWorkspaceFileSecretProvenance,
   preserveWorkspaceFileSecretProvenanceInTx,
   replaceWorkspaceFileSecretProvenanceInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const CONTENT_UPDATED_AT = new Date('2026-08-04T00:00:00.000Z')
 
@@ -31,10 +35,10 @@ describe('workspace file secret provenance', () => {
       {
         status: 'exact',
         entries: [
-          { name: 'z', encryptedValue: 'b' },
-          { name: 'a', encryptedValue: 'z' },
-          { name: 'a', encryptedValue: 'a' },
-          { name: 'z', encryptedValue: 'b' },
+          { name: 'z', encryptedValue: 'b', sourceUserId: 'user-1' },
+          { name: 'a', encryptedValue: 'z', sourceUserId: 'user-1' },
+          { name: 'a', encryptedValue: 'a', sourceUserId: 'user-1' },
+          { name: 'z', encryptedValue: 'b', sourceUserId: 'user-1' },
         ],
       }
     )
@@ -45,9 +49,9 @@ describe('workspace file secret provenance', () => {
         contentUpdatedAt: CONTENT_UPDATED_AT,
         status: 'exact',
         entries: [
-          { name: 'a', encryptedValue: 'a' },
-          { name: 'a', encryptedValue: 'z' },
-          { name: 'z', encryptedValue: 'b' },
+          { name: 'a', encryptedValue: 'a', sourceUserId: 'user-1' },
+          { name: 'a', encryptedValue: 'z', sourceUserId: 'user-1' },
+          { name: 'z', encryptedValue: 'b', sourceUserId: 'user-1' },
         ],
       })
     )
@@ -165,7 +169,7 @@ describe('workspace file secret provenance', () => {
         secretProvenanceVersion: 1,
         provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
         status: 'exact',
-        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
       },
       {
         id: 'unknown-id',
@@ -198,7 +202,7 @@ describe('workspace file secret provenance', () => {
         secretProvenanceVersion: null,
         provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
         status: 'exact',
-        entries: [],
+        entries: [{ name: 'STALE', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
       },
       {
         id: 'untracked-context-id',
@@ -237,7 +241,281 @@ describe('workspace file secret provenance', () => {
     ])
   })
 
-  it('preserves accepted legacy bytes as explicit exact-empty after the first tracked write', async () => {
+  it('accepts a server-authorized clean or legacy key without requiring a caller file id', async () => {
+    queueTableRows(workspaceFiles, [
+      {
+        id: 'clean-id',
+        key: 'clean-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [],
+      },
+    ])
+
+    await expect(
+      isModelSafeWorkspaceFileKey('clean-key', { workspaceId: 'workspace-1' })
+    ).resolves.toBe(true)
+
+    queueTableRows(workspaceFiles, [
+      {
+        id: 'legacy-id',
+        key: 'legacy-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: null,
+        provenanceContentUpdatedAt: null,
+        status: null,
+        entries: null,
+      },
+    ])
+
+    await expect(isModelSafeWorkspaceFileKey('legacy-key')).resolves.toBe(true)
+  })
+
+  it('imports exact mounted-file provenance and keeps legacy-null files compatible', async () => {
+    const registry = {
+      importProvenance: vi.fn().mockResolvedValue(true),
+      isPermanentlyIncomplete: vi.fn().mockReturnValue(false),
+    } as unknown as ResolvedSecretTraceRegistry
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
+      },
+    ])
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
+        registry,
+      })
+    ).resolves.toBe(true)
+    expect(registry.importProvenance).toHaveBeenCalledWith(
+      {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+        scope: { userId: 'user-1' },
+      },
+      { trusted: true }
+    )
+
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: null,
+        provenanceContentUpdatedAt: null,
+        status: null,
+        entries: null,
+      },
+    ])
+    vi.mocked(registry.importProvenance).mockClear()
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'legacy-file', key: 'legacy-key', context: 'workspace' },
+        registry,
+      })
+    ).resolves.toBe(true)
+    expect(registry.importProvenance).not.toHaveBeenCalled()
+  })
+
+  it('rejects unavailable mounted-file provenance without importing it', async () => {
+    const registry = {
+      importProvenance: vi.fn(),
+      isPermanentlyIncomplete: vi.fn().mockReturnValue(false),
+    } as unknown as ResolvedSecretTraceRegistry
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'unknown',
+        entries: [],
+      },
+    ])
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
+        registry,
+      })
+    ).resolves.toBe(false)
+    expect(registry.importProvenance).not.toHaveBeenCalled()
+  })
+
+  it('rejects tracked mounted-file provenance when no complete runtime registry can import it', async () => {
+    const row = {
+      fileContentUpdatedAt: CONTENT_UPDATED_AT,
+      secretProvenanceVersion: 1,
+      provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+      status: 'exact',
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+    }
+    queueTableRows(workspaceFiles, [row])
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
+      })
+    ).resolves.toBe(false)
+
+    const incompleteRegistry = {
+      importProvenance: vi.fn().mockResolvedValue(true),
+      isPermanentlyIncomplete: vi.fn().mockReturnValue(true),
+    } as unknown as ResolvedSecretTraceRegistry
+    queueTableRows(workspaceFiles, [row])
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
+        registry: incompleteRegistry,
+      })
+    ).resolves.toBe(false)
+  })
+
+  it('rejects a tainted, unknown, stale, or cross-workspace model egress key', async () => {
+    const rejectedRows = [
+      {
+        id: 'tainted-id',
+        key: 'tainted-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+      },
+      {
+        id: 'unknown-id',
+        key: 'unknown-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'unknown',
+        entries: [],
+      },
+      {
+        id: 'stale-id',
+        key: 'stale-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: new Date('2026-08-04T00:00:01.000Z'),
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [],
+      },
+    ]
+
+    for (const row of rejectedRows) {
+      queueTableRows(workspaceFiles, [row])
+      await expect(isModelSafeWorkspaceFileKey(row.key)).resolves.toBe(false)
+    }
+
+    queueTableRows(workspaceFiles, [
+      {
+        id: 'other-id',
+        key: 'other-key',
+        workspaceId: 'workspace-2',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: null,
+        provenanceContentUpdatedAt: null,
+        status: null,
+        entries: null,
+      },
+    ])
+    await expect(
+      isModelSafeWorkspaceFileKey('other-key', { workspaceId: 'workspace-1' })
+    ).resolves.toBe(false)
+  })
+
+  it('checks a document batch once while preserving missing and non-workspace legacy keys', async () => {
+    queueTableRows(workspaceFiles, [
+      {
+        id: 'clean-id',
+        key: 'clean-key',
+        workspaceId: 'workspace-1',
+        context: 'mothership',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [],
+      },
+      {
+        id: 'knowledge-id',
+        key: 'knowledge-key',
+        workspaceId: 'workspace-1',
+        context: 'knowledge-base',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: null,
+        status: null,
+        entries: null,
+      },
+    ])
+
+    await expect(
+      areModelSafeWorkspaceFileKeys(['clean-key', 'knowledge-key', 'missing-key'], {
+        workspaceId: 'workspace-1',
+      })
+    ).resolves.toBe(true)
+
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a document batch when any canonical workspace file is tainted', async () => {
+    queueTableRows(workspaceFiles, [
+      {
+        id: 'clean-id',
+        key: 'clean-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: null,
+        provenanceContentUpdatedAt: null,
+        status: null,
+        entries: null,
+      },
+      {
+        id: 'tainted-id',
+        key: 'tainted-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+      },
+    ])
+
+    await expect(
+      areModelSafeWorkspaceFileKeys(['clean-key', 'tainted-key'], {
+        workspaceId: 'workspace-1',
+      })
+    ).resolves.toBe(false)
+  })
+
+  it('keeps accepted legacy bytes untracked across a preserving write', async () => {
     const nextContentUpdatedAt = new Date('2026-08-04T00:00:01.000Z')
 
     await preserveWorkspaceFileSecretProvenanceInTx(
@@ -248,14 +526,8 @@ describe('workspace file secret provenance', () => {
       nextContentUpdatedAt
     )
 
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileId: 'legacy-file',
-        contentUpdatedAt: nextContentUpdatedAt,
-        status: 'exact',
-        entries: [],
-      })
-    )
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
   it('does not treat a tracked content version with no sidecar as legacy', async () => {
@@ -382,7 +654,7 @@ describe('workspace file secret provenance', () => {
           fileContentUpdatedAt: CONTENT_UPDATED_AT,
           provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
           status: 'exact',
-          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
         },
       ])
 
@@ -401,12 +673,12 @@ describe('workspace file secret provenance', () => {
         fileId: 'target-file',
         contentUpdatedAt: targetContentUpdatedAt,
         status: 'exact',
-        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
       })
     )
   })
 
-  it('copies an untouched legacy file as explicit exact-empty', async () => {
+  it('keeps an untouched legacy file untracked when copied', async () => {
     const targetContentUpdatedAt = new Date('2026-08-04T00:00:01.000Z')
     dbChainMockFns.limit
       .mockResolvedValueOnce([
@@ -439,14 +711,8 @@ describe('workspace file secret provenance', () => {
       'target-file'
     )
 
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileId: 'target-file',
-        contentUpdatedAt: targetContentUpdatedAt,
-        status: 'exact',
-        entries: [],
-      })
-    )
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
   it('marks a tracked source with no sidecar unknown when copied', async () => {

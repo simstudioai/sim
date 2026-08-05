@@ -3,6 +3,7 @@
  */
 
 import type { COLUMN_TYPES, FILTER_OPS } from '@/lib/table/constants'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
@@ -14,6 +15,12 @@ export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
  * storage key with `getColumnId` from `./column-keys`.
  */
 export type RowData = Record<string, JsonValue>
+
+/** Exact encrypted provenance for each touched storage column in one row write. */
+export interface TableRowSecretProvenanceWrite {
+  complete: boolean
+  columns: Record<string, ResolvedSecretTraceProvenanceV1>
+}
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -657,6 +664,8 @@ export interface InsertRowData {
   afterRowId?: string
   /** Insert directly before this row (fractional ordering). Takes precedence over `position`. */
   beforeRowId?: string
+  /** Encrypted provenance for the values in `data`; omitted by legacy callers. */
+  secretProvenance?: TableRowSecretProvenanceWrite
 }
 
 export interface BatchInsertData {
@@ -669,6 +678,8 @@ export interface BatchInsertData {
    * Length must equal `rows.length`.
    */
   orderKeys?: string[]
+  /** Encrypted provenance for the values in `rows`; omitted by legacy callers. */
+  secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
 }
 
 export interface UpsertRowData {
@@ -678,6 +689,8 @@ export interface UpsertRowData {
   userId?: string
   /** Which unique column to match on. Required when multiple unique columns exist. */
   conflictTarget?: string
+  /** Encrypted provenance for the values in `data`; omitted by legacy callers. */
+  secretProvenance?: TableRowSecretProvenanceWrite
 }
 
 export interface UpsertResult {
@@ -720,6 +733,8 @@ export interface UpdateRowData {
    * account. Omitted only for internal `executionsPatch`-only writes.
    */
   actorUserId?: string | null
+  /** Encrypted provenance for the values in this partial patch; omitted by legacy callers. */
+  secretProvenance?: TableRowSecretProvenanceWrite
 }
 
 export interface BulkUpdateData {
@@ -728,6 +743,8 @@ export interface BulkUpdateData {
   limit?: number
   /** The member who performed this write — billed/gated for triggered enrichment. */
   actorUserId?: string | null
+  /** Encrypted provenance for the values in this partial patch; omitted by legacy callers. */
+  secretProvenance?: TableRowSecretProvenanceWrite
 }
 
 export interface BatchUpdateByIdData {
@@ -740,6 +757,8 @@ export interface BatchUpdateByIdData {
   workspaceId: string
   /** The member who performed this write — billed/gated for triggered enrichment. */
   actorUserId?: string | null
+  /** Encrypted provenance for the values in all partial patches; omitted by legacy callers. */
+  secretProvenanceByRowId?: Record<string, TableRowSecretProvenanceWrite>
 }
 
 export interface BulkDeleteData {
@@ -765,6 +784,8 @@ export interface ReplaceRowsData {
   rows: RowData[]
   workspaceId: string
   userId?: string
+  /** Encrypted provenance for the values in `rows`; omitted by legacy callers. */
+  secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
 }
 
 export interface ReplaceRowsResult {

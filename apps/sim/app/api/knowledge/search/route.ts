@@ -19,6 +19,7 @@ import {
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import {
@@ -26,6 +27,7 @@ import {
   runWithKnowledgeModelInputProvenance,
 } from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
+import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
@@ -33,10 +35,11 @@ import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import {
   executeKnowledgeSearch,
   generateSearchEmbedding,
-  getDocumentMetadataByIds,
   type SearchResult,
 } from '@/app/api/knowledge/search/utils'
+import { createKnowledgeRegistryResponse } from '@/app/api/knowledge/secret-provenance'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getRerankModelPricing } from '@/providers/models'
 import { calculateCost } from '@/providers/utils'
 
@@ -186,7 +189,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const fieldType = tagDef.fieldType
 
         logger.debug(
-          `[${requestId}] Structured filter: ${filter.tagName} -> ${tagSlot} (${fieldType}) ${filter.operator} ${filter.value}`
+          `[${requestId}] Structured filter: ${filter.tagName} -> ${tagSlot} (${fieldType}) ${filter.operator}`
         )
 
         return {
@@ -345,7 +348,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } else if (hasQuery) {
       logger.debug(
         `[${requestId}] Executing ${validatedData.searchMode} search`,
-        hasFilters ? { structuredFilters } : undefined
+        hasFilters ? { filterCount: structuredFilters?.length ?? 0 } : undefined
       )
       const queryVector = JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null)
 
@@ -367,6 +370,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    const resultSecretRegistry =
+      modelInputProvenance.registry ??
+      new ResolvedSecretTraceRegistry([], {
+        userId,
+        ...(workspaceId ? { workspaceId } : {}),
+      })
+    const resultProvenanceSnapshot = await importKnowledgeSearchResultSecretProvenance({
+      registry: resultSecretRegistry,
+      results,
+    })
+    if (!resultProvenanceSnapshot.imported) {
+      resultSecretRegistry.markIncomplete()
+      if (useReranker) {
+        return NextResponse.json(
+          { error: 'Knowledge result secret provenance is unavailable' },
+          { status: 422 }
+        )
+      }
+    }
+
     /** Optional Cohere rerank pass on top of vector results.
      * `rerankBilled` = Cohere was successfully called (even with 0 results) and we owe the search unit. */
     const rerankedScores = new Map<string, number>()
@@ -376,7 +399,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const candidateCount = results.length
       try {
         const { results: ranked, isBYOK } = await runWithKnowledgeModelInputProvenance(
-          modelInputProvenance.registry,
+          resultSecretRegistry,
           () =>
             rerank(
               validatedData.query!,
@@ -408,6 +431,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           })
         }
       } catch (error) {
+        if (resultSecretRegistry.isPermanentlyIncomplete()) throw error
         logger.warn(`[${requestId}] Reranker failed; falling back to vector ordering`, {
           error: getErrorMessage(error, 'Unknown error'),
           model: rerankerModel,
@@ -517,8 +541,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       tagDefinitionsMap[kbId] = map
     })
 
-    const documentIds = results.map((result) => result.documentId)
-    const documentMetadataMap = await getDocumentMetadataByIds(documentIds)
+    const documentMetadataMap = resultProvenanceSnapshot.documentMetadata
 
     try {
       PlatformEvents.knowledgeBaseSearched({
@@ -530,42 +553,68 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // Telemetry should not fail the operation
     }
 
-    return NextResponse.json({
+    const renderedResults = results.map((result) => {
+      const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
+      logger.debug(
+        `[${requestId}] Result KB: ${result.knowledgeBaseId}, available mappings:`,
+        kbTagMap
+      )
+
+      const tags: Record<string, unknown> = {}
+      const docMeta = documentMetadataMap[result.documentId]
+      ALL_TAG_SLOTS.forEach((slot) => {
+        const tagValue = slot.startsWith('tag')
+          ? docMeta?.[
+              slot as keyof Pick<
+                typeof docMeta,
+                'tag1' | 'tag2' | 'tag3' | 'tag4' | 'tag5' | 'tag6' | 'tag7'
+              >
+            ]
+          : result[slot]
+        if (tagValue !== null && tagValue !== undefined) {
+          const displayName = kbTagMap[slot] || slot
+          logger.debug(`[${requestId}] Mapping ${slot} -> "${displayName}"`)
+          tags[displayName] = tagValue
+        }
+      })
+
+      const rerankerScore = rerankedScores.get(result.id)
+      return {
+        documentId: result.documentId,
+        documentName: docMeta?.filename || undefined,
+        sourceUrl: docMeta?.sourceUrl ?? null,
+        content: result.content,
+        chunkIndex: result.chunkIndex,
+        metadata: tags,
+        similarity: hasQuery ? 1 - result.distance : 1,
+        ...(rerankerScore !== undefined && { rerankerScore }),
+      }
+    })
+
+    for (const [documentId, metadata] of Object.entries(documentMetadataMap)) {
+      const renderedMetadata = renderedResults
+        .filter((result) => result.documentId === documentId)
+        .map((result) => ({
+          documentName: result.documentName,
+          sourceUrl: result.sourceUrl,
+          metadata: result.metadata,
+        }))
+      if (
+        renderedMetadata.length > 0 &&
+        !(await importDurableSecretProvenance(
+          resultSecretRegistry,
+          metadata.provenance,
+          renderedMetadata
+        ))
+      ) {
+        resultSecretRegistry.markIncomplete()
+      }
+    }
+
+    const responseBody = {
       success: true,
       data: {
-        results: results.map((result) => {
-          const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
-          logger.debug(
-            `[${requestId}] Result KB: ${result.knowledgeBaseId}, available mappings:`,
-            kbTagMap
-          )
-
-          const tags: Record<string, any> = {}
-
-          ALL_TAG_SLOTS.forEach((slot) => {
-            const tagValue = (result as any)[slot]
-            if (tagValue !== null && tagValue !== undefined) {
-              const displayName = kbTagMap[slot] || slot
-              logger.debug(
-                `[${requestId}] Mapping ${slot}="${tagValue}" -> "${displayName}"="${tagValue}"`
-              )
-              tags[displayName] = tagValue
-            }
-          })
-
-          const rerankerScore = rerankedScores.get(result.id)
-          const docMeta = documentMetadataMap[result.documentId]
-          return {
-            documentId: result.documentId,
-            documentName: docMeta?.filename || undefined,
-            sourceUrl: docMeta?.sourceUrl ?? null,
-            content: result.content,
-            chunkIndex: result.chunkIndex,
-            metadata: tags,
-            similarity: hasQuery ? 1 - result.distance : 1,
-            ...(rerankerScore !== undefined && { rerankerScore }),
-          }
-        }),
+        results: renderedResults,
         query: validatedData.query || '',
         knowledgeBaseIds: accessibleKbIds,
         knowledgeBaseId: accessibleKbIds[0],
@@ -591,6 +640,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             }
           : {}),
       },
+    }
+    return createKnowledgeRegistryResponse({
+      request,
+      authType: auth.authType,
+      body: responseBody,
+      registry: resultSecretRegistry,
     })
   } catch (error) {
     return NextResponse.json(

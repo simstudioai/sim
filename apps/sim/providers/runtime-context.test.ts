@@ -12,11 +12,45 @@ vi.mock('@/tools', () => ({
 }))
 
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { executeProviderTool, runWithProviderRuntimeContext } from '@/providers/runtime-context'
+import {
+  type ExecuteProviderToolOptions,
+  executeProviderTool as executeProviderToolWithInput,
+  projectProviderAttachmentFilenameForModel,
+  runWithProviderRuntimeContext,
+} from '@/providers/runtime-context'
+import { prepareToolExecution } from '@/providers/utils'
+
+async function executeProviderTool(
+  toolId: string,
+  params: Parameters<typeof executeProviderToolWithInput>[1],
+  options: Omit<ExecuteProviderToolOptions, 'toolInput'> & {
+    toolInput?: Record<string, unknown>
+  } = {}
+) {
+  const execution = await executeProviderToolWithInput(toolId, params, {
+    toolInput: params,
+    ...options,
+  })
+  return execution.modelResponse
+}
 
 describe('provider runtime context', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('projects a provider-bound filename while preserving its inferred extension', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FILE_NAME', plaintext: 'report.pdf', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('FILE_NAME', 'report.pdf')
+
+    const projected = runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, () =>
+      projectProviderAttachmentFilenameForModel('report.pdf', 'pdf')
+    )
+
+    expect(projected).toBe('{{FILE_NAME}}.pdf')
+    expect(projectProviderAttachmentFilenameForModel('report.pdf', 'pdf')).toBe('report.pdf')
   })
 
   it('isolates concurrent tool executions without adding registry data to params', async () => {
@@ -94,7 +128,7 @@ describe('provider runtime context', () => {
     expect(registry.getActiveMatches()).toEqual([])
   })
 
-  it('preserves public low-entropy output that is unrelated to the current tool input', async () => {
+  it('does not seed provenance from ambient execution context', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TEXT', plaintext: 'Test', encryptedValue: 'encrypted-text' },
       { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
@@ -108,13 +142,34 @@ describe('provider runtime context', () => {
       output: { text: 'Test', boolean: true, booleanText: 'true', number: 123, numberText: '123' },
     }
     mockExecuteTool.mockResolvedValueOnce(rawResult)
+    const { toolParams, executionParams } = prepareToolExecution(
+      { params: { visible: 'unrelated' } },
+      {},
+      {
+        environmentVariables: { TEXT: 'Test' },
+        workflowVariables: { boolean: true },
+        blockData: { number: 123 },
+        blockNameMapping: { Test: 'block-id' },
+      }
+    )
 
     const result = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
-      () => executeProviderTool('custom-tool', { visible: 'unrelated' })
+      () => executeProviderTool('custom-tool', executionParams, { toolInput: toolParams })
     )
 
     expect(result).toEqual(rawResult)
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'custom-tool',
+      expect.objectContaining({
+        envVars: { TEXT: 'Test' },
+        workflowVariables: { boolean: true },
+        blockData: { number: 123 },
+        blockNameMapping: { Test: 'block-id' },
+      }),
+      expect.any(Object)
+    )
+    expect(mockExecuteTool.mock.calls[0]?.[2]).not.toHaveProperty('toolInput')
     expect(registry.isComplete()).toBe(true)
   })
 
@@ -140,17 +195,34 @@ describe('provider runtime context', () => {
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
     registry.recordResolved('TOKEN', 'secret-value')
-    mockExecuteTool.mockResolvedValueOnce({
+    const rawResult = {
       success: true,
       output: { authorization: 'Bearer secret-value' },
-    })
+      statusCode: 206,
+      timing: { startTime: 'start', endTime: 'end', duration: 5 },
+      largeValueKeys: ['large-key'],
+      fileKeys: ['file-key'],
+      resources: [{ type: 'file' as const, id: 'file-1', title: 'Raw resource' }],
+    }
+    mockExecuteTool.mockResolvedValueOnce(rawResult)
 
-    const result = await runWithProviderRuntimeContext(
+    const execution = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
-      () => executeProviderTool('custom-tool', { token: 'secret-value' })
+      () =>
+        executeProviderToolWithInput(
+          'custom-tool',
+          { token: 'secret-value', envVars: { unrelated: 'public' } },
+          { toolInput: { token: 'secret-value' } }
+        )
     )
 
-    expect(result.output).toEqual({ authorization: 'Bearer {{TOKEN}}' })
+    expect(execution.rawResponse).toBe(rawResult)
+    expect(execution.rawResponse.output).toEqual({ authorization: 'Bearer secret-value' })
+    expect(execution.modelResponse).toEqual({
+      ...rawResult,
+      output: { authorization: 'Bearer {{TOKEN}}' },
+    })
+    expect(execution.modelResponse.resources).toBe(rawResult.resources)
     expect(registry.isComplete()).toBe(true)
   })
 
@@ -192,7 +264,7 @@ describe('provider runtime context', () => {
   })
 
   it.each(['123', 'true'])(
-    'omits secret-bearing resource controls while projecting low-entropy content (%s)',
+    'leaves non-model resource metadata untouched while projecting content (%s)',
     async (secret) => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
@@ -225,11 +297,18 @@ describe('provider runtime context', () => {
         value: 'Result {{TOKEN}}',
         converted: '{{TOKEN}}',
       })
-      expect(result.resources).toEqual([])
+      expect(result.resources).toEqual([
+        {
+          type: 'file',
+          id: secret,
+          title: `Report ${secret}`,
+          path: `files/${secret}.txt`,
+        },
+      ])
     }
   )
 
-  it('preserves safe resource paths and omits resources with secret-bearing paths', async () => {
+  it('does not project resource metadata that is not serialized into the model continuation', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
@@ -264,8 +343,14 @@ describe('provider runtime context', () => {
       {
         type: 'file',
         id: 'safe-file',
-        title: '{{TOKEN}} report',
+        title: 'secret-value report',
         path: '/workspace/safe/report.txt',
+      },
+      {
+        type: 'file',
+        id: 'unsafe-file',
+        title: 'report.txt',
+        path: '/workspace/secret-value/report.txt',
       },
     ])
   })
@@ -307,7 +392,7 @@ describe('provider runtime context', () => {
     })
   })
 
-  it('omits an incomplete tool result without poisoning the parent registry', async () => {
+  it('omits an incomplete model result and marks parent provenance incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
@@ -322,11 +407,11 @@ describe('provider runtime context', () => {
     )
 
     expect(result).toEqual({ success: true, output: {} })
-    expect(registry.isComplete()).toBe(true)
+    expect(registry.isComplete()).toBe(false)
     expect(registry.getActiveMatches()).toEqual([])
   })
 
-  it('structurally omits an incomplete failed tool result without poisoning the parent registry', async () => {
+  it('structurally omits an incomplete failed model result and marks provenance incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
@@ -345,11 +430,11 @@ describe('provider runtime context', () => {
     )
 
     expect(result).toEqual({ success: false, output: {} })
-    expect(registry.isComplete()).toBe(true)
+    expect(registry.isComplete()).toBe(false)
     expect(registry.getActiveMatches()).toEqual([])
   })
 
-  it('discards child provenance when response projection fails', async () => {
+  it('retains child provenance for raw traces when model projection fails', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
@@ -362,17 +447,20 @@ describe('provider runtime context', () => {
       return { success: true, output }
     })
 
-    const result = await runWithProviderRuntimeContext(
+    const execution = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
-      () => executeProviderTool('custom-tool', {})
+      () => executeProviderToolWithInput('custom-tool', {}, { toolInput: {} })
     )
 
-    expect(result).toEqual({ success: true, output: {} })
+    expect(execution.rawResponse.output).toHaveProperty('value', 'secret-value')
+    expect(execution.modelResponse).toEqual({ success: true, output: {} })
     expect(registry.isComplete()).toBe(true)
-    expect(registry.getActiveMatches()).toEqual([])
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'secret-value', replacement: '{{TOKEN}}' },
+    ])
   })
 
-  it('omits an incomplete tool error without poisoning the parent registry', async () => {
+  it('keeps a raw thrown error separate from the omitted model error', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
@@ -381,14 +469,18 @@ describe('provider runtime context', () => {
       throw new Error('secret-value')
     })
 
-    const error = await runWithProviderRuntimeContext(
+    const execution = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
-      () => executeProviderTool('custom-tool', {}).catch((caught) => caught)
+      () => executeProviderToolWithInput('custom-tool', {}, { toolInput: {} })
     )
 
-    expect(error).toBeInstanceOf(Error)
-    expect(error.message).toBe('')
-    expect(registry.isComplete()).toBe(true)
+    expect(execution.rawResponse).toEqual({
+      success: false,
+      output: {},
+      error: 'secret-value',
+    })
+    expect(execution.modelResponse).toEqual({ success: false, output: {} })
+    expect(registry.isComplete()).toBe(false)
     expect(registry.getActiveMatches()).toEqual([])
   })
 
@@ -434,7 +526,7 @@ describe('provider runtime context', () => {
     expect(result).toBe(rawResult)
   })
 
-  it('sanitizes thrown errors while preserving abort semantics', async () => {
+  it('preserves raw abort semantics without creating a model continuation', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
@@ -450,6 +542,9 @@ describe('provider runtime context', () => {
 
     expect(error).toBeInstanceOf(DOMException)
     expect(error.name).toBe('AbortError')
-    expect(error.message).toBe('{{TOKEN}}')
+    expect(error.message).toBe('secret-value')
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'secret-value', replacement: '{{TOKEN}}' },
+    ])
   })
 })

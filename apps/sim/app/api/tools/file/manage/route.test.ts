@@ -101,8 +101,8 @@ import { POST } from '@/app/api/tools/file/manage/route'
 const PRIVATE_REQUEST_HEADER = {
   'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
 }
-const PRIVATE_MODEL_INPUT_HEADER = {
-  'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1',
+const PRIVATE_SECRET_PROVENANCE_HEADER = {
+  'x-sim-private-secret-provenance': 'private-secret-provenance-bundle-v1',
 }
 const CONTENT_UPDATED_AT = new Date('2026-08-04T00:00:00.000Z')
 
@@ -201,14 +201,23 @@ describe('POST /api/tools/file/manage content provenance', () => {
           workspaceId: 'workspace-1',
           fileName: 'new.txt',
           content: 'secret-value',
-          __resolvedSecretTraceProvenance: {
+          __privateSecretProvenance: {
             version: 1,
             complete: true,
-            entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
-            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+            selections: [
+              {
+                key: 'content',
+                provenance: {
+                  version: 1,
+                  complete: true,
+                  entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+                  scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+                },
+              },
+            ],
           },
         },
-        PRIVATE_MODEL_INPUT_HEADER
+        PRIVATE_SECRET_PROVENANCE_HEADER
       )
     )
 
@@ -223,13 +232,68 @@ describe('POST /api/tools/file/manage content provenance', () => {
         folderId: null,
         secretProvenance: {
           status: 'exact',
-          entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+          entries: [
+            {
+              name: 'TOKEN',
+              encryptedValue: 'encrypted-token',
+              sourceUserId: 'user-1',
+              sourceWorkspaceId: 'workspace-1',
+            },
+          ],
         },
       }
     )
   })
 
-  it('marks a headerless file write unknown instead of guessing from plaintext', async () => {
+  it('preserves existing file-path behavior when a filename was resolved from a secret', async () => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          operation: 'write',
+          workspaceId: 'workspace-1',
+          fileName: 'Reports/secret-value.txt',
+          content: 'ordinary text',
+          __privateSecretProvenance: {
+            version: 1,
+            complete: true,
+            selections: [
+              {
+                key: 'content',
+                provenance: {
+                  version: 1,
+                  complete: true,
+                  entries: [],
+                  scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+                },
+              },
+            ],
+          },
+        },
+        PRIVATE_SECRET_PROVENANCE_HEADER
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      pathSegments: ['Reports'],
+    })
+    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      Buffer.from('ordinary text'),
+      'secret-value.txt',
+      'text/plain',
+      {
+        folderId: null,
+        secretProvenance: { status: 'exact', entries: [] },
+      }
+    )
+  })
+
+  it('keeps a headerless file write on the legacy untracked path', async () => {
     const response = await POST(
       createMockRequest('POST', {
         operation: 'write',
@@ -246,7 +310,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
       Buffer.from('ordinary text'),
       'new.txt',
       'text/plain',
-      expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+      { folderId: null }
     )
   })
 
@@ -255,7 +319,14 @@ describe('POST /api/tools/file/manage content provenance', () => {
     mockResolveWorkspaceFileReference.mockResolvedValue(existing)
     mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
       status: 'exact',
-      entries: [{ name: 'OLD', encryptedValue: 'encrypted-old' }],
+      entries: [
+        {
+          name: 'OLD',
+          encryptedValue: 'encrypted-old',
+          sourceUserId: 'user-1',
+          sourceWorkspaceId: 'workspace-1',
+        },
+      ],
     })
 
     const response = await POST(
@@ -266,14 +337,23 @@ describe('POST /api/tools/file/manage content provenance', () => {
           workspaceId: 'workspace-1',
           fileName: 'file-1.txt',
           content: 'secret-value',
-          __resolvedSecretTraceProvenance: {
+          __privateSecretProvenance: {
             version: 1,
             complete: true,
-            entries: [{ name: 'NEW', encryptedValue: 'encrypted-new' }],
-            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+            selections: [
+              {
+                key: 'content',
+                provenance: {
+                  version: 1,
+                  complete: true,
+                  entries: [{ name: 'NEW', encryptedValue: 'encrypted-new' }],
+                  scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+                },
+              },
+            ],
           },
         },
-        PRIVATE_MODEL_INPUT_HEADER
+        PRIVATE_SECRET_PROVENANCE_HEADER
       )
     )
 
@@ -291,11 +371,52 @@ describe('POST /api/tools/file/manage content provenance', () => {
           provenance: {
             status: 'exact',
             entries: [
-              { name: 'OLD', encryptedValue: 'encrypted-old' },
-              { name: 'NEW', encryptedValue: 'encrypted-new' },
+              {
+                name: 'OLD',
+                encryptedValue: 'encrypted-old',
+                sourceUserId: 'user-1',
+                sourceWorkspaceId: 'workspace-1',
+              },
+              {
+                name: 'NEW',
+                encryptedValue: 'encrypted-new',
+                sourceUserId: 'user-1',
+                sourceWorkspaceId: 'workspace-1',
+              },
             ],
           },
         },
+      }
+    )
+  })
+
+  it('preserves the prior classification for a legacy headerless append', async () => {
+    const existing = workspaceFile('file-1')
+    mockResolveWorkspaceFileReference.mockResolvedValue(existing)
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
+      status: 'exact',
+      entries: [{ name: 'OLD', encryptedValue: 'encrypted-old' }],
+    })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'append',
+        workspaceId: 'workspace-1',
+        fileName: 'file-1.txt',
+        content: 'ordinary text',
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockUpdateWorkspaceFileContent).toHaveBeenCalledWith(
+      'workspace-1',
+      'file-1',
+      'user-1',
+      Buffer.from('beforeordinary text'),
+      undefined,
+      {
+        expectedUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenancePolicy: { mode: 'preserve' },
       }
     )
   })
@@ -333,7 +454,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
     )
   })
 
-  it('propagates archive provenance to extracted files', async () => {
+  it('rejects a secret-bearing archive before downloading or extracting it', async () => {
     const zip = new JSZip()
     zip.file('child.txt', 'secret-value')
     mockDownloadFileFromStorage.mockResolvedValue(
@@ -357,21 +478,9 @@ describe('POST /api/tools/file/manage content provenance', () => {
       })
     )
 
-    expect(response.status).toBe(200)
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
-      'workspace-1',
-      'user-1',
-      Buffer.from('secret-value'),
-      'child.txt',
-      'text/plain',
-      {
-        folderId: null,
-        secretProvenance: {
-          status: 'exact',
-          entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
-        },
-      }
-    )
+    expect(response.status).toBe(422)
+    expect(mockDownloadFileFromStorage).not.toHaveBeenCalled()
+    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
   })
 
   it('omits source scope when canonical files have different owners', async () => {

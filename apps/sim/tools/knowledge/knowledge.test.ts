@@ -26,7 +26,7 @@ function createMockResponse(data: unknown): Response {
 }
 
 describe('Knowledge Tools', () => {
-  it('uses private provenance for search and projection for persisted content', () => {
+  it('uses private provenance for search and durable sidecars for persisted content', () => {
     expect(
       knowledgeSearchTool.request.modelInput?.select({
         knowledgeBaseId: 'kb-1',
@@ -36,59 +36,101 @@ describe('Knowledge Tools', () => {
       })
     ).toBe('search secret')
     expect(
-      knowledgeUploadChunkTool.request.modelInput?.select({
+      knowledgeSearchTool.request.modelInput?.select({
+        knowledgeBaseId: 'kb-1',
+        tagFilters: [{ tagName: 'team', tagValue: 'support' }],
+      })
+    ).toBeUndefined()
+    expect(
+      knowledgeUploadChunkTool.request.secretProvenance?.request?.({
         knowledgeBaseId: 'kb-1',
         documentId: 'doc-1',
         content: 'chunk secret',
       })
-    ).toEqual({ content: 'chunk secret' })
+    ).toEqual([{ key: 'chunk-content', value: 'chunk secret' }])
     expect(
-      knowledgeUpdateChunkTool.request.modelInput?.select({
+      knowledgeUpdateChunkTool.request.secretProvenance?.request?.({
         knowledgeBaseId: 'kb-1',
         documentId: 'doc-1',
         chunkId: 'chunk-1',
         content: 'updated secret',
         enabled: true,
       })
-    ).toEqual({ content: 'updated secret' })
+    ).toEqual([{ key: 'chunk-content', value: 'updated secret' }])
     expect(
-      knowledgeCreateDocumentTool.request.modelInput?.select({
+      knowledgeCreateDocumentTool.request.secretProvenance?.request?.({
         knowledgeBaseId: 'kb-1',
         name: 'document.txt',
         content: 'document secret',
+        documentTags: { team: 'support' },
       })
-    ).toEqual({ content: 'document secret' })
+    ).toEqual([
+      { key: 'document-filename:0', value: 'document.txt' },
+      { key: 'document-content:0', value: 'document secret' },
+      { key: 'document-tag-name:0:0', value: 'team' },
+      { key: 'document-tag-value:0:0', value: 'support' },
+    ])
     expect(
-      knowledgeUpsertDocumentTool.request.modelInput?.select({
+      knowledgeUpsertDocumentTool.request.secretProvenance?.request?.({
         knowledgeBaseId: 'kb-1',
         name: 'document.txt',
         content: 'replacement secret',
+        documentTags: [{ tagName: 'team', value: 'support' }],
       })
-    ).toEqual({ content: 'replacement secret' })
+    ).toEqual([
+      { key: 'document-filename:0', value: 'document.txt' },
+      { key: 'document-content:0', value: 'replacement secret' },
+      { key: 'document-tag-name:0:0', value: 'team' },
+      { key: 'document-tag-value:0:0', value: 'support' },
+    ])
 
     expect(knowledgeSearchTool.request.modelInput?.mode).toBe('private-provenance')
-    expect(knowledgeUploadChunkTool.request.modelInput?.mode).toBe('project')
-    expect(knowledgeUpdateChunkTool.request.modelInput?.mode).toBe('project')
-    expect(knowledgeCreateDocumentTool.request.modelInput?.mode).toBe('project')
-    expect(knowledgeUpsertDocumentTool.request.modelInput?.mode).toBe('project')
+    expect(knowledgeUploadChunkTool.request.modelInput).toBeUndefined()
+    expect(knowledgeUpdateChunkTool.request.modelInput).toBeUndefined()
+    expect(knowledgeCreateDocumentTool.request.modelInput).toBeUndefined()
+    expect(knowledgeUpsertDocumentTool.request.modelInput).toBeUndefined()
+    expect(knowledgeUploadChunkTool.request.secretProvenance?.response).toEqual({
+      incomplete: 'reject',
+    })
+    expect(knowledgeUpdateChunkTool.request.secretProvenance?.response).toEqual({
+      incomplete: 'reject',
+    })
+    expect(knowledgeCreateDocumentTool.request.secretProvenance?.response).toEqual({
+      incomplete: 'reject',
+    })
+    expect(knowledgeUpsertDocumentTool.request.secretProvenance?.response).toEqual({
+      incomplete: 'reject',
+    })
   })
 
-  it('formats projected placeholders into persisted document and chunk content', () => {
+  it('keeps persisted request values raw while provenance travels out of band', () => {
     const createBody = knowledgeCreateDocumentTool.request.body?.({
       knowledgeBaseId: 'kb-1',
-      name: 'document.txt',
+      name: '{{DOCUMENT_NAME}}.txt',
       content: '{{API_KEY}}',
-    }) as { documents: Array<{ fileUrl: string }> }
+      documentTags: { team: '{{TEAM_SECRET}}' },
+    }) as {
+      documents: Array<{ filename: string; fileUrl: string; documentTagsData?: string }>
+    }
     const createEncoded = createBody.documents[0].fileUrl.split(',')[1]
     expect(Buffer.from(createEncoded, 'base64').toString('utf8')).toBe('{{API_KEY}}')
+    expect(createBody.documents[0].filename).toBe('{{DOCUMENT_NAME}}.txt')
+    expect(createBody.documents[0].documentTagsData).toBe(
+      '[{"tagName":"team","value":"{{TEAM_SECRET}}"}]'
+    )
 
     const upsertBody = knowledgeUpsertDocumentTool.request.body?.({
       knowledgeBaseId: 'kb-1',
-      name: 'document.txt',
+      name: '{{DOCUMENT_NAME}}.txt',
       content: 'Bearer {{API_KEY}}',
-    }) as { fileUrl: string }
+      documentTags: [{ tagName: 'team', value: 'Bearer {{TEAM_SECRET}}' }],
+    }) as { filename: string; fileUrl: string; documentTagsData?: string }
     const upsertEncoded = upsertBody.fileUrl.split(',')[1]
     expect(Buffer.from(upsertEncoded, 'base64').toString('utf8')).toBe('Bearer {{API_KEY}}')
+    expect(upsertBody.filename).toBe('{{DOCUMENT_NAME}}.txt')
+    expect(upsertBody.documentTagsData).toBe(
+      '[{"tagName":"team","value":"Bearer {{TEAM_SECRET}}"}]'
+    )
 
     expect(
       knowledgeUploadChunkTool.request.body?.({

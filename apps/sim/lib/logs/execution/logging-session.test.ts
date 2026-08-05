@@ -32,6 +32,10 @@ const { materializeLargeValueRefMock, storeLargeValueMock } = vi.hoisted(() => (
   storeLargeValueMock: vi.fn(),
 }))
 
+const { decryptSecretMock } = vi.hoisted(() => ({
+  decryptSecretMock: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
+}))
+
 vi.mock('drizzle-orm', () => ({
   eq: dbMocks.eq,
   and: dbMocks.and,
@@ -59,6 +63,10 @@ vi.mock('@/lib/core/telemetry', () => ({
 vi.mock('@/lib/execution/payloads/store', () => ({
   materializeLargeValueRef: materializeLargeValueRefMock,
   storeLargeValue: storeLargeValueMock,
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: decryptSecretMock,
 }))
 
 const {
@@ -121,6 +129,20 @@ function createSecretRegistry(
     exportProvenance: () => ({ version: 1, complete, entries: [] }),
     exportCheckpointProvenance: () => ({ version: 1, complete, entries: [] }),
   } as unknown as ResolvedSecretTraceRegistry
+}
+
+function createDisplayProvenance(matches: ResolvedSecretTraceMatch[], complete = true) {
+  return {
+    version: 1 as const,
+    complete,
+    entries: matches.map(({ plaintext, replacement }) => {
+      const namedMatch = /^\{\{(.+)\}\}$/.exec(replacement)
+      return {
+        encryptedValue: plaintext,
+        ...(namedMatch?.[1] ? { name: namedMatch[1] } : {}),
+      }
+    }),
+  }
 }
 
 describe('LoggingSession diagnostic projection', () => {
@@ -221,6 +243,46 @@ describe('LoggingSession terminal provenance', () => {
     )
   })
 
+  it('preserves exact workflow input and final output sidecars on completion', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-exact-values', 'manual')
+    session.setResolvedSecretTraceRegistry(createSecretRegistry([]))
+    const exactProvenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+    }
+    const executionState = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+      workflowInputResolvedSecretTraceProvenance: exactProvenance,
+      finalOutputResolvedSecretTraceProvenance: {
+        version: 1 as const,
+        complete: true,
+        entries: [],
+      },
+    }
+
+    await session.complete({
+      finalOutput: { result: 'Test' },
+      workflowInput: { token: 'Test' },
+      executionState,
+    })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executionState: expect.objectContaining({
+          workflowInputResolvedSecretTraceProvenance: exactProvenance,
+          finalOutputResolvedSecretTraceProvenance:
+            executionState.finalOutputResolvedSecretTraceProvenance,
+        }),
+      })
+    )
+  })
+
   it.each(['cancellation', 'pause'] as const)(
     'preserves raw execution state on %s finalization',
     async (finalization) => {
@@ -245,6 +307,11 @@ describe('LoggingSession terminal provenance', () => {
         expect.objectContaining({
           executionState: expect.objectContaining({
             blockStates: executionState.blockStates,
+            finalOutputResolvedSecretTraceProvenance: {
+              version: 1,
+              complete: true,
+              entries: [],
+            },
             resolvedSecretTraceProvenance: {
               version: 1,
               complete: true,
@@ -546,6 +613,9 @@ describe('LoggingSession completion retries', () => {
         endTime: '2026-07-01T00:00:00.001Z',
         status: 'success',
         output: { echoed: secret, encoded: encodeURIComponent(secret) },
+        displayResolvedSecretTraceProvenance: createDisplayProvenance([
+          { plaintext: secret, replacement: '{{OPENAI_API_KEY}}' },
+        ]),
       },
     ]
     const rawWorkflowInput = { prompt: `use ${secret}` }
@@ -598,6 +668,9 @@ describe('LoggingSession completion retries', () => {
         startTime: '2026-07-01T00:00:00.000Z',
         endTime: '2026-07-01T00:00:00.001Z',
         output: { result: secret },
+        displayResolvedSecretTraceProvenance: createDisplayProvenance([
+          { plaintext: secret, replacement: '{{LONG_SECRET}}' },
+        ]),
       },
     ]
     session.setResolvedSecretTraceRegistry(
@@ -632,6 +705,9 @@ describe('LoggingSession completion retries', () => {
         endTime: '2026-07-01T00:00:00.001Z',
         status: 'success',
         output: { apiKey: 'ordinary-value' },
+        displayResolvedSecretTraceProvenance: createDisplayProvenance([
+          { plaintext: 'E', replacement: '{{X}}' },
+        ]),
       },
     ]
     session.setResolvedSecretTraceRegistry(
@@ -671,6 +747,9 @@ describe('LoggingSession completion retries', () => {
         endTime: '2026-07-01T00:00:00.001Z',
         status: 'success',
         output: { apiKey: 'ordinary-value' },
+        displayResolvedSecretTraceProvenance: createDisplayProvenance([
+          { plaintext: 'E', replacement: '{{X}}' },
+        ]),
       },
     ]
     const ref = {
@@ -721,7 +800,14 @@ describe('LoggingSession completion retries', () => {
     )
     completeWorkflowExecutionMock.mockResolvedValue({})
     const rawExecutionState = {
-      blockStates: { 'function-1': { output: { result: secret } } },
+      blockStates: {
+        'function-1': {
+          output: { result: secret },
+          resolvedSecretTraceProvenance: createDisplayProvenance([
+            { plaintext: secret, replacement: '{{OPENAI_API_KEY}}' },
+          ]),
+        },
+      },
       executedBlocks: ['function-1'],
       blockLogs: [],
       decisions: { router: {}, condition: {} },
@@ -744,7 +830,9 @@ describe('LoggingSession completion retries', () => {
         ],
         completionFailure: `Function failed with ${secret}`,
         executionState: expect.objectContaining({
-          blockStates: { 'function-1': { output: { result: secret } } },
+          blockStates: {
+            'function-1': expect.objectContaining({ output: { result: secret } }),
+          },
         }),
       })
     )
@@ -806,6 +894,7 @@ describe('LoggingSession completion retries', () => {
           endTime: '2026-07-01T00:00:00.001Z',
           status: 'success',
           output: { raw: 'unknown-provenance' },
+          displayResolvedSecretTraceProvenance: createDisplayProvenance([], false),
         },
       ],
     })
@@ -822,7 +911,7 @@ describe('LoggingSession completion retries', () => {
     )
   })
 
-  it('fails closed to structural-only spans when provenance was not installed', async () => {
+  it('treats legacy spans without provenance as already projected', async () => {
     const session = new LoggingSession('workflow-1', 'execution-no-registry', 'api', 'req-1')
     completeWorkflowExecutionMock.mockResolvedValue({})
 
@@ -843,7 +932,7 @@ describe('LoggingSession completion retries', () => {
     expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         finalOutput: {},
-        traceSpans: [expect.not.objectContaining({ output: expect.anything() })],
+        traceSpans: [expect.objectContaining({ output: { unknown: 'provenance' } })],
       })
     )
   })
@@ -864,16 +953,22 @@ describe('LoggingSession completion retries', () => {
       input: { code: `return blah +${secret}` },
       output: { error: rawError },
       error: rawError,
+      displayResolvedSecretTraceProvenance: createDisplayProvenance([
+        { plaintext: secret, replacement: '{{NUMBER_SECRET}}' },
+      ]),
     }
     session.setResolvedSecretTraceRegistry(
       createSecretRegistry([{ plaintext: secret, replacement: '{{NUMBER_SECRET}}' }])
     )
 
-    const display = await session.projectDisplayContent({
-      input: rawLog.input,
-      output: rawLog.output,
-      error: rawError,
-    })
+    const display = await session.projectDisplayContent(
+      {
+        input: rawLog.input,
+        output: rawLog.output,
+        error: rawError,
+      },
+      rawLog.displayResolvedSecretTraceProvenance
+    )
     const [displayLog] = await session.projectBlockLogsForDisplay([rawLog])
 
     expect(display).toEqual({
@@ -908,6 +1003,9 @@ describe('LoggingSession completion retries', () => {
       success: true,
       executionOrder: index,
       output: { value: `row-${index}:raw-secret` },
+      displayResolvedSecretTraceProvenance: createDisplayProvenance([
+        { plaintext: 'raw-secret', replacement: '{{TOKEN}}' },
+      ]),
     }))
 
     const displayLogs = await session.projectBlockLogsForDisplay(rawLogs)
@@ -934,6 +1032,9 @@ describe('LoggingSession completion retries', () => {
       executionOrder: 1,
       input: { code: 'return 1234' },
       output: { result: 1234, stdout: '' },
+      displayResolvedSecretTraceProvenance: createDisplayProvenance([
+        { plaintext: '1234', replacement: '{{OPENAI_API_KEY}}' },
+      ]),
     }
 
     const [displayLog] = await session.projectBlockLogsForDisplay([rawLog])
@@ -941,6 +1042,44 @@ describe('LoggingSession completion retries', () => {
     expect(displayLog.input).toEqual({ code: 'return {{OPENAI_API_KEY}}' })
     expect(displayLog.output).toEqual({ result: '{{OPENAI_API_KEY}}', stdout: '' })
     expect(rawLog.output.result).toBe(1234)
+  })
+
+  it('projects each block log with only its causal provenance', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-sibling-values', 'manual', 'req-1')
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: 'Test', replacement: '{{SHORT_SECRET}}' }])
+    )
+    const baseLog = {
+      blockName: 'Function',
+      blockType: 'function',
+      startedAt: '2026-07-01T00:00:00.000Z',
+      endedAt: '2026-07-01T00:00:00.001Z',
+      durationMs: 1,
+      success: true,
+    }
+    const displayLogs = await session.projectBlockLogsForDisplay([
+      {
+        ...baseLog,
+        blockId: 'secret-block',
+        executionOrder: 1,
+        output: { result: 'Test' },
+        displayResolvedSecretTraceProvenance: createDisplayProvenance([
+          { plaintext: 'Test', replacement: '{{SHORT_SECRET}}' },
+        ]),
+      },
+      {
+        ...baseLog,
+        blockId: 'public-block',
+        executionOrder: 2,
+        output: { result: 'Test' },
+        displayResolvedSecretTraceProvenance: createDisplayProvenance([]),
+      },
+    ])
+
+    expect(displayLogs[0].output).toEqual({ result: '{{SHORT_SECRET}}' })
+    expect(displayLogs[1].output).toEqual({ result: 'Test' })
+    expect(displayLogs[0]).not.toHaveProperty('displayResolvedSecretTraceProvenance')
+    expect(displayLogs[1]).not.toHaveProperty('displayResolvedSecretTraceProvenance')
   })
 
   it('suppresses live deltas once a resolved secret is active', async () => {
@@ -952,12 +1091,16 @@ describe('LoggingSession completion retries', () => {
     const inactive = new LoggingSession('workflow-1', 'execution-live-inactive', 'manual', 'req-1')
     inactive.setResolvedSecretTraceRegistry(createSecretRegistry([]))
 
-    await expect(active.projectLiveDisplayText('chunk', 'split-')).resolves.toEqual({
-      clearLiveDisplay: true,
-    })
-    await expect(inactive.projectLiveDisplayText('chunk', 'ordinary text')).resolves.toEqual({
-      chunk: 'ordinary text',
-    })
+    await expect(
+      active.projectLiveDisplayText(
+        'chunk',
+        'split-',
+        createDisplayProvenance([{ plaintext: 'split-secret', replacement: '{{SECRET}}' }])
+      )
+    ).resolves.toEqual({ clearLiveDisplay: true })
+    await expect(
+      inactive.projectLiveDisplayText('chunk', 'ordinary text', createDisplayProvenance([]))
+    ).resolves.toEqual({ chunk: 'ordinary text' })
   })
 
   it('derives fallback cost from trace spans when the primary completion fails', async () => {

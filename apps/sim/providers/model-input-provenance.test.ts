@@ -1,19 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import {
-  collectProviderModelInputProvenanceValues,
-  reconstructLegacyProviderModelInputProvenance,
-} from '@/providers/model-input-provenance'
+import { describe, expect, it } from 'vitest'
+import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
 import type { ProviderRequest } from '@/providers/types'
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: vi.fn(async (encryptedValue: string) => ({
-    decrypted: encryptedValue === 'encrypted-active' ? 'secret-value' : 'string',
-  })),
-}))
 
 function request(overrides: Partial<ProviderRequest> = {}): ProviderRequest {
   return {
@@ -44,7 +34,8 @@ describe('provider model input provenance', () => {
             },
           },
         ],
-      })
+      }),
+      'openai'
     )
 
     expect(JSON.stringify(selected)).toContain('dynamic description')
@@ -54,36 +45,53 @@ describe('provider model input provenance', () => {
     expect(JSON.stringify(selected)).not.toContain('unused-secret')
   })
 
-  it('legacy reconstruction activates matching model content but not dormant schema controls', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'ACTIVE',
-        plaintext: 'secret-value',
-        encryptedValue: 'encrypted-active',
-      },
-      {
-        name: 'DORMANT_CONTROL',
-        plaintext: 'string',
-        encryptedValue: 'encrypted-control',
-      },
-    ])
-
-    expect(
-      await reconstructLegacyProviderModelInputProvenance(
-        request({
-          systemPrompt: 'use secret-value',
-          responseFormat: {
-            name: 'response',
-            schema: { type: 'string' },
-            strict: true,
+  it('selects only attachment names that the target provider transmits', () => {
+    const documentRequest = request({
+      messages: [
+        {
+          role: 'user',
+          content: 'read this',
+          files: [
+            {
+              id: 'file-1',
+              name: 'model-visible-name.txt',
+              url: '/file',
+              size: 1,
+              type: 'text/plain',
+              key: 'workspace/file-1',
+              context: 'storage-only-context',
+            },
+          ],
+        },
+      ],
+    })
+    const openAISelected = collectProviderModelInputProvenanceValues(documentRequest, 'openai')
+    const geminiSelected = collectProviderModelInputProvenanceValues(documentRequest, 'google')
+    const imageSelected = collectProviderModelInputProvenanceValues(
+      request({
+        messages: [
+          {
+            role: 'user',
+            content: 'view this',
+            files: [
+              {
+                id: 'image-1',
+                name: 'non-model-image-name.png',
+                url: '/image',
+                size: 1,
+                type: 'image/png',
+              },
+            ],
           },
-        }),
-        registry
-      )
-    ).toBe(true)
-    expect(registry.exportProvenance().entries).toEqual([
-      { encryptedValue: 'encrypted-active', name: 'ACTIVE' },
-    ])
+        ],
+      }),
+      'openai'
+    )
+
+    expect(openAISelected).toContain('model-visible-name.txt')
+    expect(openAISelected).not.toContain('storage-only-context')
+    expect(geminiSelected).not.toContain('model-visible-name.txt')
+    expect(imageSelected).not.toContain('non-model-image-name.png')
   })
 
   it('omits every candidate from optional schemas the provider boundary will drop', () => {
@@ -102,7 +110,8 @@ describe('provider model input provenance', () => {
           name: 'malformed-response-name',
           schema: { allOf: ['not-a-schema'] },
         },
-      })
+      }),
+      'openai'
     )
 
     expect(JSON.stringify(selected)).not.toContain('malformed-tool')
@@ -115,8 +124,8 @@ describe('provider model input provenance', () => {
       content: 'public',
     }))
 
-    expect(() => collectProviderModelInputProvenanceValues(request({ messages }))).toThrow(
-      'Provider model input provenance selection exceeds its safe limit'
-    )
+    expect(() =>
+      collectProviderModelInputProvenanceValues(request({ messages }), 'openai')
+    ).toThrow('Provider model input provenance selection exceeds its safe limit')
   })
 })

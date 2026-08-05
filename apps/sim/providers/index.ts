@@ -70,8 +70,8 @@ function restoreProjectedOptionalString(
   return candidate
 }
 
-function modelVisibleMessageText(message: Message): unknown[] {
-  return [message.content, message.files?.map((file) => file.context)]
+function modelVisibleMessageText(message: Message): unknown {
+  return message.content
 }
 
 function projectMessageJsonArguments(
@@ -169,39 +169,17 @@ function restoreProjectedMessages(
   }
 
   return projected.map((candidate, index) => {
-    if (!Array.isArray(candidate) || candidate.length !== 2) {
-      throw new ModelContentProjectionError()
-    }
     const originalMessage = original[index]
-    const [content, fileContexts] = candidate
     if (
-      (originalMessage.content === null && content !== null) ||
-      (typeof originalMessage.content === 'string' && typeof content !== 'string')
+      (originalMessage.content === null && candidate !== null) ||
+      (typeof originalMessage.content === 'string' && typeof candidate !== 'string')
     ) {
       throw new ModelContentProjectionError()
     }
 
-    let projectedFiles: Message['files']
-    if (originalMessage.files === undefined && fileContexts === undefined) {
-      projectedFiles = undefined
-    } else {
-      if (
-        !originalMessage.files ||
-        !Array.isArray(fileContexts) ||
-        originalMessage.files.length !== fileContexts.length
-      ) {
-        throw new ModelContentProjectionError()
-      }
-      projectedFiles = originalMessage.files.map((file, fileIndex) => {
-        const context = restoreProjectedOptionalString(file.context, fileContexts[fileIndex])
-        return { ...file, context }
-      })
-    }
-
     return {
       ...originalMessage,
-      content: content as Message['content'],
-      ...(projectedFiles !== undefined ? { files: projectedFiles } : {}),
+      content: candidate as Message['content'],
     }
   })
 }
@@ -305,50 +283,6 @@ function projectProviderModelContent(
     messages: restoreProjectedMessages(sourceMessages, projectedMessages),
     tools: restoreProjectedTools(sourceTools, projectedTools),
     responseFormat,
-  }
-}
-
-function projectProviderAttachmentDisplayNames(
-  request: ProviderRequest,
-  runtimeContext: ProviderRuntimeContext
-): ProviderRequest {
-  const fileNames = (request.messages ?? []).map((message) =>
-    message.files ? message.files.map((file) => file.name) : null
-  )
-  const projection = projectResolvedSecretModelContent(
-    fileNames,
-    runtimeContext.resolvedSecretTraceRegistry
-  )
-  if (!projection.safe || !Array.isArray(projection.value)) {
-    throw new ModelContentProjectionError()
-  }
-
-  const projectedFileNames = projection.value
-  if (projectedFileNames.length !== (request.messages?.length ?? 0)) {
-    throw new ModelContentProjectionError()
-  }
-
-  return {
-    ...request,
-    messages: request.messages?.map((message, messageIndex) => {
-      const candidate = projectedFileNames[messageIndex]
-      if (!message.files) {
-        if (candidate !== null) throw new ModelContentProjectionError()
-        return message
-      }
-      if (!Array.isArray(candidate) || candidate.length !== message.files.length) {
-        throw new ModelContentProjectionError()
-      }
-
-      return {
-        ...message,
-        files: message.files.map((file, fileIndex) => {
-          const name = candidate[fileIndex]
-          if (typeof name !== 'string') throw new ModelContentProjectionError()
-          return { ...file, name }
-        }),
-      }
-    }),
   }
 }
 
@@ -488,7 +422,7 @@ export async function executeProviderRequest(
         ...runtimeContext,
         resolvedSecretTraceRegistry:
           runtimeContext.resolvedSecretTraceRegistry?.forkForToolInputValues(
-            collectProviderModelInputProvenanceValues(request)
+            collectProviderModelInputProvenanceValues(request, providerId)
           ),
       }
     : undefined
@@ -542,12 +476,9 @@ export async function executeProviderRequest(
   }
 
   const provenanceSafeRequest = await omitUnsafeProviderFileAttachments(sanitizedRequest)
-  const attachmentRequest = projectionRuntimeContext
-    ? projectProviderAttachmentDisplayNames(provenanceSafeRequest, projectionRuntimeContext)
-    : provenanceSafeRequest
   const modelSafeRequest = projectionRuntimeContext
-    ? projectProviderModelContent(attachmentRequest, projectionRuntimeContext)
-    : attachmentRequest
+    ? projectProviderModelContent(provenanceSafeRequest, projectionRuntimeContext)
+    : provenanceSafeRequest
 
   if (modelSafeRequest.responseFormat) {
     const structuredOutputInstructions = generateStructuredOutputInstructions(
@@ -560,12 +491,11 @@ export async function executeProviderRequest(
     }
   }
 
-  await attachLargeFileRemoteUrls(modelSafeRequest, providerId)
-  await uploadLargeFilesToProvider(modelSafeRequest, providerId)
-
-  const response = await runWithProviderRuntimeContext(runtimeContext, () =>
-    provider.executeRequest(modelSafeRequest)
-  )
+  const response = await runWithProviderRuntimeContext(projectionRuntimeContext, async () => {
+    await attachLargeFileRemoteUrls(modelSafeRequest, providerId)
+    await uploadLargeFilesToProvider(modelSafeRequest, providerId)
+    return provider.executeRequest(modelSafeRequest)
+  })
 
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution', { isBYOK })

@@ -91,7 +91,7 @@ describe('execution data storage', () => {
 })
 
 describe('projectExecutionDataForDisplay', () => {
-  it('projects persisted output, input, errors, and spans from trusted provenance', async () => {
+  it('retains run-global projection for legacy rows without exact value sidecars', async () => {
     const executionData = {
       finalOutput: { result: 1234, derived: 1239 },
       workflowInput: { nested: { token: 'prefix-1234-suffix' } },
@@ -142,6 +142,37 @@ describe('projectExecutionDataForDisplay', () => {
       { name: 'OPENAI_API_KEY', encryptedValue: 'ciphertext' },
     ])
     expect(JSON.stringify(displayData)).not.toContain('1234')
+  })
+
+  it('projects only values carrying exact provenance when sibling fields share low-entropy bytes', async () => {
+    decryptSecretMock.mockResolvedValue({ decrypted: 'Test' })
+    const secretProvenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    }
+    const emptyProvenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    }
+    const executionData = {
+      finalOutput: { result: 'Test' },
+      workflowInput: { token: 'Test' },
+      executionState: {
+        resolvedSecretTraceProvenance: secretProvenance,
+        finalOutputResolvedSecretTraceProvenance: emptyProvenance,
+        workflowInputResolvedSecretTraceProvenance: secretProvenance,
+      },
+    }
+
+    const displayData = await projectExecutionDataForDisplay(executionData, CONTEXT)
+
+    expect(displayData.finalOutput).toEqual({ result: 'Test' })
+    expect(displayData.workflowInput).toEqual({ token: '{{TOKEN}}' })
+    expect(displayData).not.toHaveProperty('executionState')
   })
 
   it('preserves the full display envelope for legacy rows without a projection contract', async () => {

@@ -6,6 +6,7 @@ import {
   createModelInputProvenanceRequestMetadata,
   inspectModelInputProvenanceRequest,
   PRIVATE_MODEL_INPUT_PROVENANCE_HEADER,
+  validateOpaqueModelInputProvenance,
 } from '@/lib/execution/model-input-provenance'
 import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
@@ -86,5 +87,87 @@ describe('model input provenance transport', () => {
         {}
       )
     ).toEqual({ status: 'invalid' })
+  })
+
+  it('preserves external opaque inputs and requires internal callers to send an envelope', () => {
+    expect(
+      validateOpaqueModelInputProvenance({
+        headers: new Headers(),
+        payload: {},
+        isInternalRequest: false,
+      })
+    ).toEqual({ success: true })
+
+    expect(
+      validateOpaqueModelInputProvenance({
+        headers: new Headers(),
+        payload: {},
+        isInternalRequest: true,
+      })
+    ).toEqual({
+      success: false,
+      error: 'Model input provenance is unavailable',
+      status: 400,
+    })
+
+    expect(
+      validateOpaqueModelInputProvenance({
+        headers: new Headers({
+          [PRIVATE_MODEL_INPUT_PROVENANCE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+        }),
+        payload: {
+          [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: true, entries: [] },
+        },
+        isInternalRequest: true,
+      })
+    ).toEqual({ success: true })
+  })
+
+  it('fails closed for forged, incomplete, or secret-bearing opaque model input', () => {
+    const headers = new Headers({
+      [PRIVATE_MODEL_INPUT_PROVENANCE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+    })
+
+    expect(
+      validateOpaqueModelInputProvenance({
+        headers,
+        payload: {
+          [RESOLVED_SECRET_PROVENANCE_FIELD]: {
+            version: 1,
+            complete: true,
+            entries: [{ name: ENTRY.name, encryptedValue: ENTRY.encryptedValue }],
+          },
+        },
+        isInternalRequest: true,
+      })
+    ).toEqual({
+      success: false,
+      error: 'Model input contains a resolved secret that cannot be safely projected',
+      status: 400,
+    })
+
+    expect(
+      validateOpaqueModelInputProvenance({
+        headers,
+        payload: {
+          [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: false, entries: [] },
+        },
+        isInternalRequest: true,
+      })
+    ).toEqual({
+      success: false,
+      error: 'Model input provenance is unavailable',
+      status: 400,
+    })
+
+    expect(
+      validateOpaqueModelInputProvenance({
+        headers,
+        payload: {
+          [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: true, entries: [] },
+        },
+        isInternalRequest: false,
+      })
+    ).toEqual({ success: false, error: 'Invalid model input provenance', status: 400 })
   })
 })

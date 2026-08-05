@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -40,10 +41,14 @@ import {
 import {
   addModelInputProvenanceToRequest,
   createModelInputProvenanceRequestMetadata,
+  createPrivateSecretProvenanceRequestMetadata,
+  OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR,
+  OPAQUE_MODEL_INPUT_RESOLVED_SECRET_ERROR,
 } from '@/lib/execution/model-input-provenance'
 import {
   inspectPrivateToolMetadataEnvelope,
   inspectPrivateToolMetadataResponseCapability,
+  MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES,
   PRIVATE_TOOL_METADATA_REQUEST_HEADER,
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
   type PrivateToolMetadataType,
@@ -87,6 +92,12 @@ const PRIVATE_TOOL_METADATA_ERROR_MESSAGE = 'Internal tool response metadata cou
 const MODEL_INPUT_PROJECTION_ERROR_MESSAGE = 'Model input could not be safely projected'
 const PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE =
   'Private model input provenance is only supported for internal routes'
+const PRIVATE_MODEL_INPUT_DIRECT_EXECUTION_ERROR_MESSAGE =
+  'Private model input provenance is not supported by direct execution'
+const PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE =
+  'Private secret provenance is only supported for internal routes'
+const PRIVATE_SECRET_PROVENANCE_DIRECT_EXECUTION_ERROR_MESSAGE =
+  'Private secret provenance is not supported by direct execution'
 
 function haveExactOwnKeys(
   selected: Record<string, unknown>,
@@ -169,9 +180,69 @@ function projectToolModelInputParams(
       throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
     }
 
-    return { ...params, ...projectedSelected }
+    if (!modelInput.applyProjected) {
+      return { ...params, ...projectedSelected }
+    }
+
+    const originalSelectedParams: Record<string, unknown> = {}
+    for (const [key] of entries) {
+      originalSelectedParams[key] = params[key]
+    }
+    const selectedParamsClone = structuredClone(originalSelectedParams)
+    const patch = inspectSelectedModelInputRecord(
+      tool,
+      modelInput.applyProjected(selectedParamsClone, projectedSelected)
+    )
+    if (!patch || !haveExactOwnKeys(selected, patch.record)) {
+      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
+    }
+
+    const projectedParams = { ...params, ...patch.record }
+    const verification = inspectSelectedModelInputRecord(tool, modelInput.select(projectedParams))
+    if (
+      !verification ||
+      !haveExactOwnKeys(selected, verification.record) ||
+      !isDeepStrictEqual(verification.record, projectedSelected)
+    ) {
+      throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
+    }
+
+    return projectedParams
   } catch {
     throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
+  }
+}
+
+function assertOpaqueToolModelInputSafe(
+  tool: ToolConfig,
+  params: Record<string, any>,
+  registry: ResolvedSecretTraceRegistry | undefined
+): void {
+  const opaqueModelInput = tool.request.opaqueModelInput
+  if (!opaqueModelInput || !registry) return
+  if (opaqueModelInput.mode !== 'reject-resolved-secrets') {
+    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
+  }
+
+  let selection: unknown
+  try {
+    selection = opaqueModelInput.select(params)
+  } catch {
+    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
+  }
+  if (selection === undefined) return
+
+  let provenance
+  try {
+    provenance = registry.exportCommittedProvenanceForValue(selection)
+  } catch {
+    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
+  }
+  if (!provenance.complete) {
+    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
+  }
+  if (provenance.entries.length > 0) {
+    throw new Error(OPAQUE_MODEL_INPUT_RESOLVED_SECRET_ERROR)
   }
 }
 
@@ -944,7 +1015,6 @@ import { normalizeToolId } from '@/tools/normalize'
  */
 const MAX_REQUEST_BODY_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
 const MAX_TOOL_RESPONSE_BODY_BYTES = 10 * 1024 * 1024 // 10MB
-const MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES = 10 * 1024 * 1024 // 10MB
 
 /**
  * User-friendly error message for body size limit exceeded
@@ -1202,6 +1272,11 @@ interface PrivateToolResponseMetadataResult {
   response: Response
 }
 
+interface PrivateToolMetadataPolicy {
+  type: PrivateToolMetadataType
+  incomplete: 'reject' | 'propagate'
+}
+
 type PrivateToolMetadataConsumption = 'verified' | 'unsupported' | 'invalid'
 
 function getFunctionExportedWorkspaceFileIds(payload: Record<string, unknown>): string[] {
@@ -1318,7 +1393,8 @@ async function consumePrivateToolPayloadMetadata(
   headers: Headers,
   requestedType: PrivateToolMetadataType | undefined,
   params: Record<string, any>,
-  registry?: ResolvedSecretTraceRegistry
+  registry?: ResolvedSecretTraceRegistry,
+  incomplete: 'reject' | 'propagate' = 'reject'
 ): Promise<PrivateToolMetadataConsumption> {
   if (!requestedType) return 'verified'
 
@@ -1362,7 +1438,7 @@ async function consumePrivateToolPayloadMetadata(
         await markWorkspaceFileSecretProvenanceUnknown(workspaceId, fileIds)
       }
       record[RESOLVED_SECRET_NAMES_FIELD] = undefined
-      return registry?.isPermanentlyIncomplete() ? 'invalid' : 'verified'
+      return registry?.isPermanentlyIncomplete() && incomplete === 'reject' ? 'invalid' : 'verified'
     }
   }
 
@@ -1400,14 +1476,15 @@ async function consumePrivateToolPayloadMetadata(
 
   record[RESOLVED_SECRET_NAMES_FIELD] = undefined
   record[RESOLVED_SECRET_PROVENANCE_FIELD] = undefined
-  return registry?.isPermanentlyIncomplete() ? 'invalid' : 'verified'
+  return registry?.isPermanentlyIncomplete() && incomplete === 'reject' ? 'invalid' : 'verified'
 }
 
 async function consumePrivateToolResponseMetadata(
   response: Response,
   requestedType: PrivateToolMetadataType | undefined,
   params: Record<string, any>,
-  registry?: ResolvedSecretTraceRegistry
+  registry?: ResolvedSecretTraceRegistry,
+  incomplete: 'reject' | 'propagate' = 'reject'
 ): Promise<PrivateToolResponseMetadataResult> {
   if (!requestedType) return { response }
 
@@ -1429,7 +1506,8 @@ async function consumePrivateToolResponseMetadata(
     response.headers,
     requestedType,
     params,
-    registry
+    registry,
+    incomplete
   )
   if (consumption !== 'verified') {
     return { response: rebuildSafePrivateToolResponse(response) }
@@ -1443,17 +1521,17 @@ async function consumePrivateToolResponseMetadata(
   }
 }
 
-function getPrivateToolMetadataType(toolId: string): PrivateToolMetadataType | undefined {
+function getPrivateToolMetadataPolicy(toolId: string): PrivateToolMetadataPolicy | undefined {
   const normalizedToolId = normalizeToolId(toolId)
-  if (
-    normalizedToolId === 'workflow_executor' ||
-    normalizedToolId === 'file_get_content' ||
-    isMcpTool(normalizedToolId)
-  ) {
-    return RESOLVED_SECRET_PROVENANCE_METADATA_V1
+  if (normalizedToolId === 'file_get_content' || isMcpTool(normalizedToolId)) {
+    return { type: RESOLVED_SECRET_PROVENANCE_METADATA_V1, incomplete: 'reject' }
   }
   if (normalizedToolId === 'function_execute' || isCustomTool(normalizedToolId)) {
-    return RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2
+    return { type: RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2, incomplete: 'reject' }
+  }
+  const configured = getTool(normalizedToolId)?.request.secretProvenance?.response
+  if (configured) {
+    return { type: RESOLVED_SECRET_PROVENANCE_METADATA_V1, incomplete: configured.incomplete }
   }
   return undefined
 }
@@ -1479,7 +1557,11 @@ export async function executeTool(
 ): Promise<ToolResponse> {
   const parentRegistry =
     options.resolvedSecretTraceRegistry ?? options.executionContext?.resolvedSecretTraceRegistry
-  if (!parentRegistry || !getPrivateToolMetadataType(toolId)) {
+  const privateMetadataPolicy = getPrivateToolMetadataPolicy(toolId)
+  if (!parentRegistry || !privateMetadataPolicy) {
+    return executeToolImplementation(toolId, params, options)
+  }
+  if (privateMetadataPolicy.incomplete === 'propagate') {
     return executeToolImplementation(toolId, params, options)
   }
   if (parentRegistry.isPermanentlyIncomplete()) {
@@ -1595,9 +1677,10 @@ async function executeToolImplementation(
           : isMcpTool(normalizedToolId)
             ? 'mcp'
             : undefined
-    const privateToolMetadataType = resolvedSecretTraceRegistry
-      ? getPrivateToolMetadataType(normalizedToolId)
+    const privateToolMetadataPolicy = resolvedSecretTraceRegistry
+      ? getPrivateToolMetadataPolicy(normalizedToolId)
       : undefined
+    const privateToolMetadataType = privateToolMetadataPolicy?.type
 
     if (resolvedSecretTraceRegistry && privateToolMetadataType) {
       completePendingSecretActivation = resolvedSecretTraceRegistry.beginPendingActivation()
@@ -1687,6 +1770,7 @@ async function executeToolImplementation(
     normalizeCopilotCredentialParams(contextParams)
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
     await resolveCopilotEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
+    assertOpaqueToolModelInputSafe(tool, contextParams, resolvedSecretTraceRegistry)
 
     // Inject hosted API key if tool supports it and user didn't provide one
     const hostedKeyInfo = await injectHostedKeyIfNeeded(
@@ -1866,7 +1950,22 @@ async function executeToolImplementation(
     // Check for direct execution (no HTTP request needed)
     if (tool.directExecution) {
       logger.info(`[${requestId}] Using directExecution for ${toolId}`)
-      const result = await tool.directExecution(contextParams, effectiveSignal)
+      if (
+        tool.request.modelInput?.mode === 'private-provenance' ||
+        (tool.request.modelInput?.mode === 'project' &&
+          tool.request.modelInput.privateProvenance !== undefined)
+      ) {
+        throw new Error(PRIVATE_MODEL_INPUT_DIRECT_EXECUTION_ERROR_MESSAGE)
+      }
+      if (tool.request.secretProvenance) {
+        throw new Error(PRIVATE_SECRET_PROVENANCE_DIRECT_EXECUTION_ERROR_MESSAGE)
+      }
+      const directExecutionInput = projectToolModelInputParams(
+        tool,
+        contextParams,
+        resolvedSecretTraceRegistry
+      )
+      const result = await tool.directExecution(directExecutionInput, effectiveSignal)
 
       // Apply post-processing if available and not skipped
       let finalResult = result
@@ -1933,6 +2032,7 @@ async function executeToolImplementation(
               contextParams,
               effectiveSignal,
               privateToolMetadataType,
+              privateToolMetadataPolicy?.incomplete,
               resolvedSecretTraceRegistry,
               internalSandboxProfile
             ),
@@ -1960,6 +2060,7 @@ async function executeToolImplementation(
                   contextParams,
                   effectiveSignal,
                   privateToolMetadataType,
+                  privateToolMetadataPolicy?.incomplete,
                   resolvedSecretTraceRegistry,
                   internalSandboxProfile
                 )
@@ -1972,6 +2073,7 @@ async function executeToolImplementation(
           contextParams,
           effectiveSignal,
           privateToolMetadataType,
+          privateToolMetadataPolicy?.incomplete,
           resolvedSecretTraceRegistry,
           internalSandboxProfile
         )
@@ -2298,6 +2400,7 @@ async function executeToolRequest(
   params: Record<string, any>,
   signal?: AbortSignal,
   privateToolMetadataType?: PrivateToolMetadataType,
+  privateToolMetadataIncomplete: 'reject' | 'propagate' = 'reject',
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
   internalSandboxProfile?: InternalSandboxProfile
 ): Promise<ToolResponse> {
@@ -2307,19 +2410,27 @@ async function executeToolRequest(
 
   const configuredEndpointUrl =
     typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
-  if (
-    tool.request.modelInput?.mode === 'private-provenance' &&
-    !configuredEndpointUrl.startsWith('/api/')
-  ) {
+  const modelInput = tool.request.modelInput
+  const secretProvenance = tool.request.secretProvenance
+  const hasPrivateModelInputProvenance =
+    modelInput?.mode === 'private-provenance' ||
+    (modelInput?.mode === 'project' && modelInput.privateProvenance !== undefined)
+  if (hasPrivateModelInputProvenance && !configuredEndpointUrl.startsWith('/api/')) {
     throw new Error(PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE)
+  }
+  if (secretProvenance && !configuredEndpointUrl.startsWith('/api/')) {
+    throw new Error(PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE)
   }
   const requestInput = projectToolModelInputParams(tool, params, resolvedSecretTraceRegistry)
   const requestParams = formatRequestParams(tool, requestInput)
   try {
     const endpointUrl = requestParams.url
     const isInternalRoute = endpointUrl.startsWith('/api/')
-    if (tool.request.modelInput?.mode === 'private-provenance' && !isInternalRoute) {
+    if (hasPrivateModelInputProvenance && !isInternalRoute) {
       throw new Error(PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE)
+    }
+    if (secretProvenance && !isInternalRoute) {
+      throw new Error(PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE)
     }
     const baseUrl = isInternalRoute ? getInternalApiBaseUrl() : getBaseUrl()
 
@@ -2339,13 +2450,20 @@ async function executeToolRequest(
     const fullUrl = fullUrlObj.toString()
 
     const selectedModelInput =
-      tool.request.modelInput?.mode === 'private-provenance'
-        ? tool.request.modelInput.select(requestInput)
-        : undefined
-    const modelInputMetadata =
-      selectedModelInput === undefined
-        ? undefined
-        : createModelInputProvenanceRequestMetadata(resolvedSecretTraceRegistry, selectedModelInput)
+      modelInput?.mode === 'private-provenance'
+        ? modelInput.select(requestInput)
+        : modelInput?.mode === 'project'
+          ? modelInput.privateProvenance?.(requestInput)
+          : undefined
+    const modelInputMetadata = hasPrivateModelInputProvenance
+      ? createModelInputProvenanceRequestMetadata(resolvedSecretTraceRegistry, selectedModelInput)
+      : undefined
+    const secretProvenanceMetadata = secretProvenance?.request
+      ? createPrivateSecretProvenanceRequestMetadata(
+          resolvedSecretTraceRegistry,
+          secretProvenance.request(requestInput)
+        )
+      : undefined
     if (isCustomTool(toolId) && tool.request.body) {
       const requestBody = tool.request.body(requestInput)
       if (
@@ -2373,7 +2491,7 @@ async function executeToolRequest(
     }
 
     const headers = new Headers(requestParams.headers)
-    if (modelInputMetadata) {
+    if (modelInputMetadata || secretProvenanceMetadata) {
       if (!requestParams.body) {
         throw new Error('Model input provenance requires a JSON request body')
       }
@@ -2386,8 +2504,17 @@ async function executeToolRequest(
       if (!isPlainRecord(requestBody)) {
         throw new Error('Model input provenance request body is invalid')
       }
+      const bodyWithModelInputProvenance = addModelInputProvenanceToRequest(
+        requestBody,
+        headers,
+        modelInputMetadata
+      )
       requestParams.body = JSON.stringify(
-        addModelInputProvenanceToRequest(requestBody, headers, modelInputMetadata)
+        addModelInputProvenanceToRequest(
+          bodyWithModelInputProvenance,
+          headers,
+          secretProvenanceMetadata
+        )
       )
     }
     if (!headers.has('User-Agent')) {
@@ -2645,7 +2772,8 @@ async function executeToolRequest(
       response,
       privateToolMetadataType,
       params,
-      resolvedSecretTraceRegistry
+      resolvedSecretTraceRegistry,
+      privateToolMetadataIncomplete
     )
     response = privateMetadata.response
 

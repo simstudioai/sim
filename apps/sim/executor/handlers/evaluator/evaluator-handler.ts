@@ -15,6 +15,8 @@ import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
 import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
@@ -56,25 +58,26 @@ export class EvaluatorBlockHandler implements BlockHandler {
       responseFormat: null,
     }
 
-    logger.info('Inputs for evaluator:', inputs)
     let metrics: any[]
     if (Array.isArray(inputs.metrics)) {
       metrics = inputs.metrics
     } else {
       metrics = []
     }
-    logger.info('Metrics for evaluator:', metrics)
     const metricDescriptions = metrics
       .filter((m: any) => m?.name && m.range)
       .map((m: any) => `"${m.name}" (${m.range.min}-${m.range.max}): ${m.description || ''}`)
       .join('\n')
 
     const responseProperties: Record<string, any> = {}
-    metrics.forEach((m: any) => {
+    metrics.forEach((m: any, metricIndex: number) => {
       if (m?.name) {
         responseProperties[m.name.toLowerCase()] = { type: 'number' }
       } else {
-        logger.warn('Skipping invalid metric entry during response format generation:', m)
+        logger.warn('Skipping invalid metric entry during response format generation', {
+          metricIndex,
+          metricType: m === null ? 'null' : typeof m,
+        })
       }
     })
 
@@ -183,7 +186,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         headers,
         createModelInputProvenanceRequestMetadata(
           ctx.resolvedSecretTraceRegistry,
-          collectProviderModelInputProvenanceValues(providerRequest)
+          collectProviderModelInputProvenanceValues(providerRequest, providerId)
         )
       )
       const response = await fetch(url.toString(), {
@@ -199,7 +202,10 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       const result = await response.json()
 
-      const parsedContent = this.extractJSONFromResponse(result.content)
+      const parsedContent = this.extractJSONFromResponse(
+        result.content,
+        ctx.resolvedSecretTraceRegistry
+      )
 
       const metricScores = this.extractMetricScores(parsedContent, inputs.metrics)
 
@@ -229,7 +235,10 @@ export class EvaluatorBlockHandler implements BlockHandler {
         ...metricScores,
       }
     } catch (error) {
-      logger.error('Evaluator execution failed:', error)
+      logger.error(
+        'Evaluator execution failed',
+        projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry)
+      )
       throw error
     }
   }
@@ -253,7 +262,10 @@ export class EvaluatorBlockHandler implements BlockHandler {
     return String(content || '')
   }
 
-  private extractJSONFromResponse(responseContent: string): Record<string, any> {
+  private extractJSONFromResponse(
+    responseContent: string,
+    registry: ResolvedSecretTraceRegistry | undefined
+  ): Record<string, any> {
     try {
       const contentStr = responseContent.trim()
 
@@ -271,8 +283,14 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       return parseJSON(contentStr, {})
     } catch (error) {
-      logger.error('Error parsing evaluator response:', error)
-      logger.error('Raw response content:', responseContent)
+      logger.error(
+        'Error parsing evaluator response',
+        projectResolvedSecretDiagnosticError(error, registry, {
+          responseContentType: typeof responseContent,
+          responseContentLength:
+            typeof responseContent === 'string' ? responseContent.length : undefined,
+        })
+      )
       return {}
     }
   }
@@ -298,9 +316,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
       return metricScores
     }
 
-    validMetrics.forEach((metric: any) => {
+    validMetrics.forEach((metric: any, metricIndex: number) => {
       if (!metric?.name) {
-        logger.warn('Skipping invalid metric entry:', metric)
+        logger.warn('Skipping invalid metric entry', {
+          metricIndex,
+          metricType: metric === null ? 'null' : typeof metric,
+        })
         return
       }
 
@@ -330,7 +351,9 @@ export class EvaluatorBlockHandler implements BlockHandler {
       return Number(parsedContent[matchingKey])
     }
 
-    logger.warn(`Metric "${metricName}" not found in LLM response`)
+    logger.warn('Metric not found in evaluator response', {
+      metricNameLength: metricName.length,
+    })
     return 0
   }
 }

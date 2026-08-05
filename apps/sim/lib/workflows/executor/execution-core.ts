@@ -51,6 +51,7 @@ import { hasExecutionResult } from '@/executor/utils/errors'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import {
   createResolvedSecretTraceRegistry,
+  isResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -188,6 +189,22 @@ function parseVariableValueByType(value: unknown, type: string): unknown {
 
   // string or plain
   return typeof value === 'string' ? value : String(value)
+}
+
+function restoreBlockStateSecretProvenance(
+  redacted: SerializableExecutionState['blockStates'],
+  original: SerializableExecutionState['blockStates']
+): SerializableExecutionState['blockStates'] {
+  for (const [blockId, originalState] of Object.entries(original)) {
+    const redactedState = redacted[blockId]
+    if (redactedState && originalState.resolvedSecretTraceProvenance) {
+      redacted[blockId] = {
+        ...redactedState,
+        resolvedSecretTraceProvenance: originalState.resolvedSecretTraceProvenance,
+      }
+    }
+  }
+  return redacted
 }
 
 type ExecutionErrorWithFinalizationFlag = Error & {
@@ -515,12 +532,8 @@ async function executeWorkflowCoreImpl(
       personalDecrypted,
       workspaceDecrypted,
       decryptionFailures,
-      restoredProvenance:
-        restoreTrusted || requireRestoredProvenance
-          ? restoredState?.resolvedSecretTraceProvenance
-          : undefined,
+      restoredProvenance: restoreTrusted ? restoredState?.resolvedSecretTraceProvenance : undefined,
       restoredCheckpointVersion: restoredState?.resolvedSecretTraceCheckpointVersion,
-      legacyRestoredState: restoredState,
       restoreTrusted,
       requireRestoredProvenance,
       scope: { userId: personalEnvUserId, workspaceId: providedWorkspaceId },
@@ -829,17 +842,19 @@ async function executeWorkflowCoreImpl(
         },
       }
       if (snapshot.state?.blockStates) {
-        const hydrated = await redactLargeValueRefsInValue(snapshot.state.blockStates, largeRefOpts)
-        snapshot.state.blockStates = await redactObjectStrings(hydrated, blockOutputOpts)
+        const originalBlockStates = snapshot.state.blockStates
+        const hydrated = await redactLargeValueRefsInValue(originalBlockStates, largeRefOpts)
+        snapshot.state.blockStates = restoreBlockStateSecretProvenance(
+          await redactObjectStrings(hydrated, blockOutputOpts),
+          originalBlockStates
+        )
       }
       if (runFromBlock?.sourceSnapshot?.blockStates) {
-        const hydrated = await redactLargeValueRefsInValue(
-          runFromBlock.sourceSnapshot.blockStates,
-          largeRefOpts
-        )
-        runFromBlock.sourceSnapshot.blockStates = await redactObjectStrings(
-          hydrated,
-          blockOutputOpts
+        const originalBlockStates = runFromBlock.sourceSnapshot.blockStates
+        const hydrated = await redactLargeValueRefsInValue(originalBlockStates, largeRefOpts)
+        runFromBlock.sourceSnapshot.blockStates = restoreBlockStateSecretProvenance(
+          await redactObjectStrings(hydrated, blockOutputOpts),
+          originalBlockStates
         )
       }
     }
@@ -861,6 +876,19 @@ async function executeWorkflowCoreImpl(
         }
       }
     }
+
+    const hasRestoredWorkflowInputProvenance =
+      restoreTrusted &&
+      restoredState !== undefined &&
+      Object.hasOwn(restoredState, 'workflowInputResolvedSecretTraceProvenance')
+    const restoredWorkflowInputProvenance = hasRestoredWorkflowInputProvenance
+      ? isResolvedSecretTraceProvenanceV1(restoredState.workflowInputResolvedSecretTraceProvenance)
+        ? restoredState.workflowInputResolvedSecretTraceProvenance
+        : { version: 1 as const, complete: false, entries: [] }
+      : undefined
+    const workflowInputResolvedSecretTraceProvenance = restoredState
+      ? restoredWorkflowInputProvenance
+      : resolvedSecretTraceRegistry.exportCommittedProvenanceForValue(processedInput)
 
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
@@ -889,6 +917,9 @@ async function executeWorkflowCoreImpl(
       dagIncomingEdges: snapshot.state?.dagIncomingEdges,
       snapshotState: snapshot.state,
       resolvedSecretTraceRegistry,
+      ...(workflowInputResolvedSecretTraceProvenance
+        ? { workflowInputResolvedSecretTraceProvenance }
+        : {}),
       metadata,
       startRunMetadata,
       abortSignal,

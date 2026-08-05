@@ -378,12 +378,14 @@ export async function uploadWorkspaceFile(
           if (!inserted) {
             throw new FileConflictError(uniqueName)
           }
-          await replaceWorkspaceFileSecretProvenanceInTx(
-            tx,
-            inserted.id,
-            inserted.contentUpdatedAt,
-            options?.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
-          )
+          if (options?.secretProvenance) {
+            await replaceWorkspaceFileSecretProvenanceInTx(
+              tx,
+              inserted.id,
+              inserted.contentUpdatedAt,
+              options.secretProvenance
+            )
+          }
           const usage = await incrementStorageUsageForBillingContextInTx(
             tx,
             storageBillingContext,

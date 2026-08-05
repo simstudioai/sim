@@ -404,6 +404,92 @@ describe('BlockExecutor', () => {
     expect(completionError.message).toContain(secret)
   })
 
+  it('attaches encrypted provenance filtered to the exact lifecycle output', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const onBlockComplete = vi.fn(async () => {})
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    const executor = new BlockExecutor(
+      [
+        {
+          canHandle: () => true,
+          execute: async (blockContext) => {
+            blockContext.resolvedSecretTraceRegistry?.recordResolved('API_KEY', 'secret-value')
+            return { result: 'secret-value', public: 'ok' }
+          },
+        },
+      ],
+      resolver,
+      { onBlockComplete },
+      state
+    )
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await executor.execute(ctx, createNode(block), block)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    expect(onBlockComplete.mock.calls[0]?.[3]?.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+  })
+
+  it('does not attribute a sibling public value to another block secret', async () => {
+    const secretBlock = createBlock()
+    secretBlock.id = 'secret-block'
+    const publicBlock = createBlock()
+    publicBlock.id = 'public-block'
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [secretBlock, publicBlock],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const onBlockComplete = vi.fn(async () => {})
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SHORT_SECRET', plaintext: 'Test', encryptedValue: 'encrypted-test' },
+    ])
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, block) => {
+        if (block.id === secretBlock.id) {
+          blockContext.resolvedSecretTraceRegistry?.recordResolved('SHORT_SECRET', 'Test')
+        }
+        return { result: 'Test' }
+      },
+    }
+    const executor = new BlockExecutor([handler], resolver, { onBlockComplete }, state)
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await executor.execute(ctx, createNode(secretBlock), secretBlock)
+    await executor.execute(ctx, createNode(publicBlock), publicBlock)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledTimes(2))
+
+    expect(state.getBlockState(secretBlock.id)?.resolvedSecretTraceProvenance?.entries).toEqual([
+      { name: 'SHORT_SECRET', encryptedValue: 'encrypted-test' },
+    ])
+    expect(state.getBlockState(publicBlock.id)?.resolvedSecretTraceProvenance?.entries).toEqual([])
+    expect(onBlockComplete.mock.calls[1]?.[3]?.resolvedSecretTraceProvenance?.entries).toEqual([])
+  })
+
   it('fires block completion callbacks for pausing blocks so clients receive pause output', async () => {
     const block = {
       ...createBlock(),

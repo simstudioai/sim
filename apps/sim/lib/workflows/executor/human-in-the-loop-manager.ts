@@ -1581,11 +1581,14 @@ export class PauseResumeManager {
       ) => {
         const output = callbackData.output as Record<string, unknown> | undefined
         const hasError = output?.error
-        const display = await loggingSession.projectDisplayContent({
-          input: callbackData.input,
-          output,
-          ...(typeof hasError === 'string' ? { error: hasError } : {}),
-        })
+        const display = await loggingSession.projectDisplayContent(
+          {
+            input: callbackData.input,
+            output,
+            ...(typeof hasError === 'string' ? { error: hasError } : {}),
+          },
+          callbackData.displayResolvedSecretTraceProvenance
+        )
         const sharedData = {
           blockId,
           blockName,
@@ -1686,7 +1689,12 @@ export class PauseResumeManager {
           workflowId,
           sendEvent: writeBufferedEvent,
           forwardAnswerText: answerTextFromSink,
-          projectDisplay: (field, value) => loggingSession.projectLiveDisplayText(field, value),
+          projectDisplay: (field, value) =>
+            loggingSession.projectLiveDisplayText(
+              field,
+              value,
+              streamingExec.displayResolvedSecretTraceProvenance
+            ),
         })
 
         const reader = streamingExec.stream.getReader()
@@ -1697,7 +1705,11 @@ export class PauseResumeManager {
             if (done) break
             if (answerTextFromSink) continue
             const chunk = decoder.decode(value, { stream: true })
-            const display = await loggingSession.projectLiveDisplayText('chunk', chunk)
+            const display = await loggingSession.projectLiveDisplayText(
+              'chunk',
+              chunk,
+              streamingExec.displayResolvedSecretTraceProvenance
+            )
             await writeBufferedEvent({
               type: 'stream:chunk',
               timestamp: new Date().toISOString(),

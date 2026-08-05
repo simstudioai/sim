@@ -136,7 +136,7 @@ export class RouterBlockHandler implements BlockHandler {
         headers,
         createModelInputProvenanceRequestMetadata(
           ctx.resolvedSecretTraceRegistry,
-          collectProviderModelInputProvenanceValues(providerRequest)
+          collectProviderModelInputProvenanceValues(providerRequest, providerId)
         )
       )
       const response = await fetch(url.toString(), {
@@ -308,7 +308,7 @@ export class RouterBlockHandler implements BlockHandler {
         headers,
         createModelInputProvenanceRequestMetadata(
           ctx.resolvedSecretTraceRegistry,
-          collectProviderModelInputProvenanceValues(providerRequest)
+          collectProviderModelInputProvenanceValues(providerRequest, providerId)
         )
       )
       const response = await fetch(url.toString(), {

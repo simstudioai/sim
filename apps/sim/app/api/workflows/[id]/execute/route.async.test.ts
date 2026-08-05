@@ -5,6 +5,8 @@
 import {
   createMockRequest,
   dbChainMockFns,
+  encryptionMock,
+  encryptionMockFns,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   hybridAuthMockFns,
@@ -27,6 +29,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
+import {
+  PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
+  PRIVATE_SECRET_PROVENANCE_FIELD,
+  PRIVATE_SECRET_PROVENANCE_HEADER,
+} from '@/lib/execution/private-tool-metadata'
 
 const {
   mockAssertBillingAttributionSnapshot,
@@ -85,6 +92,8 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
   requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
 }))
+
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
   releaseExecutionSlot: mockReleaseExecutionSlot,
@@ -330,6 +339,64 @@ function createCallerExecutionRequest(
   })
 }
 
+const WORKFLOW_INPUT_PROVENANCE = {
+  version: 1 as const,
+  complete: true,
+  entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+  scope: { userId: 'parent-owner', workspaceId: 'workspace-1' },
+}
+
+function createInternalProvenanceRequest(
+  options: {
+    executionMode?: 'async' | 'sync'
+    stream?: boolean
+    useDraftState?: boolean
+    provenance?: typeof WORKFLOW_INPUT_PROVENANCE
+    selectionKey?: string
+    includeHeader?: boolean
+    includeField?: boolean
+  } = {}
+): NextRequest {
+  const caller = EXECUTION_CALLERS[4]
+  const {
+    executionMode = 'sync',
+    stream,
+    useDraftState,
+    provenance = WORKFLOW_INPUT_PROVENANCE,
+    selectionKey = 'input',
+    includeHeader = true,
+    includeField = true,
+  } = options
+
+  return createMockRequest(
+    'POST',
+    {
+      input: { token: 'secret-value' },
+      triggerType: 'workflow',
+      parentWorkspaceId: 'workspace-1',
+      ...(stream !== undefined ? { stream } : {}),
+      ...(useDraftState !== undefined ? { useDraftState } : {}),
+      ...(includeField
+        ? {
+            [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+              version: 1,
+              complete: true,
+              selections: [{ key: selectionKey, provenance }],
+            },
+          }
+        : {}),
+    },
+    {
+      'Content-Type': 'application/json',
+      ...(executionMode === 'async' ? { 'X-Execution-Mode': 'async' } : {}),
+      ...caller.headers,
+      ...(includeHeader
+        ? { [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 }
+        : {}),
+    }
+  )
+}
+
 describe('workflow execute async route', () => {
   afterAll(() => {
     resetEnvMock()
@@ -422,6 +489,122 @@ describe('workflow execute async route', () => {
     })
     loggingSessionMockFns.mockWaitForPostExecution.mockReset().mockResolvedValue(undefined)
     mockExecuteWorkflowJob.mockReset().mockResolvedValue({ success: true })
+    encryptionMockFns.mockDecryptSecret.mockReset().mockImplementation(async (value: string) => ({
+      decrypted: value === 'encrypted-token' ? 'secret-value' : 'other-secret',
+    }))
+  })
+
+  it('imports authenticated workflow input provenance into synchronous execution', async () => {
+    configureExecutionCaller(EXECUTION_CALLERS[4])
+
+    const response = await POST(createInternalProvenanceRequest(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(200)
+    const executionOptions = mockExecuteWorkflowCore.mock.calls[0]?.[0]
+    expect(executionOptions).toMatchObject({
+      trustedInitialResolvedSecretTraceProvenance: WORKFLOW_INPUT_PROVENANCE,
+    })
+    expect(executionOptions.snapshot.input).toEqual({ input: { token: 'secret-value' } })
+    expect(executionOptions.snapshot.input).not.toHaveProperty(PRIVATE_SECRET_PROVENANCE_FIELD)
+  })
+
+  it('preserves headerless legacy internal workflow execution', async () => {
+    const caller = EXECUTION_CALLERS[4]
+    configureExecutionCaller(caller)
+
+    const response = await POST(createCallerExecutionRequest(caller, undefined, 'sync'), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(200)
+    const executionOptions = mockExecuteWorkflowCore.mock.calls[0]?.[0]
+    expect(executionOptions.trustedInitialResolvedSecretTraceProvenance).toBeUndefined()
+    expect(executionOptions.snapshot.input).toEqual({ hello: 'world' })
+  })
+
+  it.each([
+    { name: 'standard stream', useDraftState: false },
+    { name: 'manual event stream', useDraftState: true },
+  ])(
+    'imports authenticated workflow input provenance into $name execution',
+    async ({ useDraftState }) => {
+      configureExecutionCaller(EXECUTION_CALLERS[4])
+
+      const response = await POST(
+        createInternalProvenanceRequest({ stream: true, useDraftState }),
+        { params: Promise.resolve({ id: 'workflow-1' }) }
+      )
+      await response.text()
+
+      expect(response.status).toBe(200)
+      const executionOptions = mockExecuteWorkflowCore.mock.calls[0]?.[0]
+      expect(executionOptions).toMatchObject({
+        trustedInitialResolvedSecretTraceProvenance: WORKFLOW_INPUT_PROVENANCE,
+      })
+      expect(executionOptions.snapshot.input).toEqual({ input: { token: 'secret-value' } })
+      expect(executionOptions.snapshot.input).not.toHaveProperty(PRIVATE_SECRET_PROVENANCE_FIELD)
+    }
+  )
+
+  it('queues authenticated workflow input provenance without exposing the private sidecar as input', async () => {
+    configureExecutionCaller(EXECUTION_CALLERS[4])
+
+    const response = await POST(createInternalProvenanceRequest({ executionMode: 'async' }), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(202)
+    const payload = mockEnqueue.mock.calls[0]?.[1]
+    expect(payload).toMatchObject({
+      input: { input: { token: 'secret-value' } },
+      trustedInitialResolvedSecretTraceProvenance: WORKFLOW_INPUT_PROVENANCE,
+    })
+    expect(payload.input).not.toHaveProperty(PRIVATE_SECRET_PROVENANCE_FIELD)
+  })
+
+  it.each([
+    {
+      name: 'missing sidecar',
+      request: () => createInternalProvenanceRequest({ includeField: false }),
+      caller: EXECUTION_CALLERS[4],
+    },
+    {
+      name: 'missing marker',
+      request: () => createInternalProvenanceRequest({ includeHeader: false }),
+      caller: EXECUTION_CALLERS[4],
+    },
+    {
+      name: 'wrong workspace',
+      request: () =>
+        createInternalProvenanceRequest({
+          provenance: {
+            ...WORKFLOW_INPUT_PROVENANCE,
+            scope: { userId: 'parent-owner', workspaceId: 'workspace-2' },
+          },
+        }),
+      caller: EXECUTION_CALLERS[4],
+    },
+    {
+      name: 'non-internal caller',
+      request: () => createInternalProvenanceRequest(),
+      caller: EXECUTION_CALLERS[1],
+    },
+  ])('rejects $name provenance before preprocessing', async ({ request, caller }) => {
+    configureExecutionCaller(caller)
+
+    const response = await POST(request(), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid workflow input secret provenance',
+    })
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
   it('binds a Copilot workflow tool only to its server log and waits before terminal SSE', async () => {

@@ -51,6 +51,7 @@ import {
 import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   buildBranchNodeId,
   buildOuterBranchScopedId,
@@ -99,6 +100,27 @@ export class BlockExecutor {
       })
     }
 
+    const parentResolvedSecretTraceRegistry = ctx.resolvedSecretTraceRegistry
+    const blockResolvedSecretTraceRegistry =
+      parentResolvedSecretTraceRegistry?.forkForToolInputValues([])
+    const blockCtx = blockResolvedSecretTraceRegistry
+      ? { ...ctx, resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
+      : ctx
+    let registryCommitted = false
+    const commitBlockRegistry = () => {
+      if (
+        registryCommitted ||
+        !parentResolvedSecretTraceRegistry ||
+        !blockResolvedSecretTraceRegistry
+      ) {
+        return
+      }
+      registryCommitted = true
+      if (blockResolvedSecretTraceRegistry.isComplete()) {
+        parentResolvedSecretTraceRegistry.mergeToolCallRegistry(blockResolvedSecretTraceRegistry)
+      }
+    }
+
     const blockType = block.metadata?.id ?? ''
     const isSentinel = isSentinelBlockType(blockType)
 
@@ -111,9 +133,14 @@ export class BlockExecutor {
     let blockLog: BlockLog | undefined
     let blockStartPromise: Promise<void> | undefined
     if (!isSentinel) {
-      blockLog = this.createBlockLog(ctx, node.id, block, node, startedAt)
-      ctx.blockLogs.push(blockLog)
-      blockStartPromise = this.fireBlockStartCallback(ctx, node, block, blockLog.executionOrder)
+      blockLog = this.createBlockLog(blockCtx, node.id, block, node, startedAt)
+      blockCtx.blockLogs.push(blockLog)
+      blockStartPromise = this.fireBlockStartCallback(
+        blockCtx,
+        node,
+        block,
+        blockLog.executionOrder
+      )
       await blockStartPromise
     }
 
@@ -127,12 +154,17 @@ export class BlockExecutor {
     let cleanupSelfReference: (() => void) | undefined
 
     if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
-      cleanupSelfReference = this.preparePauseResumeSelfReference(ctx, node, block, nodeMetadata)
+      cleanupSelfReference = this.preparePauseResumeSelfReference(
+        blockCtx,
+        node,
+        block,
+        nodeMetadata
+      )
     }
 
     try {
       if (!isSentinel && blockType) {
-        await validateBlockType(ctx.userId, ctx.workspaceId, blockType, ctx)
+        await validateBlockType(blockCtx.userId, blockCtx.workspaceId, blockType, blockCtx)
       }
 
       if (block.metadata?.id === BlockType.FUNCTION) {
@@ -141,7 +173,7 @@ export class BlockExecutor {
           displayInputs,
           contextVariables,
         } = await this.resolver.resolveInputsForFunctionBlock(
-          ctx,
+          blockCtx,
           node.id,
           block.config.params,
           block
@@ -155,7 +187,12 @@ export class BlockExecutor {
         }
         inputsForLog = displayInputs
       } else {
-        resolvedInputs = await this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+        resolvedInputs = await this.resolver.resolveInputs(
+          blockCtx,
+          node.id,
+          block.config.params,
+          block
+        )
         inputsForLog = resolvedInputs
       }
 
@@ -164,26 +201,30 @@ export class BlockExecutor {
       }
     } catch (error) {
       cleanupSelfReference?.()
-      return await this.handleBlockError(
-        error,
-        ctx,
-        node,
-        block,
-        blockStartPromise,
-        startTime,
-        blockLog,
-        inputsForLog,
-        isSentinel,
-        'input_resolution'
-      )
+      try {
+        return await this.handleBlockError(
+          error,
+          blockCtx,
+          node,
+          block,
+          blockStartPromise,
+          startTime,
+          blockLog,
+          inputsForLog,
+          isSentinel,
+          'input_resolution'
+        )
+      } finally {
+        commitBlockRegistry()
+      }
     }
     cleanupSelfReference?.()
 
     let streamingPartialOutput: Record<string, any> | undefined
     try {
       const output = handler.executeWithNode
-        ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
-        : await handler.execute(ctx, block, resolvedInputs)
+        ? await handler.executeWithNode(blockCtx, block, resolvedInputs, nodeMetadata)
+        : await handler.execute(blockCtx, block, resolvedInputs)
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
@@ -198,12 +239,12 @@ export class BlockExecutor {
         // final output reaches the client via block-complete.
         try {
           await this.handleStreamingExecution(
-            ctx,
+            blockCtx,
             node,
             block,
             streamingExec,
             resolvedInputs,
-            normalizeStringArray(ctx.selectedOutputs)
+            normalizeStringArray(blockCtx.selectedOutputs)
           )
         } catch (streamError) {
           // Timeout / drain failures may still have projected answer text — keep it
@@ -219,31 +260,31 @@ export class BlockExecutor {
         normalizedOutput = this.normalizeOutput(output)
       }
 
-      if (ctx.includeFileBase64 === true && containsUserFileWithMetadata(normalizedOutput)) {
+      if (blockCtx.includeFileBase64 === true && containsUserFileWithMetadata(normalizedOutput)) {
         normalizedOutput = (await hydrateUserFilesWithBase64(normalizedOutput, {
-          requestId: ctx.metadata.requestId,
-          workspaceId: ctx.workspaceId,
-          workflowId: ctx.workflowId,
-          executionId: ctx.executionId,
-          largeValueExecutionIds: ctx.largeValueExecutionIds,
-          largeValueKeys: ctx.largeValueKeys,
-          fileKeys: ctx.fileKeys,
-          allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
-          userId: ctx.userId,
-          maxBytes: ctx.base64MaxBytes,
+          requestId: blockCtx.metadata.requestId,
+          workspaceId: blockCtx.workspaceId,
+          workflowId: blockCtx.workflowId,
+          executionId: blockCtx.executionId,
+          largeValueExecutionIds: blockCtx.largeValueExecutionIds,
+          largeValueKeys: blockCtx.largeValueKeys,
+          fileKeys: blockCtx.fileKeys,
+          allowLargeValueWorkflowScope: blockCtx.allowLargeValueWorkflowScope,
+          userId: blockCtx.userId,
+          maxBytes: blockCtx.base64MaxBytes,
           preserveLargeValueMetadata: true,
         })) as NormalizedBlockOutput
       }
 
-      if (ctx.piiBlockOutputRedaction?.enabled) {
+      if (blockCtx.piiBlockOutputRedaction?.enabled) {
         // In-flight redaction before the log/state split below, so both the
         // downstream state copy and the persisted log copy are masked.
         // `onFailure: 'throw'` aborts the run rather than feeding corrupted/leaked
         // data downstream.
         const redactionOptions = {
-          entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
-          language: ctx.piiBlockOutputRedaction.language,
-          customPatterns: ctx.piiBlockOutputRedaction.customPatterns,
+          entityTypes: blockCtx.piiBlockOutputRedaction.entityTypes,
+          language: blockCtx.piiBlockOutputRedaction.language,
+          customPatterns: blockCtx.piiBlockOutputRedaction.customPatterns,
           onFailure: 'throw' as const,
         }
         // Tools like the function executor offload large outputs to large-value
@@ -253,21 +294,21 @@ export class BlockExecutor {
         normalizedOutput = await redactLargeValueRefsInValue(normalizedOutput, {
           ...redactionOptions,
           store: {
-            workspaceId: ctx.workspaceId,
-            workflowId: ctx.workflowId,
-            executionId: ctx.executionId,
-            userId: ctx.userId,
+            workspaceId: blockCtx.workspaceId,
+            workflowId: blockCtx.workflowId,
+            executionId: blockCtx.executionId,
+            userId: blockCtx.userId,
           },
         })
         normalizedOutput = await redactObjectStrings(normalizedOutput, redactionOptions)
       }
 
       normalizedOutput = (await compactExecutionPayload(normalizedOutput, {
-        workspaceId: ctx.workspaceId,
-        workflowId: ctx.workflowId,
-        executionId: ctx.executionId,
-        userId: ctx.userId,
-        preserveUserFileBase64: ctx.includeFileBase64 === true,
+        workspaceId: blockCtx.workspaceId,
+        workflowId: blockCtx.workflowId,
+        executionId: blockCtx.executionId,
+        userId: blockCtx.userId,
+        preserveUserFileBase64: blockCtx.includeFileBase64 === true,
         requireDurable: true,
       })) as NormalizedBlockOutput
 
@@ -285,7 +326,10 @@ export class BlockExecutor {
       }
 
       const { childTraceSpans: _traces, ...outputForState } = normalizedOutput
-      this.setNodeOutput(node, outputForState as NormalizedBlockOutput, duration)
+      const stateOutput = outputForState as NormalizedBlockOutput
+      const stateProvenance =
+        blockResolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(stateOutput)
+      this.setNodeOutput(node, stateOutput, duration, stateProvenance)
 
       if (!isSentinel && blockLog) {
         const childWorkflowInstanceId =
@@ -295,36 +339,50 @@ export class BlockExecutor {
         const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
           block,
         })
+        const displayInput = this.sanitizeInputsForLog(inputsForLog, block)
+        const displayProvenance =
+          blockResolvedSecretTraceRegistry?.exportCommittedProvenanceForValue({
+            input: displayInput,
+            output: displayOutput,
+          })
+        this.setBlockLogDisplayProvenance(blockLog, displayProvenance)
         this.fireBlockCompleteCallback(
           blockStartPromise,
-          ctx,
+          blockCtx,
           node,
           block,
-          this.sanitizeInputsForLog(inputsForLog, block),
+          displayInput,
           displayOutput,
           duration,
           blockLog.startedAt,
           blockLog.executionOrder,
           blockLog.endedAt,
-          childWorkflowInstanceId
+          childWorkflowInstanceId,
+          stateProvenance,
+          displayProvenance
         )
       }
 
-      return outputForState as NormalizedBlockOutput
+      commitBlockRegistry()
+      return stateOutput
     } catch (error) {
-      return await this.handleBlockError(
-        error,
-        ctx,
-        node,
-        block,
-        blockStartPromise,
-        startTime,
-        blockLog,
-        inputsForLog,
-        isSentinel,
-        'execution',
-        streamingPartialOutput
-      )
+      try {
+        return await this.handleBlockError(
+          error,
+          blockCtx,
+          node,
+          block,
+          blockStartPromise,
+          startTime,
+          blockLog,
+          inputsForLog,
+          isSentinel,
+          'execution',
+          streamingPartialOutput
+        )
+      } finally {
+        commitBlockRegistry()
+      }
     }
   }
 
@@ -343,8 +401,13 @@ export class BlockExecutor {
     }
   }
 
-  private setNodeOutput(node: DAGNode, output: NormalizedBlockOutput, duration = 0): void {
-    this.state.setBlockOutput(node.id, output, duration)
+  private setNodeOutput(
+    node: DAGNode,
+    output: NormalizedBlockOutput,
+    duration = 0,
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  ): void {
+    this.state.setBlockOutput(node.id, output, duration, resolvedSecretTraceProvenance)
 
     const originalBlockId = node.metadata.originalBlockId
     const branchIndex = node.metadata.branchIndex
@@ -356,14 +419,33 @@ export class BlockExecutor {
     ) {
       const globalBranchNodeId = buildBranchNodeId(originalBlockId, branchIndex)
       if (globalBranchNodeId !== node.id) {
-        this.state.setBlockOutput(globalBranchNodeId, output, duration)
+        this.state.setBlockOutput(
+          globalBranchNodeId,
+          output,
+          duration,
+          resolvedSecretTraceProvenance
+        )
       }
       this.state.setBlockOutput(
         buildOuterBranchScopedId(originalBlockId, branchIndex),
         output,
-        duration
+        duration,
+        resolvedSecretTraceProvenance
       )
     }
+  }
+
+  private setBlockLogDisplayProvenance(
+    blockLog: BlockLog,
+    provenance: ResolvedSecretTraceProvenanceV1 | undefined
+  ): void {
+    if (!provenance) return
+    Object.defineProperty(blockLog, 'displayResolvedSecretTraceProvenance', {
+      value: provenance,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
   }
 
   private findHandler(block: SerializedBlock): BlockHandler | undefined {
@@ -405,8 +487,10 @@ export class BlockExecutor {
       const softOutput: NormalizedBlockOutput = {
         content: '',
       }
+      const softOutputProvenance =
+        ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(softOutput)
 
-      this.setNodeOutput(node, softOutput, duration)
+      this.setNodeOutput(node, softOutput, duration, softOutputProvenance)
 
       if (blockLog) {
         blockLog.endedAt = endedAt
@@ -423,17 +507,28 @@ export class BlockExecutor {
       })
 
       if (!isSentinel && blockLog) {
+        const displayInput = this.sanitizeInputsForLog(input, block)
+        const displayOutput = filterOutputForLog(block.metadata?.id || '', softOutput, { block })
+        const displayProvenance =
+          ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue({
+            input: displayInput,
+            output: displayOutput,
+          })
+        this.setBlockLogDisplayProvenance(blockLog, displayProvenance)
         this.fireBlockCompleteCallback(
           blockStartPromise,
           ctx,
           node,
           block,
-          this.sanitizeInputsForLog(input, block),
-          filterOutputForLog(block.metadata?.id || '', softOutput, { block }),
+          displayInput,
+          displayOutput,
           duration,
           blockLog.startedAt,
           blockLog.executionOrder,
-          blockLog.endedAt
+          blockLog.endedAt,
+          undefined,
+          softOutputProvenance,
+          displayProvenance
         )
       }
 
@@ -473,7 +568,9 @@ export class BlockExecutor {
       }
     }
 
-    this.setNodeOutput(node, errorOutput, duration)
+    const errorOutputProvenance =
+      ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(errorOutput)
+    this.setNodeOutput(node, errorOutput, duration, errorOutputProvenance)
 
     if (blockLog) {
       blockLog.endedAt = endedAt
@@ -507,18 +604,26 @@ export class BlockExecutor {
         ? error.childWorkflowInstanceId
         : undefined
       const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
+      const displayInput = this.sanitizeInputsForLog(input, block)
+      const displayProvenance = ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue({
+        input: displayInput,
+        output: displayOutput,
+      })
+      this.setBlockLogDisplayProvenance(blockLog, displayProvenance)
       this.fireBlockCompleteCallback(
         blockStartPromise,
         ctx,
         node,
         block,
-        this.sanitizeInputsForLog(input, block),
+        displayInput,
         displayOutput,
         duration,
         blockLog.startedAt,
         blockLog.executionOrder,
         blockLog.endedAt,
-        childWorkflowInstanceId
+        childWorkflowInstanceId,
+        errorOutputProvenance,
+        displayProvenance
       )
     }
 
@@ -749,7 +854,9 @@ export class BlockExecutor {
     startedAt: string,
     executionOrder: number,
     endedAt: string,
-    childWorkflowInstanceId?: string
+    childWorkflowInstanceId?: string,
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
+    displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   ): void {
     if (!this.contextExtensions.onBlockComplete) return
 
@@ -767,6 +874,8 @@ export class BlockExecutor {
         {
           input,
           output,
+          ...(resolvedSecretTraceProvenance ? { resolvedSecretTraceProvenance } : {}),
+          ...(displayResolvedSecretTraceProvenance ? { displayResolvedSecretTraceProvenance } : {}),
           executionTime: duration,
           startedAt,
           executionOrder,
@@ -905,6 +1014,8 @@ export class BlockExecutor {
           // processStream returns the input stream identity when no
           // response-format extraction applies.
           clientStreamTransformed: processedClientStream !== pump.textStream,
+          displayResolvedSecretTraceProvenance:
+            ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(resolvedInputs),
         })
         .catch(async (error) => {
           this.execLogger.error('Error in onStream callback', {

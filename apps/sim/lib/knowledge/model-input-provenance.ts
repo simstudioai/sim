@@ -13,15 +13,21 @@ interface HeaderReader {
   get(name: string): string | null
 }
 
-export type KnowledgeModelInputProvenancePreparation =
+type KnowledgeModelInputProvenancePreparation =
   | { success: true; registry?: ResolvedSecretTraceRegistry }
   | { success: false; error: string; status: 400 | 500 }
 
-const knowledgeModelInputRegistry = new AsyncLocalStorage<ResolvedSecretTraceRegistry>()
+interface KnowledgeModelInputContext {
+  registry?: ResolvedSecretTraceRegistry
+  opaqueInputSafe: boolean
+}
+
+const knowledgeModelInputContext = new AsyncLocalStorage<KnowledgeModelInputContext>()
 
 /**
- * Authenticates and imports provenance supplied by the internal tool transport. Headerless calls
- * retain their legacy behavior; partial or forged private envelopes fail closed.
+ * Authenticates and imports provenance supplied by the internal tool transport. External
+ * headerless calls retain their existing behavior; internal calls and private envelopes fail
+ * closed when metadata is missing, partial, or forged.
  */
 export async function prepareKnowledgeModelInputProvenance(options: {
   headers: HeaderReader
@@ -32,7 +38,11 @@ export async function prepareKnowledgeModelInputProvenance(options: {
   modelInput: unknown
 }): Promise<KnowledgeModelInputProvenancePreparation> {
   const inspection = inspectModelInputProvenanceRequest(options.headers, options.payload)
-  if (inspection.status === 'unsupported') return { success: true }
+  if (inspection.status === 'unsupported') {
+    return options.isInternalRequest
+      ? { success: false, error: 'Model input provenance is unavailable', status: 400 }
+      : { success: true }
+  }
   if (inspection.status === 'invalid' || !options.isInternalRequest) {
     return { success: false, error: 'Invalid model input provenance', status: 400 }
   }
@@ -70,14 +80,29 @@ export async function prepareKnowledgeModelInputProvenance(options: {
 /** Runs only the model-producing portion of a Knowledge request with its verified provenance. */
 export function runWithKnowledgeModelInputProvenance<T>(
   registry: ResolvedSecretTraceRegistry | undefined,
-  callback: () => T
+  callback: () => T,
+  options?: { opaqueInputSafe?: boolean }
 ): T {
-  return registry ? knowledgeModelInputRegistry.run(registry, callback) : callback()
+  if (!registry && options?.opaqueInputSafe === undefined) return callback()
+  return knowledgeModelInputContext.run(
+    {
+      registry,
+      opaqueInputSafe: options?.opaqueInputSafe ?? !registry,
+    },
+    callback
+  )
+}
+
+/** Rejects opaque bytes/URLs that cannot be selectively projected before an external model call. */
+export function assertKnowledgeOpaqueModelInputSafe(): void {
+  if (knowledgeModelInputContext.getStore()?.opaqueInputSafe === false) {
+    throw new Error(MODEL_INPUT_PROJECTION_ERROR)
+  }
 }
 
 /** Projects one string immediately before it enters an embedding or reranking request. */
 export function projectKnowledgeModelInput(value: string): string {
-  const registry = knowledgeModelInputRegistry.getStore()
+  const registry = knowledgeModelInputContext.getStore()?.registry
   if (!registry) return value
 
   const projection = projectResolvedSecretModelContent(value, registry)
@@ -89,7 +114,7 @@ export function projectKnowledgeModelInput(value: string): string {
 
 /** Projects a string collection immediately before it enters an embedding or reranking request. */
 export function projectKnowledgeModelInputs(values: readonly string[]): string[] {
-  const registry = knowledgeModelInputRegistry.getStore()
+  const registry = knowledgeModelInputContext.getStore()?.registry
   if (!registry) return [...values]
 
   const projection = projectResolvedSecretModelContent(values, registry)

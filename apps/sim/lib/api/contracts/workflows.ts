@@ -1,11 +1,13 @@
 import { z } from 'zod'
 import {
+  privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
   workflowIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
 export const WORKFLOW_EXECUTION_ID_HEADER = 'X-Execution-Id'
@@ -354,6 +356,7 @@ export const executeWorkflowHeadersSchema = z.object({
 })
 
 export const executeWorkflowBodySchema = z.object({
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
   selectedOutputs: z.array(z.string()).optional().default([]),
   triggerType: executeWorkflowTriggerTypeSchema.optional(),
   stream: z.boolean().optional(),

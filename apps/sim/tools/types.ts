@@ -1,5 +1,6 @@
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
+import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
 import type { OAuthService } from '@/lib/oauth'
 
 export type BYOKProviderId =
@@ -185,6 +186,22 @@ export interface ToolConfig<P = any, R = any> {
            */
           mode: 'project'
           select: (params: P) => Record<string, unknown>
+          /**
+           * Rebuilds selected top-level params when only nested leaves are model-visible. The
+           * first argument is a structured clone containing the original selected params. The
+           * returned patch must contain exactly the selected keys, and selecting from the patched
+           * params must reproduce the projected selection exactly.
+           */
+          applyProjected?: (
+            selectedParams: Partial<P>,
+            projectedSelection: Record<string, unknown>
+          ) => Record<string, unknown>
+          /**
+           * Selects opaque model-bound values that must not be rewritten, such as file bytes or
+           * signed URLs. Provenance is delivered privately to an authenticated internal route,
+           * which owns the final allow/reject decision.
+           */
+          privateProvenance?: (params: P) => unknown
         }
       | {
           /**
@@ -194,6 +211,28 @@ export interface ToolConfig<P = any, R = any> {
           mode: 'private-provenance'
           select: (params: P) => unknown
         }
+    /**
+     * Selects model-bound values whose byte representation cannot be rewritten safely. The
+     * executor rejects the call before request formatting when committed provenance is incomplete
+     * or shows that the exact selection contains a resolved secret. Safe values are left unchanged.
+     */
+    opaqueModelInput?: {
+      mode: 'reject-resolved-secrets'
+      select: (params: P) => unknown
+    }
+    /**
+     * Transports encrypted secret provenance across an authenticated internal
+     * tool boundary without rewriting the selected value.
+     */
+    secretProvenance?: {
+      /** Selects the exact value whose provenance is persisted by the route. */
+      request?: (params: P) => PrivateSecretProvenanceSelection[]
+      /** Imports provenance returned for the route's functional response. */
+      response?: {
+        /** Whether a valid incomplete report fails this call or taints later model egress. */
+        incomplete: 'reject' | 'propagate'
+      }
+    }
     retry?: ToolRetryConfig
     /**
      * Drop the `Authorization` header when following a redirect. Set this on any

@@ -809,19 +809,45 @@ export class ExecutionLogger implements IExecutionLoggerService {
     redactedState: SerializableExecutionState | undefined,
     originalState: SerializableExecutionState | undefined
   ): SerializableExecutionState | undefined {
+    if (!redactedState) return redactedState
+
     const provenance = originalState?.resolvedSecretTraceProvenance
     const provenanceCheckpointVersion = originalState?.resolvedSecretTraceCheckpointVersion
     const trustedLargeValueAccess = originalState?.trustedLargeValueAccess
-    return redactedState
-      ? {
-          ...redactedState,
-          ...(provenance !== undefined ? { resolvedSecretTraceProvenance: provenance } : {}),
-          ...(provenanceCheckpointVersion !== undefined
-            ? { resolvedSecretTraceCheckpointVersion: provenanceCheckpointVersion }
-            : {}),
-          ...(trustedLargeValueAccess !== undefined ? { trustedLargeValueAccess } : {}),
+    const blockStates = { ...redactedState.blockStates }
+    for (const [blockId, originalBlockState] of Object.entries(originalState?.blockStates ?? {})) {
+      const redactedBlockState = blockStates[blockId]
+      if (redactedBlockState && originalBlockState.resolvedSecretTraceProvenance) {
+        blockStates[blockId] = {
+          ...redactedBlockState,
+          resolvedSecretTraceProvenance: originalBlockState.resolvedSecretTraceProvenance,
         }
-      : redactedState
+      }
+    }
+    const blockLogs = redactedState.blockLogs.map((log, index) => {
+      const displayProvenance =
+        originalState?.blockLogs[index]?.displayResolvedSecretTraceProvenance
+      return displayProvenance
+        ? { ...log, displayResolvedSecretTraceProvenance: displayProvenance }
+        : log
+    })
+
+    return {
+      ...redactedState,
+      blockStates,
+      blockLogs,
+      ...(provenance !== undefined ? { resolvedSecretTraceProvenance: provenance } : {}),
+      ...(originalState?.workflowVariableResolvedSecretTraceProvenance !== undefined
+        ? {
+            workflowVariableResolvedSecretTraceProvenance:
+              originalState.workflowVariableResolvedSecretTraceProvenance,
+          }
+        : {}),
+      ...(provenanceCheckpointVersion !== undefined
+        ? { resolvedSecretTraceCheckpointVersion: provenanceCheckpointVersion }
+        : {}),
+      ...(trustedLargeValueAccess !== undefined ? { trustedLargeValueAccess } : {}),
+    }
   }
 
   async loadTraceSpansForProjection(params: {

@@ -36,10 +36,16 @@ import { getColumnId } from '@/lib/table/column-keys'
 import { isEmptyCellValue, isExecCancelled } from '@/lib/table/deps'
 import { getMaxTableDispatchConcurrency } from '@/lib/table/dispatch-concurrency'
 import { appendTableEvent } from '@/lib/table/events'
+import {
+  createExactEmptyTableRowSecretProvenance,
+  createTableRowSecretProvenanceFromRegistry,
+  loadTableRowSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import type {
   RowData,
   RowExecutionMetadata,
   TableDefinition,
+  TableRowSecretProvenanceWrite,
   UpdateRowData,
   WorkflowGroup,
 } from '@/lib/table/types'
@@ -48,6 +54,7 @@ import {
   type QueuedWorkflowGroupCellPayload,
   type WorkflowGroupCellPayload,
 } from '@/lib/table/workflow-columns'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type { WorkflowGroupCellPayload }
 
@@ -408,8 +415,15 @@ async function runWorkflowAndWriteTerminal(
       const writeState = (
         executionState: RowExecutionMetadata,
         dataPatch?: RowData,
-        eventOutputs?: RowData
-      ) => writeWorkflowGroupState(cellCtx, { executionState, dataPatch, eventOutputs })
+        eventOutputs?: RowData,
+        secretProvenance?: TableRowSecretProvenanceWrite
+      ) =>
+        writeWorkflowGroupState(cellCtx, {
+          executionState,
+          dataPatch,
+          eventOutputs,
+          secretProvenance,
+        })
 
       /** Pre-execution cancellation guard: a cell cancelled while it sat in the
        *  queue (e.g. trigger.dev concurrency backlog) must not run once it
@@ -500,11 +514,10 @@ async function runWorkflowAndWriteTerminal(
         // Map table columns → enrichment input ids (skip this group's own outputs).
         // `columnName` holds a column id; the mapper resolves select ids to names.
         const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
-        const enrichInputs = mapInputValues(
-          row.data,
-          table.schema.columns,
-          (group.inputMappings ?? []).filter((m) => !ownOutputColumns.has(m.columnName))
+        const enrichmentInputMappings = (group.inputMappings ?? []).filter(
+          (mapping) => !ownOutputColumns.has(mapping.columnName)
         )
+        const enrichInputs = mapInputValues(row.data, table.schema.columns, enrichmentInputMappings)
 
         // Skip (don't error) rows missing a required input — common when a table
         // is partially filled. Clear any prior output values so a stale result
@@ -528,7 +541,9 @@ async function runWorkflowAndWriteTerminal(
               error: null,
               enrichmentDetails: skippedEnrichmentDetail(enrichment),
             },
-            clearPatch
+            clearPatch,
+            undefined,
+            createExactEmptyTableRowSecretProvenance(clearPatch)
           )
           return 'completed'
         }
@@ -546,11 +561,31 @@ async function runWorkflowAndWriteTerminal(
             })
             return 'error'
           }
+          const inputProvenance = await loadTableRowSecretProvenance(
+            [
+              {
+                id: row.id,
+                updatedAt: row.updatedAt,
+                selectedValues: Object.fromEntries(
+                  enrichmentInputMappings.map((mapping) => [
+                    mapping.columnName,
+                    row.data[mapping.columnName],
+                  ])
+                ),
+              },
+            ],
+            { userId: enrichmentBillingAttribution.actorUserId, workspaceId }
+          )
+          const enrichmentRegistry = new ResolvedSecretTraceRegistry([], inputProvenance.scope)
+          await enrichmentRegistry.importCrossingProvenance(inputProvenance, enrichInputs, {
+            trusted: true,
+          })
           const { result, cost, error, detail } = await runEnrichment(enrichment, enrichInputs, {
             tableId,
             rowId,
             workspaceId,
             signal: attemptSignal,
+            resolvedSecretTraceRegistry: enrichmentRegistry,
           })
 
           // An abort during the cascade must not be recorded as a completed cell.
@@ -633,7 +668,9 @@ async function runWorkflowAndWriteTerminal(
               error: null,
               enrichmentDetails: detail,
             },
-            dataPatch
+            dataPatch,
+            undefined,
+            createTableRowSecretProvenanceFromRegistry(dataPatch, enrichmentRegistry)
           )
           return 'completed'
         } catch (err) {
@@ -909,11 +946,34 @@ async function runWorkflowAndWriteTerminal(
           tableName,
           timestamp: new Date().toISOString(),
         }
+        const rowInputProvenance = await loadTableRowSecretProvenance(
+          [
+            {
+              id: row.id,
+              updatedAt: row.updatedAt,
+              selectedValues: Object.fromEntries(
+                inputColumns.map((column) => {
+                  const columnId = getColumnId(column)
+                  return [columnId, row.data[columnId]]
+                })
+              ),
+            },
+          ],
+          { userId: workflowRecord.userId, workspaceId }
+        )
+        const inputRegistry = new ResolvedSecretTraceRegistry([], rowInputProvenance.scope)
+        await inputRegistry.importCrossingProvenance(rowInputProvenance, input, { trusted: true })
 
         progressWriter = createWorkflowCellProgressWriter({
           group,
           signal: attemptSignal,
-          writeProgress: ({ dataPatch, eventOutputs, runningBlockIds, blockErrors }) =>
+          writeProgress: ({
+            dataPatch,
+            eventOutputs,
+            secretProvenance,
+            runningBlockIds,
+            blockErrors,
+          }) =>
             writeState(
               {
                 status: 'running',
@@ -925,7 +985,8 @@ async function runWorkflowAndWriteTerminal(
                 blockErrors,
               },
               dataPatch,
-              eventOutputs
+              eventOutputs,
+              secretProvenance
             ),
           onWriteError: (err) => {
             logger.warn(
@@ -959,6 +1020,7 @@ async function runWorkflowAndWriteTerminal(
             abortSignal: attemptSignal,
             onBlockStart: progressWriter.onBlockStart,
             onBlockComplete: progressWriter.onBlockComplete,
+            trustedInitialResolvedSecretTraceProvenance: inputRegistry.exportCheckpointProvenance(),
             billingAttribution: preprocess.billingAttribution,
             trustedExecutionCorrelation: buildWorkflowGroupExecutionCorrelation(payload),
           },
@@ -982,7 +1044,8 @@ async function runWorkflowAndWriteTerminal(
               blockErrors,
             },
             pendingDataPatch,
-            eventOutputs
+            eventOutputs,
+            progressWriter.getPendingSecretProvenance()
           )
           await stashCellContextForResume({
             executionId,
@@ -1012,7 +1075,12 @@ async function runWorkflowAndWriteTerminal(
                 runningBlockIds: [],
                 blockErrors,
               }
-        await writeState(terminalState, pendingDataPatch, eventOutputs)
+        await writeState(
+          terminalState,
+          pendingDataPatch,
+          eventOutputs,
+          progressWriter.getPendingSecretProvenance()
+        )
         return terminalResult.status
       } catch (err) {
         const message = toError(err).message

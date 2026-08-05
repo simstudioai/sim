@@ -1,3 +1,4 @@
+import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableRowInsertParams, TableRowResponse } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
@@ -31,6 +32,10 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
   },
 
   request: {
+    secretProvenance: {
+      request: (params) => selectTableRowSecretProvenance([params.data]),
+      response: { incomplete: 'propagate' },
+    },
     url: (params: TableRowInsertParams) => `/api/table/${params.tableId}/rows`,
     method: 'POST',
     headers: () => ({

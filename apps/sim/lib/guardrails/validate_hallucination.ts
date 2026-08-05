@@ -1,9 +1,25 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isPlainRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
-import { BILLING_ATTRIBUTION_HEADER } from '@/lib/billing/core/billing-attribution'
+import { generateInternalToken } from '@/lib/auth/internal'
+import {
+  BILLING_ATTRIBUTION_HEADER,
+  type BillingAttributionSnapshot,
+  serializeBillingAttributionHeader,
+} from '@/lib/billing/core/billing-attribution'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import {
+  addModelInputProvenanceToRequest,
+  createModelInputProvenanceRequestMetadata,
+} from '@/lib/execution/model-input-provenance'
+import {
+  inspectPrivateToolMetadataEnvelope,
+  PRIVATE_TOOL_METADATA_REQUEST_HEADER,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+} from '@/lib/execution/private-tool-metadata'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -11,6 +27,14 @@ import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('HallucinationValidator')
+const KNOWLEDGE_PROVENANCE_ERROR = 'Knowledge result secret provenance is unavailable'
+
+class KnowledgeProvenanceError extends Error {
+  constructor() {
+    super(KNOWLEDGE_PROVENANCE_ERROR)
+    this.name = 'KnowledgeProvenanceError'
+  }
+}
 
 export interface HallucinationValidationResult {
   passed: boolean
@@ -40,11 +64,8 @@ export interface HallucinationValidationInput {
   }
   workflowId?: string
   workspaceId?: string
-  authHeaders?: {
-    cookie?: string
-    authorization?: string
-    billingAttribution?: string
-  }
+  actorUserId: string
+  billingAttribution: BillingAttributionSnapshot
   requestId: string
   resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
 }
@@ -57,29 +78,38 @@ async function queryKnowledgeBase(
   query: string,
   topK: number,
   requestId: string,
-  workflowId?: string,
-  authHeaders?: { cookie?: string; authorization?: string; billingAttribution?: string }
+  actorUserId: string,
+  billingAttribution: BillingAttributionSnapshot,
+  workflowId: string | undefined,
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
 ): Promise<string[]> {
   try {
-    // Call the knowledge base search API directly
     const searchUrl = `${getInternalApiBaseUrl()}/api/knowledge/search`
+    const internalToken = await generateInternalToken(actorUserId)
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${internalToken}`,
+      [BILLING_ATTRIBUTION_HEADER]: serializeBillingAttributionHeader(billingAttribution),
+      [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+    })
+    const requestBody = {
+      knowledgeBaseIds: [knowledgeBaseId],
+      query,
+      topK,
+      workflowId,
+    }
+    const modelInputMetadata = createModelInputProvenanceRequestMetadata(
+      resolvedSecretTraceRegistry,
+      query
+    )
+    if (!modelInputMetadata) throw new Error('Knowledge model input provenance is unavailable')
+    const body = addModelInputProvenanceToRequest(requestBody, headers, modelInputMetadata)
 
+    // boundary-raw-fetch: authenticated internal Knowledge call with private provenance envelopes
     const response = await fetch(searchUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeaders?.cookie ? { Cookie: authHeaders.cookie } : {}),
-        ...(authHeaders?.authorization ? { Authorization: authHeaders.authorization } : {}),
-        ...(authHeaders?.billingAttribution
-          ? { [BILLING_ATTRIBUTION_HEADER]: authHeaders.billingAttribution }
-          : {}),
-      },
-      body: JSON.stringify({
-        knowledgeBaseIds: [knowledgeBaseId],
-        query,
-        topK,
-        workflowId,
-      }),
+      headers,
+      body: JSON.stringify(body),
     })
 
     if (!response.ok) {
@@ -89,13 +119,42 @@ async function queryKnowledgeBase(
       return []
     }
 
-    const result = await response.json()
-    const results = result.data?.results || []
+    const payload: unknown = await response.json()
+    if (!isPlainRecord(payload)) throw new KnowledgeProvenanceError()
 
-    const chunks = results.map((r: any) => r.content || '').filter((c: string) => c.length > 0)
+    const inspection = inspectPrivateToolMetadataEnvelope(
+      response.headers,
+      payload,
+      RESOLVED_SECRET_PROVENANCE_METADATA_V1
+    )
+    if (inspection.status !== 'verified') throw new KnowledgeProvenanceError()
 
-    return chunks
+    const functionalResponse = { ...payload }
+    delete functionalResponse[RESOLVED_SECRET_PROVENANCE_FIELD]
+    const imported = await resolvedSecretTraceRegistry.importProvenanceForValue(
+      inspection.value,
+      functionalResponse,
+      { trusted: true }
+    )
+    if (!imported || !resolvedSecretTraceRegistry.isComplete()) {
+      throw new KnowledgeProvenanceError()
+    }
+
+    const data = isPlainRecord(functionalResponse.data) ? functionalResponse.data : undefined
+    const results = Array.isArray(data?.results) ? data.results : []
+
+    return results.flatMap((result) => {
+      if (
+        !isPlainRecord(result) ||
+        typeof result.content !== 'string' ||
+        result.content.length === 0
+      ) {
+        return []
+      }
+      return [result.content]
+    })
   } catch (error: any) {
+    if (error instanceof KnowledgeProvenanceError) throw error
     logger.error(`[${requestId}] Error querying knowledge base`, {
       error: error.message,
     })
@@ -254,7 +313,8 @@ export async function validateHallucination(
     providerCredentials,
     workflowId,
     workspaceId,
-    authHeaders,
+    actorUserId,
+    billingAttribution,
     requestId,
     resolvedSecretTraceRegistry,
   } = input
@@ -278,6 +338,10 @@ export async function validateHallucination(
       throw new Error('Hallucination input could not be safely projected')
     }
     const modelSafeUserInput = projection.value
+    const providerRegistry = resolvedSecretTraceRegistry.forkForToolInput(modelSafeUserInput)
+    if (!providerRegistry.isComplete()) {
+      throw new Error('Hallucination model input provenance is unavailable')
+    }
 
     // Step 1: Query knowledge base with RAG
     const ragContext = await queryKnowledgeBase(
@@ -285,8 +349,10 @@ export async function validateHallucination(
       modelSafeUserInput,
       topK,
       requestId,
+      actorUserId,
+      billingAttribution,
       workflowId,
-      authHeaders
+      providerRegistry
     )
 
     if (ragContext.length === 0) {
@@ -305,7 +371,7 @@ export async function validateHallucination(
       providerCredentials,
       workspaceId,
       requestId,
-      resolvedSecretTraceRegistry
+      providerRegistry
     )
 
     logger.info(`[${requestId}] Confidence score: ${score}`, {

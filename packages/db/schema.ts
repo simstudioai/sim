@@ -1977,9 +1977,9 @@ export const workspaceFiles = pgTable(
   })
 )
 
-export interface WorkspaceFileSecretProvenanceEntry {
+export interface WorkspaceFileSecretProvenanceEntry extends DurableSecretProvenanceEntry {
   name: string
-  encryptedValue: string
+  sourceUserId: string
 }
 
 /**
@@ -2008,6 +2008,19 @@ export const workspaceFileSecretProvenance = pgTable(
     ),
   })
 )
+
+export interface DurableSecretProvenanceEntry {
+  encryptedValue: string
+  name?: string
+  sourceUserId?: string
+  sourceWorkspaceId?: string
+  /** Optional canonical hash of the exact persisted sub-value that contributed this entry. */
+  sourceValueHash?: string
+}
+
+export interface TableRowSecretProvenanceEntry extends DurableSecretProvenanceEntry {
+  columnId: string
+}
 
 /**
  * Cached collaborative-document state for a workspace markdown file: the last-persisted Yjs binary and
@@ -2159,6 +2172,8 @@ export const memory = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     key: text('key').notNull(),
     data: jsonb('data').notNull(),
+    /** NULL is a legacy/untracked record; version 1 requires a fresh private sidecar. */
+    secretProvenanceVersion: integer('secret_provenance_version'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     deletedAt: timestamp('deleted_at'),
@@ -2176,6 +2191,26 @@ export const memory = pgTable(
         .where(sql`${table.deletedAt} IS NOT NULL`),
     }
   }
+)
+
+/** Private provenance bound to one exact canonical hash of the persisted memory data. */
+export const memorySecretProvenance = pgTable(
+  'memory_secret_provenance',
+  {
+    memoryId: text('memory_id')
+      .primaryKey()
+      .references(() => memory.id, { onDelete: 'cascade' }),
+    contentHash: text('content_hash').notNull(),
+    status: text('status').notNull(),
+    entries: jsonb('entries').$type<DurableSecretProvenanceEntry[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'memory_secret_provenance_status_check',
+      sql`${table.status} IN ('exact', 'unknown')`
+    ),
+  })
 )
 
 export const knowledgeBase = pgTable(
@@ -2293,6 +2328,8 @@ export const document = pgTable(
     externalId: text('external_id'),
     contentHash: text('content_hash'),
     sourceUrl: text('source_url'),
+    /** NULL is a legacy/untracked source; version 1 requires a matching source sidecar. */
+    secretProvenanceVersion: integer('secret_provenance_version'),
 
     /** User who uploaded the document, for usage attribution. Null for
      *  connector/cron-synced docs (and pre-migration rows) → indexing billing
@@ -2352,6 +2389,26 @@ export const document = pgTable(
   })
 )
 
+/** Private provenance for a document ingestion source, bound by a deterministic source hash. */
+export const documentSecretProvenance = pgTable(
+  'document_secret_provenance',
+  {
+    documentId: text('document_id')
+      .primaryKey()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    sourceHash: text('source_hash').notNull(),
+    status: text('status').notNull(),
+    entries: jsonb('entries').$type<DurableSecretProvenanceEntry[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'document_secret_provenance_status_check',
+      sql`${table.status} IN ('exact', 'unknown')`
+    ),
+  })
+)
+
 export const knowledgeBaseTagDefinitions = pgTable(
   'knowledge_base_tag_definitions',
   {
@@ -2398,6 +2455,8 @@ export const embedding = pgTable(
     chunkIndex: integer('chunk_index').notNull(),
     chunkHash: text('chunk_hash').notNull(),
     content: text('content').notNull(),
+    /** NULL is a legacy/untracked chunk; version 1 requires a fresh private sidecar. */
+    secretProvenanceVersion: integer('secret_provenance_version'),
     contentLength: integer('content_length').notNull(),
     tokenCount: integer('token_count').notNull(),
 
@@ -2496,6 +2555,26 @@ export const embedding = pgTable(
 
     // Ensure embedding exists (simplified since we only support one model)
     embeddingNotNullCheck: check('embedding_not_null_check', sql`"embedding" IS NOT NULL`),
+  })
+)
+
+/** Private provenance bound to one exact SHA-256 hash of the persisted chunk content. */
+export const embeddingSecretProvenance = pgTable(
+  'embedding_secret_provenance',
+  {
+    embeddingId: text('embedding_id')
+      .primaryKey()
+      .references(() => embedding.id, { onDelete: 'cascade' }),
+    contentHash: text('content_hash').notNull(),
+    status: text('status').notNull(),
+    entries: jsonb('entries').$type<DurableSecretProvenanceEntry[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'embedding_secret_provenance_status_check',
+      sql`${table.status} IN ('exact', 'unknown')`
+    ),
   })
 )
 
@@ -3931,6 +4010,7 @@ export const userTableRows = pgTable(
      * express column collation, so the collation lives only in the migration.
      */
     orderKey: text('order_key'),
+    secretProvenanceVersion: integer('secret_provenance_version'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -3966,6 +4046,30 @@ export const userTableRows = pgTable(
      * O(all rows) per page.
      */
     tableIdIdIdx: index('user_table_rows_table_id_id_idx').on(table.tableId, table.id),
+  })
+)
+
+/**
+ * Encrypted secret provenance for a table row's current JSONB payload.
+ * The sidecar is bound to `user_table_rows.updated_at`; a missing or stale
+ * sidecar on a tracked row is treated as unknown at model re-entry.
+ */
+export const userTableRowSecretProvenance = pgTable(
+  'user_table_row_secret_provenance',
+  {
+    rowId: text('row_id')
+      .primaryKey()
+      .references(() => userTableRows.id, { onDelete: 'cascade' }),
+    contentUpdatedAt: timestamp('content_updated_at').notNull(),
+    status: text('status').notNull(),
+    entries: jsonb('entries').$type<TableRowSecretProvenanceEntry[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusCheck: check(
+      'user_table_row_secret_provenance_status_check',
+      sql`${table.status} IN ('exact', 'unknown')`
+    ),
   })
 )
 

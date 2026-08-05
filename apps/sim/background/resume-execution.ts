@@ -289,7 +289,7 @@ async function buildResumeCellWriters(
   }
   const progressWriter = createWorkflowCellProgressWriter({
     group,
-    writeProgress: ({ dataPatch, eventOutputs, blockErrors }) => {
+    writeProgress: ({ dataPatch, eventOutputs, secretProvenance, blockErrors }) => {
       const partial: RowExecutionMetadata = {
         status: 'running',
         executionId: parentExecutionId,
@@ -302,6 +302,7 @@ async function buildResumeCellWriters(
         executionState: partial,
         dataPatch,
         eventOutputs,
+        secretProvenance,
       })
     },
     onWriteError: (err) => {
@@ -349,6 +350,7 @@ async function buildResumeCellWriters(
       executionState: terminal,
       dataPatch: progressWriter.getPendingDataPatch(),
       eventOutputs: progressWriter.getEventOutputs(),
+      secretProvenance: progressWriter.getPendingSecretProvenance(),
     })
   }
 

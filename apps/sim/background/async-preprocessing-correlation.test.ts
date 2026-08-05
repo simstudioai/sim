@@ -210,6 +210,48 @@ describe('async preprocessing correlation threading', () => {
     )
   })
 
+  it('passes validated workflow input provenance from the queued payload into core execution', async () => {
+    const provenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+      scope: { userId: 'parent-owner', workspaceId: 'workspace-1' },
+    }
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+
+    await executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      triggerType: 'workflow',
+      executionId: 'execution-with-provenance',
+      requestId: 'request-with-provenance',
+      trustedInitialResolvedSecretTraceProvenance: provenance,
+    })
+
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
+      expect.objectContaining({ trustedInitialResolvedSecretTraceProvenance: provenance })
+    )
+  })
+
   it('preserves a core-finalized execution error for task failure semantics', async () => {
     const rawError = Object.assign(new Error('Function 1 failed with activated-secret-value'), {
       executionResult: {

@@ -52,6 +52,24 @@ describe('Knowledge model input provenance', () => {
     expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
 
+  it('rejects a headerless internal call without loading an environment catalog', async () => {
+    const result = await prepareKnowledgeModelInputProvenance({
+      headers: new Headers(),
+      payload: { query: 'missing provenance' },
+      isInternalRequest: true,
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      modelInput: 'missing provenance',
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Model input provenance is unavailable',
+      status: 400,
+    })
+    expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
+  })
+
   it('accepts a complete empty envelope without loading secrets that cannot affect the call', async () => {
     const result = await prepareKnowledgeModelInputProvenance({
       headers: verifiedHeaders(),

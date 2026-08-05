@@ -1,3 +1,4 @@
+import { selectKnowledgeDocumentWriteSecretProvenance } from '@/tools/knowledge/secret-provenance'
 import {
   inferDocumentFileInfo,
   type KnowledgeUpsertDocumentParams,
@@ -61,9 +62,9 @@ export const knowledgeUpsertDocumentTool: ToolConfig<
   request: {
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/upsert`,
     method: 'POST',
-    modelInput: {
-      mode: 'project',
-      select: (params) => ({ content: params.content }),
+    secretProvenance: {
+      request: selectKnowledgeDocumentWriteSecretProvenance,
+      response: { incomplete: 'reject' },
     },
     headers: () => ({
       'Content-Type': 'application/json',

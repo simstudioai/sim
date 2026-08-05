@@ -444,10 +444,9 @@ export class WorkflowBlockHandler implements BlockHandler {
         })
         if (ctx.resolvedSecretTraceRegistry) {
           const crossingProvenance =
-            ctx.resolvedSecretTraceRegistry.exportModelEgressProvenanceForValue(
-              childWorkflowInput,
-              { anonymous: true }
-            )
+            ctx.resolvedSecretTraceRegistry.exportCommittedProvenanceForValue(childWorkflowInput, {
+              anonymous: true,
+            })
           await childResolvedSecretTraceRegistry.importProvenance(crossingProvenance, {
             trusted: true,
             anonymous: true,
@@ -706,7 +705,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         const exposedOutput = this.projectCustomBlockOutput(executionResult, exposedOutputs)
         if (ctx.resolvedSecretTraceRegistry && childResolvedSecretTraceRegistry) {
           const crossingProvenance =
-            childResolvedSecretTraceRegistry.exportModelEgressProvenanceForValue(exposedOutput, {
+            childResolvedSecretTraceRegistry.exportCommittedProvenanceForValue(exposedOutput, {
               anonymous: true,
             })
           await ctx.resolvedSecretTraceRegistry.importProvenance(crossingProvenance, {

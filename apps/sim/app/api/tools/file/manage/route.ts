@@ -7,14 +7,18 @@ import JSZip from 'jszip'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
 import { parseRequest } from '@/lib/api/server'
-import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, type AuthTypeValue, checkInternalAuth } from '@/lib/auth/hybrid'
 import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspace-file'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
+import { durableSecretProvenanceFromPrivateBundle } from '@/lib/execution/durable-secret-provenance'
+import {
+  inspectPrivateSecretProvenanceRequest,
+  isPrivateSecretProvenanceBundleV1,
+} from '@/lib/execution/model-input-provenance'
 import {
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
   RESOLVED_SECRET_PROVENANCE_FIELD,
@@ -69,7 +73,6 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import type { UserFile } from '@/executor/types'
 import {
-  isResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceScopeV1,
@@ -306,38 +309,84 @@ async function getFileContentProvenance(
   return accumulator.exportProvenance()
 }
 
-function getTrustedWrittenContentProvenance(options: {
+type FileMutationProvenanceResolution =
+  | {
+      success: true
+      provenanceBySelection?: ReadonlyMap<string, WorkspaceFileSecretProvenance>
+    }
+  | { success: false; error: string }
+
+/** Authenticates exact, causally selected file-mutation provenance from an internal caller. */
+function resolveFileMutationSecretProvenance(options: {
   headers: Headers
   payload: unknown
+  authType: AuthTypeValue | undefined
   userId: string
   workspaceId: string
-}): WorkspaceFileSecretProvenance {
-  const inspection = inspectModelInputProvenanceRequest(options.headers, options.payload)
+  selectionKeys: readonly string[]
+}): FileMutationProvenanceResolution {
+  const inspection = inspectPrivateSecretProvenanceRequest(options.headers, options.payload)
+  if (inspection.status === 'unsupported') return { success: true }
   if (
     inspection.status !== 'verified' ||
-    !isResolvedSecretTraceProvenanceV1(inspection.value) ||
-    !inspection.value.complete
+    options.authType !== AuthType.INTERNAL_JWT ||
+    !isPrivateSecretProvenanceBundleV1(inspection.value) ||
+    !inspection.value.complete ||
+    inspection.value.selections.length !== options.selectionKeys.length
   ) {
-    return { status: 'unknown' }
+    return { success: false, error: 'Invalid file secret provenance' }
   }
 
-  const entries = inspection.value.entries
-  if (entries.length === 0) return { status: 'exact', entries: [] }
-  if (
-    inspection.value.scope?.userId !== options.userId ||
-    inspection.value.scope.workspaceId !== options.workspaceId ||
-    entries.some((entry) => !entry.name)
-  ) {
-    return { status: 'unknown' }
+  const expectedScope = { userId: options.userId, workspaceId: options.workspaceId }
+  const provenanceBySelection = new Map<string, WorkspaceFileSecretProvenance>()
+  for (const selectionKey of options.selectionKeys) {
+    const provenance = durableSecretProvenanceFromPrivateBundle(
+      inspection.value,
+      selectionKey,
+      expectedScope
+    )
+    if (
+      !provenance ||
+      provenance.status === 'unknown' ||
+      provenance.entries.some((entry) => !entry.name || !entry.sourceUserId)
+    ) {
+      return { success: false, error: 'Invalid file secret provenance' }
+    }
+    provenanceBySelection.set(selectionKey, {
+      status: 'exact',
+      entries: provenance.entries.map((entry) => ({
+        name: entry.name as string,
+        encryptedValue: entry.encryptedValue,
+        sourceUserId: entry.sourceUserId as string,
+        ...(entry.sourceWorkspaceId ? { sourceWorkspaceId: entry.sourceWorkspaceId } : {}),
+      })),
+    })
   }
+  return { success: true, provenanceBySelection }
+}
 
-  return {
-    status: 'exact',
-    entries: entries.map((entry) => ({
-      name: entry.name as string,
-      encryptedValue: entry.encryptedValue,
-    })),
+type FileWriteProvenanceResolution =
+  | { success: true; contentProvenance?: WorkspaceFileSecretProvenance }
+  | { success: false; error: string }
+
+/** Resolves file-content provenance before any folder or file mutation. */
+function resolveFileWriteSecretProvenance(options: {
+  headers: Headers
+  payload: unknown
+  authType: AuthTypeValue | undefined
+  userId: string
+  workspaceId: string
+}): FileWriteProvenanceResolution {
+  const resolution = resolveFileMutationSecretProvenance({
+    ...options,
+    selectionKeys: ['content'],
+  })
+  if (!resolution.success || !resolution.provenanceBySelection) return resolution
+  const content = resolution.provenanceBySelection.get('content')
+  if (!content || content.status !== 'exact') {
+    return { success: false, error: 'Invalid file secret provenance' }
   }
+  return { success: true, contentProvenance: content }
 }
 
 async function deriveWorkspaceFileSecretProvenance(options: {
@@ -597,6 +646,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       case 'write': {
         const { fileName, content, contentType } = body
+        const provenanceResolution = resolveFileWriteSecretProvenance({
+          headers: request.headers,
+          payload: body,
+          authType: auth.authType,
+          userId,
+          workspaceId,
+        })
+        if (!provenanceResolution.success) {
+          return NextResponse.json(
+            { success: false, error: provenanceResolution.error },
+            { status: 400 }
+          )
+        }
         const { folderSegments, leafName } = splitWorkspaceFilePath(fileName)
         const folderId = await ensureWorkspaceFileFolderPath({
           workspaceId,
@@ -605,19 +667,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
         const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(leafName))
         const fileBuffer = Buffer.from(content ?? '', 'utf-8')
-        const secretProvenance = getTrustedWrittenContentProvenance({
-          headers: request.headers,
-          payload: body,
-          userId,
-          workspaceId,
-        })
         const result = await uploadWorkspaceFile(
           workspaceId,
           userId,
           fileBuffer,
           leafName,
           mimeType,
-          { folderId, secretProvenance }
+          {
+            folderId,
+            ...(provenanceResolution.contentProvenance
+              ? { secretProvenance: provenanceResolution.contentProvenance }
+              : {}),
+          }
         )
 
         logger.info('File created', {
@@ -803,18 +864,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             key: existing.key,
             context: 'workspace',
           })
-          const appendedProvenance = getTrustedWrittenContentProvenance({
+          const appendedResolution = resolveFileMutationSecretProvenance({
             headers: request.headers,
             payload: body,
+            authType: auth.authType,
             userId,
             workspaceId,
+            selectionKeys: ['content'],
           })
+          if (!appendedResolution.success) {
+            return NextResponse.json(
+              { success: false, error: appendedResolution.error },
+              { status: 400 }
+            )
+          }
+          const appendedProvenance = appendedResolution.provenanceBySelection?.get('content')
           const secretProvenance =
-            appendedProvenance.status === 'exact' &&
+            appendedProvenance?.status === 'exact' &&
             appendedProvenance.entries.length > 0 &&
             existing.uploadedBy !== userId
               ? { status: 'unknown' as const }
-              : mergeWorkspaceFileSecretProvenance(existingProvenance, appendedProvenance)
+              : appendedProvenance
+                ? mergeWorkspaceFileSecretProvenance(existingProvenance, appendedProvenance)
+                : undefined
           const existingBuffer = await fetchWorkspaceFileBuffer(existing)
           const finalContent = existingBuffer.toString('utf-8') + content
           const fileBuffer = Buffer.from(finalContent, 'utf-8')
@@ -826,7 +898,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             undefined,
             {
               expectedUpdatedAt: existing.contentUpdatedAt,
-              secretProvenancePolicy: { mode: 'replace', provenance: secretProvenance },
+              secretProvenancePolicy: secretProvenance
+                ? { mode: 'replace', provenance: secretProvenance }
+                : { mode: 'preserve' },
             }
           )
 
@@ -1035,9 +1109,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const denied = await assertToolFileAccess(archive.key, userId, requestId, logger)
         if (denied) return denied
 
-        const archiveBuffer = await downloadFileFromStorage(archive, requestId, logger, {
-          maxBytes: MAX_ARCHIVE_BYTES,
-        })
         const canonicalArchiveSource: FileContentSource[] = workspaceFiles.flatMap((file) => {
           const userFile = workspaceFileToUserFile(file)
           if (!file || !userFile) return []
@@ -1056,6 +1127,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           workspaceId,
           targetOwnerUserId: userId,
           sources: canonicalArchiveSource.concat(selectedArchiveSource),
+        })
+        if (archiveProvenance.status === 'unknown' || archiveProvenance.entries.length > 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                'Archive cannot be decompressed because its secret provenance is not exact-empty',
+            },
+            { status: 422 }
+          )
+        }
+
+        const archiveBuffer = await downloadFileFromStorage(archive, requestId, logger, {
+          maxBytes: MAX_ARCHIVE_BYTES,
         })
 
         let result: DecompressResult

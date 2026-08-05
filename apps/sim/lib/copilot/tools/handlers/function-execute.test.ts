@@ -5,6 +5,10 @@
 import { encryptionMock, encryptionMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import {
+  MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+  PRIVATE_SECRET_PROVENANCE_FIELD,
+} from '@/lib/execution/private-tool-metadata'
 
 const {
   mockIsFeatureEnabled,
@@ -24,6 +28,9 @@ const {
   mockListWorkspaceFileFolders,
   mockMaterializeCopilotCodeSecrets,
   mockHasWorkspaceSandboxAccess,
+  mockImportWorkspaceFileSecretProvenanceForRuntime,
+  mockLoadTableRowSecretProvenance,
+  mockIsTableSnapshotSafeForModelMount,
 } = vi.hoisted(() => ({
   mockIsFeatureEnabled: vi.fn(),
   mockGetTableById: vi.fn(),
@@ -42,6 +49,9 @@ const {
   mockListWorkspaceFileFolders: vi.fn(),
   mockMaterializeCopilotCodeSecrets: vi.fn(),
   mockHasWorkspaceSandboxAccess: vi.fn(),
+  mockImportWorkspaceFileSecretProvenanceForRuntime: vi.fn(),
+  mockLoadTableRowSecretProvenance: vi.fn(),
+  mockIsTableSnapshotSafeForModelMount: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mockIsFeatureEnabled }))
@@ -51,6 +61,10 @@ vi.mock('@/lib/table/service', () => ({
   listTables: mockListTables,
 }))
 vi.mock('@/lib/table/rows/service', () => ({ queryRows: mockQueryRows }))
+vi.mock('@/lib/table/rows/secret-provenance', () => ({
+  isTableSnapshotSafeForModelMount: mockIsTableSnapshotSafeForModelMount,
+  loadTableRowSecretProvenance: mockLoadTableRowSecretProvenance,
+}))
 vi.mock('@/lib/table/snapshot-cache', () => ({
   getOrCreateTableSnapshot: mockGetOrCreateTableSnapshot,
   SNAPSHOT_MAX_BYTES: 500 * 1024 * 1024,
@@ -70,6 +84,9 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   listWorkspaceFileFolders: mockListWorkspaceFileFolders,
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  importWorkspaceFileSecretProvenanceForRuntime: mockImportWorkspaceFileSecretProvenanceForRuntime,
 }))
 vi.mock('@/lib/copilot/vfs/path-utils', () => ({
   decodeVfsPathSegments: (p: string) => p.split('/'),
@@ -109,9 +126,23 @@ function mountedFiles() {
 
 const snapshotCacheOn = (flag: string) => Promise.resolve(flag === 'table-snapshot-cache')
 
+function resetExecutionMocks(): void {
+  vi.clearAllMocks()
+  mockExecuteTool.mockReset()
+  mockMaterializeCopilotCodeSecrets.mockReset()
+  mockLoadTableRowSecretProvenance.mockReset()
+  mockIsTableSnapshotSafeForModelMount.mockReset()
+  mockLoadTableRowSecretProvenance.mockResolvedValue({
+    version: 1,
+    complete: true,
+    entries: [],
+  })
+  mockIsTableSnapshotSafeForModelMount.mockResolvedValue(true)
+}
+
 describe('executeFunctionExecute trace-secret provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    resetExecutionMocks()
     mockExecuteTool.mockResolvedValue({ success: true })
     mockMaterializeCopilotCodeSecrets.mockResolvedValue({ envVars: {}, catalogEntries: [] })
     mockHasWorkspaceSandboxAccess.mockResolvedValue(true)
@@ -339,7 +370,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     expect(resolvedSecretTraceRegistry.isComplete()).toBe(false)
   })
 
-  it('fails model projection closed while parallel secret materialization is pending', async () => {
+  it('does not let pending sibling materialization poison independent model projection', async () => {
     let completeMaterialization: ((value: unknown) => void) | undefined
     mockMaterializeCopilotCodeSecrets.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -379,7 +410,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
         { success: true, output: { result: 'secret-value' } },
         resolvedSecretTraceRegistry
       )
-    ).toEqual({ success: true })
+    ).toEqual({ success: true, output: { result: 'secret-value' } })
 
     completeMaterialization?.({
       envVars: { API_KEY: 'secret-value' },
@@ -397,6 +428,12 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     expect(resolvedSecretTraceRegistry.getActiveMatches()).toEqual([
       { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
     ])
+    expect(
+      projectToolResultForCopilot(
+        { success: true, output: { result: 'secret-value' } },
+        resolvedSecretTraceRegistry
+      )
+    ).toEqual({ success: true, output: { result: '{{API_KEY}}' } })
     expect(mockExecuteTool).toHaveBeenCalledOnce()
   })
 
@@ -478,7 +515,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
 
 describe('executeFunctionExecute table mounts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    resetExecutionMocks()
     mockExecuteTool.mockResolvedValue({ success: true })
     mockGetTableById.mockResolvedValue(table)
     mockIsFeatureEnabled.mockResolvedValue(false)
@@ -654,7 +691,7 @@ const fileRecord = {
 
 describe('executeFunctionExecute file mounts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    resetExecutionMocks()
     mockExecuteTool.mockResolvedValue({ success: true })
     mockIsFeatureEnabled.mockResolvedValue(false)
     mockHasCloudStorage.mockReturnValue(true)
@@ -662,11 +699,25 @@ describe('executeFunctionExecute file mounts', () => {
     mockListWorkspaceFiles.mockResolvedValue([fileRecord])
     mockFindWorkspaceFileRecord.mockReturnValue(fileRecord)
     mockGetSandboxWorkspaceFilePath.mockReturnValue('/home/user/files/data.csv')
+    mockImportWorkspaceFileSecretProvenanceForRuntime.mockResolvedValue(true)
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
   })
 
   it('cloud storage: mounts by presigned URL with the record context, no bytes through web', async () => {
     await executeFunctionExecute({ inputFiles: ['files/data.csv'] }, context as never)
 
+    expect(mockImportWorkspaceFileSecretProvenanceForRuntime).toHaveBeenCalledWith({
+      workspaceId: 'ws_1',
+      identity: {
+        fileId: 'file_1',
+        key: 'workspace/ws_1/data.csv',
+        context: 'workspace',
+      },
+      registry: expect.any(ResolvedSecretTraceRegistry),
+    })
+    expect(
+      mockImportWorkspaceFileSecretProvenanceForRuntime.mock.invocationCallOrder[0]
+    ).toBeLessThan(mockGeneratePresignedDownloadUrl.mock.invocationCallOrder[0])
     expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
     expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledWith(
       'workspace/ws_1/data.csv',
@@ -686,11 +737,102 @@ describe('executeFunctionExecute file mounts', () => {
 
     await executeFunctionExecute({ inputFiles: ['files/data.csv'] }, context as never)
 
+    expect(
+      mockImportWorkspaceFileSecretProvenanceForRuntime.mock.invocationCallOrder[0]
+    ).toBeLessThan(mockFetchWorkspaceFileBuffer.mock.invocationCallOrder[0])
     expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
     const file = mountedFiles()[0]
     expect(file.path).toBe('/home/user/files/data.csv')
     expect(file.content).toBe('name\nAda\n')
     expect(file.type).toBeUndefined()
+  })
+
+  it('rejects unavailable file provenance before presigning, fetching, or executing', async () => {
+    mockImportWorkspaceFileSecretProvenanceForRuntime.mockResolvedValue(false)
+
+    await expect(
+      executeFunctionExecute({ inputFiles: ['files/data.csv'] }, context as never)
+    ).rejects.toThrow(/secret provenance is unavailable/)
+
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+    expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+  })
+
+  it('projects only mounted-file secrets that cross the settled Function result', async () => {
+    mockImportWorkspaceFileSecretProvenanceForRuntime.mockImplementation(
+      async ({ registry }: { registry?: ResolvedSecretTraceRegistry }) =>
+        registry?.importProvenance(
+          {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'FILE_SECRET', encryptedValue: 'encrypted-file-secret' }],
+          },
+          { trusted: true }
+        ) ?? false
+    )
+    const parentRegistry = new ResolvedSecretTraceRegistry([], {
+      userId: 'u1',
+      workspaceId: 'ws_1',
+    })
+    mockExecuteTool.mockResolvedValue({
+      success: true,
+      output: { result: 'secret-value' },
+    })
+
+    const result = await executeFunctionExecute(
+      { inputFiles: ['files/data.csv'] },
+      { ...context, workflowId: '', resolvedSecretTraceRegistry: parentRegistry }
+    )
+
+    const privateBundle = mockExecuteTool.mock.calls[0]?.[1]?.[PRIVATE_SECRET_PROVENANCE_FIELD]
+    expect(privateBundle).toEqual({
+      version: 1,
+      complete: true,
+      selections: [
+        {
+          key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+          provenance: expect.objectContaining({
+            version: 1,
+            complete: true,
+            entries: [{ encryptedValue: 'encrypted-file-secret' }],
+          }),
+        },
+      ],
+    })
+    expect(JSON.stringify(privateBundle)).not.toContain('secret-value')
+
+    expect(projectToolResultForCopilot(result, parentRegistry)).toEqual({
+      success: true,
+      output: { result: '[REDACTED_SECRET]' },
+    })
+  })
+
+  it('does not activate mounted-file provenance when no tracked bytes cross the result', async () => {
+    mockImportWorkspaceFileSecretProvenanceForRuntime.mockImplementation(
+      async ({ registry }: { registry?: ResolvedSecretTraceRegistry }) =>
+        registry?.importProvenance(
+          {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'FILE_SECRET', encryptedValue: 'encrypted-file-secret' }],
+          },
+          { trusted: true }
+        ) ?? false
+    )
+    const parentRegistry = new ResolvedSecretTraceRegistry([], {
+      userId: 'u1',
+      workspaceId: 'ws_1',
+    })
+    mockExecuteTool.mockResolvedValue({ success: true, output: { result: 'ordinary' } })
+
+    const result = await executeFunctionExecute(
+      { inputFiles: ['files/data.csv'] },
+      { ...context, workflowId: '', resolvedSecretTraceRegistry: parentRegistry }
+    )
+
+    expect(projectToolResultForCopilot(result, parentRegistry)).toEqual(result)
+    expect(parentRegistry.getActiveMatches()).toEqual([])
   })
 
   describe('generated documents', () => {
@@ -802,6 +944,27 @@ describe('executeFunctionExecute file mounts', () => {
     })
   })
 
+  it('rejects unavailable directory-descendant provenance before presigning or fetching', async () => {
+    mockListWorkspaceFileFolders.mockResolvedValue([{ path: 'Reports' }])
+    mockListWorkspaceFiles.mockResolvedValue([
+      {
+        ...fileRecord,
+        name: 'q1.csv',
+        key: 'workspace/ws_1/q1.csv',
+        folderPath: 'Reports',
+      },
+    ])
+    mockImportWorkspaceFileSecretProvenanceForRuntime.mockResolvedValue(false)
+
+    await expect(
+      executeFunctionExecute({ inputs: { directories: ['files/Reports'] } }, context as never)
+    ).rejects.toThrow(/secret provenance is unavailable/)
+
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+    expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+  })
+
   it('local storage: buffers directory descendants via inline content', async () => {
     mockHasCloudStorage.mockReturnValue(false)
     mockListWorkspaceFileFolders.mockResolvedValue([{ path: 'Reports' }])
@@ -835,7 +998,7 @@ async function mountError(inputs: Record<string, unknown>): Promise<string> {
 
 describe('executeFunctionExecute unmountable namespaces', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    resetExecutionMocks()
     mockExecuteTool.mockResolvedValue({ success: true })
     mockIsFeatureEnabled.mockResolvedValue(false)
     mockHasCloudStorage.mockReturnValue(true)

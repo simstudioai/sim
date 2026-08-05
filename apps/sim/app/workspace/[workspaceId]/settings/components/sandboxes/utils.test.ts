@@ -85,7 +85,6 @@ describe('managed CLI picker search metadata', () => {
     ['github-cli@2.97.0-r1', 'GitHub CLI', ['gh']],
     ['azure-cli@2.89.0-r1', 'Azure CLI', ['az']],
     ['minio-mc@RELEASE.2025-08-13T08-35-41Z-r1', 'MinIO Client', ['mc']],
-    ['opentofu@1.12.5-r1', 'OpenTofu', ['tofu']],
   ] as const)(
     'passes search aliases without changing the label for %s',
     (value, label, aliases) => {

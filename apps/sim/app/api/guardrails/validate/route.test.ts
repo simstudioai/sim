@@ -10,14 +10,12 @@ const {
   mockCheckAttributedUsageLimits,
   mockRequireBillingAttributionHeader,
   mockResolveBillingAttribution,
-  mockSerializeBillingAttributionHeader,
   mockToBillingContext,
   mockValidateHallucination,
   mockRecordUsage,
   mockCheckAndBillPayerOverageThreshold,
   mockPrepareCopilotEnvironmentContext,
   mockImportProvenance,
-  mockExportModelEgressProvenanceForValue,
   mockRegistryIsComplete,
 } = vi.hoisted(() => ({
   mockAuthorizeCredentialUse: vi.fn(),
@@ -25,14 +23,12 @@ const {
   mockCheckAttributedUsageLimits: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
-  mockSerializeBillingAttributionHeader: vi.fn(),
   mockToBillingContext: vi.fn(),
   mockValidateHallucination: vi.fn(),
   mockRecordUsage: vi.fn(),
   mockCheckAndBillPayerOverageThreshold: vi.fn(),
   mockPrepareCopilotEnvironmentContext: vi.fn(),
   mockImportProvenance: vi.fn(),
-  mockExportModelEgressProvenanceForValue: vi.fn(),
   mockRegistryIsComplete: vi.fn(),
 }))
 
@@ -48,7 +44,6 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
   requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
   resolveBillingAttribution: mockResolveBillingAttribution,
-  serializeBillingAttributionHeader: mockSerializeBillingAttributionHeader,
   toBillingContext: mockToBillingContext,
 }))
 
@@ -112,7 +107,6 @@ describe('POST /api/guardrails/validate', () => {
       workspaceId: 'ws-1',
       billingEntity: { type: 'organization', id: 'org-1' },
     })
-    mockSerializeBillingAttributionHeader.mockReturnValue('serialized-attribution')
     mockToBillingContext.mockReturnValue({
       billingEntity: { type: 'organization', id: 'org-1' },
       billingPeriod: {
@@ -122,19 +116,11 @@ describe('POST /api/guardrails/validate', () => {
     })
     mockValidateHallucination.mockResolvedValue({ passed: true, score: 8 })
     mockImportProvenance.mockResolvedValue(true)
-    mockExportModelEgressProvenanceForValue.mockReturnValue({
-      version: 1,
-      complete: true,
-      entries: [],
-    })
     mockRegistryIsComplete.mockReturnValue(true)
     mockPrepareCopilotEnvironmentContext.mockResolvedValue({
       resolvedSecretTraceRegistry: {
-        exportModelEgressProvenanceForValue: mockExportModelEgressProvenanceForValue,
-        importProvenance: mockImportProvenance,
         importProvenanceForValue: mockImportProvenance,
         isComplete: mockRegistryIsComplete,
-        markIncomplete: vi.fn(),
       },
     })
   })
@@ -217,7 +203,15 @@ describe('POST /api/guardrails/validate', () => {
 
     expect(res.status).toBe(200)
     expect(mockAuthorizeCredentialUse).not.toHaveBeenCalled()
-    expect(mockValidateHallucination).toHaveBeenCalled()
+    expect(mockValidateHallucination).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        billingAttribution: expect.objectContaining({
+          actorUserId: 'user-1',
+          workspaceId: 'ws-1',
+        }),
+      })
+    )
   })
 
   it('imports transported active provenance before hallucination model egress', async () => {
@@ -251,7 +245,6 @@ describe('POST /api/guardrails/validate', () => {
     expect(mockImportProvenance).toHaveBeenCalledWith(provenance, 'secret value', {
       trusted: true,
     })
-    expect(mockExportModelEgressProvenanceForValue).not.toHaveBeenCalled()
   })
 
   it('rejects private provenance supplied through session authentication', async () => {
@@ -347,13 +340,18 @@ describe('POST /api/guardrails/validate', () => {
       authType: 'internal_jwt',
     })
 
-    const request = createMockRequest('POST', {
-      validationType: 'hallucination',
-      input: 'test input',
-      knowledgeBaseId: 'kb-1',
-      model: 'gpt-4o',
-      workflowId: 'wf-1',
-    })
+    const request = createMockRequest(
+      'POST',
+      {
+        validationType: 'hallucination',
+        input: 'test input',
+        knowledgeBaseId: 'kb-1',
+        model: 'gpt-4o',
+        workflowId: 'wf-1',
+        __resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+      },
+      { 'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1' }
+    )
     const res = await POST(request)
 
     expect(res.status).toBe(200)
@@ -364,11 +362,35 @@ describe('POST /api/guardrails/validate', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockValidateHallucination).toHaveBeenCalledWith(
       expect.objectContaining({
-        authHeaders: expect.objectContaining({
-          billingAttribution: 'serialized-attribution',
+        actorUserId: 'user-1',
+        billingAttribution: expect.objectContaining({
+          actorUserId: 'user-1',
+          workspaceId: 'ws-1',
         }),
       })
     )
+  })
+
+  it('rejects a headerless internal hallucination check before model execution', async () => {
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'internal_jwt',
+    })
+
+    const res = await POST(
+      createMockRequest('POST', {
+        validationType: 'hallucination',
+        input: 'test input',
+        knowledgeBaseId: 'kb-1',
+        model: 'gpt-4o',
+        workflowId: 'wf-1',
+      })
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockImportProvenance).not.toHaveBeenCalled()
+    expect(mockValidateHallucination).not.toHaveBeenCalled()
   })
 
   it('rejects invalid internal billing attribution as a protocol error', async () => {

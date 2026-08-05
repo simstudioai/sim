@@ -20,8 +20,13 @@ import { parseBuffer } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
+import { assertKnowledgeOpaqueModelInputSafe } from '@/lib/knowledge/model-input-provenance'
 import { StorageService } from '@/lib/uploads'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import {
+  isModelSafeWorkspaceFileKey,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { extractStorageKey, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { mistralParserTool } from '@/tools/mistral/parser'
@@ -57,6 +62,20 @@ type OCRRequestBody = {
 }
 
 const MISTRAL_MAX_PAGES = 1000
+
+async function assertDocumentFileModelSafe(
+  fileUrl: string,
+  workspaceId?: string | null
+): Promise<void> {
+  if (!isInternalFileUrl(fileUrl)) return
+
+  const path = new URL(fileUrl, 'http://localhost').pathname
+  const key = extractStorageKey(path)
+  const safe = await isModelSafeWorkspaceFileKey(key, workspaceId ? { workspaceId } : {})
+  if (!safe) {
+    throw new Error(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
+  }
+}
 
 async function getPdfPageCount(buffer: Buffer): Promise<number> {
   try {
@@ -192,9 +211,10 @@ export async function processDocument(
     cloudUrl?: string
   }
 }> {
-  logger.info(`Processing document: ${filename}`)
+  logger.info('Processing document', { mimeType })
 
   try {
+    await assertDocumentFileModelSafe(fileUrl, workspaceId)
     const parseResult = await parseDocument(fileUrl, filename, mimeType, userId, workspaceId)
     const { content, processingMethod } = parseResult
     const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined
@@ -259,7 +279,10 @@ export async function processDocument(
       },
     }
   } catch (error) {
-    logger.error(`Error processing document ${filename}:`, error)
+    logger.error('Error processing document', {
+      mimeType,
+      errorType: toError(error).name,
+    })
     throw error
   }
 }
@@ -300,17 +323,19 @@ async function parseDocument(
     }).providerId
 
     if (ocrProvider === 'azure-mistral') {
-      logger.info(`Using Azure Mistral OCR: ${filename}`)
+      assertKnowledgeOpaqueModelInputSafe()
+      logger.info('Using Azure Mistral OCR')
       return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId)
     }
 
     if (ocrProvider === 'mistral') {
-      logger.info(`Using Mistral OCR: ${filename}`)
+      assertKnowledgeOpaqueModelInputSafe()
+      logger.info('Using Mistral OCR')
       return parseWithMistralOCR(fileUrl, filename, mimeType, userId, workspaceId, mistralApiKey)
     }
   }
 
-  logger.info(`Using file parser: ${filename}`)
+  logger.info('Using file parser')
   return parseWithFileParser(fileUrl, filename, mimeType, userId)
 }
 
@@ -334,7 +359,7 @@ async function handleFileForOCR(
         logger.warn(
           `handleFileForOCR: Failed to download external PDF for page count check, proceeding without batching`,
           {
-            error: toError(error).message,
+            errorType: toError(error).name,
           }
         )
         return { httpsUrl: fileUrl, buffer: undefined }
@@ -344,11 +369,11 @@ async function handleFileForOCR(
     return { httpsUrl: fileUrl, buffer: undefined }
   }
 
-  logger.info(`Uploading "${filename}" to cloud storage for OCR`)
+  logger.info('Uploading document to cloud storage for OCR')
 
   const buffer = await downloadFileWithTimeout(fileUrl, userId)
 
-  logger.info(`Downloaded ${filename}: ${buffer.length} bytes`)
+  logger.info('Downloaded document for OCR', { bytes: buffer.length })
 
   try {
     const metadata: Record<string, string> = {
@@ -416,7 +441,7 @@ async function downloadFileForBase64(fileUrl: string, userId?: string): Promise<
   )
 }
 
-function processOCRContent(result: OCRResult, filename: string): string {
+function processOCRContent(result: OCRResult): string {
   if (!result.success) {
     throw new Error(`OCR processing failed: ${result.error || 'Unknown error'}`)
   }
@@ -426,7 +451,7 @@ function processOCRContent(result: OCRResult, filename: string): string {
     throw new Error('OCR returned empty content')
   }
 
-  logger.info(`OCR completed: ${filename}`)
+  logger.info('OCR completed')
   return content
 }
 
@@ -508,7 +533,7 @@ async function parseWithAzureMistralOCR(
         `PDF has ${pageCount} pages, exceeding the Azure OCR limit of ${MISTRAL_MAX_PAGES}`
       )
     }
-    logger.info(`Azure Mistral OCR: PDF page count for ${filename}: ${pageCount}`)
+    logger.info('Azure Mistral OCR: PDF page count resolved', { pageCount })
   }
 
   const base64Data = fileBuffer.toString('base64')
@@ -542,11 +567,11 @@ async function parseWithAzureMistralOCR(
       throw new Error('Azure Mistral OCR returned empty content')
     }
 
-    logger.info(`Azure Mistral OCR completed: ${filename}`)
+    logger.info('Azure Mistral OCR completed')
     return { content, processingMethod: 'mistral-ocr' as const, cloudUrl: undefined }
   } catch (error) {
-    logger.error(`Azure Mistral OCR failed for ${filename}:`, {
-      message: toError(error).message,
+    logger.error('Azure Mistral OCR failed', {
+      errorType: toError(error).name,
     })
     throw error
   }
@@ -577,12 +602,12 @@ async function parseWithMistralOCR(
     workspaceId
   )
 
-  logger.info(`Mistral OCR: Using presigned URL for ${filename}: ${httpsUrl}`)
+  logger.info('Mistral OCR source prepared')
 
   let pageCount = 0
   if (mimeType === 'application/pdf' && buffer) {
     pageCount = await getPdfPageCount(buffer)
-    logger.info(`PDF page count for ${filename}: ${pageCount}`)
+    logger.info('PDF page count resolved', { pageCount })
   }
 
   const needsBatching = pageCount > MISTRAL_MAX_PAGES
@@ -599,12 +624,12 @@ async function parseWithMistralOCR(
   try {
     const response = await executeMistralOCRRequest(params, userId)
     const result = (await mistralParserTool.transformResponse!(response, params)) as OCRResult
-    const content = processOCRContent(result, filename)
+    const content = processOCRContent(result)
 
     return { content, processingMethod: 'mistral-ocr' as const, cloudUrl }
   } catch (error) {
-    logger.error(`Mistral OCR failed for ${filename}:`, {
-      message: toError(error).message,
+    logger.error('Mistral OCR failed', {
+      errorType: toError(error).name,
     })
     throw error
   }
@@ -691,7 +716,7 @@ async function processChunk(
       900 // 15 minutes
     )
 
-    logger.info(`Uploaded chunk ${chunkIndex + 1} to S3: ${chunkKey}`)
+    logger.info(`Uploaded chunk ${chunkIndex + 1} for OCR`)
 
     const params = {
       filePath: chunkUrl,
@@ -710,7 +735,7 @@ async function processChunk(
     return { index: chunkIndex, content: null }
   } catch (error) {
     logger.error(`Chunk ${chunkIndex + 1}/${totalChunks} failed:`, {
-      message: toError(error).message,
+      errorType: toError(error).name,
     })
     return { index: chunkIndex, content: null }
   } finally {
@@ -720,7 +745,7 @@ async function processChunk(
         logger.info(`Cleaned up chunk ${chunkIndex + 1} from S3`)
       } catch (deleteError) {
         logger.warn(`Failed to clean up chunk ${chunkIndex + 1} from S3:`, {
-          message: toError(deleteError).message,
+          errorType: toError(deleteError).name,
         })
       }
     }
@@ -739,9 +764,7 @@ async function processMistralOCRInBatches(
   cloudUrl?: string
 }> {
   const totalPages = await getPdfPageCount(pdfBuffer)
-  logger.info(
-    `Splitting ${filename} (${totalPages} pages) into chunks of ${MISTRAL_MAX_PAGES} pages`
-  )
+  logger.info(`Splitting PDF into chunks`, { totalPages, maxPagesPerChunk: MISTRAL_MAX_PAGES })
 
   const pdfChunks = await splitPdfIntoChunks(pdfBuffer, MISTRAL_MAX_PAGES)
   logger.info(
@@ -773,15 +796,13 @@ async function processMistralOCRInBatches(
 
   if (sortedResults.length === 0) {
     throw new Error(
-      `OCR failed for all ${pdfChunks.length} chunks of ${filename}. ` +
+      `OCR failed for all ${pdfChunks.length} chunks. ` +
         `Large PDFs require OCR - file parser fallback would produce poor results.`
     )
   }
 
   const combinedContent = sortedResults.join('\n\n')
-  logger.info(
-    `Successfully processed ${sortedResults.length}/${pdfChunks.length} chunks for ${filename}`
-  )
+  logger.info(`Successfully processed ${sortedResults.length}/${pdfChunks.length} chunks`)
 
   return {
     content: combinedContent,
@@ -821,7 +842,7 @@ async function parseWithFileParser(
 
     return { content, processingMethod: 'file-parser' as const, cloudUrl: undefined, metadata }
   } catch (error) {
-    logger.error(`File parser failed for ${filename}:`, error)
+    logger.error('File parser failed', { errorType: toError(error).name })
     throw error
   }
 }

@@ -77,7 +77,6 @@ export interface CreateResolvedSecretTraceRegistryOptions {
   decryptionFailures?: readonly string[]
   restoredProvenance?: unknown
   restoredCheckpointVersion?: unknown
-  legacyRestoredState?: unknown
   restoreTrusted?: boolean
   requireRestoredProvenance?: boolean
   scope?: ResolvedSecretTraceScopeV1
@@ -831,28 +830,6 @@ export class ResolvedSecretTraceRegistry {
   }
 
   /**
-   * Filters the complete local catalog plus imported active values against a crossing value.
-   * This captures direct environment-map reads without activating unrelated catalog entries.
-   */
-  exportModelEgressProvenanceForValue(
-    value: unknown,
-    options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
-  ): ResolvedSecretTraceProvenanceV1 {
-    if (!this.isComplete()) {
-      return { version: 1, complete: false, entries: [] }
-    }
-
-    const catalogEntries = [...this.catalog.values()].map(
-      (entry): ActiveSecretEntry => ({ ...entry, anonymous: false })
-    )
-    return this.exportProvenanceForValueFromEntries(
-      value,
-      [...catalogEntries, ...this.activeEntries.values()],
-      options
-    )
-  }
-
-  /**
    * Reconstructs a legacy local Function response while that same call owns a pending guard.
    * Only the already-known local catalog and committed active entries participate; unrelated
    * pending foreign calls remain unavailable and cannot broaden this compatibility path.
@@ -1150,23 +1127,12 @@ export async function createResolvedSecretTraceRegistry(
     await registry.importProvenance(options.restoredProvenance, {
       trusted: options.restoreTrusted === true,
     })
-  } else if (options.requireRestoredProvenance) {
-    const isRecognizedLegacyCheckpoint =
-      options.restoreTrusted === true &&
-      options.restoredCheckpointVersion === undefined &&
-      options.legacyRestoredState !== undefined
-    if (isRecognizedLegacyCheckpoint) {
-      const reconstructed = registry.exportModelEgressProvenanceForValue(
-        options.legacyRestoredState
-      )
-      if (reconstructed.complete) {
-        await registry.importProvenance(reconstructed, { trusted: true })
-      } else {
-        registry.markIncomplete()
-      }
-    } else {
-      registry.markIncomplete()
-    }
+  } else if (
+    options.requireRestoredProvenance &&
+    options.restoreTrusted === true &&
+    options.restoredCheckpointVersion !== undefined
+  ) {
+    registry.markIncomplete()
   }
 
   return registry

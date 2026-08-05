@@ -17,6 +17,12 @@ import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
 import {
+  MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+  PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
+  PRIVATE_SECRET_PROVENANCE_FIELD,
+  PRIVATE_SECRET_PROVENANCE_HEADER,
+} from '@/lib/execution/private-tool-metadata'
+import {
   MAX_SANDBOX_OUTPUT_BYTES,
   SandboxOutputFileError,
   SandboxOutputLimitError,
@@ -27,6 +33,7 @@ const {
   mockExecuteInIsolatedVM,
   mockExecuteShellInSandbox,
   mockFetchWorkspaceFileBuffer,
+  mockDecryptSecret,
   mockEncryptSecret,
   mockGetWorkspaceFile,
   mockResolveWorkspaceFileReference,
@@ -39,6 +46,9 @@ const {
   mockExecuteInIsolatedVM: vi.fn(),
   mockExecuteShellInSandbox: vi.fn(),
   mockFetchWorkspaceFileBuffer: vi.fn(),
+  mockDecryptSecret: vi.fn(async (value: string) => ({
+    decrypted: value === 'encrypted:mounted-secret' ? 'mounted-secret' : value,
+  })),
   mockEncryptSecret: vi.fn(async (value: string) => ({
     encrypted: `encrypted:${value}`,
     iv: 'iv',
@@ -52,6 +62,7 @@ const {
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: mockDecryptSecret,
   encryptSecret: mockEncryptSecret,
 }))
 
@@ -702,13 +713,112 @@ describe('Function Execute API Route', () => {
         expect.objectContaining({
           secretProvenance: {
             status: 'exact',
-            entries: [{ name: 'API_KEY', encryptedValue: 'encrypted:secret-value' }],
+            entries: [
+              {
+                name: 'API_KEY',
+                encryptedValue: 'encrypted:secret-value',
+                sourceUserId: 'user-123',
+                sourceWorkspaceId: 'workspace-1',
+              },
+            ],
           },
         })
       )
     })
 
-    it('projects resolved secrets out of persisted Function export paths', async () => {
+    it('classifies text exports against private mounted-file provenance', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: '',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/home/user/copied.txt': 'Bearer mounted-secret' },
+      })
+
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: 'print("done")',
+            language: 'python',
+            workspaceId: 'workspace-1',
+            outputs: {
+              files: [
+                {
+                  path: 'files/copied.txt',
+                  sandboxPath: '/home/user/copied.txt',
+                  mimeType: 'text/plain',
+                },
+              ],
+            },
+            [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+              version: 1,
+              complete: true,
+              selections: [
+                {
+                  key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+                  provenance: {
+                    version: 1,
+                    complete: true,
+                    entries: [{ encryptedValue: 'encrypted:mounted-secret' }],
+                    scope: { userId: 'user-123', workspaceId: 'workspace-1' },
+                  },
+                },
+              ],
+            },
+          },
+          {
+            'x-sim-request-private-tool-metadata': 'resolved-secret-names-durable-files-v2',
+            [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
+          }
+        )
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+        expect.objectContaining({
+          secretProvenance: {
+            status: 'exact',
+            entries: [
+              {
+                name: 'MOUNTED_FILE_SECRET',
+                encryptedValue: 'encrypted:mounted-secret',
+                sourceUserId: 'user-123',
+                sourceWorkspaceId: 'workspace-1',
+              },
+            ],
+          },
+        })
+      )
+    })
+
+    it('rejects a partial mounted-file provenance envelope before execution', async () => {
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return 1',
+          [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+            version: 1,
+            complete: true,
+            selections: [
+              {
+                key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+                provenance: { version: 1, complete: true, entries: [] },
+              },
+            ],
+          },
+        })
+      )
+
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({
+        success: false,
+        error: 'Mounted file secret provenance is invalid',
+      })
+      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+    })
+
+    it('does not rewrite a static export path that happens to equal a resolved secret', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
@@ -739,10 +849,10 @@ describe('Function Execute API Route', () => {
       expect(response.status).toBe(200)
       expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
         expect.objectContaining({
-          target: expect.objectContaining({ path: 'files/report-{{API_KEY}}.txt' }),
+          target: expect.objectContaining({ path: 'files/report-secret-value.txt' }),
         })
       )
-      expect(JSON.stringify(data)).not.toContain('secret-value')
+      expect(JSON.stringify(data)).toContain('files/report-secret-value.txt')
     })
 
     it('marks binary exports unknown without failing the Function execution', async () => {

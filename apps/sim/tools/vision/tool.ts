@@ -1,3 +1,4 @@
+import { selectPreferredModelBoundFileInput } from '@/lib/uploads/utils/model-input'
 import type { ToolConfig } from '@/tools/types'
 import type { VisionParams, VisionResponse, VisionV2Params } from '@/tools/vision/types'
 
@@ -45,6 +46,13 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
     modelInput: {
       mode: 'project',
       select: (params) => ({ prompt: params.prompt }),
+      privateProvenance: (params) =>
+        selectPreferredModelBoundFileInput({
+          file: params.imageFile,
+          filePath: params.imageUrl,
+          prefer: 'file',
+          includeInlineBase64: true,
+        }),
     },
     method: 'POST',
     url: '/api/tools/vision/analyze',

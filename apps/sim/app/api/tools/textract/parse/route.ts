@@ -16,6 +16,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import {
   mapTextractSdkError,
   parseS3Uri,
@@ -82,6 +83,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const validatedData = parsed.data.body
+    const modelInputProvenance = validateOpaqueModelInputProvenance({
+      headers: request.headers,
+      payload: validatedData,
+      isInternalRequest: true,
+    })
+    if (!modelInputProvenance.success) {
+      return NextResponse.json(
+        { success: false, error: modelInputProvenance.error },
+        { status: modelInputProvenance.status }
+      )
+    }
     const processingMode = validatedData.processingMode || 'sync'
     const featureTypes = (validatedData.featureTypes ?? []) as FeatureType[]
     const useAnalyzeDocument = featureTypes.length > 0

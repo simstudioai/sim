@@ -239,6 +239,10 @@ export function serializePauseSnapshot(
     },
     resolvedSecretTraceProvenance:
       context.resolvedSecretTraceRegistry?.exportCheckpointProvenance(),
+    workflowVariableResolvedSecretTraceProvenance:
+      context.workflowVariableResolvedSecretTraceProvenance,
+    workflowInputResolvedSecretTraceProvenance: context.workflowInputResolvedSecretTraceProvenance,
+    finalOutputResolvedSecretTraceProvenance: context.finalOutputResolvedSecretTraceProvenance,
     resolvedSecretTraceCheckpointVersion: context.resolvedSecretTraceRegistry
       ? RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION
       : undefined,

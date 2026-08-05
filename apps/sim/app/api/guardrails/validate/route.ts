@@ -10,17 +10,13 @@ import {
   checkAttributedUsageLimits,
   requireBillingAttributionHeader,
   resolveBillingAttribution,
-  serializeBillingAttributionHeader,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  inspectModelInputProvenanceRequest,
-  reconstructLegacyModelInputProvenance,
-} from '@/lib/execution/model-input-provenance'
+import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
@@ -260,6 +256,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (provenanceInspection.status === 'invalid') {
         return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
       }
+      if (
+        provenanceInspection.status === 'unsupported' &&
+        auth.authType === AuthType.INTERNAL_JWT
+      ) {
+        return NextResponse.json(
+          { error: 'Model input provenance is unavailable' },
+          { status: 400 }
+        )
+      }
       if (provenanceInspection.status === 'verified' && auth.authType !== AuthType.INTERNAL_JWT) {
         return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
       }
@@ -270,11 +275,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               inputStr,
               { trusted: true }
             )
-          : await reconstructLegacyModelInputProvenance(resolvedSecretTraceRegistry, inputStr)
+          : true
       if (!provenanceReady || !resolvedSecretTraceRegistry.isComplete()) {
         return NextResponse.json(
           { error: 'Model input provenance is unavailable' },
-          { status: provenanceInspection.status === 'verified' ? 400 : 500 }
+          { status: 400 }
         )
       }
     }
@@ -283,15 +288,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       validationType,
       inputType: typeof input,
     })
-    const authHeaders = {
-      cookie: request.headers.get('cookie') || undefined,
-      authorization: request.headers.get('authorization') || undefined,
-      billingAttribution:
-        auth.authType === AuthType.INTERNAL_JWT && billingAttribution
-          ? serializeBillingAttributionHeader(billingAttribution)
-          : undefined,
-    }
-
     const validationResult = await executeValidation(
       validationType,
       inputStr,
@@ -317,7 +313,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       piiMode,
       piiLanguage,
       piiCustomPatterns,
-      authHeaders,
+      auth.userId,
+      billingAttribution,
       requestId,
       resolvedSecretTraceRegistry
     )
@@ -431,7 +428,8 @@ async function executeValidation(
   piiMode: string | undefined,
   piiLanguage: string | undefined,
   piiCustomPatterns: CustomPiiPattern[] | undefined,
-  authHeaders: { cookie?: string; authorization?: string; billingAttribution?: string } | undefined,
+  actorUserId: string,
+  billingAttribution: BillingAttributionSnapshot | undefined,
   requestId: string,
   resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
 ): Promise<{
@@ -472,6 +470,9 @@ async function executeValidation(
     if (!resolvedSecretTraceRegistry) {
       throw new Error('Secret projection context is unavailable for hallucination validation')
     }
+    if (!billingAttribution) {
+      throw new Error('Billing attribution is unavailable for hallucination validation')
+    }
 
     return await validateHallucination({
       userInput: inputStr,
@@ -483,7 +484,8 @@ async function executeValidation(
       providerCredentials,
       workflowId,
       workspaceId,
-      authHeaders,
+      actorUserId,
+      billingAttribution,
       requestId,
       resolvedSecretTraceRegistry,
     })

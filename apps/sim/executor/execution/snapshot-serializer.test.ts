@@ -79,6 +79,61 @@ describe('serializePauseSnapshot', () => {
     })
   })
 
+  it('persists only encrypted value-adjacent provenance across pause and resume', () => {
+    const provenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+    }
+    const context = createContext({
+      blockStates: new Map([
+        [
+          'function-1',
+          {
+            output: { result: '{{TOKEN}}' },
+            executed: true,
+            executionTime: 1,
+            resolvedSecretTraceProvenance: provenance,
+          },
+        ],
+      ]),
+      blockLogs: [
+        {
+          blockId: 'function-1',
+          startedAt: '2026-01-01T00:00:00.000Z',
+          endedAt: '2026-01-01T00:00:00.001Z',
+          durationMs: 1,
+          success: true,
+          output: { result: '{{TOKEN}}' },
+          executionOrder: 1,
+          displayResolvedSecretTraceProvenance: provenance,
+        },
+      ],
+      workflowVariables: {
+        secretResult: { type: 'string', value: '{{TOKEN}}' },
+      },
+      workflowVariableResolvedSecretTraceProvenance: {
+        secretResult: provenance,
+      },
+      workflowInputResolvedSecretTraceProvenance: provenance,
+      finalOutputResolvedSecretTraceProvenance: provenance,
+    })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.state.blockStates['function-1'].resolvedSecretTraceProvenance).toEqual(
+      provenance
+    )
+    expect(serialized.state.blockLogs[0].displayResolvedSecretTraceProvenance).toEqual(provenance)
+    expect(serialized.state.workflowVariableResolvedSecretTraceProvenance.secretResult).toEqual(
+      provenance
+    )
+    expect(serialized.state.workflowInputResolvedSecretTraceProvenance).toEqual(provenance)
+    expect(serialized.state.finalOutputResolvedSecretTraceProvenance).toEqual(provenance)
+    expect(snapshot.snapshot).not.toContain('raw-secret')
+  })
+
   it('does not persist a temporary activation guard as permanent incompleteness', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'raw-secret', encryptedValue: 'ciphertext' },

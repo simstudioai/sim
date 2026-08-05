@@ -159,7 +159,7 @@ describe('workspace file metadata and storage accounting', () => {
     )
   })
 
-  it('classifies an ordinary workspace upload as exact-empty provenance', async () => {
+  it('keeps an ordinary workspace upload on the legacy untracked path', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
 
     await uploadWorkspaceFile(
@@ -168,6 +168,21 @@ describe('workspace file metadata and storage accounting', () => {
       Buffer.from('hello'),
       FILE_ROW.originalName,
       FILE_ROW.contentType
+    )
+
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
+  })
+
+  it('persists explicitly supplied workspace upload provenance', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
+
+    await uploadWorkspaceFile(
+      FILE_ROW.workspaceId,
+      FILE_ROW.userId,
+      Buffer.from('hello'),
+      FILE_ROW.originalName,
+      FILE_ROW.contentType,
+      { secretProvenance: { status: 'exact', entries: [] } }
     )
 
     expect(mockReplaceWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledWith(

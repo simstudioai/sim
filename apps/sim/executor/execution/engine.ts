@@ -147,6 +147,7 @@ export class ExecutionEngine {
       const endTime = performance.now()
       this.context.metadata.endTime = new Date().toISOString()
       this.context.metadata.duration = endTime - startTime
+      this.ensureFinalOutputProvenance()
 
       if (this.cancelledFlag) {
         this.finalizeIncompleteLogs()
@@ -171,6 +172,7 @@ export class ExecutionEngine {
       const endTime = performance.now()
       this.context.metadata.endTime = new Date().toISOString()
       this.context.metadata.duration = endTime - startTime
+      this.ensureFinalOutputProvenance()
 
       if (this.cancelledFlag) {
         this.finalizeIncompleteLogs()
@@ -486,7 +488,7 @@ export class ExecutionEngine {
     const isResponseBlock = node.block.metadata?.id === BlockType.RESPONSE
     if (isResponseBlock) {
       if (!this.responseOutputLocked) {
-        this.finalOutput = output
+        this.setFinalOutput(nodeId, output)
         this.responseOutputLocked = true
       }
       this.stoppedEarlyFlag = true
@@ -494,7 +496,7 @@ export class ExecutionEngine {
     }
 
     if (isFinalOutput && !this.responseOutputLocked) {
-      this.finalOutput = output
+      this.setFinalOutput(nodeId, output)
     }
 
     if (this.context.stopAfterBlockId === nodeId) {
@@ -512,6 +514,34 @@ export class ExecutionEngine {
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
 
     this.addMultipleToQueue(readyNodes)
+  }
+
+  private setFinalOutput(nodeId: string, output: NormalizedBlockOutput): void {
+    this.finalOutput = output
+    const state = this.context.blockStates.get(nodeId)
+    if (state?.resolvedSecretTraceProvenance) {
+      this.context.finalOutputResolvedSecretTraceProvenance = state.resolvedSecretTraceProvenance
+      return
+    }
+
+    if (this.context.resolvedSecretTraceRegistry) {
+      this.context.finalOutputResolvedSecretTraceProvenance = {
+        version: 1,
+        complete: false,
+        entries: [],
+      }
+    }
+  }
+
+  private ensureFinalOutputProvenance(): void {
+    if (
+      Object.hasOwn(this.context, 'finalOutputResolvedSecretTraceProvenance') ||
+      !this.context.resolvedSecretTraceRegistry
+    ) {
+      return
+    }
+    this.context.finalOutputResolvedSecretTraceProvenance =
+      this.context.resolvedSecretTraceRegistry.exportCommittedProvenanceForValue(this.finalOutput)
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {

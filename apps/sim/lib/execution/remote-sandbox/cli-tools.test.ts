@@ -13,7 +13,6 @@ import {
   SANDBOX_SELECTABLE_CLI_TOOL_IDS,
 } from '@/lib/execution/remote-sandbox/cli-tools'
 import {
-  allSandboxCliToolRecipes,
   assertSandboxCliToolsSupported,
   SANDBOX_SYSTEM_PATH,
   sandboxCliEnvironment,
@@ -22,6 +21,8 @@ import {
 } from '@/lib/execution/remote-sandbox/cli-tools.server'
 
 describe('sandbox CLI catalog', () => {
+  const catalogRecipes = () => SANDBOX_CLI_TOOL_IDS.flatMap((id) => sandboxCliToolRecipes([id]))
+
   it('pins the corrected Google Cloud CLI artifact', () => {
     const [recipe] = sandboxCliToolRecipes(['google-cloud-cli@577.0.0-r1'])
 
@@ -38,13 +39,13 @@ describe('sandbox CLI catalog', () => {
   })
 
   it('contains one first-release recipe per usable managed CLI', () => {
-    expect(SANDBOX_CLI_TOOL_IDS).toHaveLength(25)
+    expect(SANDBOX_CLI_TOOL_IDS).toHaveLength(24)
     expect(SANDBOX_CLI_TOOL_IDS.every((id) => id.endsWith('-r1'))).toBe(true)
     expect(SANDBOX_CLI_TOOL_IDS.some((id) => id.startsWith('k9s@'))).toBe(false)
   })
 
   it('has one immutable integrity-checked recipe for every client-safe catalog entry', () => {
-    const recipes = allSandboxCliToolRecipes()
+    const recipes = catalogRecipes()
 
     expect(recipes).toHaveLength(SANDBOX_CLI_TOOL_IDS.length)
     expect(recipes.length).toBeGreaterThanOrEqual(20)
@@ -113,7 +114,6 @@ describe('sandbox CLI catalog', () => {
     ['github-cli@2.97.0-r1', ['gh']],
     ['azure-cli@2.89.0-r1', ['az']],
     ['minio-mc@RELEASE.2025-08-13T08-35-41Z-r1', ['mc']],
-    ['opentofu@1.12.5-r1', ['tofu']],
   ] as const)('advertises executable search aliases for %s', (id, aliases) => {
     expect(SANDBOX_CLI_TOOLS[id].searchTerms).toEqual(expect.arrayContaining([...aliases]))
   })
@@ -134,7 +134,7 @@ describe('sandbox CLI catalog', () => {
       'storage.googleapis.com',
     ])
 
-    for (const recipe of allSandboxCliToolRecipes()) {
+    for (const recipe of catalogRecipes()) {
       expect(officialHosts.has(new URL(recipe.artifactUrl).hostname)).toBe(true)
       expect(recipe.installCommand).not.toMatch(/curl[^&|]*\|\s*(?:ba)?sh/)
       expect(recipe.installCommand).not.toContain('npm install')
@@ -208,7 +208,7 @@ describe('sandbox CLI catalog', () => {
 
   it('supports per-recipe provider compatibility with both providers as the default', () => {
     const providers = ['e2b', 'daytona'] as const
-    const recipes = allSandboxCliToolRecipes()
+    const recipes = catalogRecipes()
     expect(
       recipes.find((recipe) => recipe.id === 'aws-cli@2.36.15-r1')?.supportedProviders
     ).toEqual(providers)
