@@ -36,9 +36,11 @@ import {
   createReadableStreamFromResponses,
   extractResponseText,
   extractResponseToolCalls,
+  isMaxOutputTokensIncompleteResponse,
   parseResponsesUsage,
   type ResponsesInputItem,
   type ResponsesToolCall,
+  responseContainsFunctionCall,
   toResponsesToolChoice,
 } from './utils'
 
@@ -112,6 +114,59 @@ function readRetryAfterMs(headers: Headers): number | null {
 
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
 type ToolChoice = PreparedTools['toolChoice']
+
+/**
+ * Rejects a `/v1/responses` body that reports a generation which did not succeed.
+ *
+ * The endpoint answers HTTP 200 for failures: `status: 'failed'` with a populated
+ * `error`, or `status: 'incomplete'` with an `incomplete_details.reason`. Reading
+ * only `output` therefore reports a failed generation to the user as a success with
+ * empty content and billed tokens — while `deriveOpenAIFinishReason` independently
+ * records `finishReason: 'error'` on the same span, so the trace and the block
+ * contradict each other.
+ *
+ * The tolerated case is copied from `streamResponsesTurn` and must keep matching it:
+ * an `incomplete` response is accepted only when it was truncated by
+ * `max_output_tokens` AND carries no function call. Truncated prose is still a usable
+ * partial answer, but a truncated `function_call` holds half-written JSON — executing
+ * it makes `parseToolArguments` throw, surfacing a confusing tool failure instead of
+ * the truncation that actually happened.
+ *
+ * A status the API did not send is not asserted against: this path is shared with
+ * Azure OpenAI and any OpenAI-compatible gateway, and inventing a failure for an
+ * absent field would break healthy responses rather than report broken ones.
+ */
+function assertUsableResponse(response: OpenAI.Responses.Response, providerLabel: string): void {
+  if (response.error) {
+    const code = response.error.code ? ` (${response.error.code})` : ''
+    throw new Error(`${providerLabel} generation failed${code}: ${response.error.message}`)
+  }
+
+  if (response.status === 'failed') {
+    throw new Error(
+      `${providerLabel} generation failed, and the API returned no error detail explaining why.`
+    )
+  }
+
+  if (response.status === 'incomplete') {
+    const reason = response.incomplete_details?.reason ?? 'unknown'
+    if (responseContainsFunctionCall(response)) {
+      throw new Error(
+        `${providerLabel} generation stopped before completion (${reason}), truncating a tool call mid-argument. Raise the max output tokens or reduce the tool schema size.`
+      )
+    }
+    if (!isMaxOutputTokensIncompleteResponse(response)) {
+      throw new Error(`${providerLabel} generation stopped before completion: ${reason}.`)
+    }
+    return
+  }
+
+  if (response.status && response.status !== 'completed') {
+    throw new Error(
+      `${providerLabel} returned a response with status "${response.status}", which carries no finished generation.`
+    )
+  }
+}
 
 /**
  * Stable routing key for OpenAI's prompt cache, scoped to one agent block.
@@ -556,13 +611,22 @@ export async function executeResponsesProviderRequest(
       bodyDeadline.abort(new DOMException('response body stalled', 'TimeoutError'))
     }, RESPONSE_BODY_BUDGET_MS)
 
+    let parsed: OpenAI.Responses.Response
     try {
-      return await response.json()
+      parsed = await response.json()
     } catch (error) {
       throw annotateTransportFailure(error, 'reading-response-body', startedAt, responseMeta)
     } finally {
       clearTimeout(timer)
     }
+
+    /**
+     * Asserted here rather than at the call sites so every non-streaming turn — the
+     * first and each tool-loop continuation — is covered by construction, and outside
+     * the transport `try` so a rejected generation is never mistaken for a body stall.
+     */
+    assertUsableResponse(parsed, config.providerLabel)
+    return parsed
   }
 
   const providerStartTime = Date.now()
@@ -721,15 +785,37 @@ export async function executeResponsesProviderRequest(
         content = responseText
       }
 
-      const toolCallsInResponse = extractResponseToolCalls(currentResponse.output)
+      const emittedToolCalls = extractResponseToolCalls(currentResponse.output)
 
       enrichLastModelSegmentFromOpenAIResponse(
         timeSegments,
         currentResponse,
         responseText,
-        toolCallsInResponse,
+        emittedToolCalls,
         { model: request.model }
       )
+
+      /**
+       * Mirrors `toolsExecutable` in the streaming tool loop: a tool call only runs
+       * when it came from a finished generation.
+       *
+       * Unreachable today, and deliberately kept. `assertUsableResponse` already
+       * rejects every status that could carry a tool call from an unfinished
+       * generation — and because both it and `extractResponseToolCalls` key off the
+       * same `function_call` output item, no response can reach here non-completed
+       * with a tool call to run. It stays as the second lock on the invariant: these
+       * two loops diverging on exactly this check is what produced the bug, and a
+       * later relaxation of the assert would otherwise re-open it silently.
+       */
+      const toolsExecutable = !currentResponse.status || currentResponse.status === 'completed'
+      const toolCallsInResponse = toolsExecutable ? emittedToolCalls : []
+
+      if (emittedToolCalls.length > 0 && !toolsExecutable) {
+        logger.warn('Skipping OpenAI tool execution', {
+          status: currentResponse.status,
+          toolCount: emittedToolCalls.length,
+        })
+      }
 
       if (!toolCallsInResponse.length) {
         break
