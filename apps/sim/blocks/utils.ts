@@ -7,6 +7,7 @@ import {
   isOllamaConfigured,
 } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { containsReference } from '@/lib/workflows/sanitization/references'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {
@@ -233,6 +234,23 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   }
 
   return true
+}
+
+/**
+ * Visibility condition for a model-tuning field that only some models accept, such as
+ * reasoning effort or verbosity. Gates on the capability list, but keeps the field visible
+ * when `model` itself holds a variable or block reference — the concrete model id is only
+ * known at execution time then, so matching a reference against a static list would hide
+ * the field for every workflow that binds its model dynamically.
+ */
+export function getModelCapabilityCondition(capableModels: string[]) {
+  return (values?: Record<string, unknown>) => {
+    const model = typeof values?.model === 'string' ? values.model : ''
+    if (containsReference(model)) {
+      return buildModelVisibilityCondition(model, true)
+    }
+    return { field: 'model', value: capableModels }
+  }
 }
 
 /**

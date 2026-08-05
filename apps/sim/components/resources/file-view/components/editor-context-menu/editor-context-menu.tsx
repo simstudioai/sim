@@ -1,8 +1,7 @@
 'use client'
 
 import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut } from '@sim/emcn'
-import { Blimp, Clipboard, Duplicate, Search, SelectAll } from '@sim/emcn/icons'
-import { Scissors } from 'lucide-react'
+import { Blimp, Clipboard, Duplicate, Scissors, Search, SelectAll } from '@sim/emcn/icons'
 import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 
 interface EditorContextMenuProps {

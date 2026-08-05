@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { cn, Input, Label } from '@sim/emcn'
+import { Eye, EyeOff } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { PublicShareAuthShell } from '@/components/public-share/public-share-auth-shell'
 import type { PublicShareGateProps, PublicShareKind } from '@/components/public-share/types'
@@ -94,7 +94,7 @@ export function PublicSharePasswordAuth({ token, kind }: PublicShareGateProps) {
               className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              {showPassword ? <EyeOff className='size-[18px]' /> : <Eye className='size-[18px]' />}
             </button>
           </div>
           {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}

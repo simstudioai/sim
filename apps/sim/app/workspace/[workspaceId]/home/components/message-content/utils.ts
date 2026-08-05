@@ -19,7 +19,7 @@ import {
   TerminalWindow,
   Wrench,
 } from '@sim/emcn'
-import { Calendar, Clock, Cursor, Panels, Table as TableIcon } from '@sim/emcn/icons'
+import { Calendar, Clock, Cursor, Globe, Panels, Table as TableIcon } from '@sim/emcn/icons'
 import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
 import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -60,7 +60,6 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   table: TableIcon,
   interface: Panels,
   query_user_table: TableIcon,
-  scheduled_task: Calendar,
   job: Calendar,
   agent: AgentIcon,
   custom_tool: Wrench,
@@ -75,7 +74,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   generate_video: VideoIcon,
   generate_audio: TTSIcon,
   ffmpeg: Wrench,
-  browser: Cursor,
+  browser: Globe,
   browser_navigate: Cursor,
   browser_go_back: Cursor,
   browser_go_forward: Cursor,

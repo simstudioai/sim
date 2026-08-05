@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
 import './code.css'
 

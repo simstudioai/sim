@@ -39,7 +39,7 @@
 
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Paperclip, Plus, X } from 'lucide-react'
+import { Paperclip, Plus, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { handleKeyboardActivation } from '../../lib/keyboard'
 import { chipFieldSurfaceClass } from '../chip/chip-chrome'
@@ -98,7 +98,7 @@ export interface FileInputOptions {
   /** Accepted file types (default: '.csv,.txt,text/csv,text/plain') */
   accept?: string
   /** Icon component to render (default: Paperclip) */
-  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  icon?: React.ComponentType<{ className?: string }>
   /** Extract values from file content. Each extracted value will be passed to onAdd. */
   extractValues?: (text: string) => string[]
   /** Tooltip text for the file input button */
@@ -491,7 +491,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                 className='-m-1.5 absolute right-2 bottom-[9px] p-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
               >
-                <FileIcon className='size-3.5' strokeWidth={2} />
+                <FileIcon className='size-3.5' />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>

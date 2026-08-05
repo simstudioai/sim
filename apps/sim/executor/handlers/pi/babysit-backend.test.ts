@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockWithPiSandbox,
@@ -67,6 +68,8 @@ import {
 import { BABYSIT_ROUND_PATH } from '@/executor/handlers/pi/babysit-round'
 import type { PiBabysitContinuationParams } from '@/executor/handlers/pi/backend'
 import { DIFF_PATH } from '@/executor/handlers/pi/cloud-shared'
+
+afterAll(resetEnvMock)
 
 const OLD_SHA = 'a'.repeat(40)
 const NEW_SHA = 'c'.repeat(40)
@@ -235,6 +238,7 @@ function makeRunner(options: {
 describe('runBabysitPiWithOptions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setEnv({ SANDBOX_PROVIDER: 'e2b' })
     mockWithPiSandbox.mockReset()
     mockFetchSnapshot.mockReset()
     mockFetchThreads.mockReset()

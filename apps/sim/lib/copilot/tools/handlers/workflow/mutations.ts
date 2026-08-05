@@ -95,10 +95,12 @@ async function executeCopilotWorkflowTarget(params: {
     params.workflow.workspaceId,
     childExecutionId
   )
+  const trustedInitialResolvedSecretTraceProvenance =
+    params.context.resolvedSecretTraceRegistry?.exportProvenanceForValue(params.input)
+  const completePendingActivation =
+    params.context.resolvedSecretTraceRegistry?.beginPendingActivation()
 
   try {
-    const trustedInitialResolvedSecretTraceProvenance =
-      params.context.resolvedSecretTraceRegistry?.exportProvenanceForValue(params.input)
     const result = await executeWorkflow(
       params.workflow,
       generateRequestId(),
@@ -139,6 +141,8 @@ async function executeCopilotWorkflowTarget(params: {
       await releaseExecutionSlot(childExecutionId)
     }
     throw error
+  } finally {
+    completePendingActivation?.()
   }
 }
 

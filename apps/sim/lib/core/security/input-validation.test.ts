@@ -1,4 +1,4 @@
-import { envFlagsMock, resetEnvFlagsMock } from '@sim/testing'
+import { defaultMockEnv, envFlagsMock, resetEnvFlagsMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   validateAirtableId,
@@ -2136,6 +2136,7 @@ describe('validateCallbackUrl', () => {
   })
 
   afterEach(() => {
+    resetEnvMock()
     if (originalWindow === undefined) {
       ;(globalThis as { window?: unknown }).window = undefined
     } else {
@@ -2187,11 +2188,27 @@ describe('validateCallbackUrl', () => {
       ;(globalThis as { window?: unknown }).window = undefined
     })
 
-    it('falls back to placeholder origin and still rejects cross-origin URLs', () => {
+    it('resolves against the configured app origin and still rejects cross-origin URLs', () => {
       expect(validateCallbackUrl('/workspace')).toBe(true)
       expect(validateCallbackUrl('//evil.com')).toBe(false)
       expect(validateCallbackUrl('https://evil.com')).toBe(false)
       expect(validateCallbackUrl('javascript:alert(1)')).toBe(false)
+    })
+
+    /**
+     * The server verdict has to match what the browser will decide once it
+     * hydrates, or a callback URL derived during render yields one destination
+     * in the SSR markup and another after hydration.
+     */
+    it('accepts an absolute same-origin URL, matching the browser verdict', () => {
+      expect(validateCallbackUrl(`${defaultMockEnv.NEXT_PUBLIC_APP_URL}/workspace/abc`)).toBe(true)
+    })
+
+    it('stays fail-closed on absolute URLs when the app URL is unset', () => {
+      setEnv({ NEXT_PUBLIC_APP_URL: undefined })
+
+      expect(validateCallbackUrl(`${defaultMockEnv.NEXT_PUBLIC_APP_URL}/workspace/abc`)).toBe(false)
+      expect(validateCallbackUrl('/workspace')).toBe(true)
     })
   })
 })

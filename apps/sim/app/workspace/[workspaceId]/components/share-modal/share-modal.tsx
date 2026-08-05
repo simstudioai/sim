@@ -9,11 +9,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipPasswordInput,
-  TagInput,
-  type TagItem,
 } from '@sim/emcn'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import { generatePassword } from '@/lib/core/security/encryption'
+import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
 import {
   type ShareableResourceType,
   useResourceShare,
@@ -105,8 +104,7 @@ export function ShareModal({
     password,
     setPassword,
     emails,
-    addEmail,
-    removeEmail,
+    setEmails,
     shareUrl,
     isDirty,
     modeDisallowed,
@@ -159,8 +157,6 @@ export function ShareModal({
     return isDirty ? copy.publicUnsaved : copy.publicSaved
   })()
 
-  const emailItems: TagItem[] = emails.map((value) => ({ value, isValid: true }))
-
   return (
     <ChipModal open={open} onOpenChange={handleClose} size='sm' srTitle={`Share ${resourceName}`}>
       <ChipModalHeader onClose={handleClose}>Share {resourceType}</ChipModalHeader>
@@ -194,18 +190,15 @@ export function ShareModal({
         ) : null}
         {mode === 'email' || mode === 'sso' ? (
           <ChipModalField
-            type='custom'
+            type='emails'
             title='Allowed emails'
-            hint='Add specific emails or whole domains (@example.com).'
-          >
-            <TagInput
-              items={emailItems}
-              onAdd={addEmail}
-              onRemove={removeEmail}
-              placeholder='Enter emails or domains'
-              placeholderWithTags='Add email'
-            />
-          </ChipModalField>
+            value={emails}
+            onChange={setEmails}
+            validate={validateAllowlistEntry}
+            allowDomains
+            placeholder='Enter emails or domains'
+            placeholderWithTags='Add email or domain'
+          />
         ) : null}
         {mode !== 'private' && shareUrl ? (
           <ChipModalField type='copy' title='Link' value={shareUrl} copyLabel='Copy link' />

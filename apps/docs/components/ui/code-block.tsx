@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { Check, Duplicate } from '@sim/emcn/icons'
 import { CodeBlock as FumadocsCodeBlock } from 'fumadocs-ui/components/codeblock'
-import { Check, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function CodeBlock(props: React.ComponentProps<typeof FumadocsCodeBlock>) {
@@ -31,9 +31,9 @@ export function CodeBlock(props: React.ComponentProps<typeof FumadocsCodeBlock>)
           >
             <span className='flex items-center justify-center'>
               {copied ? (
-                <Check size={16} className='text-[var(--brand-accent)]' />
+                <Check className='size-[16px] text-[var(--brand-accent)]' />
               ) : (
-                <Copy size={16} className='text-[var(--text-muted)]' />
+                <Duplicate className='size-[16px] text-[var(--text-muted)]' />
               )}
             </span>
           </button>

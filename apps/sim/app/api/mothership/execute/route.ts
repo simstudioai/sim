@@ -11,6 +11,10 @@ import { processContextsServer } from '@/lib/copilot/chat/process-contents'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import {
+  type CopilotEnvironmentContext,
+  createCopilotEnvironmentContext,
+} from '@/lib/copilot/environment-context'
+import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/copilot/generated/mothership-stream-v1'
@@ -18,6 +22,7 @@ import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/co
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
 import type { StreamEvent } from '@/lib/copilot/request/types'
+import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
@@ -33,7 +38,6 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 import {
   createIncompleteResolvedSecretTraceRegistry,
-  createResolvedSecretTraceRegistry,
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -85,15 +89,6 @@ function encodeNdjson(value: unknown): Uint8Array {
   return ndjsonEncoder.encode(`${JSON.stringify(value)}\n`)
 }
 
-/**
- * Server-owned tools whose invocation the CALLER must see, even though they are
- * not client/integration tools. The scheduled-task runner branches on whether
- * the agent called complete_scheduled_task; filtering it out of the response
- * made that check permanently false, so a completed job was rescheduled by the
- * runner's own post-run bookkeeping.
- */
-export const CALLER_VISIBLE_SERVER_TOOLS = new Set(['complete_scheduled_task'])
-
 export function buildExecuteResponsePayload(
   result: Awaited<ReturnType<typeof runHeadlessCopilotLifecycle>>,
   effectiveChatId: string,
@@ -101,10 +96,7 @@ export function buildExecuteResponsePayload(
 ) {
   const clientToolNames = new Set(integrationTools.map((t) => t.name))
   const clientToolCalls = (result.toolCalls || []).filter(
-    (tc: { name: string }) =>
-      clientToolNames.has(tc.name) ||
-      tc.name.startsWith('mcp-') ||
-      CALLER_VISIBLE_SERVER_TOOLS.has(tc.name)
+    (tc: { name: string }) => clientToolNames.has(tc.name) || tc.name.startsWith('mcp-')
   )
 
   return {
@@ -135,6 +127,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   let messageId: string | undefined
   let requestId: string | undefined
   let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
+  let environmentContext: CopilotEnvironmentContext | undefined
   const includePrivateProvenance = requestsPrivateToolMetadata(
     req.headers,
     RESOLVED_SECRET_PROVENANCE_METADATA_V1
@@ -162,7 +155,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
       userMetadata,
+      secretScope,
+      mountedSecrets,
     } = validation.data.body
+    const secretMountPolicy = normalizeSecretMountPolicy({ secretScope, mountedSecrets })
 
     /**
      * Bind actor attribution to the authenticated identity. The executor mints
@@ -192,14 +188,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         const environment = await getPersonalAndWorkspaceEnv(userId, workspaceId, {
           workspaceAccess,
         })
-        resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
-          personalEncrypted: environment.personalEncrypted,
-          workspaceEncrypted: environment.workspaceEncrypted,
-          personalDecrypted: environment.personalDecrypted,
-          workspaceDecrypted: environment.workspaceDecrypted,
-          decryptionFailures: environment.decryptionFailures,
-          scope,
-        })
+        environmentContext = await createCopilotEnvironmentContext(userId, workspaceId, environment)
+        resolvedSecretTraceRegistry = environmentContext.resolvedSecretTraceRegistry
       } catch (error) {
         logger.warn('Failed to build Mothership trace secret catalog', {
           error: getErrorMessage(error),
@@ -376,7 +366,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         interactive: false,
         abortSignal: lifecycleAbortController.signal,
         billingAttribution,
-        resolvedSecretTraceRegistry,
+        ...(userPermission ? { userPermission } : {}),
+        secretActorUserId: userId,
+        secretMountPolicy,
+        environmentContext,
+        ...(!environmentContext && resolvedSecretTraceRegistry
+          ? { resolvedSecretTraceRegistry }
+          : {}),
         onEvent,
       })
 

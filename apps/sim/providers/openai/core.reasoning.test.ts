@@ -15,6 +15,11 @@ import { executeTool } from '@/tools'
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   calculateCost: () => ({ input: 0, output: 0, total: 0 }),
   sumToolCosts: () => 0,
   enforceStrictSchema: (schema: unknown) => schema,

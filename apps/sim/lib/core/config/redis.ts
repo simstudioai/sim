@@ -3,10 +3,9 @@ import { toError } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
 import Redis, { type RedisOptions } from 'ioredis'
 import { env } from '@/lib/core/config/env'
+import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 
 const logger = createLogger('Redis')
-
-const redisUrl = env.REDIS_URL
 
 /**
  * When REDIS_URL targets a bare IP over `rediss://` (e.g. trigger.dev's
@@ -77,6 +76,16 @@ const state = g._redisState
 const PING_INTERVAL_MS = 15_000
 const MAX_PING_FAILURES = 2
 
+export function getConfiguredRedisUrl(): string | null {
+  if (getConfiguredCacheProvider() === 'database') return null
+
+  const redisUrl = env.REDIS_URL
+  if (!redisUrl) {
+    throw new Error('Cache capability selected Redis but REDIS_URL is missing')
+  }
+  return redisUrl
+}
+
 /**
  * Register a callback that fires when the PING health check forces a reconnect.
  * Useful for resetting cached adapters that hold a stale Redis reference.
@@ -140,6 +149,7 @@ function startPingHealthCheck(redis: Redis): void {
  */
 export function getRedisClient(): Redis | null {
   if (typeof window !== 'undefined') return null
+  const redisUrl = getConfiguredRedisUrl()
   if (!redisUrl) return null
   if (state.client) return state.client
 

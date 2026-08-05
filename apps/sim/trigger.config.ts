@@ -65,6 +65,12 @@ export default defineConfig({
       '@earendil-works/pi-ai',
       '@earendil-works/pi-coding-agent',
       'cpu-features',
+      // `@e2b/code-interpreter` copies `e2b`'s members onto its exports at runtime, so
+      // bundling drops every name a static analyzer cannot see — `Template` among them.
+      // Same reason `next.config.ts` keeps these in `serverExternalPackages`.
+      'e2b',
+      '@e2b/code-interpreter',
+      '@daytona/sdk',
     ],
     extensions: [
       syncEnvVars(() => [{ name: 'DB_APP_NAME', value: 'sim-trigger' }]),
@@ -84,6 +90,8 @@ export default defineConfig({
           '@react-email/render',
           '@earendil-works/pi-ai',
           '@earendil-works/pi-coding-agent',
+          '@e2b/code-interpreter',
+          '@daytona/sdk',
         ],
       }),
     ],

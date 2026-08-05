@@ -11,6 +11,7 @@ import {
   createOpenAIUsageAccumulator,
 } from '@/providers/openai/usage'
 import {
+  convertResponseOutputToInputItems,
   extractResponseText,
   extractResponseToolCalls,
   isMaxOutputTokensIncompleteResponse,
@@ -464,7 +465,7 @@ export function createOpenAIResponsesStreamingToolLoopStream(
               break
             }
 
-            currentInput.push(...turn.response.output)
+            currentInput.push(...convertResponseOutputToInputItems(turn.response.output))
 
             if (typeof currentToolChoice === 'object') {
               for (const toolCall of executableTools) {

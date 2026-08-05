@@ -23,7 +23,7 @@
  * naming itself "Sim Dev" at runtime.
  *
  * Channels build ONE AT A TIME on purpose. scripts/build.ts writes the bundle
- * to dist/ and the app icon to build/generated-icon.icns, both fixed paths, so
+ * to dist/ and the app icon to build/generated-icon.icon, both fixed paths, so
  * concurrent channels would overwrite each other's bundle mid-package and ship
  * a dmg whose baked origin belongs to a different environment — invisible until
  * someone signs in. Giving each channel its own bundle directory is what would

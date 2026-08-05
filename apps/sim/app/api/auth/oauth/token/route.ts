@@ -20,12 +20,16 @@ import {
   resolveOAuthAccountId,
   resolveServiceAccountToken,
 } from '@/app/api/auth/oauth/utils'
+import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OAuthTokenAPI')
 
 const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
+// Stop at a comma or whitespace: better-auth persists Zoho's scopes comma-joined
+// (no spaces), so a greedy `\S+` would swallow the whole scope list into the host.
+// The Desk base URL itself never contains a comma or space.
 
 /**
  * Get an access token for a specific credential
@@ -182,6 +186,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             cloudId: result.cloudId,
             domain: result.domain,
             instanceUrl: result.instanceUrl,
+            apiDomain: result.apiDomain,
             authStyle: result.authStyle,
           },
           { status: 200 }
@@ -290,11 +295,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
       }
 
+      // Zoho Desk persists its data-center-specific REST base URL in the scope
+      // string (derived from the token response api_domain) so callers never
+      // assume a host. Surface it as apiDomain for tool param injection.
+      let apiDomain: string | undefined
+      if (credential.providerId === 'zoho-desk' && credential.scope) {
+        // Use the shared extractor, not a local regex: it also enforces https +
+        // the Zoho apex allowlist. This value is injected into EVERY tool call,
+        // so an unvalidated host here would receive the OAuth token.
+        apiDomain = extractZohoDeskBaseFromScope(credential.scope)
+      }
+
       return NextResponse.json(
         {
           accessToken,
           idToken: credential.idToken || undefined,
           ...(instanceUrl && { instanceUrl }),
+          ...(apiDomain && { apiDomain }),
         },
         { status: 200 }
       )
@@ -402,11 +419,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         }
       }
 
+      // Zoho Desk persists its data-center-specific REST base URL in the scope
+      // string (derived from the token response api_domain) so callers never
+      // assume a host. Surface it as apiDomain for tool param injection.
+      let apiDomain: string | undefined
+      if (credential.providerId === 'zoho-desk' && credential.scope) {
+        // Use the shared extractor, not a local regex: it also enforces https +
+        // the Zoho apex allowlist. This value is injected into EVERY tool call,
+        // so an unvalidated host here would receive the OAuth token.
+        apiDomain = extractZohoDeskBaseFromScope(credential.scope)
+      }
+
       return NextResponse.json(
         {
           accessToken,
           idToken: credential.idToken || undefined,
           ...(instanceUrl && { instanceUrl }),
+          ...(apiDomain && { apiDomain }),
         },
         { status: 200 }
       )

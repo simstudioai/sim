@@ -1,5 +1,6 @@
 import type { Context } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
+import type { PermissionType } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -12,6 +13,10 @@ import {
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_VERSION, TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/copilot/constants'
+import {
+  type CopilotEnvironmentContext,
+  prepareCopilotEnvironmentContext,
+} from '@/lib/copilot/environment-context'
 import {
   COPILOT_BILLING_PROTOCOL,
   COPILOT_BILLING_PROTOCOL_HEADER,
@@ -53,6 +58,7 @@ import type {
   StreamEvent,
   StreamingContext,
 } from '@/lib/copilot/request/types'
+import type { SecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
@@ -61,7 +67,6 @@ import {
   isCopilotToolPermissionsEnabled,
   isHosted,
 } from '@/lib/core/config/env-flags'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotLifecycle')
@@ -97,6 +102,10 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   executionContext?: ExecutionContext
   billingAttribution?: BillingAttributionSnapshot
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  environmentContext?: CopilotEnvironmentContext
+  userPermission?: PermissionType
+  secretMountPolicy?: SecretMountPolicy
+  secretActorUserId?: string | null
 }
 
 /**
@@ -163,8 +172,13 @@ export async function runCopilotLifecycle(
             abortSignal: options.abortSignal,
             billingAttribution:
               options.billingAttribution ?? options.executionContext.billingAttribution,
+            ...(options.userPermission ? { userPermission: options.userPermission } : {}),
             ...(options.resolvedSecretTraceRegistry
               ? { resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry }
+              : {}),
+            ...(options.secretMountPolicy ? { secretMountPolicy: options.secretMountPolicy } : {}),
+            ...(options.secretActorUserId !== undefined
+              ? { secretActorUserId: options.secretActorUserId }
               : {}),
           },
         }
@@ -183,6 +197,10 @@ export async function runCopilotLifecycle(
       abortSignal: lifecycleOptions.abortSignal,
       billingAttribution: lifecycleOptions.billingAttribution,
       resolvedSecretTraceRegistry: lifecycleOptions.resolvedSecretTraceRegistry,
+      environmentContext: lifecycleOptions.environmentContext,
+      userPermission: lifecycleOptions.userPermission,
+      secretMountPolicy: lifecycleOptions.secretMountPolicy,
+      secretActorUserId: lifecycleOptions.secretActorUserId,
     }))
   const shouldUseHostedBillingProtocol = isHosted && isCopilotBillingAttributionV1Enabled
   if (
@@ -1000,6 +1018,10 @@ async function buildExecutionContext(
     abortSignal?: AbortSignal
     billingAttribution?: BillingAttributionSnapshot
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+    environmentContext?: CopilotEnvironmentContext
+    userPermission?: PermissionType
+    secretMountPolicy?: SecretMountPolicy
+    secretActorUserId?: string | null
   }
 ): Promise<ExecutionContext> {
   const {
@@ -1012,27 +1034,31 @@ async function buildExecutionContext(
     abortSignal,
     billingAttribution,
     resolvedSecretTraceRegistry,
+    environmentContext,
+    userPermission,
+    secretMountPolicy,
+    secretActorUserId,
   } = params
   const userTimezone =
     typeof requestPayload?.userTimezone === 'string' ? requestPayload.userTimezone : undefined
   const requestMode = typeof requestPayload?.mode === 'string' ? requestPayload.mode : undefined
-  const userPermission =
-    typeof requestPayload?.userPermission === 'string' ? requestPayload.userPermission : undefined
 
   let execContext: ExecutionContext
   if (workflowId) {
     execContext = await prepareExecutionContext(userId, workflowId, chatId, {
       workspaceId,
       billingAttribution,
+      environmentContext,
     })
   } else {
-    const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+    const activeEnvironmentContext =
+      environmentContext ?? (await prepareCopilotEnvironmentContext(userId, workspaceId))
     execContext = {
       userId,
       workflowId: '',
       workspaceId,
       chatId,
-      decryptedEnvVars,
+      ...activeEnvironmentContext,
       billingAttribution,
     }
   }
@@ -1050,6 +1076,8 @@ async function buildExecutionContext(
   if (resolvedSecretTraceRegistry) {
     execContext.resolvedSecretTraceRegistry = resolvedSecretTraceRegistry
   }
+  if (secretMountPolicy) execContext.secretMountPolicy = secretMountPolicy
+  if (secretActorUserId !== undefined) execContext.secretActorUserId = secretActorUserId
   return execContext
 }
 

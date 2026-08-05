@@ -78,7 +78,7 @@ const RESOURCE_POLICY_BASELINE = {
    */
   wrapperMounts: 0,
   /**
-   * R1b — components whose NAME announces a per-consumer fork. All 11 are the
+   * R1b — components whose NAME announces a per-consumer fork. All 9 are the
    * mothership panel's `Embedded*` tab chrome.
    *
    * These do NOT all drop off as kinds get canonical views, which an earlier
@@ -86,11 +86,14 @@ const RESOURCE_POLICY_BASELINE = {
    * (open / export buttons), not views, and `EmbeddedFileActions` and
    * `EmbeddedInterfaceActions` both outlived their kinds' migrations —
    * `EmbeddedTableActions` outlived table's. Only the content components
-   * (`EmbeddedWorkflow`, `EmbeddedFolder`, `EmbeddedScheduledTask`,
-   * `EmbeddedLog`) go. Collapsing the five `*Actions` into one kind-keyed
-   * component is the real fix and is its own change.
+   * (`EmbeddedWorkflow`, `EmbeddedFolder`, `EmbeddedLog`) go. Collapsing the
+   * five `*Actions` into one kind-keyed component is the real fix and is its
+   * own change.
+   *
+   * Lowered 11 → 9 when staging's scheduled-tasks retirement took
+   * `EmbeddedScheduledTask` and `EmbeddedScheduledTaskActions` with it.
    */
-  shadowNamedComponents: 11,
+  shadowNamedComponents: 9,
   /**
    * R2 — imports that reach past a unit barrel. At its floor: the three
    * legitimate deep imports are all `lazy()` code-split points, listed in

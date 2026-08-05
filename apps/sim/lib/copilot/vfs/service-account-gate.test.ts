@@ -27,6 +27,14 @@ describe('describeServiceAccountForOAuthProvider — preview gate', () => {
     expect(describeServiceAccountForOAuthProvider('slack')).toEqual({ connectNoun: 'custom bot' })
   })
 
+  it('includes it for the revealed preview block that owns the serialized tool', () => {
+    mockGetBlock.mockReturnValue({ type: 'slack_v2', preview: true })
+
+    expect(describeServiceAccountForOAuthProvider('slack', 'slack_v2')).toEqual({
+      connectNoun: 'custom bot',
+    })
+  })
+
   it('fail-closes (omits) when the gating block is missing entirely', () => {
     mockGetBlock.mockReturnValue(undefined)
     expect(describeServiceAccountForOAuthProvider('slack')).toBeUndefined()

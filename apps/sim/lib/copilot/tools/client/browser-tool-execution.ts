@@ -11,11 +11,11 @@ import type { BrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { executeBrowserTool } from '@/lib/browser-agent/transport'
+import { executeBrowserTool, restoreBrowserScope } from '@/lib/browser-agent/transport'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { reportClientToolCompletion } from '@/lib/copilot/tools/client/completion'
-import { useBrowserSessionStore } from '@/stores/browser-session/store'
+import { getBrowserSession, useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const logger = createLogger('CopilotBrowserToolExecution')
 
@@ -165,8 +165,13 @@ export function executeBrowserToolOnClient(
   toolCallId: string,
   toolName: BrowserToolName,
   params: Record<string, unknown>,
+  scopeId = useBrowserSessionStore.getState().activeScopeId,
   eventTs?: string
 ): void {
+  if (!scopeId) {
+    logger.error('Cannot execute browser tool without a chat scope', { toolCallId, toolName })
+    return
+  }
   if (hasAlreadyExecuted(toolCallId)) {
     logger.info('Skipping already-executed browser tool (replay)', { toolCallId, toolName })
     return
@@ -177,7 +182,7 @@ export function executeBrowserToolOnClient(
     return
   }
   markExecuted(toolCallId)
-  void doExecuteBrowserTool(toolCallId, toolName, params).catch((err) => {
+  void doExecuteBrowserTool(toolCallId, toolName, params, scopeId).catch((err) => {
     logger.error('Unhandled error in client-side browser tool execution', {
       toolCallId,
       toolName,
@@ -187,16 +192,29 @@ export function executeBrowserToolOnClient(
 }
 
 /** True when the desktop app has reported the agent browser session closed. */
-function isSessionClosed(): boolean {
-  return !useBrowserSessionStore.getState().sessionAlive
+function isSessionClosed(scopeId: string): boolean {
+  return !getBrowserSession(scopeId).sessionAlive
 }
 
 async function doExecuteBrowserTool(
   toolCallId: string,
   toolName: BrowserToolName,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  scopeId: string
 ): Promise<void> {
-  if (isSessionClosed() && !SESSION_REVIVAL_TOOLS.has(toolName)) {
+  const needsLivePage = !SESSION_REVIVAL_TOOLS.has(toolName)
+  if (needsLivePage && isSessionClosed(scopeId)) {
+    try {
+      await restoreBrowserScope(scopeId)
+    } catch (err) {
+      logger.warn('Could not restore the scoped browser session before tool execution', {
+        toolCallId,
+        toolName,
+        error: toError(err).message,
+      })
+    }
+  }
+  if (needsLivePage && isSessionClosed(scopeId)) {
     logger.warn('Rejecting browser tool: agent browser session is closed', {
       toolCallId,
       toolName,
@@ -243,7 +261,8 @@ async function doExecuteBrowserTool(
       toolCallId,
       toolName,
       params,
-      timeoutForTool(toolName, params)
+      timeoutForTool(toolName, params),
+      scopeId
     )
     await reportClientToolCompletion(
       toolCallId,
@@ -255,7 +274,7 @@ async function doExecuteBrowserTool(
     // The session dying mid-call (e.g. during a takeover) surfaces as a
     // generic timeout; tag it so the model learns the real, terminal cause
     // instead of retrying against a dead session.
-    const sessionClosed = isSessionClosed()
+    const sessionClosed = isSessionClosed(scopeId)
     const message = sessionClosed
       ? `${toError(err).message} ${SESSION_CLOSED_MESSAGE}`
       : toError(err).message

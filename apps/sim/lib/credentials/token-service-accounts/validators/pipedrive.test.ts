@@ -48,8 +48,9 @@ describe('validatePipedriveServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'Jane Doe (Acme Inc)',
+      principal: { kind: 'user', id: '42', label: 'Jane Doe' },
       auditMetadata: { pipedriveCompanyId: '777' },
-      storedMetadata: { userId: '42', companyId: '777', companyDomain: 'acme' },
+      storedMetadata: { companyId: '777', companyDomain: 'acme' },
     })
 
     expect(mockFetch).toHaveBeenCalledTimes(1)
@@ -67,7 +68,8 @@ describe('validatePipedriveServiceAccount', () => {
     const result = await validatePipedriveServiceAccount(FIELDS)
 
     expect(result.displayName).toBe('Pipedrive company 777')
-    expect(result.storedMetadata).toEqual({ userId: '42', companyId: '777' })
+    expect(result.principal).toEqual({ kind: 'user', id: '42' })
+    expect(result.storedMetadata).toEqual({ companyId: '777' })
   })
 
   it('throws invalid_credentials on 401', async () => {

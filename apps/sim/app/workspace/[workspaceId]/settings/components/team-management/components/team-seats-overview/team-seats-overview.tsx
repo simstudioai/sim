@@ -46,7 +46,7 @@ export function TeamSeatsOverview({
             </span>
           </div>
           {billingHref && (
-            <ChipLink href={billingHref} variant='primary' flush>
+            <ChipLink href={billingHref} variant='primary'>
               View plans
             </ChipLink>
           )}

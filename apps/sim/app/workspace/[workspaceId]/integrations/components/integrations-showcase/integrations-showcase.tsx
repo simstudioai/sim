@@ -1,5 +1,9 @@
 import type { ComponentType } from 'react'
 import { cn } from '@sim/emcn'
+import {
+  RESOURCE_TILE_BASE,
+  RESOURCE_TILE_PLAIN,
+} from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 
@@ -69,13 +73,11 @@ export function IntegrationTile({ blockType, icon: Icon, framed = false }: Integ
 
   if (!framed) {
     return (
-      <div className='size-9 flex-shrink-0'>
-        <div
-          className='flex size-full items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'
-          style={brandBg ? { background: brandBg } : undefined}
-        >
-          <Icon className={cn('size-5', getTileIconColorClass(brandBg))} />
-        </div>
+      <div
+        className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}
+        style={brandBg ? { background: brandBg } : undefined}
+      >
+        <Icon className={getTileIconColorClass(brandBg)} />
       </div>
     )
   }

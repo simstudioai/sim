@@ -1,0 +1,32 @@
+{{- if include "sim.chartManagesRedis" . }}
+{{- /*
+  REDIS_URL for the bundled Redis, delivered as a ConfigMap rather than an
+  inline container `env` entry.
+
+  This is deliberate. Kubernetes resolves duplicate keys by letting the LAST
+  envFrom source win, while an inline `env` entry beats every envFrom source.
+  The app and realtime Deployments list this ConfigMap FIRST, before the app
+  Secret, so:
+
+    - an operator-supplied REDIS_URL (chart Secret, pre-created Secret, or one
+      synced by External Secrets) always wins, because it is listed later
+    - the bundled URL applies only when nothing else provides one
+
+  An inline `env` entry would invert that and silently shadow a managed Redis
+  the chart cannot see, which is why REDIS_URL is not chart-computed like
+  DATABASE_URL and SOCKET_SERVER_URL are.
+
+  The value is a plain in-cluster service address with no credentials, so a
+  ConfigMap is the right resource here.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sim.fullname" . }}-redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+data:
+  REDIS_URL: {{ printf "redis://%s-redis:6379" (include "sim.fullname" .) | quote }}
+{{- end }}

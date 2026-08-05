@@ -18,9 +18,9 @@ import {
   TableRow,
   Tooltip,
 } from '@sim/emcn'
+import { RefreshCw } from '@sim/emcn/icons'
 import { formatDateTime } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
-import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   type PauseContextDetail,

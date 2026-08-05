@@ -36,6 +36,7 @@ export const crashReporter = {
 
 export const shell = {
   openExternal: vi.fn(() => Promise.resolve()),
+  openPath: vi.fn(() => Promise.resolve('')),
   showItemInFolder: vi.fn(),
 }
 
@@ -105,6 +106,7 @@ export class Tray {
   }
   setToolTip = vi.fn()
   setContextMenu = vi.fn()
+  setIgnoreDoubleClickEvents = vi.fn()
   popUpContextMenu = vi.fn()
   on = vi.fn()
   destroy = vi.fn()
@@ -131,14 +133,17 @@ function createWebContentsMock() {
     getTitle: vi.fn(() => 'Example'),
     loadURL: vi.fn(() => Promise.resolve()),
     reload: vi.fn(),
+    print: vi.fn(),
     focus: vi.fn(),
     isFocused: vi.fn(() => false),
     close: vi.fn(),
     isDestroyed: vi.fn(() => false),
     isLoading: vi.fn(() => false),
+    isLoadingMainFrame: vi.fn(() => false),
     findInPage: vi.fn(() => 1),
     stopFindInPage: vi.fn(),
     setBackgroundThrottling: vi.fn(),
+    setIgnoreMenuShortcuts: vi.fn(),
     getZoomFactor: vi.fn(() => 1),
     setZoomFactor: vi.fn(),
     copy: vi.fn(),
@@ -181,7 +186,11 @@ export class WebContentsView {
   webContents = createWebContentsMock()
   setBackgroundColor = vi.fn()
   setVisible = vi.fn()
-  setBounds = vi.fn()
+  private bounds = { x: 0, y: 0, width: 0, height: 0 }
+  setBounds = vi.fn((bounds: { x: number; y: number; width: number; height: number }) => {
+    this.bounds = { ...bounds }
+  })
+  getBounds = vi.fn(() => ({ ...this.bounds }))
 }
 
 export class BrowserWindow {

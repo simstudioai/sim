@@ -270,11 +270,14 @@ function isToolInput(value: unknown): value is ToolInput {
  * already handled by `sanitizeWorkflowForSharing`.
  */
 function sanitizeSubBlocks(
-  subBlocks: BlockState['subBlocks']
+  subBlocks: BlockState['subBlocks'],
+  hiddenIds: ReadonlySet<string>
 ): Record<string, string | number | string[][] | object> {
   const sanitized: Record<string, string | number | string[][] | object> = {}
 
   Object.entries(subBlocks).forEach(([key, subBlock]) => {
+    if (hiddenIds.has(key)) return
+
     // Skip null/undefined values
     if (subBlock.value === null || subBlock.value === undefined) {
       return
@@ -569,7 +572,12 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
       inputs = loopInputs
     } else {
       // For regular blocks, sanitize subBlocks
-      inputs = sanitizeSubBlocks(block.subBlocks)
+      const hiddenIds = new Set(
+        (getBlock(block.type)?.subBlocks ?? [])
+          .filter((subBlock) => subBlock.hideFromCopilot)
+          .map((subBlock) => subBlock.id)
+      )
+      inputs = sanitizeSubBlocks(block.subBlocks, hiddenIds)
 
       const webhookUrl = resolveTriggerWebhookUrl(blockId, block)
       if (webhookUrl) {

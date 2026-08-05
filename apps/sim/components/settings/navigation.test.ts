@@ -1,7 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { resetEnvMock, setEnv } from '@sim/testing'
+import { createElement } from 'react'
+import { resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   ACCOUNT_SETTINGS_ITEMS,
@@ -32,9 +34,13 @@ import {
  */
 beforeEach(() => {
   setEnv({ NEXT_PUBLIC_SANDBOX_ENABLED: 'true', NEXT_PUBLIC_E2B_ENABLED: undefined })
+  resetEnvFlagsMock()
 })
 
-afterAll(resetEnvMock)
+afterAll(() => {
+  resetEnvMock()
+  resetEnvFlagsMock()
+})
 
 describe('settings navigation boundaries', () => {
   it('preserves the order of all four settings catalogs', () => {
@@ -58,6 +64,7 @@ describe('settings navigation boundaries', () => {
       'sandboxes',
       'inbox',
       'recently-deleted',
+      'self-host',
       'sso',
       'sessions',
       'data-retention',
@@ -99,6 +106,7 @@ describe('settings navigation boundaries', () => {
       'recently-deleted',
       'forks',
       'custom-blocks',
+      'self-host',
     ])
   })
 
@@ -125,6 +133,64 @@ describe('settings navigation boundaries', () => {
         },
       }).map(({ id }) => id)
     ).not.toContain('sandboxes')
+  })
+
+  /**
+   * The Self-host section links out to the managed service that issues this
+   * deployment's Chat keys. On Sim Cloud that surface is reached from the
+   * account plane instead, so the section must not exist there at all — in the
+   * sidebar catalog or in the workspace-plane gate the route consults.
+   */
+  it('shows the Self-host section only on a self-hosted deployment', () => {
+    setEnvFlags({ isHosted: false })
+
+    expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toContain('self-host')
+    expect(
+      resolveWorkspaceNavigation({
+        permission: 'admin',
+        permissionConfig: {},
+        entitlements: {
+          byok: true,
+          inbox: true,
+          customBlocks: true,
+          forks: true,
+          sandboxes: true,
+        },
+      }).map(({ id }) => id)
+    ).toContain('self-host')
+  })
+
+  it('drops the Self-host section on hosted Sim', () => {
+    setEnvFlags({ isHosted: true })
+
+    expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).not.toContain('self-host')
+    expect(
+      resolveWorkspaceNavigation({
+        permission: 'admin',
+        permissionConfig: {},
+        entitlements: {
+          byok: true,
+          inbox: true,
+          customBlocks: true,
+          forks: true,
+          sandboxes: true,
+        },
+      }).map(({ id }) => id)
+    ).not.toContain('self-host')
+  })
+
+  /**
+   * The mark must be a line icon that inherits `--text-icon` like every other
+   * nav glyph — an emoji would render in the platform's own colors and be the
+   * one colored item in a monochrome icon column.
+   */
+  it('marks the Self hosting section with a currentColor line icon', () => {
+    const selfHost = buildUnifiedSettingsNavigation().find(({ id }) => id === 'self-host')
+    const markup = renderToStaticMarkup(createElement(selfHost!.icon, {}))
+
+    expect(selfHost?.label).toBe('Self hosting')
+    expect(markup).toContain('<svg')
+    expect(markup).toContain('stroke="currentColor"')
   })
 
   it('keeps the Sandboxes section on the pre-Daytona E2B flag alone', () => {
@@ -191,7 +257,7 @@ describe('settings navigation boundaries', () => {
     expect(organizationSso?.docsLink).toBe(unifiedSso?.docsLink)
   })
 
-  it('keeps scope-specific labels only where the surface genuinely differs', () => {
+  it('uses scope-specific labels consistently across settings surfaces', () => {
     const organizationMembers = ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === 'members')
     const unifiedOrganization = buildUnifiedSettingsNavigation().find(
       ({ id }) => id === 'organization'
@@ -199,7 +265,37 @@ describe('settings navigation boundaries', () => {
 
     expect(organizationMembers?.label).toBe('Members')
     expect(organizationMembers?.description).toBe('Manage organization members, roles, and seats.')
-    expect(unifiedOrganization?.label).toBe('Organization')
+    expect(unifiedOrganization?.label).toBe('Members')
+  })
+
+  it('keeps self-host settings on their standalone account projection', () => {
+    expect(
+      SELFHOST_SETTINGS_ITEMS.map(({ id, label, description, group }) => ({
+        id,
+        label,
+        description,
+        group,
+      }))
+    ).toEqual([
+      {
+        id: 'general',
+        label: 'General',
+        description: 'Manage your profile, appearance, and preferences.',
+        group: 'account',
+      },
+      {
+        id: 'billing',
+        label: 'Subscription',
+        description: 'Manage your personal plan, usage, and invoices.',
+        group: 'account',
+      },
+      {
+        id: 'chat-keys',
+        label: 'Chat keys',
+        description: 'Manage the model-provider keys that power Chat.',
+        group: 'developer',
+      },
+    ])
   })
 
   it('builds canonical settings hrefs across all three planes', () => {
@@ -337,6 +433,7 @@ describe('settings navigation boundaries', () => {
         'inbox',
         'recently-deleted',
         'custom-blocks',
+        'self-host',
       ],
       mutable: [],
     },
@@ -354,6 +451,7 @@ describe('settings navigation boundaries', () => {
         'inbox',
         'recently-deleted',
         'custom-blocks',
+        'self-host',
       ],
       mutable: ['secrets', 'custom-tools', 'mcp', 'workflow-mcp-servers', 'recently-deleted'],
     },
@@ -409,6 +507,7 @@ describe('settings navigation boundaries', () => {
       'recently-deleted',
       'forks',
       'custom-blocks',
+      'self-host',
     ])
   })
 

@@ -11,9 +11,8 @@ import {
   Textarea,
   Tooltip,
 } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+import { ArrowLeftRight, Plus, Trash } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
-import { ArrowLeftRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {

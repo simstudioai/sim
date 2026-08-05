@@ -8,7 +8,7 @@ import type { DesktopSettingsSurface } from '@/components/settings/navigation'
 import { ORGANIZATION_PLANE_UNIFIED_SECTIONS } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { hasBrowserAgent, hasDesktopSettings, hasTerminal } from '@/lib/desktop'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -19,7 +19,10 @@ import {
   isBillingEnabled,
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
 import {
+  SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+  SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
   SIDEBAR_ITEM_GAP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
@@ -104,7 +107,7 @@ export function SettingsSidebar({
         return false
       }
 
-      if (item.id === 'billing' && !canManageWorkspaceBilling(hostContext, userId)) {
+      if (item.id === 'billing' && !canViewWorkspaceBillingSettings(hostContext, userId)) {
         return false
       }
 
@@ -290,7 +293,8 @@ export function SettingsSidebar({
         className={cn(
           SIDEBAR_SECTION_GAP_CLASS,
           SIDEBAR_ITEM_GAP_CLASS,
-          'flex flex-shrink-0 flex-col px-2 pb-1.5'
+          SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+          'flex flex-shrink-0 flex-col px-2'
         )}
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
@@ -307,7 +311,8 @@ export function SettingsSidebar({
       <div
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
-          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 pb-2 transition-colors duration-150',
+          SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
+          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pb-2 transition-colors duration-150',
           !hasOverflowTop && 'border-transparent'
         )}
       >
@@ -316,20 +321,18 @@ export function SettingsSidebar({
             .map(({ key, title }) => ({
               key,
               title,
-              items: navigationItems.filter((item) => item.section === key),
+              items: navigationItems
+                .filter((item) => item.section === key)
+                .sort((left, right) => left.order - right.order),
             }))
             .filter(({ items }) => items.length > 0)
             .map(({ key, title, items: sectionItems }, index) => (
-              <div
+              <SidebarSection
                 key={key}
-                className={cn(
-                  index > 0 && SIDEBAR_SECTION_GAP_CLASS,
-                  'flex flex-shrink-0 flex-col'
-                )}
+                title={title}
+                railCollapsed={isCollapsed}
+                className={cn(index > 0 && SIDEBAR_SECTION_GAP_CLASS, 'flex-shrink-0')}
               >
-                <div className='px-4 pb-2'>
-                  <div className='text-[var(--text-muted)] text-small'>{title}</div>
-                </div>
                 <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                   {sectionItems.map((item) => {
                     const Icon = item.icon
@@ -392,7 +395,7 @@ export function SettingsSidebar({
                     )
                   })}
                 </div>
-              </div>
+              </SidebarSection>
             ))}
         </div>
       </div>

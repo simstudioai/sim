@@ -124,7 +124,6 @@ export function InterfaceCell({
                * column neither owns nor knows about.
                */}
               <Chip
-                flush
                 leftIcon={X}
                 onClick={() => setIsChoosing(false)}
                 aria-label={`Cancel adding a module to ${cellName}`}
@@ -138,7 +137,6 @@ export function InterfaceCell({
                       key={type}
                       active
                       fullWidth
-                      flush
                       centered
                       leftIcon={meta.icon}
                       onClick={() => onAddModule(type)}
@@ -236,7 +234,6 @@ export function InterfaceCell({
         )}
         {canEdit && (
           <Chip
-            flush
             leftIcon={X}
             onClick={onRemove}
             aria-label={`Remove ${meta.label} module`}

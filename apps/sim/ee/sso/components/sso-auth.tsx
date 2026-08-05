@@ -137,7 +137,7 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
                 )}
               />
               {showEmailValidationError && emailErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
+                <div className='mt-1 space-y-1 text-[var(--text-error)] text-caption'>
                   {emailErrors.map((error) => (
                     <p key={error}>{error}</p>
                   ))}

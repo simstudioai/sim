@@ -412,3 +412,145 @@ describe('executeProviderRequest — streaming cost policy', () => {
     })
   })
 })
+
+/**
+ * `reasoningEffort`, `verbosity`, and `thinkingLevel` can be bound to a variable or block
+ * reference in the agent block, so by the time they reach the provider they hold whatever
+ * that reference resolved to rather than a value picked from a list.
+ */
+describe('executeProviderRequest — model level normalization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-rotating', isBYOK: false })
+    mockExecuteRequest.mockResolvedValue({
+      content: 'hi',
+      model: 'gpt-5',
+      tokens: { input: 1, output: 1, total: 2 },
+    } as ProviderResponse)
+  })
+
+  const sentRequest = () => mockExecuteRequest.mock.calls[0][0] as Record<string, unknown>
+
+  it('trims and lower-cases levels a reference resolved to', async () => {
+    await executeProviderRequest('openai', {
+      model: 'gpt-5',
+      workspaceId: 'ws-1',
+      reasoningEffort: ' High ',
+      verbosity: 'LOW',
+    })
+
+    expect(sentRequest().reasoningEffort).toBe('high')
+    expect(sentRequest().verbosity).toBe('low')
+  })
+
+  it('trims and lower-cases a thinking level a reference resolved to', async () => {
+    await executeProviderRequest('anthropic', {
+      model: 'claude-sonnet-5',
+      workspaceId: 'ws-1',
+      thinkingLevel: ' High ',
+    })
+
+    expect(sentRequest().thinkingLevel).toBe('high')
+  })
+
+  it('treats a level that resolved to nothing as unset rather than an empty string', async () => {
+    await executeProviderRequest('openai', {
+      model: 'gpt-5',
+      workspaceId: 'ws-1',
+      reasoningEffort: '',
+      verbosity: '   ',
+    })
+
+    expect(sentRequest().reasoningEffort).toBeUndefined()
+    expect(sentRequest().verbosity).toBeUndefined()
+  })
+
+  /**
+   * Providers treat an explicit `'none'` as "thinking off" and an absent value as "send
+   * nothing", so a reference that resolved to nothing must land on the latter.
+   */
+  it('treats a thinking level that resolved to nothing as unset, not as none', async () => {
+    await executeProviderRequest('anthropic', {
+      model: 'claude-sonnet-5',
+      workspaceId: 'ws-1',
+      thinkingLevel: '  ',
+    })
+
+    expect(sentRequest().thinkingLevel).toBeUndefined()
+  })
+
+  it('preserves an explicit none thinking level', async () => {
+    await executeProviderRequest('anthropic', {
+      model: 'claude-sonnet-5',
+      workspaceId: 'ws-1',
+      thinkingLevel: 'none',
+    })
+
+    expect(sentRequest().thinkingLevel).toBe('none')
+  })
+
+  it('leaves an already-valid level untouched', async () => {
+    await executeProviderRequest('openai', {
+      model: 'gpt-5',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'medium',
+      verbosity: 'high',
+    })
+
+    expect(sentRequest().reasoningEffort).toBe('medium')
+    expect(sentRequest().verbosity).toBe('high')
+  })
+
+  /**
+   * Sim's per-model level lists drive the pickers and can lag a provider that has started
+   * accepting a new level, so an unrecognized level is forwarded rather than dropped: the
+   * provider answers with an error naming the values it accepts, instead of Sim silently
+   * substituting the model default and quietly corrupting a sweep.
+   */
+  it('forwards a level the model does not declare so the provider reports it', async () => {
+    await executeProviderRequest('openai', {
+      model: 'gpt-5',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'xhigh',
+    })
+
+    expect(sentRequest().reasoningEffort).toBe('xhigh')
+  })
+
+  it('still drops levels the resolved model does not support', async () => {
+    await executeProviderRequest('anthropic', {
+      model: 'claude-opus-4-6',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'high',
+      verbosity: 'high',
+    })
+
+    expect(sentRequest().reasoningEffort).toBeUndefined()
+    expect(sentRequest().verbosity).toBeUndefined()
+  })
+
+  /**
+   * A model the catalogue has never seen is unknown, not known-incapable — which is exactly
+   * how a newly released model arrives through a reference before Sim catalogues it. The
+   * provider decides, rather than the level being discarded on a stale list.
+   */
+  it('forwards levels for a model absent from the catalogue', async () => {
+    await executeProviderRequest('openai', {
+      model: 'gpt-6-unreleased',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'high',
+    })
+
+    expect(sentRequest().reasoningEffort).toBe('high')
+  })
+
+  it('still drops levels for a dynamic-provider model that does not take them', async () => {
+    await executeProviderRequest('ollama', {
+      model: 'ollama/llama3',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'high',
+    })
+
+    expect(sentRequest().reasoningEffort).toBeUndefined()
+  })
+})

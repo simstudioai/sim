@@ -11,7 +11,6 @@ export interface VfsSnapshotV1 {
   files?: VfsSnapshotV1File[]
   integrations?: VfsSnapshotV1Integration[]
   interfaces?: VfsSnapshotV1InterfaceDef[]
-  jobs?: VfsSnapshotV1Job[]
   knowledgeBases?: VfsSnapshotV1KnowledgeBase[]
   mcpServers?: VfsSnapshotV1McpServer[]
   members?: VfsSnapshotV1Member[]
@@ -67,19 +66,6 @@ export interface VfsSnapshotV1InterfaceDef {
   description?: string
   id: string
   name: string
-}
-/**
- * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
- * via the `definition` "VfsSnapshotV1Job".
- */
-export interface VfsSnapshotV1Job {
-  cronExpression?: string
-  id: string
-  lifecycle?: string
-  prompt?: string
-  sourceTaskName?: string
-  status?: string
-  title?: string
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema

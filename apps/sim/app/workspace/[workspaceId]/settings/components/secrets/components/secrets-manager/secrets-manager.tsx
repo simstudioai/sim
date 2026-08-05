@@ -19,6 +19,7 @@ import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/component
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
@@ -999,9 +1000,7 @@ export function SecretsManager() {
             {(!searchTerm.trim() ||
               filteredWorkspaceEntries.length > 0 ||
               filteredNewWorkspaceRows.length > 0) && (
-              <section className='flex flex-col'>
-                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Workspace</span>
-                <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
+              <SettingsSection label='Workspace'>
                 <div className={`${GRID_COLS} gap-y-2`}>
                   {(searchTerm.trim()
                     ? filteredWorkspaceEntries
@@ -1044,13 +1043,11 @@ export function SecretsManager() {
                       />
                     ))}
                 </div>
-              </section>
+              </SettingsSection>
             )}
 
             {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
-              <section className='flex flex-col'>
-                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Personal</span>
-                <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
+              <SettingsSection label='Personal'>
                 <div className={`${GRID_COLS} gap-y-2`}>
                   {filteredEnvVars.map(({ envVar, originalIndex }) => (
                     <div key={envVar.id || originalIndex} className='contents'>
@@ -1058,7 +1055,7 @@ export function SecretsManager() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </SettingsSection>
             )}
             {searchTerm.trim() &&
               filteredEnvVars.length === 0 &&

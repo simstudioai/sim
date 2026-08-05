@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ChipInput, type ChipInputProps, cn } from '@sim/emcn'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from '@sim/emcn/icons'
 import { AUTH_CONTROL_HEIGHT } from '@/app/(auth)/components/constants'
 
 type PasswordInputProps = Omit<ChipInputProps, 'type' | 'icon' | 'endAdornment'>

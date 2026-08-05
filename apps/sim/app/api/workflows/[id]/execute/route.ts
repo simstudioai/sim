@@ -19,6 +19,14 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import { isWorkflowToolExecutionClaimable } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  claimWorkflowToolExecution,
+  getAsyncToolCall,
+  getRunSegment,
+  releaseWorkflowToolExecutionClaim,
+} from '@/lib/copilot/async-runs/repository'
+import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
@@ -48,6 +56,7 @@ import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
+  setExecutionMeta,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
 import { processInputFileFields } from '@/lib/execution/files'
@@ -145,6 +154,27 @@ const WORKFLOW_EXECUTION_JOB_ID_PREFIX = 'workflow-execution:'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+async function isValidCopilotWorkflowToolBinding(params: {
+  toolCallId: string
+  userId: string
+  workflowId: string
+}): Promise<boolean> {
+  const toolCall = await getAsyncToolCall(params.toolCallId)
+  if (
+    !toolCall ||
+    !isWorkflowToolName(toolCall.toolName) ||
+    !isWorkflowToolExecutionClaimable(toolCall.status, toolCall.permissionDecision)
+  ) {
+    return false
+  }
+
+  const run = await getRunSegment(toolCall.runId)
+  return (
+    run?.userId === params.userId &&
+    resolveWorkflowToolTargetId(toolCall.args, run.workflowId) === params.workflowId
+  )
+}
 
 function createExecutionJsonResponse(
   body: Record<string, unknown>,
@@ -594,6 +624,8 @@ async function handleExecutePost(
   let executionId = ''
   let executionIdClaim: ExecutionIdClaim | null = null
   let executionIdClaimCommitted = false
+  let workflowToolClaimAcquired = false
+  let copilotToolCallId: string | undefined
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
@@ -731,13 +763,19 @@ async function handleExecutePost(
       workflowStateOverride,
       deploymentVersionId: admittedDeploymentVersionId,
       executionId: rawBodyExecutionId,
+      copilotToolCallId: parsedCopilotToolCallId,
       triggerBlockId: parsedTriggerBlockId,
       startBlockId,
       stopAfterBlockId,
       runFromBlock: rawRunFromBlock,
       parentWorkspaceId,
     } = validation.data
+    copilotToolCallId = parsedCopilotToolCallId
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
+    const streamHeader = req.headers.get('X-Stream-Response') === 'true'
+    const enableSSE = streamHeader || streamParam === true
+    const executionModeHeader = req.headers.get('X-Execution-Mode')
+    const isAsyncMode = executionModeHeader === 'async'
     if (admittedDeploymentVersionId && !isMcpBridgeRequest) {
       return NextResponse.json(
         { error: 'deploymentVersionId is reserved for internal MCP execution' },
@@ -783,6 +821,20 @@ async function handleExecutePost(
     if (inputFromExecutionId && validatedInput !== undefined) {
       return NextResponse.json(
         { error: 'Provide either input or inputFromExecutionId, not both' },
+        { status: 400 }
+      )
+    }
+
+    if (
+      copilotToolCallId &&
+      (auth.authType !== AuthType.SESSION ||
+        !isClientSession ||
+        triggerType !== 'copilot' ||
+        !enableSSE ||
+        isAsyncMode)
+    ) {
+      return NextResponse.json(
+        { error: 'Copilot tool execution binding is invalid for this request' },
         { status: 400 }
       )
     }
@@ -901,6 +953,7 @@ async function handleExecutePost(
               triggerBlockId: _triggerBlockId,
               stopAfterBlockId: _stopAfterBlockId,
               runFromBlock: _runFromBlock,
+              copilotToolCallId: _copilotToolCallId,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               parentWorkspaceId: _parentWorkspaceId,
               ...rest
@@ -917,10 +970,6 @@ async function handleExecutePost(
     const shouldUseDraftState = isPublicApiAccess
       ? false
       : (useDraftState ?? auth.authType === AuthType.SESSION)
-    const streamHeader = req.headers.get('X-Stream-Response') === 'true'
-    const enableSSE = streamHeader || streamParam === true
-    const executionModeHeader = req.headers.get('X-Execution-Mode')
-    const isAsyncMode = executionModeHeader === 'async'
     const requiresWriteExecutionAccess = Boolean(
       useDraftState || workflowStateOverride || rawRunFromBlock
     )
@@ -1028,6 +1077,20 @@ async function handleExecutePost(
       )
     }
 
+    if (
+      copilotToolCallId &&
+      !(await isValidCopilotWorkflowToolBinding({
+        toolCallId: copilotToolCallId,
+        userId,
+        workflowId,
+      }))
+    ) {
+      return NextResponse.json(
+        { error: 'Copilot workflow tool binding was not found' },
+        { status: 403 }
+      )
+    }
+
     if (inputFromExecutionId) {
       const { getExecutionInputForWorkflow } = await import(
         '@/lib/workflows/executor/execution-state'
@@ -1095,12 +1158,33 @@ async function handleExecutePost(
       )
     }
 
+    if (copilotToolCallId) {
+      const boundToolCall = await claimWorkflowToolExecution(copilotToolCallId, executionId)
+      if (!boundToolCall) {
+        return NextResponse.json(
+          { error: 'Copilot workflow tool is already bound to another execution' },
+          { status: 409 }
+        )
+      }
+      workflowToolClaimAcquired = true
+    }
+
     const loggingSession = new LoggingSession(
       workflowId,
       executionId,
       loggingTriggerType,
       requestId
     )
+    if (copilotToolCallId) {
+      loggingSession.setTrustedExecutionCorrelation({
+        executionId,
+        requestId,
+        source: 'workflow',
+        workflowId,
+        triggerType,
+        copilotToolCallId,
+      })
+    }
 
     /** The pre-fetched record avoids a redundant initial workflow lookup. */
     const preprocessResult = await preprocessExecution({
@@ -1691,6 +1775,13 @@ async function handleExecutePost(
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         let finalMetaStatus: 'complete' | 'error' | 'cancelled' | null = null
+        let postExecutionAwaited = false
+
+        const awaitBoundCopilotPostExecution = async () => {
+          if (!copilotToolCallId || postExecutionAwaited) return
+          await loggingSession.waitForPostExecution()
+          postExecutionAwaited = true
+        }
 
         registerManualExecutionAborter(executionId, timeoutController.abort)
         isManualAbortRegistered = true
@@ -1702,6 +1793,7 @@ async function handleExecutePost(
         ) => {
           const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
           let eventToSend = event
+          let terminalBufferWriteFailed = false
           if (isBuffered) {
             try {
               const entry = terminalStatus
@@ -1723,6 +1815,7 @@ async function handleExecutePost(
                 terminal: Boolean(terminalStatus),
                 error: toError(e).message,
               })
+              terminalBufferWriteFailed = Boolean(terminalStatus)
               terminalEventPublished ||= Boolean(terminalStatus)
             }
           }
@@ -1731,6 +1824,22 @@ async function handleExecutePost(
               controller.enqueue(encodeSSEEvent(eventToSend))
             } catch {
               isStreamClosed = true
+            }
+          }
+          if (terminalBufferWriteFailed && terminalStatus) {
+            // Without this the reconnect route polls an `active` stream until its
+            // deadline. The meta write is a plain HSET, so it bypasses the byte budget
+            // that rejected the event. Runs after the live enqueue because Redis is the
+            // likely reason we are here at all, and a slow best-effort durability write
+            // must not delay the primary delivery path.
+            const metaPersisted = await setExecutionMeta(executionId, {
+              status: terminalStatus,
+            })
+            if (!metaPersisted) {
+              reqLogger.error(
+                'Failed to record terminal execution meta after buffer write failure',
+                { executionId, status: terminalStatus }
+              )
             }
           }
         }
@@ -2066,6 +2175,8 @@ async function handleExecutePost(
             runFromBlock: resolvedRunFromBlock,
           })
 
+          await awaitBoundCopilotPostExecution()
+
           await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
 
           /**
@@ -2204,6 +2315,7 @@ async function handleExecutePost(
             )
           }
         } catch (error: unknown) {
+          await awaitBoundCopilotPostExecution()
           const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
           const errorMessage = isTimeout
             ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
@@ -2332,6 +2444,18 @@ async function handleExecutePost(
         reqLogger.warn('Unable to verify execution ID ownership; retaining claim', {
           error: toError(error).message,
           executionId,
+        })
+      }
+    }
+
+    if (copilotToolCallId && workflowToolClaimAcquired && !executionIdClaimCommitted) {
+      try {
+        await releaseWorkflowToolExecutionClaim(copilotToolCallId, executionId)
+      } catch (error) {
+        reqLogger.warn('Failed to release pre-start Copilot workflow tool claim', {
+          error: toError(error).message,
+          executionId,
+          copilotToolCallId,
         })
       }
     }

@@ -155,7 +155,6 @@ export function FormModuleFields({
           <Chip
             active
             fullWidth
-            flush
             centered
             leftIcon={Plus}
             onClick={handleAddField}

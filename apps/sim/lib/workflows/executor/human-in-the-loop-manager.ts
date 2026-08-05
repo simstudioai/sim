@@ -14,6 +14,7 @@ import {
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
   resetExecutionStreamBuffer,
+  setExecutionMeta,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
 import {
@@ -72,7 +73,6 @@ const execDb = dbFor('exec')
 
 const logger = createLogger('HumanInTheLoopManager')
 const RUN_BUFFER_UNAVAILABLE_ERROR = 'Run buffer temporarily unavailable'
-const TERMINAL_PUBLISH_ERROR = 'Run buffer terminal event publish failed'
 const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const CANCELLABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const AUTOMATIC_RESUME_INTERVENTION_PREFIX = 'Automatic resume requires manual intervention: '
@@ -772,7 +772,7 @@ export class PauseResumeManager {
           preserveForRetry: true,
           retryable: error.retryable,
         })
-      } else if (message === RUN_BUFFER_UNAVAILABLE_ERROR || message === TERMINAL_PUBLISH_ERROR) {
+      } else if (message === RUN_BUFFER_UNAVAILABLE_ERROR) {
         await PauseResumeManager.markResumeAttemptFailed({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
@@ -1279,6 +1279,38 @@ export class PauseResumeManager {
     }
 
     let terminalEventPublished = false
+    let terminalPublishDegraded = false
+
+    /**
+     * The run buffer is a replay convenience for stream readers; the durable
+     * execution record is authoritative. A failed terminal publish must not
+     * decide the outcome of work that already ran — the resume is not
+     * retryable at this point, so throwing here would strand the execution as
+     * paused and re-run its side effects on the next attempt. Degrade instead:
+     * record the terminal status on the stream meta so readers are not left
+     * polling an 'active' stream forever, and let the resume settle normally.
+     */
+    const degradeTerminalPublish = async (
+      terminalStatus: TerminalExecutionStreamStatus,
+      error: unknown
+    ) => {
+      terminalPublishDegraded = true
+      logger.warn('Failed to publish resume terminal event', {
+        resumeExecutionId,
+        status: terminalStatus,
+        error: toError(error).message,
+      })
+      const metaPersisted = await setExecutionMeta(resumeExecutionId, {
+        status: terminalStatus,
+      }).catch(() => false)
+      if (!metaPersisted) {
+        logger.warn('Failed to record degraded terminal status on resume stream meta', {
+          resumeExecutionId,
+          status: terminalStatus,
+        })
+      }
+    }
+
     const writeBufferedEvent = async (
       event: ExecutionEvent,
       terminalStatus?: TerminalExecutionStreamStatus
@@ -1286,16 +1318,26 @@ export class PauseResumeManager {
       const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
       if (isBuffered) {
         const entry = terminalStatus
-          ? await eventWriter.writeTerminal(event, terminalStatus).catch((error) => {
-              logger.warn('Failed to publish resume terminal event', {
+          ? await eventWriter.writeTerminal(event, terminalStatus).catch(async (error) => {
+              await degradeTerminalPublish(terminalStatus, error)
+              return { eventId: 0, executionId: resumeExecutionId, event }
+            })
+          : await eventWriter.write(event).catch((error) => {
+              // The buffer only backs reconnect replay; the live stream is the
+              // primary delivery path. Awaiting this bare let a failed write
+              // propagate into the executor callback and fail work that had
+              // already run, so degrade the same way the execute route does.
+              logger.warn('Resume event buffer write failed; delivering live only', {
                 resumeExecutionId,
-                status: terminalStatus,
+                eventType: event.type,
                 error: toError(error).message,
               })
-              throw new Error(TERMINAL_PUBLISH_ERROR)
+              return null
             })
-          : await eventWriter.write(event)
-        event.eventId = entry.eventId
+        // Leave `eventId` unset when the write failed, matching the execute
+        // route. Assigning 0 here would be persisted as a reconnect cursor and
+        // rewind the client to the start of the run.
+        if (entry) event.eventId = entry.eventId
         terminalEventPublished ||= Boolean(terminalStatus)
       }
       sendEvent?.(event)
@@ -1685,9 +1727,10 @@ export class PauseResumeManager {
           status: finalMetaStatus,
           replayBufferFlushed,
         })
-        if (!executionError) {
-          executionError = new Error(TERMINAL_PUBLISH_ERROR)
-        }
+        await degradeTerminalPublish(
+          finalMetaStatus,
+          new Error('Terminal event was never published')
+        )
       } else {
         await eventWriter.close().catch((error) => {
           logger.warn('Failed to close resume event writer after terminal publish', {
@@ -1705,6 +1748,13 @@ export class PauseResumeManager {
      * claim the next one, so an older release cannot race a renewed reservation.
      */
     await loggingSession.waitForPostExecution()
+
+    if (terminalPublishDegraded) {
+      logger.warn('Resume settled with a degraded run buffer', {
+        resumeExecutionId,
+        status: finalMetaStatus,
+      })
+    }
 
     if (executionError || !result) {
       throw executionError ?? new Error('Resume execution did not produce a result')

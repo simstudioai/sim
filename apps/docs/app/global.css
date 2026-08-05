@@ -31,11 +31,6 @@ body {
   --text-md: 16px;
 }
 
-/* Hide the floating Ask Sim widget while a workflow-preview lightbox is open. */
-body.wp-lightbox-open [aria-label="Ask Sim"] {
-  display: none;
-}
-
 /* Pure white light mode background */
 :root:not(.dark) {
   --color-fd-background: hsl(0, 0%, 100%) !important;
@@ -64,17 +59,20 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-4: #f5f5f5;
   --surface-5: #f3f3f3;
   --surface-6: #e5e5e5;
+  --surface-7: #d9d9d9;
   --surface-active: #ececec;
-  --border: #dedede;
-  --border-1: #e0e0e0;
-  --divider: #ededed;
+  --surface-hover: #f2f2f2;
+  --border: #d8d8d8;
+  /** Legacy neutral-border aliases. New work should use --border. */
+  --border-1: var(--border);
   --text-primary: #1a1a1a;
   --text-secondary: #525252;
   --text-tertiary: #5c5c5c;
-  --text-body: #3b3b3b;
-  --text-muted: #707070;
+  --text-body: #434343;
+  --text-muted: #7a7a7a;
   --text-subtle: #8c8c8c;
-  --text-icon: #525252;
+  --text-icon: #5a5a5a;
+  --text-icon-muted: #5c5c5c;
   --text-inverse: #ffffff;
   --text-error: #ef4444;
   --text-muted-inverse: #a0a0a0;
@@ -84,9 +82,26 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-inverted: #1b1b1b;
   --surface-inverted-hover: #363636;
   --border-inverted: #363636;
-  --border-muted: #e4e4e4;
+  --border-muted: var(--border);
   --badge-success-bg: #bbf7d0;
   --badge-success-text: #15803d;
+  /* Shared-component tokens: referenced by @sim/emcn and @sim/workflow-renderer.
+     Undefined here, a var() silently falls back to currentColor. Values mirror
+     apps/sim/app/_styles/globals.css. */
+  --border-success: #e0e0e0;
+  --success: #22c55e;
+  --error: #dc2626;
+  --warning: #ea580c;
+  --caution: #f59e0b;
+  --text-placeholder: #8d8d8d;
+  --badge-teal-bg: #99f6e4;
+  --badge-teal-text: #0f766e;
+  --badge-cyan-bg: #cffafe;
+  --badge-cyan-text: #0891b2;
+  --badge-pink-bg: #fbcfe8;
+  --badge-pink-text: #be185d;
+  --badge-blue-secondary-bg: #bae6fd;
+  --badge-blue-secondary-text: #0369a1;
   --badge-blue-bg: #bfdbfe;
   --badge-blue-text: #1d4ed8;
   --badge-purple-bg: #e9d5ff;
@@ -115,17 +130,20 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-4: #292929;
   --surface-5: #363636;
   --surface-6: #454545;
+  --surface-7: #505050;
   --surface-active: #2c2c2c;
-  --border: #333333;
-  --border-1: #3d3d3d;
-  --divider: #393939;
+  --surface-hover: #262626;
+  --border: #444444;
+  /** Legacy neutral-border aliases. New work should use --border. */
+  --border-1: var(--border);
   --text-primary: #e6e6e6;
   --text-secondary: #cccccc;
   --text-tertiary: #b3b3b3;
-  --text-body: #cdcdcd;
-  --text-muted: #787878;
+  --text-body: #c1c1c1;
+  --text-muted: #6e6e6e;
   --text-subtle: #7d7d7d;
-  --text-icon: #a0a0a0;
+  --text-icon: #969696;
+  --text-icon-muted: #949494;
   --text-inverse: #1b1b1b;
   --text-error: #ef4444;
   --text-muted-inverse: #b3b3b3;
@@ -135,9 +153,26 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-inverted: #242424;
   --surface-inverted-hover: #363636;
   --border-inverted: #3d3d3d;
-  --border-muted: #424242;
+  --border-muted: var(--border);
   --badge-success-bg: rgba(34, 197, 94, 0.2);
   --badge-success-text: #86efac;
+  /* Shared-component tokens: referenced by @sim/emcn and @sim/workflow-renderer.
+     Undefined here, a var() silently falls back to currentColor. Values mirror
+     apps/sim/app/_styles/globals.css. */
+  --border-success: #575757;
+  --success: #22c55e;
+  --error: #f87171;
+  --warning: #ff6600;
+  --caution: #f59e0b;
+  --text-placeholder: #8d8d8d;
+  --badge-teal-bg: rgba(20, 184, 166, 0.2);
+  --badge-teal-text: #5eead4;
+  --badge-cyan-bg: rgba(14, 165, 233, 0.2);
+  --badge-cyan-text: #7dd3fc;
+  --badge-pink-bg: rgba(236, 72, 153, 0.2);
+  --badge-pink-text: #f9a8d4;
+  --badge-blue-secondary-bg: rgba(51, 180, 255, 0.2);
+  --badge-blue-secondary-text: #7dd3fc;
   --badge-blue-bg: rgba(59, 130, 246, 0.2);
   --badge-blue-text: #93c5fd;
   --badge-purple-bg: rgba(168, 85, 247, 0.2);
@@ -427,16 +462,18 @@ html #nd-sidebar button[data-active="true"] {
   color: var(--text-body) !important;
 }
 
-/* Hover state — platform --surface-3 */
+/* Hover state — the app's nav Chip hovers to --surface-active. These rules must
+   carry !important to beat fumadocs' own sidebar styles, which also means they
+   override the Tailwind hover utilities on the items; keep the two in step. */
 html #nd-sidebar a:not(:has(span.font-mono)):hover:not([data-active="true"]),
 html #nd-sidebar button:hover:not([data-active="true"]) {
-  background-color: var(--surface-3) !important;
+  background-color: var(--surface-active) !important;
 }
 
-/* Active items don't change on hover */
+/* An active item darkens one surface on hover, matching the app's active Chip */
 html #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)):hover,
 html #nd-sidebar button[data-active="true"]:hover {
-  background-color: var(--surface-active) !important;
+  background-color: var(--surface-6) !important;
   color: var(--text-body) !important;
 }
 

@@ -1,15 +1,24 @@
 /**
  * @vitest-environment node
  */
-import { workflowsUtilsMock } from '@sim/testing'
+import { envFlagsMockFns, resetEnvFlagsMock, workflowsUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateUserToolSchema, mockGetHighestPrioritySubscription, mockTrackChatUpload } =
-  vi.hoisted(() => ({
-    mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
-    mockGetHighestPrioritySubscription: vi.fn(),
-    mockTrackChatUpload: vi.fn(),
-  }))
+const {
+  mockCreateUserToolSchema,
+  mockGetHighestPrioritySubscription,
+  mockGetUserPermissionConfig,
+  mockIsIntegrationDeploymentAvailable,
+  mockIsOAuthServiceDeploymentAvailable,
+  mockTrackChatUpload,
+} = vi.hoisted(() => ({
+  mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
+  mockGetHighestPrioritySubscription: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+  mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
+  mockIsOAuthServiceDeploymentAvailable: vi.fn(() => true),
+  mockTrackChatUpload: vi.fn(),
+}))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
@@ -65,7 +74,13 @@ vi.mock('@/lib/copilot/block-visibility', () => ({
 }))
 
 vi.mock('@/lib/copilot/integration-tools', () => ({
-  filterExposedIntegrationTools: vi.fn((tools: unknown[]) => tools),
+  filterExposedIntegrationTools: vi.fn(
+    (
+      tools: Array<{ blockType: string; service: string }>,
+      _vis: unknown,
+      isOwnerAllowed: (owner: { blockType: string; service: string }) => boolean
+    ) => tools.filter((tool) => isOwnerAllowed(tool))
+  ),
   getExposedIntegrationTools: vi.fn(() => [
     {
       toolId: 'gmail_send',
@@ -78,6 +93,7 @@ vi.mock('@/lib/copilot/integration-tools', () => ({
       },
       service: 'gmail',
       operation: 'send',
+      blockType: 'gmail',
     },
     {
       toolId: 'brandfetch_search',
@@ -88,6 +104,7 @@ vi.mock('@/lib/copilot/integration-tools', () => ({
       },
       service: 'brandfetch',
       operation: 'search',
+      blockType: 'brandfetch',
     },
     {
       toolId: 'run_workflow',
@@ -98,6 +115,7 @@ vi.mock('@/lib/copilot/integration-tools', () => ({
       },
       service: 'run',
       operation: 'workflow',
+      blockType: 'run',
     },
   ]),
 }))
@@ -110,6 +128,15 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   trackChatUpload: mockTrackChatUpload,
 }))
 
+vi.mock('@/lib/integrations/availability.server', () => ({
+  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
+  isOAuthServiceDeploymentAvailable: mockIsOAuthServiceDeploymentAvailable,
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
+}))
+
 import {
   buildCopilotRequestPayload,
   buildIntegrationToolSchemas,
@@ -119,8 +146,12 @@ import {
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     clearIntegrationToolSchemaCacheForTests()
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
+    mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
+    mockIsOAuthServiceDeploymentAvailable.mockReturnValue(true)
+    mockGetUserPermissionConfig.mockResolvedValue(null)
   })
 
   it('appends the email footer prompt for free users', async () => {
@@ -195,6 +226,63 @@ describe('buildIntegrationToolSchemas', () => {
       expect.objectContaining({ id: 'brandfetch_search' }),
       { surface: 'copilot', hostedKeySupport: expect.any(Boolean) }
     )
+  })
+
+  it('removes tools whose canonical exposed block is unavailable', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockIsIntegrationDeploymentAvailable.mockImplementation((blockType: string) => {
+      return blockType !== 'gmail'
+    })
+
+    const toolSchemas = await buildIntegrationToolSchemas('user-deployment-filter')
+
+    expect(toolSchemas.some((tool) => tool.name === 'gmail_send')).toBe(false)
+    expect(toolSchemas.some((tool) => tool.name === 'brandfetch_search')).toBe(true)
+  })
+
+  it('intersects workspace and deployment integration allowlists', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockGetUserPermissionConfig.mockResolvedValue({
+      allowedIntegrations: ['gmail', 'brandfetch'],
+    })
+    envFlagsMockFns.getAllowedIntegrationsFromEnv.mockReturnValue(['brandfetch'])
+
+    const toolSchemas = await buildIntegrationToolSchemas(
+      'user-intersection',
+      undefined,
+      { schemaSurface: 'copilot' },
+      'workspace-1'
+    )
+
+    expect(toolSchemas.some((tool) => tool.name === 'gmail_send')).toBe(false)
+    expect(toolSchemas.some((tool) => tool.name === 'brandfetch_search')).toBe(true)
+  })
+
+  it('keeps a limited integration callable without advertising OAuth', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockIsOAuthServiceDeploymentAvailable.mockImplementation(
+      (providerId: string) => providerId !== 'google-email'
+    )
+
+    const toolSchemas = await buildIntegrationToolSchemas('user-limited-integration')
+    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
+
+    expect(gmailTool).toBeDefined()
+    expect(gmailTool).not.toHaveProperty('oauth')
+  })
+
+  it('fails closed when workspace integration permissions cannot be loaded', async () => {
+    mockGetUserPermissionConfig.mockRejectedValue(new Error('permission backend unavailable'))
+
+    await expect(
+      buildIntegrationToolSchemas(
+        'user-permission-error',
+        undefined,
+        { schemaSurface: 'copilot' },
+        'workspace-1'
+      )
+    ).rejects.toThrow('permission backend unavailable')
+    expect(mockCreateUserToolSchema).not.toHaveBeenCalled()
   })
 
   it('briefly reuses built schemas for the same user and surface', async () => {
@@ -312,11 +400,31 @@ describe('buildCopilotRequestPayload', () => {
         mode: 'agent',
         model: '',
         workspaceId: 'ws-1',
+        browser: true,
+        browserSessions: [
+          {
+            hostname: 'example.com',
+            evidence: 'cookies',
+            lastObservedAt: '2026-08-01T00:00:00.000Z',
+          },
+        ],
       },
       { selectedModel: '' }
     )
     expect(browserPayload).not.toHaveProperty('mothershipTools')
-    expect(browserPayload).not.toHaveProperty('desktopCapabilities')
+    expect(browserPayload).toMatchObject({
+      desktopCapabilities: {
+        browser: true,
+        browserSessions: [
+          {
+            hostname: 'example.com',
+            evidence: 'cookies',
+            lastObservedAt: '2026-08-01T00:00:00.000Z',
+          },
+        ],
+      },
+    })
+    expect(browserPayload).not.toHaveProperty('browserCapable')
   })
 
   it('passes user metadata through to the Go request payload', async () => {

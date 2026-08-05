@@ -19,7 +19,9 @@ import { ipcRenderer } from 'electron'
 
 const FORM_STATE_CHANNEL = 'browser-credentials:form-state'
 const FILL_CHANNEL = 'browser-credentials:fill'
+const RESCAN_CHANNEL = 'browser-credentials:rescan'
 const RESCAN_DEBOUNCE_MS = 250
+const INITIAL_RESCAN_DELAYS_MS = [250, 750, 1_500, 3_000] as const
 
 interface DetectedForm {
   username: HTMLInputElement | null
@@ -31,6 +33,8 @@ interface DetectedForm {
 let detected: DetectedForm | null = null
 let lastReported = ''
 let rescanTimer: ReturnType<typeof setTimeout> | null = null
+let formObserver: MutationObserver | null = null
+let initialRescansScheduled = false
 
 function isFillable(field: HTMLInputElement): boolean {
   if (field.disabled || field.readOnly) return false
@@ -132,12 +136,57 @@ function reportFormState(): void {
 }
 
 function scheduleRescan(): void {
-  if (rescanTimer !== null) clearTimeout(rescanTimer)
+  // Coalesce a mutation burst without letting an animated page postpone the
+  // scan forever by continually resetting a trailing-edge debounce.
+  if (rescanTimer !== null) return
   rescanTimer = setTimeout(() => {
     rescanTimer = null
     reportFormState()
   }, RESCAN_DEBOUNCE_MS)
 }
+
+function observeDocument(): void {
+  if (formObserver || !document.documentElement) return
+  formObserver = new MutationObserver(scheduleRescan)
+  formObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    // Login steps often exist at first paint and become usable only after a
+    // framework flips an ancestor's visibility class/style.
+    attributeFilter: [
+      'type',
+      'autocomplete',
+      'disabled',
+      'readonly',
+      'class',
+      'style',
+      'hidden',
+      'aria-hidden',
+    ],
+  })
+}
+
+function reportInitialFormState(): void {
+  observeDocument()
+  reportFormState()
+  if (initialRescansScheduled) return
+  initialRescansScheduled = true
+  // Stylesheets, hydration, and password-step transitions can settle without
+  // a useful child mutation. A short bounded tail covers that first-load
+  // window without leaving a permanent poller behind.
+  for (const delay of INITIAL_RESCAN_DELAYS_MS) {
+    setTimeout(reportFormState, delay)
+  }
+}
+
+ipcRenderer.on(RESCAN_CHANNEL, () => {
+  // Same-document navigation does not recreate this preload. Main invalidates
+  // its old form state for safety, so bypass the unchanged fingerprint once
+  // and republish the live form after the SPA route has committed.
+  lastReported = ''
+  scheduleRescan()
+})
 
 /**
  * Writes through the native value setter so frameworks that track their own
@@ -175,16 +224,15 @@ ipcRenderer.on(
   }
 )
 
-document.addEventListener('DOMContentLoaded', reportFormState)
-window.addEventListener('load', reportFormState)
-window.addEventListener('pageshow', reportFormState)
+// Electron preloads can run before `<html>` exists. Never pass that null root
+// to MutationObserver: the exception would permanently disable dynamic-form
+// detection for this document.
+observeDocument()
+document.addEventListener('readystatechange', observeDocument)
+document.addEventListener('DOMContentLoaded', reportInitialFormState)
+window.addEventListener('load', reportInitialFormState)
+window.addEventListener('pageshow', reportInitialFormState)
 
 // Login forms are routinely rendered after first paint, behind a "Sign in"
-// toggle, or swapped in by a single-page router — a one-shot scan would miss
-// most of them.
-new MutationObserver(scheduleRescan).observe(document.documentElement, {
-  childList: true,
-  subtree: true,
-  attributes: true,
-  attributeFilter: ['type', 'autocomplete', 'disabled', 'readonly'],
-})
+// toggle, or swapped in by a single-page router. The observer is installed by
+// `observeDocument` as soon as a real document root exists.

@@ -23,10 +23,7 @@ import {
   getExecutionRedisBudgetKeys,
   getExecutionRedisBudgetLimits,
 } from '@/lib/execution/redis-budget.server'
-import {
-  ExecutionResourceLimitError,
-  isExecutionResourceLimitError,
-} from '@/lib/execution/resource-errors'
+import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
@@ -59,7 +56,7 @@ if bytes and bytes > 0 then
     local user_next = redis.call('DECRBY', KEYS[4], bytes)
     if user_next <= 0 then
       redis.call('DEL', KEYS[4])
-    else
+    elseif redis.call('TTL', KEYS[4]) < 0 then
       redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
     end
   end
@@ -129,7 +126,7 @@ if #KEYS >= 4 then
       redis.call('DEL', KEYS[4])
     end
   end
-  if redis.call('EXISTS', KEYS[4]) == 1 then
+  if redis.call('EXISTS', KEYS[4]) == 1 and redis.call('TTL', KEYS[4]) < 0 then
     redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
   end
 end
@@ -196,6 +193,24 @@ class InMemoryBase64Cache implements Base64Cache {
   }
 }
 
+/**
+ * The base64 cache only saves a repeat read from storage — the bytes it would have stored are
+ * already in hand by the time it is written. Exceeding a Redis budget therefore means "do not
+ * cache", never "fail the run": throwing here turned an oversized attachment into an opaque
+ * "Execution memory limit exceeded" on a request that had already read the file successfully.
+ */
+function logSkippedCacheWrite(
+  logger: Logger,
+  requestId: string | undefined,
+  file: UserFile,
+  error: ExecutionResourceLimitError
+): void {
+  logger.warn(
+    `[${requestId ?? 'unknown'}] Skipping base64 cache write for ${file.name}: ${error.message}`,
+    { resource: error.resource, attemptedBytes: error.attemptedBytes }
+  )
+}
+
 function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Base64Cache {
   const redis = getRedisClient()
   const { executionId } = options
@@ -228,11 +243,17 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
 
         const limits = getExecutionRedisBudgetLimits()
         if (valueBytes > limits.maxSingleWriteBytes) {
-          throw new ExecutionResourceLimitError({
-            resource: 'redis_key_bytes',
-            attemptedBytes: valueBytes,
-            limitBytes: limits.maxSingleWriteBytes,
-          })
+          logSkippedCacheWrite(
+            logger,
+            options.requestId,
+            file,
+            new ExecutionResourceLimitError({
+              resource: 'redis_key_bytes',
+              attemptedBytes: valueBytes,
+              limitBytes: limits.maxSingleWriteBytes,
+            })
+          )
+          return
         }
         const cacheTtlSeconds = Math.max(ttlSeconds, limits.ttlSeconds)
         const budgetReservation: ExecutionRedisBudgetReservation = {
@@ -261,19 +282,21 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
         )) as [number, string, number | string | null]
         const [allowed, resource, current] = result
         if (allowed !== 1) {
-          throw new ExecutionResourceLimitError({
-            resource:
-              resource === 'user_redis_bytes' ? 'user_redis_bytes' : 'execution_redis_bytes',
-            attemptedBytes: valueBytes,
-            currentBytes: Number(current ?? 0),
-            limitBytes:
-              resource === 'user_redis_bytes' ? limits.maxUserBytes : limits.maxExecutionBytes,
-          })
+          logSkippedCacheWrite(
+            logger,
+            options.requestId,
+            file,
+            new ExecutionResourceLimitError({
+              resource:
+                resource === 'user_redis_bytes' ? 'user_redis_bytes' : 'execution_redis_bytes',
+              attemptedBytes: valueBytes,
+              currentBytes: Number(current ?? 0),
+              limitBytes:
+                resource === 'user_redis_bytes' ? limits.maxUserBytes : limits.maxExecutionBytes,
+            })
+          )
         }
       } catch (error) {
-        if (isExecutionResourceLimitError(error)) {
-          throw error
-        }
         logger.warn(`[${options.requestId}] Redis set failed, skipping cache`, error)
       }
     },

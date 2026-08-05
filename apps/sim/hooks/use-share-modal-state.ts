@@ -6,7 +6,6 @@ import type {
   ShareResourceType,
 } from '@/lib/api/contracts/public-shares'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { buildShareUrl } from '@/lib/public-shares/urls'
 
 /** Not shared at all, or one of the four public share auth modes. */
@@ -48,8 +47,8 @@ export interface UseShareModalStateResult {
   password: string
   setPassword: (value: string) => void
   emails: string[]
-  addEmail: (value: string) => boolean
-  removeEmail: (value: string, index: number) => void
+  /** Replaces the whole allow-list; the emails control owns format validation and dedupe. */
+  setEmails: (next: string[]) => void
   /** `null` until a link can honestly be shown (existing share, or a settled empty fetch). */
   shareUrl: string | null
   isDirty: boolean
@@ -65,15 +64,12 @@ export interface UseShareModalStateResult {
 /** Auth modes always offered; `sso` is appended only when the deployment enables it. */
 const BASE_AUTH_TYPES = ['public', 'password', 'email'] as const
 
+/** Stable identity so the emails control's reconcile effect no-ops while unset. */
+const EMPTY_EMAILS: string[] = []
+
 function toSavedMode(share: ShareRecord | null): ShareAccessMode {
   if (!share?.isActive) return 'private'
   return share.authType
-}
-
-/** True when an entry is a valid email or an `@domain` pattern. */
-function isValidEmailEntry(value: string): boolean {
-  const normalized = value.trim().toLowerCase()
-  return normalized.startsWith('@') || quickValidateEmail(normalized).isValid
 }
 
 /**
@@ -108,7 +104,7 @@ export function useShareModalState({
   const savedAccessMode = toSavedMode(saved)
   const mode = draftMode ?? savedAccessMode
   const isActive = mode !== 'private'
-  const emails = draftEmails ?? saved?.allowedEmails ?? []
+  const emails = draftEmails ?? saved?.allowedEmails ?? EMPTY_EMAILS
 
   const shareUrl = saved?.url ?? (isFetched ? buildShareUrl(resourceType, pendingToken) : null)
 
@@ -155,25 +151,6 @@ export function useShareModalState({
   const canSave =
     isDirty && !passwordMissing && !emailsMissing && !(isActive && enableBlockedByPolicy)
 
-  const addEmail = useCallback(
-    (value: string): boolean => {
-      const normalized = value.trim().toLowerCase()
-      if (!normalized || emails.includes(normalized) || !isValidEmailEntry(normalized)) {
-        return false
-      }
-      setDraftEmails([...emails, normalized])
-      return true
-    },
-    [emails]
-  )
-
-  const removeEmail = useCallback(
-    (_value: string, index: number) => {
-      setDraftEmails(emails.filter((_, i) => i !== index))
-    },
-    [emails]
-  )
-
   const buildSavePayload = useCallback((): ShareSavePayload => {
     /**
      * Persist the reserved token only when creating the row; existing shares
@@ -208,8 +185,7 @@ export function useShareModalState({
     password,
     setPassword,
     emails,
-    addEmail,
-    removeEmail,
+    setEmails: setDraftEmails,
     shareUrl,
     isDirty,
     passwordMissing,

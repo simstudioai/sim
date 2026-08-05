@@ -164,6 +164,34 @@ describe('ResolvedSecretTraceRegistry', () => {
     ])
   })
 
+  it('fails closed while one or more secret activations are pending', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-value' },
+    ])
+    const completeFirst = registry.beginPendingActivation()
+    const completeSecond = registry.beginPendingActivation()
+
+    expect(registry.isComplete()).toBe(false)
+    expect(registry.exportProvenance()).toEqual({
+      version: 1,
+      complete: false,
+      entries: [],
+    })
+
+    registry.recordResolved('API_KEY', 'secret-value')
+    completeFirst()
+    expect(registry.isComplete()).toBe(false)
+
+    completeSecond()
+    completeSecond()
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.exportProvenance()).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-value' }],
+    })
+  })
+
   it('uses the workspace catalog entry when personal and workspace names conflict', async () => {
     const registry = await createResolvedSecretTraceRegistry({
       personalEncrypted: { SHARED: 'personal-encrypted' },

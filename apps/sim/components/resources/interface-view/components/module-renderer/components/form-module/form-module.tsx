@@ -169,7 +169,6 @@ export function FormModule({ module, mode, canRun = true, onConfigChange }: Form
     <Chip
       active
       fullWidth
-      flush
       centered
       leftIcon={Plus}
       onClick={handleAddField}
@@ -341,7 +340,6 @@ export function FormModule({ module, mode, canRun = true, onConfigChange }: Form
         <Chip
           type='submit'
           variant='primary'
-          flush
           disabled={isSubmitDisabled || submitForm.isPending}
           className='shrink-0'
         >

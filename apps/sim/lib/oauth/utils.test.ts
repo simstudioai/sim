@@ -25,14 +25,18 @@ describe('getAllOAuthServices', () => {
 
     services.forEach((service) => {
       expect(service).toHaveProperty('providerId')
+      expect(service).toHaveProperty('serviceId')
       expect(service).toHaveProperty('name')
       expect(service).toHaveProperty('description')
       expect(service).toHaveProperty('baseProvider')
+      expect(service).toHaveProperty('authType')
 
       expect(typeof service.providerId).toBe('string')
+      expect(typeof service.serviceId).toBe('string')
       expect(typeof service.name).toBe('string')
       expect(typeof service.description).toBe('string')
       expect(typeof service.baseProvider).toBe('string')
+      expect(['oauth', 'service_account']).toContain(service.authType)
     })
   })
 
@@ -87,9 +91,24 @@ describe('getAllOAuthServices', () => {
     services.forEach((service) => {
       const metadata: OAuthServiceMetadata = service
       expect(metadata.providerId).toBeDefined()
+      expect(metadata.serviceId).toBeDefined()
       expect(metadata.name).toBeDefined()
       expect(metadata.description).toBeDefined()
       expect(metadata.baseProvider).toBeDefined()
+      expect(metadata.authType).toBeDefined()
+    })
+  })
+
+  it.concurrent('preserves service-account auth metadata', () => {
+    const services = getAllOAuthServices()
+
+    expect(services.find((service) => service.providerId === 'claude-platform')).toMatchObject({
+      serviceId: 'claude-platform',
+      authType: 'service_account',
+    })
+    expect(services.find((service) => service.providerId === 'google-email')).toMatchObject({
+      serviceId: 'gmail',
+      authType: 'oauth',
     })
   })
 })

@@ -152,7 +152,6 @@ export function FormFieldControl({
        * `Chip` already defaults to `button`, which is why no type is passed.
        */}
       <Chip
-        flush
         leftIcon={X}
         onClick={editing.onRemove}
         aria-label={`Remove ${fieldName}`}

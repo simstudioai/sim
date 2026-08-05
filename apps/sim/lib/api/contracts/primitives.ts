@@ -1,5 +1,6 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
+import { setRecordValue } from '@/lib/core/utils/records'
 import { PII_LANGUAGE_CODES, stripNerEntities } from '@/lib/guardrails/pii-entities'
 import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
@@ -17,6 +18,20 @@ export const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
   z.object({
     success: z.literal(true),
     data: dataSchema,
+  })
+
+export const stringRecordSchema = z
+  .custom<Record<string, string>>(
+    (value) =>
+      isPlainRecord(value) && Object.values(value).every((entry) => typeof entry === 'string'),
+    { error: 'Expected a record of string values' }
+  )
+  .transform((value) => {
+    const record: Record<string, string> = {}
+    for (const [key, entry] of Object.entries(value)) {
+      setRecordValue(record, key, entry)
+    }
+    return record
   })
 
 export function flattenFieldErrors<TFields extends string>(

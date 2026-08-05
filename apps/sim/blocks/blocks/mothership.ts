@@ -1,4 +1,5 @@
 import { Blimp } from '@sim/emcn'
+import { fetchWorkspaceRawSecretNameOptions } from '@/lib/workflows/subblocks/options'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -72,6 +73,31 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
       type: 'skill-input',
       defaultValue: [],
     },
+    {
+      id: 'secretScope',
+      title: 'Secret access',
+      type: 'dropdown',
+      mode: 'advanced',
+      hideFromCopilot: true,
+      options: [
+        { label: 'All secrets', id: 'all' },
+        { label: 'Selected secrets', id: 'selected' },
+      ],
+      value: () => 'all',
+    },
+    {
+      id: 'mountedSecrets',
+      title: 'Secrets',
+      type: 'dropdown',
+      mode: 'advanced',
+      hideFromCopilot: true,
+      multiSelect: true,
+      searchable: true,
+      preserveLabelCase: true,
+      options: [],
+      condition: { field: 'secretScope', value: 'selected' },
+      fetchOptions: () => fetchWorkspaceRawSecretNameOptions(),
+    },
   ],
   tools: {
     access: [],
@@ -91,6 +117,8 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
     },
     tools: { type: 'json', description: 'MCP tools available to Sim for this request' },
     skills: { type: 'json', description: 'Skills activated for this request' },
+    secretScope: { type: 'string', description: 'Secret access mode: all or selected' },
+    mountedSecrets: { type: 'json', description: 'Secret names available to Sim code execution' },
   },
   outputs: {
     content: { type: 'string', description: 'Generated response content' },

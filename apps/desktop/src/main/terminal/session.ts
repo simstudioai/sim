@@ -622,6 +622,26 @@ export class TerminalSession {
   }
 
   /**
+   * Forgets output retained for renderer repaints and agent reads.
+   *
+   * The renderer clears its own xterm at the same time. Dropping only that
+   * local buffer is insufficient: the next mount or overflow repaint would
+   * otherwise replay this retained copy and make the cleared output return.
+   */
+  clearScrollback(): void {
+    this.scrollback = ''
+    this.pendingOutput = ''
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer)
+      this.flushTimer = null
+    }
+    if (this.paused) {
+      this.paused = false
+      this.pty.resume()
+    }
+  }
+
+  /**
    * Renders the terminal's screen, building an emulator on demand.
    *
    * The bytes are already retained raw, so the screen can be reconstructed by

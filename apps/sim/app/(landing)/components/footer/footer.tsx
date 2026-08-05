@@ -40,7 +40,6 @@ const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Tables', href: '/tables' },
   { label: 'Files', href: '/files' },
   { label: 'Logs', href: '/logs' },
-  { label: 'Scheduled Tasks', href: '/scheduled-tasks' },
   { label: 'MCP', href: 'https://docs.sim.ai/agents/mcp', external: true },
   { label: 'API', href: 'https://docs.sim.ai/api-reference/getting-started', external: true },
   { label: 'Self Hosting', href: 'https://docs.sim.ai/platform/self-hosting', external: true },

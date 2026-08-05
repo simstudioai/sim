@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
   Plus,
 } from '@sim/emcn'
-import { Sparkles } from 'lucide-react'
+import { Sparkles } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 

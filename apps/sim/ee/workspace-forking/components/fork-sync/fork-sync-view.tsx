@@ -12,7 +12,7 @@ import {
   Label,
   Tooltip,
 } from '@sim/emcn'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight } from '@sim/emcn/icons'
 import type {
   ForkCopyableUnmapped,
   ForkDependentReconfig,
@@ -473,7 +473,7 @@ function MappingKindRow({ controller, group, summary }: MappingKindRowProps) {
         </Badge>
         <ChevronDown
           className={cn(
-            'h-[6px] w-[10px] shrink-0 text-[var(--text-icon)] transition-transform',
+            'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
             open && 'rotate-180'
           )}
         />

@@ -24,21 +24,21 @@ import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
  * {@link NavbarShell} (which frosts the bar to glass on scroll) are isolated
  * client leaves, so the wordmark and links stay zero-hydration, crawlable HTML.
  *
- * Every item is a bare emcn chip. Both clusters use `gap-1`, which with
- * the chips' own `mx-0.5` margins yields 8px between pills; the nav's
- * `gap-3.5` (14px) plus the first chip's 2px margin puts exactly 16px -
- * twice the inter-chip gap - between the wordmark and the first menu chip. The
- * {@link logoOnly} resource {@link name} wears the same `mx-0.5` + chip geometry,
- * so it sits at that identical 16px offset from the wordmark, in nav-item type -
- * just not clickable. On the marketing bar and the bare logo-only shells the
- * content is capped and centered at the shared `max-w-[1460px]` with an `px-20`
- * (80px) gutter, so the wordmark aligns with the contained section content on
- * wide screens - the frosted `<header>` shell stays full-bleed. A named resource
- * navbar instead goes full-bleed at a `px-6` (24px) gutter, just inside the
- * module's 16px content edge below it (see `contentAligned`). It keeps the `pt-4`
- * (16px) top and drops the bottom padding (`pb-0`), so the module's own 16px
- * `p-4` is the only gap below - leaving 16px above the wordmark and 16px below
- * it, symmetric, without shifting the bar up. Text weight is the platform
+ * Every item is a bare emcn chip. Chips carry no margin of their own, so both
+ * clusters' `gap-1` is the full 4px between pills, and the nav's own `gap-4`
+ * is the full 16px between the wordmark and the first menu chip - twice the
+ * inter-chip gap. Only that first gap is live: the trailing cluster is `ml-auto`.
+ * The {@link logoOnly} resource {@link name} wears the same chip geometry, so it
+ * sits at that identical 16px offset from the wordmark, in nav-item type - just
+ * not clickable. On the marketing bar and the bare logo-only shells the content
+ * is capped and centered at the shared `max-w-[1460px]` (1300px content + the two
+ * 80px gutters) with an `px-20` gutter, so the wordmark aligns with the contained
+ * section content on wide screens - the frosted `<header>` shell stays full-bleed.
+ * A named resource navbar instead goes full-bleed at a `px-6` (24px) gutter, just
+ * inside the module's 16px content edge below it (see `contentAligned`). It keeps
+ * the `pt-4` (16px) top and drops the bottom padding (`pb-0`), so the module's own
+ * 16px `p-4` is the only gap below - leaving 16px above the wordmark and 16px
+ * below it, symmetric, without shifting the bar up. Text weight is the platform
  * default (400).
  *
  * Layout (left → right): Sim wordmark (18px glyph centered in a
@@ -118,7 +118,7 @@ export function Navbar({
         itemScope
         itemType='https://schema.org/SiteNavigationElement'
         className={cn(
-          'relative flex w-full items-center gap-3.5',
+          'relative flex w-full items-center gap-4',
           contentAligned
             ? 'px-6 pt-4 pb-0'
             : 'mx-auto max-w-[1460px] px-20 py-4 max-sm:px-5 max-lg:px-8'

@@ -308,7 +308,6 @@ export function FormFieldRow({
               <Chip
                 active
                 fullWidth
-                flush
                 centered
                 leftIcon={Plus}
                 onClick={handleOptionAdd}

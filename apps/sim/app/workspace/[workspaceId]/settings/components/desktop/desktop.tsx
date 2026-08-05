@@ -15,7 +15,10 @@ import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/l
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 function getMounts(response: LocalFilesystemResponse): LocalFilesystemMount[] | null {
@@ -75,13 +78,10 @@ export function Desktop() {
   const workspaceId = params.workspaceId as string
   const [preferences, setPreferences] = useState<DesktopPreferences | null>(null)
   const [mounts, setMounts] = useState<LocalFilesystemMount[]>([])
-  const [pendingPreference, setPendingPreference] = useState<
-    DesktopPreferenceKey | 'trayEnabled' | null
-  >(null)
+  const [pendingPreference, setPendingPreference] = useState<DesktopPreferenceKey | null>(null)
   const [mountToForget, setMountToForget] = useState<LocalFilesystemMount | null>(null)
   const [mountMutationPending, setMountMutationPending] = useState(false)
   const [updateState, setUpdateState] = useState<DesktopUpdateState>({ status: 'idle' })
-  const [hasUpdatesSurface, setHasUpdatesSurface] = useState(false)
   const [shellVersion, setShellVersion] = useState<string | undefined>(undefined)
 
   const refreshMounts = useCallback(async () => {
@@ -98,7 +98,7 @@ export function Desktop() {
 
   useEffect(() => {
     const bridge = getDesktopBridge()
-    if (!bridge?.settings) {
+    if (!bridge) {
       router.replace(`/workspace/${workspaceId}/settings/general`)
       return
     }
@@ -111,7 +111,6 @@ export function Desktop() {
     setShellVersion(getDesktopShellVersion())
     const updates = getDesktopUpdates()
     if (!updates) return
-    setHasUpdatesSurface(true)
     const unsubscribe = updates.onState(setUpdateState)
     void updates
       .getState()
@@ -126,19 +125,6 @@ export function Desktop() {
     setPendingPreference(key)
     try {
       setPreferences(await settings.setPreference(key, value))
-    } catch {
-      toast.error('Could not update desktop settings')
-    } finally {
-      setPendingPreference(null)
-    }
-  }, [])
-
-  const updateTrayEnabled = useCallback(async (enabled: boolean) => {
-    const settings = getDesktopBridge()?.settings
-    if (!settings?.setTrayEnabled) return
-    setPendingPreference('trayEnabled')
-    try {
-      setPreferences(await settings.setTrayEnabled(enabled))
     } catch {
       toast.error('Could not update desktop settings')
     } finally {
@@ -236,32 +222,26 @@ export function Desktop() {
               disabled={pendingPreference !== null}
               onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
             />
-            {getDesktopBridge()?.settings?.setTrayEnabled && (
-              <PreferenceRow
-                id='desktop-tray-enabled'
-                label='Show Sim in Control Center'
-                checked={preferences.trayEnabled ?? true}
-                disabled={pendingPreference !== null}
-                onCheckedChange={(checked) => void updateTrayEnabled(checked)}
-              />
-            )}
+            <PreferenceRow
+              id='desktop-tray-enabled'
+              label='Show Sim in Control Center'
+              checked={preferences.trayEnabled}
+              disabled={pendingPreference !== null}
+              onCheckedChange={(checked) => void updatePreference('trayEnabled', checked)}
+            />
           </div>
         </SettingsSection>
 
         <SettingsSection
           label='Updates'
-          action={
-            hasUpdatesSurface
-              ? (() => {
-                  const chip = updateChipFor(updateState)
-                  return (
-                    <Chip onClick={chip.onClick} disabled={chip.disabled}>
-                      {chip.label}
-                    </Chip>
-                  )
-                })()
-              : undefined
-          }
+          action={(() => {
+            const chip = updateChipFor(updateState)
+            return (
+              <Chip onClick={chip.onClick} disabled={chip.disabled}>
+                {chip.label}
+              </Chip>
+            )
+          })()}
         >
           <div className='flex flex-col gap-3'>
             <PreferenceRow
@@ -297,7 +277,7 @@ export function Desktop() {
               No folder access granted. Chat can only read folders you add here.
             </SettingsEmptyState>
           ) : (
-            <div className='flex flex-col gap-2'>
+            <div className={RESOURCE_LIST_STACK}>
               {mounts.map((mount) => (
                 <SettingsResourceRow
                   key={mount.id}
@@ -306,24 +286,24 @@ export function Desktop() {
                   title={mount.name}
                   onClick={() => void revealFolder(mount)}
                   clickLabel={`Show ${mount.name} in the file manager`}
+                  badge={
+                    !mount.remembered ? (
+                      <span className='text-[var(--text-muted)] text-caption'>
+                        Until app restarts
+                      </span>
+                    ) : undefined
+                  }
                   trailing={
-                    <div className='flex flex-shrink-0 items-center gap-2'>
-                      {!mount.remembered && (
-                        <span className='text-[var(--text-muted)] text-caption'>
-                          Until app restarts
-                        </span>
-                      )}
-                      <RowActionsMenu
-                        label={`${mount.name} actions`}
-                        actions={[
-                          {
-                            label: 'Revoke access',
-                            destructive: true,
-                            onSelect: () => setMountToForget(mount),
-                          },
-                        ]}
-                      />
-                    </div>
+                    <RowActionsMenu
+                      label={`${mount.name} actions`}
+                      actions={[
+                        {
+                          label: 'Revoke access',
+                          destructive: true,
+                          onSelect: () => setMountToForget(mount),
+                        },
+                      ]}
+                    />
                   }
                 />
               ))}

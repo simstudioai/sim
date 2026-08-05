@@ -15,6 +15,8 @@ export {
   renderMoveOption,
   renderMoveOptions,
 } from './move-options'
+export type { SortableResource } from './resource-sort'
+export { sortResources } from './resource-sort'
 export { folderNavParsers, folderNavUrlKeys } from './search-params'
 export type { FolderNavigation, UseFolderNavigationOptions } from './use-folder-navigation'
 export { useFolderNavigation } from './use-folder-navigation'

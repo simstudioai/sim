@@ -253,7 +253,7 @@ export function ChipSelect({
           aria-required={ariaRequired}
           aria-invalid={ariaInvalid}
           className={cn(
-            chipVariants({ variant: 'filled', flush: true, fullWidth }),
+            chipVariants({ variant: 'filled', fullWidth }),
             TRIGGER_BORDER_CLASS,
             error && 'border-[var(--text-error)]',
             fullWidth ? 'w-full justify-between' : 'w-fit max-w-[240px]',

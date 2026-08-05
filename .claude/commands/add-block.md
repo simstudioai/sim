@@ -162,6 +162,32 @@ export const {ServiceName}Block: BlockConfig = {
 
 Optional companions: `credentialLabels` (override the picker's section/connect-row copy) and `allowServiceAccounts: true` (trigger-mode only — list service accounts, which triggers otherwise exclude; set only when the trigger's polling path can resolve a service-account token). The connect modal, provider families (Google JSON key, Atlassian token, token-paste, client-credential, Slack bot), and the preview gate are all resolved from `serviceAccountProviderId` — you don't wire them per block.
 
+### OAuth deployment availability (required for integration blocks)
+
+A visible tools-category block with OAuth is deployment-gated. Its `oauth-input.serviceId` is
+projected into `apps/sim/lib/integrations/integrations.json`, then resolved through
+`resolveOAuthClientCapabilityId()` in `apps/sim/lib/core/config/env-capabilities.ts`.
+
+When adding or changing an OAuth integration block:
+
+1. Keep exactly one distinct OAuth `serviceId` across the block's `oauth-input` subBlocks.
+2. Confirm that service ID resolves to an entry in `OAUTH_CLIENT_CAPABILITIES`. Google and
+   Microsoft service IDs intentionally share their provider-level capability; do not add duplicate
+   entries for those aliases.
+3. For a new capability, add its required client fields to `OAUTH_CLIENT_CAPABILITIES` and ensure
+   every referenced field exists in the env schema in `apps/sim/lib/core/config/env.ts`. Then add
+   the matching `text` or `secret` input modes to `OAUTH_CLIENT_SETUP_FIELDS` in
+   `scripts/setup/capability-config.ts`. The CLI catalog is exhaustively typed and checked against
+   the runtime field list; do not infer secrecy from the field name.
+4. If the canonical OAuth service declares `serviceAccountProviderId`, keep
+   `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` in
+   `apps/sim/lib/integrations/service-account-metadata.ts` aligned. Set
+   `deploymentRequirement` only when the service-account path is preview-gated or depends on the
+   OAuth client fields; otherwise omit it.
+
+Missing capability metadata is a runtime configuration error, not a reason to make the integration
+silently available.
+
 ### Selectors (with dynamic options)
 ```typescript
 // Channel selector (Slack, Discord, etc.)
@@ -918,11 +944,24 @@ Derive templates from the service's real use cases. Each prompt should name a co
 - **Ground every skill in operations the block actually exposes** — cross-check each skill's steps against `tools.access`. Never describe an action the integration cannot perform.
 - **Derive skills from real, popular use cases found online — never invent them.** Web-search the service's documented use cases (vendor use-case/solutions pages, official docs describing the workflow, reputable "top automations for X" articles) and only add a skill you can source as something people genuinely do with the service. Do not hallucinate skills.
 
-## Generated tool metadata
+## Generated artifacts
 
-Adding a block on its own needs **no** regeneration — a block references existing tool IDs through `tools.access` and does not change any tool's shape.
+Adding a block on its own needs no **tool metadata** regeneration — a block references existing
+tool IDs through `tools.access` and does not change any tool's shape.
 
 But if the same change also adds, edits **or removes** a tool, run `bun run tool-metadata:generate` and commit the result, or CI fails on stale artifacts. That matters here because a block's `outputs` are authored to match its tools' outputs, and the UI now reads those from the generated metadata rather than the executable registry — an unregenerated tool change makes the block's outputs disagree with what the panel renders. See `.agents/skills/tool-registry-boundary/SKILL.md`.
+
+A visible integration block does require the generated integration catalog and docs to be refreshed.
+After adding or changing one, run:
+
+```bash
+bun run scripts/generate-docs.ts
+bun run integration-catalog:check
+```
+
+The catalog check independently derives deployment metadata from the executable block registry and
+compares it with the committed `apps/sim/lib/integrations/integrations.json`. Review the generated
+diff and keep only intentional changes.
 
 ## Checklist Before Finishing
 
@@ -933,12 +972,17 @@ But if the same change also adds, edits **or removes** a tool, run `bun run tool
 - [ ] DependsOn set for fields that need other values
 - [ ] Required fields marked correctly (boolean or condition)
 - [ ] OAuth inputs have correct `serviceId` and `requiredScopes: getScopesForService(serviceId)`
+- [ ] Every OAuth `serviceId` resolves through `resolveOAuthClientCapabilityId()` to the correct `OAUTH_CLIENT_CAPABILITIES` entry
+- [ ] Any new OAuth capability fields exist in `apps/sim/lib/core/config/env.ts`
+- [ ] If the OAuth service supports service accounts, `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` matches its canonical `serviceAccountProviderId` and deployment requirement
 - [ ] Scope descriptions added to `SCOPE_DESCRIPTIONS` in `lib/oauth/utils.ts` for any new scopes
 - [ ] Tools.access lists all tool IDs (snake_case)
 - [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
 - [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If any tool was added, changed or removed alongside the block: ran `bun run tool-metadata:generate` and committed the artifacts
+- [ ] Ran `bun run scripts/generate-docs.ts`, reviewed the generated diff, and committed the integration catalog changes
+- [ ] `bun run integration-catalog:check` passes
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`

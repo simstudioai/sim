@@ -6,7 +6,7 @@ import {
   shopifyShopDomainSchema,
 } from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/core/config/env'
+import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -25,12 +25,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const clientId = env.SHOPIFY_CLIENT_ID
-
-    if (!clientId) {
-      logger.error('SHOPIFY_CLIENT_ID not configured')
-      return NextResponse.json({ error: 'Shopify client ID not configured' }, { status: 500 })
-    }
+    const {
+      values: { SHOPIFY_CLIENT_ID: clientId },
+    } = requireConfiguredOAuthClient('shopify')
 
     const query = shopifyAuthorizeQuerySchema.parse({
       shop: request.nextUrl.searchParams.get('shop') || undefined,

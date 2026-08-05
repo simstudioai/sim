@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Expand, X } from '@sim/emcn/icons'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
-import { Maximize2, X } from 'lucide-react'
 import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
@@ -306,7 +306,7 @@ export function WorkflowPreview({
           onClick={() => openWith(null)}
           className='absolute top-2 right-2 z-10 flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-muted)] opacity-0 transition-opacity duration-150 hover:text-[var(--text-primary)] group-hover:opacity-100'
         >
-          <Maximize2 className='size-[13px]' />
+          <Expand className='size-[13px]' />
         </button>
       </div>
 
@@ -325,7 +325,7 @@ export function WorkflowPreview({
           >
             <div className='relative min-w-0 flex-1'>
               <div className='pointer-events-none absolute top-0 right-0 left-0 z-10 flex items-center justify-between px-4 py-3'>
-                <span className='text-[13px] text-[var(--text-muted)]'>{workflow.name}</span>
+                <span className='text-[var(--text-muted)] text-small'>{workflow.name}</span>
                 <button
                   ref={closeButtonRef}
                   type='button'
@@ -360,7 +360,7 @@ export function WorkflowPreview({
                   tools={selectedBlock.tools}
                 />
               ) : (
-                <div className='flex h-full items-center justify-center px-6 text-center text-[13px] text-[var(--text-muted)]'>
+                <div className='flex h-full items-center justify-center px-6 text-center text-[var(--text-muted)] text-small'>
                   Select a block to see its full configuration
                 </div>
               )}

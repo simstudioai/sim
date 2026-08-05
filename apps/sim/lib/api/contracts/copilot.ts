@@ -47,6 +47,7 @@ export const copilotCredentialsQuerySchema = z.object({})
 
 export const copilotConfirmBodySchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
+  executionId: z.string().min(1, 'Execution ID is required').max(255).optional(),
   status: z.enum(
     Object.values(ASYNC_TOOL_CONFIRMATION_STATUS) as [
       AsyncConfirmationStatus,
@@ -88,29 +89,6 @@ export const createWorkflowCopilotChatBodySchema = z.object({
   workflowId: z.string().min(1),
 })
 export type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilotChatBodySchema>
-
-export const copilotTrainingExampleBodySchema = z.object({
-  json: z.string().min(1, 'JSON string is required'),
-  title: z.string().min(1, 'Title is required'),
-  tags: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-})
-export type CopilotTrainingExampleBody = z.input<typeof copilotTrainingExampleBodySchema>
-
-const copilotTrainingOperationSchema = z.object({
-  operation_type: z.string(),
-  block_id: z.string(),
-  params: z.record(z.string(), z.unknown()).optional(),
-})
-
-export const copilotTrainingDataBodySchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  prompt: z.string().min(1, 'Prompt is required'),
-  input: z.record(z.string(), z.unknown()),
-  output: z.record(z.string(), z.unknown()),
-  operations: z.array(copilotTrainingOperationSchema),
-})
-export type CopilotTrainingDataBody = z.input<typeof copilotTrainingDataBodySchema>
 
 export const renameCopilotChatBodySchema = z.object({
   chatId: z.string().min(1),
@@ -707,36 +685,6 @@ export const removeCopilotChatResourceContract = defineRouteContract({
       success: z.literal(true),
       resources: z.array(copilotChatResourceSchema),
     }),
-  },
-})
-
-/**
- * Forwards the agent indexer's free-form JSON response.
- * Shape varies by upstream version.
- */
-export const copilotTrainingDataContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/training',
-  body: copilotTrainingDataBodySchema,
-  response: {
-    mode: 'json',
-    // untyped-response: forwards external agent indexer /operations/add response unchanged; shape varies by upstream version
-    schema: z.unknown(),
-  },
-})
-
-/**
- * Forwards the agent indexer's free-form JSON response.
- * Shape varies by upstream version.
- */
-export const copilotTrainingExampleContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/training/examples',
-  body: copilotTrainingExampleBodySchema,
-  response: {
-    mode: 'json',
-    // untyped-response: forwards external agent indexer /examples/add response unchanged; shape varies by upstream version
-    schema: z.unknown(),
   },
 })
 

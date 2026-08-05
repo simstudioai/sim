@@ -22,10 +22,6 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   },
 }))
 
-vi.mock('@/lib/messaging/email/validation', () => ({
-  quickValidateEmail: (value: string) => ({ isValid: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value) }),
-}))
-
 vi.mock('@/lib/public-shares/urls', () => ({
   buildShareUrl: (resourceType: string, token: string) =>
     `https://sim.ai/${resourceType === 'interface' ? 'i' : 'f'}/${token}`,
@@ -203,34 +199,28 @@ describe('useShareModalState', () => {
       hook.run((state) => state.setMode(mode))
       expect(hook.current.emailsMissing).toBe(true)
       expect(hook.current.canSave).toBe(false)
-      hook.run((state) => state.addEmail('a@b.com'))
+      hook.run((state) => state.setEmails(['a@b.com']))
       expect(hook.current.emailsMissing).toBe(false)
       expect(hook.current.canSave).toBe(true)
     })
 
-    it('rejects malformed and duplicate allow-list entries', () => {
-      const hook = render()
-      hook.run((state) => state.setMode('email'))
-      expect(hook.run((state) => state.addEmail('not-an-email'))).toBe(false)
-      expect(hook.run((state) => state.addEmail('a@b.com'))).toBe(true)
-      expect(hook.run((state) => state.addEmail('A@B.com'))).toBe(false)
-      expect(hook.current.emails).toEqual(['a@b.com'])
-    })
-
-    it('accepts an @domain pattern', () => {
-      const hook = render()
-      hook.run((state) => state.setMode('email'))
-      hook.run((state) => state.addEmail('@acme.com'))
-      expect(hook.current.emails).toEqual(['@acme.com'])
-    })
-
-    it('removes an allow-list entry by index', () => {
+    it('reads the saved allow-list until the draft is touched', () => {
       const hook = render({
         saved: buildShare({ authType: 'email', allowedEmails: ['a@b.com', 'c@d.com'] }),
       })
-      hook.run((state) => state.removeEmail('a@b.com', 0))
+      expect(hook.current.emails).toEqual(['a@b.com', 'c@d.com'])
+      expect(hook.current.isDirty).toBe(false)
+      hook.run((state) => state.setEmails(['c@d.com']))
       expect(hook.current.emails).toEqual(['c@d.com'])
       expect(hook.current.isDirty).toBe(true)
+    })
+
+    it('is not dirty when the draft allow-list matches the saved one', () => {
+      const hook = render({
+        saved: buildShare({ authType: 'email', allowedEmails: ['a@b.com'] }),
+      })
+      hook.run((state) => state.setEmails(['a@b.com']))
+      expect(hook.current.isDirty).toBe(false)
     })
   })
 
@@ -301,7 +291,7 @@ describe('useShareModalState', () => {
     it('sends the allow-list for email and sso', () => {
       const hook = render({ saved: buildShare({ authType: 'public' }) })
       hook.run((state) => state.setMode('email'))
-      hook.run((state) => state.addEmail('a@b.com'))
+      hook.run((state) => state.setEmails(['a@b.com']))
       expect(hook.current.buildSavePayload()).toEqual({
         isActive: true,
         authType: 'email',
@@ -331,7 +321,7 @@ describe('useShareModalState', () => {
   it('reset returns every draft to the saved state', () => {
     const hook = render({ saved: buildShare({ authType: 'public' }) })
     hook.run((state) => state.setMode('email'))
-    hook.run((state) => state.addEmail('a@b.com'))
+    hook.run((state) => state.setEmails(['a@b.com']))
     hook.run((state) => state.setPassword('hunter22'))
     expect(hook.current.isDirty).toBe(true)
     hook.run((state) => state.reset())

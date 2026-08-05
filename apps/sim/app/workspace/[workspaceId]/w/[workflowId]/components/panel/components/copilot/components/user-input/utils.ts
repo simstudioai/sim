@@ -55,6 +55,27 @@ export function extractContextTokens(contexts: ChatContext[]): string[] {
 }
 
 /**
+ * Returns only contexts whose exact inline token still exists in the current
+ * message. This is shared by the reactive cleanup effect and the synchronous
+ * submit path so deleting a chip immediately excludes its structured context.
+ */
+export function filterContextsPresentInMessage(
+  contexts: ChatContext[],
+  message: string
+): ChatContext[] {
+  if (contexts.length === 0) return contexts
+  if (!message) return []
+
+  const tokens = contexts.map((context) => extractContextTokens([context])[0] ?? '')
+  const presentTokens = new Set(
+    computeMentionHighlightRanges(message, tokens.filter(Boolean)).map((range) => range.token)
+  )
+  const filtered = contexts.filter((_context, index) => presentTokens.has(tokens[index]))
+
+  return filtered.length === contexts.length ? contexts : filtered
+}
+
+/**
  * Inverse of {@link extractContextTokens}'s prefixing: strips a leading mention
  * trigger (`@`, `/`, or the skill EM-SPACE sentinel) from a token, yielding the
  * bare context label. Kept beside `extractContextTokens` so the set of trigger
@@ -86,7 +107,8 @@ export function computeMentionHighlightRanges(
 ): MentionHighlightRange[] {
   if (!tokens.length || !text) return []
 
-  const pattern = new RegExp(`(${tokens.map(escapeRegex).join('|')})`, 'g')
+  const longestFirstTokens = [...new Set(tokens)].sort((a, b) => b.length - a.length)
+  const pattern = new RegExp(`(${longestFirstTokens.map(escapeRegex).join('|')})`, 'g')
   const ranges: MentionHighlightRange[] = []
   let match: RegExpExecArray | null
 

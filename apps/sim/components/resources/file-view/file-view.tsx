@@ -2,8 +2,7 @@
 
 import { memo, useMemo, useState } from 'react'
 import { ChipLink } from '@sim/emcn'
-import { Download, FileX } from '@sim/emcn/icons'
-import { Music } from 'lucide-react'
+import { Download, FileX, Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import { CsvTablePreview } from '@/components/resources/file-view/components/csv-table-preview/csv-table-preview'
 import { DocxPreview } from '@/components/resources/file-view/components/docx-preview/docx-preview'
@@ -479,7 +478,7 @@ const MediaPreview = memo(function MediaPreview({
     return (
       <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
         <div className='flex flex-col items-center gap-2 text-center'>
-          <Music className='size-[32px] text-[var(--text-icon)]' strokeWidth={1.5} />
+          <Music className='size-[32px] text-[var(--text-icon)]' />
           <p className='font-medium text-[var(--text-primary)] text-sm'>{file.name}</p>
         </div>
         {/* biome-ignore lint/a11y/useMediaCaption: audio from workspace files */}

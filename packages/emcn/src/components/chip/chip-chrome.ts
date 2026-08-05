@@ -67,12 +67,10 @@ export const cellIconNodeClass =
   'inline-flex flex-shrink-0 items-center text-[var(--text-icon)] [&>svg]:size-[14px] [&>img]:size-[14px] [&>span]:size-[14px]'
 
 /**
- * The trailing end-adornment button of a chip FIELD — the quiet 18px square
- * carrying a copy / reveal / generate action in {@link ChipInput}'s
- * `endAdornment` slot. Single source for ChipCopyInput and ChipPasswordInput,
- * which previously each re-derived it.
+ * The glyph inside a chip FIELD's trailing end-adornment — the quiet
+ * `Button size='icon'` carrying a copy / reveal / generate action in
+ * {@link ChipInput}'s `endAdornment` slot. Single source for ChipCopyInput and
+ * ChipPasswordInput, which previously each re-derived it. The button itself
+ * carries no class: its chrome is the canonical `size='icon'` Button variant.
  */
-export const chipAdornmentButtonClass = 'size-[18px] rounded-sm p-0'
-
-/** The glyph inside a {@link chipAdornmentButtonClass} slot. */
 export const chipAdornmentIconClass = 'size-[13px]'

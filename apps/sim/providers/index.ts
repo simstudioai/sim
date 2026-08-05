@@ -15,6 +15,7 @@ import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
+import { isKnownModelId } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
 import {
   type ProviderRuntimeContext,
@@ -39,23 +40,50 @@ const logger = createLogger('Providers')
  */
 export const MAX_TOOL_ITERATIONS = 20
 
+/**
+ * Normalizes a model-tuning level that may have arrived from a variable or block reference
+ * rather than a picker. Every level a model declares is lower-case, so trimming and
+ * lower-casing lets a reference resolve to `"High"` or `" high "` and still apply. A level
+ * that resolves to nothing becomes `undefined` so the field reads as untouched instead of
+ * sending an empty string the provider rejects.
+ */
+function normalizeModelLevel(value: string | undefined): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  return normalized || undefined
+}
+
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   const sanitizedRequest = { ...request }
   const model = sanitizedRequest.model
+
+  sanitizedRequest.reasoningEffort = normalizeModelLevel(sanitizedRequest.reasoningEffort)
+  sanitizedRequest.verbosity = normalizeModelLevel(sanitizedRequest.verbosity)
+  sanitizedRequest.thinkingLevel = normalizeModelLevel(sanitizedRequest.thinkingLevel)
 
   if (model && !supportsTemperature(model)) {
     sanitizedRequest.temperature = undefined
   }
 
-  if (model && !supportsReasoningEffort(model)) {
+  /**
+   * A model absent from the catalogue is unknown, not known-incapable. The model field is an
+   * editable combobox, so a model newer than `models.ts` reaches this point routed by pattern
+   * and executing normally — discarding its levels on the strength of a list that has not
+   * caught up loses a setting the provider would have honoured. Those levels are forwarded and
+   * the provider decides. Models the catalogue does know, and every dynamic-provider id, keep
+   * the protective drop.
+   */
+  const isCatalogued = Boolean(model) && isKnownModelId(model)
+
+  if (model && isCatalogued && !supportsReasoningEffort(model)) {
     sanitizedRequest.reasoningEffort = undefined
   }
 
-  if (model && !supportsVerbosity(model)) {
+  if (model && isCatalogued && !supportsVerbosity(model)) {
     sanitizedRequest.verbosity = undefined
   }
 
-  if (model && !supportsThinking(model)) {
+  if (model && isCatalogued && !supportsThinking(model)) {
     sanitizedRequest.thinkingLevel = undefined
   }
 

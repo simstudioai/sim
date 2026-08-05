@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { client } from '@/lib/auth/auth-client'
-import { env, isFalsy } from '@/lib/core/config/env'
+import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { AuthSubmitButton } from '@/app/(auth)/components'
@@ -36,19 +36,27 @@ export default function SSOForm() {
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [callbackUrl, setCallbackUrl] = useState('/workspace')
+
+  const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
+
+  /**
+   * Derived during render rather than seeded into state from an effect: the
+   * first painted frame otherwise carries the `/workspace` default, so the
+   * "Sign in with email" and "Sign up" links briefly point at the wrong
+   * destination on any deep link carrying `?callbackUrl=`.
+   */
+  const callbackParam = searchParams?.get('callbackUrl') ?? null
+  const isCallbackValid = callbackParam !== null && validateCallbackUrl(callbackParam)
+  const callbackUrl = callbackParam !== null && isCallbackValid ? callbackParam : '/workspace'
+
+  useEffect(() => {
+    if (callbackParam !== null && !isCallbackValid) {
+      logger.warn('Invalid callback URL detected and blocked:', { url: callbackParam })
+    }
+  }, [callbackParam, isCallbackValid])
 
   useEffect(() => {
     if (searchParams) {
-      const callback = searchParams.get('callbackUrl')
-      if (callback) {
-        if (validateCallbackUrl(callback)) {
-          setCallbackUrl(callback)
-        } else {
-          logger.warn('Invalid callback URL detected and blocked:', { url: callback })
-        }
-      }
-
       const emailParam = searchParams.get('email')
       if (emailParam) {
         setEmail(emailParam)
@@ -170,7 +178,7 @@ export default function SSOForm() {
               )}
             />
             {showEmailValidationError && emailErrors.length > 0 && (
-              <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
+              <div className='mt-1 space-y-1 text-[var(--text-error)] text-caption'>
                 {emailErrors.map((error) => (
                   <p key={error}>{error}</p>
                 ))}
@@ -184,8 +192,7 @@ export default function SSOForm() {
         </AuthSubmitButton>
       </form>
 
-      {/* Only show divider and email signin button if email/password is enabled */}
-      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+      {emailEnabled && (
         <>
           <div className='relative my-6 font-light'>
             <div className='absolute inset-0 flex items-center'>
@@ -208,8 +215,7 @@ export default function SSOForm() {
         </>
       )}
 
-      {/* Only show signup link if email/password signup is enabled */}
-      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+      {emailEnabled && (
         <div className='pt-6 text-center font-light text-base'>
           <span className='font-normal'>Don't have an account? </span>
           <Link

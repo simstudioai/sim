@@ -186,7 +186,7 @@ export function ChatModule({ module, mode, canRun = true, onConfigChange }: Chat
        */}
       <div className={cn('shrink-0 border-[var(--border)] border-t py-2', MODULE_GUTTER_X)}>
         <ChatInput
-          onSubmit={(value, _isVoiceInput, files) => send(value, files)}
+          onSubmit={(value, files) => send(value, files)}
           isStreaming={isRunning}
           onStopStreaming={stop}
           disabled={isSendDisabled}

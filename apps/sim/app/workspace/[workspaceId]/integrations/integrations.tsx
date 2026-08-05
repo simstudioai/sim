@@ -2,7 +2,6 @@
 
 import { type ComponentType, useCallback, useMemo, useRef } from 'react'
 import {
-  ArrowRight,
   ChevronDown,
   ChipInput,
   chipVariants,
@@ -12,7 +11,6 @@ import {
   DropdownMenuTrigger,
   Search,
 } from '@sim/emcn'
-import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
@@ -22,8 +20,8 @@ import {
   type Integration,
   resolveCredentialDisplay,
 } from '@/lib/integrations'
+import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
-import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
@@ -34,17 +32,14 @@ import {
   integrationsParsers,
   integrationsUrlKeys,
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 /** Slugs surfaced in the pinned Featured section, in display order. */
 const FEATURED_SLUGS = ['slack', 'gmail', 'jira', 'github', 'google-sheets', 'hubspot'] as const
-
-const LINK_ROW_CLASSES =
-  'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-const LINK_ROW_TITLE_CLASSES = 'truncate text-[14px] text-[var(--text-body)]'
-const LINK_ROW_SUBTITLE_CLASSES = 'truncate text-[12px] text-[var(--text-muted)]'
-const LINK_ROW_ARROW_CLASSES = 'size-4 flex-shrink-0 text-[var(--text-icon)]'
 
 const FEATURED_INTEGRATIONS: readonly Integration[] = (() => {
   const bySlug = new Map(INTEGRATIONS.map((i) => [i.slug, i]))
@@ -74,6 +69,7 @@ interface IntegrationItemProps {
   name: string
   description?: string | null
   icon: ComponentType<{ className?: string }>
+  unavailable?: boolean
 }
 
 function IntegrationItem({
@@ -83,16 +79,23 @@ function IntegrationItem({
   name,
   description,
   icon: Icon,
+  unavailable = false,
 }: IntegrationItemProps) {
   return (
-    <Link href={`/workspace/${workspaceId}/integrations/${slug}`} className={LINK_ROW_CLASSES}>
-      <IntegrationTile blockType={blockType} icon={Icon} />
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <span className={LINK_ROW_TITLE_CLASSES}>{name}</span>
-        {description && <span className={LINK_ROW_SUBTITLE_CLASSES}>{description}</span>}
-      </div>
-      <ArrowRight className={LINK_ROW_ARROW_CLASSES} />
-    </Link>
+    <SettingsResourceRow
+      iconVariant='custom'
+      icon={<IntegrationTile blockType={blockType} icon={Icon} />}
+      title={name}
+      description={
+        unavailable
+          ? 'Unavailable in this deployment. Contact your administrator.'
+          : description || undefined
+      }
+      href={`/workspace/${workspaceId}/integrations/${slug}`}
+      clickLabel={`Open ${name}`}
+      navigable={!unavailable}
+      disabled={unavailable}
+    />
   )
 }
 
@@ -122,14 +125,15 @@ interface ConnectedItemProps {
 
 function ConnectedItem({ href, blockType, name, description, icon: Icon }: ConnectedItemProps) {
   return (
-    <Link href={href} className={LINK_ROW_CLASSES}>
-      <IntegrationTile blockType={blockType} icon={Icon} />
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <span className={LINK_ROW_TITLE_CLASSES}>{name}</span>
-        <span className={LINK_ROW_SUBTITLE_CLASSES}>{description}</span>
-      </div>
-      <ArrowRight className={LINK_ROW_ARROW_CLASSES} />
-    </Link>
+    <SettingsResourceRow
+      iconVariant='custom'
+      icon={<IntegrationTile blockType={blockType} icon={Icon} />}
+      title={name}
+      description={description}
+      href={href}
+      clickLabel={`Open ${name}`}
+      navigable
+    />
   )
 }
 
@@ -137,6 +141,7 @@ export function Integrations() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
+  const { integrationAvailability } = usePermissionConfig()
 
   const [{ category: selectedCategory, search: urlSearchTerm }, setIntegrationFilters] =
     useQueryStates(integrationsParsers, integrationsUrlKeys)
@@ -305,13 +310,13 @@ export function Integrations() {
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type='button' className={chipVariants({ variant: 'filled', flush: true })}>
+                <button type='button' className={chipVariants({ variant: 'filled' })}>
                   <span className='text-[var(--text-body)]'>
                     {selectedCategory === ALL_CATEGORY
                       ? selectedCategory
                       : formatIntegrationType(selectedCategory)}
                   </span>
-                  <ChevronDown className='h-[7px] w-[9px] text-[var(--text-icon)]' />
+                  <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end' className='min-w-[160px]'>
@@ -345,6 +350,9 @@ export function Integrations() {
                 {section.integrations.map((integration) => {
                   const Icon = blockTypeToIconMap[integration.type]
                   if (!Icon) return null
+                  const availability = integrationAvailability.get(integration.type.toLowerCase())
+                  const deploymentUnavailable =
+                    availability?.state === 'unavailable' || availability?.state === 'misconfigured'
                   return (
                     <IntegrationItem
                       key={integration.type}
@@ -354,6 +362,7 @@ export function Integrations() {
                       name={integration.name}
                       description={integration.description}
                       icon={Icon}
+                      unavailable={integration.authType === 'oauth' && deploymentUnavailable}
                     />
                   )
                 })}
@@ -361,11 +370,11 @@ export function Integrations() {
             ))}
 
             {showNoResults && (
-              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+              <SettingsEmptyState variant='inline'>
                 {urlSearchTerm.trim()
                   ? `No integrations found matching “${urlSearchTerm}”`
                   : 'No integrations in this category'}
-              </div>
+              </SettingsEmptyState>
             )}
           </div>
         </div>

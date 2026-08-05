@@ -15,15 +15,14 @@ import {
   Switch,
   Tooltip,
 } from '@sim/emcn'
+import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { Camera, Check, Info, Pencil } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -79,7 +78,6 @@ export function General() {
 
   const isLoading = isProfileLoading || isSettingsLoading
 
-  const isTrainingEnabled = isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
   const isAuthDisabled = session?.user?.id === ANONYMOUS_USER_ID
 
   const [name, setName] = useState(profile?.name || '')
@@ -229,12 +227,6 @@ export function General() {
   const handleShowActionBarChange = async (checked: boolean) => {
     if (checked !== settings?.showActionBar && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'showActionBar', value: checked })
-    }
-  }
-
-  const handleTrainingControlsChange = async (checked: boolean) => {
-    if (checked !== settings?.showTrainingControls && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'showTrainingControls', value: checked })
     }
   }
 
@@ -448,7 +440,7 @@ export function General() {
                       aria-label='About auto-connect on drop'
                       className='inline-flex cursor-default text-[var(--text-muted)]'
                     >
-                      <Info className='size-[14px]' />
+                      <CircleInfo className='size-[14px]' />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
@@ -478,7 +470,7 @@ export function General() {
                       aria-label='About canvas error notifications'
                       className='inline-flex cursor-default text-[var(--text-muted)]'
                     >
-                      <Info className='size-[14px]' />
+                      <CircleInfo className='size-[14px]' />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
@@ -528,17 +520,6 @@ export function General() {
                 onCheckedChange={handleShowActionBarChange}
               />
             </div>
-
-            {isTrainingEnabled && (
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='training-controls'>Training controls</Label>
-                <Switch
-                  id='training-controls'
-                  checked={settings?.showTrainingControls ?? false}
-                  onCheckedChange={handleTrainingControlsChange}
-                />
-              </div>
-            )}
           </div>
         </SettingsSection>
 

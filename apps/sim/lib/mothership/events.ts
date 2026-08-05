@@ -60,9 +60,38 @@ export function sendMothershipMessage(message: string, contexts?: ChatContext[])
  */
 export const MOTHERSHIP_ADD_CONTEXT_EVENT = 'mothership-add-context'
 
-export interface MothershipAddContextDetail {
-  /** The contexts to attach as chips, in insertion order. */
-  contexts: ChatContext[]
+/**
+ * Exactly one of the two fields is set, and each has its own consumer inside
+ * the chat input: a singular `context` (browser/terminal selection actions) is
+ * appended at the end of the draft with Electron-safe focus restoration, while
+ * a `contexts` batch (file/table highlight-to-chat) is inserted at the caret.
+ */
+export type MothershipAddContextDetail =
+  | {
+      /** Single context appended by the browser/terminal selection actions. */
+      context: ChatContext
+      contexts?: never
+    }
+  | {
+      context?: never
+      /** The contexts to attach as chips, in insertion order. */
+      contexts: ChatContext[]
+    }
+
+/**
+ * Inserts one structured context into the mounted Mothership composer.
+ *
+ * Producers dispatch through this helper so browser/terminal selections use
+ * the same context-token path as resources chosen from the input itself.
+ *
+ * @returns `true` when a mounted composer claimed the context.
+ */
+export function addMothershipContext(context: ChatContext): boolean {
+  const consumed = dispatchClaimable<MothershipAddContextDetail>(MOTHERSHIP_ADD_CONTEXT_EVENT, {
+    context,
+  })
+  logger.info('Dispatched mothership context event', { kind: context.kind, consumed })
+  return consumed
 }
 
 /**

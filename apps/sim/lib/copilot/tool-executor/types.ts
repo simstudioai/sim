@@ -1,5 +1,6 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { SecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ToolExecutionContext {
@@ -10,6 +11,8 @@ export interface ToolExecutionContext {
   messageId?: string
   executionId?: string
   runId?: string
+  /** Stable identity of the individual tool call being executed. */
+  toolCallId?: string
   billingAttribution?: BillingAttributionSnapshot
   copilotToolExecution?: boolean
   requestMode?: string
@@ -24,7 +27,9 @@ export interface ToolExecutionContext {
   abortSignal?: AbortSignal
   userTimezone?: string
   userPermission?: string
-  decryptedEnvVars?: Record<string, string>
+  secretMountPolicy?: SecretMountPolicy
+  /** Undefined uses the execution actor; null explicitly disables raw secret mounting. */
+  secretActorUserId?: string | null
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 

@@ -62,7 +62,6 @@ function deploymentTitle(args: ToolArgs, deploymentType: string): string {
 function resourceTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     knowledgebase: 'knowledge base',
-    scheduledtask: 'scheduled task',
     file_folder: 'file folder',
     log: 'logs',
   }
@@ -469,7 +468,6 @@ const TOOL_TITLES: Record<string, string> = {
   generate_audio: 'Generating audio',
   ffmpeg: 'Processing media',
   check_deployment_status: 'Checking deployment status',
-  complete_scheduled_task: 'Completing scheduled task',
   create_file: 'Creating file',
   create_file_folder: 'Creating folder',
   create_workspace_mcp_server: 'Creating MCP server',
@@ -487,7 +485,6 @@ const TOOL_TITLES: Record<string, string> = {
   get_deployed_workflow_state: 'Getting deployed workflow',
   get_deployment_log: 'Getting deployment logs',
   get_platform_actions: 'Getting platform actions',
-  get_scheduled_task_logs: 'Getting scheduled task logs',
   get_workflow_data: 'Getting workflow data',
   get_workflow_run_options: 'Getting run options',
   list_file_folders: 'Listing folders',
@@ -514,7 +511,6 @@ const TOOL_TITLES: Record<string, string> = {
   set_environment_variables: 'Setting environment variables',
   set_global_workflow_variables: 'Setting workflow variables',
   update_deployment_version: 'Updating deployment',
-  update_scheduled_task_history: 'Updating task history',
   update_workspace_mcp_server: 'Updating MCP server',
   // Browser agent tools without an argument-aware title.
   browser_go_back: 'Going back',
@@ -538,7 +534,6 @@ const TOOL_TITLES: Record<string, string> = {
   knowledge: 'Knowledge Agent',
   table: 'Table Agent',
   interface: 'Interface Agent',
-  scheduled_task: 'Scheduled Task Agent',
   agent: 'Tools Agent',
   research: 'Research Agent',
   scout: 'Scout Agent',
@@ -928,17 +923,6 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         edit: { verb: 'Updating', resource: 'skill' },
         delete: { verb: 'Deleting', resource: 'skill' },
         list: { verb: 'Viewing', resource: 'skills' },
-      })
-    }
-    case 'manage_scheduled_task': {
-      const target =
-        firstStringArg(args, 'title', 'taskName', 'name') || nestedStringArg(args, 'args', 'title')
-      return namedOperationTitle(args, target, 'Scheduled task action', {
-        create: { verb: 'Creating', resource: 'scheduled task' },
-        get: { verb: 'Reading', resource: 'scheduled task' },
-        update: { verb: 'Updating', resource: 'scheduled task' },
-        delete: { verb: 'Deleting', resource: 'scheduled task' },
-        list: { verb: 'Viewing', resource: 'scheduled tasks' },
       })
     }
     case 'manage_credential': {

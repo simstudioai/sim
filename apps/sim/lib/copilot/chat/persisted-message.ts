@@ -19,6 +19,7 @@ import type {
   LocalToolCallStatus,
   OrchestratorResult,
 } from '@/lib/copilot/request/types'
+import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome | 'interrupted'
 
@@ -90,6 +91,27 @@ interface PersistedMessageContext {
    */
   fileName?: string
   tableName?: string
+  tabId?: string
+  terminalId?: string
+  selection?: BrowserTextSelection | TerminalTextSelection
+}
+
+function copyTextSelection(
+  selection: BrowserTextSelection | TerminalTextSelection | undefined
+): BrowserTextSelection | TerminalTextSelection | undefined {
+  if (!selection) return undefined
+  if ('startLine' in selection) {
+    return {
+      text: selection.text,
+      startLine: selection.startLine,
+      endLine: selection.endLine,
+    }
+  }
+  return {
+    text: selection.text,
+    ...(selection.url ? { url: selection.url } : {}),
+    ...(selection.title ? { title: selection.title } : {}),
+  }
 }
 
 export interface PersistedMessage {
@@ -373,6 +395,9 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
       ...(c.serverId ? { serverId: c.serverId } : {}),
       ...(c.fileName ? { fileName: c.fileName } : {}),
       ...(c.tableName ? { tableName: c.tableName } : {}),
+      ...(c.tabId ? { tabId: c.tabId } : {}),
+      ...(c.terminalId ? { terminalId: c.terminalId } : {}),
+      ...(c.selection ? { selection: copyTextSelection(c.selection) } : {}),
     }))
   }
 
@@ -696,6 +721,9 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
       ...(c.serverId ? { serverId: c.serverId } : {}),
       ...(c.fileName ? { fileName: c.fileName } : {}),
       ...(c.tableName ? { tableName: c.tableName } : {}),
+      ...(c.tabId ? { tabId: c.tabId } : {}),
+      ...(c.terminalId ? { terminalId: c.terminalId } : {}),
+      ...(c.selection ? { selection: copyTextSelection(c.selection) } : {}),
     }))
   }
 

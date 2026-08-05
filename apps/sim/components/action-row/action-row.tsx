@@ -31,7 +31,7 @@ export function ActionRow({
       type='button'
       onClick={onClick}
       className={cn(
-        'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
+        'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
         divider && 'border-t'
       )}
     >

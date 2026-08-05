@@ -123,10 +123,10 @@ const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
       'mt-[var(--workspace-content-title-bar-inset)] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-2 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
-    sizer: 'relative mx-auto w-full max-w-[48rem]',
+    sizer: 'relative mx-auto w-full max-w-chat',
     ...CHAT_TURN_LAYOUT.wide,
     footer: 'flex-shrink-0 px-[24px] pb-[16px]',
-    footerInner: 'mx-auto max-w-[48rem]',
+    footerInner: 'mx-auto max-w-chat',
   },
   'copilot-view': {
     scrollContainer:

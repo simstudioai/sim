@@ -8,8 +8,8 @@ import {
   useState,
 } from 'react'
 import { cn, Textarea } from '@sim/emcn'
+import { ChevronsUpDown, Wand } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { ChevronsUpDown, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
@@ -390,7 +390,7 @@ export function LongInput({
                     aria-label='Generate content with AI'
                     className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
                   >
-                    <Wand2 className='size-4' />
+                    <Wand className='size-4' />
                   </Button>
                 </div>
               )}

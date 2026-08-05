@@ -22,7 +22,7 @@ import * as React from 'react'
 import { useCopyToClipboard } from '../../hooks/use-copy-to-clipboard'
 import { Check, Duplicate, Eye, EyeOff, Loader, RefreshCw } from '../../icons'
 import { Button } from '../button/button'
-import { chipAdornmentButtonClass, chipAdornmentIconClass } from '../chip/chip-chrome'
+import { chipAdornmentIconClass } from '../chip/chip-chrome'
 import { ChipInput, type ChipInputProps } from '../chip-input/chip-input'
 import { Tooltip } from '../tooltip/tooltip'
 
@@ -78,7 +78,7 @@ function AdornmentButton({
         <Button
           type='button'
           variant='quiet'
-          className={chipAdornmentButtonClass}
+          size='icon'
           onClick={onClick}
           disabled={disabled}
           aria-label={ariaLabel ?? label}

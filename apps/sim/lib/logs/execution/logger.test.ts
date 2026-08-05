@@ -380,6 +380,42 @@ describe('ExecutionLogger', () => {
       expect(compacted.traceSpans?.[0]?.children?.[0]).not.toHaveProperty('input')
     })
 
+    test('retains the trusted Copilot binding in metadata-only compaction', () => {
+      const loggerInstance = new ExecutionLogger() as unknown as {
+        compactExecutionDataForStorage(
+          executionData: WorkflowExecutionLog['executionData'],
+          executionId: string
+        ): WorkflowExecutionLog['executionData']
+      }
+      const correlation = {
+        executionId: 'execution-metadata-only',
+        requestId: 'request-1',
+        source: 'workflow' as const,
+        workflowId: 'workflow-1',
+        copilotToolCallId: 'tool-call-1',
+      }
+
+      const compacted = loggerInstance.compactExecutionDataForStorage(
+        {
+          environment: {
+            variables: { OVERSIZED: 'x'.repeat(3.5 * 1024 * 1024) },
+            workflowId: 'workflow-1',
+            executionId: 'execution-metadata-only',
+            userId: 'user-1',
+            workspaceId: 'workspace-1',
+          },
+          correlation,
+          hasTraceSpans: false,
+          traceSpanCount: 0,
+        },
+        'execution-metadata-only'
+      )
+
+      expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.correlation).toEqual(correlation)
+      expect(compacted).not.toHaveProperty('environment')
+    })
+
     test('retains tool-call structure when aggregate trace content exceeds the compaction cap', () => {
       const loggerInstance = new ExecutionLogger() as unknown as {
         compactExecutionDataForStorage(

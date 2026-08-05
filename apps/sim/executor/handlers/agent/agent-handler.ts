@@ -53,10 +53,15 @@ import { stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
-  INLINE_ATTACHMENT_THRESHOLD_BYTES,
+  formatAttachmentSizes,
+  getProviderFileStrategy,
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
+import {
+  canUseProviderLargeFilePath,
+  getInlineHydrationMaxBytes,
+} from '@/providers/file-attachments.server'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -946,6 +951,8 @@ export class AgentBlockHandler implements BlockHandler {
     const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
     const nextMessages = [...messages]
 
+    const inlineMaxBytes = getInlineHydrationMaxBytes(providerId)
+
     for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
       const message = messages[messageIndex]
       if (!message.files?.length) {
@@ -963,15 +970,37 @@ export class AgentBlockHandler implements BlockHandler {
         allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         logger,
-        maxBytes: INLINE_ATTACHMENT_THRESHOLD_BYTES,
+        maxBytes: inlineMaxBytes,
       })
 
       const missingFile = hydratedFiles.find(
-        (file) => !file.base64 && !shouldUseLargeFilePath(file, providerId)
+        (file) =>
+          !file.base64 &&
+          !(canUseProviderLargeFilePath(providerId) && shouldUseLargeFilePath(file, providerId))
       )
       if (missingFile) {
+        const { size: sizeMB, limit: inlineMB } = formatAttachmentSizes(
+          missingFile.size,
+          inlineMaxBytes
+        )
+        const oversized = Number.isFinite(missingFile.size) && missingFile.size > inlineMaxBytes
+        /**
+         * Ordered by how general the cause is. A provider with no upload path at all cannot be
+         * helped by changing the file, and a deployment with no object storage cannot reach any
+         * upload path whatever the file is — so both outrank the format-specific case. Leading
+         * with the generated-document arm blamed the document on providers that have no upload
+         * path for anything, and on hosts whose only real problem was unconfigured storage.
+         */
+        const reason =
+          getProviderFileStrategy(providerId) === 'inline'
+            ? `provider "${providerId}" has no large-file upload path`
+            : !canUseProviderLargeFilePath(providerId)
+              ? 'this deployment has no cloud file storage for the large-file upload path'
+              : `a generated document cannot use the large-file path for provider "${providerId}", because a signed URL points at the generation source rather than the rendered file`
         throw new Error(
-          `File "${missingFile.name}" could not be read for provider "${providerId}". The file may exceed the attachment size limit or may no longer be accessible.`
+          oversized
+            ? `File "${missingFile.name}" (${sizeMB}MB) exceeds the ${inlineMB}MB inline attachment limit, and ${reason}.`
+            : `File "${missingFile.name}" could not be read for provider "${providerId}". The file may no longer be accessible.`
         )
       }
 

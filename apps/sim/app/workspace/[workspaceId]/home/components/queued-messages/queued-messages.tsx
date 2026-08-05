@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { cn, Tooltip } from '@sim/emcn'
-import { ArrowUp, ChevronDown, ChevronRight, Paperclip, Pencil, Trash2, X } from 'lucide-react'
+import { ArrowUp, ChevronDown, ChevronRight, Paperclip, Pencil, Trash, X } from '@sim/emcn/icons'
 import { UserMessageContent } from '@/components/chat/user-message-content'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -182,7 +182,7 @@ export function QueuedMessages({
                             }}
                             className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                           >
-                            <Trash2 className='size-[13px]' />
+                            <Trash className='size-[13px]' />
                           </button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top' sideOffset={4}>

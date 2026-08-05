@@ -1,4 +1,5 @@
 import type { ChatContext } from '@/stores/panel'
+import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 /**
  * The types a chat *turn* is made of, shared by every surface that draws one —
@@ -40,6 +41,9 @@ export interface ChatMessageContext {
   rowIds?: string[]
   /** Selected column ids for a `table_selection` cell range. */
   columnIds?: string[]
+  tabId?: string
+  terminalId?: string
+  selection?: BrowserTextSelection | TerminalTextSelection
 }
 
 /** One file carried by a user turn, as the transcript stores it. */

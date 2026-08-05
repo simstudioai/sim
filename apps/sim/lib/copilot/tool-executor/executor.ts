@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
+import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { executeTool as executeAppTool } from '@/tools'
-import { isClientExecuted, isKnownTool, isSimExecuted } from './router'
+import { getToolEntry, isClientExecuted, isKnownTool, isSimExecuted } from './router'
 import type {
   ToolCallDescriptor,
   ToolExecutionContext,
@@ -44,6 +46,20 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  const requiredPermission = getToolEntry(toolId)?.requiredPermission
+  if (
+    requiredPermission &&
+    !permissionSatisfies(
+      (context.userPermission ?? null) as PermissionType | null,
+      requiredPermission
+    )
+  ) {
+    return {
+      success: false,
+      error: `Permission denied: ${toolId} requires ${requiredPermission} access. You have '${context.userPermission ?? 'none'}' permission.`,
+    }
+  }
+
   const normalizedParams = normalizeToolParams(toolId, params, context)
 
   // Client-routed tools (e.g. run_workflow) are normally executed in the browser and never
@@ -82,7 +98,7 @@ export async function executeTool(
     const message = toError(error).message
     logger.error('Tool execution failed', {
       toolId,
-      error: message,
+      error: projectToolErrorMessageForCopilot(message, context.resolvedSecretTraceRegistry),
       abortSignalAborted: context.abortSignal?.aborted ?? false,
     })
     return { success: false, error: message }

@@ -378,7 +378,6 @@ export function Interfaces() {
             searchPlaceholder='Search members...'
             align='start'
             fullWidth
-            flush
           />
         </div>
       </div>

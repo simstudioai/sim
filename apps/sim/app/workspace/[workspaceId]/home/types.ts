@@ -160,7 +160,6 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   superagent: 'Superagent',
   run: 'Run Agent',
   agent: 'Tools Agent',
-  scheduled_task: 'Scheduled Task Agent',
   // `job` retained as a backward-compat alias so historical transcripts still render a label.
   job: 'Job Agent',
   file: 'File Agent',

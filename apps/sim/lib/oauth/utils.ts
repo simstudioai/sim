@@ -11,6 +11,15 @@ import type {
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
 export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  // Zoho Desk scopes
+  'Desk.tickets.READ': 'View tickets, threads, comments, and attachments',
+  'Desk.tickets.UPDATE': 'Update tickets and add comments',
+  'Desk.contacts.READ': 'View contacts',
+  'Desk.agents.READ': 'View agents',
+  'Desk.basic.READ': 'View basic account and organization data',
+  'Desk.webhooks.CREATE': 'Create webhooks',
+  'Desk.webhooks.DELETE': 'Delete webhooks',
+  'aaaserver.profile.READ': 'View your Zoho profile',
   // Google scopes
   'https://www.googleapis.com/auth/gmail.send': 'Send emails',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage email labels',
@@ -464,12 +473,15 @@ export function getAllOAuthServices(): OAuthServiceMetadata[] {
   const services: OAuthServiceMetadata[] = []
 
   for (const [baseProviderId, provider] of Object.entries(OAUTH_PROVIDERS)) {
-    for (const service of Object.values(provider.services)) {
+    for (const [serviceId, service] of Object.entries(provider.services)) {
       services.push({
+        serviceId,
         providerId: service.providerId,
+        serviceAccountProviderId: service.serviceAccountProviderId,
         name: service.name,
         description: service.description,
         baseProvider: baseProviderId,
+        authType: service.authType ?? 'oauth',
       })
     }
   }

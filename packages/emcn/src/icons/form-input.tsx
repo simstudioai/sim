@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 /**
- * FormInput icon component - displays a labeled input field with a cursor
+ * FormInput icon component - input field with a text caret and placeholder dashes
  * @param props - SVG properties including className, fill, etc.
  */
 export function FormInput(props: SVGProps<SVGSVGElement>) {
@@ -19,9 +19,9 @@ export function FormInput(props: SVGProps<SVGSVGElement>) {
       aria-hidden='true'
       {...props}
     >
-      <path d='M0.75 2.25H9.25' />
-      <rect x='0.75' y='6.25' width='19' height='8' rx='1' />
-      <path d='M4.75 8.75V11.75' />
+      <rect x='1.25' y='3.75' width='18' height='12' rx='2' />
+      <path d='M4.75 6.75V12.75' />
+      <path d='M8.25 9.75H11M13 9.75H15.75' />
     </svg>
   )
 }

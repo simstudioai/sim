@@ -19,7 +19,6 @@ export {
 export { ChipChevronDown } from './chip/chip-chevron'
 export {
   cellIconNodeClass,
-  chipAdornmentButtonClass,
   chipAdornmentIconClass,
   chipBorderShadowRing,
   chipContentGap,
@@ -43,6 +42,10 @@ export {
   type ChipDropdownOption,
   type ChipDropdownProps,
 } from './chip-dropdown/chip-dropdown'
+export {
+  ChipEmailsInput,
+  type ChipEmailsInputProps,
+} from './chip-emails-input/chip-emails-input'
 export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
 export {
   type ChipConfirmAction,
@@ -151,6 +154,9 @@ export {
   ModalTabsTrigger,
   ModalTitle,
   ModalTrigger,
+  NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
+  type NativeSurfaceOcclusionPrepareDetail,
+  useNativeSurfaceOcclusionReady,
 } from './modal/modal'
 export {
   Popover,

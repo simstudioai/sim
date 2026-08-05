@@ -1,22 +1,13 @@
-import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { deployWorkflowContract } from '@/lib/api/contracts/deployments'
 import {
-  type CreateScheduleBody,
-  createScheduleContract,
-  deleteScheduleContract,
-  disableScheduleContract,
-  excludeOccurrenceContract,
   getScheduleByIdContract,
   getScheduleContract,
   listWorkspaceSchedulesContract,
   reactivateScheduleContract,
-  type UpdateScheduleBody,
-  updateScheduleContract,
   type WorkflowScheduleRow,
   type WorkspaceScheduleRow,
 } from '@/lib/api/contracts/schedules'
@@ -92,18 +83,15 @@ export function useWorkspaceSchedules(workspaceId?: string, options?: { enabled?
     staleTime: SCHEDULE_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
     // Pinned off (not inheriting the QueryClient default, which is on in the
-    // desktop app): a background refetch regenerates occurrence ids, which
-    // would close an open scheduled-task modal and drop its draft. See the
-    // taskById note in scheduled-tasks/hooks/use-scheduled-tasks.ts.
+    // desktop app): a background refetch regenerates occurrence ids, so any
+    // consumer holding one across a refetch would lose it mid-edit.
     refetchOnWindowFocus: false,
   })
 }
 
 /**
- * Fetch a single schedule (job) by id. Used by the mothership resource viewer so
- * opening a scheduled-task artifact does a lightweight by-id read instead of the
- * whole-workspace `useWorkspaceSchedules` fetch (which contended with the chat
- * stream connection and stalled start/resume).
+ * Fetch a single workflow schedule by id — a lightweight by-id read instead of
+ * the whole-workspace `useWorkspaceSchedules` fetch.
  */
 export function useScheduleById(scheduleId?: string) {
   return useQuery({
@@ -226,223 +214,6 @@ export function useReactivateSchedule() {
           : Promise.resolve(),
       ])
     },
-  })
-}
-
-/**
- * Mutation to disable an active schedule or job
- */
-export function useDisableSchedule() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      scheduleId,
-      workspaceId,
-    }: {
-      scheduleId: string
-      workspaceId: string
-    }) => {
-      await requestJson(disableScheduleContract, {
-        params: { id: scheduleId },
-        body: { action: 'disable' },
-      })
-
-      return { workspaceId }
-    },
-    onSuccess: () => {
-      toast.success('Task paused')
-    },
-    onError: (error) => {
-      logger.error('Failed to disable schedule', { error })
-      toast.error("Couldn't pause task", { description: getErrorMessage(error) })
-    },
-    onSettled: async (data) => {
-      if (!data) return
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(data.workspaceId) }),
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.details() }),
-      ])
-    },
-  })
-}
-
-/**
- * Mutation to resume (reactivate) a paused standalone job schedule. Keyed by
- * `workspaceId` so it invalidates the workspace list; the workflow-block variant
- * {@link useReactivateSchedule} keys by `workflowId`/`blockId` instead. Resuming
- * recomputes `nextRunAt` from the schedule's cron, so it applies to recurring
- * tasks only — one-time tasks carry no cadence to resume.
- */
-export function useResumeSchedule() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      scheduleId,
-      workspaceId,
-    }: {
-      scheduleId: string
-      workspaceId: string
-    }) => {
-      await requestJson(reactivateScheduleContract, {
-        params: { id: scheduleId },
-        body: { action: 'reactivate' },
-      })
-
-      return { workspaceId }
-    },
-    onSuccess: () => {
-      toast.success('Task resumed')
-    },
-    onError: (error) => {
-      logger.error('Failed to resume schedule', { error })
-      toast.error("Couldn't resume task", { description: getErrorMessage(error) })
-    },
-    onSettled: async (data) => {
-      if (!data) return
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(data.workspaceId) }),
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.details() }),
-      ])
-    },
-  })
-}
-
-/**
- * Mutation to delete a schedule or job
- */
-export function useDeleteSchedule() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      scheduleId,
-      workspaceId,
-    }: {
-      scheduleId: string
-      workspaceId: string
-    }) => {
-      await requestJson(deleteScheduleContract, {
-        params: { id: scheduleId },
-      })
-
-      return { workspaceId }
-    },
-    onSuccess: () => {
-      toast.success('Task deleted')
-    },
-    onError: (error) => {
-      logger.error('Failed to delete schedule', { error })
-      toast.error("Couldn't delete task", { description: getErrorMessage(error) })
-    },
-    onSettled: async (data) => {
-      if (!data) return
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(data.workspaceId) }),
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.details() }),
-      ])
-    },
-  })
-}
-
-/**
- * Mutation to delete a single occurrence of a recurring task (gcal "this
- * event"). The whole series is deleted via {@link useDeleteSchedule} instead.
- */
-export function useExcludeOccurrence() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      scheduleId,
-      occurrence,
-      workspaceId,
-    }: {
-      scheduleId: string
-      occurrence: string
-      workspaceId: string
-    }) => {
-      await requestJson(excludeOccurrenceContract, {
-        params: { id: scheduleId },
-        body: { action: 'exclude_occurrence', occurrence },
-      })
-
-      return { workspaceId }
-    },
-    onSuccess: () => {
-      toast.success('Occurrence removed')
-    },
-    onError: (error) => {
-      logger.error('Failed to delete occurrence', { error })
-      toast.error("Couldn't remove occurrence", { description: getErrorMessage(error) })
-    },
-    onSettled: async (data) => {
-      if (!data) return
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(data.workspaceId) }),
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.details() }),
-      ])
-    },
-  })
-}
-
-/**
- * Mutation to update fields on a standalone job schedule
- */
-export function useUpdateSchedule() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      scheduleId,
-      workspaceId,
-      ...updates
-    }: {
-      scheduleId: string
-      workspaceId: string
-    } & Omit<UpdateScheduleBody, 'action'>) => {
-      await requestJson(updateScheduleContract, {
-        params: { id: scheduleId },
-        body: { action: 'update', ...updates },
-      })
-
-      return { workspaceId }
-    },
-    onSuccess: () => {
-      toast.success('Task updated')
-    },
-    onError: (error) => {
-      logger.error('Failed to update schedule', { error })
-      toast.error("Couldn't update task", { description: getErrorMessage(error) })
-    },
-    onSettled: async (data) => {
-      if (!data) return
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(data.workspaceId) }),
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.details() }),
-      ])
-    },
-  })
-}
-
-/**
- * Mutation to create a standalone scheduled job
- */
-export function useCreateSchedule() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (body: CreateScheduleBody) => requestJson(createScheduleContract, { body }),
-    onSuccess: () => {
-      toast.success('Task scheduled')
-    },
-    onError: (error) => {
-      logger.error('Failed to create schedule', { error })
-      toast.error("Couldn't schedule task", { description: getErrorMessage(error) })
-    },
-    onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({ queryKey: scheduleKeys.list(variables.workspaceId) }),
   })
 }
 

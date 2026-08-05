@@ -4,16 +4,17 @@ import {
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
-import { type BrowserTabState, MAX_BROWSER_TABS } from '@sim/browser-protocol'
+import type { BrowserTabState } from '@sim/browser-protocol'
 import { TabStrip, type TabStripItem } from '@sim/emcn'
 import { Link, Loader } from '@sim/emcn/icons'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 
 interface BrowserTabStripProps {
   tabs: BrowserTabState[]
@@ -23,9 +24,10 @@ interface BrowserTabStripProps {
   onCloseTab: (tabId: string) => void
   onDuplicateTab: (tabId: string) => void
   onSetTabPinned: (tabId: string, pinned: boolean) => void
+  onOpenTabMenu: (tabId: string) => void
+  onCloseTabMenu: () => void
   onReorderTab: (tabId: string, targetIndex: number) => void
-  pinningSupported: boolean
-  reorderingSupported: boolean
+  contextMenuOpen: boolean
 }
 
 function tabTitle(tab: BrowserTabState): string {
@@ -56,7 +58,7 @@ function BrowserTabIcon({ tab }: { tab: BrowserTabState }) {
       key={hostname}
       src={faviconUrl(hostname, 32)}
       alt=''
-      className='size-[12px] shrink-0 rounded-[3px]'
+      className='size-[12px] shrink-0 scale-[1.333] rounded-[3px]'
       onError={(event) => {
         event.currentTarget.style.display = 'none'
       }}
@@ -66,8 +68,10 @@ function BrowserTabIcon({ tab }: { tab: BrowserTabState }) {
 
 /**
  * The browser panel's tab strip: the shared {@link TabStrip} plus the two
- * things only the browser has — favicons, and a right-click menu carrying
- * pin/unpin alongside the duplicate and close every tab strip offers. The
+ * things only the browser has — favicons, and a Sim context menu carrying
+ * pin/unpin alongside duplicate and close. The menu is opened only after the
+ * panel swaps its native browser surface for a captured frame, so it can render
+ * above the page without falling back to Electron's native menu styling. The
  * active Electron view remains the only native view attached over the panel;
  * selecting a tab switches which live view is attached.
  */
@@ -79,18 +83,14 @@ export function BrowserTabStrip({
   onCloseTab,
   onDuplicateTab,
   onSetTabPinned,
+  onOpenTabMenu,
+  onCloseTabMenu,
   onReorderTab,
-  pinningSupported,
-  reorderingSupported,
+  contextMenuOpen,
 }: BrowserTabStripProps) {
   const [contextTabId, setContextTabId] = useState<string | null>(null)
-  const {
-    isOpen: isContextMenuOpen,
-    position: contextMenuPosition,
-    menuRef: contextMenuRef,
-    handleContextMenu,
-    closeMenu: closeContextMenu,
-  } = useContextMenu()
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
+  const contextMenuRef = useRef<HTMLDivElement>(null)
   const contextTab = tabs.find((tab) => tab.tabId === contextTabId)
 
   const items = useMemo<TabStripItem[]>(
@@ -123,12 +123,27 @@ export function BrowserTabStrip({
 
   const openTabContextMenu = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>, tabId: string) => {
+      event.preventDefault()
+      event.stopPropagation()
       window.getSelection()?.removeAllRanges()
       setContextTabId(tabId)
-      handleContextMenu(event)
+      setContextMenuPosition({ x: event.clientX, y: event.clientY })
+      onOpenTabMenu(tabId)
     },
-    [handleContextMenu]
+    [onOpenTabMenu]
   )
+
+  const closeTabContextMenu = useCallback(() => {
+    setContextTabId(null)
+    onCloseTabMenu()
+  }, [onCloseTabMenu])
+
+  // An agent action can remove a background tab while its menu is open. The
+  // Radix menu then has no item to render, so explicitly release the browser
+  // surface instead of leaving its captured frame in place indefinitely.
+  useEffect(() => {
+    if (contextMenuOpen && contextTabId && !contextTab) closeTabContextMenu()
+  }, [closeTabContextMenu, contextMenuOpen, contextTab, contextTabId])
 
   return (
     <TabStrip
@@ -138,30 +153,26 @@ export function BrowserTabStrip({
       onNew={onNewTab}
       onTabContextMenu={openTabContextMenu}
       onTabDragStart={startTabDrag}
-      maxTabs={MAX_BROWSER_TABS}
-      {...(reorderingSupported ? { onReorder: onReorderTab } : {})}
+      onReorder={onReorderTab}
     >
       <ContextMenu
-        isOpen={isContextMenuOpen && Boolean(contextTab)}
+        isOpen={contextMenuOpen && Boolean(contextTab)}
         position={contextMenuPosition}
         menuRef={contextMenuRef}
-        onClose={closeContextMenu}
+        onClose={closeTabContextMenu}
         onTogglePin={
-          contextTab && pinningSupported
-            ? () => onSetTabPinned(contextTab.tabId, !contextTab.pinned)
-            : undefined
+          contextTab ? () => onSetTabPinned(contextTab.tabId, !contextTab.pinned) : undefined
         }
         onDuplicate={contextTab ? () => onDuplicateTab(contextTab.tabId) : undefined}
-        // A pinned tab has no close affordance in the strip either.
+        // Pinned tabs are durable and deliberately have no close action.
         {...(contextTab && !contextTab.pinned
           ? { onCloseTab: () => onCloseTab(contextTab.tabId), showCloseTab: true }
           : {})}
         onDelete={() => {}}
-        showPin={Boolean(contextTab) && pinningSupported}
+        showPin={Boolean(contextTab)}
         isPinned={Boolean(contextTab?.pinned)}
         showRename={false}
         showDuplicate={Boolean(contextTab)}
-        disableDuplicate={tabs.length >= MAX_BROWSER_TABS}
         showDelete={false}
       />
     </TabStrip>

@@ -14,11 +14,15 @@ export interface TaskItem {
   href: string
 }
 
-export interface WorkflowItem {
-  id: string
-  name: string
-  href: string
+/**
+ * A {@link TaskItem} that lives in a folder tree, so the row can show which
+ * folder it came from — a name is only unique within its folder.
+ */
+export interface FolderedItem extends TaskItem {
   folderPath?: string[]
+}
+
+export interface WorkflowItem extends FolderedItem {
   isCurrent?: boolean
 }
 
@@ -39,12 +43,7 @@ export interface PageItem {
   hidden?: boolean
 }
 
-export interface FileItem {
-  id: string
-  name: string
-  href: string
-  folderPath?: string[]
-}
+export type FileItem = FolderedItem
 
 /** Where an {@link ActionItem} (a verb) is available. */
 export type ActionContext = 'global' | 'workflow' | 'integrations'
@@ -73,9 +72,9 @@ export interface SearchModalProps {
   workspaces?: WorkspaceItem[]
   chats?: TaskItem[]
   interfaces?: TaskItem[]
-  tables?: TaskItem[]
+  tables?: FolderedItem[]
   files?: FileItem[]
-  knowledgeBases?: TaskItem[]
+  knowledgeBases?: FolderedItem[]
   integrations?: IntegrationSearchItem[]
   connectedAccounts?: IntegrationSearchItem[]
   isOnWorkflowPage?: boolean

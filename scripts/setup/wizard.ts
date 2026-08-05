@@ -9,6 +9,7 @@ import { runK8sMode } from './modes/k8s.ts'
 import { ensurePortsFree } from './ports.ts'
 import * as p from './prompter.ts'
 import { glyph, theme } from './theme.ts'
+import { APP_SIGNUP_URL } from './urls.ts'
 
 export type WizardMode = 'compose' | 'dev' | 'k8s'
 
@@ -159,10 +160,9 @@ export async function runWizard(flags: WizardFlags): Promise<void> {
 
   if (mode !== 'k8s' && !startDevNow) await finalVerify()
 
-  const url = 'http://localhost:3000'
   p.note(
     [
-      mode === 'k8s' ? `port-forward, then open ${url}` : `open ${url}`,
+      mode === 'k8s' ? `port-forward, then open ${APP_SIGNUP_URL}` : `open ${APP_SIGNUP_URL}`,
       'manage it:  bun run sim start · stop · status · logs',
       'check your setup:  bun run sim doctor',
       mode === 'dev' && !startDevNow ? `start Sim:  bun run ${devScript}` : null,
@@ -175,7 +175,7 @@ export async function runWizard(flags: WizardFlags): Promise<void> {
   p.outro(theme.accent('Sim is ready.'))
 
   if (mode === 'compose' && process.platform === 'darwin') {
-    spawnSync('open', [url], { stdio: 'ignore' })
+    spawnSync('open', [APP_SIGNUP_URL], { stdio: 'ignore' })
   }
   if (startDevNow) {
     // dev:full binds 3000 (app) and 3002 (realtime) — resolve any conflict

@@ -48,6 +48,7 @@ export interface EnvironmentResolutionSnapshot {
   workspaceEncrypted: Record<string, string>
   personalDecrypted: Record<string, string>
   workspaceDecrypted: Record<string, string>
+  personalOwners: Record<string, string>
   conflicts: string[]
   decryptionFailures: string[]
 }
@@ -75,6 +76,7 @@ function cloneEnvironmentResolutionSnapshot(
     workspaceEncrypted: { ...snapshot.workspaceEncrypted },
     personalDecrypted: { ...snapshot.personalDecrypted },
     workspaceDecrypted: { ...snapshot.workspaceDecrypted },
+    personalOwners: { ...snapshot.personalOwners },
     conflicts: [...snapshot.conflicts],
     decryptionFailures: [...snapshot.decryptionFailures],
   }
@@ -165,7 +167,7 @@ export async function getPersonalAndWorkspaceEnv(
   const ownPersonalEncrypted: Record<string, string> = (personalRows[0]?.variables as any) || {}
   const allWorkspaceEncrypted: Record<string, string> = (workspaceRows[0]?.variables as any) || {}
 
-  const hasCredentialFiltering = Boolean(workspaceId) && accessibleEnvCredentials.length > 0
+  const hasCredentialFiltering = Boolean(workspaceId)
   const workspaceCredentialKeys = new Set(
     accessibleEnvCredentials.filter((row) => row.type === 'env_workspace').map((row) => row.envKey)
   )
@@ -205,6 +207,9 @@ export async function getPersonalAndWorkspaceEnv(
 
   let personalEncrypted: Record<string, string> = ownPersonalEncrypted
   let workspaceEncrypted: Record<string, string> = allWorkspaceEncrypted
+  const personalOwners: Record<string, string> = Object.fromEntries(
+    Object.keys(ownPersonalEncrypted).map((envKey) => [envKey, userId])
+  )
 
   if (hasCredentialFiltering) {
     personalEncrypted = { ...ownPersonalEncrypted }
@@ -213,14 +218,17 @@ export async function getPersonalAndWorkspaceEnv(
       const encryptedValue = ownerVariables?.[envKey]
       if (encryptedValue) {
         personalEncrypted[envKey] = encryptedValue
+        personalOwners[envKey] = ownerUserId
       }
     }
 
-    workspaceEncrypted = Object.fromEntries(
-      Object.entries(allWorkspaceEncrypted).filter(([envKey]) =>
-        workspaceCredentialKeys.has(envKey)
-      )
-    )
+    workspaceEncrypted = workspaceCanAdmin
+      ? { ...allWorkspaceEncrypted }
+      : Object.fromEntries(
+          Object.entries(allWorkspaceEncrypted).filter(([envKey]) =>
+            workspaceCredentialKeys.has(envKey)
+          )
+        )
   }
 
   const decryptionFailures: string[] = []
@@ -268,6 +276,7 @@ export async function getPersonalAndWorkspaceEnv(
     workspaceEncrypted,
     personalDecrypted,
     workspaceDecrypted,
+    personalOwners,
     conflicts,
     decryptionFailures,
   }
