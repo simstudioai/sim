@@ -121,16 +121,15 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     
     - **Stream mode** (`stream: true` on the original execute call) — The resume response streams SSE events with `selectedOutputs` chunks, just like the initial execution.
     
-    - **Async mode** (`X-Execution-Mode: async` on the original execute call) — The resume dispatches execution to a background worker and returns immediately with `202`, including a `jobId` and `statusUrl` for polling:
+    - **Async mode** (`X-Execution-Mode: async` on the original execute call) — The resume dispatches execution to a background worker and returns immediately with `202`, including the resume attempt's `executionId` and `statusUrl` for polling:
     
     ```json
     {
       "success": true,
       "async": true,
-      "jobId": "<jobId>",
       "executionId": "<resumeExecutionId>",
       "message": "Resume execution queued",
-      "statusUrl": "/api/jobs/<jobId>"
+      "statusUrl": "/api/workflows/<workflowId>/executions/<resumeExecutionId>"
     }
     ```
     
@@ -139,11 +138,11 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     Poll the `statusUrl` from the async response to check when the resume completes:
     
     ```bash
-    GET /api/jobs/{jobId}
+    GET /api/workflows/{workflowId}/executions/{resumeExecutionId}?includeOutput=true
     X-API-Key: your-api-key
     ```
     
-    Returns job status and, when completed, the full workflow output.
+    Returns the execution status and, when completed, the full workflow output.
     
     To check on a paused execution's pause points and resume links:
     

@@ -112,30 +112,34 @@ if is_ready:
 
 **返回值：** `bool`
 
-##### get_job_status()
+##### get_workflow_execution()
 
-获取异步任务执行的状态。
+Get the status and optional outputs of a workflow execution.
 
 ```python
-status = client.get_job_status("job-id-from-async-execution")
-print("Status:", status["status"])  # 'queued', 'processing', 'completed', 'failed'
+status = client.get_workflow_execution("workflow-id", "execution-id", include_output=True)
+print("Status:", status["status"])  # 'queued', 'running', 'completed', 'failed'
 if status["status"] == "completed":
-    print("Output:", status["output"])
+    print("Output:", status["finalOutput"])
 ```
 
-**参数：**
-- `job_id` (str): 异步执行返回的作业 ID
+**Parameters:**
+- `workflow_id` (str): The workflow ID
+- `execution_id` (str): The execution ID returned from async execution
+- `include_output` (bool, optional): Include the final output for completed executions
+- `selected_outputs` (list[str], optional): Block output selectors to include
 
-**返回值：** `Dict[str, Any]`
+**Returns:** `Dict[str, Any]`
 
-**响应字段：**
-- `success` (bool): 请求是否成功
-- `taskId` (str): 作业 ID
-- `status` (str): 可能的值包括 `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
-- `metadata` (dict): 包含 `startedAt`, `completedAt` 和 `duration`
-- `output` (any, optional): 工作流输出（完成时）
-- `error` (any, optional): 错误详情（失败时）
-- `estimatedDuration` (int, optional): 估计持续时间（以毫秒为单位，处理中/排队时）
+**Response fields:**
+- `executionId` (str): The execution ID
+- `workflowId` (str): The workflow ID
+- `status` (str): One of `'queued'`, `'pending'`, `'running'`, `'paused'`, `'completed'`, `'failed'`, `'cancelled'`
+- `startedAt` / `endedAt` (str): Execution timestamps
+- `totalDurationMs` (int, optional): Duration in milliseconds
+- `finalOutput` (any, optional): The workflow output when requested for a completed execution
+- `blockOutputs` (dict, optional): Requested block outputs
+- `error` (str, optional): Failure details
 
 ##### execute_with_retry()
 
@@ -271,9 +275,8 @@ class WorkflowExecutionResult:
 @dataclass
 class AsyncExecutionResult:
     success: bool
-    job_id: str
+    execution_id: str
     status_url: str
-    execution_id: Optional[str] = None
     message: str = ""
     async_execution: bool = True
 ```
@@ -490,27 +493,31 @@ def execute_async():
         # Start async execution
         result = client.execute_workflow(
             "workflow-id",
-            input_data={"data": "large dataset"},
+            input={"data": "large dataset"},
             async_execution=True  # Execute asynchronously
         )
 
         # Check if result is an async execution
-        if hasattr(result, 'job_id'):
-            print(f"Job ID: {result.job_id}")
+        if hasattr(result, 'async_execution') and result.async_execution:
+            print(f"Execution ID: {result.execution_id}")
             print(f"Status endpoint: {result.status_url}")
 
             # Poll for completion
-            status = client.get_job_status(result.job_id)
+            status = client.get_workflow_execution(
+                "workflow-id", result.execution_id, include_output=True
+            )
 
-            while status["status"] in ["queued", "processing"]:
+            while status["status"] in ["queued", "pending", "running"]:
                 print(f"Current status: {status['status']}")
                 time.sleep(2)  # Wait 2 seconds
-                status = client.get_job_status(result.job_id)
+                status = client.get_workflow_execution(
+                    "workflow-id", result.execution_id, include_output=True
+                )
 
             if status["status"] == "completed":
                 print("Workflow completed!")
-                print(f"Output: {status['output']}")
-                print(f"Duration: {status['metadata']['duration']}")
+                print(f"Output: {status['finalOutput']}")
+                print(f"Duration: {status['totalDurationMs']}")
             else:
                 print(f"Workflow failed: {status['error']}")
 

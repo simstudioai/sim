@@ -115,17 +115,25 @@ result = client.execute_workflow_sync("workflow-id", {"data": "some input"}, tim
 
 **Returns:** `WorkflowExecutionResult`
 
-##### get_job_status(job_id)
+##### get_workflow_execution(workflow_id, execution_id, *, include_output=None, selected_outputs=None)
 
-Get the status of an async job.
+Get the status and optional outputs of a workflow execution. Use the execution ID returned by async execution.
 
 ```python
-status = client.get_job_status("job-id-from-async-execution")
-print("Job status:", status)
+status = client.get_workflow_execution(
+    "workflow-id",
+    "execution-id",
+    include_output=True,
+    selected_outputs=["agent.content"]
+)
+print("Execution status:", status["status"])
 ```
 
 **Parameters:**
-- `job_id` (str): The job ID returned from async execution
+- `workflow_id` (str): The workflow ID
+- `execution_id` (str): The execution ID returned from async execution
+- `include_output` (bool, keyword-only): Include the final output for completed executions
+- `selected_outputs` (list, keyword-only): Block output selectors to include
 
 **Returns:** `dict`
 
@@ -248,9 +256,8 @@ class SimStudioError(Exception):
 @dataclass
 class AsyncExecutionResult:
     success: bool
-    job_id: str
+    execution_id: str
     status_url: str
-    execution_id: Optional[str] = None
     message: str = ""
     async_execution: bool = True
 ```
@@ -527,4 +534,4 @@ isort simstudio/
 
 ## License
 
-Apache-2.0 
+Apache-2.0

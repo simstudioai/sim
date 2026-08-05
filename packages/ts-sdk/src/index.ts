@@ -45,19 +45,31 @@ export interface ExecutionOptions {
 
 export interface AsyncExecutionResult {
   success: boolean
-  jobId: string
+  executionId: string
   statusUrl: string
-  executionId?: string
   message: string
   async: true
 }
 
-export interface JobStatusResult {
-  taskId: string
-  status: string
-  metadata?: Record<string, unknown>
-  output?: unknown
-  error?: string
+export interface WorkflowExecutionStatus {
+  executionId: string
+  workflowId: string
+  status: 'queued' | 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
+  trigger: string
+  level: string
+  startedAt: string
+  endedAt: string | null
+  totalDurationMs: number | null
+  paused: Record<string, unknown> | null
+  cost: { total: number } | null
+  error: string | null
+  finalOutput: unknown | null
+  blockOutputs: Record<string, unknown> | null
+}
+
+export interface GetWorkflowExecutionOptions {
+  includeOutput?: boolean
+  selectedOutputs?: string[]
 }
 
 export interface RateLimitInfo {
@@ -374,11 +386,22 @@ export class SimStudioClient {
   }
 
   /**
-   * Get the status of an async job
-   * @param taskId The job ID returned from async execution
+   * Get a workflow execution's current status and optional outputs.
    */
-  async getJobStatus(taskId: string): Promise<JobStatusResult> {
-    const url = `${this.baseUrl}/api/jobs/${taskId}`
+  async getWorkflowExecution(
+    workflowId: string,
+    executionId: string,
+    options: GetWorkflowExecutionOptions = {}
+  ): Promise<WorkflowExecutionStatus> {
+    const query = new URLSearchParams()
+    if (options.includeOutput !== undefined) {
+      query.set('includeOutput', String(options.includeOutput))
+    }
+    if (options.selectedOutputs?.length) {
+      query.set('selectedOutputs', options.selectedOutputs.join(','))
+    }
+    const queryString = query.toString()
+    const url = `${this.baseUrl}/api/workflows/${workflowId}/executions/${executionId}${queryString ? `?${queryString}` : ''}`
 
     try {
       const response = await fetch(url, {
@@ -400,13 +423,16 @@ export class SimStudioClient {
       }
 
       const result = await response.json()
-      return result as JobStatusResult
+      return result as WorkflowExecutionStatus
     } catch (error: any) {
       if (error instanceof SimStudioError) {
         throw error
       }
 
-      throw new SimStudioError(describeError(error) || 'Failed to get job status', 'STATUS_ERROR')
+      throw new SimStudioError(
+        describeError(error) || 'Failed to get workflow execution',
+        'STATUS_ERROR'
+      )
     }
   }
 

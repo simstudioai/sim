@@ -2,11 +2,16 @@ import { db } from '@sim/db'
 import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
+import { getJobQueue } from '@/lib/core/async-jobs'
 import {
   collectFunctionalBlockOutputs,
   type FunctionalExecutionDataSource,
 } from '@/lib/logs/execution/functional-outputs'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import {
+  RESUME_EXECUTION_JOB_ID_PREFIX,
+  WORKFLOW_EXECUTION_JOB_ID_PREFIX,
+} from '@/lib/workflows/executor/enqueue-execution'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import type { PausePoint } from '@/executor/types'
 
@@ -14,7 +19,9 @@ import type { PausePoint } from '@/executor/types'
  * Reads a single execution's status resource — the log row, the paused-state
  * overlay, and (when requested) materialized outputs. Extracted so the v1 and
  * v2 status routes render the identical resource from one read path.
- * Auth is the caller's responsibility. Returns `null` when no log row exists.
+ * Auth is the caller's responsibility. Before a worker writes the durable log
+ * row, the deterministic queue record is projected as the same execution
+ * resource so callers never need a separate job identifier or endpoint.
  */
 
 type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -114,7 +121,41 @@ export async function getWorkflowExecutionStatus(
     )
     .limit(1)
 
-  if (!logRow) return null
+  if (!logRow) {
+    const jobQueue = await getJobQueue()
+    const jobIds = [
+      `${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`,
+      `${RESUME_EXECUTION_JOB_ID_PREFIX}${executionId}`,
+    ]
+
+    for (const jobId of jobIds) {
+      const job = await jobQueue.getJob(jobId)
+      if (!job || job.metadata.workflowId !== workflowId) continue
+
+      const status: WorkflowExecutionStatusResponse['status'] =
+        job.status === 'pending' ? 'queued' : job.status === 'processing' ? 'running' : job.status
+      const startedAt = job.startedAt ?? job.createdAt
+      const endedAt = job.completedAt ?? null
+
+      return {
+        executionId,
+        workflowId,
+        status,
+        trigger: job.metadata.correlation?.triggerType ?? 'api',
+        level: status === 'failed' ? 'error' : 'info',
+        startedAt: startedAt.toISOString(),
+        endedAt: endedAt?.toISOString() ?? null,
+        totalDurationMs: endedAt ? endedAt.getTime() - startedAt.getTime() : null,
+        paused: null,
+        cost: null,
+        error: status === 'failed' ? (job.error ?? 'Execution failed') : null,
+        finalOutput: null,
+        blockOutputs: null,
+      }
+    }
+
+    return null
+  }
 
   const [pausedRow] = await db
     .select({

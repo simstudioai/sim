@@ -4,13 +4,13 @@
 import { createMockRequest, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthenticateV1Request, mockGetJob, mockGetWorkflowExecutionStatus, mockCancel } =
-  vi.hoisted(() => ({
+const { mockAuthenticateV1Request, mockGetWorkflowExecutionStatus, mockCancel } = vi.hoisted(
+  () => ({
     mockAuthenticateV1Request: vi.fn(),
-    mockGetJob: vi.fn(),
     mockGetWorkflowExecutionStatus: vi.fn(),
     mockCancel: vi.fn(),
-  }))
+  })
+)
 
 vi.mock('@/app/api/v1/auth', () => ({
   authenticateV1Request: mockAuthenticateV1Request,
@@ -26,14 +26,6 @@ vi.mock('@/lib/workflows/executor/execution-status', () => ({
 
 vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
   cancelWorkflowExecution: mockCancel,
-}))
-
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn().mockResolvedValue({ getJob: mockGetJob }),
-}))
-
-vi.mock('@/lib/workflows/executor/enqueue-execution', () => ({
-  WORKFLOW_EXECUTION_JOB_ID_PREFIX: 'workflow-execution:',
 }))
 
 vi.mock('@/app/api/v2/lib/gate', () => ({
@@ -100,23 +92,31 @@ describe('v2 executions status + cancel', () => {
     expect(body.data.durationMs).toBe(5000)
   })
 
-  it('backfills queued status from the job queue before the log row exists', async () => {
-    mockGetWorkflowExecutionStatus.mockResolvedValue(null)
-    mockGetJob.mockResolvedValue({
-      status: 'pending',
-      metadata: { workflowId: 'workflow-1' },
+  it('returns the queued execution resource before the log row exists', async () => {
+    mockGetWorkflowExecutionStatus.mockResolvedValue({
+      executionId: 'exec-1',
+      workflowId: 'workflow-1',
+      status: 'queued',
+      trigger: 'api',
+      level: 'info',
+      startedAt: '2026-07-31T00:00:00.000Z',
+      endedAt: null,
+      totalDurationMs: null,
+      paused: null,
+      cost: null,
+      error: null,
+      finalOutput: null,
+      blockOutputs: null,
     })
 
     const res = await callStatus()
 
     expect(res.status).toBe(200)
     expect((await res.json()).data.status).toBe('queued')
-    expect(mockGetJob).toHaveBeenCalledWith('workflow-execution:exec-1')
   })
 
   it('404s when neither a log row nor a matching job exists', async () => {
     mockGetWorkflowExecutionStatus.mockResolvedValue(null)
-    mockGetJob.mockResolvedValue(null)
 
     const res = await callStatus()
 

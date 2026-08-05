@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { jobIdParamsSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const NO_EMAIL_HEADER_CONTROL_CHARS_REGEX = /^[^\r\n\u0000-\u001F\u007F]+$/
@@ -103,28 +102,5 @@ export const getStatusContract = defineRouteContract({
       url: z.string().url(),
       lastUpdated: z.string(),
     }),
-  },
-})
-
-const jobStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed'])
-
-const jobStatusResponseSchema = z
-  .object({
-    success: z.literal(true),
-    taskId: z.string(),
-    status: jobStatusSchema,
-    metadata: z.record(z.string(), z.unknown()).nullable().optional(),
-    output: z.unknown().optional(),
-    error: z.string().optional(),
-  })
-  .passthrough()
-
-export const getJobStatusContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/jobs/[jobId]',
-  params: jobIdParamsSchema,
-  response: {
-    mode: 'json',
-    schema: jobStatusResponseSchema,
   },
 })

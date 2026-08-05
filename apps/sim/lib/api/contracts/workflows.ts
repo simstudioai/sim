@@ -546,6 +546,7 @@ const pausedWorkflowExecutionDetailSchema = pausedWorkflowExecutionSummarySchema
 })
 
 const workflowExecutionStatusEnum = z.enum([
+  'queued',
   'pending',
   'running',
   'paused',
@@ -633,7 +634,6 @@ const resumeWorkflowExecutionContextResponseSchema = z
     async: z.boolean().optional(),
     executionId: z.string().optional(),
     queuePosition: z.number().optional(),
-    jobId: z.string().optional(),
     output: z.unknown().optional(),
     error: z.string().optional(),
     metadata: z

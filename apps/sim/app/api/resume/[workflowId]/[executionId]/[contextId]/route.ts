@@ -19,6 +19,7 @@ import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import { RESUME_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/enqueue-execution'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import {
   agentStreamProtocolResponseHeaders,
@@ -322,14 +323,15 @@ export const POST = withRouteHandler(
           parentExecutionId: executionId,
         }
 
-        let jobId: string
+        let queueJobId: string
         try {
           const jobQueue = await getJobQueue()
-          jobId = await jobQueue.enqueue('resume-execution', resumePayload, {
+          queueJobId = await jobQueue.enqueue('resume-execution', resumePayload, {
+            jobId: `${RESUME_EXECUTION_JOB_ID_PREFIX}${enqueueResult.resumeExecutionId}`,
             metadata: { workflowId, workspaceId: workflow.workspaceId, userId },
           })
           logger.info('Enqueued async resume execution', {
-            jobId,
+            jobId: queueJobId,
             resumeExecutionId: enqueueResult.resumeExecutionId,
           })
         } catch (dispatchError) {
@@ -355,10 +357,9 @@ export const POST = withRouteHandler(
           {
             success: true,
             async: true,
-            jobId,
             executionId: enqueueResult.resumeExecutionId,
             message: 'Resume execution queued',
-            statusUrl: `${getBaseUrl()}/api/jobs/${jobId}`,
+            statusUrl: `${getBaseUrl()}/api/workflows/${workflowId}/executions/${enqueueResult.resumeExecutionId}`,
           },
           { status: 202 }
         )

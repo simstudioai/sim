@@ -11,6 +11,7 @@ const logger = createLogger('WorkflowEnqueueExecution')
 
 const ASYNC_ENQUEUE_ATTEMPTS = 2
 export const WORKFLOW_EXECUTION_JOB_ID_PREFIX = 'workflow-execution:'
+export const RESUME_EXECUTION_JOB_ID_PREFIX = 'resume-execution:'
 
 export interface EnqueueWorkflowExecutionParams {
   requestId: string

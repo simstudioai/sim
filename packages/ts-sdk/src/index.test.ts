@@ -101,8 +101,8 @@ describe('SimStudioClient', () => {
         status: 202,
         json: vi.fn().mockResolvedValue({
           success: true,
-          jobId: 'job-123',
-          statusUrl: 'https://test.sim.ai/api/jobs/job-123',
+          executionId: 'execution-123',
+          statusUrl: 'https://test.sim.ai/api/workflows/workflow-id/executions/execution-123',
           message: 'Workflow execution queued',
           async: true,
         }),
@@ -118,8 +118,11 @@ describe('SimStudioClient', () => {
         { async: true }
       )
 
-      expect(result).toHaveProperty('jobId', 'job-123')
-      expect(result).toHaveProperty('statusUrl', 'https://test.sim.ai/api/jobs/job-123')
+      expect(result).toHaveProperty('executionId', 'execution-123')
+      expect(result).toHaveProperty(
+        'statusUrl',
+        'https://test.sim.ai/api/workflows/workflow-id/executions/execution-123'
+      )
       expect(result).toHaveProperty('async', true)
 
       // Verify headers were set correctly
@@ -176,20 +179,15 @@ describe('SimStudioClient', () => {
     })
   })
 
-  describe('getJobStatus', () => {
-    it('should fetch job status with correct endpoint', async () => {
+  describe('getWorkflowExecution', () => {
+    it('should fetch execution status and outputs from the execution resource', async () => {
       const mockResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
-          success: true,
-          taskId: 'task-123',
+          executionId: 'execution-123',
+          workflowId: 'workflow-123',
           status: 'completed',
-          metadata: {
-            startedAt: '2024-01-01T00:00:00Z',
-            completedAt: '2024-01-01T00:01:00Z',
-            duration: 60000,
-          },
-          output: { result: 'done' },
+          finalOutput: { result: 'done' },
         }),
         headers: {
           get: vi.fn().mockReturnValue(null),
@@ -197,25 +195,30 @@ describe('SimStudioClient', () => {
       }
       vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
 
-      const result = await client.getJobStatus('task-123')
+      const result = await client.getWorkflowExecution('workflow-123', 'execution-123', {
+        includeOutput: true,
+        selectedOutputs: ['agent.content'],
+      })
 
-      expect(result).toHaveProperty('taskId', 'task-123')
+      expect(result).toHaveProperty('executionId', 'execution-123')
       expect(result).toHaveProperty('status', 'completed')
-      expect(result).toHaveProperty('output')
+      expect(result).toHaveProperty('finalOutput')
 
       // Verify correct endpoint was called
       const calls = vi.mocked(mockFetch).mock.calls
-      expect(calls[0][0]).toBe('https://test.sim.ai/api/jobs/task-123')
+      expect(calls[0][0]).toBe(
+        'https://test.sim.ai/api/workflows/workflow-123/executions/execution-123?includeOutput=true&selectedOutputs=agent.content'
+      )
     })
 
-    it('should handle job not found error', async () => {
+    it('should handle execution not found errors', async () => {
       const mockResponse = {
         ok: false,
         status: 404,
         statusText: 'Not Found',
         json: vi.fn().mockResolvedValue({
-          error: 'Job not found',
-          code: 'JOB_NOT_FOUND',
+          error: 'Execution not found',
+          code: 'EXECUTION_NOT_FOUND',
         }),
         headers: {
           get: vi.fn().mockReturnValue(null),
@@ -223,8 +226,12 @@ describe('SimStudioClient', () => {
       }
       vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
 
-      await expect(client.getJobStatus('invalid-task')).rejects.toThrow(SimStudioError)
-      await expect(client.getJobStatus('invalid-task')).rejects.toThrow('Job not found')
+      await expect(
+        client.getWorkflowExecution('workflow-123', 'invalid-execution')
+      ).rejects.toThrow(SimStudioError)
+      await expect(
+        client.getWorkflowExecution('workflow-123', 'invalid-execution')
+      ).rejects.toThrow('Execution not found')
     })
   })
 

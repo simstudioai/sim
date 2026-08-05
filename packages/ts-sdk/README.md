@@ -125,19 +125,25 @@ const result = await client.executeWorkflowSync('workflow-id', { data: 'some inp
 
 **Returns:** `Promise<WorkflowExecutionResult>`
 
-##### getJobStatus(jobId)
+##### getWorkflowExecution(workflowId, executionId, options?)
 
-Get the status of an async job.
+Get the status and optional outputs of a workflow execution. Use the `executionId` returned by async execution.
 
 ```typescript
-const status = await client.getJobStatus('job-id-from-async-execution');
-console.log('Job status:', status);
+const status = await client.getWorkflowExecution('workflow-id', 'execution-id', {
+  includeOutput: true,
+  selectedOutputs: ['agent.content']
+});
+console.log('Execution status:', status.status);
 ```
 
 **Parameters:**
-- `jobId` (string): The job ID returned from async execution
+- `workflowId` (string): The workflow ID
+- `executionId` (string): The execution ID returned from async execution
+- `options.includeOutput` (boolean, optional): Include the final output for completed executions
+- `options.selectedOutputs` (string[], optional): Block output selectors to include
 
-**Returns:** `Promise<any>`
+**Returns:** `Promise<WorkflowExecutionStatus>`
 
 ##### executeWithRetry(workflowId, input?, options?, retryOptions?)
 
@@ -228,7 +234,7 @@ interface WorkflowExecutionResult {
 
 ### LargeValueRef
 
-Oversized execution values may be returned as a versioned reference inside `output`, `logs`, streaming events, or async job status responses.
+Oversized execution values may be returned as a versioned reference inside `output`, `logs`, streaming events, or execution status responses.
 The `key` field is an opaque execution-scoped server storage pointer, not a client-readable download URL.
 
 ```typescript
@@ -268,9 +274,8 @@ class SimStudioError extends Error {
 ```typescript
 interface AsyncExecutionResult {
   success: boolean;
-  jobId: string;
+  executionId: string;
   statusUrl: string;
-  executionId?: string;
   message: string;
   async: true;
 }
@@ -533,4 +538,4 @@ bun run dev
 
 ## License
 
-Apache-2.0 
+Apache-2.0

@@ -261,7 +261,11 @@ while (true) {
   const getAsyncCommand = (): string => {
     if (!info) return ''
     const endpoint = getBaseEndpoint()
+    if (!endpoint.endsWith('/execute')) {
+      throw new Error(`Invalid workflow execution endpoint: ${endpoint}`)
+    }
     const baseUrl = endpoint.split('/api/workflows/')[0]
+    const statusEndpoint = `${endpoint.slice(0, -'/execute'.length)}/executions/EXECUTION_ID_FROM_EXECUTION`
     const payload = getPayloadObject()
     const isPublic = info.isPublicApi
 
@@ -288,8 +292,8 @@ ${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}      
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
 )
 
-job = response.json()
-print(job)  # Contains jobId and executionId`
+execution = response.json()
+print(execution)`
 
           case 'javascript':
             return `const response = await fetch("${endpoint}", {
@@ -301,8 +305,8 @@ ${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Typ
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const job = await response.json();
-console.log(job); // Contains jobId and executionId`
+const execution = await response.json();
+console.log(execution);`
 
           case 'typescript':
             return `const response = await fetch("${endpoint}", {
@@ -314,8 +318,8 @@ ${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Typ
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const job: { jobId: string; executionId: string } = await response.json();
-console.log(job); // Contains jobId and executionId`
+const execution: { executionId: string; statusUrl: string } = await response.json();
+console.log(execution);`
 
           default:
             return ''
@@ -325,14 +329,15 @@ console.log(job); // Contains jobId and executionId`
         switch (language) {
           case 'curl':
             return `curl -H "X-API-Key: $SIM_API_KEY" \\
-  ${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION`
+  "${statusEndpoint}?includeOutput=true"`
 
           case 'python':
             return `import os
 import requests
 
 response = requests.get(
-    "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
+    "${statusEndpoint}",
+    params={"includeOutput": "true"},
     headers={"X-API-Key": os.environ.get("SIM_API_KEY")}
 )
 
@@ -341,7 +346,7 @@ print(status)`
 
           case 'javascript':
             return `const response = await fetch(
-  "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
+  "${statusEndpoint}?includeOutput=true",
   {
     headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
@@ -352,7 +357,7 @@ console.log(status);`
 
           case 'typescript':
             return `const response = await fetch(
-  "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
+  "${statusEndpoint}?includeOutput=true",
   {
     headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
@@ -417,13 +422,13 @@ console.log(limits);`
   const getAsyncExampleTitle = () => {
     switch (asyncExampleType) {
       case 'execute':
-        return 'Execute Job'
+        return 'Start Execution'
       case 'status':
         return 'Check Status'
       case 'rate-limits':
         return 'Usage Limits'
       default:
-        return 'Execute Job'
+        return 'Start Execution'
     }
   }
 
@@ -562,7 +567,7 @@ console.log(limits);`
               size='sm'
               className='!w-fit !py-0.5 min-w-[100px] rounded-md px-[9px]'
               options={[
-                { label: 'Execute Job', value: 'execute' },
+                { label: 'Start Execution', value: 'execute' },
                 { label: 'Check Status', value: 'status' },
                 { label: 'Usage Limits', value: 'rate-limits' },
               ]}

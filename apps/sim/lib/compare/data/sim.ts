@@ -1086,10 +1086,10 @@ export const simProfile: CompetitorProfile = {
       },
       asyncExecution: {
         value:
-          'Yes: a workflow can be triggered in fire-and-forget async mode, returning HTTP 202 with a job ID immediately, then polled via a dedicated jobs endpoint through queued/processing/completed/failed states',
+          'Yes: a workflow can be triggered in fire-and-forget async mode, returning HTTP 202 with an execution ID immediately, then polled through the canonical execution resource across queued/running/terminal states',
         detail:
-          'Async jobs are tracked via polling the job endpoint rather than a completion webhook/callback option.',
-        shortValue: 'Async mode: job ID returned immediately, poll for result',
+          'Async runs are tracked by execution ID through the same execution status endpoint used for durable logs rather than a separate queue-job resource.',
+        shortValue: 'Async mode: execution ID returned immediately, poll for result',
         confidence: 'verified',
         sources: [
           {
@@ -1098,8 +1098,8 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/jobs/[jobId]/route.ts',
-            label: 'Sim codebase: async job status endpoint',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/workflows/[id]/executions/[executionId]/route.ts',
+            label: 'Sim codebase: execution status endpoint',
             asOf: '2026-07-02',
           },
         ],

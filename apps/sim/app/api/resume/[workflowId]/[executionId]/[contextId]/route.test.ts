@@ -9,6 +9,7 @@ const {
   mockGetCurrentPayer,
   mockGetPauseContextDetail,
   mockGetPausedExecutionDetail,
+  mockEnqueueResume,
   mockPreprocessExecution,
   mockValidateWorkflowAccess,
 } = vi.hoisted(() => ({
@@ -16,6 +17,7 @@ const {
   mockGetCurrentPayer: vi.fn(),
   mockGetPauseContextDetail: vi.fn(),
   mockGetPausedExecutionDetail: vi.fn(),
+  mockEnqueueResume: vi.fn().mockResolvedValue('resume-execution:resume-execution-1'),
   mockPreprocessExecution: vi.fn(),
   mockValidateWorkflowAccess: vi.fn(),
 }))
@@ -26,6 +28,14 @@ vi.mock('@/app/api/workflows/middleware', () => ({
 
 vi.mock('@/lib/execution/preprocessing', () => ({
   preprocessExecution: mockPreprocessExecution,
+}))
+
+vi.mock('@/lib/core/async-jobs', () => ({
+  getJobQueue: vi.fn().mockResolvedValue({ enqueue: mockEnqueueResume }),
+}))
+
+vi.mock('@/lib/workflows/executor/enqueue-execution', () => ({
+  RESUME_EXECUTION_JOB_ID_PREFIX: 'resume-execution:',
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -84,6 +94,7 @@ interface PausedExecutionOverrides {
   snapshotWorkspaceId?: string
   snapshotActorUserId?: string
   billingAttribution?: unknown
+  executionMode?: 'sync' | 'stream' | 'async'
 }
 
 function createPausedExecution(overrides: PausedExecutionOverrides = {}) {
@@ -108,7 +119,7 @@ function createPausedExecution(overrides: PausedExecutionOverrides = {}) {
           triggerType: 'manual',
           useDraftState: false,
           startTime: '2026-07-10T00:00:00.000Z',
-          executionMode: 'sync',
+          executionMode: overrides.executionMode ?? 'sync',
         },
         workflow: { version: '1', blocks: [], connections: [] },
         input: {},
@@ -227,6 +238,41 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
       userId: 'current-api-key-user',
       allowedPauseKinds: ['human'],
     })
+  })
+
+  it('returns the resume execution ID as the only public async polling handle', async () => {
+    mockGetPausedExecutionDetail.mockResolvedValueOnce(
+      createPausedExecution({ executionMode: 'async' })
+    )
+    mockEnqueueOrStartResume.mockResolvedValueOnce({
+      status: 'started',
+      resumeExecutionId: 'resume-execution-1',
+      resumeEntryId: 'resume-entry-1',
+      pausedExecution: { id: 'paused-execution-1' },
+      contextId: CONTEXT_ID,
+      resumeInput: { approved: true },
+      userId: 'current-api-key-user',
+    })
+    const { request, context } = makeRequest()
+
+    const response = await POST(request, context)
+
+    expect(response.status).toBe(202)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      async: true,
+      executionId: 'resume-execution-1',
+      message: 'Resume execution queued',
+      statusUrl: 'https://test.sim.ai/api/workflows/workflow-1/executions/resume-execution-1',
+    })
+    expect(mockEnqueueResume).toHaveBeenCalledWith(
+      'resume-execution',
+      expect.objectContaining({ resumeExecutionId: 'resume-execution-1' }),
+      expect.objectContaining({
+        jobId: 'resume-execution:resume-execution-1',
+        metadata: expect.objectContaining({ workflowId: WORKFLOW_ID }),
+      })
+    )
   })
 
   it.each([

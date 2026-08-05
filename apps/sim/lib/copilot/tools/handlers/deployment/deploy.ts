@@ -34,6 +34,17 @@ function buildWorkflowApiEndpoint(baseUrl: string, workflowId: string): string {
   return `${baseUrl}/api/workflows/${workflowId}/execute`
 }
 
+function buildWorkflowExecutionStatusEndpoint(
+  baseUrl: string,
+  apiEndpoint: string,
+  executionId: string
+): string {
+  if (!apiEndpoint.startsWith(`${baseUrl}/api/workflows/`) || !apiEndpoint.endsWith('/execute')) {
+    throw new Error(`Invalid workflow execution endpoint: ${apiEndpoint}`)
+  }
+  return `${apiEndpoint.slice(0, -'/execute'.length)}/executions/${executionId}`
+}
+
 function buildWorkflowApiConfig(baseUrl: string, apiEndpoint: string) {
   return {
     endpoint: apiEndpoint,
@@ -60,7 +71,11 @@ function buildWorkflowApiConfig(baseUrl: string, apiEndpoint: string) {
         stream: false,
         headers: { 'X-Execution-Mode': 'async' },
         body: { input: { key: 'value' } },
-        jobStatusEndpointTemplate: `${baseUrl}/api/jobs/{jobId}`,
+        executionStatusEndpointTemplate: buildWorkflowExecutionStatusEndpoint(
+          baseUrl,
+          apiEndpoint,
+          '{executionId}'
+        ),
       },
     },
   }
@@ -81,7 +96,7 @@ function buildWorkflowApiExamples(baseUrl: string, apiEndpoint: string) {
   -H "X-API-Key: YOUR_API_KEY" \\
   -H "X-Execution-Mode: async" \\
   -d '{"input":{"key":"value"}}'`,
-    poll: `curl "${baseUrl}/api/jobs/JOB_ID" \\
+    poll: `curl "${buildWorkflowExecutionStatusEndpoint(baseUrl, apiEndpoint, 'EXECUTION_ID')}" \\
   -H "X-API-Key: YOUR_API_KEY"`,
   }
 }

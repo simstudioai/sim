@@ -95,16 +95,15 @@ def test_context_manager(mock_close):
 
 
 @patch('simstudio.requests.Session.post')
-def test_async_execution_returns_job_id(mock_post):
+def test_async_execution_returns_execution_id(mock_post):
     """Test async execution returns AsyncExecutionResult."""
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 202
     mock_response.json.return_value = {
         "success": True,
-        "jobId": "job-123",
-        "statusUrl": "https://test.sim.ai/api/jobs/job-123",
         "executionId": "execution-123",
+        "statusUrl": "https://test.sim.ai/api/workflows/workflow-id/executions/execution-123",
         "message": "Workflow execution started",
         "async": True
     }
@@ -119,9 +118,8 @@ def test_async_execution_returns_job_id(mock_post):
     )
 
     assert result.success is True
-    assert result.job_id == "job-123"
-    assert result.status_url == "https://test.sim.ai/api/jobs/job-123"
     assert result.execution_id == "execution-123"
+    assert result.status_url == "https://test.sim.ai/api/workflows/workflow-id/executions/execution-123"
     assert result.async_execution is True
 
     call_args = mock_post.call_args
@@ -172,43 +170,46 @@ def test_async_header_not_set_when_false(mock_post):
 
 
 @patch('simstudio.requests.Session.get')
-def test_get_job_status_success(mock_get):
-    """Test getting job status."""
+def test_get_workflow_execution_success(mock_get):
+    """Test getting workflow execution status."""
     mock_response = Mock()
     mock_response.ok = True
     mock_response.json.return_value = {
-        "success": True,
-        "taskId": "task-123",
+        "executionId": "execution-123",
+        "workflowId": "workflow-123",
         "status": "completed",
-        "metadata": {
-            "startedAt": "2024-01-01T00:00:00Z",
-            "completedAt": "2024-01-01T00:01:00Z",
-            "duration": 60000
-        },
-        "output": {"result": "done"}
+        "finalOutput": {"result": "done"}
     }
     mock_response.headers.get.return_value = None
     mock_get.return_value = mock_response
 
     client = SimStudioClient(api_key="test-api-key", base_url="https://test.sim.ai")
-    result = client.get_job_status("task-123")
+    result = client.get_workflow_execution(
+        "workflow-123",
+        "execution-123",
+        include_output=True,
+        selected_outputs=["agent.content"]
+    )
 
-    assert result["taskId"] == "task-123"
+    assert result["executionId"] == "execution-123"
     assert result["status"] == "completed"
-    assert result["output"]["result"] == "done"
-    mock_get.assert_called_once_with("https://test.sim.ai/api/jobs/task-123")
+    assert result["finalOutput"]["result"] == "done"
+    mock_get.assert_called_once_with(
+        "https://test.sim.ai/api/workflows/workflow-123/executions/execution-123",
+        params={"includeOutput": "true", "selectedOutputs": "agent.content"}
+    )
 
 
 @patch('simstudio.requests.Session.get')
-def test_get_job_status_not_found(mock_get):
-    """Test job not found error."""
+def test_get_workflow_execution_not_found(mock_get):
+    """Test execution not found error."""
     mock_response = Mock()
     mock_response.ok = False
     mock_response.status_code = 404
     mock_response.reason = "Not Found"
     mock_response.json.return_value = {
-        "error": "Job not found",
-        "code": "JOB_NOT_FOUND"
+        "error": "Execution not found",
+        "code": "EXECUTION_NOT_FOUND"
     }
     mock_response.headers.get.return_value = None
     mock_get.return_value = mock_response
@@ -216,8 +217,8 @@ def test_get_job_status_not_found(mock_get):
     client = SimStudioClient(api_key="test-api-key")
 
     with pytest.raises(SimStudioError) as exc_info:
-        client.get_job_status("invalid-task")
-    assert "Job not found" in str(exc_info.value)
+        client.get_workflow_execution("workflow-123", "invalid-execution")
+    assert "Execution not found" in str(exc_info.value)
 
 
 @patch('simstudio.requests.Session.post')
@@ -534,4 +535,4 @@ def test_execute_workflow_with_dict_input_spreads_at_root(mock_post):
 
     assert request_body["ticker"] == "NVDA"
     assert request_body["quantity"] == 100
-    assert "input" not in request_body  # Should not wrap in input field 
+    assert "input" not in request_body  # Should not wrap in input field

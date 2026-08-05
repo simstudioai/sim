@@ -49,9 +49,8 @@ class WorkflowStatus:
 class AsyncExecutionResult:
     """Result of an async workflow execution."""
     success: bool
-    job_id: str
+    execution_id: str
     status_url: str
-    execution_id: Optional[str] = None
     message: str = ""
     async_execution: bool = True
 
@@ -159,7 +158,7 @@ class SimStudioClient:
     ) -> Union[WorkflowExecutionResult, AsyncExecutionResult]:
         """
         Execute a workflow with optional input data.
-        If async_execution is True, returns immediately with a task ID.
+        If async_execution is True, returns immediately with an execution ID.
 
         File objects in input will be automatically detected and converted to base64.
 
@@ -238,12 +237,11 @@ class SimStudioClient:
             result_data = response.json()
 
             # Check if this is an async execution response (202 status)
-            if response.status_code == 202 and 'jobId' in result_data:
+            if response.status_code == 202 and 'executionId' in result_data:
                 return AsyncExecutionResult(
                     success=result_data.get('success', True),
-                    job_id=result_data['jobId'],
+                    execution_id=result_data['executionId'],
                     status_url=result_data['statusUrl'],
-                    execution_id=result_data.get('executionId'),
                     message=result_data.get('message', ''),
                     async_execution=result_data.get('async', True)
                 )
@@ -376,23 +374,38 @@ class SimStudioClient:
         """Close the underlying HTTP session."""
         self._session.close()
 
-    def get_job_status(self, job_id: str) -> Dict[str, Any]:
+    def get_workflow_execution(
+        self,
+        workflow_id: str,
+        execution_id: str,
+        *,
+        include_output: Optional[bool] = None,
+        selected_outputs: Optional[list] = None
+    ) -> Dict[str, Any]:
         """
-        Get the status of an async job.
+        Get a workflow execution's current status and optional outputs.
 
         Args:
-            job_id: The job ID returned from async execution
+            workflow_id: The workflow ID
+            execution_id: The execution ID returned from async execution
+            include_output: Include the final output for completed executions
+            selected_outputs: Block output selectors to include
 
         Returns:
-            Dictionary containing the job status
+            Dictionary containing the execution status
 
         Raises:
             SimStudioError: If getting the status fails
         """
-        url = f"{self.base_url}/api/jobs/{job_id}"
+        url = f"{self.base_url}/api/workflows/{workflow_id}/executions/{execution_id}"
+        params = {}
+        if include_output is not None:
+            params['includeOutput'] = str(include_output).lower()
+        if selected_outputs:
+            params['selectedOutputs'] = ','.join(selected_outputs)
 
         try:
-            response = self._session.get(url)
+            response = self._session.get(url, params=params or None)
 
             self._update_rate_limit_info(response)
 
@@ -410,7 +423,7 @@ class SimStudioClient:
             return response.json()
 
         except requests.RequestException as e:
-            raise SimStudioError(f'Failed to get job status: {str(e)}', 'STATUS_ERROR')
+            raise SimStudioError(f'Failed to get workflow execution: {str(e)}', 'STATUS_ERROR')
 
     def execute_with_retry(
         self,
@@ -565,4 +578,4 @@ class SimStudioClient:
 
 
 # For backward compatibility
-Client = SimStudioClient 
+Client = SimStudioClient

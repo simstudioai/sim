@@ -280,10 +280,10 @@ The `version` field is part of the external API contract. Treat the reference as
 
 ### Asynchronous
 
-For long-running workflows, async mode returns a job ID immediately so you don't need to hold the connection open. Add the `X-Execution-Mode: async` header to your request. The API returns HTTP 202 with a job ID and status URL. Poll the status URL until the job completes.
+For long-running workflows, async mode returns an execution ID immediately so you don't need to hold the connection open. Add the `X-Execution-Mode: async` header to your request. The API returns HTTP 202 with an execution ID and status URL. Poll the execution resource until the run completes.
 
-<Tabs items={['Start Job', 'Check Status']}>
-  <Tab value="Start Job">
+<Tabs items={['Start Execution', 'Check Status']}>
+  <Tab value="Start Execution">
 ```bash
 curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
   -H "Content-Type: application/json" \
@@ -297,59 +297,57 @@ curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
 {
   "success": true,
   "async": true,
-  "jobId": "run_abc123",
   "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
   "message": "Workflow execution queued",
-  "statusUrl": "https://sim.ai/api/jobs/run_abc123"
+  "statusUrl": "https://sim.ai/api/workflows/{workflow-id}/executions/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74"
 }
 ```
   </Tab>
   <Tab value="Check Status">
 ```bash
-curl https://sim.ai/api/jobs/{jobId} \
+curl "https://sim.ai/api/workflows/{workflow-id}/executions/{executionId}?includeOutput=true" \
   -H "x-api-key: $SIM_API_KEY"
 ```
 
 **While processing:**
 ```json
 {
-  "success": true,
-  "taskId": "run_abc123",
-  "status": "processing",
-  "metadata": {
-    "createdAt": "2025-09-10T12:00:00.000Z",
-    "startedAt": "2025-09-10T12:00:01.000Z"
-  },
-  "estimatedDuration": 300000
+  "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+  "workflowId": "{workflow-id}",
+  "status": "running",
+  "startedAt": "2025-09-10T12:00:01.000Z",
+  "endedAt": null,
+  "totalDurationMs": null,
+  "finalOutput": null
 }
 ```
 
 **When completed:**
 ```json
 {
-  "success": true,
-  "taskId": "run_abc123",
+  "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+  "workflowId": "{workflow-id}",
   "status": "completed",
-  "metadata": {
-    "createdAt": "2025-09-10T12:00:00.000Z",
-    "startedAt": "2025-09-10T12:00:01.000Z",
-    "completedAt": "2025-09-10T12:00:05.000Z",
-    "duration": 4000
-  },
-  "output": { "result": "..." }
+  "startedAt": "2025-09-10T12:00:01.000Z",
+  "endedAt": "2025-09-10T12:00:05.000Z",
+  "totalDurationMs": 4000,
+  "finalOutput": { "result": "..." }
 }
 ```
   </Tab>
 </Tabs>
 
-#### Job Status Values
+#### Execution Status Values
 
 | Status | Description |
 |--------|-------------|
-| `queued` | Job is waiting to be picked up |
-| `processing` | Workflow is actively executing |
-| `completed` | Finished successfully — `output` field contains the result |
+| `queued` | Execution is waiting to be picked up |
+| `pending` | The durable execution record exists but has not started |
+| `running` | Workflow is actively executing |
+| `paused` | Workflow is waiting for a resume condition or input |
+| `completed` | Finished successfully — `finalOutput` is populated when requested |
 | `failed` | Execution failed — `error` field contains the message |
+| `cancelled` | Execution was cancelled |
 
 Poll the `statusUrl` from the initial response until the status is `completed` or `failed`.
 
@@ -360,11 +358,11 @@ Poll the `statusUrl` from the initial response until the status is `completed` o
 | **Community** | 5 minutes | 90 minutes |
 | **Pro / Max / Team / Enterprise** | 50 minutes | 90 minutes |
 
-If a job exceeds its time limit it is automatically marked as `failed`.
+If an execution exceeds its time limit it is automatically marked as `failed`.
 
-#### Job Retention
+#### Execution Retention
 
-Completed and failed job results are retained for **24 hours**. After that, the status endpoint returns `404`. Retrieve and store results on your end if you need them longer.
+Completed and failed runs are read from execution logs and follow the workspace's execution-log retention policy.
 
 #### Capacity Limits
 
