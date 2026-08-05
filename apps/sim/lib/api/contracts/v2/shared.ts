@@ -179,7 +179,7 @@ export const v2DeleteFolderQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema,
     path: v2NonRootFolderPathInputSchema,
-    recursive: z.stringbool(),
+    recursive: z.stringbool().optional().default(false),
   })
   .strict()
 
