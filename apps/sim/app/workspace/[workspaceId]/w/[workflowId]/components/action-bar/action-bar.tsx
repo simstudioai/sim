@@ -56,7 +56,10 @@ type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete' |
  */
 function RunningActionIcon() {
   return (
-    <span className='relative grid size-[14px] place-items-center' role='status'>
+    <span
+      className='relative grid size-[14px] translate-x-[8px] translate-y-px place-items-center'
+      role='status'
+    >
       <span className='sr-only'>Block running</span>
       <span
         aria-hidden='true'
@@ -271,20 +274,19 @@ export const ActionBar = memo(
         actionId === 'run' &&
           isRunning && [
             '!bg-[var(--text-secondary)] !text-[var(--text-inverse)]',
-            'dark:!bg-[var(--surface-4)] dark:!text-[var(--text-primary)]',
             'hover-hover:!bg-[var(--white)] hover-hover:!text-[var(--surface-inverted)]',
-            'dark:hover-hover:!bg-[var(--white)] dark:hover-hover:!text-[var(--surface-inverted)]',
+            'dark:hover-hover:!bg-[var(--surface-4)] dark:hover-hover:!text-[var(--text-primary)]',
             'focus-visible:!bg-[var(--white)] focus-visible:!text-[var(--surface-inverted)]',
-            'dark:focus-visible:!bg-[var(--white)] dark:focus-visible:!text-[var(--surface-inverted)]',
+            'dark:focus-visible:!bg-[var(--surface-4)] dark:focus-visible:!text-[var(--text-primary)]',
           ],
         isSwell &&
           actionId === firstActionId &&
-          "!w-[40px] [clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24L36_24A4_4_0_0_0_40_20L40_4A4_4_0_0_0_36_0Z')] [&_svg]:translate-y-px",
+          "!w-[40px] [clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24L36_24A4_4_0_0_0_40_20L40_4A4_4_0_0_0_36_0Z')] [&>svg]:translate-y-px",
         isSwell &&
           actionId === firstActionId &&
           (actionId === 'run' || actionId === 'color'
-            ? '[&_svg]:translate-x-[8px]'
-            : '[&_svg]:translate-x-[6px]'),
+            ? '[&>svg]:translate-x-[8px]'
+            : '[&>svg]:translate-x-[6px]'),
         isSwell &&
           actionId === 'delete' &&
           "!w-[40px] [clip-path:path('M16.25_0A8_8_0_0_1_22.4_2.88L36.59_19.9A2.5_2.5_0_0_1_34.66_24L4_24A4_4_0_0_1_0_20L0_4A4_4_0_0_1_4_0Z')] [&_svg]:-translate-x-[6px] [&_svg]:translate-y-px",
@@ -433,13 +435,15 @@ export const ActionBar = memo(
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                {isLocked || isParentLocked
-                  ? 'Block is locked'
-                  : !isEnabled && isParentDisabled
-                    ? 'Parent container is disabled'
-                    : getTooltipMessage(isEnabled ? 'Disable' : 'Enable')}
-              </Tooltip.Content>
+              {!isWorkflowRunning && (
+                <Tooltip.Content side='top'>
+                  {isLocked || isParentLocked
+                    ? 'Block is locked'
+                    : !isEnabled && isParentDisabled
+                      ? 'Parent container is disabled'
+                      : getTooltipMessage(isEnabled ? 'Disable' : 'Enable')}
+                </Tooltip.Content>
+              )}
             </Tooltip.Root>
           )}
 
@@ -469,7 +473,7 @@ export const ActionBar = memo(
                     </Button>
                   </DropdownMenuTrigger>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Color</Tooltip.Content>
+                {!isWorkflowRunning && <Tooltip.Content side='top'>Color</Tooltip.Content>}
               </Tooltip.Root>
               <DropdownMenuContent
                 align='center'
@@ -525,13 +529,15 @@ export const ActionBar = memo(
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                {isLocked && isParentLocked
-                  ? 'Parent container is locked'
-                  : isLocked
-                    ? 'Unlock'
-                    : 'Lock'}
-              </Tooltip.Content>
+              {!isWorkflowRunning && (
+                <Tooltip.Content side='top'>
+                  {isLocked && isParentLocked
+                    ? 'Parent container is locked'
+                    : isLocked
+                      ? 'Unlock'
+                      : 'Lock'}
+                </Tooltip.Content>
+              )}
             </Tooltip.Root>
           )}
 
@@ -554,9 +560,11 @@ export const ActionBar = memo(
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Duplicate')}
-              </Tooltip.Content>
+              {!isWorkflowRunning && (
+                <Tooltip.Content side='top'>
+                  {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Duplicate')}
+                </Tooltip.Content>
+              )}
             </Tooltip.Root>
           )}
 
@@ -589,11 +597,13 @@ export const ActionBar = memo(
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                {isLocked || isParentLocked
-                  ? 'Block is locked'
-                  : getTooltipMessage('Remove from Subflow')}
-              </Tooltip.Content>
+              {!isWorkflowRunning && (
+                <Tooltip.Content side='top'>
+                  {isLocked || isParentLocked
+                    ? 'Block is locked'
+                    : getTooltipMessage('Remove from Subflow')}
+                </Tooltip.Content>
+              )}
             </Tooltip.Root>
           )}
 
@@ -615,9 +625,11 @@ export const ActionBar = memo(
                 </Button>
               </span>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Delete')}
-            </Tooltip.Content>
+            {!isWorkflowRunning && (
+              <Tooltip.Content side='top'>
+                {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Delete')}
+              </Tooltip.Content>
+            )}
           </Tooltip.Root>
         </div>
       </div>

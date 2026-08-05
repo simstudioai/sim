@@ -34,22 +34,23 @@ import { cn } from '../../lib/cn'
  *   icon inherits the label colour and remains the non-colour identifier.
  *
  *   These are fixed brand values, not derived ones — do not "correct" a hex
- *   for contrast or gamut. Every label is one of two inks: `#F8F8F8` when the
- *   fill is dark, `#1A1A1A` when it is light. `#3B3B3B` appears only as
- *   `inverse`'s fill, never as text. One value serves both modes; the tones
- *   carry no `dark:` overrides.
+ *   for contrast or gamut. Labels use `#F8F8F8` on dark semantic fills and
+ *   `#1A1A1A` on light fills; the content tone uses true white (`#FFFFFF`) on
+ *   `#007E80`. `#3B3B3B` appears only as `inverse`'s fill, never as text. One
+ *   value serves both modes; the tones carry no `dark:` overrides.
  *
  *   Contrast against the paired ink varies, and two pairs sit under WCAG AA
  *   (4.5:1) for normal text: `green` at 3.98:1 and `orange` at 3.15:1. These
- *   are brand decisions rather than oversights. Because the label is short and
- *   always duplicated by an icon and the block name beside it, the tag is a
- *   redundant cue rather than the sole carrier of the information — but do not
- *   reuse either pairing anywhere the label stands alone.
+ *   are brand decisions rather than oversights.
+ *   Because the label is short and always duplicated by an icon and the block
+ *   name beside it, the tag is a redundant cue rather than the sole carrier of
+ *   the information — but do not reuse these pairings anywhere the label
+ *   stands alone.
  *
- *   `neutral` is the only tone that is not a solid fill — an unmapped block
- *   type reads as a white, outlined slot rather than as one more colour in the
- *   set. Every other tone is fill-only, so it is also the only one whose edge
- *   depends on the ring rather than on the fill itself.
+ *   `neutral` is the only tone that is not a solid fill — neutral/system blocks
+ *   and unmapped block types read as white, outlined slots rather than as one
+ *   more colour in the set. Every other tone is fill-only, so it is also the
+ *   only one whose edge depends on the ring rather than on the fill itself.
  * - `brand` — a provider-owned integration colour supplied through
  *   `brandColor`. Pair with `brandForeground` so both the icon and label use
  *   the same contrast rule as integration tiles elsewhere in the product.
@@ -82,6 +83,8 @@ const chipTagVariants = cva(
         blue: '',
         green: '',
         yellow: '',
+        purple: '',
+        content: '',
       },
       brandForeground: {
         light: '',
@@ -97,10 +100,10 @@ const chipTagVariants = cva(
       {
         variant: 'workflow',
         tone: 'neutral',
-        /* The only outlined tone. An unmapped block type reads as an empty
-           slot rather than a colour, so the fill is plain white and an inset
-           ring — not a border — carries the edge, keeping the tag the same
-           size as every filled sibling. */
+        /* The only outlined tone. Neutral/system and unmapped block types read
+           as empty slots rather than a colour, so the fill is plain white and
+           an inset ring — not a border — carries the edge, keeping the tag the
+           same size as every filled sibling. */
         className: 'bg-[#FFFFFF] text-[#1A1A1A] shadow-[inset_0_0_0_1px_#C3C3C3]',
       },
       { variant: 'workflow', tone: 'inverse', className: 'bg-[#3B3B3B] text-[#F8F8F8]' },
@@ -109,6 +112,8 @@ const chipTagVariants = cva(
       { variant: 'workflow', tone: 'blue', className: 'bg-[#0062FF] text-[#F8F8F8]' },
       { variant: 'workflow', tone: 'green', className: 'bg-[#188F00] text-[#F8F8F8]' },
       { variant: 'workflow', tone: 'yellow', className: 'bg-[#FFEF08] text-[#1A1A1A]' },
+      { variant: 'workflow', tone: 'purple', className: 'bg-[#AA00FF] text-[#F8F8F8]' },
+      { variant: 'workflow', tone: 'content', className: 'bg-[#007E80] text-[#FFFFFF]' },
       { variant: 'brand', brandForeground: 'light', className: 'text-[#FFFFFF]' },
       { variant: 'brand', brandForeground: 'dark', className: 'text-[#000000]' },
     ],

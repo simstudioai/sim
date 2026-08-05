@@ -1,6 +1,7 @@
 import {
   type ComponentType,
   type CSSProperties,
+  type HTMLAttributes,
   type ReactNode,
   type Ref,
   useCallback,
@@ -95,35 +96,111 @@ export function getNearestBranchCursorHandleId(
   return getCursorBranchSourceHandleId(`${handlePrefix}-${rows[nearestIndex].id}`)
 }
 
-const WORKFLOW_TYPE_ACCENTS = {
-  agent: { variant: 'workflow', tone: 'inverse' },
-  api: { variant: 'workflow', tone: 'blue' },
-  condition: { variant: 'workflow', tone: 'ash' },
-  credential: { variant: 'workflow', tone: 'yellow' },
-  file: { variant: 'workflow', tone: 'orange' },
-  file_v5: { variant: 'workflow', tone: 'orange' },
-  function: { variant: 'workflow', tone: 'ash' },
-  loop: { variant: 'solid', tone: 'neutral' },
-  parallel: { variant: 'workflow', tone: 'yellow' },
-  router: { variant: 'workflow', tone: 'orange' },
-  router_v2: { variant: 'workflow', tone: 'orange' },
-  table: { variant: 'workflow', tone: 'green' },
+const WORKFLOW_ROLE_ACCENTS = {
+  agentic: { variant: 'workflow', tone: 'inverse' },
+  interface: { variant: 'workflow', tone: 'blue' },
+  logic: { variant: 'workflow', tone: 'orange' },
+  state: { variant: 'workflow', tone: 'yellow' },
+  flow: { variant: 'workflow', tone: 'ash' },
+  records: { variant: 'workflow', tone: 'green' },
+  neutral: { variant: 'workflow', tone: 'neutral' },
+  generative: { variant: 'workflow', tone: 'purple' },
+  knowledge: { variant: 'workflow', tone: 'content' },
 } as const
 
-const DEFAULT_WORKFLOW_TYPE_ACCENT = { variant: 'workflow', tone: 'neutral' } as const
+export type WorkflowTypeRole = keyof typeof WORKFLOW_ROLE_ACCENTS
+
+const WORKFLOW_TYPE_ROLES = {
+  a2a: 'neutral',
+  agent: 'agentic',
+  api: 'interface',
+  condition: 'logic',
+  credential: 'state',
+  deployments: 'neutral',
+  enrichment: 'knowledge',
+  evaluator: 'logic',
+  file: 'knowledge',
+  file_v2: 'knowledge',
+  file_v3: 'knowledge',
+  file_v4: 'knowledge',
+  file_v5: 'knowledge',
+  function: 'logic',
+  generic_webhook: 'interface',
+  guardrails: 'logic',
+  human_in_the_loop: 'state',
+  image_generator: 'generative',
+  image_generator_v2: 'generative',
+  imap: 'interface',
+  knowledge: 'knowledge',
+  logs: 'records',
+  logs_v2: 'records',
+  loop: 'flow',
+  mcp: 'interface',
+  memory: 'state',
+  mothership: 'agentic',
+  note: 'neutral',
+  parallel: 'flow',
+  pi: 'agentic',
+  response: 'interface',
+  router: 'flow',
+  router_v2: 'flow',
+  rss: 'knowledge',
+  schedule: 'flow',
+  search: 'knowledge',
+  sim_workspace_event: 'interface',
+  start_trigger: 'flow',
+  starter: 'neutral',
+  stt: 'generative',
+  stt_v2: 'generative',
+  table: 'records',
+  table_v2: 'records',
+  thinking: 'agentic',
+  translate: 'generative',
+  tts: 'generative',
+  variables: 'state',
+  video_generator: 'generative',
+  video_generator_v2: 'generative',
+  video_generator_v3: 'generative',
+  vision: 'generative',
+  vision_v2: 'generative',
+  wait: 'flow',
+  webhook_request: 'interface',
+  workflow: 'interface',
+  workflow_input: 'interface',
+} as const satisfies Record<string, WorkflowTypeRole>
+
+const DEFAULT_WORKFLOW_TYPE_ROLE: WorkflowTypeRole = 'neutral'
+
+export const hasWorkflowTypeRole = (type: string): type is keyof typeof WORKFLOW_TYPE_ROLES =>
+  Object.hasOwn(WORKFLOW_TYPE_ROLES, type)
+
+export const getWorkflowTypeRole = (type: string): WorkflowTypeRole =>
+  WORKFLOW_TYPE_ROLES[type as keyof typeof WORKFLOW_TYPE_ROLES] ?? DEFAULT_WORKFLOW_TYPE_ROLE
 
 export const getWorkflowTypeAccent = (type: string) =>
-  WORKFLOW_TYPE_ACCENTS[type as keyof typeof WORKFLOW_TYPE_ACCENTS] ?? DEFAULT_WORKFLOW_TYPE_ACCENT
+  WORKFLOW_ROLE_ACCENTS[getWorkflowTypeRole(type)]
 
-/**
- * Returns the mapped accent for a block type, or `null` when the type has no
- * entry in {@link WORKFLOW_TYPE_ACCENTS}. Callers that must distinguish an
- * unmapped type (e.g. integration blocks, which paint their own brand tile)
- * use this instead of {@link getWorkflowTypeAccent}, which always falls back to
- * the neutral accent.
- */
-export const getMappedWorkflowTypeAccent = (type: string) =>
-  WORKFLOW_TYPE_ACCENTS[type as keyof typeof WORKFLOW_TYPE_ACCENTS] ?? null
+export interface WorkflowTypeIconProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
+  type: string
+  Icon: ComponentType<{ className?: string }>
+}
+
+/** Shared compact core-block icon used by workflow discovery surfaces. */
+export function WorkflowTypeIcon({ type, Icon, className, ...props }: WorkflowTypeIconProps) {
+  const typeAccent = getWorkflowTypeAccent(type)
+
+  return (
+    <ChipTag
+      variant={typeAccent.variant}
+      tone={typeAccent.tone}
+      className={cn('size-[16px] flex-shrink-0 justify-center p-0', className)}
+      data-workflow-type-icon={type}
+      {...props}
+    >
+      <Icon className='size-[10px] transition-transform duration-100 group-hover:scale-110' />
+    </ChipTag>
+  )
+}
 
 export interface WorkflowTypeTagProps {
   type: string

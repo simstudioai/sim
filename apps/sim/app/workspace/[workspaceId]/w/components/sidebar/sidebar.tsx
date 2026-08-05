@@ -47,6 +47,7 @@ import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
@@ -399,6 +400,7 @@ export const Sidebar = memo(function Sidebar({
 
   const posthog = usePostHog()
   const { data: sessionData, isPending: sessionLoading } = useSession()
+  const { workspace: routeWorkspace } = useWorkspaceHostContext()
   const { canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
   const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
@@ -1333,7 +1335,7 @@ export const Sidebar = memo(function Sidebar({
               )}
             >
               <WorkspaceHeader
-                activeWorkspace={activeWorkspace}
+                activeWorkspace={activeWorkspace ?? routeWorkspace}
                 workspaceId={workspaceId}
                 workspaces={workspaces}
                 workspaceCreationPolicy={workspaceCreationPolicy}
