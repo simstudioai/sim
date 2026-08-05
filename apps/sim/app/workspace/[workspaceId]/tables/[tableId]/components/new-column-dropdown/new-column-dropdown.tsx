@@ -71,7 +71,7 @@ export function NewColumnDropdown({
         onClick={blocked ? onBlocked : undefined}
       >
         <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
+        <span className='text-[var(--text-body)] text-small'>New column</span>
       </button>
     )
 

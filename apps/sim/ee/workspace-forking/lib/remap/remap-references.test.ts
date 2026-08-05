@@ -1300,6 +1300,64 @@ describe('canonical mode policy (fork/promote)', () => {
     expect(scan.references).toEqual([])
   })
 
+  /**
+   * Every shipped canonical pair's advanced member is a plain `short-input`, which carries no
+   * resource definition — so the "advanced is user-owned, verbatim" policy has never been
+   * exercised against an advanced member that IS a resource selector. Pin it here so the
+   * policy holds by enforcement rather than by the accident of the current block configs.
+   */
+  const selectorPairBlock = () =>
+    blockWith([
+      {
+        id: 'tableSelector',
+        title: 'Table',
+        type: 'table-selector',
+        canonicalParamId: 'tableId',
+        mode: 'basic',
+      },
+      {
+        id: 'advancedTableSelector',
+        title: 'Table (advanced)',
+        type: 'table-selector',
+        canonicalParamId: 'tableId',
+        mode: 'advanced',
+      },
+    ])
+
+  it('advanced mode: a selector-typed manual member is neither remapped nor detected', () => {
+    vi.mocked(getBlock).mockReturnValue(selectorPairBlock())
+    const resolveTable = (kind: string, id: string) =>
+      kind === 'table' && id === 'tbl-manual' ? 'tbl-copy' : null
+    const transform = createForkBootstrapTransform(resolveTable as never)
+    const result = transform(
+      {
+        tableSelector: entry('tableSelector', 'table-selector', 'tbl-basic'),
+        advancedTableSelector: entry('advancedTableSelector', 'table-selector', 'tbl-manual'),
+      },
+      'table',
+      { tableId: 'advanced' }
+    )
+    expect(result.advancedTableSelector.value).toBe('tbl-manual')
+    expect(result.tableSelector.value).toBe('')
+
+    const scan = scanWorkflowReferences(
+      [
+        {
+          id: 'b1',
+          name: 'Table',
+          type: 'table',
+          subBlocks: {
+            tableSelector: entry('tableSelector', 'table-selector', 'tbl-basic'),
+            advancedTableSelector: entry('advancedTableSelector', 'table-selector', 'tbl-manual'),
+          },
+          canonicalModes: { tableId: 'advanced' },
+        },
+      ],
+      () => null
+    )
+    expect(scan.references).toEqual([])
+  })
+
   it('does not detect a condition-hidden subblock (its value never executes)', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([

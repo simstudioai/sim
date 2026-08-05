@@ -151,10 +151,18 @@ export function SidebarFooter({
    * so hover highlights only the avatar and name. Collapsed, `fullWidth` fills the
    * narrow rail instead. Both mirror the workspace header's chip exactly.
    *
-   * No `min-w-0`: the label already truncates on its own, and letting the chip
-   * shrink past its avatar is what let the help button ride onto the photo while
-   * the rail was still narrow (see {@link SidebarFooter}). Its automatic minimum
-   * is exactly the icon-only chip, so the avatar holds the same spot at any width.
+   * No `min-w-0` expanded: the label already truncates on its own, and letting the
+   * chip shrink past its avatar is what let the help button ride onto the photo
+   * while the rail was still narrow (see {@link SidebarFooter}).
+   *
+   * Collapsed it takes `min-w-0`, because the label stays in the layout there — the
+   * rail hides it with `opacity`, not `display`, so the fade survives a toggle. Its
+   * empty box still contributes the content row's gap, putting the chip's automatic
+   * minimum at 38px against a 35px rail: the chip overflowed, the aside clipped its
+   * right edge, and the hover fill read as a full-width row bleeding off the rail
+   * instead of the padded pill every other collapsed chip draws. Floored at zero it
+   * fills exactly the rail, and the avatar keeps the same 8px offset as the help
+   * glyph above it.
    *
    * The name is the button's accessible name — no `aria-label`, which would
    * override the visible text. Radix contributes the menu role and expanded state.
@@ -167,7 +175,9 @@ export function SidebarFooter({
             type='button'
             data-item-id='profile'
             className={
-              isCollapsed ? chipVariants({ fullWidth: true }) : cn(chipVariants(), 'max-w-full')
+              isCollapsed
+                ? cn(chipVariants({ fullWidth: true }), 'min-w-0')
+                : cn(chipVariants(), 'max-w-full')
             }
           >
             {avatar}

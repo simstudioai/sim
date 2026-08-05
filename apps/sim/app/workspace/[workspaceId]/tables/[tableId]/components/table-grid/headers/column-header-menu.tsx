@@ -162,8 +162,9 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 
       const ghost = document.createElement('div')
       ghost.textContent = ghostLabel
+      ghost.className = 'text-small'
       ghost.style.cssText =
-        'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
+        'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;white-space:nowrap;color:var(--text-primary)'
       document.body.appendChild(ghost)
       e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
       requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
@@ -284,7 +285,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               if (e.key === 'Escape') onRenameCancel()
             }}
             onBlur={onRenameSubmit}
-            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-small outline-none focus:outline-none focus:ring-0'
+            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-primary)] text-small outline-none focus:outline-none focus:ring-0'
           />
         </div>
       ) : readOnly ? (
@@ -295,7 +296,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             blockIconInfo={sourceInfo?.blockIconInfo}
             blockMissing={blockMissing}
           />
-          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-primary)] text-small'>
             {column.workflowGroupId ? column.headerLabel : column.name}
           </span>
         </div>
@@ -313,7 +314,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               blockIconInfo={sourceInfo?.blockIconInfo}
               blockMissing={blockMissing}
             />
-            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-primary)] text-small'>
               {column.workflowGroupId ? column.headerLabel : column.name}
             </span>
           </button>

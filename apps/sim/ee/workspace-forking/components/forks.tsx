@@ -46,6 +46,7 @@ import {
 } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { useWorkspaceCreationPolicy, useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
 
 /** Explains a disabled lineage action whose target workspace the viewer cannot open. */
 const NO_ACCESS_TOOLTIP = "You don't have access to this workspace"
@@ -152,7 +153,7 @@ function ForkSyncDetailView({
         },
       ]
 
-  const targetWorkspaceName = direction === 'push' ? otherWorkspaceName : 'this workspace'
+  const targetWorkspaceName = controller.targetWorkspaceName
 
   return (
     <>
@@ -220,6 +221,36 @@ function ForkSyncDetailView({
             {controller.archivedWorkflowNames.length > ARCHIVED_PREVIEW_LIMIT ? (
               <div className='text-[var(--text-muted)] text-small'>
                 and {controller.archivedWorkflowNames.length - ARCHIVED_PREVIEW_LIMIT} more
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {/* A dead trigger URL is only discoverable after the fact, when the external caller goes
+            quiet - so it belongs in the confirm, next to the other irreversible consequences. */}
+        {controller.triggerUrlChanges.length > 0 ? (
+          <div className='flex flex-col gap-1 px-2'>
+            <p className='break-words text-[var(--text-primary)] text-sm'>
+              {controller.triggerUrlChanges.length === 1 ? 'A webhook URL' : 'Webhook URLs'} in{' '}
+              <span className='font-medium'>{targetWorkspaceName}</span> will stop being served —
+              anything calling {controller.triggerUrlChanges.length === 1 ? 'it' : 'them'} breaks
+              until you re-register:
+            </p>
+            {controller.triggerUrlChanges.slice(0, ARCHIVED_PREVIEW_LIMIT).map((change) => (
+              // Naming the URL, not just its workflow: several URLs in one workflow would render
+              // as identical lines, and this confirm is the last point before they stop serving.
+              <div
+                key={`${change.workflowName}:${change.path}`}
+                className='min-w-0 text-[var(--text-muted)] text-small'
+              >
+                {change.workflowName}
+                <span className='block truncate font-mono text-caption'>
+                  {buildWebhookTriggerUrl(change.path)}
+                </span>
+              </div>
+            ))}
+            {controller.triggerUrlChanges.length > ARCHIVED_PREVIEW_LIMIT ? (
+              <div className='text-[var(--text-muted)] text-small'>
+                and {controller.triggerUrlChanges.length - ARCHIVED_PREVIEW_LIMIT} more
               </div>
             ) : null}
           </div>
