@@ -100,6 +100,35 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     })
   })
 
+  it('keeps an active resume queued while its background job is not yet visible', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        status: 'paused',
+        trigger: 'api',
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [
+      {
+        id: 'resume-entry-1',
+        queuedAt: new Date('2026-08-05T12:00:00.000Z'),
+        claimedAt: new Date('2026-08-05T12:00:01.000Z'),
+      },
+    ])
+    mockGetJob.mockResolvedValueOnce(null)
+
+    const status = await getWorkflowExecutionStatus(input)
+
+    expect(status).toMatchObject({
+      executionId: 'execution-1',
+      status: 'queued',
+      trigger: 'api',
+      startedAt: '2026-08-05T12:00:01.000Z',
+      paused: null,
+    })
+  })
+
   it('returns completed queue output when requested', async () => {
     mockGetJob.mockResolvedValueOnce({
       status: 'completed',

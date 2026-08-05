@@ -155,7 +155,11 @@ export async function getWorkflowExecutionStatus(
     .limit(1)
 
   const [activeResume] = await db
-    .select({ id: resumeQueue.id })
+    .select({
+      id: resumeQueue.id,
+      queuedAt: resumeQueue.queuedAt,
+      claimedAt: resumeQueue.claimedAt,
+    })
     .from(resumeQueue)
     .where(
       and(
@@ -177,6 +181,25 @@ export async function getWorkflowExecutionStatus(
       const job = await jobQueue.getJob(jobId)
       if (!job || job.metadata.workflowId !== workflowId) continue
       return projectQueueJob(job, { executionId, includeOutput, workflowId })
+    }
+  }
+
+  if (activeResume && logRow) {
+    const startedAt = activeResume.claimedAt ?? activeResume.queuedAt
+    return {
+      executionId,
+      workflowId,
+      status: 'queued',
+      trigger: logRow.trigger,
+      level: 'info',
+      startedAt: startedAt.toISOString(),
+      endedAt: null,
+      totalDurationMs: null,
+      paused: null,
+      cost: null,
+      error: null,
+      finalOutput: null,
+      blockOutputs: null,
     }
   }
 
