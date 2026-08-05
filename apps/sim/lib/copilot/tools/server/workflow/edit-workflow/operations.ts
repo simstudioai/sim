@@ -201,8 +201,7 @@ function mergeNestedNodesForParent(
         const childValidation = validateInputsForBlock(
           existingBlock.type,
           childBlock.inputs,
-          existingId,
-          { existingSubBlocks: existingBlock.subBlocks }
+          existingId
         )
         validationErrors.push(...childValidation.errors)
 
@@ -427,9 +426,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     if (!block.subBlocks) block.subBlocks = {}
 
     // Validate inputs against block configuration
-    const validationResult = validateInputsForBlock(block.type, params.inputs, block_id, {
-      existingSubBlocks: block.subBlocks,
-    })
+    const validationResult = validateInputsForBlock(block.type, params.inputs, block_id)
     validationErrors.push(...validationResult.errors)
 
     Object.entries(validationResult.validInputs).forEach(([inputKey, value]) => {
@@ -901,9 +898,7 @@ export function handleInsertIntoSubflowOperation(
     // Update inputs if provided (with validation)
     if (params.inputs) {
       // Validate inputs against block configuration
-      const validationResult = validateInputsForBlock(existingBlock.type, params.inputs, block_id, {
-        existingSubBlocks: existingBlock.subBlocks,
-      })
+      const validationResult = validateInputsForBlock(existingBlock.type, params.inputs, block_id)
       validationErrors.push(...validationResult.errors)
 
       Object.entries(validationResult.validInputs).forEach(([key, value]) => {

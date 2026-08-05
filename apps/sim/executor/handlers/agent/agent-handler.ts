@@ -123,11 +123,11 @@ export class AgentBlockHandler implements BlockHandler {
     let autoRouting: AutoRoutingResult | null = null
     if (isCustomModel(configuredModel)) {
       if (!ctx.userId) {
-        throw new Error('Custom models require an authenticated Super User')
+        throw new Error('The selected model is unavailable for this execution')
       }
       const { effectiveSuperUser } = await verifyEffectiveSuperUser(ctx.userId)
       if (!effectiveSuperUser) {
-        throw new Error('Custom models are available only while Super User mode is enabled')
+        throw new Error('The selected model is unavailable for this execution')
       }
 
       customModelConfig = parseCustomModelConfig(filteredInputs.customModelConfig)

@@ -402,15 +402,15 @@ describe('AgentBlockHandler', () => {
         superUserModeEnabled: false,
       })
 
-      await expect(
-        handler.execute(mockContext, mockBlock, {
-          model: CUSTOM_MODEL_ID,
-          customModelConfig: {
-            provider: 'openai',
-            model: 'gpt-future',
-          },
-        })
-      ).rejects.toThrow('only while Super User mode is enabled')
+      const execution = handler.execute(mockContext, mockBlock, {
+        model: CUSTOM_MODEL_ID,
+        customModelConfig: {
+          provider: 'openai',
+          model: 'gpt-future',
+        },
+      })
+      await expect(execution).rejects.toThrow('The selected model is unavailable')
+      await expect(execution).rejects.not.toThrow(/Custom|Super User/)
       expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
 

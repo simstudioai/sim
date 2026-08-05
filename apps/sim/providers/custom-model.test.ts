@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest'
 import {
   CUSTOM_MODEL_CONFIG_JSON_SCHEMA,
   CUSTOM_MODEL_ID,
+  getCustomModelDisplayValue,
   isCustomModel,
   parseCustomModelConfig,
-  redactCustomModelConfig,
 } from '@/providers/custom-model'
 
 describe('custom model config', () => {
@@ -221,27 +221,16 @@ describe('custom model config', () => {
     ).toThrow('apiKey is required')
   })
 
-  it('redacts literal credentials while preserving environment references', () => {
-    const literal = redactCustomModelConfig({
-      provider: 'openai',
-      model: 'gpt-future',
-      credentials: { mode: 'explicit', apiKey: 'sk-secret' },
-    }) as any
-    expect(literal.credentials.apiKey).toBe('<redacted>')
-
-    const reference = redactCustomModelConfig(
-      JSON.stringify({
-        provider: 'openai',
-        model: 'gpt-future',
-        credentials: { mode: 'explicit', apiKey: '{{OPENAI_API_KEY}}' },
-      })
-    ) as string
-    expect(reference).toContain('{{OPENAI_API_KEY}}')
-  })
-
   it('recognizes the sentinel case-insensitively', () => {
     expect(isCustomModel(CUSTOM_MODEL_ID)).toBe(true)
     expect(isCustomModel('SIM-CUSTOM')).toBe(true)
     expect(isCustomModel('gpt-5.6-terra')).toBe(false)
+  })
+
+  it('never renders the Custom sentinel to a non-Super User', () => {
+    expect(getCustomModelDisplayValue('sim-custom', false)).toBe('Restricted model')
+    expect(getCustomModelDisplayValue('SIM-CUSTOM', false)).toBe('Restricted model')
+    expect(getCustomModelDisplayValue('sim-custom', true)).toBe('sim-custom')
+    expect(getCustomModelDisplayValue('gpt-5.6-terra', false)).toBe('gpt-5.6-terra')
   })
 })

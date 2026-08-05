@@ -19,7 +19,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { getAgentModelOptions, getModelOptions } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
-import { isCustomModel, parseCustomModelConfig } from '@/providers/custom-model'
+import { isCustomModel } from '@/providers/custom-model'
 import {
   isAutoModel,
   isCustomJsonOnlyModel,
@@ -40,11 +40,6 @@ import { SELECTOR_TYPES } from './types'
 
 const validationLogger = createLogger('EditWorkflowValidation')
 const agentToolLintLogger = createLogger('EditWorkflowAgentToolLint')
-const REDACTED_CUSTOM_MODEL_API_KEY = '<redacted>'
-
-interface ValidateInputsForBlockOptions {
-  existingSubBlocks?: Record<string, { value?: unknown } | undefined>
-}
 
 /**
  * Detect privileged Agent custom-model writes anywhere in an edit operation,
@@ -85,8 +80,7 @@ export function findBlockWithDuplicateNormalizedName(
 export function validateInputsForBlock(
   blockType: string,
   inputs: Record<string, any>,
-  blockId: string,
-  options?: ValidateInputsForBlockOptions
+  blockId: string
 ): ValidationResult {
   const errors: ValidationError[] = []
 
@@ -181,8 +175,7 @@ export function validateInputsForBlock(
       value,
       key,
       blockType,
-      blockId,
-      options?.existingSubBlocks?.[key]?.value
+      blockId
     )
     if (validationResult.valid) {
       validatedInputs[key] = validationResult.value
@@ -314,8 +307,7 @@ export function validateValueForSubBlockType(
   value: any,
   fieldName: string,
   blockType: string,
-  blockId: string,
-  existingValue?: unknown
+  blockId: string
 ): ValueValidationResult {
   const { type } = subBlockConfig
 
@@ -540,59 +532,6 @@ export function validateValueForSubBlockType(
     }
 
     case 'code': {
-      if (fieldName === 'customModelConfig') {
-        try {
-          // VFS advertises this field as JSON, while the editor's code
-          // subblock persists text. Accept the object Mothership naturally
-          // produces, validate it now, and store one canonical JSON string.
-          const parsed = parseCustomModelConfig(value)
-
-          if (parsed.credentials.apiKey === REDACTED_CUSTOM_MODEL_API_KEY) {
-            if (existingValue === undefined || existingValue === null) {
-              throw new Error(
-                'credentials.apiKey cannot be "<redacted>" without an existing stored key; provide an environment-variable reference or a new key'
-              )
-            }
-
-            const existing = parseCustomModelConfig(existingValue)
-            if (existing.provider !== parsed.provider) {
-              throw new Error(
-                'credentials.apiKey cannot remain "<redacted>" when changing providers; provide the new provider key or an environment-variable reference'
-              )
-            }
-
-            const existingApiKey = existing.credentials.apiKey
-            if (
-              existing.credentials.mode !== 'explicit' ||
-              !existingApiKey ||
-              existingApiKey === REDACTED_CUSTOM_MODEL_API_KEY
-            ) {
-              throw new Error(
-                'credentials.apiKey cannot be "<redacted>" because no usable stored key exists; provide an environment-variable reference or a new key'
-              )
-            }
-
-            // `<redacted>` is a read-view sentinel, never a credential. Restore
-            // the existing value only after the provider identity is proven to
-            // match, so a model/parameter edit cannot destroy or misroute it.
-            parsed.credentials.apiKey = existingApiKey
-          }
-
-          return { valid: true, value: JSON.stringify(parsed, null, 2) }
-        } catch (error) {
-          return {
-            valid: false,
-            error: {
-              blockId,
-              blockType,
-              field: fieldName,
-              value,
-              error: `Invalid custom model configuration: ${toError(error).message}`,
-            },
-          }
-        }
-      }
-
       // Code must be a string (content can be JS, Python, JSON, SQL, HTML, etc.)
       if (typeof value !== 'string') {
         return {
@@ -660,9 +599,6 @@ export function validateValueForSubBlockType(
       if (usesProviderCatalog) {
         const stringValue = typeof value === 'string' ? value : String(value)
         const trimmed = stringValue.trim()
-        if (trimmed !== '' && isCustomModel(trimmed)) {
-          return { valid: true, value: trimmed.toLowerCase() }
-        }
         // sim-auto is a valid model value on hosted Sim only (mirrors the
         // options array the agent reads: it is absent from self-hosted
         // snapshots, so writes of it there are rejected as unknown).
@@ -677,7 +613,7 @@ export function validateValueForSubBlockType(
               blockType,
               field: fieldName,
               value,
-              error: `Model "${trimmed}" is available only through an Agent block's Super User Custom model configuration. Set model to "sim-custom" and provide customModelConfig instead.`,
+              error: `Model "${trimmed}" is not available in Copilot model authoring. Choose a model listed in components/blocks/${blockType}.json.`,
             },
           }
         }

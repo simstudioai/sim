@@ -408,11 +408,12 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.model).toBe('claude-sonnet-4-6')
   })
 
-  it('recognizes the Super User custom Agent model sentinel', () => {
+  it('does not expose the manual Custom model sentinel to Copilot authoring', () => {
     const result = validateInputsForBlock('agent', { model: '  SIM-CUSTOM  ' }, 'agent-1')
 
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.model).toBe('sim-custom')
+    expect(result.validInputs.model).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('Unknown model id')
   })
 
   it('rejects JSON-only Fireworks models in ordinary Agent and Router model fields', () => {
@@ -424,8 +425,8 @@ describe('validateInputsForBlock', () => {
 
       expect(result.validInputs.model).toBeUndefined()
       expect(result.errors).toHaveLength(1)
-      expect(result.errors[0]?.error).toContain('Super User Custom model configuration')
-      expect(result.errors[0]?.error).toContain('sim-custom')
+      expect(result.errors[0]?.error).toContain('not available in Copilot model authoring')
+      expect(result.errors[0]?.error).not.toContain('Custom model')
     }
   })
 
@@ -512,7 +513,7 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.model).toBe('gpt-5.4')
   })
 
-  it('accepts and canonicalizes a custom-model object from the VFS JSON schema', () => {
+  it('does not accept Custom model objects through ordinary Copilot field validation', () => {
     const result = validateInputsForBlock(
       'agent',
       {
@@ -525,23 +526,9 @@ describe('validateInputsForBlock', () => {
       'agent-1'
     )
 
-    expect(result.errors).toHaveLength(0)
-    expect(JSON.parse(result.validInputs.customModelConfig)).toMatchObject({
-      provider: 'fireworks',
-      model: 'fireworks/minimax-m2.7',
-      credentials: { mode: 'explicit', apiKey: '{{FIREWORKS_API_KEY}}' },
-    })
-  })
-
-  it('rejects an invalid custom-model object before execution', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      { customModelConfig: { provider: 'unknown', model: 'future' } },
-      'agent-1'
-    )
-
     expect(result.validInputs.customModelConfig).toBeUndefined()
-    expect(result.errors[0]?.error).toContain('Invalid custom model configuration')
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('expected a string')
   })
 
   it('rejects a pattern-matching but uncataloged id even with surrounding whitespace', () => {

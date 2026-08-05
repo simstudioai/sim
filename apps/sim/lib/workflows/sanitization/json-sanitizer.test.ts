@@ -161,7 +161,7 @@ describe('sanitizeForCopilot server-only block inputs', () => {
     expect(result.blocks['chat-1'].inputs).toEqual({ prompt: 'Help me' })
   })
 
-  it('hides custom model configuration unless effective Super User mode is verified', () => {
+  it('keeps custom model configuration and its sentinel opaque to Copilot', () => {
     const workflow = makeSingleBlockWorkflow('agent-1', {
       type: 'agent',
       name: 'Agent 1',
@@ -182,16 +182,19 @@ describe('sanitizeForCopilot server-only block inputs', () => {
 
     const result = sanitizeForCopilot(workflow)
 
-    expect(result.blocks['agent-1'].inputs).toEqual({ model: 'sim-custom' })
+    expect(result.blocks['agent-1'].inputs).toBeUndefined()
+    expect(JSON.stringify(result)).not.toContain('sim-custom')
+    expect(JSON.stringify(result)).not.toContain('customModelConfig')
+    expect(JSON.stringify(result)).not.toContain('literal-secret')
   })
 
-  it('redacts literal custom model keys in the effective Super User read view', () => {
+  it('hides dormant custom configuration while retaining an ordinary selected model', () => {
     const workflow = makeSingleBlockWorkflow('agent-1', {
       type: 'agent',
       name: 'Agent 1',
       enabled: true,
       subBlocks: {
-        model: { id: 'model', type: 'combobox', value: 'sim-custom' },
+        model: { id: 'model', type: 'combobox', value: 'gpt-5.6-terra' },
         customModelConfig: {
           id: 'customModelConfig',
           type: 'code',
@@ -204,35 +207,11 @@ describe('sanitizeForCopilot server-only block inputs', () => {
       },
     })
 
-    const result = sanitizeForCopilot(workflow, { effectiveSuperUser: true })
-    const customConfig = JSON.parse(result.blocks['agent-1'].inputs?.customModelConfig as string)
+    const result = sanitizeForCopilot(workflow)
 
-    expect(customConfig.credentials.apiKey).toBe('<redacted>')
+    expect(result.blocks['agent-1'].inputs).toEqual({ model: 'gpt-5.6-terra' })
+    expect(JSON.stringify(result)).not.toContain('customModelConfig')
     expect(JSON.stringify(result)).not.toContain('literal-secret')
-  })
-
-  it('preserves custom model environment references for effective Super Users', () => {
-    const workflow = makeSingleBlockWorkflow('agent-1', {
-      type: 'agent',
-      name: 'Agent 1',
-      enabled: true,
-      subBlocks: {
-        customModelConfig: {
-          id: 'customModelConfig',
-          type: 'code',
-          value: JSON.stringify({
-            provider: 'anthropic',
-            model: 'claude-custom',
-            credentials: { mode: 'explicit', apiKey: '{{ANTHROPIC_API_KEY}}' },
-          }),
-        },
-      },
-    })
-
-    const result = sanitizeForCopilot(workflow, { effectiveSuperUser: true })
-    const customConfig = JSON.parse(result.blocks['agent-1'].inputs?.customModelConfig as string)
-
-    expect(customConfig.credentials.apiKey).toBe('{{ANTHROPIC_API_KEY}}')
   })
 })
 

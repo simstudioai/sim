@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasWorkflowLintIssues, lintEditedWorkflowState } from './lint'
+import { collectWorkflowFieldIssues, hasWorkflowLintIssues, lintEditedWorkflowState } from './lint'
 
 function baseBlock(id: string, type: string, name: string, subBlocks: Record<string, any> = {}) {
   return {
@@ -316,5 +316,17 @@ describe('lintEditedWorkflowState', () => {
     expect(lint.emptyOutgoingPorts).toEqual([])
     expect(lint.sinks.map((block) => block.blockId).sort()).toEqual(['child', 'loop'])
     expect(hasWorkflowLintIssues(lint)).toBe(false)
+  })
+
+  it('does not reveal Super User-only fields through Copilot lint', () => {
+    const issues = collectWorkflowFieldIssues({
+      agent: baseBlock('agent', 'agent', 'Agent', {
+        model: { id: 'model', type: 'combobox', value: 'sim-custom' },
+      }),
+    })
+
+    expect(JSON.stringify(issues)).not.toContain('Custom Model Configuration')
+    expect(JSON.stringify(issues)).not.toContain('customModelConfig')
+    expect(JSON.stringify(issues)).not.toContain('sim-custom')
   })
 })

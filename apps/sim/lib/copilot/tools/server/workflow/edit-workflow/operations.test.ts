@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { applyOperationsToWorkflowState } from './engine'
+import { applyOperationsToWorkflowState, reconcileStoredCustomModelState } from './engine'
 
 vi.mock('@/blocks/registry', () => ({
   getAllBlocks: () => [
@@ -564,7 +564,7 @@ describe('forward-reference connections (pending resolution)', () => {
   })
 })
 
-describe('custom model credential round trips', () => {
+describe('Copilot-opaque Custom model state', () => {
   const existingSecret = 'sk-existing-custom-secret'
 
   function makeCustomAgentWorkflow(includeConfig = true) {
@@ -606,83 +606,88 @@ describe('custom model credential round trips', () => {
     }
   }
 
-  it('restores the existing literal key when an edit round-trips the VFS placeholder', () => {
+  it('preserves Custom selection and configuration during unrelated edits', () => {
+    const workflow = makeCustomAgentWorkflow()
+    const originalConfig = workflow.blocks['agent-1'].subBlocks.customModelConfig.value
     const result = applyOperationsToWorkflowState(makeCustomAgentWorkflow(), [
       {
         operation_type: 'edit',
         block_id: 'agent-1',
         params: {
-          inputs: {
-            customModelConfig: {
-              provider: 'openai',
-              model: 'gpt-5.6-sol',
-              parameters: { reasoningEffort: 'high', temperature: 0.1 },
-              credentials: { mode: 'explicit', apiKey: '<redacted>' },
-              providerOptions: {},
-            },
-          },
+          inputs: { systemPrompt: 'Updated by Copilot' },
         },
       },
     ])
 
     expect(result.validationErrors).toHaveLength(0)
-    const stored = JSON.parse(
-      result.state.blocks['agent-1'].subBlocks.customModelConfig.value as string
-    )
-    expect(stored).toMatchObject({
-      provider: 'openai',
-      model: 'gpt-5.6-sol',
-      parameters: { reasoningEffort: 'high', temperature: 0.1 },
-      credentials: { mode: 'explicit', apiKey: existingSecret },
-    })
+    expect(result.state.blocks['agent-1'].subBlocks.systemPrompt.value).toBe('Updated by Copilot')
+    expect(result.state.blocks['agent-1'].subBlocks.model.value).toBe('sim-custom')
+    expect(result.state.blocks['agent-1'].subBlocks.customModelConfig.value).toBe(originalConfig)
   })
 
-  it('rejects the placeholder on a provider change without overwriting the stored config', () => {
+  it('restores protected fields if an operation attempts to change them', () => {
     const workflow = makeCustomAgentWorkflow()
-    const original = workflow.blocks['agent-1'].subBlocks.customModelConfig.value
+    const originalConfig = workflow.blocks['agent-1'].subBlocks.customModelConfig.value
     const result = applyOperationsToWorkflowState(workflow, [
       {
         operation_type: 'edit',
         block_id: 'agent-1',
         params: {
           inputs: {
-            customModelConfig: {
-              provider: 'xai',
-              model: 'grok-4.5',
-              credentials: { mode: 'explicit', apiKey: '<redacted>' },
-              providerOptions: {},
-            },
+            model: 'gpt-5.6-terra',
+            customModelConfig: '{"provider":"xai"}',
           },
         },
       },
     ])
 
-    expect(result.validationErrors).toHaveLength(1)
-    expect(result.validationErrors[0]?.error).toContain('when changing providers')
-    expect(result.state.blocks['agent-1'].subBlocks.customModelConfig.value).toBe(original)
-    expect(JSON.stringify(result.validationErrors)).not.toContain(existingSecret)
+    expect(result.state.blocks['agent-1'].subBlocks.model.value).toBe('sim-custom')
+    expect(result.state.blocks['agent-1'].subBlocks.customModelConfig.value).toBe(originalConfig)
   })
 
-  it('rejects the placeholder when the existing block has no key to preserve', () => {
-    const result = applyOperationsToWorkflowState(makeCustomAgentWorkflow(false), [
-      {
-        operation_type: 'edit',
-        block_id: 'agent-1',
-        params: {
-          inputs: {
-            customModelConfig: {
-              provider: 'openai',
-              model: 'gpt-5.6-terra',
-              credentials: { mode: 'explicit', apiKey: '<redacted>' },
-              providerOptions: {},
+  it('rehydrates fields omitted from Copilot state from the stored workflow', () => {
+    const stored = makeCustomAgentWorkflow()
+    const copilotState = {
+      ...stored,
+      blocks: {
+        'agent-1': {
+          ...stored.blocks['agent-1'],
+          subBlocks: {
+            systemPrompt: {
+              id: 'systemPrompt',
+              type: 'long-input',
+              value: 'Visible input',
             },
           },
         },
       },
+    }
+
+    const reconciled = reconcileStoredCustomModelState(copilotState, stored) as any
+
+    expect(reconciled.blocks['agent-1'].subBlocks.systemPrompt.value).toBe('Visible input')
+    expect(reconciled.blocks['agent-1'].subBlocks.model.value).toBe('sim-custom')
+    expect(reconciled.blocks['agent-1'].subBlocks.customModelConfig).toEqual(
+      stored.blocks['agent-1'].subBlocks.customModelConfig
+    )
+  })
+
+  it('removes Custom fields that are absent from the stored workflow', () => {
+    const untrusted = makeCustomAgentWorkflow()
+    const stored = makeCustomAgentWorkflow(false)
+    stored.blocks['agent-1'].subBlocks.model.value = 'gpt-5.6-terra'
+
+    const reconciled = reconcileStoredCustomModelState(untrusted, stored) as any
+
+    expect(reconciled.blocks['agent-1'].subBlocks.model.value).toBe('gpt-5.6-terra')
+    expect(reconciled.blocks['agent-1'].subBlocks).not.toHaveProperty('customModelConfig')
+  })
+
+  it('does not resurrect a deleted Custom Agent block', () => {
+    const result = applyOperationsToWorkflowState(makeCustomAgentWorkflow(), [
+      { operation_type: 'delete', block_id: 'agent-1' },
     ])
 
-    expect(result.validationErrors).toHaveLength(1)
-    expect(result.validationErrors[0]?.error).toContain('without an existing stored key')
-    expect(result.state.blocks['agent-1'].subBlocks).not.toHaveProperty('customModelConfig')
+    expect(result.state.blocks).not.toHaveProperty('agent-1')
   })
 })

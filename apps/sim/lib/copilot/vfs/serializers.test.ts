@@ -256,7 +256,7 @@ describe('hosted-key VFS metadata', () => {
     expect(schema.inputs).toEqual({ prompt: { type: 'string' } })
   })
 
-  it('exposes custom Agent configuration only for effective Super Users', () => {
+  it('never exposes custom Agent configuration to Copilot', () => {
     const block = {
       type: 'agent',
       name: 'Agent',
@@ -286,22 +286,12 @@ describe('hosted-key VFS metadata', () => {
       outputs: {},
     } as unknown as BlockConfig
 
-    const normal = JSON.parse(serializeBlockSchema(block))
-    const privileged = JSON.parse(serializeBlockSchema(block, { effectiveSuperUser: true }))
+    const schema = JSON.parse(serializeBlockSchema(block))
 
-    expect(normal.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual(['model'])
-    expect(normal.inputs).not.toHaveProperty('customModelConfig')
-    expect(normal.subBlocks[0].options).not.toContainEqual(
+    expect(schema.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual(['model'])
+    expect(schema.inputs).not.toHaveProperty('customModelConfig')
+    expect(schema.subBlocks[0].options).not.toContainEqual(
       expect.objectContaining({ id: 'sim-custom' })
-    )
-
-    expect(privileged.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual([
-      'model',
-      'customModelConfig',
-    ])
-    expect(privileged.inputs.customModelConfig).toEqual({ type: 'json' })
-    expect(privileged.subBlocks[0].options).toContainEqual(
-      expect.objectContaining({ id: 'sim-custom', provider: 'custom' })
     )
   })
 })

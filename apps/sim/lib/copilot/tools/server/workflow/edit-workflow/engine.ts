@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
+import { isCustomModel } from '@/providers/custom-model'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import {
@@ -24,6 +25,122 @@ import type {
 import { logSkippedItem, type SkippedItem } from './types'
 
 const logger = createLogger('EditWorkflowServerTool')
+
+interface WorkflowSubBlockLike {
+  value?: unknown
+  [key: string]: unknown
+}
+
+interface ProtectedAgentCustomModelState {
+  customModelConfig?: WorkflowSubBlockLike
+  hasCustomModelConfig: boolean
+  model?: WorkflowSubBlockLike
+  customModelSelected: boolean
+}
+
+interface WorkflowBlockLike {
+  type?: unknown
+  subBlocks?: Record<string, WorkflowSubBlockLike | undefined>
+  [key: string]: unknown
+}
+
+function getWorkflowBlocks(state: Record<string, unknown>): Record<string, WorkflowBlockLike> {
+  const blocks = state.blocks
+  return blocks && typeof blocks === 'object' && !Array.isArray(blocks)
+    ? (blocks as Record<string, WorkflowBlockLike>)
+    : {}
+}
+
+function captureProtectedAgentCustomModelState(
+  state: Record<string, unknown>
+): Map<string, ProtectedAgentCustomModelState> {
+  const protectedState = new Map<string, ProtectedAgentCustomModelState>()
+
+  for (const [blockId, block] of Object.entries(getWorkflowBlocks(state))) {
+    if (block?.type !== 'agent') continue
+    const subBlocks = block.subBlocks ?? {}
+    const model = subBlocks.model
+    const hasCustomModelConfig = Object.hasOwn(subBlocks, 'customModelConfig')
+    protectedState.set(blockId, {
+      hasCustomModelConfig,
+      ...(hasCustomModelConfig && {
+        customModelConfig: structuredClone(subBlocks.customModelConfig),
+      }),
+      ...(model !== undefined && { model: structuredClone(model) }),
+      customModelSelected: isCustomModel(model?.value),
+    })
+  }
+
+  return protectedState
+}
+
+function restoreProtectedAgentCustomModelState(
+  state: Record<string, unknown>,
+  protectedState: ReadonlyMap<string, ProtectedAgentCustomModelState>
+): void {
+  const blocks = getWorkflowBlocks(state)
+
+  for (const [blockId, original] of protectedState) {
+    const block = blocks[blockId]
+    if (block?.type !== 'agent') continue
+    block.subBlocks ??= {}
+
+    if (original.hasCustomModelConfig) {
+      block.subBlocks.customModelConfig = structuredClone(original.customModelConfig)
+    } else {
+      Reflect.deleteProperty(block.subBlocks, 'customModelConfig')
+    }
+
+    if (original.customModelSelected) {
+      block.subBlocks.model = structuredClone(original.model)
+    } else if (isCustomModel(block.subBlocks.model?.value)) {
+      if (original.model !== undefined) {
+        block.subBlocks.model = structuredClone(original.model)
+      } else {
+        Reflect.deleteProperty(block.subBlocks, 'model')
+      }
+    }
+  }
+}
+
+/**
+ * Rehydrates Custom-model fields that are deliberately absent from Copilot's
+ * workflow projection. The stored workflow is authoritative for those fields;
+ * Copilot-provided state can neither introduce nor clear them.
+ */
+export function reconcileStoredCustomModelState(
+  copilotState: Record<string, unknown>,
+  storedState: Record<string, unknown>
+): Record<string, unknown> {
+  const reconciled = structuredClone(copilotState)
+  const reconciledBlocks = getWorkflowBlocks(reconciled)
+  const storedBlocks = getWorkflowBlocks(storedState)
+
+  for (const [blockId, block] of Object.entries(reconciledBlocks)) {
+    if (block?.type !== 'agent') continue
+    const storedBlock = storedBlocks[blockId]
+    const storedSubBlocks = storedBlock?.type === 'agent' ? (storedBlock.subBlocks ?? {}) : {}
+    block.subBlocks ??= {}
+
+    if (Object.hasOwn(storedSubBlocks, 'customModelConfig')) {
+      block.subBlocks.customModelConfig = structuredClone(storedSubBlocks.customModelConfig)
+    } else {
+      Reflect.deleteProperty(block.subBlocks, 'customModelConfig')
+    }
+
+    if (isCustomModel(storedSubBlocks.model?.value)) {
+      block.subBlocks.model = structuredClone(storedSubBlocks.model)
+    } else if (isCustomModel(block.subBlocks.model?.value)) {
+      if (storedSubBlocks.model !== undefined) {
+        block.subBlocks.model = structuredClone(storedSubBlocks.model)
+      } else {
+        Reflect.deleteProperty(block.subBlocks, 'model')
+      }
+    }
+  }
+
+  return reconciled
+}
 
 type OperationHandler = (op: EditWorkflowOperation, ctx: OperationContext) => void
 
@@ -155,6 +272,7 @@ export function applyOperationsToWorkflowState(
   operations: EditWorkflowOperation[],
   permissionConfig: PermissionGroupConfig | null = null
 ): ApplyOperationsResult {
+  const protectedCustomModelState = captureProtectedAgentCustomModelState(workflowState)
   // Deep clone the workflow state to avoid mutations
   const modifiedState = structuredClone(workflowState)
 
@@ -255,6 +373,10 @@ export function applyOperationsToWorkflowState(
   // parentId. Running it per-operation would incorrectly drop edges between
   // blocks that are both being moved into the same subflow in one batch.
   removeInvalidScopeEdges(modifiedState, skippedItems)
+
+  // Custom models are configured manually in the editor and never through
+  // Copilot. Preserve the stored selection/config across every operation batch.
+  restoreProtectedAgentCustomModelState(modifiedState, protectedCustomModelState)
 
   // Regenerate loops and parallels after modifications
 

@@ -50,7 +50,7 @@ describe('get blocks metadata', () => {
     expect(result.metadata).not.toHaveProperty('notion')
   })
 
-  it('omits Super User-only definitions unless the caller is effective', () => {
+  it('always omits Super User-only definitions from Copilot metadata', () => {
     const block = {
       type: 'agent',
       subBlocks: [
@@ -64,9 +64,5 @@ describe('get blocks metadata', () => {
     } as unknown as BlockConfig
 
     expect(computeBlockLevelInputs(block)).toEqual({ model: { type: 'string' } })
-    expect(computeBlockLevelInputs(block, true)).toEqual({
-      model: { type: 'string' },
-      customModelConfig: { type: 'json' },
-    })
   })
 })

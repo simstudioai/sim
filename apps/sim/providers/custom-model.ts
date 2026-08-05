@@ -358,21 +358,9 @@ export function isCustomModel(model: unknown): boolean {
   return typeof model === 'string' && model.trim().toLowerCase() === CUSTOM_MODEL_ID
 }
 
-/**
- * VFS-safe projection. Environment references remain useful to Mothership;
- * resolved/literal credentials never cross the Copilot boundary.
- */
-export function redactCustomModelConfig(value: unknown): unknown {
-  try {
-    const config = parseCustomModelConfig(value)
-    if (config.credentials.apiKey) {
-      const isReference = /^\{\{[^{}]+\}\}$/.test(config.credentials.apiKey.trim())
-      config.credentials.apiKey = isReference ? config.credentials.apiKey : '<redacted>'
-    }
-    return typeof value === 'string' ? JSON.stringify(config, null, 2) : config
-  } catch {
-    return '<invalid custom model config>'
-  }
+/** Returns the UI-safe label for a stored model selection. */
+export function getCustomModelDisplayValue(model: string, effectiveSuperUser: boolean): string {
+  return !effectiveSuperUser && isCustomModel(model) ? 'Restricted model' : model
 }
 
 export const CUSTOM_MODEL_CONFIG_DEFAULT = JSON.stringify(

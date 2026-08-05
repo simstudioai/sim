@@ -16,7 +16,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { isCustomModel } from '@/providers/custom-model'
+import { getCustomModelDisplayValue, isCustomModel } from '@/providers/custom-model'
 import { getProviderFromModel } from '@/providers/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
@@ -314,6 +314,10 @@ export const ComboBox = memo(function ComboBox({
   const displayValue = useMemo(() => {
     const raw = value?.toString() ?? ''
     if (!raw) return ''
+    if (subBlockId === 'model') {
+      const visibleModel = getCustomModelDisplayValue(raw, effectiveSuperUser)
+      if (visibleModel !== raw) return visibleModel
+    }
 
     const match = evaluatedOptions.find((option) =>
       typeof option === 'string' ? option === raw : option.id === raw
@@ -321,7 +325,7 @@ export const ComboBox = memo(function ComboBox({
 
     if (!match) return raw
     return typeof match === 'string' ? match : match.label
-  }, [value, evaluatedOptions])
+  }, [value, evaluatedOptions, subBlockId, effectiveSuperUser])
 
   const [inputValue, setInputValue] = useState(displayValue)
   const [prevDisplayValue, setPrevDisplayValue] = useState(displayValue)

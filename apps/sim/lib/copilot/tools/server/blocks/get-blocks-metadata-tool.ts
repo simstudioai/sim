@@ -10,7 +10,6 @@ import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integration
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
-import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
@@ -133,18 +132,6 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       getAllowedIntegrationsFromEnv()
     )
     const visibility = overlayVisibility()
-    let effectiveSuperUser = false
-    if (context?.userId) {
-      try {
-        effectiveSuperUser = (await verifyEffectiveSuperUser(context.userId)).effectiveSuperUser
-      } catch (error) {
-        // Metadata remains available, but privileged fields fail closed.
-        logger.warn('Failed to verify effective Super User for block metadata', {
-          userId: context.userId,
-          error: toError(error).message,
-        })
-      }
-    }
 
     const result: Record<string, CopilotBlockMetadata> = {}
     for (const blockId of blockIds || []) {
@@ -168,8 +155,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       if (specialBlock) {
         const { commonParameters, operationParameters } = splitParametersByOperation(
           specialBlock.subBlocks || [],
-          specialBlock.inputs || {},
-          effectiveSuperUser
+          specialBlock.inputs || {}
         )
         metadata = {
           id: specialBlock.id,
@@ -210,7 +196,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           // Present it as self-contained: its visible input fields + curated outputs,
           // no tools/operations.
           const visibleSubBlocks = (blockConfig.subBlocks || []).filter(
-            (sb) => !sb.hidden && !sb.hideFromCopilot && (!sb.superUserOnly || effectiveSuperUser)
+            (sb) => !sb.hidden && !sb.hideFromCopilot && !sb.superUserOnly
           )
           const outputs = blockConfig.outputs
             ? Object.fromEntries(
@@ -222,9 +208,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
             name: blockConfig.name || blockId,
             description: blockConfig.longDescription || blockConfig.description || '',
             bestPractices: blockConfig.bestPractices,
-            inputSchema: visibleSubBlocks.map((subBlock) =>
-              processSubBlock(subBlock, effectiveSuperUser)
-            ),
+            inputSchema: visibleSubBlocks.map(processSubBlock),
             inputDefinitions: {},
             tools: [],
             triggers: [],
@@ -267,7 +251,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
             if (
               (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
               !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id) &&
-              (!subBlock.superUserOnly || effectiveSuperUser)
+              !subBlock.superUserOnly
             ) {
               const fieldDef: any = {
                 type: subBlock.type,
@@ -307,27 +291,22 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           })
         }
 
-        const hiddenParamKeys = getCopilotHiddenParamKeys(blockConfig, effectiveSuperUser)
-        const blockInputs = computeBlockLevelInputs(
-          blockConfig,
-          effectiveSuperUser,
-          hiddenParamKeys
-        )
+        const hiddenParamKeys = getCopilotHiddenParamKeys(blockConfig)
+        const blockInputs = computeBlockLevelInputs(blockConfig, hiddenParamKeys)
         const { commonParameters, operationParameters } = splitParametersByOperation(
           Array.isArray(blockConfig.subBlocks)
             ? blockConfig.subBlocks.filter(
                 (sb) =>
                   !sb.hideFromCopilot &&
-                  (!sb.superUserOnly || effectiveSuperUser) &&
+                  !sb.superUserOnly &&
                   sb.mode !== 'trigger' &&
                   sb.mode !== 'trigger-advanced'
               )
             : [],
-          blockInputs,
-          effectiveSuperUser
+          blockInputs
         )
 
-        const operationInputs = computeOperationLevelInputs(blockConfig, effectiveSuperUser)
+        const operationInputs = computeOperationLevelInputs(blockConfig)
         const operationIds = resolveOperationIds(blockConfig, operationParameters)
         const operations: Record<string, any> = {}
         for (const opId of operationIds) {
@@ -715,7 +694,7 @@ function generateInputExample(schema: CopilotSubblockMetadata, inputDef?: any): 
   }
 }
 
-function processSubBlock(sb: any, effectiveSuperUser = false): CopilotSubblockMetadata {
+function processSubBlock(sb: any): CopilotSubblockMetadata {
   const processed: CopilotSubblockMetadata = {
     id: sb.id,
     type: sb.type,
@@ -785,7 +764,7 @@ function processSubBlock(sb: any, effectiveSuperUser = false): CopilotSubblockMe
   }
 
   // Process options with icon detection
-  const options = resolveSubblockOptions(sb, effectiveSuperUser)
+  const options = resolveSubblockOptions(sb)
   if (options) {
     processed.options = options
   }
@@ -895,8 +874,7 @@ function callOptionsWithFallback(
 }
 
 function resolveSubblockOptions(
-  sb: any,
-  effectiveSuperUser = false
+  sb: any
 ): { id: string; label?: string; hasIcon?: boolean }[] | undefined {
   // Skip if subblock uses fetchOptions (async network calls)
   if (sb.fetchOptions) {
@@ -922,7 +900,7 @@ function resolveSubblockOptions(
   }
 
   const normalized = rawOptions
-    .filter((opt: any) => effectiveSuperUser || !opt?.requiresSuperUser)
+    .filter((opt: any) => !opt?.requiresSuperUser)
     .map((opt: any) => {
       if (!opt) return undefined
 
@@ -976,8 +954,7 @@ function normalizeCondition(condition: any): any | undefined {
 
 function splitParametersByOperation(
   subBlocks: any[],
-  blockInputsForDescriptions?: Record<string, any>,
-  effectiveSuperUser = false
+  blockInputsForDescriptions?: Record<string, any>
 ): {
   commonParameters: CopilotSubblockMetadata[]
   operationParameters: Record<string, CopilotSubblockMetadata[]>
@@ -987,7 +964,7 @@ function splitParametersByOperation(
 
   for (const sb of subBlocks || []) {
     const cond = normalizeCondition(sb.condition)
-    const processed = processSubBlock(sb, effectiveSuperUser)
+    const processed = processSubBlock(sb)
 
     if (cond && cond.field === 'operation' && !cond.not && cond.value !== undefined) {
       const values: any[] = Array.isArray(cond.value) ? cond.value : [cond.value]
@@ -1015,13 +992,10 @@ function splitParametersByOperation(
   return { commonParameters, operationParameters }
 }
 
-function getCopilotHiddenParamKeys(
-  blockConfig: BlockConfig,
-  effectiveSuperUser = false
-): Set<string> {
+function getCopilotHiddenParamKeys(blockConfig: BlockConfig): Set<string> {
   const hiddenParamKeys = new Set<string>()
   for (const subBlock of blockConfig.subBlocks ?? []) {
-    if (!subBlock.hideFromCopilot && (!subBlock.superUserOnly || effectiveSuperUser)) continue
+    if (!subBlock.hideFromCopilot && !subBlock.superUserOnly) continue
     if (subBlock.id) hiddenParamKeys.add(subBlock.id)
     if (subBlock.canonicalParamId) hiddenParamKeys.add(subBlock.canonicalParamId)
   }
@@ -1030,15 +1004,14 @@ function getCopilotHiddenParamKeys(
 
 export function computeBlockLevelInputs(
   blockConfig: BlockConfig,
-  effectiveSuperUser = false,
-  hiddenParamKeys = getCopilotHiddenParamKeys(blockConfig, effectiveSuperUser)
+  hiddenParamKeys = getCopilotHiddenParamKeys(blockConfig)
 ): Record<string, any> {
   const inputs = blockConfig.inputs || {}
   const subBlocks: any[] = Array.isArray(blockConfig.subBlocks)
     ? blockConfig.subBlocks.filter(
         (sb) =>
           !sb.hideFromCopilot &&
-          (!sb.superUserOnly || effectiveSuperUser) &&
+          !sb.superUserOnly &&
           sb.mode !== 'trigger' &&
           sb.mode !== 'trigger-advanced'
       )
@@ -1073,15 +1046,14 @@ export function computeBlockLevelInputs(
 }
 
 function computeOperationLevelInputs(
-  blockConfig: BlockConfig,
-  effectiveSuperUser = false
+  blockConfig: BlockConfig
 ): Record<string, Record<string, any>> {
   const inputs = blockConfig.inputs || {}
   const subBlocks = Array.isArray(blockConfig.subBlocks)
     ? blockConfig.subBlocks.filter(
         (sb) =>
           !sb.hideFromCopilot &&
-          (!sb.superUserOnly || effectiveSuperUser) &&
+          !sb.superUserOnly &&
           sb.mode !== 'trigger' &&
           sb.mode !== 'trigger-advanced'
       )

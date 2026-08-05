@@ -16,7 +16,6 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
-import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import {
   applyTargetedLayout,
   getTargetedLayoutImpact,
@@ -31,12 +30,13 @@ import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
+import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
-import { applyOperationsToWorkflowState } from './engine'
+import { applyOperationsToWorkflowState, reconcileStoredCustomModelState } from './engine'
 import {
   collectWorkflowFieldIssues,
   formatWorkflowLintMessage,
@@ -55,7 +55,8 @@ import {
 } from './validation'
 
 async function getCurrentWorkflowStateFromDb(
-  workflowId: string
+  workflowId: string,
+  allowEmpty = false
 ): Promise<{ workflowState: any; subBlockValues: Record<string, Record<string, any>> }> {
   const logger = createLogger('EditWorkflowServerTool')
   const [workflowRecord] = await db
@@ -65,7 +66,13 @@ async function getCurrentWorkflowStateFromDb(
     .limit(1)
   if (!workflowRecord) throw new Error(`Workflow ${workflowId} not found in database`)
   const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-  if (!normalized) throw new Error('Workflow has no normalized data')
+  if (!normalized) {
+    if (!allowEmpty) throw new Error('Workflow has no normalized data')
+    return {
+      workflowState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+      subBlockValues: {},
+    }
+  }
 
   const { state: validatedState, warnings } = normalizeWorkflowState({
     blocks: normalized.blocks,
@@ -115,12 +122,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     }
 
     if (operationsUseCustomModelConfiguration(operations)) {
-      const { effectiveSuperUser } = await verifyEffectiveSuperUser(context.userId)
-      if (!effectiveSuperUser) {
-        throw new Error(
-          'Custom model configuration is available only while effective Super User mode is enabled'
-        )
-      }
+      throw new Error('The requested edit contains configuration that Copilot cannot modify')
     }
 
     await assertWorkflowMutable(workflowId)
@@ -139,15 +141,19 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     let workflowState: any
     if (currentUserWorkflow) {
+      const storedWorkflow = await getCurrentWorkflowStateFromDb(workflowId, true)
       try {
-        workflowState = JSON.parse(currentUserWorkflow)
+        workflowState = reconcileStoredCustomModelState(
+          JSON.parse(currentUserWorkflow),
+          storedWorkflow.workflowState
+        )
       } catch (error) {
         logger.error('Failed to parse currentUserWorkflow', error)
         throw new Error('Invalid currentUserWorkflow format')
       }
     } else {
-      const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
-      workflowState = fromDb.workflowState
+      const storedWorkflow = await getCurrentWorkflowStateFromDb(workflowId)
+      workflowState = storedWorkflow.workflowState
     }
 
     const [permissionConfig, blockVisibility] = await Promise.all([
@@ -403,12 +409,13 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     })
 
     const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
+    const copilotWorkflowState = sanitizeForCopilot(workflowStateForDb as any)
 
     return {
       success: true,
       workflowId,
       workflowName: workflowName ?? 'Workflow',
-      workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
+      workflowState: copilotWorkflowState,
       workflowLint,
       ...(workflowLintMessage && { workflowLintMessage }),
       ...(inputErrors && {

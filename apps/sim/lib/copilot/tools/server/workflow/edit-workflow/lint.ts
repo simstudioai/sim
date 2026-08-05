@@ -253,9 +253,14 @@ export function collectWorkflowFieldIssues(
       continue
     }
 
+    const copilotBlockConfig = {
+      ...blockConfig,
+      subBlocks: blockConfig.subBlocks.filter((subBlock) => !subBlock.superUserOnly),
+    }
+
     const { missingRequiredFields, inactiveModeValues } = collectBlockFieldIssues(
       block as any,
-      blockConfig,
+      copilotBlockConfig,
       params
     )
     if (missingRequiredFields.length > 0 || inactiveModeValues.length > 0) {
