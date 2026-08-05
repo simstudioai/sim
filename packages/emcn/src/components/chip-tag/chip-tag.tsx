@@ -35,14 +35,13 @@ import { cn } from '../../lib/cn'
  *
  *   These are fixed brand values, not derived ones — do not "correct" a hex
  *   for contrast or gamut. Labels use `#F8F8F8` on dark semantic fills and
- *   `#1A1A1A` on light fills; the neutral content tone uses true white
- *   (`#FFFFFF`) on `#B4B4B4`. `#3B3B3B` appears only as `inverse`'s fill,
+ *   `#1A1A1A` on light fills. `#3B3B3B` appears only as `inverse`'s fill,
  *   never as text. One value serves both modes; the tones carry no `dark:`
  *   overrides.
  *
- *   Contrast against the paired ink varies, and three pairs sit under WCAG AA
- *   (4.5:1) for normal text: `green` at 3.98:1, `content` at 2.07:1, and
- *   `orange` at 3.15:1. These are brand decisions rather than oversights.
+ *   Contrast against the paired ink varies, and two pairs sit under WCAG AA
+ *   (4.5:1) for normal text: `green` at 3.98:1 and `orange` at 3.15:1. These
+ *   are brand decisions rather than oversights.
  *   Because the label is short and always duplicated by an icon and the block
  *   name beside it, the tag is a redundant cue rather than the sole carrier of
  *   the information — but do not reuse these pairings anywhere the label
@@ -114,7 +113,7 @@ const chipTagVariants = cva(
       { variant: 'workflow', tone: 'green', className: 'bg-[#188F00] text-[#F8F8F8]' },
       { variant: 'workflow', tone: 'yellow', className: 'bg-[#FFEF08] text-[#1A1A1A]' },
       { variant: 'workflow', tone: 'purple', className: 'bg-[#AA00FF] text-[#F8F8F8]' },
-      { variant: 'workflow', tone: 'content', className: 'bg-[#B4B4B4] text-[#FFFFFF]' },
+      { variant: 'workflow', tone: 'content', className: 'bg-[#B4B4B4] text-[#1A1A1A]' },
       { variant: 'brand', brandForeground: 'light', className: 'text-[#FFFFFF]' },
       { variant: 'brand', brandForeground: 'dark', className: 'text-[#000000]' },
     ],
