@@ -81,13 +81,13 @@ export async function resolveKnowledgeDocumentUploadBilling(params: {
   return attribution
 }
 
-export function getOwnedKnowledgeDocumentUpload(params: {
+export async function getOwnedKnowledgeDocumentUpload(params: {
   knowledgeBaseId: string
   uploadId: string
   workspaceId: string
   userId: string
   uploadToken: string
-}): UploadSessionRecord {
+}): Promise<UploadSessionRecord> {
   return getOwnedUploadSession({
     uploadId: params.uploadId,
     workspaceId: params.workspaceId,
@@ -194,10 +194,8 @@ function knowledgeDocumentInputFor(session: UploadSessionRecord) {
 /**
  * Aborts an upload session, refusing once a document is bound to it.
  *
- * Upload sessions are stateless — the signed token always reconstructs as `uploading`, so this
- * guard preserves the completed state exposed by the document binding. Provider aborts must
- * also remain non-destructive after commit because an in-flight completion is not visible here
- * until its document transaction commits.
+ * The document binding remains the domain-level completion authority while the upload row
+ * protects the provider object lifecycle.
  */
 export async function abortKnowledgeDocumentUpload(
   session: UploadSessionRecord,

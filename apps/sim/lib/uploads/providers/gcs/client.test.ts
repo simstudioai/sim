@@ -80,7 +80,7 @@ import {
   getPresignedUrlWithConfig,
   headGcsObject,
   initiateGcsMultipartUpload,
-  promoteGcsObject,
+  listGcsMultipartParts,
   resetGcsClientForTesting,
   uploadGcsPart,
   uploadToGcs,
@@ -253,6 +253,7 @@ describe('GCS Client', () => {
         expires: expect.any(Number),
         contentType: 'text/plain',
         extensionHeaders: expect.objectContaining({
+          'x-goog-if-generation-match': '0',
           'x-goog-meta-originalName': 'file.txt',
           'x-goog-meta-workspaceId': 'ws-1',
         }),
@@ -261,6 +262,7 @@ describe('GCS Client', () => {
       expect(result.signedHeaders).toEqual(
         expect.objectContaining({
           'Content-Type': 'text/plain',
+          'x-goog-if-generation-match': '0',
           'x-goog-meta-workspaceId': 'ws-1',
         })
       )
@@ -341,36 +343,17 @@ describe('GCS Client', () => {
     })
   })
 
-  describe('staged upload promotion', () => {
-    it('pins the source generation and requires an absent destination', async () => {
-      mockFile.copy.mockResolvedValueOnce(undefined)
-
-      await promoteGcsObject({
-        sourceKey: 'upload-sessions/upload-1/file.bin',
-        destinationKey: 'workspace/workspace-1/file.bin',
-        sourceGeneration: '42',
-        customConfig: { bucket: 'test-bucket' },
-      })
-
-      expect(mockBucket.file).toHaveBeenCalledWith('upload-sessions/upload-1/file.bin', {
-        generation: '42',
-      })
-      expect(mockBucket.file).toHaveBeenCalledWith('workspace/workspace-1/file.bin')
-      expect(mockFile.copy).toHaveBeenCalledWith(mockFile, {
-        preconditionOpts: { ifGenerationMatch: 0 },
-      })
-    })
-
-    it('deletes staging only at the inspected generation', async () => {
+  describe('direct upload object lifecycle', () => {
+    it('deletes the upload object only at the inspected generation', async () => {
       mockFile.delete.mockResolvedValueOnce(undefined)
 
       await deleteGcsObjectVersion({
-        key: 'upload-sessions/upload-1/file.bin',
+        key: 'workspace/workspace-1/file.bin',
         generation: '42',
         customConfig: { bucket: 'test-bucket' },
       })
 
-      expect(mockBucket.file).toHaveBeenCalledWith('upload-sessions/upload-1/file.bin', {
+      expect(mockBucket.file).toHaveBeenCalledWith('workspace/workspace-1/file.bin', {
         generation: '42',
       })
       expect(mockFile.delete).toHaveBeenCalledWith({ ifGenerationMatch: '42' })
@@ -395,6 +378,32 @@ describe('GCS Client', () => {
   })
 
   describe('multipart uploads (XML API)', () => {
+    it('lists provider-authoritative parts across pagination', async () => {
+      mockFetch
+        .mockResolvedValueOnce(
+          new Response(
+            '<ListPartsResult><Part><PartNumber>1</PartNumber><ETag>&quot;etag-1&quot;</ETag><Size>8</Size></Part><IsTruncated>true</IsTruncated><NextPartNumberMarker>1</NextPartNumberMarker></ListPartsResult>',
+            { status: 200 }
+          )
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            '<ListPartsResult><Part><PartNumber>2</PartNumber><ETag>&quot;etag-2&quot;</ETag><Size>3</Size></Part><IsTruncated>false</IsTruncated></ListPartsResult>',
+            { status: 200 }
+          )
+        )
+
+      await expect(
+        listGcsMultipartParts('workspace/ws-1/file.bin', 'provider-upload-1')
+      ).resolves.toEqual([
+        { partNumber: 1, etag: '"etag-1"', size: 8 },
+        { partNumber: 2, etag: '"etag-2"', size: 3 },
+      ])
+      expect(mockFetch.mock.calls[1][0]).toContain(
+        'uploadId=provider-upload-1&part-number-marker=1'
+      )
+    })
+
     it('should initiate a multipart upload and parse the UploadId', async () => {
       mockFetch.mockResolvedValueOnce(
         new Response(
@@ -513,7 +522,7 @@ describe('GCS Client', () => {
       })
     })
 
-    it('should restore quotes on ETags stripped by the browser upload client', async () => {
+    it('should restore quotes on unquoted ETags', async () => {
       mockFetch.mockResolvedValueOnce(new Response('<Complete/>', { status: 200 }))
 
       await completeGcsMultipartUpload('key.csv', 'upload-123', [{ PartNumber: 1, ETag: 'etag-1' }])

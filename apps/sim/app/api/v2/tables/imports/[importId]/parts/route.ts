@@ -38,7 +38,7 @@ export const POST = withRouteHandler(
       const { workspaceId } = parsed.data.query
       const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
       if (scopeError) return v2WorkspaceAccessError(scopeError)
-      const session = getOwnedTableImportUpload({
+      const session = await getOwnedTableImportUpload({
         importId: parsed.data.params.importId,
         workspaceId,
         userId,

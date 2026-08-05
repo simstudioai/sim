@@ -2,12 +2,12 @@ import type { Readable } from 'node:stream'
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
-  CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListPartsCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
@@ -169,7 +169,7 @@ export async function getPresignedUrlWithConfig(
 }
 
 /**
- * Generates a signed single-object PUT for a caller-selected staging key.
+ * Generates a create-only signed single-object PUT for a caller-selected final key.
  * The AWS presigner hoists `x-amz-meta-*` values into the signed query string,
  * so only ordinary transfer headers are returned. Repeating that metadata as
  * request headers makes S3 reject the otherwise-valid signature.
@@ -188,6 +188,7 @@ export async function getS3PresignedUploadUrl(params: {
     Key: params.key,
     ContentType: params.contentType,
     ContentLength: params.fileSize,
+    IfNoneMatch: '*',
     Metadata: metadata,
   })
   const url = await getSignedUrl(getS3Client(), command, { expiresIn: params.expiresIn })
@@ -195,6 +196,7 @@ export async function getS3PresignedUploadUrl(params: {
     url,
     headers: {
       'Content-Type': params.contentType,
+      'If-None-Match': '*',
     },
   }
 }
@@ -304,39 +306,13 @@ export async function headS3Object(
   }
 }
 
-/**
- * Copies one immutable staging version into a destination that must not already exist.
- */
-export async function promoteS3Object(params: {
-  sourceKey: string
-  destinationKey: string
-  sourceEtag: string
-  customConfig: S3Config
-}): Promise<void> {
-  if (!params.sourceEtag) throw new Error('S3 staging object is missing its ETag')
-  const encodedSource = `${params.customConfig.bucket}/${params.sourceKey
-    .split('/')
-    .map((segment) => encodeURIComponent(segment))
-    .join('/')}`
-  await getS3Client().send(
-    new CopyObjectCommand({
-      Bucket: params.customConfig.bucket,
-      Key: params.destinationKey,
-      CopySource: encodedSource,
-      CopySourceIfMatch: params.sourceEtag,
-      IfNoneMatch: '*',
-      MetadataDirective: 'COPY',
-    })
-  )
-}
-
-/** Deletes a staging object only if it is still the version completion inspected. */
+/** Deletes an upload object only if it is still the version the caller inspected. */
 export async function deleteS3ObjectVersion(params: {
   key: string
   etag: string
   customConfig: S3Config
 }): Promise<void> {
-  if (!params.etag) throw new Error('S3 staging object is missing its ETag')
+  if (!params.etag) throw new Error('S3 upload object is missing its ETag')
   await getS3Client().send(
     new DeleteObjectCommand({
       Bucket: params.customConfig.bucket,
@@ -514,6 +490,41 @@ export async function getS3MultipartPartUrls(
   )
 
   return presignedUrls
+}
+
+/** Lists the provider-authoritative state for a multipart upload. */
+export async function listS3MultipartParts(
+  key: string,
+  uploadId: string,
+  customConfig?: S3Config
+): Promise<Array<{ partNumber: number; etag: string; size: number }>> {
+  const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
+  const parts: Array<{ partNumber: number; etag: string; size: number }> = []
+  let partNumberMarker: string | undefined
+
+  for (;;) {
+    const response = await getS3Client().send(
+      new ListPartsCommand({
+        Bucket: config.bucket,
+        Key: key,
+        UploadId: uploadId,
+        PartNumberMarker: partNumberMarker,
+      })
+    )
+    for (const part of response.Parts ?? []) {
+      if (part.PartNumber === undefined || part.ETag === undefined || part.Size === undefined) {
+        throw new Error(`S3 returned incomplete part metadata for ${key}`)
+      }
+      parts.push({ partNumber: part.PartNumber, etag: part.ETag, size: part.Size })
+    }
+    if (!response.IsTruncated) break
+    if (response.NextPartNumberMarker === undefined) {
+      throw new Error(`S3 truncated the part listing for ${key} without a continuation marker`)
+    }
+    partNumberMarker = String(response.NextPartNumberMarker)
+  }
+
+  return parts
 }
 
 /**

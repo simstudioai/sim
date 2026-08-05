@@ -9,10 +9,7 @@ import {
   startUploadedTableImport,
   toV2TableImport,
 } from '@/lib/table/orchestration/import-resource'
-import {
-  completeUploadSession,
-  validateUploadCompletion,
-} from '@/lib/uploads/upload-session/service'
+import { completeUploadSession } from '@/lib/uploads/upload-session/service'
 import { orchestrationErrorResponse } from '@/app/api/table/utils'
 
 interface ImportRouteParams {
@@ -27,13 +24,12 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Impor
   const parsed = await parseRequest(completeTableImportResourceContract, request, context)
   if (!parsed.success) return parsed.response
   try {
-    const upload = getOwnedTableImportUpload({
+    const upload = await getOwnedTableImportUpload({
       importId: parsed.data.params.importId,
       workspaceId: parsed.data.query.workspaceId,
       userId: auth.userId,
       uploadToken: parsed.data.headers['upload-token'],
     })
-    validateUploadCompletion(upload, parsed.data.body)
     const existing = await findOwnedTableImport({
       importId: upload.id,
       workspaceId: parsed.data.query.workspaceId,
@@ -42,7 +38,6 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Impor
     if (existing) return NextResponse.json({ data: toV2TableImport(existing) })
     const completed = await completeUploadSession({
       session: upload,
-      completion: parsed.data.body,
       finalize: async () => ({ value: null }),
     })
     return NextResponse.json({

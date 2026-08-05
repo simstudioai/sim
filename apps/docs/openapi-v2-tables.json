@@ -3468,14 +3468,6 @@
             "$ref": "#/components/parameters/UploadTokenHeader"
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {}
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "The queued import resource.",

@@ -87,7 +87,6 @@ import {
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
 import type { V2TableImportSource, V2TableImportTarget } from '@/lib/api/contracts/v2/tables'
-import type { V2CompleteUploadBody } from '@/lib/api/contracts/v2/uploads'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
   CsvHeaderMapping,
@@ -1778,12 +1777,11 @@ async function createAndUploadTableImport(params: {
     onProgress: params.onProgress
       ? (event: UploadProgressEvent) => params.onProgress?.(event.percent)
       : undefined,
-    complete: async (body: V2CompleteUploadBody) => {
+    complete: async () => {
       const response = await requestJson(completeTableImportResourceContract, {
         params: { importId: session.id },
         query: { workspaceId: params.workspaceId },
         headers: { 'upload-token': uploadToken },
-        body,
       })
       return response.data
     },

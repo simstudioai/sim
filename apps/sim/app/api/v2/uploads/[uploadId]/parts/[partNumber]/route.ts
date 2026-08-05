@@ -26,7 +26,7 @@ export const PUT = withRouteHandler(
     const token = request.nextUrl.searchParams.get('token') ?? ''
     let session: UploadSessionRecord
     try {
-      session = verifyUploadSessionToken(token)
+      session = await verifyUploadSessionToken(token)
     } catch {
       return NextResponse.json({ error: 'Invalid or expired upload token' }, { status: 403 })
     }
@@ -38,6 +38,9 @@ export const PUT = withRouteHandler(
     }
     if (session.status !== 'uploading') {
       return NextResponse.json({ error: `Upload session is ${session.status}` }, { status: 409 })
+    }
+    if (session.expiresAt.getTime() <= Date.now()) {
+      return NextResponse.json({ error: 'Upload session has expired' }, { status: 409 })
     }
     if (session.method !== 'multipart') {
       return NextResponse.json({ error: 'PUT upload sessions do not have parts' }, { status: 409 })

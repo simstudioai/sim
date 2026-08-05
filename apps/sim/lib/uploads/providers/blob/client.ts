@@ -257,7 +257,7 @@ export async function getPresignedUrlWithConfig(
   return `${blockBlobClient.url}?${sasToken}`
 }
 
-/** Generates a SAS-backed single-object PUT for a caller-selected staging key. */
+/** Generates a create-only SAS-backed single-object PUT for a caller-selected final key. */
 export async function getBlobPresignedUploadUrl(params: {
   key: string
   contentType: string
@@ -294,6 +294,7 @@ export async function getBlobPresignedUploadUrl(params: {
     url: `${client.url}?${sasToken}`,
     headers: {
       'Content-Type': params.contentType,
+      'If-None-Match': '*',
       'x-ms-blob-type': 'BlockBlob',
       'x-ms-blob-content-type': params.contentType,
       ...Object.fromEntries(
@@ -493,36 +494,13 @@ export async function headBlobObject(
   }
 }
 
-/**
- * Copies one immutable staging version into a destination that must not already exist.
- * The asynchronous API supports objects above the synchronous copy operation's 256 MiB limit.
- */
-export async function promoteBlobObject(params: {
-  sourceKey: string
-  destinationKey: string
-  sourceEtag: string
-  customConfig: BlobConfig
-}): Promise<void> {
-  if (!params.sourceEtag) throw new Error('Blob staging object is missing its ETag')
-  const source = await getBlockBlobClientFor(params.sourceKey, params.customConfig)
-  const destination = await getBlockBlobClientFor(params.destinationKey, params.customConfig)
-  const copy = await destination.beginCopyFromURL(source.url, {
-    conditions: { ifNoneMatch: '*' },
-    sourceConditions: { ifMatch: params.sourceEtag },
-  })
-  const result = await copy.pollUntilDone()
-  if (result.copyStatus !== 'success') {
-    throw new Error(`Blob promotion finished with status ${result.copyStatus ?? 'unknown'}`)
-  }
-}
-
-/** Deletes a staging blob only if it is still the version completion inspected. */
+/** Deletes an upload blob only if it is still the version the caller inspected. */
 export async function deleteBlobObjectVersion(params: {
   key: string
   etag: string
   customConfig: BlobConfig
 }): Promise<void> {
-  if (!params.etag) throw new Error('Blob staging object is missing its ETag')
+  if (!params.etag) throw new Error('Blob upload object is missing its ETag')
   const client = await getBlockBlobClientFor(params.key, params.customConfig)
   await client.deleteIfExists({ conditions: { ifMatch: params.etag } })
 }
@@ -673,6 +651,23 @@ export async function getMultipartPartUrls(
       blockId,
       url: `${blockBlobClient.url}?comp=block&blockid=${encodeURIComponent(blockId)}&${sasToken}`,
     }
+  })
+}
+
+/** Lists uncommitted blocks and maps canonical block ids back to part numbers. */
+export async function listMultipartParts(
+  key: string,
+  customConfig?: BlobConfig
+): Promise<Array<{ partNumber: number; size: number }>> {
+  const blockBlobClient = await getBlockBlobClientFor(key, customConfig)
+  const response = await blockBlobClient.getBlockList('uncommitted')
+  return (response.uncommittedBlocks ?? []).map((block) => {
+    const decoded = Buffer.from(block.name, 'base64').toString('utf8')
+    const match = decoded.match(/^block-(\d{6})$/)
+    if (!match || deriveBlobBlockId(Number(match[1])) !== block.name) {
+      throw new Error(`Azure returned an invalid block id for ${key}`)
+    }
+    return { partNumber: Number(match[1]), size: block.size }
   })
 }
 

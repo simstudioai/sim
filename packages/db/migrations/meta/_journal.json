@@ -1975,6 +1975,13 @@
       "when": 1785813019807,
       "tag": "0282_real_kang",
       "breakpoints": true
+    },
+    {
+      "idx": 283,
+      "version": "7",
+      "when": 1785913915302,
+      "tag": "0283_heavy_firebird",
+      "breakpoints": true
     }
   ]
 }

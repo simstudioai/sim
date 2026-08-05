@@ -1008,16 +1008,6 @@
             "$ref": "#/components/parameters/WorkspaceIdQuery"
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompleteUploadBody"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "The completed upload and queued knowledge document.",
@@ -2196,41 +2186,6 @@
             }
           }
         }
-      },
-      "CompleteUploadBody": {
-        "oneOf": [
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["parts"],
-            "properties": {
-              "parts": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 640,
-                "items": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["partNumber"],
-                  "properties": {
-                    "partNumber": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "etag": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  }
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false
-          }
-        ]
       },
       "DocumentSummary": {
         "type": "object",

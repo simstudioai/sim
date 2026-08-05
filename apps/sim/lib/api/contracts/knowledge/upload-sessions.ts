@@ -8,7 +8,6 @@ import {
 } from '@/lib/api/contracts/v2/knowledge'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 import {
-  v2CompleteUploadBodySchema,
   v2PartUrlsBodySchema,
   v2PartUrlsDataSchema,
   v2UploadTokenHeadersSchema,
@@ -50,6 +49,5 @@ export const completeKnowledgeDocumentUploadContract = defineRouteContract({
   params: v2KnowledgeDocumentUploadParamsSchema,
   query: v2UploadKnowledgeDocumentQuerySchema,
   headers: v2UploadTokenHeadersSchema,
-  body: v2CompleteUploadBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2KnowledgeDocumentUploadSchema) },
 })

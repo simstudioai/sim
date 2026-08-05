@@ -19,7 +19,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Impor
   const parsed = await parseRequest(createTableImportPartUrlsContract, request, context)
   if (!parsed.success) return parsed.response
   try {
-    const upload = getOwnedTableImportUpload({
+    const upload = await getOwnedTableImportUpload({
       importId: parsed.data.params.importId,
       workspaceId: parsed.data.query.workspaceId,
       userId: auth.userId,

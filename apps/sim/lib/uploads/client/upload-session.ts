@@ -3,8 +3,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import type {
-  V2CompletedPart,
-  V2CompleteUploadBody,
   V2MultipartUploadTransfer,
   V2PutUploadTransfer,
   V2UploadPartUrl,
@@ -45,7 +43,7 @@ interface UploadFileSessionCommon<T> {
   file: File
   signal?: AbortSignal
   onProgress?: (event: UploadProgressEvent) => void
-  complete: (body: V2CompleteUploadBody) => Promise<T>
+  complete: () => Promise<T>
   abort: () => Promise<void>
 }
 
@@ -68,13 +66,11 @@ function isPutFileSession<T>(
 }
 
 export async function uploadFileSession<T>(params: UploadFileSessionParams<T>): Promise<T> {
-  let completion: V2CompleteUploadBody
   try {
     if (isPutFileSession(params)) {
       await uploadPut(params)
-      completion = {}
     } else {
-      completion = { parts: await uploadMultipart(params) }
+      await uploadMultipart(params)
     }
   } catch (error) {
     await params.abort().catch((abortError) => {
@@ -85,7 +81,7 @@ export async function uploadFileSession<T>(params: UploadFileSessionParams<T>): 
     throw error
   }
 
-  return params.complete(completion)
+  return params.complete()
 }
 
 async function uploadPut<T>(params: UploadPutFileSession<T>): Promise<void> {
@@ -218,9 +214,7 @@ function uploadPutAttempt(params: UploadPutAttemptParams): Promise<void> {
   })
 }
 
-async function uploadMultipart<T>(
-  params: UploadMultipartFileSession<T>
-): Promise<V2CompletedPart[]> {
+async function uploadMultipart<T>(params: UploadMultipartFileSession<T>): Promise<void> {
   const { file, transfer, signal, onProgress } = params
   const expectedPartCount = Math.ceil(file.size / transfer.partSize)
   if (expectedPartCount !== transfer.partCount) {
@@ -230,7 +224,6 @@ async function uploadMultipart<T>(
   }
 
   const completedBytes = new Array<number>(transfer.partCount).fill(0)
-  const completedParts: V2CompletedPart[] = []
   for (let start = 1; start <= transfer.partCount; start += PART_URL_BATCH_SIZE) {
     const partNumbers = Array.from(
       { length: Math.min(PART_URL_BATCH_SIZE, transfer.partCount - start + 1) },
@@ -240,11 +233,11 @@ async function uploadMultipart<T>(
     const results = await runWithConcurrency(
       partUrls,
       PART_UPLOAD_CONCURRENCY,
-      async (part): Promise<V2CompletedPart> => {
+      async (part): Promise<void> => {
         const partStart = (part.partNumber - 1) * transfer.partSize
         const end = Math.min(partStart + transfer.partSize, file.size)
         const chunk = file.slice(partStart, end)
-        const etag = await uploadMultipartPart({ part, chunk, fileName: file.name, signal })
+        await uploadMultipartPart({ part, chunk, fileName: file.name, signal })
         completedBytes[part.partNumber - 1] = end - partStart
         const loaded = completedBytes.reduce((sum, bytes) => sum + bytes, 0)
         onProgress?.({
@@ -252,17 +245,12 @@ async function uploadMultipart<T>(
           total: file.size,
           percent: Math.min(100, Math.round((loaded / file.size) * 100)),
         })
-        return { partNumber: part.partNumber, ...(etag ? { etag } : {}) }
       }
     )
-    completedParts.push(
-      ...results.map((result) => {
-        if (result.status === 'rejected') throw result.reason
-        return result.value
-      })
-    )
+    for (const result of results) {
+      if (result.status === 'rejected') throw result.reason
+    }
   }
-  return completedParts
 }
 
 function validatePartUrlBatch(requested: number[], received: V2UploadPartUrl[]): V2UploadPartUrl[] {
@@ -288,7 +276,7 @@ async function uploadMultipartPart(params: {
   chunk: Blob
   fileName: string
   signal?: AbortSignal
-}): Promise<string | undefined> {
+}): Promise<void> {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       // boundary-raw-fetch: signed multipart data-plane URL may target cloud storage or local Sim
@@ -306,7 +294,7 @@ async function uploadMultipartPart(params: {
           isRetryableStatus(response.status)
         )
       }
-      return response.headers.get('etag')?.replaceAll('"', '')
+      return
     } catch (error) {
       if (isAbortError(error)) throw error
       const classified =

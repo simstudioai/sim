@@ -12,7 +12,6 @@ import {
   v2TableTransferWorkspaceQuerySchema,
 } from '@/lib/api/contracts/v2/tables'
 import {
-  v2CompleteUploadBodySchema,
   v2OptionalUploadTokenHeadersSchema,
   v2PartUrlsBodySchema,
   v2PartUrlsDataSchema,
@@ -59,7 +58,6 @@ export const completeTableImportResourceContract = defineRouteContract({
   params: v2TableImportParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
   headers: v2UploadTokenHeadersSchema,
-  body: v2CompleteUploadBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
 })
 

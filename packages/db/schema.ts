@@ -1968,6 +1968,80 @@ export const workspaceFiles = pgTable(
   })
 )
 
+export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
+  'uploading',
+  'completing',
+  'finalizing',
+  'completed',
+  'aborting',
+  'aborted',
+  'failed',
+  'expired',
+])
+
+export const uploadSessionMethodEnum = pgEnum('upload_session_method', ['put', 'multipart'])
+
+export const uploadSessionProviderEnum = pgEnum('upload_session_provider', [
+  'local',
+  's3',
+  'blob',
+  'gcs',
+])
+
+export const uploadSessionPurposeEnum = pgEnum('upload_session_purpose', [
+  'workspace_file',
+  'table_import',
+  'knowledge_document',
+  'profile_picture',
+  'workspace_logo',
+  'mothership_attachment',
+  'execution_attachment',
+])
+
+/** Durable control-plane state for direct-to-provider PUT and multipart uploads. */
+export const uploadSession = pgTable(
+  'upload_session',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull(),
+    userId: text('user_id').notNull(),
+    workspaceId: text('workspace_id'),
+    knowledgeBaseId: text('knowledge_base_id'),
+    workflowId: text('workflow_id'),
+    executionId: text('execution_id'),
+    purpose: uploadSessionPurposeEnum('purpose').notNull(),
+    method: uploadSessionMethodEnum('method').notNull(),
+    storageContext: text('storage_context').notNull(),
+    finalKey: text('final_key').notNull(),
+    storageProvider: uploadSessionProviderEnum('storage_provider').notNull(),
+    providerUploadId: text('provider_upload_id'),
+    providerObjectVersion: text('provider_object_version'),
+    fileName: text('file_name').notNull(),
+    contentType: text('content_type').notNull(),
+    fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+    partSize: integer('part_size'),
+    partCount: integer('part_count'),
+    status: uploadSessionStatusEnum('status').notNull().default('uploading'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    processingLeaseId: text('processing_lease_id'),
+    processingLeaseExpiresAt: timestamp('processing_lease_expires_at'),
+    completedFileId: text('completed_file_id'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+    completedAt: timestamp('completed_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenHashUnique: uniqueIndex('upload_session_token_hash_unique').on(table.tokenHash),
+    finalKeyUnique: uniqueIndex('upload_session_final_key_unique').on(table.finalKey),
+    statusExpiresAtIdx: index('upload_session_status_expires_at_idx').on(
+      table.status,
+      table.expiresAt
+    ),
+  })
+)
+
 /**
  * Cached collaborative-document state for a workspace markdown file: the last-persisted Yjs binary and
  * a hash of the markdown it was derived from. On a cold room open the seed loads this binary directly

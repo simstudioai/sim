@@ -1,18 +1,16 @@
 # Upload sessions
 
-Upload sessions use a signed, stateless control-plane token and an immutable staging object. Files
-up to and including 50 MiB use one signed `PUT`; larger files use multipart upload. Completion
-verifies the staged object's upload ID, byte size, and content type before promoting it to a
-create-only final key.
+Upload sessions keep their control-plane state in PostgreSQL and upload directly to their final
+storage key. Files up to and including 50 MiB use one create-only signed `PUT`; larger files use a
+provider multipart upload. Completion accepts only the upload ID and token, lists parts from the
+storage provider, validates their count and byte sizes, completes the provider upload, and verifies
+the final object's upload ID, byte size, and content type before running the domain finalizer.
 
-The `upload-sessions/` prefix is temporary. Production S3 and GCS buckets must expire objects under
-that prefix after two days and abort incomplete multipart uploads after two days. Azure containers
-must expire committed blobs under that prefix after two days; Azure automatically garbage-collects
-uncommitted blocks after seven days. These policies exceed the 24-hour token lifetime, preserve a
-retry window, and bound abandoned provider state. Local storage applies the equivalent 25-hour
-policy with the bounded cleanup sweep in `cleanup.ts`. The local sweep retains process-local
-directory cursors between bounded runs, so a large set of fresh entries cannot indefinitely hide
-expired entries later in either directory.
+Production S3 and GCS buckets must abort incomplete multipart uploads after two days. Azure
+automatically garbage-collects uncommitted blocks after seven days. Local storage keeps multipart
+parts under `.multipart/` and applies an equivalent 25-hour bounded cleanup sweep in `cleanup.ts`.
+The local sweep retains its process-local directory cursor between bounded runs, so a large set of
+fresh entries cannot indefinitely hide expired entries later in the directory.
 
 Local cleanup currently runs opportunistically when that same Sim process creates an upload
 session. The repository has no scheduler that safely reaches every process-local filesystem in a
@@ -22,6 +20,7 @@ therefore ensure uploads continue to trigger the sweep on each replica or invoke
 bounded sweep from their own per-replica maintenance hook. Cloud deployments should use the
 provider lifecycle rules above instead.
 
-Final objects are not covered by the staging lifecycle. Completion retains staging until the
-domain finalizer succeeds, then conditionally deletes only the exact staging version it verified.
-Abort is also staging-only and must never delete a promoted final object.
+The cron cleanup claims expired database sessions with a lease before aborting provider multipart
+state or conditionally deleting an uploaded object that still carries that session's identity.
+Sessions already in domain finalization are retained for an idempotent completion retry; cleanup
+must not delete an object after its domain resource may have been created.

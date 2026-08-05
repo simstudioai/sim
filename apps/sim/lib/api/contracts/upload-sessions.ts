@@ -4,7 +4,6 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2FileSchema } from '@/lib/api/contracts/v2/files'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 import {
-  v2CompleteUploadBodySchema,
   v2PartUrlsBodySchema,
   v2PartUrlsDataSchema,
   v2UploadStatusSchema,
@@ -191,7 +190,6 @@ export const completeInternalFileUploadContract = defineRouteContract({
   path: '/api/files/uploads/[uploadId]/complete',
   params: internalFileUploadParamsSchema,
   headers: v2UploadTokenHeadersSchema,
-  body: v2CompleteUploadBodySchema,
   response: { mode: 'json', schema: v2DataResponse(internalFileUploadSessionSchema) },
 })
 

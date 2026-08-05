@@ -2,9 +2,11 @@ import { z } from 'zod'
 
 export const v2UploadStatusSchema = z.enum([
   'uploading',
+  'completing',
   'finalizing',
   'completed',
   'failed',
+  'aborting',
   'aborted',
   'expired',
 ])
@@ -18,28 +20,6 @@ export type V2UploadTokenHeaders = z.input<typeof v2UploadTokenHeadersSchema>
 export const v2OptionalUploadTokenHeadersSchema = z.object({
   'upload-token': z.string().min(1, 'upload-token header cannot be empty').optional(),
 })
-
-export const v2CompletedPartSchema = z
-  .object({
-    partNumber: z.number().int().min(1),
-    etag: z.string().min(1).optional(),
-  })
-  .strict()
-export type V2CompletedPart = z.input<typeof v2CompletedPartSchema>
-
-const v2CompleteMultipartUploadBodySchema = z
-  .object({
-    parts: z.array(v2CompletedPartSchema).min(1).max(640),
-  })
-  .strict()
-
-const v2CompletePutUploadBodySchema = z.object({}).strict()
-
-export const v2CompleteUploadBodySchema = z.union([
-  v2CompleteMultipartUploadBodySchema,
-  v2CompletePutUploadBodySchema,
-])
-export type V2CompleteUploadBody = z.input<typeof v2CompleteUploadBodySchema>
 
 export const v2PutUploadTransferSchema = z
   .object({

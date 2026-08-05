@@ -32,7 +32,7 @@ export const DELETE = withRouteHandler(
     })
     if (access instanceof NextResponse) return access
     try {
-      const upload = getOwnedKnowledgeDocumentUpload({
+      const upload = await getOwnedKnowledgeDocumentUpload({
         knowledgeBaseId,
         uploadId,
         workspaceId,

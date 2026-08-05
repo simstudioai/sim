@@ -1,4 +1,11 @@
+import { db, dbFor } from '@sim/db'
+import { uploadSession } from '@sim/db/schema'
+import { safeCompare } from '@sim/security/compare'
+import { sha256Hex } from '@sim/security/hash'
+import { generateSecureToken } from '@sim/security/tokens'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { and, asc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
 import {
   checkStorageQuotaForBillingContext,
   resolveStorageBillingContext,
@@ -7,14 +14,6 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace'
-import {
-  signUploadToken,
-  type UploadSessionPurpose,
-  type UploadStorageProvider,
-  type UploadTokenPayload,
-  type UploadTransferMethod,
-  verifyUploadToken,
-} from '@/lib/uploads/core/upload-token'
 import {
   MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
   MAX_WORKSPACE_FILE_SIZE,
@@ -31,10 +30,16 @@ import {
   getMultipartProviderPartUrls,
   headProviderObject,
   initiateMultipartProviderUpload,
-  promoteProviderObject,
+  listMultipartProviderParts,
   type UploadPartUrl,
   uploadStorageProvider,
 } from '@/lib/uploads/upload-session/provider'
+import type {
+  UploadSessionPurpose,
+  UploadSessionStatus,
+  UploadStorageProvider,
+  UploadTransferMethod,
+} from '@/lib/uploads/upload-session/types'
 import { sanitizeFileName } from '@/executor/constants'
 
 export const UPLOAD_SESSION_PUT_MAX_BYTES = 50 * 1024 * 1024
@@ -43,9 +48,12 @@ export const UPLOAD_SESSION_MAX_PART_URLS = 100
 export const UPLOAD_SESSION_TTL_MS = 24 * 60 * 60 * 1000
 export const UPLOAD_SESSION_ASSET_MAX_BYTES = 5 * 1024 * 1024
 
-export type { UploadSessionPurpose, UploadTransferMethod }
+const PROCESSING_LEASE_MS = 5 * 60 * 1000
+const CLEANUP_BATCH_SIZE = 100
+const TERMINAL_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
+const cleanupDb = dbFor('cleanup')
 
-export type UploadSessionStatus = 'uploading' | 'completed' | 'aborted'
+export type { UploadSessionPurpose, UploadSessionStatus, UploadTransferMethod }
 
 export type UploadSessionTransfer =
   | { method: 'put'; url: string; headers: Record<string, string> }
@@ -61,12 +69,11 @@ export interface UploadSessionRecord {
   purpose: UploadSessionPurpose
   method: UploadTransferMethod
   storageContext: StorageContext
-  /** Canonical destination key retained for existing domain finalizers. */
   storageKey: string
   finalKey: string
-  stagingKey: string
   storageProvider: UploadStorageProvider
   providerUploadId: string | null
+  providerObjectVersion: string | null
   fileName: string
   contentType: string
   fileSize: number
@@ -86,8 +93,6 @@ export interface UploadSessionRecord {
 export interface CreatedUploadSession extends UploadSessionRecord {
   transfer: UploadSessionTransfer
 }
-
-export type UploadCompletion = { parts?: never } | { parts: CompletedUploadPart[] }
 
 export class UploadSessionError extends OrchestrationError {
   constructor(
@@ -123,14 +128,16 @@ export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
       }
   )
 
+type UploadSessionRow = typeof uploadSession.$inferSelect
+
 export async function createUploadSession(
   params: CreateUploadSessionParams
 ): Promise<CreatedUploadSession> {
   validateFile(params)
   const id = params.id ?? generateId()
+  const uploadToken = generateSecureToken(32)
   const workspaceId = params.purpose === 'profile_picture' ? null : params.workspaceId
   const { storageContext, finalKey } = resolveUploadStorage(params, id)
-  const stagingKey = `upload-sessions/${id}/${sanitizeFileName(params.fileName)}`
   const method: UploadTransferMethod =
     params.fileSize <= UPLOAD_SESSION_PUT_MAX_BYTES ? 'put' : 'multipart'
   const partSize = method === 'multipart' ? UPLOAD_SESSION_PART_SIZE : null
@@ -161,7 +168,7 @@ export async function createUploadSession(
   const initiated =
     method === 'multipart'
       ? await initiateMultipartProviderUpload({
-          stagingKey,
+          key: finalKey,
           fileName: params.fileName,
           contentType: params.contentType,
           fileSize: params.fileSize,
@@ -176,44 +183,80 @@ export async function createUploadSession(
 
   const createdAt = new Date()
   const expiresAt = new Date(createdAt.getTime() + UPLOAD_SESSION_TTL_MS)
-  const metadata = params.metadata ?? {}
-  const tokenPayload = createUploadTokenPayload({
-    params,
-    id,
-    workspaceId,
-    storageContext,
-    finalKey,
-    stagingKey,
-    provider,
-    providerUploadId: initiated.providerUploadId,
-    method,
-    partSize,
-    partCount,
-    metadata,
-    createdAt,
-    expiresAt,
-  })
-  const uploadToken = signUploadToken(tokenPayload)
-  const transfer: UploadSessionTransfer =
-    method === 'put'
-      ? await createPutProviderTransfer({
-          provider,
-          stagingKey,
-          contentType: params.contentType,
-          fileSize: params.fileSize,
-          context: storageContext,
-          uploadId: id,
-          uploadToken,
-          localOrigin: params.localOrigin,
-          expiresAt,
-          metadata: objectMetadata,
-        })
-      : { method, partSize: requireNumber(partSize), partCount: requireNumber(partCount) }
+  let inserted: UploadSessionRow
+  try {
+    const rows = await db
+      .insert(uploadSession)
+      .values({
+        id,
+        tokenHash: sha256Hex(uploadToken),
+        userId: params.userId,
+        workspaceId,
+        knowledgeBaseId: params.purpose === 'knowledge_document' ? params.knowledgeBaseId : null,
+        workflowId: params.purpose === 'execution_attachment' ? params.workflowId : null,
+        executionId: params.purpose === 'execution_attachment' ? params.executionId : null,
+        purpose: params.purpose,
+        method,
+        storageContext,
+        finalKey,
+        storageProvider: provider,
+        providerUploadId: initiated.providerUploadId,
+        fileName: params.fileName,
+        contentType: params.contentType,
+        fileSize: params.fileSize,
+        partSize,
+        partCount,
+        metadata: params.metadata ?? {},
+        createdAt,
+        expiresAt,
+        updatedAt: createdAt,
+      })
+      .returning()
+    inserted = requireRow(rows[0], 'Upload session insert returned no row')
+  } catch (error) {
+    await abortProviderUpload({
+      provider,
+      method,
+      providerUploadId: initiated.providerUploadId,
+      uploadId: id,
+      key: finalKey,
+      context: storageContext,
+    })
+    throw error
+  }
 
-  return sessionFromPayload(tokenPayload, uploadToken, transfer)
+  try {
+    const transfer: UploadSessionTransfer =
+      method === 'put'
+        ? await createPutProviderTransfer({
+            provider,
+            key: finalKey,
+            contentType: params.contentType,
+            fileSize: params.fileSize,
+            context: storageContext,
+            uploadId: id,
+            uploadToken,
+            localOrigin: params.localOrigin,
+            expiresAt,
+            metadata: objectMetadata,
+          })
+        : { method, partSize: requireNumber(partSize), partCount: requireNumber(partCount) }
+    return { ...sessionFromRow(inserted, uploadToken), transfer }
+  } catch (error) {
+    await db.delete(uploadSession).where(eq(uploadSession.id, id))
+    await abortProviderUpload({
+      provider,
+      method,
+      providerUploadId: initiated.providerUploadId,
+      uploadId: id,
+      key: finalKey,
+      context: storageContext,
+    })
+    throw error
+  }
 }
 
-export function getOwnedUploadSession(params: {
+export async function getOwnedUploadSession(params: {
   uploadId: string
   uploadToken: string
   userId?: string
@@ -222,9 +265,14 @@ export function getOwnedUploadSession(params: {
   knowledgeBaseId?: string
   workflowId?: string
   executionId?: string
-}): UploadSessionRecord {
-  const session = verifyUploadSessionToken(params.uploadToken)
-  if (session.id !== params.uploadId) throw uploadNotFound()
+}): Promise<UploadSessionRecord> {
+  const [row] = await db
+    .select()
+    .from(uploadSession)
+    .where(eq(uploadSession.id, params.uploadId))
+    .limit(1)
+  if (!row || !safeCompare(sha256Hex(params.uploadToken), row.tokenHash)) throw uploadNotFound()
+  const session = sessionFromRow(row, params.uploadToken)
   if (params.userId !== undefined && session.userId !== params.userId) throw uploadNotFound()
   if (params.workspaceId !== undefined && session.workspaceId !== params.workspaceId) {
     throw uploadNotFound()
@@ -242,10 +290,17 @@ export function getOwnedUploadSession(params: {
   return session
 }
 
-export function verifyUploadSessionToken(uploadToken: string): UploadSessionRecord {
-  const verified = verifyUploadToken(uploadToken)
-  if (!verified.valid) throw new UploadSessionError('forbidden', 'Invalid or expired upload token')
-  return sessionFromPayload(verified.payload, uploadToken)
+export async function verifyUploadSessionToken(uploadToken: string): Promise<UploadSessionRecord> {
+  const tokenHash = sha256Hex(uploadToken)
+  const [row] = await db
+    .select()
+    .from(uploadSession)
+    .where(eq(uploadSession.tokenHash, tokenHash))
+    .limit(1)
+  if (!row || !safeCompare(tokenHash, row.tokenHash)) {
+    throw new UploadSessionError('forbidden', 'Invalid or expired upload token')
+  }
+  return sessionFromRow(row, uploadToken)
 }
 
 export async function createUploadPartUrls(params: {
@@ -279,7 +334,7 @@ export async function createUploadPartUrls(params: {
   return getMultipartProviderPartUrls({
     provider: params.session.storageProvider,
     providerUploadId: params.session.providerUploadId,
-    stagingKey: params.session.stagingKey,
+    key: params.session.finalKey,
     context: params.session.storageContext,
     partNumbers: params.partNumbers,
     localUrl: (partNumber) =>
@@ -289,118 +344,319 @@ export async function createUploadPartUrls(params: {
 
 export async function completeUploadSession<T>(params: {
   session: UploadSessionRecord
-  completion: UploadCompletion
   finalize: (session: UploadSessionRecord) => Promise<{ value: T; completedFileId?: string }>
 }): Promise<{ session: UploadSessionRecord; value: T; alreadyCompleted: boolean }> {
-  assertUploadable(params.session)
-  const parts = validateUploadCompletion(params.session, params.completion)
-  let existingFinal = await headProviderObject({
-    provider: params.session.storageProvider,
-    key: params.session.finalKey,
-    context: params.session.storageContext,
-  })
-  const alreadyCompleted = existingFinal !== null
-  if (existingFinal) assertObjectIdentity(params.session, existingFinal, 'Final')
+  if (params.session.status === 'completed') {
+    const finalized = await params.finalize(params.session)
+    return { session: params.session, value: finalized.value, alreadyCompleted: true }
+  }
+  if (
+    params.session.status !== 'uploading' &&
+    params.session.status !== 'completing' &&
+    params.session.status !== 'finalizing'
+  ) {
+    throw new UploadSessionError('conflict', `Upload session is ${params.session.status}`)
+  }
+  if (params.session.status === 'uploading') assertNotExpired(params.session)
+  const leaseId = generateId()
+  const recoveringFinalization = params.session.status === 'finalizing'
+  const claimed = {
+    ...(await claimSession(
+      params.session.id,
+      leaseId,
+      recoveringFinalization ? ['finalizing'] : ['uploading', 'completing'],
+      recoveringFinalization ? 'finalizing' : 'completing'
+    )),
+    uploadToken: params.session.uploadToken,
+  }
+  let phase: 'completing' | 'finalizing' = recoveringFinalization ? 'finalizing' : 'completing'
+  let alreadyCompleted = false
 
-  if (!existingFinal) {
-    let staging = await headProviderObject({
-      provider: params.session.storageProvider,
-      key: params.session.stagingKey,
-      context: params.session.storageContext,
+  try {
+    let finalObject = await headProviderObject({
+      provider: claimed.storageProvider,
+      key: claimed.finalKey,
+      context: claimed.storageContext,
     })
-    if (staging) assertObjectIdentity(params.session, staging, 'Uploaded')
+    alreadyCompleted = finalObject !== null
+    if (finalObject) assertObjectIdentity(claimed, finalObject, 'Final')
 
-    if (!staging && params.session.method === 'multipart') {
+    if (!finalObject) {
+      if (claimed.method === 'put') {
+        throw new UploadSessionError('conflict', 'Uploaded object not found')
+      }
+      const parts = await listMultipartProviderParts({
+        provider: claimed.storageProvider,
+        providerUploadId: claimed.providerUploadId,
+        uploadId: claimed.id,
+        key: claimed.finalKey,
+        context: claimed.storageContext,
+      })
+      validateProviderParts(claimed, parts)
       try {
         await completeMultipartProviderUpload({
-          provider: params.session.storageProvider,
-          providerUploadId: params.session.providerUploadId,
-          uploadId: params.session.id,
-          stagingKey: params.session.stagingKey,
-          contentType: params.session.contentType,
-          context: params.session.storageContext,
+          provider: claimed.storageProvider,
+          providerUploadId: claimed.providerUploadId,
+          uploadId: claimed.id,
+          key: claimed.finalKey,
+          contentType: claimed.contentType,
+          context: claimed.storageContext,
           parts,
-          metadata: uploadSessionObjectMetadata(params.session),
+          metadata: uploadSessionObjectMetadata(claimed),
         })
-      } catch (completionError) {
-        staging = await headProviderObject({
-          provider: params.session.storageProvider,
-          key: params.session.stagingKey,
-          context: params.session.storageContext,
+      } catch (error) {
+        finalObject = await headProviderObject({
+          provider: claimed.storageProvider,
+          key: claimed.finalKey,
+          context: claimed.storageContext,
         })
-        if (!staging) throw completionError
-        assertObjectIdentity(params.session, staging, 'Uploaded')
+        if (!finalObject) throw error
       }
+      finalObject =
+        finalObject ??
+        (await headProviderObject({
+          provider: claimed.storageProvider,
+          key: claimed.finalKey,
+          context: claimed.storageContext,
+        }))
+      if (!finalObject) throw new Error('Completed upload object not found')
+      assertObjectIdentity(claimed, finalObject, 'Completed')
     }
 
-    if (!staging) {
-      staging = await headProviderObject({
-        provider: params.session.storageProvider,
-        key: params.session.stagingKey,
-        context: params.session.storageContext,
+    phase = 'finalizing'
+    const [finalizingRow] = await db
+      .update(uploadSession)
+      .set({
+        status: 'finalizing',
+        providerObjectVersion: finalObject.version,
+        error: null,
+        updatedAt: new Date(),
       })
+      .where(and(eq(uploadSession.id, claimed.id), eq(uploadSession.processingLeaseId, leaseId)))
+      .returning()
+    const finalizing = sessionFromRow(
+      requireRow(finalizingRow, 'Upload completion lease was lost'),
+      claimed.uploadToken
+    )
+    const finalized = await params.finalize(finalizing)
+    const completedAt = new Date()
+    const [completedRow] = await db
+      .update(uploadSession)
+      .set({
+        status: 'completed',
+        completedFileId: finalized.completedFileId ?? null,
+        completedAt,
+        processingLeaseId: null,
+        processingLeaseExpiresAt: null,
+        error: null,
+        updatedAt: completedAt,
+      })
+      .where(and(eq(uploadSession.id, claimed.id), eq(uploadSession.processingLeaseId, leaseId)))
+      .returning()
+    return {
+      session: sessionFromRow(
+        requireRow(completedRow, 'Upload completion lease was lost'),
+        claimed.uploadToken
+      ),
+      value: finalized.value,
+      alreadyCompleted,
     }
-
-    if (!staging) throw new UploadSessionError('conflict', 'Uploaded staging object not found')
-    assertObjectIdentity(params.session, staging, 'Uploaded')
-
-    try {
-      await promoteProviderObject({
-        provider: params.session.storageProvider,
-        sourceKey: params.session.stagingKey,
-        destinationKey: params.session.finalKey,
-        sourceVersion: staging.version,
-        context: params.session.storageContext,
+  } catch (error) {
+    await db
+      .update(uploadSession)
+      .set({
+        status: phase === 'completing' && error instanceof UploadSessionError ? 'uploading' : phase,
+        processingLeaseId: null,
+        processingLeaseExpiresAt: null,
+        error: getErrorMessage(error),
+        updatedAt: new Date(),
       })
-    } catch (error) {
-      existingFinal = await headProviderObject({
-        provider: params.session.storageProvider,
-        key: params.session.finalKey,
-        context: params.session.storageContext,
-      })
-      if (!existingFinal) throw error
-      assertObjectIdentity(params.session, existingFinal, 'Final')
-    }
-
-    const promoted = await headProviderObject({
-      provider: params.session.storageProvider,
-      key: params.session.finalKey,
-      context: params.session.storageContext,
-    })
-    if (!promoted) throw new Error('Promoted upload object not found')
-    assertObjectIdentity(params.session, promoted, 'Promoted')
-  }
-
-  const finalized = await params.finalize(params.session)
-  await cleanupStagingObject(params.session)
-  const completedAt = new Date()
-  return {
-    session: {
-      ...params.session,
-      status: 'completed',
-      completedFileId: finalized.completedFileId ?? null,
-      completedAt,
-      updatedAt: completedAt,
-    },
-    value: finalized.value,
-    alreadyCompleted,
+      .where(and(eq(uploadSession.id, claimed.id), eq(uploadSession.processingLeaseId, leaseId)))
+    throw error
   }
 }
 
 export async function abortUploadSession(
   session: UploadSessionRecord
 ): Promise<UploadSessionRecord> {
-  assertUploadable(session)
-  await abortProviderUpload({
-    provider: session.storageProvider,
-    method: session.method,
-    providerUploadId: session.providerUploadId,
-    uploadId: session.id,
-    stagingKey: session.stagingKey,
-    context: session.storageContext,
-  })
-  const completedAt = new Date()
-  return { ...session, status: 'aborted', completedAt, updatedAt: completedAt }
+  if (session.status === 'aborted' || session.status === 'expired') return session
+  if (session.status === 'completed') {
+    throw new UploadSessionError('conflict', 'Completed upload sessions cannot be aborted')
+  }
+  if (session.status === 'finalizing') {
+    throw new UploadSessionError('conflict', 'Finalizing upload sessions cannot be aborted')
+  }
+  if (
+    session.status !== 'uploading' &&
+    session.status !== 'completing' &&
+    session.status !== 'aborting'
+  ) {
+    throw new UploadSessionError('conflict', `Upload session is ${session.status}`)
+  }
+  const leaseId = generateId()
+  const claimed = {
+    ...(await claimSession(
+      session.id,
+      leaseId,
+      ['uploading', 'completing', 'aborting'],
+      'aborting'
+    )),
+    uploadToken: session.uploadToken,
+  }
+  try {
+    await discardIncompleteProviderState(claimed)
+    const completedAt = new Date()
+    const [row] = await db
+      .update(uploadSession)
+      .set({
+        status: 'aborted',
+        processingLeaseId: null,
+        processingLeaseExpiresAt: null,
+        completedAt,
+        error: null,
+        updatedAt: completedAt,
+      })
+      .where(and(eq(uploadSession.id, claimed.id), eq(uploadSession.processingLeaseId, leaseId)))
+      .returning()
+    return sessionFromRow(requireRow(row, 'Upload abort lease was lost'), session.uploadToken)
+  } catch (error) {
+    await db
+      .update(uploadSession)
+      .set({
+        status: 'aborting',
+        processingLeaseId: null,
+        processingLeaseExpiresAt: null,
+        error: getErrorMessage(error),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(uploadSession.id, claimed.id), eq(uploadSession.processingLeaseId, leaseId)))
+    throw error
+  }
+}
+
+export async function cleanupExpiredUploadSessions(): Promise<{
+  expired: number
+  failed: number
+  purged: number
+}> {
+  const now = new Date()
+  const candidates = await cleanupDb
+    .select()
+    .from(uploadSession)
+    .where(
+      and(
+        inArray(uploadSession.status, ['uploading', 'completing', 'aborting']),
+        lt(uploadSession.expiresAt, now),
+        or(
+          isNull(uploadSession.processingLeaseId),
+          isNull(uploadSession.processingLeaseExpiresAt),
+          lt(uploadSession.processingLeaseExpiresAt, now)
+        )
+      )
+    )
+    .orderBy(asc(uploadSession.expiresAt))
+    .limit(CLEANUP_BATCH_SIZE)
+
+  let expired = 0
+  let failed = 0
+  for (const candidate of candidates) {
+    const leaseId = generateId()
+    try {
+      const claimed = await claimSession(
+        candidate.id,
+        leaseId,
+        ['uploading', 'completing', 'aborting'],
+        'aborting',
+        cleanupDb
+      )
+      await discardIncompleteProviderState(claimed)
+      const completedAt = new Date()
+      const updated = await cleanupDb
+        .update(uploadSession)
+        .set({
+          status: 'expired',
+          processingLeaseId: null,
+          processingLeaseExpiresAt: null,
+          completedAt,
+          error: null,
+          updatedAt: completedAt,
+        })
+        .where(and(eq(uploadSession.id, claimed.id), eq(uploadSession.processingLeaseId, leaseId)))
+        .returning({ id: uploadSession.id })
+      if (updated.length !== 1) throw new Error('Upload expiry lease was lost')
+      expired++
+    } catch (error) {
+      failed++
+      await cleanupDb
+        .update(uploadSession)
+        .set({
+          processingLeaseId: null,
+          processingLeaseExpiresAt: null,
+          error: getErrorMessage(error),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(uploadSession.id, candidate.id), eq(uploadSession.processingLeaseId, leaseId))
+        )
+    }
+  }
+
+  const terminalCutoff = new Date(now.getTime() - TERMINAL_RETENTION_MS)
+  const terminalRows = await cleanupDb
+    .select()
+    .from(uploadSession)
+    .where(
+      and(
+        inArray(uploadSession.status, ['completed', 'aborted', 'expired']),
+        lt(uploadSession.completedAt, terminalCutoff),
+        or(
+          isNull(uploadSession.processingLeaseId),
+          isNull(uploadSession.processingLeaseExpiresAt),
+          lt(uploadSession.processingLeaseExpiresAt, now)
+        )
+      )
+    )
+    .orderBy(asc(uploadSession.completedAt))
+    .limit(CLEANUP_BATCH_SIZE)
+  let purged = 0
+  for (const candidate of terminalRows) {
+    const leaseId = generateId()
+    try {
+      const claimed = await claimSession(
+        candidate.id,
+        leaseId,
+        [candidate.status],
+        candidate.status,
+        cleanupDb
+      )
+      if (claimed.status === 'aborted' || claimed.status === 'expired') {
+        await deleteOwnedFinalObject(claimed)
+      } else if (claimed.status !== 'completed') {
+        throw new Error(`Invalid terminal upload status ${claimed.status}`)
+      }
+      const deleted = await cleanupDb
+        .delete(uploadSession)
+        .where(and(eq(uploadSession.id, claimed.id), eq(uploadSession.processingLeaseId, leaseId)))
+        .returning({ id: uploadSession.id })
+      if (deleted.length !== 1) throw new Error('Upload retention lease was lost')
+      purged++
+    } catch (error) {
+      failed++
+      await cleanupDb
+        .update(uploadSession)
+        .set({
+          processingLeaseId: null,
+          processingLeaseExpiresAt: null,
+          error: getErrorMessage(error),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(uploadSession.id, candidate.id), eq(uploadSession.processingLeaseId, leaseId))
+        )
+    }
+  }
+
+  return { expired, failed, purged }
 }
 
 export function expectedUploadPartSize(session: UploadSessionRecord, partNumber: number): number {
@@ -439,211 +695,103 @@ export function uploadSessionObjectMetadata(
   }
 }
 
-function sessionFromPayload(
-  payload: UploadTokenPayload,
-  uploadToken: string,
-  transfer: UploadSessionTransfer
-): CreatedUploadSession
-function sessionFromPayload(
-  payload: UploadTokenPayload,
-  uploadToken: string,
-  transfer?: undefined
-): UploadSessionRecord
-function sessionFromPayload(
-  payload: UploadTokenPayload,
-  uploadToken: string,
-  transfer?: UploadSessionTransfer
-): CreatedUploadSession | UploadSessionRecord {
-  const createdAt = new Date(payload.createdAt)
-  const expiresAt = new Date(payload.expiresAt)
-  const session: UploadSessionRecord = {
-    id: payload.uploadId,
-    workspaceId: payload.workspaceId,
-    userId: payload.actorId,
-    knowledgeBaseId: payload.purpose === 'knowledge_document' ? payload.knowledgeBaseId : null,
-    workflowId: payload.purpose === 'execution_attachment' ? payload.workflowId : null,
-    executionId: payload.purpose === 'execution_attachment' ? payload.executionId : null,
-    purpose: payload.purpose,
-    method: payload.method,
-    storageContext: payload.context,
-    storageKey: payload.finalKey,
-    finalKey: payload.finalKey,
-    stagingKey: payload.stagingKey,
-    storageProvider: payload.provider,
-    providerUploadId: payload.providerUploadId,
-    fileName: payload.fileName,
-    contentType: payload.contentType,
-    fileSize: payload.fileSize,
-    partSize: payload.method === 'multipart' ? payload.partSize : null,
-    partCount: payload.method === 'multipart' ? payload.partCount : null,
-    status: 'uploading',
-    metadata: payload.metadata,
+function sessionFromRow(row: UploadSessionRow, uploadToken: string): UploadSessionRecord {
+  if (!isStorageContext(row.storageContext)) {
+    throw new Error(`Invalid upload storage context ${row.storageContext}`)
+  }
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    userId: row.userId,
+    knowledgeBaseId: row.knowledgeBaseId,
+    workflowId: row.workflowId,
+    executionId: row.executionId,
+    purpose: row.purpose,
+    method: row.method,
+    storageContext: row.storageContext,
+    storageKey: row.finalKey,
+    finalKey: row.finalKey,
+    storageProvider: row.storageProvider,
+    providerUploadId: row.providerUploadId,
+    providerObjectVersion: row.providerObjectVersion,
+    fileName: row.fileName,
+    contentType: row.contentType,
+    fileSize: row.fileSize,
+    partSize: row.partSize,
+    partCount: row.partCount,
+    status: row.status,
+    metadata: row.metadata,
     uploadToken,
-    createdAt,
-    expiresAt,
-    completedFileId: null,
-    error: null,
-    completedAt: null,
-    updatedAt: new Date(),
-  }
-  return transfer ? { ...session, transfer } : session
-}
-
-function createUploadTokenPayload(params: {
-  params: CreateUploadSessionParams
-  id: string
-  workspaceId: string | null
-  storageContext: StorageContext
-  finalKey: string
-  stagingKey: string
-  provider: UploadStorageProvider
-  providerUploadId: string | null
-  method: UploadTransferMethod
-  partSize: number | null
-  partCount: number | null
-  metadata: Record<string, unknown>
-  createdAt: Date
-  expiresAt: Date
-}): UploadTokenPayload {
-  const base = {
-    uploadId: params.id,
-    actorId: params.params.userId,
-    finalKey: params.finalKey,
-    stagingKey: params.stagingKey,
-    provider: params.provider,
-    fileName: params.params.fileName,
-    contentType: params.params.contentType,
-    fileSize: params.params.fileSize,
-    metadata: params.metadata,
-    createdAt: params.createdAt.toISOString(),
-    expiresAt: params.expiresAt.toISOString(),
-  }
-  const transfer =
-    params.method === 'put'
-      ? ({ method: 'put', providerUploadId: null } as const)
-      : ({
-          method: 'multipart',
-          providerUploadId: params.providerUploadId,
-          partSize: requireNumber(params.partSize),
-          partCount: requireNumber(params.partCount),
-        } as const)
-
-  switch (params.params.purpose) {
-    case 'workspace_file':
-      return {
-        ...base,
-        ...transfer,
-        purpose: params.params.purpose,
-        workspaceId: params.params.workspaceId,
-        context: 'workspace',
-      }
-    case 'table_import':
-      return {
-        ...base,
-        ...transfer,
-        purpose: params.params.purpose,
-        workspaceId: params.params.workspaceId,
-        context: 'table-import',
-      }
-    case 'knowledge_document':
-      return {
-        ...base,
-        ...transfer,
-        purpose: params.params.purpose,
-        workspaceId: params.params.workspaceId,
-        context: 'knowledge-base',
-        knowledgeBaseId: params.params.knowledgeBaseId,
-      }
-    case 'profile_picture':
-      return {
-        ...base,
-        ...transfer,
-        purpose: params.params.purpose,
-        workspaceId: null,
-        context: 'profile-pictures',
-      }
-    case 'workspace_logo':
-      return {
-        ...base,
-        ...transfer,
-        purpose: params.params.purpose,
-        workspaceId: params.params.workspaceId,
-        context: 'workspace-logos',
-      }
-    case 'mothership_attachment':
-      return {
-        ...base,
-        ...transfer,
-        purpose: params.params.purpose,
-        workspaceId: params.params.workspaceId,
-        context: 'mothership',
-      }
-    case 'execution_attachment':
-      return {
-        ...base,
-        ...transfer,
-        purpose: params.params.purpose,
-        workspaceId: params.params.workspaceId,
-        context: 'execution',
-        workflowId: params.params.workflowId,
-        executionId: params.params.executionId,
-      }
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    completedFileId: row.completedFileId,
+    error: row.error,
+    completedAt: row.completedAt,
+    updatedAt: row.updatedAt,
   }
 }
 
-function assertUploadable(session: UploadSessionRecord): void {
-  if (session.status !== 'uploading') {
-    throw new UploadSessionError('conflict', `Upload session is ${session.status}`)
-  }
-  if (session.expiresAt.getTime() <= Date.now()) {
-    throw new UploadSessionError('conflict', 'Upload session has expired')
-  }
+async function claimSession(
+  id: string,
+  leaseId: string,
+  statuses: UploadSessionStatus[],
+  nextStatus: UploadSessionStatus = 'completing',
+  database: typeof db = db
+): Promise<UploadSessionRecord> {
+  const now = new Date()
+  const [row] = await database
+    .update(uploadSession)
+    .set({
+      status: nextStatus,
+      processingLeaseId: leaseId,
+      processingLeaseExpiresAt: new Date(now.getTime() + PROCESSING_LEASE_MS),
+      error: null,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(uploadSession.id, id),
+        inArray(uploadSession.status, statuses),
+        or(
+          isNull(uploadSession.processingLeaseId),
+          isNull(uploadSession.processingLeaseExpiresAt),
+          lt(uploadSession.processingLeaseExpiresAt, now)
+        )
+      )
+    )
+    .returning()
+  if (!row) throw new UploadSessionError('conflict', 'Upload session is already being processed')
+  return sessionFromRow(row, '')
 }
 
-/**
- * Validates method-specific completion input before any idempotent replay shortcut is taken.
- * Callers that can return an already-completed resource must run this first as well.
- */
-export function validateUploadCompletion(
-  session: UploadSessionRecord,
-  completion: UploadCompletion
-): CompletedUploadPart[] {
-  if (session.method === 'put') {
-    if ('parts' in completion) {
-      throw new UploadSessionError('validation', 'PUT completion must not include parts')
-    }
-    return []
-  }
-  if (!('parts' in completion) || !completion.parts) {
-    throw new UploadSessionError('validation', 'Multipart completion requires parts')
-  }
-  validateCompletedParts(session, completion.parts)
-  return completion.parts
-}
-
-function validateCompletedParts(session: UploadSessionRecord, parts: CompletedUploadPart[]): void {
+function validateProviderParts(session: UploadSessionRecord, parts: CompletedUploadPart[]): void {
   if (!session.partCount) throw new Error('Multipart upload is missing partCount')
   if (parts.length !== session.partCount) {
     throw new UploadSessionError(
-      'validation',
-      `Expected ${session.partCount} completed parts; received ${parts.length}`
+      'conflict',
+      `Expected ${session.partCount} uploaded parts; provider returned ${parts.length}`
     )
   }
   const sorted = [...parts].sort((a, b) => a.partNumber - b.partNumber)
   for (let index = 0; index < sorted.length; index++) {
-    if (sorted[index].partNumber !== index + 1) {
+    const part = sorted[index]
+    if (part.partNumber !== index + 1) {
       throw new UploadSessionError(
-        'validation',
-        'Completed parts must contain every part exactly once'
+        'conflict',
+        'Provider parts must contain every part exactly once'
       )
     }
-    if (
-      (session.storageProvider === 's3' || session.storageProvider === 'gcs') &&
-      !sorted[index].etag
-    ) {
+    const expectedSize = expectedUploadPartSize(session, part.partNumber)
+    if (part.size !== expectedSize) {
       throw new UploadSessionError(
-        'validation',
-        `etag is required for ${session.storageProvider} part ${sorted[index].partNumber}`
+        'conflict',
+        `Provider part ${part.partNumber} has ${part.size} bytes; expected ${expectedSize}`
+      )
+    }
+    if ((session.storageProvider === 's3' || session.storageProvider === 'gcs') && !part.etag) {
+      throw new UploadSessionError(
+        'conflict',
+        `${session.storageProvider} part ${part.partNumber} is missing an ETag`
       )
     }
   }
@@ -671,20 +819,59 @@ function assertObjectIdentity(
   }
 }
 
-async function cleanupStagingObject(session: UploadSessionRecord): Promise<void> {
-  const staging = await headProviderObject({
+async function deleteOwnedFinalObject(session: UploadSessionRecord): Promise<void> {
+  const object = await headProviderObject({
     provider: session.storageProvider,
-    key: session.stagingKey,
+    key: session.finalKey,
     context: session.storageContext,
   })
-  if (!staging) return
-  assertObjectIdentity(session, staging, 'Staging')
+  if (!object) return
+  assertObjectIdentity(session, object, 'Final')
   await deleteProviderObjectVersion({
     provider: session.storageProvider,
-    key: session.stagingKey,
-    version: staging.version,
+    key: session.finalKey,
+    version: object.version,
     context: session.storageContext,
   })
+}
+
+async function discardIncompleteProviderState(session: UploadSessionRecord): Promise<void> {
+  const object = await headProviderObject({
+    provider: session.storageProvider,
+    key: session.finalKey,
+    context: session.storageContext,
+  })
+  if (object) {
+    assertObjectIdentity(session, object, 'Final')
+    await deleteProviderObjectVersion({
+      provider: session.storageProvider,
+      key: session.finalKey,
+      version: object.version,
+      context: session.storageContext,
+    })
+    return
+  }
+  await abortProviderUpload({
+    provider: session.storageProvider,
+    method: session.method,
+    providerUploadId: session.providerUploadId,
+    uploadId: session.id,
+    key: session.finalKey,
+    context: session.storageContext,
+  })
+}
+
+function assertUploadable(session: UploadSessionRecord): void {
+  if (session.status !== 'uploading') {
+    throw new UploadSessionError('conflict', `Upload session is ${session.status}`)
+  }
+  assertNotExpired(session)
+}
+
+function assertNotExpired(session: UploadSessionRecord): void {
+  if (session.expiresAt.getTime() <= Date.now()) {
+    throw new UploadSessionError('conflict', 'Upload session has expired')
+  }
 }
 
 function validateFile(params: CreateUploadSessionParams): void {
@@ -722,9 +909,7 @@ function maximumFileSize(purpose: UploadSessionPurpose): number {
   if (purpose === 'profile_picture' || purpose === 'workspace_logo') {
     return UPLOAD_SESSION_ASSET_MAX_BYTES
   }
-  if (purpose === 'execution_attachment') {
-    return MAX_WORKSPACE_FORMDATA_FILE_SIZE
-  }
+  if (purpose === 'execution_attachment') return MAX_WORKSPACE_FORMDATA_FILE_SIZE
   return MAX_WORKSPACE_FILE_SIZE
 }
 
@@ -782,6 +967,18 @@ function resolveUploadStorage(
   }
 }
 
+function isStorageContext(value: string): value is StorageContext {
+  return [
+    'workspace',
+    'table-import',
+    'knowledge-base',
+    'profile-pictures',
+    'workspace-logos',
+    'mothership',
+    'execution',
+  ].includes(value)
+}
+
 function uploadNotFound(): UploadSessionError {
   return new UploadSessionError('not_found', 'Upload session not found')
 }
@@ -789,4 +986,9 @@ function uploadNotFound(): UploadSessionError {
 function requireNumber(value: number | null): number {
   if (value === null) throw new Error('Multipart upload geometry is missing')
   return value
+}
+
+function requireRow<T>(row: T | undefined, message: string): T {
+  if (!row) throw new Error(message)
+  return row
 }

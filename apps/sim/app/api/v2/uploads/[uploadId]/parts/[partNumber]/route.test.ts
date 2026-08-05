@@ -36,6 +36,7 @@ const SESSION = {
   storageProvider: 'local',
   method: 'multipart',
   status: 'uploading',
+  expiresAt: new Date('2999-01-01T00:00:00.000Z'),
 } as const
 
 describe('PUT /api/v2/uploads/[uploadId]/parts/[partNumber]', () => {
@@ -79,6 +80,20 @@ describe('PUT /api/v2/uploads/[uploadId]/parts/[partNumber]', () => {
     const response = await request()
 
     expect(response.status).toBe(409)
+    expect(mockExpectedUploadPartSize).not.toHaveBeenCalled()
+    expect(mockWriteLocalMultipartPart).not.toHaveBeenCalled()
+  })
+
+  it('rejects expired upload sessions before writing the part', async () => {
+    mockVerifyUploadSessionToken.mockReturnValue({
+      ...SESSION,
+      expiresAt: new Date('2000-01-01T00:00:00.000Z'),
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({ error: 'Upload session has expired' })
     expect(mockExpectedUploadPartSize).not.toHaveBeenCalled()
     expect(mockWriteLocalMultipartPart).not.toHaveBeenCalled()
   })

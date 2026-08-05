@@ -39,9 +39,9 @@ const SESSION = {
   storageContext: 'workspace',
   storageKey: 'workspace/workspace-1/file.bin',
   finalKey: 'workspace/workspace-1/file.bin',
-  stagingKey: 'upload-sessions/upload-1/file.bin',
   storageProvider: 'local',
   providerUploadId: null,
+  providerObjectVersion: null,
   fileName: 'file.bin',
   contentType: 'application/octet-stream',
   fileSize: 3,
@@ -76,7 +76,7 @@ describe('PUT /api/v2/uploads/[uploadId]', () => {
     })
     expect(mockWriteLocalPut).toHaveBeenCalledWith({
       uploadId: 'upload-1',
-      stagingKey: 'upload-sessions/upload-1/file.bin',
+      key: 'workspace/workspace-1/file.bin',
       body: expect.any(ReadableStream),
       expectedSize: 3,
       contentType: 'application/octet-stream',

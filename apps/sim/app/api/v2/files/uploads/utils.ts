@@ -23,9 +23,11 @@ export function toV2FileUpload(
 function uploadStatus(status: string): V2UploadStatus {
   if (
     status !== 'uploading' &&
+    status !== 'completing' &&
     status !== 'finalizing' &&
     status !== 'completed' &&
     status !== 'failed' &&
+    status !== 'aborting' &&
     status !== 'aborted' &&
     status !== 'expired'
   ) {

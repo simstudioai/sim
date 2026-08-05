@@ -26,20 +26,16 @@ describe('local upload artifact cleanup', () => {
     await mkdir(testUploadDirectory, { recursive: true })
   })
 
-  it('removes expired multipart and staging entries while retaining fresh entries', async () => {
+  it('removes expired multipart entries while retaining fresh entries', async () => {
     const now = Date.UTC(2026, 7, 4, 12)
     await createArtifact('.multipart/expired', now - LOCAL_UPLOAD_ARTIFACT_TTL_MS - 1)
-    await createArtifact('upload-sessions/expired', now - LOCAL_UPLOAD_ARTIFACT_TTL_MS - 1)
-    await createArtifact('upload-sessions/fresh', now)
+    await createArtifact('.multipart/fresh', now)
 
-    await expect(sweepLocalUploadArtifacts({ now })).resolves.toEqual({ scanned: 3, removed: 2 })
+    await expect(sweepLocalUploadArtifacts({ now })).resolves.toEqual({ scanned: 2, removed: 1 })
     await expect(stat(`${testUploadDirectory}/.multipart/expired`)).rejects.toMatchObject({
       code: 'ENOENT',
     })
-    await expect(stat(`${testUploadDirectory}/upload-sessions/expired`)).rejects.toMatchObject({
-      code: 'ENOENT',
-    })
-    await expect(stat(`${testUploadDirectory}/upload-sessions/fresh`)).resolves.toBeDefined()
+    await expect(stat(`${testUploadDirectory}/.multipart/fresh`)).resolves.toBeDefined()
   })
 
   it('bounds each sweep by the requested entry count', async () => {
