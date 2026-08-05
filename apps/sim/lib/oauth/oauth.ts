@@ -1598,9 +1598,10 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
       }
     }
     case 'quickbooks': {
-      const { clientId, clientSecret } = getCredentials(
-        env.QUICKBOOKS_CLIENT_ID,
-        env.QUICKBOOKS_CLIENT_SECRET
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'quickbooks',
+        'QUICKBOOKS_CLIENT_ID',
+        'QUICKBOOKS_CLIENT_SECRET'
       )
       return {
         tokenEndpoint: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
