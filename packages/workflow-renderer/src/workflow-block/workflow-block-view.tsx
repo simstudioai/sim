@@ -106,7 +106,7 @@ const WORKFLOW_ROLE_ACCENTS = {
   records: { variant: 'workflow', tone: 'green' },
   neutral: { variant: 'workflow', tone: 'neutral' },
   generative: { variant: 'workflow', tone: 'purple' },
-  knowledge: { variant: 'workflow', tone: 'cyan' },
+  knowledge: { variant: 'workflow', tone: 'content' },
 } as const
 
 export type WorkflowTypeRole = keyof typeof WORKFLOW_ROLE_ACCENTS
