@@ -159,6 +159,40 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     expect(mockGetJob).not.toHaveBeenCalled()
   })
 
+  it('does not let an orphaned pending resume mask a terminal log', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status: 'completed',
+        level: 'info',
+        trigger: 'api',
+        startedAt: new Date('2026-08-05T12:00:00.000Z'),
+        endedAt: new Date('2026-08-05T12:00:01.000Z'),
+        totalDurationMs: 1000,
+        executionData: null,
+        costTotal: null,
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [
+      {
+        id: 'resume-entry-2',
+        status: 'pending',
+        queuedAt: new Date('2026-08-05T12:00:02.000Z'),
+        claimedAt: null,
+      },
+    ])
+
+    const status = await getWorkflowExecutionStatus(input)
+
+    expect(status).toMatchObject({
+      executionId: 'execution-1',
+      status: 'completed',
+    })
+    expect(mockGetJob).not.toHaveBeenCalled()
+  })
+
   it('returns completed queue output when requested', async () => {
     mockGetJob.mockResolvedValueOnce({
       status: 'completed',

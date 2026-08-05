@@ -172,9 +172,13 @@ export async function getWorkflowExecutionStatus(
     .orderBy(sql`case when ${resumeQueue.status} = 'claimed' then 0 else 1 end`)
     .limit(1)
 
+  const hasTerminalLog =
+    logRow?.status === 'completed' || logRow?.status === 'failed' || logRow?.status === 'cancelled'
+  const projectedResume = hasTerminalLog ? undefined : activeResume
+
   const queueJobIds = [
-    ...(activeResume?.status === 'claimed'
-      ? [`${RESUME_EXECUTION_JOB_ID_PREFIX}${activeResume.id}`]
+    ...(projectedResume?.status === 'claimed'
+      ? [`${RESUME_EXECUTION_JOB_ID_PREFIX}${projectedResume.id}`]
       : []),
     ...(!logRow ? [`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`] : []),
   ]
@@ -188,8 +192,8 @@ export async function getWorkflowExecutionStatus(
     }
   }
 
-  if (activeResume) {
-    const startedAt = activeResume.claimedAt ?? activeResume.queuedAt
+  if (projectedResume) {
+    const startedAt = projectedResume.claimedAt ?? projectedResume.queuedAt
     return {
       executionId,
       workflowId,
