@@ -17,11 +17,7 @@ import type {
   V2KnowledgeDocumentSummary,
   V2KnowledgeDocumentUploadMetadata,
 } from '@/lib/api/contracts/v2/knowledge'
-import type {
-  V2CompleteUploadBody,
-  V2UploadPartUrl,
-  V2UploadTransfer,
-} from '@/lib/api/contracts/v2/uploads'
+import type { V2UploadPartUrl, V2UploadTransfer } from '@/lib/api/contracts/v2/uploads'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { getFileContentType } from '@/lib/uploads/utils/file-utils'
@@ -73,7 +69,7 @@ interface RunCreatedUploadParams<T> {
   signal?: AbortSignal
   onProgress?: (event: UploadProgressEvent) => void
   getPartUrls: (partNumbers: number[]) => Promise<V2UploadPartUrl[]>
-  complete: (body: V2CompleteUploadBody) => Promise<T>
+  complete: () => Promise<T>
   abort: () => Promise<void>
 }
 
@@ -127,11 +123,10 @@ export async function uploadInternalFileSession<Purpose extends InternalUploadPu
       })
       return batch.data.parts
     },
-    complete: async (body) => {
+    complete: async () => {
       const completed = await requestJson(completeInternalFileUploadContract, {
         params: { uploadId: session.id },
         headers: { 'upload-token': uploadToken },
-        body,
         signal,
       })
       if (completed.data.purpose !== params.purpose) {
@@ -216,12 +211,11 @@ export async function uploadKnowledgeDocumentSession(
       })
       return batch.data.parts
     },
-    complete: async (body) => {
+    complete: async () => {
       const completed = await requestJson(completeKnowledgeDocumentUploadContract, {
         params: { id: knowledgeBaseId, uploadId: session.id },
         query: { workspaceId },
         headers: { 'upload-token': uploadToken },
-        body,
         signal,
       })
       if (!completed.data.document) {

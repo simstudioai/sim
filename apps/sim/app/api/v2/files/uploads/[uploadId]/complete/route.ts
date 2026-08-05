@@ -40,7 +40,7 @@ export const POST = withRouteHandler(
       const { workspaceId } = parsed.data.query
       const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
       if (access) return v2WorkspaceAccessError(access)
-      const session = getOwnedUploadSession({
+      const session = await getOwnedUploadSession({
         uploadId,
         workspaceId,
         userId,
@@ -49,7 +49,6 @@ export const POST = withRouteHandler(
       })
       const result = await completeUploadSession({
         session,
-        completion: parsed.data.body,
         finalize: async (claimed) => {
           const finalized = await finalizeWorkspaceFileUpload({
             session: claimed,

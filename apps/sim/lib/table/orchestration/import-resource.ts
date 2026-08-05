@@ -145,13 +145,13 @@ export async function startUploadedTableImport(
   })
 }
 
-export function getOwnedTableImportUpload(params: {
+export async function getOwnedTableImportUpload(params: {
   importId: string
   workspaceId: string
   userId: string
   uploadToken: string
-}): UploadSessionRecord {
-  const upload = getOwnedUploadSession({
+}): Promise<UploadSessionRecord> {
+  const upload = await getOwnedUploadSession({
     uploadId: params.importId,
     workspaceId: params.workspaceId,
     userId: params.userId,
@@ -168,7 +168,7 @@ export async function abortTableImportUpload(params: {
   userId: string
   uploadToken: string
 }): Promise<TableImportResource> {
-  const upload = getOwnedTableImportUpload(params)
+  const upload = await getOwnedTableImportUpload(params)
   const body = tableImportBodyFromUpload(upload)
   return resourceFromUpload(await abortUploadSession(upload), body)
 }

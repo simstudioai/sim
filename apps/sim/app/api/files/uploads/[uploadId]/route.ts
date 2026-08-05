@@ -21,7 +21,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Upl
   if (!parsed.success) return parsed.response
 
   try {
-    const session = getOwnedUploadSession({
+    const session = await getOwnedUploadSession({
       uploadId: parsed.data.params.uploadId,
       uploadToken: parsed.data.headers['upload-token'],
       userId: actor.id,

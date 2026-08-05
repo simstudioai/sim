@@ -59,7 +59,7 @@ export const POST = withRouteHandler(
       })
       if (access instanceof NextResponse) return access
 
-      const session = getOwnedKnowledgeDocumentUpload({
+      const session = await getOwnedKnowledgeDocumentUpload({
         knowledgeBaseId,
         uploadId,
         workspaceId,
@@ -68,7 +68,6 @@ export const POST = withRouteHandler(
       })
       const result = await completeUploadSession({
         session,
-        completion: parsed.data.body,
         finalize: (claimed) =>
           finalizeKnowledgeDocumentUpload({
             claimed,

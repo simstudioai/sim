@@ -15,7 +15,7 @@ export interface LocalUploadCleanupResult {
 let activeCleanup: Promise<LocalUploadCleanupResult> | null = null
 let lastCleanupAt = 0
 
-const CLEANUP_ROOTS = ['.multipart', 'upload-sessions'] as const
+const CLEANUP_ROOTS = ['.multipart'] as const
 
 interface CleanupRootState {
   directory: Awaited<ReturnType<typeof opendir>> | null
@@ -25,7 +25,7 @@ const cleanupRootStates: CleanupRootState[] = CLEANUP_ROOTS.map(() => ({ directo
 let nextCleanupRootIndex = 0
 
 /**
- * Opportunistically removes expired local multipart and staged-PUT state.
+ * Opportunistically removes expired local multipart state.
  * Calls are single-flight and rate-limited; each sweep examines a bounded number of entries.
  */
 export function maybeCleanupLocalUploadArtifacts(

@@ -19,11 +19,11 @@ vi.mock('@/lib/uploads/config', () => ({
   getStorageConfig: vi.fn(() => ({})),
 }))
 
-import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
+  completeMultipartProviderUpload,
   headProviderObject,
   LocalUploadBodyError,
-  promoteProviderObject,
+  listMultipartProviderParts,
   writeLocalMultipartPart,
   writeLocalPutObject,
 } from '@/lib/uploads/upload-session/provider'
@@ -46,20 +46,20 @@ describe('local upload-session provider', () => {
   it('streams an exact-size PUT and persists its object identity', async () => {
     await writeLocalPutObject({
       uploadId: 'upload-1',
-      stagingKey: 'upload-sessions/upload-1/file.bin',
+      key: 'workspace/workspace-1/file.bin',
       body: byteStream('ab', 'cd'),
       expectedSize: 4,
       contentType: 'application/octet-stream',
       metadata: METADATA,
     })
 
-    await expect(readFile(localPath('upload-sessions/upload-1/file.bin'), 'utf8')).resolves.toBe(
+    await expect(readFile(localPath('workspace/workspace-1/file.bin'), 'utf8')).resolves.toBe(
       'abcd'
     )
     await expect(
       headProviderObject({
         provider: 'local',
-        key: 'upload-sessions/upload-1/file.bin',
+        key: 'workspace/workspace-1/file.bin',
         context: CONTEXT,
       })
     ).resolves.toMatchObject({
@@ -68,26 +68,26 @@ describe('local upload-session provider', () => {
       uploadId: 'upload-1',
       version: expect.any(String),
     })
-    expect(await temporaryFiles('upload-sessions/upload-1')).toEqual([])
+    expect(await temporaryFiles('workspace/workspace-1')).toEqual([])
   })
 
   it('persists an empty PUT object with its identity metadata', async () => {
     await writeLocalPutObject({
       uploadId: 'upload-1',
-      stagingKey: 'upload-sessions/upload-1/empty.md',
+      key: 'workspace/workspace-1/empty.md',
       body: byteStream(),
       expectedSize: 0,
       contentType: 'text/markdown',
       metadata: METADATA,
     })
 
-    await expect(stat(localPath('upload-sessions/upload-1/empty.md'))).resolves.toMatchObject({
+    await expect(stat(localPath('workspace/workspace-1/empty.md'))).resolves.toMatchObject({
       size: 0,
     })
     await expect(
       headProviderObject({
         provider: 'local',
-        key: 'upload-sessions/upload-1/empty.md',
+        key: 'workspace/workspace-1/empty.md',
         context: CONTEXT,
       })
     ).resolves.toMatchObject({
@@ -96,6 +96,20 @@ describe('local upload-session provider', () => {
       uploadId: 'upload-1',
       version: expect.any(String),
     })
+  })
+
+  it('does not let a replayed PUT overwrite the final object', async () => {
+    const params = {
+      uploadId: 'upload-1',
+      key: 'workspace/workspace-1/file.bin',
+      expectedSize: 3,
+      contentType: 'application/octet-stream',
+      metadata: METADATA,
+    }
+    await writeLocalPutObject({ ...params, body: byteStream('one') })
+
+    await expect(writeLocalPutObject({ ...params, body: byteStream('two') })).rejects.toThrow()
+    await expect(readFile(localPath(params.key), 'utf8')).resolves.toBe('one')
   })
 
   it.each([
@@ -105,7 +119,7 @@ describe('local upload-session provider', () => {
     await expect(
       writeLocalPutObject({
         uploadId: 'upload-1',
-        stagingKey: 'upload-sessions/upload-1/file.bin',
+        key: 'workspace/workspace-1/file.bin',
         body: byteStream(...chunks),
         expectedSize,
         contentType: 'application/octet-stream',
@@ -116,11 +130,11 @@ describe('local upload-session provider', () => {
     await expect(
       headProviderObject({
         provider: 'local',
-        key: 'upload-sessions/upload-1/file.bin',
+        key: 'workspace/workspace-1/file.bin',
         context: CONTEXT,
       })
     ).resolves.toBeNull()
-    expect(await temporaryFiles('upload-sessions/upload-1')).toEqual([])
+    expect(await temporaryFiles('workspace/workspace-1')).toEqual([])
   })
 
   it('publishes a multipart part atomically after exact-size validation', async () => {
@@ -146,69 +160,47 @@ describe('local upload-session provider', () => {
     expect(await temporaryFiles('.multipart/upload-1')).toEqual([])
   })
 
-  it('promotes only the inspected source version into a new destination', async () => {
-    const stagingKey = 'upload-sessions/upload-1/file.bin'
-    await writeLocalPutObject({
+  it('discovers local parts and assembles them directly at the final key', async () => {
+    await writeLocalMultipartPart({
       uploadId: 'upload-1',
-      stagingKey,
-      body: byteStream('old'),
+      partNumber: 1,
+      body: byteStream('abc'),
       expectedSize: 3,
-      contentType: 'application/octet-stream',
-      metadata: METADATA,
     })
-    const inspected = await requiredLocalHead(stagingKey)
+    await writeLocalMultipartPart({
+      uploadId: 'upload-1',
+      partNumber: 2,
+      body: byteStream('de'),
+      expectedSize: 2,
+    })
 
-    await promoteProviderObject({
+    const parts = await listMultipartProviderParts({
       provider: 'local',
-      sourceKey: stagingKey,
-      destinationKey: 'workspace/workspace-1/file.bin',
-      sourceVersion: inspected.version,
+      providerUploadId: null,
+      uploadId: 'upload-1',
+      key: 'workspace/workspace-1/file.bin',
       context: CONTEXT,
     })
+    expect(parts).toEqual([
+      { partNumber: 1, size: 3 },
+      { partNumber: 2, size: 2 },
+    ])
 
-    await expect(readFile(localPath('workspace/workspace-1/file.bin'), 'utf8')).resolves.toBe('old')
-    await expect(
-      promoteProviderObject({
-        provider: 'local',
-        sourceKey: stagingKey,
-        destinationKey: 'workspace/workspace-1/file.bin',
-        sourceVersion: inspected.version,
-        context: CONTEXT,
-      })
-    ).rejects.toMatchObject({ code: 'EEXIST' })
-
-    await writeLocalPutObject({
+    await completeMultipartProviderUpload({
+      provider: 'local',
+      providerUploadId: null,
       uploadId: 'upload-1',
-      stagingKey,
-      body: byteStream('new'),
-      expectedSize: 3,
+      key: 'workspace/workspace-1/file.bin',
       contentType: 'application/octet-stream',
+      context: CONTEXT,
+      parts,
       metadata: METADATA,
     })
-    await expect(
-      promoteProviderObject({
-        provider: 'local',
-        sourceKey: stagingKey,
-        destinationKey: 'workspace/workspace-1/changed.bin',
-        sourceVersion: inspected.version,
-        context: CONTEXT,
-      })
-    ).rejects.toThrow('Local staging object changed during promotion')
-    await expect(
-      headProviderObject({
-        provider: 'local',
-        key: 'workspace/workspace-1/changed.bin',
-        context: CONTEXT,
-      })
-    ).resolves.toBeNull()
 
-    await deleteFile({ key: 'workspace/workspace-1/file.bin', context: CONTEXT })
-    await expect(stat(localPath('workspace/workspace-1/file.bin'))).rejects.toMatchObject({
-      code: 'ENOENT',
-    })
-    await expect(
-      stat(localPath('workspace/workspace-1/file.bin.upload-metadata.json'))
-    ).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(readFile(localPath('workspace/workspace-1/file.bin'), 'utf8')).resolves.toBe(
+      'abcde'
+    )
+    await expect(stat(localPath('.multipart/upload-1'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })
 
@@ -234,10 +226,4 @@ async function temporaryFiles(relativeDirectory: string): Promise<string[]> {
     }
   )
   return entries.filter((entry) => entry.startsWith('.'))
-}
-
-async function requiredLocalHead(key: string) {
-  const head = await headProviderObject({ provider: 'local', key, context: CONTEXT })
-  if (!head) throw new Error(`Missing local test object ${key}`)
-  return head
 }

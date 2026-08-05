@@ -57,9 +57,9 @@ const SESSION = {
   storageContext: 'knowledge-base',
   storageKey: 'kb/guide.pdf',
   finalKey: 'kb/guide.pdf',
-  stagingKey: 'upload-sessions/upload-1/guide.pdf',
   storageProvider: 's3',
   providerUploadId: 'provider-1',
+  providerObjectVersion: null,
   fileName: 'guide.pdf',
   contentType: 'application/pdf',
   fileSize: 1024,
@@ -106,8 +106,7 @@ function request() {
       `http://localhost:3000/api/v2/knowledge/kb-1/documents/uploads/upload-1/complete?workspaceId=${WORKSPACE_ID}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'upload-token': 'token' },
-        body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'etag-1' }] }),
+        headers: { 'upload-token': 'token' },
       }
     ),
     { params: Promise.resolve({ id: 'kb-1', uploadId: 'upload-1' }) }
@@ -154,7 +153,6 @@ describe('POST knowledge-document multipart completion', () => {
     expect(mockCompleteUploadSession).toHaveBeenCalledWith(
       expect.objectContaining({
         session: SESSION,
-        completion: { parts: [{ partNumber: 1, etag: 'etag-1' }] },
       })
     )
   })

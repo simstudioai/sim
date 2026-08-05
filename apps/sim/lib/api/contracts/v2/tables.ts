@@ -51,7 +51,6 @@ import {
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
 import {
-  v2CompleteUploadBodySchema,
   v2OptionalUploadTokenHeadersSchema,
   v2PartUrlsBodySchema,
   v2PartUrlsDataSchema,
@@ -1168,7 +1167,6 @@ export const v2CompleteTableImportContract = defineRouteContract({
   params: v2TableImportParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
   headers: v2UploadTokenHeadersSchema,
-  body: v2CompleteUploadBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
 })
 

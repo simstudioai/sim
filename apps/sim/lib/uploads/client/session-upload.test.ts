@@ -2,10 +2,9 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { V2CompleteUploadBody } from '@/lib/api/contracts/v2/uploads'
 
 interface UploadClientMockParams<T> {
-  complete: (body: V2CompleteUploadBody) => Promise<T>
+  complete: () => Promise<T>
 }
 
 const { mockRequestJson, mockUploadFileSession } = vi.hoisted(() => ({
@@ -57,7 +56,7 @@ describe('session upload domain clients', () => {
       })
       .mockResolvedValueOnce({ data: { document: DOCUMENT } })
     mockUploadFileSession.mockImplementation(
-      async (params: UploadClientMockParams<typeof DOCUMENT>) => params.complete({})
+      async (params: UploadClientMockParams<typeof DOCUMENT>) => params.complete()
     )
     const file = { name: 'guide.pdf', type: 'application/pdf', size: 1024 } as File
 
@@ -74,7 +73,7 @@ describe('session upload domain clients', () => {
     expect(mockRequestJson.mock.calls[1][0].path).toBe(
       '/api/knowledge/[id]/documents/uploads/[uploadId]/complete'
     )
-    expect(mockRequestJson.mock.calls[1][1].body).toEqual({})
+    expect(mockRequestJson.mock.calls[1][1].body).toBeUndefined()
     expect(mockRequestJson.mock.calls.some(([contract]) => contract.path.endsWith('/parts'))).toBe(
       false
     )
@@ -104,7 +103,7 @@ describe('session upload domain clients', () => {
         data: { id: 'upload-2', purpose: 'workspace_logo', result },
       })
     mockUploadFileSession.mockImplementation(
-      async (params: UploadClientMockParams<typeof result>) => params.complete({})
+      async (params: UploadClientMockParams<typeof result>) => params.complete()
     )
 
     await expect(

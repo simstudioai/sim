@@ -1,25 +1,30 @@
 /**
  * @vitest-environment node
  */
+import { sha256Hex } from '@sim/security/hash'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockAbortProviderUpload,
   mockCheckStorageQuota,
   mockCompleteMultipart,
   mockCreatePutTransfer,
   mockDeleteObjectVersion,
   mockHeadObject,
   mockInitiateMultipart,
-  mockPromoteObject,
+  mockListMultipartParts,
   mockResolveBillingContext,
 } = vi.hoisted(() => ({
+  mockAbortProviderUpload: vi.fn(),
   mockCheckStorageQuota: vi.fn(),
   mockCompleteMultipart: vi.fn(),
   mockCreatePutTransfer: vi.fn(),
   mockDeleteObjectVersion: vi.fn(),
   mockHeadObject: vi.fn(),
   mockInitiateMultipart: vi.fn(),
-  mockPromoteObject: vi.fn(),
+  mockListMultipartParts: vi.fn(),
   mockResolveBillingContext: vi.fn(),
 }))
 
@@ -39,40 +44,42 @@ vi.mock('@/lib/uploads/upload-session/cleanup', () => ({
 }))
 
 vi.mock('@/lib/uploads/upload-session/provider', () => ({
-  abortProviderUpload: vi.fn(),
+  abortProviderUpload: mockAbortProviderUpload,
   completeMultipartProviderUpload: mockCompleteMultipart,
   createPutProviderTransfer: mockCreatePutTransfer,
   deleteProviderObjectVersion: mockDeleteObjectVersion,
   getMultipartProviderPartUrls: vi.fn(),
   headProviderObject: mockHeadObject,
   initiateMultipartProviderUpload: mockInitiateMultipart,
-  promoteProviderObject: mockPromoteObject,
+  listMultipartProviderParts: mockListMultipartParts,
   uploadStorageProvider: vi.fn(() => 's3'),
 }))
 
 import {
-  MAX_WORKSPACE_FILE_SIZE,
-  MAX_WORKSPACE_FORMDATA_FILE_SIZE,
-} from '@/lib/uploads/shared/types'
-import {
+  abortUploadSession,
+  cleanupExpiredUploadSessions,
   completeUploadSession,
   createUploadSession,
+  getOwnedUploadSession,
+  UPLOAD_SESSION_PART_SIZE,
   UPLOAD_SESSION_PUT_MAX_BYTES,
-  validateUploadCompletion,
+  type UploadSessionRecord,
   verifyUploadSessionToken,
 } from '@/lib/uploads/upload-session/service'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
+const FINAL_KEY = `workspace/${WORKSPACE_ID}/final-file.bin`
 
 describe('upload sessions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockResolveBillingContext.mockResolvedValue({ workspaceId: WORKSPACE_ID })
     mockCheckStorageQuota.mockResolvedValue({ allowed: true })
     mockCreatePutTransfer.mockResolvedValue({
       method: 'put',
       url: 'https://storage.example/upload',
-      headers: { 'Content-Type': 'application/octet-stream' },
+      headers: { 'Content-Type': 'application/octet-stream', 'If-None-Match': '*' },
     })
     mockInitiateMultipart.mockResolvedValue({
       provider: 's3',
@@ -80,330 +87,265 @@ describe('upload sessions', () => {
     })
   })
 
-  it('selects PUT at exactly 50 MiB', async () => {
+  it('persists a hashed token and signs a create-only PUT at the final key', async () => {
+    const row = uploadRow({ fileSize: UPLOAD_SESSION_PUT_MAX_BYTES })
+    dbChainMockFns.returning.mockResolvedValueOnce([row])
+
     const created = await createWorkspaceUpload(UPLOAD_SESSION_PUT_MAX_BYTES)
 
-    expect(created.transfer.method).toBe('put')
-    expect(created.method).toBe('put')
-    expect(created.partSize).toBeNull()
-    expect(created.partCount).toBeNull()
-    expect(mockInitiateMultipart).not.toHaveBeenCalled()
-  })
-
-  it('creates a PUT session for an empty workspace file', async () => {
-    const created = await createWorkspaceUpload(0)
-
     expect(created).toMatchObject({
-      purpose: 'workspace_file',
-      fileSize: 0,
+      id: 'upload-1',
       method: 'put',
+      finalKey: FINAL_KEY,
+      storageKey: FINAL_KEY,
+      partSize: null,
+      partCount: null,
       transfer: { method: 'put' },
     })
-    expect(verifyUploadSessionToken(created.uploadToken)).toMatchObject({
-      purpose: 'workspace_file',
-      fileSize: 0,
-      method: 'put',
-    })
-  })
-
-  it('rejects an empty upload for non-workspace-file purposes', async () => {
-    await expect(
-      createUploadSession({
-        id: 'empty-attachment',
-        workspaceId: WORKSPACE_ID,
-        userId: 'user-1',
-        purpose: 'mothership_attachment',
-        fileName: 'empty.txt',
-        contentType: 'text/plain',
-        fileSize: 0,
-      })
-    ).rejects.toThrow('fileSize must be a positive integer')
-  })
-
-  it('rejects a negative workspace-file size', async () => {
-    await expect(createWorkspaceUpload(-1)).rejects.toThrow(
-      'fileSize must be a non-negative integer'
+    expect(mockInitiateMultipart).not.toHaveBeenCalled()
+    expect(mockCreatePutTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({ key: FINAL_KEY, uploadId: 'upload-1' })
     )
+    const inserted = dbChainMockFns.values.mock.calls[0][0]
+    expect(inserted.tokenHash).toBe(sha256Hex(created.uploadToken))
+    expect(inserted.tokenHash).not.toBe(created.uploadToken)
+    expect(inserted.finalKey).toBe(FINAL_KEY)
   })
 
-  it('selects multipart at 50 MiB plus one byte', async () => {
-    const created = await createWorkspaceUpload(UPLOAD_SESSION_PUT_MAX_BYTES + 1)
-
-    expect(created.transfer).toMatchObject({ method: 'multipart', partCount: 7 })
-    expect(created.method).toBe('multipart')
-    expect(mockInitiateMultipart).toHaveBeenCalledOnce()
-  })
-
-  it('binds purpose scope, staging, destination, method, and identity into the token', async () => {
-    const created = await createUploadSession({
-      id: 'upload-1',
-      workspaceId: WORKSPACE_ID,
-      userId: 'user-1',
-      knowledgeBaseId: 'kb-1',
-      purpose: 'knowledge_document',
-      fileName: 'guide.pdf',
-      contentType: 'application/pdf',
-      fileSize: 1024,
-    })
-
-    expect(verifyUploadSessionToken(created.uploadToken)).toMatchObject({
-      id: 'upload-1',
-      workspaceId: WORKSPACE_ID,
-      userId: 'user-1',
-      knowledgeBaseId: 'kb-1',
-      purpose: 'knowledge_document',
-      method: 'put',
-      storageContext: 'knowledge-base',
-      storageProvider: 's3',
-      stagingKey: 'upload-sessions/upload-1/guide.pdf',
-      fileName: 'guide.pdf',
-      contentType: 'application/pdf',
-      fileSize: 1024,
-    })
-  })
-
-  it('quota-gates durable files while exempting retention-scoped attachments', async () => {
-    await createWorkspaceUpload(1024)
-    expect(mockResolveBillingContext).toHaveBeenCalledOnce()
-    expect(mockCheckStorageQuota).toHaveBeenCalledOnce()
-
-    await createUploadSession({
-      id: 'execution-upload',
-      workspaceId: WORKSPACE_ID,
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      userId: 'user-1',
-      purpose: 'execution_attachment',
-      fileName: 'result.txt',
-      contentType: 'text/plain',
-      fileSize: 1024,
-    })
-    expect(mockResolveBillingContext).toHaveBeenCalledOnce()
-    expect(mockCheckStorageQuota).toHaveBeenCalledOnce()
-
-    await createUploadSession({
-      id: 'mothership-upload',
-      workspaceId: WORKSPACE_ID,
-      userId: 'user-1',
-      purpose: 'mothership_attachment',
-      fileName: 'prompt.txt',
-      contentType: 'text/plain',
-      fileSize: 1024,
-    })
-    expect(mockResolveBillingContext).toHaveBeenCalledOnce()
-    expect(mockCheckStorageQuota).toHaveBeenCalledOnce()
-  })
-
-  it('preserves the 5 GiB mothership limit while bounding execution attachments at 100 MiB', async () => {
-    await expect(
-      createUploadSession({
-        id: 'mothership-upload',
-        workspaceId: WORKSPACE_ID,
-        userId: 'user-1',
-        purpose: 'mothership_attachment',
-        fileName: 'archive.zip',
-        contentType: 'application/zip',
-        fileSize: MAX_WORKSPACE_FILE_SIZE,
-      })
-    ).resolves.toMatchObject({
+  it('initiates multipart storage directly at the final key', async () => {
+    const fileSize = UPLOAD_SESSION_PUT_MAX_BYTES + 1
+    const row = uploadRow({
+      fileSize,
       method: 'multipart',
-      transfer: { method: 'multipart', partCount: 640 },
+      providerUploadId: 'provider-upload-1',
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: Math.ceil(fileSize / UPLOAD_SESSION_PART_SIZE),
     })
+    dbChainMockFns.returning.mockResolvedValueOnce([row])
+
+    const created = await createWorkspaceUpload(fileSize)
+
+    expect(created.transfer).toEqual({
+      method: 'multipart',
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: 7,
+    })
+    expect(mockInitiateMultipart).toHaveBeenCalledWith(
+      expect.objectContaining({ key: FINAL_KEY, uploadId: 'upload-1' })
+    )
+    expect(mockCreatePutTransfer).not.toHaveBeenCalled()
+  })
+
+  it('loads ownership from PostgreSQL and rejects a mismatched token', async () => {
+    const token = 'upload-secret'
+    const row = uploadRow({ tokenHash: sha256Hex(token) })
+    queueTableRows(schemaMock.uploadSession, [row])
+    queueTableRows(schemaMock.uploadSession, [row])
+    queueTableRows(schemaMock.uploadSession, [row])
 
     await expect(
-      createUploadSession({
-        id: 'oversized-mothership-upload',
-        workspaceId: WORKSPACE_ID,
-        userId: 'user-1',
-        purpose: 'mothership_attachment',
-        fileName: 'archive.zip',
-        contentType: 'application/zip',
-        fileSize: MAX_WORKSPACE_FILE_SIZE + 1,
+      getOwnedUploadSession({
+        uploadId: row.id,
+        uploadToken: token,
+        userId: row.userId,
+        workspaceId: row.workspaceId,
+        purpose: row.purpose,
       })
-    ).rejects.toThrow(`File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes`)
-
+    ).resolves.toMatchObject({ id: row.id, finalKey: row.finalKey })
     await expect(
-      createUploadSession({
-        id: 'execution-upload',
-        workspaceId: WORKSPACE_ID,
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-        purpose: 'execution_attachment',
-        fileName: 'result.txt',
-        contentType: 'text/plain',
-        fileSize: MAX_WORKSPACE_FORMDATA_FILE_SIZE + 1,
-      })
-    ).rejects.toThrow(`File size exceeds maximum of ${MAX_WORKSPACE_FORMDATA_FILE_SIZE} bytes`)
+      getOwnedUploadSession({ uploadId: row.id, uploadToken: 'wrong-token' })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await expect(verifyUploadSessionToken(token)).resolves.toMatchObject({ id: row.id })
   })
 
-  it('validates PUT completion input independently of finalization', async () => {
-    const created = await createWorkspaceUpload(1024)
-
-    expect(validateUploadCompletion(created, {})).toEqual([])
-    expect(() => validateUploadCompletion(created, { parts: [] })).toThrow(
-      'PUT completion must not include parts'
-    )
-  })
-
-  it('requires every multipart part and cloud ETag before finalization or replay', async () => {
-    const created = await createWorkspaceUpload(UPLOAD_SESSION_PUT_MAX_BYTES + 1)
-    const parts = Array.from({ length: created.partCount ?? 0 }, (_, index) => ({
-      partNumber: index + 1,
-      etag: `etag-${index + 1}`,
-    }))
-
-    expect(validateUploadCompletion(created, { parts })).toBe(parts)
-    expect(() => validateUploadCompletion(created, {})).toThrow(
-      'Multipart completion requires parts'
-    )
-    expect(() =>
-      validateUploadCompletion(created, { parts: parts.map(({ partNumber }) => ({ partNumber })) })
-    ).toThrow('etag is required for s3 part 1')
-  })
-
-  it('resumes after multipart assembly without consuming the provider upload twice', async () => {
-    const created = await createWorkspaceUpload(UPLOAD_SESSION_PUT_MAX_BYTES + 1)
-    const identity = objectIdentity(created.id, created.fileSize, created.contentType)
+  it('completes multipart from the provider part listing without a client manifest', async () => {
+    const fileSize = UPLOAD_SESSION_PART_SIZE + 3
+    const session = sessionRecord({
+      fileSize,
+      method: 'multipart',
+      providerUploadId: 'provider-upload-1',
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: 2,
+    })
+    const parts = [
+      { partNumber: 1, etag: 'etag-1', size: UPLOAD_SESSION_PART_SIZE },
+      { partNumber: 2, etag: 'etag-2', size: 3 },
+    ]
+    mockListMultipartParts.mockResolvedValue(parts)
     mockHeadObject
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(identity)
-      .mockResolvedValueOnce(identity)
-      .mockResolvedValueOnce(identity)
+      .mockResolvedValueOnce(providerObject(session, 'version-1'))
+    queueCompletionRows(session, 'version-1')
+    const finalize = vi.fn().mockResolvedValue({ value: 'file-1', completedFileId: 'file-1' })
 
-    await expect(
-      completeUploadSession({
-        session: created,
-        completion: { parts: completedParts(created.partCount) },
-        finalize: async () => ({ value: 'file-1', completedFileId: 'file-1' }),
-      })
-    ).resolves.toMatchObject({ value: 'file-1', alreadyCompleted: false })
-
-    expect(mockCompleteMultipart).not.toHaveBeenCalled()
-    expect(mockPromoteObject).toHaveBeenCalledOnce()
-  })
-
-  it('completes multipart at staging when no assembled object exists yet', async () => {
-    const created = await createWorkspaceUpload(UPLOAD_SESSION_PUT_MAX_BYTES + 1)
-    const identity = objectIdentity(created.id, created.fileSize, created.contentType)
-    mockHeadObject
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(identity)
-      .mockResolvedValueOnce(identity)
-      .mockResolvedValueOnce(identity)
-
-    await completeUploadSession({
-      session: created,
-      completion: { parts: completedParts(created.partCount) },
-      finalize: async () => ({ value: 'file-1' }),
+    await expect(completeUploadSession({ session, finalize })).resolves.toMatchObject({
+      value: 'file-1',
+      alreadyCompleted: false,
+      session: { status: 'completed', providerObjectVersion: 'version-1' },
     })
-
-    expect(mockCompleteMultipart).toHaveBeenCalledOnce()
+    expect(mockListMultipartParts).toHaveBeenCalledWith(
+      expect.objectContaining({ key: FINAL_KEY, providerUploadId: 'provider-upload-1' })
+    )
     expect(mockCompleteMultipart).toHaveBeenCalledWith(
-      expect.objectContaining({ stagingKey: created.stagingKey })
+      expect.objectContaining({ key: FINAL_KEY, parts })
     )
+    expect(finalize).toHaveBeenCalledOnce()
   })
 
-  it('recovers when another completion consumes the provider upload concurrently', async () => {
-    const created = await createWorkspaceUpload(UPLOAD_SESSION_PUT_MAX_BYTES + 1)
-    const identity = objectIdentity(created.id, created.fileSize, created.contentType)
-    mockCompleteMultipart.mockRejectedValueOnce(new Error('NoSuchUpload'))
-    mockHeadObject
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(identity)
-      .mockResolvedValueOnce(identity)
-      .mockResolvedValueOnce(identity)
-
-    await expect(
-      completeUploadSession({
-        session: created,
-        completion: { parts: completedParts(created.partCount) },
-        finalize: async () => ({ value: 'file-1' }),
-      })
-    ).resolves.toMatchObject({ value: 'file-1', alreadyCompleted: false })
-
-    expect(mockCompleteMultipart).toHaveBeenCalledOnce()
-    expect(mockPromoteObject).toHaveBeenCalledOnce()
-  })
-
-  it('preserves the provider completion error when no staged object was created', async () => {
-    const created = await createWorkspaceUpload(UPLOAD_SESSION_PUT_MAX_BYTES + 1)
-    mockCompleteMultipart.mockRejectedValueOnce(new Error('NoSuchUpload'))
-    mockHeadObject
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(null)
-
-    await expect(
-      completeUploadSession({
-        session: created,
-        completion: { parts: completedParts(created.partCount) },
-        finalize: async () => ({ value: 'file-1' }),
-      })
-    ).rejects.toThrow('NoSuchUpload')
-
-    expect(mockPromoteObject).not.toHaveBeenCalled()
-  })
-
-  it('rejects a mismatched staged multipart object before provider completion', async () => {
-    const created = await createWorkspaceUpload(UPLOAD_SESSION_PUT_MAX_BYTES + 1)
-    mockHeadObject.mockResolvedValueOnce(null).mockResolvedValueOnce({
-      ...objectIdentity(created.id, created.fileSize, created.contentType),
-      uploadId: 'another-upload',
+  it('rejects missing or incorrectly sized provider parts before completion', async () => {
+    const session = sessionRecord({
+      fileSize: UPLOAD_SESSION_PART_SIZE + 3,
+      method: 'multipart',
+      providerUploadId: 'provider-upload-1',
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: 2,
     })
+    mockHeadObject.mockResolvedValueOnce(null)
+    mockListMultipartParts.mockResolvedValueOnce([
+      { partNumber: 1, etag: 'etag-1', size: UPLOAD_SESSION_PART_SIZE - 1 },
+      { partNumber: 2, etag: 'etag-2', size: 4 },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      uploadRow({ ...rowGeometry(session), status: 'completing' }),
+    ])
 
-    await expect(
-      completeUploadSession({
-        session: created,
-        completion: { parts: completedParts(created.partCount) },
-        finalize: async () => ({ value: 'file-1' }),
-      })
-    ).rejects.toThrow('Uploaded object belongs to another upload')
-
+    await expect(completeUploadSession({ session, finalize: vi.fn() })).rejects.toThrow(
+      `Provider part 1 has ${UPLOAD_SESSION_PART_SIZE - 1} bytes`
+    )
     expect(mockCompleteMultipart).not.toHaveBeenCalled()
-    expect(mockPromoteObject).not.toHaveBeenCalled()
   })
 
-  it('retains staging when finalization fails after promotion', async () => {
-    const created = await createWorkspaceUpload(1024)
-    const identity = objectIdentity(created.id, created.fileSize, created.contentType)
-    mockHeadObject
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(identity)
-      .mockResolvedValueOnce(identity)
+  it('verifies an uploaded PUT object and retains it when domain finalization fails', async () => {
+    const session = sessionRecord()
+    mockHeadObject.mockResolvedValue(providerObject(session, 'version-1'))
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([uploadRow({ status: 'completing' })])
+      .mockResolvedValueOnce([
+        uploadRow({ status: 'finalizing', providerObjectVersion: 'version-1' }),
+      ])
+    const finalize = vi.fn().mockRejectedValue(new Error('domain unavailable'))
+
+    await expect(completeUploadSession({ session, finalize })).rejects.toThrow('domain unavailable')
+    expect(mockDeleteObjectVersion).not.toHaveBeenCalled()
+    expect(mockAbortProviderUpload).not.toHaveBeenCalled()
+    expect(mockCompleteMultipart).not.toHaveBeenCalled()
+  })
+
+  it('allows a finalizing session to recover after its upload TTL', async () => {
+    const session = sessionRecord({
+      status: 'finalizing',
+      expiresAt: new Date(Date.now() - 1),
+      providerObjectVersion: 'version-1',
+    })
+    mockHeadObject.mockResolvedValue(providerObject(session, 'version-1'))
+    queueCompletionRows(session, 'version-1')
 
     await expect(
       completeUploadSession({
-        session: created,
-        completion: {},
-        finalize: async () => {
-          throw new Error('database unavailable')
-        },
+        session,
+        finalize: async () => ({ value: 'recovered', completedFileId: 'file-1' }),
       })
-    ).rejects.toThrow('database unavailable')
+    ).resolves.toMatchObject({ value: 'recovered', alreadyCompleted: true })
+  })
 
-    expect(mockPromoteObject).toHaveBeenCalledOnce()
+  it('deletes a matching completed provider object without aborting its consumed upload id', async () => {
+    const session = sessionRecord({
+      method: 'multipart',
+      providerUploadId: 'provider-upload-1',
+      fileSize: UPLOAD_SESSION_PART_SIZE + 1,
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: 2,
+    })
+    mockHeadObject.mockResolvedValue(providerObject(session, 'version-1'))
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([uploadRow({ ...rowGeometry(session), status: 'aborting' })])
+      .mockResolvedValueOnce([
+        uploadRow({ ...rowGeometry(session), status: 'aborted', completedAt: new Date() }),
+      ])
+
+    await expect(abortUploadSession(session)).resolves.toMatchObject({ status: 'aborted' })
+    expect(mockAbortProviderUpload).not.toHaveBeenCalled()
+    expect(mockDeleteObjectVersion).toHaveBeenCalledWith({
+      provider: 's3',
+      key: FINAL_KEY,
+      version: 'version-1',
+      context: 'workspace',
+    })
+  })
+
+  it('aborts multipart provider state when no final object exists', async () => {
+    const session = sessionRecord({
+      method: 'multipart',
+      providerUploadId: 'provider-upload-1',
+      fileSize: UPLOAD_SESSION_PART_SIZE + 1,
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: 2,
+    })
+    mockHeadObject.mockResolvedValue(null)
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([uploadRow({ ...rowGeometry(session), status: 'aborting' })])
+      .mockResolvedValueOnce([
+        uploadRow({ ...rowGeometry(session), status: 'aborted', completedAt: new Date() }),
+      ])
+
+    await expect(abortUploadSession(session)).resolves.toMatchObject({ status: 'aborted' })
+    expect(mockAbortProviderUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ key: FINAL_KEY, providerUploadId: 'provider-upload-1' })
+    )
     expect(mockDeleteObjectVersion).not.toHaveBeenCalled()
   })
 
-  it('retries finalization from an exact final object, then removes staging conditionally', async () => {
-    const created = await createWorkspaceUpload(1024)
-    const identity = objectIdentity(created.id, created.fileSize, created.contentType)
-    mockHeadObject.mockResolvedValueOnce(identity).mockResolvedValueOnce(identity)
+  it('refuses to abort once domain finalization may have created a resource', async () => {
+    const session = sessionRecord({ status: 'finalizing' })
 
-    await expect(
-      completeUploadSession({
-        session: created,
-        completion: {},
-        finalize: async () => ({ value: 'file-1', completedFileId: 'file-1' }),
-      })
-    ).resolves.toMatchObject({ value: 'file-1', alreadyCompleted: true })
+    await expect(abortUploadSession(session)).rejects.toThrow(
+      'Finalizing upload sessions cannot be aborted'
+    )
+    expect(mockAbortProviderUpload).not.toHaveBeenCalled()
+    expect(mockDeleteObjectVersion).not.toHaveBeenCalled()
+  })
 
-    expect(mockPromoteObject).not.toHaveBeenCalled()
+  it('cleans expired upload state without selecting sessions that may be finalizing', async () => {
+    const expired = uploadRow({ expiresAt: new Date(Date.now() - 1) })
+    queueTableRows(schemaMock.uploadSession, [expired])
+    queueTableRows(schemaMock.uploadSession, [])
+    mockHeadObject.mockResolvedValue(providerObject(sessionRecord(), 'version-1'))
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([uploadRow({ status: 'aborting', expiresAt: expired.expiresAt })])
+      .mockResolvedValueOnce([{ id: 'upload-1' }])
+
+    await expect(cleanupExpiredUploadSessions()).resolves.toEqual({
+      expired: 1,
+      failed: 0,
+      purged: 0,
+    })
     expect(mockDeleteObjectVersion).toHaveBeenCalledWith(
-      expect.objectContaining({ key: created.stagingKey, version: 'version-1' })
+      expect.objectContaining({ key: FINAL_KEY, version: 'version-1' })
+    )
+    const candidateStatuses = vi
+      .mocked(inArray)
+      .mock.calls.find(([, values]) => values.includes('uploading'))?.[1]
+    expect(candidateStatuses).toEqual(['uploading', 'completing', 'aborting'])
+    expect(candidateStatuses).not.toContain('finalizing')
+  })
+
+  it('deletes a late PUT object before purging an aborted session', async () => {
+    const completedAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+    const aborted = uploadRow({ status: 'aborted', completedAt })
+    queueTableRows(schemaMock.uploadSession, [])
+    queueTableRows(schemaMock.uploadSession, [aborted])
+    mockHeadObject.mockResolvedValue(providerObject(sessionRecord(aborted), 'version-1'))
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([aborted])
+      .mockResolvedValueOnce([{ id: aborted.id }])
+
+    await expect(cleanupExpiredUploadSessions()).resolves.toEqual({
+      expired: 0,
+      failed: 0,
+      purged: 1,
+    })
+    expect(mockDeleteObjectVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ key: FINAL_KEY, version: 'version-1' })
     )
   })
 })
@@ -417,16 +359,123 @@ async function createWorkspaceUpload(fileSize: number) {
     fileName: 'file.bin',
     contentType: 'application/octet-stream',
     fileSize,
+    localOrigin: 'http://localhost:3000',
   })
 }
 
-function objectIdentity(uploadId: string, size: number, contentType: string) {
-  return { uploadId, size, contentType, version: 'version-1' }
+function sessionRecord(overrides: Partial<UploadSessionRecord> = {}): UploadSessionRecord {
+  const row = uploadRow(overrides)
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    userId: row.userId,
+    knowledgeBaseId: row.knowledgeBaseId,
+    workflowId: row.workflowId,
+    executionId: row.executionId,
+    purpose: row.purpose,
+    method: row.method,
+    storageContext: 'workspace',
+    storageKey: row.finalKey,
+    finalKey: row.finalKey,
+    storageProvider: row.storageProvider,
+    providerUploadId: row.providerUploadId,
+    providerObjectVersion: row.providerObjectVersion,
+    fileName: row.fileName,
+    contentType: row.contentType,
+    fileSize: row.fileSize,
+    partSize: row.partSize,
+    partCount: row.partCount,
+    status: row.status,
+    metadata: row.metadata,
+    uploadToken: 'upload-secret',
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    completedFileId: row.completedFileId,
+    error: row.error,
+    completedAt: row.completedAt,
+    updatedAt: row.updatedAt,
+  }
 }
 
-function completedParts(partCount: number | null) {
-  return Array.from({ length: partCount ?? 0 }, (_, index) => ({
-    partNumber: index + 1,
-    etag: `etag-${index + 1}`,
-  }))
+function uploadRow(overrides: Record<string, unknown> = {}) {
+  const now = new Date('2026-08-05T12:00:00.000Z')
+  return {
+    id: 'upload-1',
+    tokenHash: sha256Hex('upload-secret'),
+    userId: 'user-1',
+    workspaceId: WORKSPACE_ID,
+    knowledgeBaseId: null,
+    workflowId: null,
+    executionId: null,
+    purpose: 'workspace_file' as const,
+    method: 'put' as const,
+    storageContext: 'workspace',
+    finalKey: FINAL_KEY,
+    storageProvider: 's3' as const,
+    providerUploadId: null,
+    providerObjectVersion: null,
+    fileName: 'file.bin',
+    contentType: 'application/octet-stream',
+    fileSize: 4,
+    partSize: null,
+    partCount: null,
+    status: 'uploading' as const,
+    metadata: {},
+    processingLeaseId: null,
+    processingLeaseExpiresAt: null,
+    completedFileId: null,
+    error: null,
+    createdAt: now,
+    expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    completedAt: null,
+    updatedAt: now,
+    ...overrides,
+  }
+}
+
+function rowGeometry(session: UploadSessionRecord): Record<string, unknown> {
+  return {
+    method: session.method,
+    providerUploadId: session.providerUploadId,
+    providerObjectVersion: session.providerObjectVersion,
+    fileSize: session.fileSize,
+    partSize: session.partSize,
+    partCount: session.partCount,
+    expiresAt: session.expiresAt,
+  }
+}
+
+function queueCompletionRows(session: UploadSessionRecord, version: string): void {
+  dbChainMockFns.returning
+    .mockResolvedValueOnce([
+      uploadRow({
+        ...rowGeometry(session),
+        status: session.status === 'finalizing' ? 'finalizing' : 'completing',
+      }),
+    ])
+    .mockResolvedValueOnce([
+      uploadRow({
+        ...rowGeometry(session),
+        status: 'finalizing',
+        providerObjectVersion: version,
+      }),
+    ])
+    .mockResolvedValueOnce([
+      uploadRow({
+        ...rowGeometry(session),
+        status: 'completed',
+        providerObjectVersion: version,
+        completedFileId: 'file-1',
+        completedAt: new Date(),
+      }),
+    ])
+}
+
+function providerObject(session: UploadSessionRecord, version: string) {
+  return {
+    size: session.fileSize,
+    contentType: session.contentType,
+    uploadId: session.id,
+    version,
+  }
 }

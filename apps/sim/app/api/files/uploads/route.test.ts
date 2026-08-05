@@ -73,11 +73,15 @@ function session(overrides: Record<string, unknown> = {}) {
     method: 'put',
     storageContext: 'profile-pictures',
     storageKey: 'profile-pictures/upload-1-avatar.png',
+    finalKey: 'profile-pictures/upload-1-avatar.png',
     storageProvider: 's3',
     providerUploadId: null,
+    providerObjectVersion: null,
     fileName: 'avatar.png',
     contentType: 'image/png',
     fileSize: 128,
+    partSize: null,
+    partCount: null,
     status: 'uploading',
     metadata: {},
     uploadToken: 'signed-token',
@@ -262,11 +266,7 @@ describe('/api/files/uploads', () => {
     })
     const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'upload-token': 'signed-token',
-      },
-      body: '{}',
+      headers: { 'upload-token': 'signed-token' },
     })
 
     const response = await completeUpload(request, {
@@ -277,7 +277,7 @@ describe('/api/files/uploads', () => {
     expect(response.status).toBe(200)
     expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(actor.id, 'workspace', 'workspace-1')
     expect(mockCompleteUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({ session: logoSession, completion: {} })
+      expect.objectContaining({ session: logoSession })
     )
     expect(body).toEqual({
       data: expect.objectContaining({

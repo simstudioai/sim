@@ -251,13 +251,17 @@ export async function getGcsPresignedUploadUrl(
       action: 'write',
       expires: Date.now() + expirationSeconds * 1000,
       contentType,
-      extensionHeaders: metadataHeaders,
+      extensionHeaders: {
+        ...metadataHeaders,
+        'x-goog-if-generation-match': '0',
+      },
     })
 
   return {
     url,
     signedHeaders: {
       'Content-Type': contentType,
+      'x-goog-if-generation-match': '0',
       ...metadataHeaders,
     },
   }
@@ -354,28 +358,13 @@ export async function headGcsObject(
   }
 }
 
-/** Copies one immutable staging generation into a destination that must not already exist. */
-export async function promoteGcsObject(params: {
-  sourceKey: string
-  destinationKey: string
-  sourceGeneration: string
-  customConfig: GcsConfig
-}): Promise<void> {
-  if (!params.sourceGeneration) throw new Error('GCS staging object is missing its generation')
-  const storage = await getGcsClient()
-  const bucket = storage.bucket(params.customConfig.bucket)
-  const source = bucket.file(params.sourceKey, { generation: params.sourceGeneration })
-  const destination = bucket.file(params.destinationKey)
-  await source.copy(destination, { preconditionOpts: { ifGenerationMatch: 0 } })
-}
-
-/** Deletes a staging object only if it is still the generation completion inspected. */
+/** Deletes an upload object only if it is still the generation the caller inspected. */
 export async function deleteGcsObjectVersion(params: {
   key: string
   generation: string
   customConfig: GcsConfig
 }): Promise<void> {
-  if (!params.generation) throw new Error('GCS staging object is missing its generation')
+  if (!params.generation) throw new Error('GCS upload object is missing its generation')
   const storage = await getGcsClient()
   await storage
     .bucket(params.customConfig.bucket)
@@ -417,8 +406,8 @@ export async function deleteFromGcs(key: string, customConfig?: GcsConfig): Prom
 
 /**
  * Normalize an ETag to the quoted form GCS expects in CompleteMultipartUpload.
- * The shared browser upload client strips quotes from part ETags (S3 tolerates
- * either form), so quotes are restored here before building the completion XML.
+ * Accept either form so server-uploaded and provider-listed parts share the same
+ * completion path.
  */
 function normalizeEtag(etag: string): string {
   return etag.startsWith('"') ? etag : `"${etag}"`
@@ -440,7 +429,7 @@ function escapeXml(value: string): string {
  * of the SDK.
  */
 async function gcsXmlApiRequest(
-  method: 'POST' | 'PUT' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   bucket: string,
   key: string,
   query: string,
@@ -467,6 +456,15 @@ async function gcsXmlApiRequest(
   }
 
   return response
+}
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
 }
 
 /**
@@ -539,8 +537,7 @@ export async function uploadGcsPart(
 
 /**
  * Generate presigned URLs for uploading parts to GCS. The URLs sign the
- * `partNumber`/`uploadId` query parameters (V4), matching the S3 flow —
- * the browser PUTs each chunk and collects the returned ETags.
+ * `partNumber`/`uploadId` query parameters (V4), matching the S3 flow.
  */
 export async function getGcsMultipartPartUrls(
   key: string,
@@ -566,6 +563,45 @@ export async function getGcsMultipartPartUrls(
       return { partNumber, url }
     })
   )
+}
+
+/** Lists the provider-authoritative state for an XML API multipart upload. */
+export async function listGcsMultipartParts(
+  key: string,
+  uploadId: string,
+  customConfig?: GcsConfig
+): Promise<Array<{ partNumber: number; etag: string; size: number }>> {
+  const config = customConfig || { bucket: GCS_CONFIG.bucket }
+  const parts: Array<{ partNumber: number; etag: string; size: number }> = []
+  let marker: number | undefined
+
+  for (;;) {
+    const query = `uploadId=${encodeURIComponent(uploadId)}${marker === undefined ? '' : `&part-number-marker=${marker}`}`
+    const response = await gcsXmlApiRequest('GET', config.bucket, key, query)
+    const xml = await response.text()
+    for (const match of xml.matchAll(/<Part>([\s\S]*?)<\/Part>/g)) {
+      const partXml = match[1]
+      const numberMatch = partXml.match(/<PartNumber>(\d+)<\/PartNumber>/)
+      const etagMatch = partXml.match(/<ETag>([\s\S]*?)<\/ETag>/)
+      const sizeMatch = partXml.match(/<Size>(\d+)<\/Size>/)
+      if (!numberMatch || !etagMatch || !sizeMatch) {
+        throw new Error(`GCS returned incomplete part metadata for ${key}`)
+      }
+      parts.push({
+        partNumber: Number(numberMatch[1]),
+        etag: decodeXml(etagMatch[1]),
+        size: Number(sizeMatch[1]),
+      })
+    }
+    if (!/<IsTruncated>true<\/IsTruncated>/.test(xml)) break
+    const nextMarker = xml.match(/<NextPartNumberMarker>(\d+)<\/NextPartNumberMarker>/)
+    if (!nextMarker) {
+      throw new Error(`GCS truncated the part listing for ${key} without a continuation marker`)
+    }
+    marker = Number(nextMarker[1])
+  }
+
+  return parts
 }
 
 /**

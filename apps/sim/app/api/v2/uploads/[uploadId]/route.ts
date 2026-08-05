@@ -20,7 +20,7 @@ export const PUT = withRouteHandler(
 
     let session
     try {
-      session = getOwnedUploadSession({
+      session = await getOwnedUploadSession({
         uploadId: parsed.data.params.uploadId,
         uploadToken: parsed.data.headers['upload-token'],
       })
@@ -30,6 +30,9 @@ export const PUT = withRouteHandler(
 
     if (session.storageProvider !== 'local' || session.method !== 'put') {
       return NextResponse.json({ error: 'Upload URL does not match this session' }, { status: 403 })
+    }
+    if (session.status !== 'uploading') {
+      return NextResponse.json({ error: `Upload session is ${session.status}` }, { status: 409 })
     }
     if (session.expiresAt.getTime() <= Date.now()) {
       return NextResponse.json({ error: 'Upload session has expired' }, { status: 409 })
@@ -56,7 +59,7 @@ export const PUT = withRouteHandler(
     try {
       await writeLocalPutObject({
         uploadId: session.id,
-        stagingKey: session.stagingKey,
+        key: session.finalKey,
         body: request.body,
         expectedSize: session.fileSize,
         contentType: session.contentType,

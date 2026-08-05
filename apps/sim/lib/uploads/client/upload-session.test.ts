@@ -2,7 +2,6 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { V2CompleteUploadBody } from '@/lib/api/contracts/v2/uploads'
 import { calculateUploadTimeoutMs, uploadFileSession } from '@/lib/uploads/client/upload-session'
 
 const MIB = 1024 * 1024
@@ -62,7 +61,7 @@ describe('uploadFileSession', () => {
 
   it('uploads an exact-threshold file with PUT and completes with an empty body', async () => {
     const file = sizedFile(PUT_THRESHOLD)
-    const complete = vi.fn(async (_body: V2CompleteUploadBody) => 'done')
+    const complete = vi.fn(async () => 'done')
     const abort = vi.fn(async () => undefined)
     const onProgress = vi.fn()
 
@@ -89,7 +88,7 @@ describe('uploadFileSession', () => {
       ])
     )
     expect(MockXhr.instances[0].timeout).toBe(calculateUploadTimeoutMs(file.size))
-    expect(complete).toHaveBeenCalledWith({})
+    expect(complete).toHaveBeenCalledWith()
     expect(onProgress).toHaveBeenLastCalledWith({
       loaded: PUT_THRESHOLD,
       total: PUT_THRESHOLD,
@@ -99,7 +98,7 @@ describe('uploadFileSession', () => {
   })
 
   it('uploads an empty file with PUT and reports finite completion progress', async () => {
-    const complete = vi.fn(async (_body: V2CompleteUploadBody) => 'done')
+    const complete = vi.fn(async () => 'done')
     const onProgress = vi.fn()
 
     await expect(
@@ -112,7 +111,7 @@ describe('uploadFileSession', () => {
       })
     ).resolves.toBe('done')
 
-    expect(complete).toHaveBeenCalledWith({})
+    expect(complete).toHaveBeenCalledWith()
     expect(onProgress).toHaveBeenLastCalledWith({ loaded: 0, total: 0, percent: 100 })
   })
 
@@ -128,7 +127,7 @@ describe('uploadFileSession', () => {
         expiresAt: '2026-08-05T00:00:00.000Z',
       }))
     )
-    const complete = vi.fn(async (_body: V2CompleteUploadBody) => 'done')
+    const complete = vi.fn(async () => 'done')
     const abort = vi.fn(async () => undefined)
     vi.stubGlobal(
       'fetch',
@@ -146,12 +145,7 @@ describe('uploadFileSession', () => {
     ).resolves.toBe('done')
 
     expect(getPartUrls).toHaveBeenCalledWith(Array.from({ length: partCount }, (_, i) => i + 1))
-    expect(complete).toHaveBeenCalledWith({
-      parts: Array.from({ length: partCount }, (_, index) => ({
-        partNumber: index + 1,
-        etag: 'part-etag',
-      })),
-    })
+    expect(complete).toHaveBeenCalledWith()
     expect(abort).not.toHaveBeenCalled()
   })
 
