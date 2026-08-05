@@ -56,6 +56,18 @@ export const updateWorkspaceFileContentBodySchema = z.object({
   encoding: z.enum(['base64', 'utf-8']).optional(),
 })
 
+/** No real image approaches this; the bound rejects absurd or hostile values on the backfill path. */
+const IMAGE_DIMENSION_MAX = 100_000
+
+export const updateWorkspaceFileDimensionsBodySchema = z.object({
+  width: z.number().int().positive().max(IMAGE_DIMENSION_MAX),
+  height: z.number().int().positive().max(IMAGE_DIMENSION_MAX),
+})
+
+export type UpdateWorkspaceFileDimensionsBody = z.input<
+  typeof updateWorkspaceFileDimensionsBodySchema
+>
+
 export const workspaceFileRecordSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
@@ -65,6 +77,9 @@ export const workspaceFileRecordSchema = z.object({
   url: z.string().optional(),
   size: z.number(),
   type: z.string(),
+  /** Intrinsic image dimensions (px), populated lazily; null for non-images/un-backfilled rows. */
+  width: z.number().int().positive().nullable().optional(),
+  height: z.number().int().positive().nullable().optional(),
   uploadedBy: z.string(),
   folderId: z.string().nullable(),
   folderPath: z.string().nullable().optional(),
@@ -106,6 +121,17 @@ export const renameWorkspaceFileContract = defineRouteContract({
     schema: workspaceFileSuccessSchema.extend({
       file: workspaceFileRecordSchema,
     }),
+  },
+})
+
+export const updateWorkspaceFileDimensionsContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/workspaces/[id]/files/[fileId]/dimensions',
+  params: workspaceFileParamsSchema,
+  body: updateWorkspaceFileDimensionsBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true) }),
   },
 })
 

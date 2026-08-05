@@ -5,7 +5,11 @@ import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { useWorkspaceFileBinary, useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
+import {
+  useWorkspaceFileBinary,
+  useWorkspaceFileContent,
+  useWorkspaceImageDimensionsAdapter,
+} from '@/hooks/queries/workspace-files'
 import {
   createWorkspaceFileContentSource,
   type FileContentSource,
@@ -126,9 +130,10 @@ interface FileViewerProps {
 
 export function FileViewer(props: FileViewerProps) {
   const { contentSource, workspaceId } = props
+  const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId)
   const source = useMemo(
-    () => contentSource ?? createWorkspaceFileContentSource(workspaceId),
-    [contentSource, workspaceId]
+    () => contentSource ?? createWorkspaceFileContentSource(workspaceId, imageDimensions),
+    [contentSource, workspaceId, imageDimensions]
   )
   return (
     <FileContentSourceProvider value={source}>

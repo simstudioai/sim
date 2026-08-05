@@ -1915,6 +1915,13 @@ export const workspaceFiles = pgTable(
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
     size: integer('size').notNull(),
+    /**
+     * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
+     * views reserve layout space before the image loads, via aspect-ratio). NULL for non-images and for
+     * rows not yet backfilled. Purely a rendering hint — never affects stored file content.
+     */
+    width: integer('width'),
+    height: integer('height'),
     deletedAt: timestamp('deleted_at'),
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

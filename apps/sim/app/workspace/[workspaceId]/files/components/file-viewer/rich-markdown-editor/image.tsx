@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { useFileContentSource } from '@/hooks/use-file-content-source'
+import { type ImageDimensions, useFileContentSource } from '@/hooks/use-file-content-source'
 import { MarkdownImage } from './image-schema'
 import { normalizeLinkHref } from './markdown-fidelity'
 import { useEditorEditable } from './use-editor-editable'
@@ -24,6 +24,11 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
   const [dragWidth, setDragWidth] = useState<number | null>(null)
   /** Whether the current src failed to load; reset on src change so a retried/edited src can load. */
   const [failed, setFailed] = useState(false)
+  /**
+   * Intrinsic dimensions measured from the loaded image — holds the aspect-ratio box for THIS view when
+   * the content source has no stored dimensions yet (the first-ever view of an image). Reset on src change.
+   */
+  const [measuredDimensions, setMeasuredDimensions] = useState<ImageDimensions | null>(null)
   const attrs = node.attrs as {
     src?: string
     alt?: string
@@ -33,7 +38,16 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
   }
 
   useEffect(() => () => dragAbortRef.current?.abort(), [])
-  useEffect(() => setFailed(false), [attrs.src])
+
+  // Reset the load-failure flag and this-session measurement when the src changes — adjusted during
+  // render (not in an effect) so the previous image's aspect-ratio box never paints for a frame. A `key`
+  // remount isn't available here: TipTap owns this node view's instantiation.
+  const [prevSrc, setPrevSrc] = useState(attrs.src)
+  if (prevSrc !== attrs.src) {
+    setPrevSrc(attrs.src)
+    setFailed(false)
+    setMeasuredDimensions(null)
+  }
 
   const startResize = (event: React.PointerEvent) => {
     event.preventDefault()
@@ -73,12 +87,27 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
       ? `${attrs.width}px`
       : attrs.width
     : undefined
-  const widthStyle =
+  // Stored intrinsic dimensions reserve the box on the very first render. Memoized on the src (not the
+  // live drag width) so a resize drag never re-scans the file list. Falls back to what we measured on
+  // load this session for a first-ever view the metadata hasn't caught up on.
+  const storedDimensions = useMemo(
+    () => source.getImageDimensions?.(attrs.src) ?? null,
+    [source, attrs.src]
+  )
+  const intrinsicDimensions = storedDimensions ?? measuredDimensions
+  const displayWidth =
     dragWidth !== null
-      ? { width: `${dragWidth}px` }
-      : committedWidth
-        ? { width: committedWidth }
-        : undefined
+      ? `${dragWidth}px`
+      : (committedWidth ?? (intrinsicDimensions ? `${intrinsicDimensions.width}px` : undefined))
+  // width + aspect-ratio (with `max-w-full`/`h-auto` from the class list) reserves a responsive box the
+  // image can't reflow into, per the CLS-avoidance pattern for known-ratio responsive images. React drops
+  // the undefined keys, so an unmeasured image simply gets no reservation (its prior behavior).
+  const imageStyle: CSSProperties = {
+    width: displayWidth,
+    aspectRatio: intrinsicDimensions
+      ? `${intrinsicDimensions.width} / ${intrinsicDimensions.height}`
+      : undefined,
+  }
 
   // Sanitize the linked-image target before rendering the anchor — a parsed markdown href is
   // untrusted and could be `javascript:`/`data:`; an unsafe value drops the link (image only).
@@ -99,11 +128,21 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
       // the resize button sits outside this element, so it keeps its own pointer behavior.)
       draggable={editable}
       data-drag-handle={editable ? '' : undefined}
-      style={widthStyle}
+      style={imageStyle}
       onError={() => setFailed(true)}
-      onLoad={() => setFailed(false)}
+      onLoad={(event) => {
+        setFailed(false)
+        const { naturalWidth, naturalHeight } = event.currentTarget
+        if (naturalWidth <= 0 || naturalHeight <= 0) return
+        // Already reserved from stored metadata (possibly just backfilled by a sibling view) — done.
+        if (source.getImageDimensions?.(attrs.src)) return
+        // Hold the box for this first-ever view, and persist so later views reserve before load. The
+        // report is idempotent and de-duped downstream (stored-check + server `width IS NULL`).
+        setMeasuredDimensions({ width: naturalWidth, height: naturalHeight })
+        source.reportImageDimensions?.(attrs.src, { width: naturalWidth, height: naturalHeight })
+      }}
       className={cn(
-        'block max-w-full rounded-lg border border-[var(--border)]',
+        'block h-auto max-w-full rounded-lg border border-[var(--border)]',
         editable && 'cursor-grab',
         failed &&
           'min-h-[72px] min-w-[140px] bg-[var(--surface-5)] p-3 text-[var(--text-muted)] text-caption'

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -15,6 +16,7 @@ import {
   renameWorkspaceFileContract,
   restoreWorkspaceFileContract,
   updateWorkspaceFileContentContract,
+  updateWorkspaceFileDimensionsContract,
 } from '@/lib/api/contracts/workspace-files'
 import {
   DirectUploadError,
@@ -23,7 +25,8 @@ import {
 } from '@/lib/uploads/client/direct-upload'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UserFile } from '@/executor/types'
-import { useFileContentSource } from '@/hooks/use-file-content-source'
+import { findWorkspaceFileBySrc } from '@/hooks/queries/utils/find-workspace-file-by-src'
+import { type ImageDimensionsSource, useFileContentSource } from '@/hooks/use-file-content-source'
 
 const logger = createLogger('WorkspaceFilesQuery')
 
@@ -121,6 +124,47 @@ export function useWorkspaceFiles(
     staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
     placeholderData: keepPreviousData, // Show cached data immediately
   })
+}
+
+/**
+ * Back the file content source's image-dimension capability with workspace file metadata. Reads intrinsic
+ * dimensions straight from the already-loaded active file list (synchronous, so a stored image reserves
+ * its box on the first render), and lazily backfills them once per image on first measurement. The
+ * backfill is fire-and-forget and idempotent: the optimistic cache patch makes a second measurement of
+ * the same file a no-op locally, and the server ignores an already-populated row — so it never storms,
+ * never blocks render, and never touches the collaborative document.
+ */
+export function useWorkspaceImageDimensionsAdapter(workspaceId: string): ImageDimensionsSource {
+  const queryClient = useQueryClient()
+  return useMemo<ImageDimensionsSource>(() => {
+    const listKey = workspaceFilesKeys.list(workspaceId, 'active')
+    const findRecord = (src: string | undefined): WorkspaceFileRecord | undefined =>
+      findWorkspaceFileBySrc(queryClient.getQueryData<WorkspaceFileRecord[]>(listKey), src)
+    return {
+      getImageDimensions: (src) => {
+        const record = findRecord(src)
+        return record?.width != null && record.height != null
+          ? { width: record.width, height: record.height }
+          : null
+      },
+      reportImageDimensions: (src, dimensions) => {
+        const record = findRecord(src)
+        // Skip when the file isn't ours to key (external/unlisted) or its dimensions are already stored.
+        if (!record || (record.width != null && record.height != null)) return
+        const patch = (width: number | null, height: number | null) =>
+          queryClient.setQueryData<WorkspaceFileRecord[]>(listKey, (previous) =>
+            previous?.map((entry) => (entry.id === record.id ? { ...entry, width, height } : entry))
+          )
+        // Optimistically populate the cache so this and sibling views reserve space immediately and a
+        // concurrent measurement of the same file short-circuits above.
+        patch(dimensions.width, dimensions.height)
+        void requestJson(updateWorkspaceFileDimensionsContract, {
+          params: { id: workspaceId, fileId: record.id },
+          body: dimensions,
+        }).catch(() => patch(null, null))
+      },
+    }
+  }, [queryClient, workspaceId])
 }
 
 /**

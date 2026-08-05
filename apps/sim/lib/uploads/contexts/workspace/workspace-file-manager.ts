@@ -67,6 +67,9 @@ export interface WorkspaceFileRecord {
   url?: string // Presigned URL for external access (optional, regenerated as needed)
   size: number
   type: string
+  /** Intrinsic image pixel dimensions, populated lazily on first view. Null/absent for non-images. */
+  width?: number | null
+  height?: number | null
   uploadedBy: string
   folderId?: string | null
   folderPath?: string | null
@@ -828,6 +831,8 @@ function mapWorkspaceFileRecord(
     path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
     size: file.size,
     type: file.contentType,
+    width: file.width,
+    height: file.height,
     uploadedBy: file.userId,
     folderId: file.folderId,
     folderPath: file.folderId ? (folderPaths.get(file.folderId) ?? null) : null,
@@ -854,6 +859,33 @@ async function mapSingleWorkspaceFileRecord(
     workspaceId,
     folderPath ? new Map([[file.folderId, folderPath]]) : new Map()
   )
+}
+
+/**
+ * Backfill an image file's intrinsic pixel dimensions (a pure rendering hint used to reserve layout
+ * space before the image loads). Idempotent by construction: the `width IS NULL` guard makes it a no-op
+ * once populated, so concurrent first-view reporters converge on a single write with no churn. Does NOT
+ * touch `updatedAt` — dimensions are not content and must not cache-bust the served image bytes. Returns
+ * whether a row was actually written (false when already populated, deleted, or absent).
+ */
+export async function updateWorkspaceFileDimensions(
+  workspaceId: string,
+  fileId: string,
+  dimensions: { width: number; height: number }
+): Promise<boolean> {
+  const updated = await db
+    .update(workspaceFiles)
+    .set({ width: dimensions.width, height: dimensions.height })
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        isNull(workspaceFiles.deletedAt),
+        isNull(workspaceFiles.width)
+      )
+    )
+    .returning({ id: workspaceFiles.id })
+  return updated.length > 0
 }
 
 /**
