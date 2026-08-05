@@ -139,6 +139,7 @@ async function executeSave(
             chatId: null,
             messageId: null,
             originalName: materializedName,
+            displayName: materializedName,
             size: verifiedSize,
           })
           .where(

@@ -325,7 +325,11 @@ describe('executeMaterializeFile - save storage transition', () => {
       null
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ context: 'workspace', originalName: 'image (1).png' })
+      expect.objectContaining({
+        context: 'workspace',
+        originalName: 'image (1).png',
+        displayName: 'image (1).png',
+      })
     )
     expect(result.resources).toEqual([{ type: 'file', id: 'file-1', title: 'image (1).png' }])
   })
