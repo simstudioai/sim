@@ -59,7 +59,7 @@ describe('InstagramBlock', () => {
     expect(
       buildParams({
         operation: 'instagram_publish_carousel',
-        carouselMedia: [file, { ...file, id: 'file-2', name: 'photo-2.jpg' }],
+        carouselMedia: JSON.stringify([file, { ...file, id: 'file-2', name: 'photo-2.jpg' }]),
       }).media
     ).toHaveLength(2)
     expect(

@@ -76,6 +76,9 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Instagram into workflows. Publish and download images, videos, Reels, stories, and carousels as canonical User Files; moderate comments; send DMs; and pull account or media insights.',
+  bestPractices: `
+  - For Publish Carousel, pass an ordered array of 2-10 files through the advanced Media reference, for example <previousBlock.files>.
+  `,
   docsLink: 'https://docs.sim.ai/integrations/instagram',
   category: 'tools',
   integrationType: IntegrationType.Marketing,
@@ -267,6 +270,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       condition: { field: 'operation', value: 'instagram_publish_carousel' },
       mode: 'basic',
       multiple: true,
+      hideFromCopilot: true,
       required: { field: 'operation', value: 'instagram_publish_carousel' },
     },
     {
@@ -274,7 +278,9 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       title: 'Media',
       type: 'short-input',
       canonicalParamId: 'carouselMedia',
-      placeholder: 'Reference files from previous blocks',
+      description:
+        'Reference an ordered array of 2-10 files from a previous block, for example <previousBlock.files>',
+      placeholder: '<previousBlock.files>',
       condition: { field: 'operation', value: 'instagram_publish_carousel' },
       mode: 'advanced',
       required: { field: 'operation', value: 'instagram_publish_carousel' },
