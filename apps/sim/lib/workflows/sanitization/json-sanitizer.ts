@@ -2,14 +2,11 @@ import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
 import type { Edge } from 'reactflow'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
-import {
-  buildSubBlockValues,
-  evaluateSubBlockCondition,
-} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+import { blockAdvertisesWebhookUrl } from '@/triggers/webhook-url'
 
 /**
  * Sanitized workflow state for copilot (removes all UI-specific data)
@@ -345,21 +342,7 @@ function sanitizeSubBlocks(
  * read time, never stored, and rejected on write by `edit_workflow` validation.
  */
 function resolveTriggerWebhookUrl(blockId: string, block: BlockState): string | null {
-  const blockConfig = getBlock(block.type)
-  if (!blockConfig) return null
-
-  const actsAsTrigger = blockConfig.category === 'triggers' || block.triggerMode === true
-  if (!actsAsTrigger) return null
-
-  // A webhook-URL display subblock (`useWebhookUrl`) marks a webhook-based trigger.
-  // Multi-trigger blocks namespace one per trigger id, each gated by a condition on
-  // selectedTriggerId — only count a field active for the current values, so a block
-  // configured with a polling trigger doesn't advertise a webhook URL.
-  const values = buildSubBlockValues(block.subBlocks || {})
-  const hasActiveWebhookUrlField = blockConfig.subBlocks.some(
-    (sb) => sb.useWebhookUrl === true && evaluateSubBlockCondition(sb.condition, values)
-  )
-  if (!hasActiveWebhookUrlField) return null
+  if (!blockAdvertisesWebhookUrl(block)) return null
 
   const triggerPath = block.subBlocks?.triggerPath?.value
   const path = typeof triggerPath === 'string' && triggerPath.length > 0 ? triggerPath : blockId

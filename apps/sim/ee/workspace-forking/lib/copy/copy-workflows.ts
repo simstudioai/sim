@@ -362,6 +362,13 @@ export interface CopyWorkflowStateParams {
    * creation, where every id is derived fresh.
    */
   resolveBlockId?: ForkBlockIdResolver
+  /**
+   * The resolved public webhook path per TARGET block id - the block's own live path, or a
+   * retiring one it adopts (see `resolveForkTriggerPaths`). Pinned into the target block's
+   * `triggerPath` so the URL stops being a derivation of the block id this sync assigns.
+   * Omitted on fork creation, where the child has no webhooks yet.
+   */
+  triggerPathByBlockId?: ReadonlyMap<string, string>
   requestId?: string
 }
 
@@ -394,6 +401,7 @@ export async function copyWorkflowStateIntoTarget(
     dependentOverrides,
     nameRegistry,
     resolveBlockId,
+    triggerPathByBlockId,
     requestId = 'unknown',
   } = params
 
@@ -438,6 +446,19 @@ export async function copyWorkflowStateIntoTarget(
     const sourceSubBlocks = (block.subBlocks ?? {}) as unknown as SubBlockRecord
     const sanitizedSource = sanitizeSubBlocksForDuplicate(sourceSubBlocks)
     let subBlocks: SubBlockRecord = sanitizedSource
+    // The sanitizer strips `triggerPath` (the SOURCE's URL must never be copied). Pin the
+    // TARGET's resolved path back in - the one this block already serves, or a retiring one it
+    // adopts - so the URL stops being a derivation of the block id this sync assigns. Otherwise
+    // any later change to that id silently re-points a URL external systems already call (a
+    // Slack Request URL, a provider subscription). With no resolved path the field stays empty
+    // and derives as before, so a first-time sync is unchanged.
+    const resolvedTriggerPath = triggerPathByBlockId?.get(newBlockId)
+    if (resolvedTriggerPath) {
+      subBlocks = {
+        ...subBlocks,
+        triggerPath: { id: 'triggerPath', type: 'short-input', value: resolvedTriggerPath },
+      }
+    }
     // Tracks the block's live `canonicalModes` through this pass, so a `tool-input` reindex
     // (a dropped custom-tool/MCP entry shifts later tools' array positions) is visible to every
     // later step below that resolves a nested tool's basic/advanced mode - not just the final
