@@ -721,7 +721,7 @@ main article h1,
 [data-content] h1,
 #nd-page h1 {
   font-size: 1.5rem !important;
-  font-weight: 550 !important;
+  font-weight: 600 !important;
   letter-spacing: -0.02em;
   color: var(--text-primary);
 }
@@ -742,7 +742,7 @@ main article h4,
 #nd-page h3,
 #nd-page h4 {
   font-size: var(--text-md) !important;
-  font-weight: 470 !important;
+  font-weight: 500 !important;
   letter-spacing: -0.01em;
   color: var(--text-body);
 }
@@ -791,17 +791,17 @@ main article li,
   display: none !important;
 }
 
-/* TOC heading — align weight with landing */
+/* TOC heading */
 #nd-toc h3,
 #nd-toc [class*="title"] {
-  font-weight: 480 !important;
+  font-weight: 500 !important;
   font-size: var(--text-small) !important;
   color: var(--text-muted);
 }
 
-/* TOC links — softer colors aligned with landing muted text */
+/* TOC links — muted until active, which steps up one weight */
 #nd-toc a {
-  font-weight: 430 !important;
+  font-weight: 400 !important;
   font-size: var(--text-small) !important;
   color: var(--text-muted);
   transition: color 0.2s;
@@ -813,7 +813,7 @@ main article li,
 
 #nd-toc a[data-active="true"] {
   color: var(--text-primary) !important;
-  font-weight: 470 !important;
+  font-weight: 500 !important;
 }
 
 /* Add bottom spacing to prevent abrupt page endings */
@@ -927,16 +927,19 @@ span.font-mono.font-medium[data-method="delete"] {
   background-color: var(--badge-error-bg);
 }
 
-/* Sidebar links with method badges — match regular item padding */
+/* Sidebar links with method badges (API reference). The sibling rule above
+   excludes these via `:not(:has(span.font-mono))`, so the two must be kept in
+   step by hand — geometry here mirrors it exactly, and only the badge gap is
+   extra. */
 html #nd-sidebar a:has(span.font-mono.font-medium) {
   display: flex !important;
   align-items: center !important;
   gap: 0.375rem;
-  padding: 0.375rem 0.875rem !important;
+  padding: 5px 0.5rem !important;
   font-size: 0.875rem !important;
-  line-height: 1.4 !important;
-  font-weight: 450 !important;
-  border-radius: 0.75rem !important;
+  line-height: 20px !important;
+  font-weight: 400 !important;
+  border-radius: 0.5rem !important;
 }
 
 /* Sidebar method badges — fixed-width for right-aligned labels */
@@ -1616,7 +1619,7 @@ div:has(> div > figure.shiki) > [role="tablist"] {
 /* Tab triggers — muted text, active gets foreground */
 div:has(> div > figure.shiki) > [role="tablist"] button {
   color: var(--text-muted) !important;
-  font-weight: 470 !important;
+  font-weight: 500 !important;
 }
 
 div:has(> div > figure.shiki) > [role="tablist"] button:hover {
@@ -1705,7 +1708,7 @@ figure.shiki > div:has(> button[aria-label]) {
 
 /* Card title */
 .grid > a[data-card] h3 {
-  font-weight: 470 !important;
+  font-weight: 500 !important;
   font-size: 0.875rem !important;
   color: var(--text-primary) !important;
 }
