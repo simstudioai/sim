@@ -150,7 +150,7 @@ export type V2ApiRow = z.output<typeof v2ApiRowSchema>
 export const v2TableDataSchema = z.object({ table: v2ApiTableSchema })
 export type V2TableData = z.output<typeof v2TableDataSchema>
 
-export const v2DeleteTableDataSchema = z.object({ id: z.string() })
+export const v2DeleteTableDataSchema = z.object({ id: z.string(), deleted: z.literal(true) })
 export type V2DeleteTableData = z.output<typeof v2DeleteTableDataSchema>
 
 /** The table's full column list after a column mutation. */
@@ -279,8 +279,9 @@ export const v2GetTableContract = defineRouteContract({
 
 /**
  * Table update. Every field is optional but at least one must be present:
- * `name` renames and `folderPath` moves the table. Omission leaves placement
- * untouched; `/` moves it to the workspace root.
+ * `name` renames, `description` edits metadata, and `folderPath` moves the
+ * table. Omission leaves placement untouched; `/` moves it to the workspace
+ * root.
  *
  * `locks` is deliberately **not** accepted here, which is why this body is
  * declared rather than reusing the first-party `updateTableBodySchema`. The
@@ -294,14 +295,19 @@ export const v2UpdateTableBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
     name: tableNameSchema.optional(),
+    description: v1CreateTableBodySchema.shape.description.nullable(),
     folderPath: v2FolderPathInputSchema.optional(),
   })
   .strict()
   .superRefine((body, ctx) => {
-    if (body.name === undefined && body.folderPath === undefined) {
+    if (
+      body.name === undefined &&
+      body.description === undefined &&
+      body.folderPath === undefined
+    ) {
       ctx.addIssue({
         code: 'custom',
-        message: 'Provide a new name or folder',
+        message: 'Provide a new name, description, or folder',
         path: ['name'],
       })
     }

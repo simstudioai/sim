@@ -172,6 +172,8 @@ describe('createFolder', () => {
         name: 'Reports',
         workspaceId: 'ws-1',
         parentId: null,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
       })
     )
   })
@@ -352,8 +354,49 @@ describe('path-owned folder mutations', () => {
 
     expect(result).toMatchObject({ success: true, path: '/Reports/Q1' })
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Q1', parentId: 'parent-1' })
+      expect.objectContaining({
+        name: 'Q1',
+        parentId: 'parent-1',
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      })
     )
+  })
+
+  it('releases the folder transaction before running the domain delete cascade', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'Reports' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['folder-1', source]]),
+      pathById: new Map([['folder-1', '/Reports']]),
+      idByPath: new Map([['/Reports', 'folder-1']]),
+    })
+    queueTableRows(schemaMock.folder, [{ deletedAt: null }])
+
+    let inFolderTransaction = false
+    dbChainMockFns.transaction.mockImplementationOnce(
+      async (operation: (tx: unknown) => Promise<unknown>) => {
+        inFolderTransaction = true
+        try {
+          return await operation(dbChainMock.db)
+        } finally {
+          inFolderTransaction = false
+        }
+      }
+    )
+    mockArchiveFolderCascade.mockImplementationOnce(async () => {
+      expect(inFolderTransaction).toBe(false)
+      return { folders: 1, children: 0 }
+    })
+
+    const result = await deleteFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/Reports',
+      recursive: true,
+    })
+
+    expect(result).toMatchObject({ success: true, path: '/Reports' })
   })
 
   it('rejects relocating a folder beneath its own descendant before writing', async () => {

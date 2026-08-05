@@ -431,6 +431,7 @@ export async function createWorkspaceFileFolder(params: {
 
     const id = generateId()
     try {
+      const now = new Date()
       const [inserted] = await tx
         .insert(folderTable)
         .values({
@@ -443,6 +444,8 @@ export async function createWorkspaceFileFolder(params: {
           sortOrder:
             params.sortOrder ??
             (sortOrderResult?.minSortOrder != null ? sortOrderResult.minSortOrder - 1 : 0),
+          createdAt: now,
+          updatedAt: now,
         })
         .returning()
       return inserted
@@ -1275,6 +1278,7 @@ export async function createWorkspaceFileFolderAtPath(params: {
         )
       )
 
+    const now = new Date()
     const [created] = await tx
       .insert(folderTable)
       .values({
@@ -1285,6 +1289,8 @@ export async function createWorkspaceFileFolderAtPath(params: {
         workspaceId: params.workspaceId,
         parentId,
         sortOrder: sortOrderResult?.minSortOrder != null ? sortOrderResult.minSortOrder - 1 : 0,
+        createdAt: now,
+        updatedAt: now,
       })
       .returning()
     return created

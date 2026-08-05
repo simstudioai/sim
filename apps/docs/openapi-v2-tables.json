@@ -270,7 +270,7 @@
       "delete": {
         "operationId": "deleteTable",
         "summary": "Delete Table",
-        "description": "Delete a table. Returns the id of the deleted table.",
+        "description": "Delete a table. Returns the id and an explicit deletion confirmation.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -333,7 +333,7 @@
       "patch": {
         "operationId": "updateTable",
         "summary": "Update Table",
-        "description": "Rename a table and/or move it between folders. Provide at least one of `name` or `folderPath`. Each field is applied independently, so one request can rename and move at once, and the response reflects every applied change.\n\nBoth fields need workspace write.\n\n**Lock flags are read-only here.** A table's `locks` are returned on the table resource and enforced on every write (a locked verb returns 423), but they cannot be changed through the API — a write-level key must not be able to clear the guard placed there to stop it. Changing a lock is a first-party workspace-admin action. A request carrying `locks` is rejected with 400 rather than silently ignored.\n\n**Partial-success semantics.** The two operations commit independently, so this endpoint is not atomic. Everything that can be *rejected* — the body shape, folder existence — is validated before the first write, so a rejected request changes nothing. If a genuine fault (a lost race, the table deleted mid-request, a database error) fails the later operation after the earlier one has committed, the response is an error whose `error.details.applied` lists the operations that are nevertheless live (`\"name\"`, `\"folderPath\"`). The field is absent when nothing was applied, so its presence always means \"these changes took effect despite the error\" — re-read the table to confirm before retrying.",
+        "description": "Rename a table, edit its description, and/or move it between folders. Provide at least one of `name`, `description`, or `folderPath`. Each field is applied independently, so one request can combine changes and the response reflects every applied change.\n\nAll three fields need workspace write.\n\n**Lock flags are read-only here.** A table's `locks` are returned on the table resource and enforced on every write (a locked verb returns 423), but they cannot be changed through the API — a write-level key must not be able to clear the guard placed there to stop it. Changing a lock is a first-party workspace-admin action. A request carrying `locks` is rejected with 400 rather than silently ignored.\n\n**Partial-success semantics.** The operations commit independently, so this endpoint is not atomic. Everything that can be *rejected* — the body shape, folder existence — is validated before the first write, so a rejected request changes nothing. If a genuine fault (a lost race, the table deleted mid-request, a database error) fails a later operation after an earlier one has committed, the response is an error whose `error.details.applied` lists the operations that are nevertheless live (`\"name\"`, `\"description\"`, `\"folderPath\"`). The field is absent when nothing was applied, so its presence always means \"these changes took effect despite the error\" — re-read the table to confirm before retrying.",
         "tags": ["Tables"],
         "x-codeSamples": [
           {
@@ -4976,11 +4976,16 @@
         "properties": {
           "data": {
             "type": "object",
-            "required": ["id"],
+            "required": ["id", "deleted"],
             "properties": {
               "id": {
                 "type": "string",
                 "description": "The id of the deleted table."
+              },
+              "deleted": {
+                "type": "boolean",
+                "const": true,
+                "description": "Confirms the table was deleted."
               }
             }
           }
@@ -5301,7 +5306,7 @@
       },
       "UpdateTableBody": {
         "type": "object",
-        "description": "Rename and/or move a table. Every field beyond `workspaceId` is optional, but at least one must be present. Lock flags are read-only on this API and are not accepted here.",
+        "description": "Rename, edit the description, and/or move a table. Every field beyond `workspaceId` is optional, but at least one must be present. Lock flags are read-only on this API and are not accepted here.",
         "required": ["workspaceId"],
         "properties": {
           "workspaceId": {
@@ -5313,6 +5318,11 @@
             "type": "string",
             "minLength": 1,
             "description": "New table name."
+          },
+          "description": {
+            "type": ["string", "null"],
+            "maxLength": 500,
+            "description": "New table description, or null to clear it."
           },
           "folderPath": {
             "type": "string",
