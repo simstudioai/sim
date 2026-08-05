@@ -114,6 +114,23 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Workflow has no associated workspace' }, { status: 500 })
       }
 
+      /**
+       * Re-assert same-workspace on the resolved workflow, exactly as the public
+       * twin does. `validateLayout` grandfathers references that were already
+       * stored, so a stored reference is only proven in-workspace at the moment
+       * it was introduced — and this route grants at `level: 'read'`, so it is
+       * the lower-privilege of the two paths that reach the same executor.
+       *
+       * Same slot accounting as the branch above: release the reserved billing
+       * slot on this early exit, since no LoggingSession will finalize to free
+       * it.
+       */
+      if (workflowRecord.workspaceId !== access.definition.workspaceId) {
+        logger.warn(`[${requestId}] Interface form workflow left the workspace`, { moduleId })
+        await releaseExecutionSlot(executionId)
+        return NextResponse.json({ error: 'Module is not available' }, { status: 404 })
+      }
+
       const result = await executeWorkflow(
         {
           id: workflowRecord.id,

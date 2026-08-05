@@ -211,6 +211,35 @@ describe('POST /api/interfaces/[interfaceId]/modules/[moduleId]/submit', () => {
     expect(executionPreprocessingMockFns.mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
+  it("refuses a workflow that has left the interface's workspace, and frees the billing slot", async () => {
+    /**
+     * `validateLayout` grandfathers references already stored, so a stored
+     * workflowId is only proven in-workspace at the moment it was introduced.
+     * The public twin re-asserts this; so must the authenticated route, which
+     * grants at `level: 'read'` and is therefore the lower-privilege of the two
+     * paths reaching the same executor.
+     */
+    executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValue({
+      success: true,
+      actorUserId: 'actor-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+      workflowRecord: {
+        id: 'wf-1',
+        userId: 'owner-1',
+        workspaceId: 'ws-somewhere-else',
+        isDeployed: true,
+        variables: {},
+      },
+    })
+
+    const response = await callPost(validBody)
+
+    expect(response.status).toBe(404)
+    expect(mockExecuteWorkflow).not.toHaveBeenCalled()
+    // The reserved slot must be released, or the workspace leaks concurrency.
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledTimes(1)
+  })
+
   it('returns 404 when the interface belongs to another workspace', async () => {
     mockGetInterfaceById.mockResolvedValue({
       ...buildDefinition(),
