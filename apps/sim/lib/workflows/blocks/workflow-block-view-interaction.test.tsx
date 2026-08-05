@@ -200,7 +200,7 @@ describe('WorkflowTypeTag colors', () => {
       variant: 'workflow',
       tone: 'purple',
     })
-    expect(getWorkflowTypeAccent('knowledge')).toEqual({ variant: 'workflow', tone: 'cyan' })
+    expect(getWorkflowTypeAccent('knowledge')).toEqual({ variant: 'workflow', tone: 'content' })
   })
 
   it('renders compact workflow icons with their canonical fill and ink', () => {
@@ -220,8 +220,8 @@ describe('WorkflowTypeTag colors', () => {
     )
 
     expect(host.querySelector('[data-workflow-type-icon="knowledge"]')).toHaveClass(
-      'bg-[#00BBD0]',
-      'text-[#1A1A1A]'
+      'bg-[#888888]',
+      'text-[#FFFFFF]'
     )
     expect(host.querySelector('[data-workflow-type-icon="image_generator_v2"]')).toHaveClass(
       'bg-[#AA00FF]',
