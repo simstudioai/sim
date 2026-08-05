@@ -140,6 +140,27 @@ export function buildPromoteWorkflowIdMap(params: {
  * reported in `excludedTargets` instead of written - the target side of the
  * "Exclude from sync" contract. Pure - split from the DB reads so it is unit-testable.
  */
+/**
+ * The target this source would write, when that target is live AND marked "Exclude from sync" -
+ * the target side of the exclusion contract, which makes the sync skip the source entirely.
+ * Returns null when the source is not excluded.
+ *
+ * Shared by the plan builder and by `getForkMappingView`, so the Mappings section can never list
+ * references carried only by a workflow the sync provably never touches. Such an entry would be
+ * unresolvable-looking (its "Used in" list is plan-scoped, so it renders empty) yet still block
+ * Sync, because every mapping entry is `required`.
+ */
+export function resolveForkExcludedTargetId(
+  sourceWorkflowId: string,
+  identityMap: ReadonlyMap<string, string>,
+  targetActiveIds: ReadonlySet<string>,
+  excludedTargetIds: ReadonlySet<string>
+): string | null {
+  const mappedTargetId = identityMap.get(sourceWorkflowId)
+  if (!mappedTargetId || !targetActiveIds.has(mappedTargetId)) return null
+  return excludedTargetIds.has(mappedTargetId) ? mappedTargetId : null
+}
+
 export function buildForkPromotePlanItems(params: {
   deployedSourceWorkflows: DeployedWorkflowSummary[]
   sourceStateIds: ReadonlySet<string>
@@ -164,16 +185,22 @@ export function buildForkPromotePlanItems(params: {
   for (const source of deployedSourceWorkflows) {
     if (!sourceStateIds.has(source.id)) continue
 
-    const mappedTargetId = identityMap.get(source.id)
-    const activeTargetId =
-      mappedTargetId && targetActiveIds.has(mappedTargetId) ? mappedTargetId : null
-    if (activeTargetId && excludedTargetIds.has(activeTargetId)) {
+    const excludedTargetId = resolveForkExcludedTargetId(
+      source.id,
+      identityMap,
+      targetActiveIds,
+      excludedTargetIds
+    )
+    if (excludedTargetId !== null) {
       excludedTargets.push({
-        id: activeTargetId,
-        name: targetNameById.get(activeTargetId) ?? source.name,
+        id: excludedTargetId,
+        name: targetNameById.get(excludedTargetId) ?? source.name,
       })
       continue
     }
+    const mappedTargetId = identityMap.get(source.id)
+    const activeTargetId =
+      mappedTargetId && targetActiveIds.has(mappedTargetId) ? mappedTargetId : null
     items.push({
       sourceWorkflowId: source.id,
       targetWorkflowId: activeTargetId ?? generateId(),

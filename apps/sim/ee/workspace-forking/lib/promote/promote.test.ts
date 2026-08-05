@@ -20,6 +20,7 @@ const {
   mockCreateTransform,
   mockSumForkCopyBytes,
   mockAssertForkStorageHeadroom,
+  mockLoadTargetWebhookPaths,
 } = vi.hoisted(() => ({
   mockComputePlan: vi.fn(),
   mockBuildCopySelection: vi.fn(),
@@ -36,6 +37,7 @@ const {
   mockCreateTransform: vi.fn(),
   mockSumForkCopyBytes: vi.fn(),
   mockAssertForkStorageHeadroom: vi.fn(),
+  mockLoadTargetWebhookPaths: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/deployment-outbox', () => ({
@@ -68,6 +70,7 @@ vi.mock('@/ee/workspace-forking/lib/copy/storage-quota', () => ({
 vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   getActiveDeploymentVersionNumbers: vi.fn(async () => new Map()),
   loadSourceDeployedStates: mockLoadSourceDeployedStates,
+  loadTargetWebhookPathsByBlock: mockLoadTargetWebhookPaths,
 }))
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
   acquireForkEdgeLock: vi.fn(),
@@ -152,6 +155,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { db } from '@sim/db'
+import { getBlock } from '@/blocks/registry'
 import { copyWorkflowStateIntoTarget } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 import { reconcileForkDependentValues } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
 import { promoteFork } from '@/ee/workspace-forking/lib/promote/promote'
@@ -246,7 +250,7 @@ beforeEach(() => {
     willResolve: new Set<string>(),
   })
   mockHasCopySelection.mockReturnValue(false)
-  mockCollectBlockers.mockResolvedValue([])
+  mockCollectBlockers.mockResolvedValue({ blockers: [], appliedDrops: [] })
   mockLoadBlockMap.mockResolvedValue(new Map())
   mockBuildBlockIdResolver.mockReturnValue((_wf: string, blockId: string) => blockId)
   mockResolveFolderMapping.mockResolvedValue(new Map())
@@ -255,6 +259,7 @@ beforeEach(() => {
   mockCreateTransform.mockReturnValue((subBlocks: unknown) => subBlocks)
   mockSumForkCopyBytes.mockResolvedValue(0)
   mockAssertForkStorageHeadroom.mockResolvedValue(undefined)
+  mockLoadTargetWebhookPaths.mockResolvedValue(new Map())
 })
 
 describe('promoteFork gates', () => {
@@ -322,7 +327,7 @@ describe('promoteFork gates', () => {
   })
 
   it('blocks with the structured blocker list when references would clear, writing NOTHING', async () => {
-    mockCollectBlockers.mockResolvedValue([BLOCKER])
+    mockCollectBlockers.mockResolvedValue({ blockers: [BLOCKER], appliedDrops: [] })
 
     const result = await promoteFork(promoteParams())
 
@@ -622,5 +627,106 @@ describe('promoteFork dependent values', () => {
         },
       ]
     )
+  })
+})
+
+describe('promoteFork trigger URLs', () => {
+  beforeEach(() => {
+    // A block only holds a public URL when its config declares a `useWebhookUrl` field, so the
+    // fixture has to look like a webhook trigger to the shared predicate.
+    vi.mocked(getBlock).mockReturnValue({
+      category: 'triggers',
+      subBlocks: [{ id: 'triggerWebhookUrl', useWebhookUrl: true }],
+    } as never)
+  })
+
+  const triggerState = {
+    blocks: {
+      'blk-new': {
+        id: 'blk-new',
+        type: 'slack',
+        name: 'Slack messages',
+        triggerMode: true,
+        subBlocks: {},
+        outputs: {},
+        enabled: true,
+      },
+    },
+    edges: [],
+    loops: {},
+    parallels: {},
+    variables: {},
+  }
+
+  function arrangeReCreatedTrigger() {
+    const item = {
+      sourceWorkflowId: 'wf-src',
+      targetWorkflowId: 'wf-tgt',
+      targetName: 'Flow',
+      mode: 'replace' as const,
+      sourceMeta: { name: 'Flow', description: null, folderId: null, sortOrder: 0 },
+    }
+    mockComputePlan.mockResolvedValue(makePlan({ items: [item] }))
+    mockLoadSourceDeployedStates.mockResolvedValue({
+      deployedWorkflows: [],
+      sourceStates: new Map([['wf-src', triggerState]]),
+    })
+    // The old trigger block ('blk-old') serves the live URL and is NOT in the source any more:
+    // the user deleted and re-added the trigger, so the sync writes 'blk-new' instead.
+    mockLoadTargetWebhookPaths.mockResolvedValue(
+      new Map([['blk-old', { path: 'live-slack-path', workflowId: 'wf-tgt' }]])
+    )
+    vi.mocked(copyWorkflowStateIntoTarget).mockResolvedValue({
+      targetWorkflowId: 'wf-tgt',
+      mode: 'replace',
+      name: 'Flow',
+      blocksCount: 1,
+      edgesCount: 0,
+      subflowsCount: 0,
+      clearedDependents: [],
+      blockIdMapping: new Map(),
+    })
+  }
+
+  /**
+   * The reported bug, at the promote level: pushing a workflow whose Slack trigger was re-created
+   * used to hand the parent a brand-new webhook URL, forcing a re-paste into Slack every sync.
+   */
+  it('hands the retiring URL to the arriving trigger instead of minting a new one', async () => {
+    arrangeReCreatedTrigger()
+
+    const result = await promoteFork(promoteParams())
+
+    expect(result.blocked).toBeNull()
+    const writeParams = vi.mocked(copyWorkflowStateIntoTarget).mock.calls[0][0]
+    expect(writeParams.triggerPathByBlockId?.get('blk-new')).toBe('live-slack-path')
+    // Adopted, so nothing needs re-registering externally.
+    expect(result.triggerUrlChanges).toEqual([])
+  })
+
+  it('reports the URL as lost when the caller explicitly opts into a new one', async () => {
+    arrangeReCreatedTrigger()
+
+    const result = await promoteFork({
+      ...promoteParams(),
+      triggerMappings: [{ sourceBlockId: 'blk-new', adoptPath: null }],
+    })
+
+    const writeParams = vi.mocked(copyWorkflowStateIntoTarget).mock.calls[0][0]
+    expect(writeParams.triggerPathByBlockId?.size).toBe(0)
+    expect(result.triggerUrlChanges).toEqual([{ workflowName: 'Flow', path: 'live-slack-path' }])
+  })
+
+  /** The server re-derives the adoptable set, so a stale or crafted path is never honoured. */
+  it('ignores a mapping naming a path the plan does not offer', async () => {
+    arrangeReCreatedTrigger()
+
+    await promoteFork({
+      ...promoteParams(),
+      triggerMappings: [{ sourceBlockId: 'blk-new', adoptPath: 'someone-elses-path' }],
+    })
+
+    const writeParams = vi.mocked(copyWorkflowStateIntoTarget).mock.calls[0][0]
+    expect(writeParams.triggerPathByBlockId?.size).toBe(0)
   })
 })

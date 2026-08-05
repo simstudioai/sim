@@ -152,7 +152,7 @@ function ForkSyncDetailView({
         },
       ]
 
-  const targetWorkspaceName = direction === 'push' ? otherWorkspaceName : 'this workspace'
+  const targetWorkspaceName = controller.targetWorkspaceName
 
   return (
     <>
@@ -220,6 +220,31 @@ function ForkSyncDetailView({
             {controller.archivedWorkflowNames.length > ARCHIVED_PREVIEW_LIMIT ? (
               <div className='text-[var(--text-muted)] text-small'>
                 and {controller.archivedWorkflowNames.length - ARCHIVED_PREVIEW_LIMIT} more
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {/* A dead trigger URL is only discoverable after the fact, when the external caller goes
+            quiet - so it belongs in the confirm, next to the other irreversible consequences. */}
+        {controller.triggerUrlChanges.length > 0 ? (
+          <div className='flex flex-col gap-1 px-2'>
+            <p className='break-words text-[var(--text-primary)] text-sm'>
+              {controller.triggerUrlChanges.length === 1 ? 'A webhook URL' : 'Webhook URLs'} in{' '}
+              <span className='font-medium'>{targetWorkspaceName}</span> will stop being served —
+              anything calling {controller.triggerUrlChanges.length === 1 ? 'it' : 'them'} breaks
+              until you re-register:
+            </p>
+            {controller.triggerUrlChanges.slice(0, ARCHIVED_PREVIEW_LIMIT).map((change) => (
+              <div
+                key={`${change.workflowName}:${change.path}`}
+                className='min-w-0 truncate text-[var(--text-muted)] text-small'
+              >
+                {change.workflowName}
+              </div>
+            ))}
+            {controller.triggerUrlChanges.length > ARCHIVED_PREVIEW_LIMIT ? (
+              <div className='text-[var(--text-muted)] text-small'>
+                and {controller.triggerUrlChanges.length - ARCHIVED_PREVIEW_LIMIT} more
               </div>
             ) : null}
           </div>

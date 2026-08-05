@@ -135,7 +135,10 @@ function replaceCommaResourceValue(
       }
       return { success: true, nextValue }
     }
-    const nextValue = shouldReplace(value) ? replacement : value
+    // Compare the TRIMMED token, matching what `parse` and `contains` produced. Comparing the
+    // raw string made a padded single value (`" tbl_abc"`) unmatchable here even though it was
+    // detected as a reference, so it could never be remapped nor cleared and stuck forever.
+    const nextValue = shouldReplace(parts[0]) ? replacement : value
     if (targetOccurrenceIndex !== undefined && !replaced) {
       return { success: false, reason: 'Target resource changed since search' }
     }
@@ -352,6 +355,16 @@ const WORKFLOW_SEARCH_SUBBLOCK_RESOURCES: Partial<
   'folder-selector': { kind: 'selector-resource', codec: scalarResourceCodec },
   'project-selector': { kind: 'selector-resource', codec: scalarResourceCodec },
 }
+
+/**
+ * Every sub-block type that carries a resource reference. This registry is the single source of
+ * truth for "does this field hold an id scoped to a workspace or a credential", so consumers that
+ * need that answer derive it from here rather than keeping a parallel hand-written list — see
+ * `sanitizeWorkflowForSharing`, whose hand-maintained copy had silently omitted `table-selector`.
+ */
+export const WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES = Object.keys(
+  WORKFLOW_SEARCH_SUBBLOCK_RESOURCES
+) as SubBlockType[]
 
 export function getWorkflowSearchResourceKindDefinition(
   kind: WorkflowSearchMatchKind

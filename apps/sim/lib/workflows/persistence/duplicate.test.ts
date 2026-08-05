@@ -166,6 +166,11 @@ describe('duplicateWorkflow ordering', () => {
           subBlocks: {
             triggerPath: { id: 'triggerPath', type: 'short-input', value: 'old-webhook-path' },
             webhookId: { id: 'webhookId', type: 'short-input', value: 'old-webhook-id' },
+            triggerConfig: {
+              id: 'triggerConfig',
+              type: 'trigger-config',
+              value: { tableSelector: 'tbl_stale' },
+            },
             webhookUrlDisplay: {
               id: 'webhookUrlDisplay',
               type: 'short-input',
@@ -217,6 +222,10 @@ describe('duplicateWorkflow ordering', () => {
     expect(copiedSubBlocks.triggerPath).toBeUndefined()
     expect(copiedSubBlocks.webhookId).toBeUndefined()
     expect(copiedSubBlocks.webhookUrlDisplay).toBeUndefined()
+    // The aggregate must not ride along: `populateTriggerFieldsFromConfig` re-seeds any empty
+    // trigger field from it on load, so carrying it would resurrect the source's resource ids in
+    // the copy right after the remapper cleared or remapped them.
+    expect(copiedSubBlocks.triggerConfig).toBeUndefined()
     expect(copiedSubBlocks.variables.value[0].variableId).not.toBe('old-var-id')
     expect(copiedSubBlocks.variables.value[0].variableName).toBe('customerName')
     expect(insertedBlocks?.[0].locked).toBe(false)

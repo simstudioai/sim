@@ -83,38 +83,39 @@ export function forkParentResolution(
 }
 
 /**
- * Whether every required reference is satisfied - it has a mapping target OR is selected for copy.
- * The server accepts a copy as resolving a required ref (promote.ts `willResolve`), so the client
- * gate must too. No double-count: a mapped copyable is excluded from the copy candidates, so the two
- * branches are mutually exclusive.
+ * Whether every required reference is satisfied - it has a mapping target, or its key is in
+ * `satisfiedKeys` (selected for copy, or acknowledged as a dropped source-deleted reference).
+ * The server accepts both as resolving a required ref, so the client gate must too. No
+ * double-count: a mapped copyable is excluded from the copy candidates, and a droppable reference
+ * is source-deleted, so it has no copy candidate either.
  */
 export function isForkRequiredComplete(
   entries: ForkMappingEntry[],
   targets: Record<string, string>,
-  copyingKeys: ReadonlySet<string>
+  satisfiedKeys: ReadonlySet<string>
 ): boolean {
   return entries.every(
     (entry) =>
       !entry.required ||
       effectiveForkTarget(entry, targets) !== '' ||
-      copyingKeys.has(forkRefKey(entry))
+      satisfiedKeys.has(forkRefKey(entry))
   )
 }
 
 /**
- * Whether any reference in a kind is required AND still unmapped AND not selected for copy - drives
- * the mapping summary's amber "pending" badge. Mirrors {@link isForkRequiredComplete}'s satisfied rule.
+ * Whether any reference in a kind is required AND still unmapped AND not satisfied another way -
+ * drives the mapping summary's amber "pending" badge. Mirrors {@link isForkRequiredComplete}.
  */
 export function forkRequiredPending(
   items: ForkMappingEntry[],
   targets: Record<string, string>,
-  copyingKeys: ReadonlySet<string>
+  satisfiedKeys: ReadonlySet<string>
 ): boolean {
   return items.some(
     (entry) =>
       entry.required &&
       effectiveForkTarget(entry, targets) === '' &&
-      !copyingKeys.has(forkRefKey(entry))
+      !satisfiedKeys.has(forkRefKey(entry))
   )
 }
 
