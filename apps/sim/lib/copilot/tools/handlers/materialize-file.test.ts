@@ -331,6 +331,7 @@ describe('executeMaterializeFile - save storage transition', () => {
         displayName: 'image (1).png',
       })
     )
+    expect(result.output).toEqual({ succeeded: ['image (1).png'], failed: [] })
     expect(result.resources).toEqual([{ type: 'file', id: 'file-1', title: 'image (1).png' }])
   })
 
@@ -380,6 +381,7 @@ describe('executeMaterializeFile - save storage transition', () => {
       expect.objectContaining({ originalName: 'image (2).png' })
     )
     expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledTimes(1)
+    expect(result.output).toEqual({ succeeded: ['image (2).png'], failed: [] })
     expect(result.resources).toEqual([{ type: 'file', id: 'file-1', title: 'image (2).png' }])
   })
 
@@ -433,6 +435,7 @@ describe('executeMaterializeFile - save storage transition', () => {
     expect(mockGetWorkspaceFile).toHaveBeenCalledWith(context.workspaceId, 'file-1', {
       throwOnError: true,
     })
+    expect(result.output).toEqual({ succeeded: ['report (1).txt'], failed: [] })
     expect(result.resources).toEqual([{ type: 'file', id: 'file-1', title: 'report (1).txt' }])
     expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
     expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()

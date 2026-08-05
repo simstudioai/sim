@@ -571,7 +571,11 @@ export async function executeMaterializeFile(
       }
 
       if (result.success) {
-        succeeded.push(fileName)
+        const materializedName =
+          operation === 'save'
+            ? result.resources?.find((resource) => resource.type === 'file')?.title
+            : undefined
+        succeeded.push(materializedName ?? fileName)
         if (result.resources) resources.push(...result.resources)
       } else {
         failed.push({ fileName, error: result.error ?? 'Failed to materialize file' })
