@@ -1,7 +1,11 @@
 import { db, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
-import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
+import {
+  normalizePositionedSourceHandleId,
+  normalizePositionedTargetHandleId,
+  SUBFLOW_TYPES,
+} from '@sim/workflow-types/workflow'
 import { and, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { clampParallelBatchSize } from './subflow-helpers'
@@ -82,6 +86,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
         enabled: block.enabled,
         horizontalHandles: block.horizontalHandles,
         advancedMode: block.advancedMode,
+        errorEnabled: blockData?.errorEnabled === true,
         triggerMode: block.triggerMode,
         height: Number(block.height),
         subBlocks: (block.subBlocks as BlockState['subBlocks']) || {},
@@ -98,8 +103,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       id: edge.id,
       source: edge.sourceBlockId,
       target: edge.targetBlockId,
-      sourceHandle: edge.sourceHandle ?? undefined,
-      targetHandle: edge.targetHandle ?? undefined,
+      sourceHandle: normalizePositionedSourceHandleId(edge.sourceHandle ?? undefined),
+      targetHandle: normalizePositionedTargetHandleId(edge.targetHandle ?? undefined),
       type: 'default',
       data: {},
     }))

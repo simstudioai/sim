@@ -509,6 +509,19 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
    */
   iconColor?: string
   icon: BlockIcon
+  /** Canvas-only naming rules. Stored block names remain unchanged for references and serialization. */
+  canvasPresentation?: {
+    /** Stable provider or block-kind label shown in the header tag. */
+    typeLabel?: string
+    /** Semantic title used when the stored block name is still auto-generated. */
+    defaultTitle: string
+    /** Additional generated-name prefix retained for legacy block instances. */
+    defaultName?: string
+    /** Subblock whose selected option replaces the default title. */
+    operationSubBlockId?: string
+    /** Label used for the operation row after a user gives the block a custom name. */
+    operationRowTitle?: string
+  }
   subBlocks: SubBlockConfig[]
   triggerAllowed?: boolean
   authMode?: AuthMode

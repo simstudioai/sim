@@ -56,6 +56,8 @@ export interface BlockData {
   batchSize?: number
   type?: string
   canonicalModes?: Record<string, 'basic' | 'advanced'>
+  /** Persisted mirror of {@link BlockState.errorEnabled}. */
+  errorEnabled?: boolean
 }
 
 export interface BlockLayoutState {
@@ -72,6 +74,12 @@ export interface BlockState {
   outputs: Record<string, OutputFieldDefinition>
   enabled: boolean
   horizontalHandles?: boolean
+  /**
+   * Whether this block exposes its error output. Drives the red error port;
+   * the error row itself is always shown for blocks that support one. Off by
+   * default.
+   */
+  errorEnabled?: boolean
   height?: number
   advancedMode?: boolean
   triggerMode?: boolean
@@ -212,14 +220,117 @@ export interface WorkflowEdgeHandles extends WorkflowEdgeEndpoints {
   targetHandle?: string | null
 }
 
-// Falsy-coalesce (not nullish-coalesce): persistence normalizes a missing
-// handle to `null` via `edge.sourceHandle || null` (see
-// apps/realtime/src/database/operations.ts), which also maps `''` to
-// `null`. Comparing with `??` would treat `''` and `null` as distinct
-// handles pre-insert while both are written as the same `null` value,
-// letting a `sourceHandle: ''` edge slip past the duplicate check.
-function normalizeWorkflowEdgeHandle(handle: string | null | undefined): string | null {
-  return handle || null
+export const WORKFLOW_CARD_SIDES = ['top', 'right', 'bottom', 'left'] as const
+export type WorkflowCardSide = (typeof WORKFLOW_CARD_SIDES)[number]
+
+export const POSITIONED_SOURCE_HANDLE_SIDES = ['left', 'right'] as const
+export type PositionedSourceHandleSide = (typeof POSITIONED_SOURCE_HANDLE_SIDES)[number]
+export type PositionedSourceHandleId = `source-${PositionedSourceHandleSide}`
+type LegacyPositionedSourceHandleId = `source-${WorkflowCardSide}`
+
+const POSITIONED_SOURCE_HANDLE_IDS = new Set<string>(
+  WORKFLOW_CARD_SIDES.map((side) => `source-${side}`)
+)
+
+/** Returns the persistent source-handle ID for a card side. */
+export function getPositionedSourceHandleId(
+  side: PositionedSourceHandleSide
+): PositionedSourceHandleId {
+  return `source-${side}`
+}
+
+/** Identifies source handles that encode a visual card side. */
+export function isPositionedSourceHandle(
+  handle: string | null | undefined
+): handle is LegacyPositionedSourceHandleId {
+  return typeof handle === 'string' && POSITIONED_SOURCE_HANDLE_IDS.has(handle)
+}
+
+export type PositionedTargetHandleId = `target-${PositionedSourceHandleSide}`
+type LegacyPositionedTargetHandleId = `target-${WorkflowCardSide}`
+
+const POSITIONED_TARGET_HANDLE_IDS = new Set<string>(
+  WORKFLOW_CARD_SIDES.map((side) => `target-${side}`)
+)
+
+/** Returns the persistent target-handle ID for a card side. */
+export function getPositionedTargetHandleId(
+  side: PositionedSourceHandleSide
+): PositionedTargetHandleId {
+  return `target-${side}`
+}
+
+/** Identifies target handles that encode a visual card side. */
+export function isPositionedTargetHandle(
+  handle: string | null | undefined
+): handle is LegacyPositionedTargetHandleId {
+  return typeof handle === 'string' && POSITIONED_TARGET_HANDLE_IDS.has(handle)
+}
+
+/** Returns the card side encoded by a positioned source handle. */
+export function getPositionedSourceHandleSide(
+  handle: string | null | undefined
+): PositionedSourceHandleSide | null {
+  if (!isPositionedSourceHandle(handle)) return null
+  return handle === 'source-left' ? 'left' : 'right'
+}
+
+/**
+ * Collapses every non-right source anchor onto the canonical right-side anchor.
+ *
+ * Outputs leave a card from the right, always. Left is the input side, so an
+ * output anchored there would draw an outgoing line out of the input port and
+ * read as a second input. Legacy vertical anchors collapse for the same reason:
+ * top and bottom are not connection sides.
+ */
+export function normalizePositionedSourceHandleId<T extends string | null | undefined>(
+  handle: T
+): T | PositionedSourceHandleId {
+  return handle === 'source-top' || handle === 'source-bottom' || handle === 'source-left'
+    ? getPositionedSourceHandleId('right')
+    : handle
+}
+
+/** Collapses legacy vertical target anchors onto the canonical left-side anchor. */
+export function normalizePositionedTargetHandleId<T extends string | null | undefined>(
+  handle: T
+): T | PositionedTargetHandleId {
+  return handle === 'target-top' || handle === 'target-bottom'
+    ? getPositionedTargetHandleId('left')
+    : handle
+}
+
+/** Resolves a top/bottom pointer into the card's left or right connection half. */
+export function getHorizontalWorkflowHandleSide(
+  pointerX: number,
+  cardWidth: number
+): PositionedSourceHandleSide {
+  if (!Number.isFinite(pointerX) || !Number.isFinite(cardWidth) || cardWidth <= 0) return 'right'
+  return pointerX < cardWidth / 2 ? 'left' : 'right'
+}
+
+/**
+ * Returns the canonical persisted source handle used for edge identity.
+ *
+ * Falsy-coalescing mirrors persistence, where an empty handle is stored as
+ * `null`, while positioned legacy outputs collapse onto the right-side port.
+ */
+export function normalizeWorkflowEdgeSourceHandle(
+  handle: string | null | undefined
+): string | null {
+  return normalizePositionedSourceHandleId(handle || null)
+}
+
+/**
+ * Returns the canonical persisted target handle used for edge identity.
+ *
+ * Falsy-coalescing mirrors persistence, where an empty handle is stored as
+ * `null`, while legacy vertical inputs collapse onto the left-side port.
+ */
+export function normalizeWorkflowEdgeTargetHandle(
+  handle: string | null | undefined
+): string | null {
+  return normalizePositionedTargetHandleId(handle || null)
 }
 
 function isDuplicateWorkflowEdge(
@@ -228,11 +339,11 @@ function isDuplicateWorkflowEdge(
 ): boolean {
   return (
     edge.source === existing.source &&
-    normalizeWorkflowEdgeHandle(edge.sourceHandle) ===
-      normalizeWorkflowEdgeHandle(existing.sourceHandle) &&
+    normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) ===
+      normalizeWorkflowEdgeSourceHandle(existing.sourceHandle) &&
     edge.target === existing.target &&
-    normalizeWorkflowEdgeHandle(edge.targetHandle) ===
-      normalizeWorkflowEdgeHandle(existing.targetHandle)
+    normalizeWorkflowEdgeTargetHandle(edge.targetHandle) ===
+      normalizeWorkflowEdgeTargetHandle(existing.targetHandle)
   )
 }
 

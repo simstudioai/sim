@@ -11,7 +11,6 @@ export interface BlockInfo {
   id: string
   type: string
   enabled: boolean
-  horizontalHandles: boolean
   parentId?: string
   parentType?: string
   locked?: boolean
@@ -34,7 +33,6 @@ export interface BlockMenuProps {
   onDuplicate: () => void
   onDelete: () => void
   onToggleEnabled: () => void
-  onToggleHandles: () => void
   onRemoveFromSubflow: () => void
   onOpenEditor: () => void
   onRename: () => void
@@ -74,7 +72,6 @@ export function BlockMenu({
   onDuplicate,
   onDelete,
   onToggleEnabled,
-  onToggleHandles,
   onRemoveFromSubflow,
   onOpenEditor,
   onRename,
@@ -205,17 +202,6 @@ export function BlockMenu({
             }}
           >
             {hasBlockWithDisabledParent ? 'Parent is disabled' : getToggleEnabledLabel()}
-          </PopoverItem>
-        )}
-        {!allNoteBlocks && !isSubflow && (
-          <PopoverItem
-            disabled={disableEdit}
-            onClick={() => {
-              onToggleHandles()
-              onClose()
-            }}
-          >
-            Flip Handles
           </PopoverItem>
         )}
         {canRemoveFromSubflow && (

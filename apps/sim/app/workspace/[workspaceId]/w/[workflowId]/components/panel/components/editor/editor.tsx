@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
+import { Button, ChipTag, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
 import {
   BookOpen,
   Check,
@@ -12,6 +12,7 @@ import {
   SquareArrowUpRight,
   Unlock,
 } from '@sim/emcn/icons'
+import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -50,7 +51,7 @@ import {
   isBlockProtected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { isLightTileColor } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -83,19 +84,27 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
-  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
-    usePanelEditorStore(
-      useShallow((state) => ({
-        currentBlockId: state.currentBlockId,
-        connectionsHeight: state.connectionsHeight,
-        toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
-        registerRenameCallback: state.registerRenameCallback,
-      }))
-    )
+  const {
+    currentBlockId,
+    connectionsHeight,
+    toggleConnectionsCollapsed,
+    registerRenameCallback,
+    clearCurrentBlock,
+  } = usePanelEditorStore(
+    useShallow((state) => ({
+      currentBlockId: state.currentBlockId,
+      connectionsHeight: state.connectionsHeight,
+      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+      registerRenameCallback: state.registerRenameCallback,
+      clearCurrentBlock: state.clearCurrentBlock,
+    }))
+  )
   const activeSearchTarget = usePanelEditorSearchStore((state) => state.activeSearchTarget)
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
+  const typeAccent = getWorkflowTypeAccent(currentBlock?.type ?? '')
+  const isIntegration = blockConfig?.category === 'tools'
   const title = currentBlock?.name || 'Editor'
   const isBlockNameSearchHighlighted =
     activeSearchTarget?.targetKind === 'block-name' && activeSearchTarget.blockId === currentBlockId
@@ -116,6 +125,11 @@ export function Editor() {
 
   const isWorkflowBlock =
     currentBlock && (currentBlock.type === 'workflow' || currentBlock.type === 'workflow_input')
+  const isNoteBlock = currentBlock?.type === 'note'
+
+  useEffect(() => {
+    if (isNoteBlock) clearCurrentBlock()
+  }, [clearCurrentBlock, isNoteBlock])
 
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -365,25 +379,29 @@ export function Editor() {
 
   const isConnectionsAtMinHeight = connectionsHeight <= 35
 
+  if (isNoteBlock) return null
+
   return (
     <ActiveSearchTargetProvider value={activeSearchTargetForCurrentBlock}>
       <div className='flex h-full flex-col'>
         {/* Header */}
         <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex min-w-0 flex-1 items-center gap-2'>
-            {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
-              <div
-                className='flex size-[18px] items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-                style={{ background: isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor }}
+            {(blockConfig || isSubflow) && (
+              <ChipTag
+                variant={isIntegration ? 'brand' : typeAccent.variant}
+                tone={isIntegration ? undefined : typeAccent.tone}
+                brandColor={isIntegration ? blockConfig.bgColor : undefined}
+                brandForeground={
+                  isIntegration && isLightTileColor(blockConfig.bgColor) ? 'dark' : 'light'
+                }
+                className='size-[18px] justify-center px-0'
               >
                 <IconComponent
                   icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                  className={cn(
-                    'size-[12px]',
-                    getTileIconColorClass(isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor)
-                  )}
+                  className='size-[12px]'
                 />
-              </div>
+              </ChipTag>
             )}
             {isRenaming ? (
               <input

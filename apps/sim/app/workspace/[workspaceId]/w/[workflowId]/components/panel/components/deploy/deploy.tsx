@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Tooltip } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -16,16 +16,10 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 interface DeployProps {
   activeWorkflowId: string | null
   userPermissions: WorkspaceUserPermissions
-  className?: string
   disabled?: boolean
 }
 
-export function Deploy({
-  activeWorkflowId,
-  userPermissions,
-  className,
-  disabled = false,
-}: DeployProps) {
+export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: DeployProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
@@ -81,34 +75,6 @@ export function Deploy({
     }
   }
 
-  const getTooltipText = () => {
-    if (isEmpty) {
-      return 'Cannot deploy an empty workflow'
-    }
-    if (!canDeploy) {
-      return 'Admin permissions required'
-    }
-    if (disabled) {
-      return 'Workflow is locked'
-    }
-    if (isDeploying) {
-      return 'Deploying...'
-    }
-    if (isChangeDetectionSettling) {
-      return 'Syncing deployment state...'
-    }
-    if (deployReadiness.isBlocked && !isDeployed) {
-      return deployReadiness.tooltip
-    }
-    if (changeDetected) {
-      return 'Update deployment'
-    }
-    if (isDeployed) {
-      return 'Active deployment'
-    }
-    return 'Deploy workflow'
-  }
-
   const getButtonLabel = () => {
     if (changeDetected) {
       return 'Update'
@@ -121,23 +87,9 @@ export function Deploy({
 
   return (
     <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <span>
-            <Button
-              className='h-[30px] gap-1.5 px-2.5'
-              variant={
-                isRegistryLoading ? 'active' : changeDetected || !isDeployed ? 'tertiary' : 'active'
-              }
-              onClick={onDeployClick}
-              disabled={isRegistryLoading || isDisabled}
-            >
-              {getButtonLabel()}
-            </Button>
-          </span>
-        </Tooltip.Trigger>
-        <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
-      </Tooltip.Root>
+      <Chip variant='border' onClick={onDeployClick} disabled={isRegistryLoading || isDisabled}>
+        {getButtonLabel()}
+      </Chip>
 
       <DeployModal
         open={isModalOpen}

@@ -1,10 +1,18 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
-import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
+import { HANDLE_POSITIONS, humanizeBlockName, WorkflowTypeTag } from '@sim/workflow-renderer'
+import {
+  getPositionedSourceHandleId,
+  getPositionedTargetHandleId,
+  POSITIONED_SOURCE_HANDLE_SIDES,
+  type PositionedSourceHandleSide,
+} from '@sim/workflow-types/workflow'
 import { Handle, type NodeProps, Position } from 'reactflow'
+import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
 import {
   getDisplayValue,
+  hasDisplayableRowValue,
   resolveDropdownLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
@@ -20,7 +28,6 @@ import {
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -39,20 +46,33 @@ interface SubBlockValueEntry {
  */
 const HANDLE_STYLES = {
   horizontal: '!border-none !bg-[var(--surface-7)] !h-5 !w-[7px] !rounded-xs',
-  vertical: '!border-none !bg-[var(--surface-7)] !h-[7px] !w-5 !rounded-xs',
   right:
     '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none',
   error:
-    '!z-[10] !border-none !bg-[var(--text-error)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none',
+    '!z-[10] !border-none !bg-[var(--text-error)] !h-[7px] !w-6 !rounded-b-[2px] !rounded-t-none',
 } as const
 
 /** Reusable style object for error handles positioned at bottom-right */
 const ERROR_HANDLE_STYLE: CSSProperties = {
-  right: '-7px',
+  right: 'auto',
   top: 'auto',
-  bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
-  transform: 'translateY(50%)',
+  bottom: '-7px',
+  left: 'calc(100% - 30px)',
+  transform: 'translateX(-50%)',
 }
+
+const getReactFlowPosition = (side: PositionedSourceHandleSide) =>
+  side === 'left' ? Position.Left : Position.Right
+
+const getCenteredSideHandleStyle = (side: PositionedSourceHandleSide): CSSProperties => ({
+  right: 'auto',
+  bottom: 'auto',
+  width: 1,
+  height: 1,
+  top: '50%',
+  left: side === 'left' ? 0 : '100%',
+  transform: 'translate(-50%, -50%)',
+})
 
 interface WorkflowPreviewBlockData {
   type: string
@@ -179,7 +199,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     workflowMap = {},
     workflowLabelsReady = false,
     isTrigger = false,
-    horizontalHandles = false,
     enabled = true,
     isPreviewSelected = false,
     executionStatus,
@@ -201,6 +220,11 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       return acc
     }, {})
   }, [subBlockValues, lightweight])
+
+  const canvasPresentation = useMemo(
+    () => (blockConfig ? resolveCanvasBlockPresentation(blockConfig, name, rawValues) : undefined),
+    [blockConfig, name, rawValues]
+  )
 
   const visibleSubBlocks = useMemo(() => {
     if (!blockConfig?.subBlocks) return []
@@ -231,8 +255,16 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       if (!isSubBlockVisibleForMode(subBlock, false, canonicalIndex, rawValues, undefined)) {
         return false
       }
-      if (!subBlock.condition) return true
-      return evaluateSubBlockCondition(subBlock.condition, rawValues)
+      if (subBlock.condition && !evaluateSubBlockCondition(subBlock.condition, rawValues)) {
+        return false
+      }
+      if (
+        canvasPresentation?.usesDefaultTitle &&
+        subBlock.id === canvasPresentation.operationSubBlockId
+      ) {
+        return false
+      }
+      return hasDisplayableRowValue(subBlock, rawValues[subBlock.id])
     })
   }, [
     lightweight,
@@ -243,6 +275,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     isTrigger,
     canonicalIndex,
     rawValues,
+    canvasPresentation,
   ])
 
   /**
@@ -320,7 +353,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     return defaultRows
   }, [type, rawValues, lightweight])
 
-  if (!blockConfig) {
+  if (!blockConfig || !canvasPresentation) {
     return null
   }
 
@@ -341,57 +374,52 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   const hasSuccess = executionStatus === 'success'
 
   return (
-    <div className='relative w-[250px] select-none rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)]'>
+    <div className='relative w-[250px] select-none rounded-2xl border-[1.5px] border-[var(--border-1)] bg-[var(--surface-2)]'>
       {/* Selection ring overlay (takes priority over execution rings) */}
       {isPreviewSelected && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--brand-secondary)]' />
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-2xl ring-[1.5px] ring-[var(--text-secondary)]' />
       )}
       {/* Success ring overlay (only shown if not selected) */}
       {!isPreviewSelected && hasSuccess && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--brand-accent)]' />
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-2xl ring-[1.5px] ring-[var(--brand-accent)]' />
       )}
       {/* Error ring overlay (only shown if not selected) */}
       {!isPreviewSelected && hasError && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--text-error)]' />
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-2xl ring-[1.5px] ring-[var(--text-error)]' />
       )}
 
       {/* Target handle - not shown for triggers/starters */}
       {shouldShowDefaultHandles && (
         <Handle
           type='target'
-          position={horizontalHandles ? Position.Left : Position.Top}
+          position={Position.Left}
           id='target'
-          className={horizontalHandles ? HANDLE_STYLES.horizontal : HANDLE_STYLES.vertical}
-          style={
-            horizontalHandles
-              ? { left: '-7px', top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px` }
-              : { top: '-7px', left: '50%', transform: 'translateX(-50%)' }
-          }
+          className={HANDLE_STYLES.horizontal}
+          style={{ left: '-7px', top: '50%', transform: 'translateY(-50%)' }}
         />
       )}
 
       {/* Header - matches WorkflowBlock structure */}
-      <div
-        className={`flex items-center justify-between p-2 ${hasContentBelowHeader ? 'border-[var(--border-1)] border-b' : ''}`}
-      >
-        <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
-          {!isNoteBlock && (
-            <div
-              className='flex size-[24px] flex-shrink-0 items-center justify-center overflow-hidden rounded-md [&_img]:size-full'
-              style={{ background: enabled ? blockConfig.bgColor : 'gray' }}
-            >
-              <IconComponent
-                className={`size-[16px] ${enabled ? getTileIconColorClass(blockConfig.bgColor) : 'text-[var(--text-icon)]'}`}
-              />
-            </div>
-          )}
+      <div className='flex h-[40px] items-center justify-between px-2'>
+        <div className='relative z-10 flex min-w-0 flex-1 items-center'>
           <span
-            className={`truncate font-medium text-md ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
-            title={name}
+            className={`truncate font-medium text-[17px] ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
+            title={canvasPresentation.title}
           >
-            {name}
+            {humanizeBlockName(canvasPresentation.title)}
           </span>
         </div>
+        {!isNoteBlock && (
+          <WorkflowTypeTag
+            type={type}
+            typeLabel={canvasPresentation.typeLabel}
+            blockName={canvasPresentation.title}
+            Icon={IconComponent}
+            iconBgColor={blockConfig.bgColor}
+            isIntegration={blockConfig.category === 'tools'}
+            isEnabled={enabled}
+          />
+        )}
       </div>
 
       {/* Content area with subblocks */}
@@ -432,7 +460,12 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
               return (
                 <SubBlockRow
                   key={subBlock.id}
-                  title={subBlock.title ?? subBlock.id}
+                  title={
+                    subBlock.id === canvasPresentation.operationSubBlockId &&
+                    !canvasPresentation.usesDefaultTitle
+                      ? (canvasPresentation.operationRowTitle ?? subBlock.title ?? subBlock.id)
+                      : (subBlock.title ?? subBlock.id)
+                  }
                   value={lightweight ? undefined : getDisplayValue(rawValue)}
                   subBlock={lightweight ? undefined : subBlock}
                   rawValue={rawValue}
@@ -441,14 +474,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                 />
               )
             })
-          )}
-          {/* Error row for non-trigger blocks */}
-          {shouldShowDefaultHandles && (
-            <SubBlockRow
-              title='error'
-              workflowMap={workflowMap}
-              workflowLabelsReady={workflowLabelsReady}
-            />
           )}
         </div>
       )}
@@ -470,13 +495,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
               />
             )
           })}
-          <Handle
-            type='source'
-            position={Position.Right}
-            id='error'
-            className={HANDLE_STYLES.error}
-            style={ERROR_HANDLE_STYLE}
-          />
         </>
       )}
 
@@ -498,13 +516,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
               />
             )
           })}
-          <Handle
-            type='source'
-            position={Position.Right}
-            id='error'
-            className={HANDLE_STYLES.error}
-            style={ERROR_HANDLE_STYLE}
-          />
         </>
       )}
 
@@ -513,25 +524,48 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         <>
           <Handle
             type='source'
-            position={horizontalHandles ? Position.Right : Position.Bottom}
+            position={Position.Right}
             id='source'
-            className={horizontalHandles ? HANDLE_STYLES.right : HANDLE_STYLES.vertical}
-            style={
-              horizontalHandles
-                ? { right: '-7px', top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px` }
-                : { bottom: '-7px', left: '50%', transform: 'translateX(-50%)' }
-            }
+            className={HANDLE_STYLES.right}
+            style={{ right: '-7px', top: '50%', transform: 'translateY(-50%)' }}
           />
-          {shouldShowDefaultHandles && (
+          {POSITIONED_SOURCE_HANDLE_SIDES.map((side) => (
             <Handle
+              key={getPositionedSourceHandleId(side)}
               type='source'
-              position={Position.Right}
-              id='error'
-              className={HANDLE_STYLES.error}
-              style={ERROR_HANDLE_STYLE}
+              position={getReactFlowPosition(side)}
+              id={getPositionedSourceHandleId(side)}
+              className='!pointer-events-none !z-0 !border-none !bg-transparent !opacity-0'
+              style={getCenteredSideHandleStyle(side)}
+              isConnectable={false}
+              aria-hidden='true'
             />
-          )}
+          ))}
         </>
+      )}
+
+      {shouldShowDefaultHandles &&
+        POSITIONED_SOURCE_HANDLE_SIDES.map((side) => (
+          <Handle
+            key={getPositionedTargetHandleId(side)}
+            type='target'
+            position={getReactFlowPosition(side)}
+            id={getPositionedTargetHandleId(side)}
+            className='!pointer-events-none !z-0 !border-none !bg-transparent !opacity-0'
+            style={getCenteredSideHandleStyle(side)}
+            isConnectable={false}
+            aria-hidden='true'
+          />
+        ))}
+
+      {shouldShowDefaultHandles && type !== 'response' && (
+        <Handle
+          type='source'
+          position={Position.Bottom}
+          id='error'
+          className={HANDLE_STYLES.error}
+          style={ERROR_HANDLE_STYLE}
+        />
       )}
     </div>
   )
@@ -553,7 +587,6 @@ function shouldSkipPreviewBlockRender(
     prevProps.data.type !== nextProps.data.type ||
     prevProps.data.name !== nextProps.data.name ||
     prevProps.data.isTrigger !== nextProps.data.isTrigger ||
-    prevProps.data.horizontalHandles !== nextProps.data.horizontalHandles ||
     prevProps.data.enabled !== nextProps.data.enabled ||
     prevProps.data.isPreviewSelected !== nextProps.data.isPreviewSelected ||
     prevProps.data.executionStatus !== nextProps.data.executionStatus ||

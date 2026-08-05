@@ -32,7 +32,7 @@ function getSourceHandleYOffset(node: GraphNode, sourceHandle?: string | null): 
   const block = node.block
 
   if (sourceHandle === 'error') {
-    return node.metrics.height - HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET
+    return node.metrics.height
   }
 
   if (sourceHandle && SUBFLOW_START_HANDLES.has(sourceHandle)) {
@@ -58,14 +58,25 @@ function getSourceHandleYOffset(node: GraphNode, sourceHandle?: string | null): 
     }
   }
 
-  return HANDLE_POSITIONS.DEFAULT_Y_OFFSET
+  return getDefaultHandleYOffset(node)
+}
+
+/**
+ * Default handle Y for a block: regular cards anchor their side ports at the
+ * vertical center; subflow containers keep the fixed top offset.
+ */
+function getDefaultHandleYOffset(node: GraphNode): number {
+  if (node.block.type === 'loop' || node.block.type === 'parallel') {
+    return HANDLE_POSITIONS.DEFAULT_Y_OFFSET
+  }
+  return node.metrics.height / 2
 }
 
 /**
  * Calculates the Y offset for a target handle based on block type and handle ID.
  */
-function getTargetHandleYOffset(_block: BlockState, _targetHandle?: string | null): number {
-  return HANDLE_POSITIONS.DEFAULT_Y_OFFSET
+function getTargetHandleYOffset(node: GraphNode, _targetHandle?: string | null): number {
+  return getDefaultHandleYOffset(node)
 }
 
 /**
@@ -340,7 +351,7 @@ export function calculatePositions(
         bestSourceHandleY = padding.y + HANDLE_POSITIONS.DEFAULT_Y_OFFSET
       }
 
-      const targetHandleOffset = getTargetHandleYOffset(node.block, bestEdge?.targetHandle)
+      const targetHandleOffset = getTargetHandleYOffset(node, bestEdge?.targetHandle)
 
       node.position = { x: xPosition, y: bestSourceHandleY - targetHandleOffset }
     }

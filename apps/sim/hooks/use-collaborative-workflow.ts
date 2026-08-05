@@ -65,6 +65,7 @@ const logger = createLogger('CollaborativeWorkflow')
 export function useCollaborativeWorkflow() {
   const queryClient = useQueryClient()
   const undoRedo = useUndoRedo()
+  const recordBatchRemoveEdges = undoRedo.recordBatchRemoveEdges
   const isUndoRedoInProgress = useRef(false)
   const lastDiffOperationId = useRef<string | null>(null)
 
@@ -231,6 +232,9 @@ export function useCollaborativeWorkflow() {
               break
             case BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE:
               useWorkflowStore.getState().setBlockAdvancedMode(payload.id, payload.advancedMode)
+              break
+            case BLOCK_OPERATIONS.UPDATE_ERROR_ENABLED:
+              useWorkflowStore.getState().setBlockErrorEnabled(payload.id, payload.errorEnabled)
               break
             case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE:
               useWorkflowStore
@@ -1301,6 +1305,18 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation]
   )
 
+  const collaborativeSetBlockErrorEnabled = useCallback(
+    (id: string, errorEnabled: boolean) => {
+      executeQueuedOperation(
+        BLOCK_OPERATIONS.UPDATE_ERROR_ENABLED,
+        OPERATION_TARGETS.BLOCK,
+        { id, errorEnabled },
+        () => useWorkflowStore.getState().setBlockErrorEnabled(id, errorEnabled)
+      )
+    },
+    [executeQueuedOperation]
+  )
+
   const collaborativeSetBlockCanonicalMode = useCallback(
     (id: string, canonicalId: string, canonicalMode: 'basic' | 'advanced') => {
       if (isBaselineDiffView) {
@@ -1549,13 +1565,13 @@ export function useCollaborativeWorkflow() {
       useWorkflowStore.getState().batchRemoveEdges(validEdgeIds)
 
       if (!options?.skipUndoRedo && edgeSnapshots.length > 0) {
-        undoRedo.recordBatchRemoveEdges(edgeSnapshots)
+        recordBatchRemoveEdges(edgeSnapshots)
       }
 
       logger.info('Batch removed edges', { count: validEdgeIds.length })
       return true
     },
-    [isBaselineDiffView, addToQueue, activeWorkflowId, session, undoRedo]
+    [isBaselineDiffView, addToQueue, activeWorkflowId, session, recordBatchRemoveEdges]
   )
 
   const collaborativeSetSubblockValue = useCallback(
@@ -2255,6 +2271,7 @@ export function useCollaborativeWorkflow() {
     collaborativeBatchToggleBlockEnabled,
     collaborativeBatchUpdateParent,
     collaborativeToggleBlockAdvancedMode,
+    collaborativeSetBlockErrorEnabled,
     collaborativeSetBlockCanonicalMode,
     collaborativeSetBlockCanonicalModes,
     collaborativeBatchToggleBlockHandles,

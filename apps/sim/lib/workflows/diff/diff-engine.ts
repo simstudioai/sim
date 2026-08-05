@@ -42,6 +42,7 @@ function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): b
   if (currentBlock.name !== proposedBlock.name) return true
   if (currentBlock.enabled !== proposedBlock.enabled) return true
   if (currentBlock.triggerMode !== proposedBlock.triggerMode) return true
+  if (currentBlock.errorEnabled !== proposedBlock.errorEnabled) return true
   if ((currentBlock.data?.parentId ?? null) !== (proposedBlock.data?.parentId ?? null)) return true
 
   // Compare subBlocks
@@ -73,7 +74,14 @@ function computeFieldDiff(
   const unchangedFields: string[] = []
 
   // Check basic fields
-  const fieldsToCheck = ['type', 'name', 'enabled', 'triggerMode', 'horizontalHandles'] as const
+  const fieldsToCheck = [
+    'type',
+    'name',
+    'enabled',
+    'triggerMode',
+    'horizontalHandles',
+    'errorEnabled',
+  ] as const
   for (const field of fieldsToCheck) {
     const currentValue = currentBlock[field]
     const proposedValue = proposedBlock[field]

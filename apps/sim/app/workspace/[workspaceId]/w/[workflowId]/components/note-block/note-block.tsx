@@ -1,23 +1,43 @@
-import { memo, useCallback, useMemo } from 'react'
-import { BLOCK_DIMENSIONS, NoteBlockView } from '@sim/workflow-renderer'
-import type { NodeProps } from 'reactflow'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  BLOCK_DIMENSIONS,
+  DEFAULT_NOTE_COLOR,
+  estimateNoteBlockHeight,
+  isNoteColor,
+  NoteBlockView,
+  type NoteColor,
+  type NoteContentEditorProps,
+} from '@sim/workflow-renderer'
+import { type NodeProps, useReactFlow } from 'reactflow'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
+import { NoteMarkdownEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-markdown-editor'
+import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import { isBlockProtected } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
+import { usePanelEditorStore } from '@/stores/panel'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import type { WorkflowBlockProps } from '../workflow-block/types'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface NoteBlockNodeData extends WorkflowBlockProps {}
 
-/** Extracts the string content from a raw subblock value (string or `{ value }`). */
-function extractFieldValue(rawValue: unknown): string | undefined {
+const NOTE_EXPAND_FOCUS_DURATION_MS = 300
+
+/** Resolves a string stored directly or inside a serialized subblock value. */
+function getNoteStringValue(rawValue: unknown): string | undefined {
   if (typeof rawValue === 'string') return rawValue
   if (rawValue && typeof rawValue === 'object' && 'value' in rawValue) {
     const candidate = (rawValue as { value?: unknown }).value
     return typeof candidate === 'string' ? candidate : undefined
   }
   return undefined
+}
+
+function renderNoteContentEditor(props: NoteContentEditorProps) {
+  return <NoteMarkdownEditor {...props} />
 }
 
 /**
@@ -34,12 +54,15 @@ export const NoteBlock = memo(function NoteBlock({
   selected,
 }: NodeProps<NoteBlockNodeData>) {
   const { type, name } = data
+  const focusFrameRef = useRef<number | null>(null)
+  const { getNode, getViewport, setCenter } = useReactFlow()
 
-  const { activeWorkflowId, isEnabled, handleClick, hasRing, ringStyles } = useBlockVisual({
+  const { activeWorkflowId, isEnabled, hasRing, ringStyles } = useBlockVisual({
     blockId: id,
     data,
     isSelected: selected,
   })
+  const { collaborativeSetSubblockValue, collaborativeUpdateBlockName } = useCollaborativeWorkflow()
   const storedValues = useSubBlockStore(
     useCallback(
       (state) => {
@@ -52,17 +75,92 @@ export const NoteBlock = memo(function NoteBlock({
 
   const content = useMemo(() => {
     if (data.isPreview && data.subBlockValues) {
-      const extractedContent = extractFieldValue(data.subBlockValues.content)
+      const extractedContent = getNoteStringValue(data.subBlockValues.content)
       return typeof extractedContent === 'string' ? extractedContent : ''
     }
-    const storedContent = extractFieldValue(storedValues?.content)
+    const storedContent = getNoteStringValue(storedValues?.content)
     return typeof storedContent === 'string' ? storedContent : ''
   }, [data.isPreview, data.subBlockValues, storedValues])
 
-  const isEmpty = content.trim().length === 0
+  const rawColor = data.isPreview
+    ? getNoteStringValue(data.subBlockValues?.color)
+    : getNoteStringValue(storedValues?.color)
+  const noteColor = isNoteColor(rawColor) ? rawColor : DEFAULT_NOTE_COLOR
 
   const userPermissions = useUserPermissionsContext()
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
   const canEditWorkflow = userPermissions.canEdit && !data.isWorkflowLocked
+  const isProtected = useWorkflowStore(
+    useCallback((state) => isBlockProtected(id, state.blocks), [id])
+  )
+  const clearCurrentBlock = usePanelEditorStore((state) => state.clearCurrentBlock)
+  const canEditNote = canEditWorkflow && !data.isPreview && !isProtected
+  const [blockHeight, setBlockHeight] = useState(() => estimateNoteBlockHeight(content))
+  const [isExpanded, setIsExpanded] = useState(false)
+  const isFocused = selected
+
+  useEffect(() => {
+    if (!canEditNote) setIsExpanded(false)
+  }, [canEditNote])
+
+  useEffect(
+    () => () => {
+      if (focusFrameRef.current !== null) cancelAnimationFrame(focusFrameRef.current)
+    },
+    []
+  )
+
+  const handleNameChange = (nextName: string) => {
+    if (!canEditNote) return false
+    return collaborativeUpdateBlockName(id, nextName).success
+  }
+
+  const handleContentChange = (nextContent: string) => {
+    if (!canEditNote) return
+    collaborativeSetSubblockValue(id, 'content', nextContent)
+  }
+
+  const handleColorChange = useCallback(
+    (color: NoteColor) => {
+      if (!canEditNote) return
+      collaborativeSetSubblockValue(id, 'color', color)
+    },
+    [canEditNote, collaborativeSetSubblockValue, id]
+  )
+
+  const handleNoteSelect = useCallback(() => {
+    if (data.isPreview || data.isEmbedded) return
+    clearCurrentBlock()
+  }, [clearCurrentBlock, data.isEmbedded, data.isPreview])
+
+  const handleExpandedChange = useCallback(
+    (expanded: boolean) => {
+      if (expanded && !canEditNote) return
+      if (expanded) handleNoteSelect()
+      setIsExpanded(expanded)
+
+      if (focusFrameRef.current !== null) cancelAnimationFrame(focusFrameRef.current)
+      if (!expanded) return
+
+      focusFrameRef.current = requestAnimationFrame(() => {
+        focusFrameRef.current = requestAnimationFrame(() => {
+          focusFrameRef.current = null
+          const node = getNode(id)
+          const position = node?.positionAbsolute ?? node?.position
+          if (!position) return
+          void setCenter(
+            position.x + BLOCK_DIMENSIONS.NOTE_WIDTH / 2,
+            position.y + blockHeight / 2,
+            {
+              zoom: getViewport().zoom,
+              duration: NOTE_EXPAND_FOCUS_DURATION_MS,
+            }
+          )
+        })
+      })
+    },
+    [blockHeight, canEditNote, getNode, getViewport, handleNoteSelect, id, setCenter]
+  )
 
   /**
    * Calculate deterministic dimensions based on content structure. Uses fixed
@@ -71,26 +169,43 @@ export const NoteBlock = memo(function NoteBlock({
   useBlockDimensions({
     blockId: id,
     calculateDimensions: () => {
-      const contentHeight = isEmpty
-        ? BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
-        : BLOCK_DIMENSIONS.NOTE_BASE_CONTENT_HEIGHT
-      const calculatedHeight =
-        BLOCK_DIMENSIONS.HEADER_HEIGHT + BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + contentHeight
-
-      return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: calculatedHeight }
+      return {
+        width: BLOCK_DIMENSIONS.NOTE_WIDTH,
+        height: blockHeight,
+      }
     },
-    dependencies: [isEmpty],
+    dependencies: [blockHeight],
   })
 
   return (
     <NoteBlockView
       name={name}
       content={content}
+      noteColor={noteColor}
       isEnabled={isEnabled}
+      isFocused={isFocused}
+      isExpanded={isExpanded}
+      canEdit={canEditNote}
       hasRing={hasRing}
       ringStyles={ringStyles}
-      onSelect={handleClick}
-      actionBar={<ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />}
+      onSelect={handleNoteSelect}
+      onNameChange={handleNameChange}
+      onContentChange={handleContentChange}
+      onHeightChange={setBlockHeight}
+      onExpandedChange={handleExpandedChange}
+      renderContentEditor={renderNoteContentEditor}
+      actionBar={
+        <ActionBar
+          blockId={id}
+          blockType={type}
+          disabled={!canEditWorkflow}
+          variant='swell'
+          isWorkflowRunning={isWorkflowRunning}
+          noteColor={noteColor}
+          onNoteColorChange={handleColorChange}
+          onNoteColorMenuOpen={handleNoteSelect}
+        />
+      }
     />
   )
 })

@@ -362,6 +362,7 @@ describe('Database Helpers', () => {
         name: 'Start Block',
         position: { x: 100, y: 100 },
         enabled: true,
+        errorEnabled: false,
         horizontalHandles: true,
         height: 150,
         subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
@@ -369,6 +370,7 @@ describe('Database Helpers', () => {
         data: { parentId: undefined, extent: undefined, width: 350 },
         advancedMode: false,
         triggerMode: false,
+        locked: undefined,
       })
 
       expect(result?.edges[0]).toEqual({

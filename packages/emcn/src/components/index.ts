@@ -204,6 +204,7 @@ export {
   isFocusVisible,
   isTextClipped,
   Tooltip,
+  type UseFloatingTooltipOptions,
   useFloatingTooltip,
   useIsOverflowing,
 } from './tooltip/tooltip'
