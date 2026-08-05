@@ -680,7 +680,7 @@ describe('useWorkflowExecution attachment uploads', () => {
     unmount()
   })
 
-  it('uses fresh execution for trigger block runs instead of restoring an empty snapshot', async () => {
+  it('uses fresh execution for trigger block runs and stores their snapshot', async () => {
     const currentBlocks = {
       ...workflowBlocks,
       start: {
@@ -693,6 +693,18 @@ describe('useWorkflowExecution attachment uploads', () => {
       edges: [],
       loops: {},
       parallels: {},
+    })
+    mockExecute.mockImplementationOnce(async (options) => {
+      executionStoreState.getCurrentExecutionId.mockReturnValue('execution-1')
+      options.onExecutionId?.('execution-1')
+      await options.callbacks?.onExecutionCompleted?.({
+        success: true,
+        output: {},
+        duration: 10,
+        startTime: '2026-08-04T00:00:00.000Z',
+        endTime: '2026-08-04T00:00:00.010Z',
+        finalBlockLogs: [],
+      })
     })
     const { result, unmount } = renderWorkflowExecutionHook()
 
@@ -717,6 +729,13 @@ describe('useWorkflowExecution attachment uploads', () => {
     )
     expect(mockExecute.mock.calls[0]?.[0]).not.toHaveProperty('sourceSnapshot')
     expect(mockExecuteFromBlock).not.toHaveBeenCalled()
+    expect(executionStoreState.setLastExecutionSnapshot).toHaveBeenCalledWith(
+      'workflow-1',
+      expect.objectContaining({
+        sourceExecutionId: 'execution-1',
+        executedBlocks: ['start'],
+      })
+    )
 
     unmount()
   })

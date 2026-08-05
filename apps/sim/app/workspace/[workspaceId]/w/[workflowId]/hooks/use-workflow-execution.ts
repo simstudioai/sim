@@ -41,6 +41,7 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { getRunFromBlockDependencyState } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/run-from-block'
 import {
   type UploadedWorkflowAttachment,
   uploadWorkflowAttachments,
@@ -1921,25 +1922,13 @@ export function useWorkflowExecution() {
       const snapshot = getLastExecutionSnapshot(workflowId)
       const latestWorkflowState = useWorkflowStore.getState().getWorkflowState()
       const workflowEdges = latestWorkflowState.edges
-      const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
-      const isTriggerBlock = incomingEdges.length === 0
+      const { isEntryBlock: isTriggerBlock, dependenciesSatisfied } =
+        getRunFromBlockDependencyState(blockId, workflowEdges, snapshot ?? undefined)
 
-      // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
-      const isSourceSatisfied = (sourceId: string) => {
-        if (snapshot?.executedBlocks.includes(sourceId)) return true
-        // Check if source is a trigger (has no incoming edges itself)
-        const sourceIncomingEdges = workflowEdges.filter((edge) => edge.target === sourceId)
-        return sourceIncomingEdges.length === 0
-      }
-
-      // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
       if (!snapshot && !isTriggerBlock) {
         logger.error('No execution snapshot available for run-from-block', { workflowId, blockId })
         return
       }
-
-      const dependenciesSatisfied =
-        isTriggerBlock || incomingEdges.every((edge) => isSourceSatisfied(edge.source))
 
       if (!dependenciesSatisfied) {
         logger.error('Upstream dependencies not satisfied for run-from-block', {
